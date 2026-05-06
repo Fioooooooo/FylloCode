@@ -1,4 +1,10 @@
-## ADDED Requirements
+# project-store-persistence 规范
+
+## Purpose
+
+项目持久化规范定义项目元数据文件存储、项目列表加载、启动预热、按 ID 查询以及目录缺失处理行为。
+
+## Requirements
 
 ### Requirement: Project 元数据持久化到文件系统
 

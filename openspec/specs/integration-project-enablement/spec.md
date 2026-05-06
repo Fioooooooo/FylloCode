@@ -1,5 +1,7 @@
 # integration-project-enablement 规范
 
+## Purpose
+
 集成工具的项目级启用功能允许用户针对特定项目独立控制工具的启用状态，并支持覆盖全局配置的项目专属参数。
 
 ## Requirements

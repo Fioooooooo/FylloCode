@@ -107,44 +107,63 @@ interface CreateProjectForm {
 }
 ```
 
-## Pipeline（`pipeline.ts`）
+## Workflow（`workflow.ts`）
 
 **核心实体：**
 
 ```ts
-interface PipelineTemplate {
-  id;
-  name;
-  description;
-  source: "built-in" | "custom";
-  stages: PipelineStageConfig[];
-  isDefault: boolean;
-  createdAt;
-  updatedAt;
+type WorkflowStageType =
+  | "proposal-apply"
+  | "code-review"
+  | "security-check"
+  | "create-pr"
+  | "custom";
+
+interface WorkflowStage {
+  id: string;
+  name: string;
+  type: WorkflowStageType;
+  agent?: string;
+  prompt?: string;
+  when?: string;
+  onFailure?: string;
+  mcp?: string[];
+  skills?: string[];
 }
 
-interface PipelineRun {
-  id;
-  projectId;
-  title;
-  templateId;
-  templateName;
-  triggerDescription;
-  status: "running" | "completed" | "failed" | "aborted";
-  stages: PipelineStageRun[];
-  currentStageIndex: number;
-  createdAt;
-  updatedAt;
+interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  version?: number;
+  source: "built-in" | "custom";
+  yaml: string;
+  stages: WorkflowStage[];
 }
 ```
 
-**Stage 类型：** `"discuss" | "code" | "test" | "review" | "deploy" | "custom"`
+**请求与响应：**
 
-**Stage 状态：** `"pending" | "running" | "passed" | "failed" | "skipped" | "waiting-approval"`
+```ts
+interface WorkflowSaveRequest {
+  name: string;
+  yaml: string;
+  projectId?: string;
+}
 
-**Gate 条件类型：** `"test-pass-rate" | "coverage-threshold" | "no-critical-review" | "manual-approval" | "custom-script"`
+interface WorkflowListRequest {
+  projectId?: string;
+}
 
-**失败策略：** `"retry" | "pause" | "skip" | "abort"`
+interface WorkflowListResult {
+  templates: WorkflowTemplate[];
+}
+
+interface WorkflowDeleteRequest {
+  name: string;
+  projectId?: string;
+}
+```
 
 ## Integration（`integration.ts`）
 

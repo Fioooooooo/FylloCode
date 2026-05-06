@@ -48,22 +48,13 @@
 | `project:remove`         | `ProjectChannels.remove`         | handle |
 | `project:openFolder`     | `ProjectChannels.openFolder`     | handle |
 
-### Pipeline（`window.api.pipeline`）
+### Workflow（`window.api.workflow`）
 
-| Channel                       | 常量                                 | 类型     |
-| ----------------------------- | ------------------------------------ | -------- |
-| `pipeline:listTemplates`      | `PipelineChannels.listTemplates`     | handle   |
-| `pipeline:getTemplate`        | `PipelineChannels.getTemplate`       | handle   |
-| `pipeline:createTemplate`     | `PipelineChannels.createTemplate`    | handle   |
-| `pipeline:updateTemplate`     | `PipelineChannels.updateTemplate`    | handle   |
-| `pipeline:removeTemplate`     | `PipelineChannels.removeTemplate`    | handle   |
-| `pipeline:listRuns`           | `PipelineChannels.listRuns`          | handle   |
-| `pipeline:getRun`             | `PipelineChannels.getRun`            | handle   |
-| `pipeline:createRun`          | `PipelineChannels.createRun`         | handle   |
-| `pipeline:abortRun`           | `PipelineChannels.abortRun`          | handle   |
-| `pipeline:approveStage`       | `PipelineChannels.approveStage`      | handle   |
-| `pipeline:event:stageChanged` | `PipelineEventChannels.stageChanged` | 事件推送 |
-| `pipeline:event:runCompleted` | `PipelineEventChannels.runCompleted` | 事件推送 |
+| Channel           | 常量                      | 类型   |
+| ----------------- | ------------------------- | ------ |
+| `workflow:list`   | `WorkflowChannels.list`   | handle |
+| `workflow:save`   | `WorkflowChannels.save`   | handle |
+| `workflow:delete` | `WorkflowChannels.delete` | handle |
 
 ### Integration（`window.api.integration`）
 

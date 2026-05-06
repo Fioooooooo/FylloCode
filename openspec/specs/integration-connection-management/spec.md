@@ -1,5 +1,7 @@
 # integration-connection-management 规范
 
+## Purpose
+
 集成连接管理定义了用户通过 API Token 或 OAuth 连接第三方工具、以及断开连接的交互规范。连接状态持久化到主进程，凭证存储在各平台独立的 credentials 文件中。
 
 ## Requirements

@@ -1,5 +1,7 @@
 # agent-controls 规范
 
+## Purpose
+
 Agent 控件定义了 Chat 底部输入栏的固定布局、多行输入、发送、附件以及功能栏中 Agent 选择和模式切换的交互规范。
 
 ## Requirements

@@ -23,7 +23,7 @@ The system SHALL display the FylloCode logo, product name, and tagline centered 
 #### Scenario: Brand identity is visible
 
 - **WHEN** the Welcome content is displayed
-- **THEN** the logo, "FylloCode" text, and tagline "Autonomous Coding Pipeline" are visible
+- **THEN** the logo, "FylloCode" text, and tagline "Autonomous Coding Workflow" are visible
 - **AND** they are horizontally centered
 
 ### Requirement: Welcome page provides action buttons

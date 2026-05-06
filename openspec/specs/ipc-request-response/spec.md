@@ -1,3 +1,11 @@
+# ipc-request-response 规范
+
+## Purpose
+
+IPC 请求响应规范定义 preload API 暴露方式、main handler 注册方式、invoke/handle 通信模式和类型安全要求。
+
+## Requirements
+
 ### Requirement: Preload 按业务域暴露领域 API
 
 Preload 层 SHALL 为每个业务域创建独立的 API 模块（`preload/api/<domain>.ts`），通过 `contextBridge.exposeInMainWorld('api', { ... })` 暴露给 renderer。Renderer 通过 `window.api.<domain>.<action>()` 调用，不接触 IPC channel 字符串。
@@ -10,7 +18,7 @@ Preload 层 SHALL 为每个业务域创建独立的 API 模块（`preload/api/<d
 #### Scenario: Preload API 模块独立
 
 - **WHEN** 查看 preload/api/ 目录
-- **THEN** 每个业务域有独立文件（chat.ts、project.ts、pipeline.ts、integration.ts、settings.ts、window.ts）
+- **THEN** 每个业务域有独立文件（chat.ts、project.ts、workflow.ts、integration.ts、settings.ts、window.ts）
 
 ### Requirement: Main 按业务域注册 handler
 
@@ -52,7 +60,7 @@ Main 进程 SHALL 为每个业务域创建独立的 handler 模块（`main/ipc/<
 
 ### Requirement: 每个域提供标准 CRUD 操作集
 
-对于资源型业务域（project、chat session、pipeline template），preload API SHALL 提供 `get`、`list`、`create`、`update`、`remove` 标准操作。非资源型操作（如 `window.minimize()`）使用语义化命名。
+对于资源型业务域（project、chat session、workflow template），preload API SHALL 提供 `get`、`list`、`create`、`update`、`remove` 标准操作。非资源型操作（如 `workflow.save()`、`window.minimize()`）使用语义化命名。
 
 #### Scenario: 资源型域的标准操作
 
@@ -61,5 +69,5 @@ Main 进程 SHALL 为每个业务域创建独立的 handler 模块（`main/ipc/<
 
 #### Scenario: 非资源型域的语义化操作
 
-- **WHEN** 查看 window 域的 preload API
-- **THEN** 包含 `minimize`、`maximize`、`close`、`toggleDevTools` 等语义化方法
+- **WHEN** 查看 workflow 域的 preload API
+- **THEN** 包含 `list`、`save`、`delete` 等语义化方法

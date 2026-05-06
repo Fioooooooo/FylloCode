@@ -1,3 +1,11 @@
+# claude-cli-stream 规范
+
+## Purpose
+
+Claude CLI stream 规范保留本地 Claude CLI 流式通信、会话映射、消息解析和错误处理要求。
+
+## Requirements
+
 > **DEPRECATED**: 此 capability 已被 `acp-chat-backend` 取代，所有 requirements 已移除。详见 change `acp-agent-chat-integration`。
 
 ### Requirement: Claude CLI 子进程以 stream-json 模式启动

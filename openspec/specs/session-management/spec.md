@@ -1,5 +1,7 @@
 # session-management 规范
 
+## Purpose
+
 Session 管理定义了 Chat 左侧边栏中 session 列表的展示、新建、选择和操作行为。
 
 ## Requirements

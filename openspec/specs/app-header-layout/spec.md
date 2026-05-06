@@ -1,5 +1,7 @@
 # app-header-layout 规范
 
+## Purpose
+
 应用 Header 布局定义了 AppHeader 组件的尺寸、三栏布局、交互元素、Electron 窗口拖拽以及 macOS 原生标题栏的处理规范。
 
 ## Requirements

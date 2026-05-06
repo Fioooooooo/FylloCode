@@ -1,3 +1,11 @@
+# ipc-protocol 规范
+
+## Purpose
+
+IPC 协议规范定义通道命名、统一响应结构、错误码格式、共享类型可见性和业务域覆盖范围。
+
+## Requirements
+
 ### Requirement: IPC channel 采用 domain:action 命名格式
 
 所有 IPC channel 名称 SHALL 遵循 `domain:action` 格式，其中 domain 为业务域标识（小写），action 为操作名称（camelCase）。
@@ -57,12 +65,12 @@ IPC 相关的 TypeScript 类型（`IpcResponse`、channel 名称映射、请求/
 
 ### Requirement: 业务域覆盖应用全部核心功能
 
-IPC 通信层 SHALL 定义以下业务域：chat、project、pipeline、integration、settings、window。每个域对应独立的 preload API 文件和 main handler 文件。
+IPC 通信层 SHALL 定义以下业务域：`chat`、`project`、`workflow`、`integration`、`settings`、`window`。每个域对应独立的 preload API 文件和 main handler 文件。
 
 #### Scenario: 域列表完整性
 
 - **WHEN** 检查 IPC 通信层覆盖的业务域
-- **THEN** 包含 chat、project、pipeline、integration、settings、window 六个域
+- **THEN** 包含 `chat`、`project`、`workflow`、`integration`、`settings`、`window` 六个域
 
 ### Requirement: 流式通信和事件推送的 channel 使用独立语义标识
 
@@ -75,5 +83,5 @@ IPC 通信层 SHALL 定义以下业务域：chat、project、pipeline、integrat
 
 #### Scenario: 事件推送 channel 命名
 
-- **WHEN** 为 pipeline 域定义阶段状态变更事件
-- **THEN** channel 名称为 `pipeline:event:stageChanged`
+- **WHEN** 为 acp 域定义 agent registry 更新事件
+- **THEN** channel 名称为 `acp:event:registryUpdated`

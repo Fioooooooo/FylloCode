@@ -29,13 +29,17 @@ FylloCode/
 ├── build/              # 构建资源（图标、entitlements）
 ├── resources/          # 应用资源
 ├── shared/             # electron 与 frontend 共享类型、配置
-├── data/               # 开发环境数据目录（已 gitignore，生产环境使用系统路径）
-│   ├── projects/       # 项目元数据
-│   ├── sessions/       # 会话记录（按 {projectId}/{sessionId}.json 组织）
-│   ├── settings/       # 用户偏好（preferences.json）
-│   ├── integrations/   # 集成配置
-│   ├── pipelines/      # Pipeline 模板与运行记录
-│   └── logs/           # 应用日志
+├── data/               # 开发环境数据目录（与 Electron userData 对应，已 gitignore）
+│   ├── acp/            # ACP registry、icons、installed 状态和安装缓存
+│   ├── integrations/   # 集成连接与凭证配置
+│   ├── logs/           # 应用日志
+│   ├── projects/       # 项目元数据与项目作用域数据
+│   │   └── {projectId}/
+│   │       ├── meta.json
+│   │       ├── sessions/    # 当前项目的会话记录
+│   │       └── workflows/   # 当前项目的自定义工作流
+│   ├── settings/       # 用户偏好
+│   └── workflows/      # 全局内置工作流文件
 ├── vitest.config.mts   # Vitest 配置（ESM，.mts 后缀）
 ├── electron.vite.config.ts
 ├── electron-builder.yml
@@ -47,12 +51,16 @@ FylloCode/
 
 业务数据通过 `electron/main/utils/paths.ts` 统一管理：
 
-| 路径函数                     | 开发环境         | 生产环境                                                     |
-| ---------------------------- | ---------------- | ------------------------------------------------------------ |
-| `getDataSubPath("projects")` | `data/projects/` | `~/Library/Application Support/FylloCode/projects/`（macOS） |
-| `getDataSubPath("sessions")` | `data/sessions/` | `~/Library/Application Support/FylloCode/sessions/`          |
-| `getDataSubPath("settings")` | `data/settings/` | `~/Library/Application Support/FylloCode/settings/`          |
-| `getLogsPath()`              | `data/logs/`     | `~/Library/Logs/FylloCode/`（macOS）                         |
+| 路径函数                         | 开发环境             | 生产环境                                                     |
+| -------------------------------- | -------------------- | ------------------------------------------------------------ |
+| `getDataSubPath("projects")`     | `data/projects/`     | `~/Library/Application Support/FylloCode/projects/`（macOS） |
+| `getDataSubPath("settings")`     | `data/settings/`     | `~/Library/Application Support/FylloCode/settings/`          |
+| `getDataSubPath("acp")`          | `data/acp/`          | `~/Library/Application Support/FylloCode/acp/`               |
+| `getDataSubPath("integrations")` | `data/integrations/` | `~/Library/Application Support/FylloCode/integrations/`      |
+| `getDataSubPath("workflows")`    | `data/workflows/`    | `~/Library/Application Support/FylloCode/workflows/`         |
+| `getLogsPath()`                  | `data/logs/`         | `~/Library/Logs/FylloCode/`（macOS）                         |
+
+项目作用域数据统一存放在 `getDataSubPath("projects")/{encodedPath}/`，其中 `{encodedPath}` 由项目路径编码得到。该目录下的 `meta.json` 保存项目元数据，`sessions/` 保存当前项目的会话记录，`workflows/` 保存当前项目的自定义工作流。
 
 Electron 内部缓存（Code Cache、GPU Cache 等）始终使用系统默认路径，不受影响。
 

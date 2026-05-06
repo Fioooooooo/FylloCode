@@ -1,4 +1,10 @@
-## ADDED Requirements
+# app-bootstrap 规范
+
+## Purpose
+
+应用 bootstrap 规范定义前端应用启动后的非阻塞初始化入口、任务注册机制、并发执行方式和失败隔离要求。
+
+## Requirements
 
 ### Requirement: 应用提供统一的非阻塞 bootstrap 入口
 

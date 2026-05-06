@@ -1,3 +1,11 @@
+# ipc-streaming 规范
+
+## Purpose
+
+IPC 流式通信规范定义 AI 聊天 MessagePort 流式输出、流式 chunk 消息语义和事件订阅模式。
+
+## Requirements
+
 ### Requirement: AI 聊天流式输出使用 MessagePort 通信
 
 AI 聊天的流式响应 SHALL 通过 MessagePort 传输。Main 进程创建 `MessageChannelMain`，将 port2 通过 `postMessage` 传递给 renderer，在 port1 上逐 chunk 推送数据。
@@ -62,12 +70,12 @@ Preload 暴露给 renderer 的流式 API SHALL 采用回调式接口，renderer 
 
 ### Requirement: 事件推送使用 ipcRenderer.on 订阅模式
 
-非流式的事件推送（Pipeline 状态变更、下载进度等）SHALL 使用 `event.sender.send` + `ipcRenderer.on` 模式，preload 封装为订阅/取消订阅 API。
+非流式的事件推送（下载进度、agent 安装进度等）SHALL 使用 `event.sender.send` + `ipcRenderer.on` 模式，preload 封装为订阅/取消订阅 API。
 
-#### Scenario: 订阅 Pipeline 阶段状态变更
+#### Scenario: 订阅下载进度事件
 
-- **WHEN** renderer 调用 `window.api.pipeline.onStageChanged(handler)`
-- **THEN** preload 内部注册 `ipcRenderer.on('pipeline:event:stageChanged', handler)`
+- **WHEN** renderer 调用下载进度订阅 API 并传入 handler
+- **THEN** preload 内部注册对应的 `ipcRenderer.on('<domain>:event:progress', handler)`
 - **AND** 返回 unsubscribe 函数
 
 #### Scenario: 取消订阅
@@ -82,7 +90,7 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 
 #### Scenario: 多组件同时订阅同一事件
 
-- **WHEN** 两个组件分别调用 `window.api.pipeline.onStageChanged(handlerA)` 和 `window.api.pipeline.onStageChanged(handlerB)`
+- **WHEN** 两个组件分别调用同一事件的订阅 API 并传入 handlerA 和 handlerB
 - **THEN** 两个 handler 均被注册
 - **AND** 调用 handlerA 的 unsubscribe 不影响 handlerB
 
@@ -90,12 +98,12 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 
 所有事件推送消息 SHALL 包含 `type` 和 `payload` 字段，其中 type 标识事件类型，payload 为事件数据。
 
-#### Scenario: Pipeline 阶段变更事件结构
-
-- **WHEN** Pipeline 某阶段状态从 running 变为 passed
-- **THEN** 推送消息为 `{ type: 'stageChanged', payload: { runId, stageId, status: 'passed', timestamp } }`
-
 #### Scenario: 下载进度事件结构
 
 - **WHEN** 文件下载进度更新
 - **THEN** 推送消息为 `{ type: 'progress', payload: { taskId, percent, bytesDownloaded, totalBytes } }`
+
+#### Scenario: Agent 安装进度事件结构
+
+- **WHEN** agent 安装进度更新
+- **THEN** 推送消息为 `{ type: 'installProgress', payload: { agentId, percent, status } }`

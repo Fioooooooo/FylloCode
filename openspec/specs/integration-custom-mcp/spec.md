@@ -1,5 +1,7 @@
 # integration-custom-mcp 规范
 
+## Purpose
+
 自定义集成（Custom MCP）允许用户在标准集成工具之外，配置自定义 MCP 服务器地址和 Skill 参数，作为高级扩展入口。
 
 ## Requirements

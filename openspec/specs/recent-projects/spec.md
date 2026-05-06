@@ -1,3 +1,11 @@
+# recent-projects 规范
+
+## Purpose
+
+最近项目规范定义欢迎页最近项目列表展示、项目打开前目录校验和从历史记录中移除项目的行为。
+
+## Requirements
+
 ### Requirement: 显示最近项目列表
 
 系统 SHALL 在欢迎页显示最近打开的项目列表，数据从持久化 project 列表派生。

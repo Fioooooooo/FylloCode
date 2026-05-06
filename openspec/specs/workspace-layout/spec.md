@@ -1,5 +1,7 @@
 # workspace-layout 规范
 
+## Purpose
+
 工作区布局定义了 Chat 页面的五区域布局结构，由共享应用外壳与 Chat 专属内容组合而成。
 
 ## Requirements

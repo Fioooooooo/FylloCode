@@ -1,5 +1,7 @@
 # chat-interface 规范
 
+## Purpose
+
 Chat 界面定义了消息流的渲染方式以及侧边栏的展示行为。
 
 ## Requirements

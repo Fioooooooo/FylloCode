@@ -1,5 +1,7 @@
 # layout-welcome-integration 规范
 
+## Purpose
+
 欢迎页集成布局定义了无项目打开时 WelcomeView 在共享应用外壳内的渲染方式，以及欢迎页功能的完整保留。
 
 ## Requirements

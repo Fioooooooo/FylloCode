@@ -12,7 +12,7 @@ The system SHALL provide a route-level parent page for all application pages, an
 
 #### Scenario: Shared shell wraps application pages
 
-- **WHEN** the user navigates to `/chat`, `/pipeline`, `/integration`, `/proposal`, `/proposal/:id`, or `/settings`
+- **WHEN** the user navigates to `/chat`, `/workflow`, `/integration`, `/proposal`, `/proposal/:id`, or `/settings`
 - **THEN** the route is rendered inside the shared application shell
 - **AND** the page-specific content is rendered in the shell's main region
 
@@ -36,7 +36,7 @@ The system SHALL prevent access to project-scoped application routes when no cur
 
 #### Scenario: Project-scoped route without project
 
-- **WHEN** the user navigates directly to `/chat`, `/pipeline`, `/integration`, `/proposal`, or `/proposal/:id` without a current project
+- **WHEN** the user navigates directly to `/chat`, `/workflow`, `/integration`, `/proposal`, or `/proposal/:id` without a current project
 - **THEN** the application renders the WelcomeView in the main content region
 
 ### Requirement: Integration page is a project-scoped application route
