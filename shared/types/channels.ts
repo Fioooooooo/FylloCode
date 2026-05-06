@@ -56,6 +56,12 @@ export const SettingsChannels = {
   update: "settings:update",
 } as const;
 
+export const WorkflowChannels = {
+  list: "workflow:list",
+  save: "workflow:save",
+  delete: "workflow:delete",
+} as const;
+
 export const AcpAgentChannels = {
   getRegistry: "acp:getRegistry",
   refreshRegistry: "acp:refreshRegistry",

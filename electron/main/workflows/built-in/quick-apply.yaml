@@ -1,0 +1,15 @@
+name: 最小流程
+description: 只执行应用变更阶段
+version: 1
+stages:
+  - id: apply
+    name: 应用变更
+    type: proposal-apply
+    agent: codex
+    prompt: 按照已确认的 proposal 任务实施代码变更。
+    when: proposal 状态为“准备执行”
+    onFailure: 停止后续阶段
+    mcp:
+      - 文件系统
+    skills:
+      - openspec-apply-change

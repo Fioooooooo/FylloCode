@@ -7,6 +7,7 @@ import type { acpAgentsApi } from "./api/acp-agents";
 import type { settingsApi } from "./api/settings";
 import type { windowApi } from "./api/window";
 import type { netApi } from "./api/net";
+import type { workflowApi } from "./api/workflow";
 
 export interface AppApi {
   chat: typeof chatApi;
@@ -17,6 +18,7 @@ export interface AppApi {
   settings: typeof settingsApi;
   window: typeof windowApi;
   net: typeof netApi;
+  workflow: typeof workflowApi;
 }
 
 declare global {

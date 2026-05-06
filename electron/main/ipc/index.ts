@@ -6,11 +6,13 @@ import { registerAcpAgentHandlers } from "./acp-agents";
 import { registerSettingsHandlers } from "./settings";
 import { registerWindowHandlers } from "./window";
 import { registerNetHandlers } from "./net";
+import { registerWorkflowHandlers } from "./workflow";
 
 export function registerAllHandlers(): void {
   registerChatHandlers();
   registerProjectHandlers();
   registerProposalHandlers();
+  registerWorkflowHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

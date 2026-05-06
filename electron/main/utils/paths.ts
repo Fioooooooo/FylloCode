@@ -2,7 +2,7 @@ import { app } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 
-type SubPath = "projects" | "settings" | "sessions" | "integrations" | "acp";
+type SubPath = "projects" | "settings" | "sessions" | "integrations" | "acp" | "workflows";
 
 /**
  * 获取业务数据子目录路径

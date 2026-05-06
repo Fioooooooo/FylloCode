@@ -8,6 +8,7 @@ import { acpAgentsApi } from "./api/acp-agents";
 import { settingsApi } from "./api/settings";
 import { windowApi } from "./api/window";
 import { netApi } from "./api/net";
+import { workflowApi } from "./api/workflow";
 
 const api = {
   chat: chatApi,
@@ -18,6 +19,7 @@ const api = {
   settings: settingsApi,
   window: windowApi,
   net: netApi,
+  workflow: workflowApi,
 };
 
 if (process.contextIsolated) {
