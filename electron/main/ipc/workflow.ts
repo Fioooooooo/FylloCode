@@ -41,6 +41,7 @@ type RawStage = {
 
 const workflowStageTypes = new Set<WorkflowStageType>([
   "proposal-apply",
+  "proposal-archive",
   "code-review",
   "security-check",
   "create-pr",
@@ -102,6 +103,10 @@ function parseStageType(value: unknown): WorkflowStageType {
 
   if (value === "apply") {
     return "proposal-apply";
+  }
+
+  if (value === "archive") {
+    return "proposal-archive";
   }
 
   return "custom";

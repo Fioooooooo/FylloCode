@@ -3,11 +3,13 @@ import { join } from "path";
 import { ipcMain, MessageChannelMain, type MessagePortMain } from "electron";
 import { load, dump } from "js-yaml";
 import { ProposalChannels } from "@shared/types/channels";
+import type { MessageChunkData } from "@shared/types/ipc";
 import type { ApplyRunMeta, ProposalStatus } from "@shared/types/proposal";
-import type { WorkflowTemplate } from "@shared/types/workflow";
+import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import type { SessionEvent } from "@main/chat-agent/types";
 import { AcpSession } from "@main/chat-agent/acp-session";
 import { MessageAssembler } from "@main/chat-agent/message-assembler";
+import { loadSessionMeta } from "@main/chat-agent/session-store";
 import { loadProject } from "@main/services/project-store";
 import { getUserWorkflowDirectory, listBuiltInWorkflowFileNames } from "@main/workflows";
 import { readWorkflowDirectory, resolveProjectWorkflowDirectory } from "./workflow";
@@ -22,6 +24,7 @@ import {
 import { buildStagePrompt } from "./proposal-apply/stage-runners";
 
 const activeApplySessions = new Map<string, AcpSession>();
+const activeArchiveSessions = new Map<string, AcpSession>();
 
 function createError(code: string, message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
@@ -125,6 +128,53 @@ function closePort(port: MessagePortMain): void {
   } catch {
     // ignore
   }
+}
+
+function toChunkData(ev: SessionEvent): MessageChunkData | null {
+  if (ev.type === "text_delta") {
+    return { kind: "text_delta", text: ev.text };
+  }
+
+  if (ev.type === "tool_call_start") {
+    return {
+      kind: "tool_call_start",
+      toolCallId: ev.toolCallId,
+      title: ev.title,
+      toolKind: ev.kind,
+    };
+  }
+
+  if (ev.type === "tool_call_update") {
+    return {
+      kind: "tool_call_update",
+      toolCallId: ev.toolCallId,
+      status: ev.status,
+      input: ev.input ? JSON.parse(JSON.stringify(ev.input)) : undefined,
+      content: ev.content,
+    };
+  }
+
+  return null;
+}
+
+function getCompletedApplyStageIndex(runMeta: ApplyRunMeta): number {
+  const completedUntil = Math.min(runMeta.currentStageIndex, runMeta.stages.length) - 1;
+  for (let index = completedUntil; index >= 0; index -= 1) {
+    if (runMeta.stages[index]?.type === "proposal-apply") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function buildArchiveStage(agentId: string): WorkflowStage {
+  return {
+    id: "archive",
+    name: "归档",
+    type: "proposal-archive",
+    agent: agentId,
+  };
 }
 
 export function registerProposalApplyHandlers(): void {
@@ -378,6 +428,141 @@ export function registerProposalApplyHandlers(): void {
       session.cancel();
       activeApplySessions.delete(input.runId);
     })
+  );
+
+  ipcMain.handle(
+    ProposalChannels.archive,
+    async (event, input: { projectId: string; changeId: string }) => {
+      try {
+        const projectPath = await resolveProjectPath(input.projectId);
+        const runMeta = await loadApplyRunMeta(projectPath, input.changeId);
+        if (!runMeta || runMeta.status !== "done") {
+          throw createError("APPLY_RUN_NOT_READY", `Apply run not ready: ${input.changeId}`);
+        }
+
+        const completedStageIndex = getCompletedApplyStageIndex(runMeta);
+        if (completedStageIndex < 0) {
+          throw createError("APPLY_RUN_NOT_READY", `Apply run not ready: ${input.changeId}`);
+        }
+
+        const fylloSessionId = `${runMeta.runId}-${completedStageIndex}`;
+        const sessionMeta = await loadSessionMeta(projectPath, fylloSessionId);
+        if (!sessionMeta?.acpSessionId) {
+          throw createError(
+            "APPLY_SESSION_NOT_READY",
+            `Apply session not ready for archive: ${input.changeId}`
+          );
+        }
+
+        const stage = buildArchiveStage(sessionMeta.agentId);
+        const prompt = buildStagePrompt({
+          changeId: input.changeId,
+          projectPath,
+          stage,
+        });
+
+        const { port1, port2 } = new MessageChannelMain();
+        event.sender.postMessage(ProposalChannels.archivePort, null, [port2]);
+
+        const portClosed = { value: false };
+        const sessionKey = `${input.projectId}:${input.changeId}`;
+        const sendError = (code: string, message: string): void => {
+          if (portClosed.value) {
+            return;
+          }
+
+          safePostPortMessage(port1, { type: "error", data: { code, message } });
+          portClosed.value = true;
+          closePort(port1);
+        };
+        const sendDone = (totalTokens: number): void => {
+          if (portClosed.value) {
+            return;
+          }
+
+          safePostPortMessage(port1, { type: "done", data: { totalTokens } });
+          portClosed.value = true;
+          closePort(port1);
+        };
+        const sendChunk = (data: MessageChunkData): void => {
+          if (portClosed.value) {
+            return;
+          }
+
+          safePostPortMessage(port1, { type: "chunk", data });
+        };
+
+        const session = new AcpSession({
+          fylloSessionId,
+          agentId: sessionMeta.agentId,
+          projectPath,
+          cwd: projectPath,
+        });
+        activeArchiveSessions.set(sessionKey, session);
+
+        session.on("event", (ev: SessionEvent) => {
+          if (
+            ev.type === "text_delta" ||
+            ev.type === "tool_call_start" ||
+            ev.type === "tool_call_update"
+          ) {
+            const chunkData = toChunkData(ev);
+            if (chunkData) {
+              sendChunk(chunkData);
+            }
+            return;
+          }
+
+          if (ev.type === "done") {
+            sendDone(ev.totalTokens);
+            activeArchiveSessions.delete(sessionKey);
+            return;
+          }
+
+          if (ev.type === "error") {
+            sendError(ev.code, ev.message);
+            activeArchiveSessions.delete(sessionKey);
+          }
+        });
+
+        port1.once("message", (msg) => {
+          const payload = msg.data as { type?: string } | undefined;
+          if (payload?.type === "ready") {
+            session.start(prompt).catch((error: unknown) => {
+              sendError("ACP_ERROR", error instanceof Error ? error.message : String(error));
+              activeArchiveSessions.delete(sessionKey);
+            });
+          }
+        });
+        port1.start();
+
+        return { ok: true, data: null };
+      } catch (error) {
+        const e = error as Error & { code?: string };
+        return {
+          ok: false,
+          error: {
+            code: e.code ?? "UNKNOWN_ERROR",
+            message: e.message,
+          },
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    ProposalChannels.archiveCancel,
+    (_event, input: { projectId: string; changeId: string }) =>
+      wrapHandler(async () => {
+        const sessionKey = `${input.projectId}:${input.changeId}`;
+        const session = activeArchiveSessions.get(sessionKey);
+        if (!session) {
+          return;
+        }
+
+        session.cancel();
+        activeArchiveSessions.delete(sessionKey);
+      })
   );
 
   ipcMain.handle(

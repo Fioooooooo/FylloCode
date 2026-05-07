@@ -37,6 +37,16 @@ export const proposalApi = {
     return window.api.proposal.stageStream(input, callbacks);
   },
 
+  archive(
+    input: {
+      projectId: string;
+      changeId: string;
+    },
+    callbacks: Parameters<typeof window.api.proposal.archive>[1]
+  ): () => void {
+    return window.api.proposal.archive(input, callbacks);
+  },
+
   loadRun(input: {
     projectId: string;
     changeId: string;

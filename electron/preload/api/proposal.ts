@@ -76,6 +76,47 @@ export const proposalApi = {
     };
   },
 
+  archive(
+    input: {
+      projectId: string;
+      changeId: string;
+    },
+    callbacks: StreamCallbacks
+  ): () => void {
+    void ipcRenderer
+      .invoke(ProposalChannels.archive, input)
+      .then((result: IpcResponse<null>) => {
+        if (!result.ok) {
+          callbacks.onError(result.error);
+        }
+      })
+      .catch((error: unknown) => {
+        callbacks.onError({
+          code: "STREAM_INIT_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    ipcRenderer.once(ProposalChannels.archivePort, (event) => {
+      const port = event.ports[0];
+      port.onmessage = ({ data }) => {
+        if (data.type === "chunk") {
+          callbacks.onChunk(data.data as MessageChunkData);
+        } else if (data.type === "done") {
+          callbacks.onDone(data.data as { totalTokens: number });
+        } else if (data.type === "error") {
+          callbacks.onError(data.data as IpcErrorInfo);
+        }
+      };
+      port.start();
+      port.postMessage({ type: "ready" });
+    });
+
+    return () => {
+      void ipcRenderer.invoke(ProposalChannels.archiveCancel, input);
+    };
+  },
+
   loadRun(input: {
     projectId: string;
     changeId: string;

@@ -50,6 +50,7 @@ const parseError = ref("");
 
 const workflowStageTypes = new Set<WorkflowStageType>([
   "proposal-apply",
+  "proposal-archive",
   "code-review",
   "security-check",
   "create-pr",
@@ -87,6 +88,10 @@ function parseStageType(value: unknown): WorkflowStageType {
 
   if (value === "apply") {
     return "proposal-apply";
+  }
+
+  if (value === "archive") {
+    return "proposal-archive";
   }
 
   return "custom";
@@ -145,6 +150,7 @@ function parseWorkflowYaml(source: string, fallbackName = "新工作流"): Parse
 function stageColor(type: WorkflowStageType): StageBadgeColor {
   const colorMap: Record<WorkflowStageType, StageBadgeColor> = {
     "proposal-apply": "primary",
+    "proposal-archive": "neutral",
     "code-review": "info",
     "security-check": "warning",
     "create-pr": "success",

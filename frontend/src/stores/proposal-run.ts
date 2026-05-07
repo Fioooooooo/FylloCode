@@ -5,12 +5,14 @@ import { proposalApi } from "@renderer/api/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { MessageChunkData } from "@shared/types/ipc";
 import type { ApplyRunMeta } from "@shared/types/proposal";
+import type { WorkflowStage } from "@shared/types/workflow";
 
 export const useProposalRunStore = defineStore("proposal-run", () => {
   const runMeta = ref<ApplyRunMeta | null>(null);
   const messages = ref<UIMessage<MessageMeta>[]>([]);
   const isStreaming = ref(false);
   const cancelFn = ref<(() => void) | null>(null);
+  const isArchiving = ref(false);
 
   let activeAssistantId: string | null = null;
   let activeTextPartIdx = -1;
@@ -135,6 +137,27 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     streamCurrentStage(projectId, changeId);
   }
 
+  function buildArchiveRunMeta(changeId: string): ApplyRunMeta {
+    const now = new Date().toISOString();
+    const stage: WorkflowStage = {
+      id: "archive",
+      name: "归档",
+      type: "proposal-archive",
+    };
+
+    return {
+      runId: `archive-${Date.now()}`,
+      changeId,
+      workflowId: "archive",
+      stages: [stage],
+      currentStageIndex: 0,
+      stageAcpSessionIds: {},
+      status: "running",
+      startedAt: now,
+      updatedAt: now,
+    };
+  }
+
   function streamCurrentStage(projectId: string, changeId: string): void {
     const meta = runMeta.value;
     if (!meta) {
@@ -236,10 +259,59 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     messages.value = messagesResult.data;
   }
 
+  async function startArchive(projectId: string, changeId: string): Promise<void> {
+    const previousMeta = runMeta.value;
+    runMeta.value = buildArchiveRunMeta(changeId);
+    messages.value = [];
+    resetActiveMessage();
+    isStreaming.value = true;
+    isArchiving.value = true;
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      cancelFn.value = proposalApi.archive(
+        {
+          projectId,
+          changeId,
+        },
+        {
+          onChunk(data) {
+            applyChunk(data);
+          },
+          onDone() {
+            settled = true;
+            isStreaming.value = false;
+            isArchiving.value = false;
+            cancelFn.value = null;
+            resetActiveMessage();
+            runMeta.value = previousMeta;
+            resolve();
+          },
+          onError(error) {
+            console.error("Proposal archive stream error:", error.code, error.message);
+            settled = true;
+            isStreaming.value = false;
+            isArchiving.value = false;
+            cancelFn.value = null;
+            resetActiveMessage();
+            runMeta.value = previousMeta;
+            reject(new Error(error.message));
+          },
+        }
+      );
+
+      if (!cancelFn.value && !settled) {
+        isStreaming.value = false;
+        isArchiving.value = false;
+      }
+    });
+  }
+
   function cancelRun(): void {
     cancelFn.value?.();
     cancelFn.value = null;
     isStreaming.value = false;
+    isArchiving.value = false;
     resetActiveMessage();
   }
 
@@ -247,8 +319,10 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     runMeta,
     messages,
     isStreaming,
+    isArchiving,
     cancelFn,
     startRun,
+    startArchive,
     streamCurrentStage,
     resumeRun,
     cancelRun,

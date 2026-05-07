@@ -33,6 +33,9 @@ export const ProposalChannels = {
   stageStream: "proposal:stageStream",
   stageStreamPort: "proposal:stageStream:port",
   stageStreamCancel: "proposal:stageStream:cancel",
+  archive: "proposal:archive",
+  archivePort: "proposal:archive:port",
+  archiveCancel: "proposal:archive:cancel",
   loadRun: "proposal:loadRun",
   loadRunMessages: "proposal:loadRunMessages",
 } as const;

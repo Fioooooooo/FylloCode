@@ -39,6 +39,12 @@ const currentProposal = computed<ProposalMeta | null>(() => {
   return proposalStore.proposals.find((proposal) => proposal.id === changeId.value) ?? null;
 });
 
+const canArchive = computed(() => {
+  return (
+    currentProposal.value?.status === "applying" && proposalRunStore.runMeta?.status === "done"
+  );
+});
+
 function buildWorkflowMenuItems(workflows: WorkflowTemplate[]): DropdownMenuItem[] {
   return workflows.map((template) => ({
     label: template.name,
@@ -127,6 +133,37 @@ async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
   }
 }
 
+async function archiveProposal(): Promise<void> {
+  const projectId = projectStore.currentProject?.id;
+  const previousChangeId = changeId.value;
+  if (!projectId || !previousChangeId) {
+    return;
+  }
+
+  try {
+    sidePanelOpen.value = true;
+    await proposalRunStore.startArchive(projectId, previousChangeId);
+    await proposalStore.loadProposals();
+
+    const nextProposal =
+      proposalStore.proposals.find((proposal) => proposal.id === previousChangeId) ??
+      proposalStore.proposals.find(
+        (proposal) =>
+          proposal.status === "archived" &&
+          (proposal.id === previousChangeId || proposal.id.endsWith(`-${previousChangeId}`))
+      ) ??
+      null;
+
+    if (nextProposal && nextProposal.id !== previousChangeId) {
+      await router.replace(`/proposal/${nextProposal.id}`);
+    }
+
+    await loadMarkdownFiles();
+  } catch (error: unknown) {
+    console.error("Failed to archive proposal:", error);
+  }
+}
+
 function backToList(): void {
   void router.push("/proposal");
 }
@@ -159,8 +196,10 @@ onMounted(() => {
         :workflow-store-loading="workflowStore.isLoading"
         :run-meta="proposalRunStore.runMeta"
         :is-streaming="proposalRunStore.isStreaming"
+        :can-archive="canArchive"
         @back="backToList"
         @open-side-panel="sidePanelOpen = true"
+        @archive="archiveProposal"
       />
 
       <ProposalMarkdownContent

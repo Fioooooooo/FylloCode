@@ -1,5 +1,6 @@
 export type WorkflowStageType =
   | "proposal-apply"
+  | "proposal-archive"
   | "code-review"
   | "security-check"
   | "create-pr"

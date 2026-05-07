@@ -19,11 +19,13 @@ const props = defineProps<{
   workflowStoreLoading: boolean;
   runMeta: ApplyRunMeta | null;
   isStreaming: boolean;
+  canArchive: boolean;
 }>();
 
 defineEmits<{
   back: [];
   "open-side-panel": [];
+  archive: [];
 }>();
 
 const statusConfig: Record<
@@ -94,6 +96,15 @@ function getStageCount(): number {
                 开始实现
               </UButton>
             </UDropdownMenu>
+            <UButton
+              v-else-if="canArchive"
+              size="xs"
+              color="neutral"
+              icon="i-lucide-archive"
+              @click="$emit('archive')"
+            >
+              归档
+            </UButton>
           </div>
         </div>
       </div>
