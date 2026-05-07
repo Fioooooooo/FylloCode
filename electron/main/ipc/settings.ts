@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { SettingsChannels } from "@shared/types/channels";
-import { wrapHandler } from "./utils";
+import { wrapHandler } from "./_kit/wrap-handler";
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(SettingsChannels.get, () =>

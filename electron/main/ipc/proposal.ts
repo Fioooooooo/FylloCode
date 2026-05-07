@@ -3,7 +3,14 @@ import { basename, join } from "path";
 import { ipcMain } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
-import { wrapHandler } from "./utils";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import {
+  listProposalsInputSchema,
+  readProposalFileInputSchema,
+} from "@shared/schemas/ipc/proposal";
+import { wrapHandler } from "./_kit/wrap-handler";
+import { validate } from "./_kit/schema";
+import { ipcError } from "./_kit/errors";
 import { loadProject } from "@main/services/project-store";
 
 type ProposalFileLocation = {
@@ -204,40 +211,33 @@ async function resolveChangeDir(projectPath: string, changeId: string): Promise<
 }
 
 export function registerProposalHandlers(): void {
-  ipcMain.handle(ProposalChannels.list, (_event, { projectId }: { projectId: string }) =>
+  ipcMain.handle(ProposalChannels.list, (_event, input: unknown) =>
     wrapHandler(async () => {
+      const { projectId } = validate(listProposalsInputSchema, input);
       const project = await loadProject(projectId);
       if (!project) {
-        const error = new Error(`Project not found: ${projectId}`);
-        (error as Error & { code?: string }).code = "PROJECT_NOT_FOUND";
-        throw error;
+        throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
       }
 
       return await readProposalFiles(project.path);
     })
   );
 
-  ipcMain.handle(
-    ProposalChannels.readFile,
-    (
-      _event,
-      { projectId, changeId, filename }: { projectId: string; changeId: string; filename: string }
-    ) =>
-      wrapHandler(async () => {
-        const project = await loadProject(projectId);
-        if (!project) {
-          const error = new Error(`Project not found: ${projectId}`);
-          (error as Error & { code?: string }).code = "PROJECT_NOT_FOUND";
-          throw error;
-        }
+  ipcMain.handle(ProposalChannels.readFile, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { projectId, changeId, filename } = validate(readProposalFileInputSchema, input);
+      const project = await loadProject(projectId);
+      if (!project) {
+        throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
+      }
 
-        const changeDir = await resolveChangeDir(project.path, changeId);
-        if (!changeDir) {
-          return null;
-        }
+      const changeDir = await resolveChangeDir(project.path, changeId);
+      if (!changeDir) {
+        return null;
+      }
 
-        const fileContent = await readIfExists(join(changeDir, basename(filename)));
-        return fileContent;
-      })
+      const fileContent = await readIfExists(join(changeDir, basename(filename)));
+      return fileContent;
+    })
   );
 }

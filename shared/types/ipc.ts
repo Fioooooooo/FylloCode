@@ -1,5 +1,7 @@
+import type { IpcErrorCode } from "../constants/error-codes";
+
 export interface IpcErrorInfo {
-  code: string;
+  code: IpcErrorCode;
   message: string;
 }
 

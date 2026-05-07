@@ -2,8 +2,17 @@ import { ipcMain, dialog } from "electron";
 import { homedir } from "os";
 import { join } from "path";
 import { ProjectChannels } from "@shared/types/channels";
-import type { CreateProjectForm, ProjectInfo, ProjectMeta } from "@shared/types/project";
-import { wrapHandler } from "./utils";
+import type { ProjectInfo, ProjectMeta } from "@shared/types/project";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import {
+  createProjectInputSchema,
+  getByIdInputSchema,
+  removeProjectInputSchema,
+  updateProjectInputSchema,
+} from "@shared/schemas/ipc/project";
+import { wrapHandler } from "./_kit/wrap-handler";
+import { validate } from "./_kit/schema";
+import { ipcError } from "./_kit/errors";
 import {
   createProjectMeta,
   deleteProject,
@@ -52,8 +61,9 @@ export function registerProjectHandlers(): void {
     })
   );
 
-  ipcMain.handle(ProjectChannels.getById, (_event, { id }: { id: string }) =>
+  ipcMain.handle(ProjectChannels.getById, (_event, input: unknown) =>
     wrapHandler(async () => {
+      const { id } = validate(getByIdInputSchema, input);
       const meta = await loadProject(id);
       if (!meta) {
         return null;
@@ -69,10 +79,11 @@ export function registerProjectHandlers(): void {
     })
   );
 
-  ipcMain.handle(ProjectChannels.create, (_event, input: CreateProjectForm) =>
+  ipcMain.handle(ProjectChannels.create, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const basePath = expandHomePath(input.path);
-      const projectPath = join(basePath, input.name);
+      const form = validate(createProjectInputSchema, input);
+      const basePath = expandHomePath(form.path);
+      const projectPath = join(basePath, form.name);
       const id = encodeProjectPath(projectPath);
       const existing = await loadProject(id);
 
@@ -80,7 +91,7 @@ export function registerProjectHandlers(): void {
 
       const meta = createProjectMeta({
         id,
-        name: input.name,
+        name: form.name,
         path: projectPath,
         createdAt: existing ? new Date(existing.createdAt) : undefined,
         lastOpenedAt: new Date(),
@@ -91,32 +102,32 @@ export function registerProjectHandlers(): void {
     })
   );
 
-  ipcMain.handle(
-    ProjectChannels.update,
-    (_event, { id, patch }: { id: string; patch: Partial<ProjectInfo> }) =>
-      wrapHandler(async () => {
-        const existing = await loadProject(id);
-        if (!existing) {
-          const error = new Error(`Project not found: ${id}`);
-          (error as Error & { code?: string }).code = "PROJECT_NOT_FOUND";
-          throw error;
-        }
+  ipcMain.handle(ProjectChannels.update, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { id, patch } = validate(updateProjectInputSchema, input);
+      const existing = await loadProject(id);
+      if (!existing) {
+        throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${id}`);
+      }
 
-        const nextMeta = createProjectMeta({
-          id: existing.id,
-          name: patch.name ?? existing.name,
-          path: patch.path ? expandHomePath(patch.path) : existing.path,
-          createdAt: patch.createdAt ?? new Date(existing.createdAt),
-          lastOpenedAt: patch.lastOpenedAt ?? new Date(existing.lastOpenedAt),
-        });
+      const nextMeta = createProjectMeta({
+        id: existing.id,
+        name: patch.name ?? existing.name,
+        path: patch.path ? expandHomePath(patch.path) : existing.path,
+        createdAt: patch.createdAt ? new Date(patch.createdAt) : new Date(existing.createdAt),
+        lastOpenedAt: patch.lastOpenedAt
+          ? new Date(patch.lastOpenedAt)
+          : new Date(existing.lastOpenedAt),
+      });
 
-        await saveProject(nextMeta);
-        return toProjectInfo(nextMeta);
-      })
+      await saveProject(nextMeta);
+      return toProjectInfo(nextMeta);
+    })
   );
 
-  ipcMain.handle(ProjectChannels.remove, (_event, { id }: { id: string }) =>
+  ipcMain.handle(ProjectChannels.remove, (_event, input: unknown) =>
     wrapHandler(async () => {
+      const { id } = validate(removeProjectInputSchema, input);
       await deleteProject(id);
     })
   );

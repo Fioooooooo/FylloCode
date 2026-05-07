@@ -4,19 +4,24 @@ import { ipcMain } from "electron";
 import { load } from "js-yaml";
 import { WorkflowChannels } from "@shared/types/channels";
 import type {
-  WorkflowDeleteRequest,
-  WorkflowListRequest,
   WorkflowListResult,
-  WorkflowSaveRequest,
   WorkflowStage,
   WorkflowStageType,
   WorkflowTemplate,
 } from "@shared/types/workflow";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import {
+  deleteWorkflowInputSchema,
+  listWorkflowsInputSchema,
+  saveWorkflowInputSchema,
+} from "@shared/schemas/ipc/workflow";
 import { encodeProjectPath, loadProject } from "@main/services/project-store";
 import { getDataSubPath } from "@main/utils/paths";
 import { getUserWorkflowDirectory, listBuiltInWorkflowFileNames } from "@main/workflows";
 import logger from "@main/utils/logger";
-import { wrapHandler } from "./utils";
+import { wrapHandler } from "./_kit/wrap-handler";
+import { validate } from "./_kit/schema";
+import { ipcError } from "./_kit/errors";
 
 type WorkflowSource = WorkflowTemplate["source"];
 
@@ -48,8 +53,11 @@ const workflowStageTypes = new Set<WorkflowStageType>([
   "custom",
 ]);
 
-function createWorkflowError(code: string, message: string): Error & { code: string } {
-  return Object.assign(new Error(message), { code });
+function createWorkflowError(
+  code: import("@shared/constants/error-codes").IpcErrorCode,
+  message: string
+): Error & { code: string } {
+  return ipcError(code, message);
 }
 
 function isWorkflowFile(fileName: string): boolean {
@@ -66,7 +74,10 @@ function normalizeWorkflowName(name: string): string {
   const normalizedName = withoutExtension || trimmedName;
 
   if (!normalizedName || normalizedName !== basename(normalizedName)) {
-    throw createWorkflowError("INVALID_WORKFLOW_NAME", `Invalid workflow name: ${name}`);
+    throw createWorkflowError(
+      IpcErrorCodes.INVALID_WORKFLOW_NAME,
+      `Invalid workflow name: ${name}`
+    );
   }
 
   return normalizedName;
@@ -159,7 +170,7 @@ export async function resolveProjectWorkflowDirectory(projectId?: string): Promi
 
   const project = await loadProject(projectId);
   if (!project) {
-    throw createWorkflowError("PROJECT_NOT_FOUND", `Project not found: ${projectId}`);
+    throw createWorkflowError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
   }
 
   return join(getDataSubPath("projects"), encodeProjectPath(project.path), "workflows");
@@ -197,8 +208,9 @@ export async function readWorkflowDirectory(
 }
 
 export function registerWorkflowHandlers(): void {
-  ipcMain.handle(WorkflowChannels.list, (_event, request: WorkflowListRequest = {}) =>
+  ipcMain.handle(WorkflowChannels.list, (_event, input: unknown) =>
     wrapHandler(async (): Promise<WorkflowListResult> => {
+      const request = validate(listWorkflowsInputSchema, input);
       const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
       const userTemplates = await readWorkflowDirectory(getUserWorkflowDirectory(), "custom");
       const projectWorkflowDirectory = await resolveProjectWorkflowDirectory(request.projectId);
@@ -219,11 +231,15 @@ export function registerWorkflowHandlers(): void {
     })
   );
 
-  ipcMain.handle(WorkflowChannels.save, (_event, request: WorkflowSaveRequest) =>
+  ipcMain.handle(WorkflowChannels.save, (_event, input: unknown) =>
     wrapHandler(async (): Promise<void> => {
+      const request = validate(saveWorkflowInputSchema, input);
       const directory = await resolveProjectWorkflowDirectory(request.projectId);
       if (!directory) {
-        throw createWorkflowError("PROJECT_REQUIRED", "Project is required to save workflow");
+        throw createWorkflowError(
+          IpcErrorCodes.PROJECT_REQUIRED,
+          "Project is required to save workflow"
+        );
       }
 
       await fs.mkdir(directory, { recursive: true });
@@ -231,17 +247,24 @@ export function registerWorkflowHandlers(): void {
     })
   );
 
-  ipcMain.handle(WorkflowChannels.delete, (_event, request: WorkflowDeleteRequest) =>
+  ipcMain.handle(WorkflowChannels.delete, (_event, input: unknown) =>
     wrapHandler(async (): Promise<void> => {
+      const request = validate(deleteWorkflowInputSchema, input);
       const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
       const fileName = toWorkflowFileName(request.name);
       if (builtInFileNames.has(fileName)) {
-        throw createWorkflowError("BUILT_IN_WORKFLOW", "Built-in workflow cannot be deleted");
+        throw createWorkflowError(
+          IpcErrorCodes.BUILT_IN_WORKFLOW,
+          "Built-in workflow cannot be deleted"
+        );
       }
 
       const directory = await resolveProjectWorkflowDirectory(request.projectId);
       if (!directory) {
-        throw createWorkflowError("PROJECT_REQUIRED", "Project is required to delete workflow");
+        throw createWorkflowError(
+          IpcErrorCodes.PROJECT_REQUIRED,
+          "Project is required to delete workflow"
+        );
       }
 
       await fs.rm(join(directory, fileName), { force: true });

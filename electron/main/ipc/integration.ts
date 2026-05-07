@@ -1,6 +1,17 @@
 import { ipcMain } from "electron";
 import { IntegrationChannels } from "@shared/types/channels";
-import { wrapHandler } from "./utils";
+import {
+  connectInputSchema,
+  createCustomInputSchema,
+  listProjectConfigsInputSchema,
+  removeCustomInputSchema,
+  setProjectConfigInputSchema,
+  toolIdInputSchema,
+  yunxiaoSetOrganizationInputSchema,
+  yunxiaoSetTokenInputSchema,
+} from "@shared/schemas/ipc/integration";
+import { wrapHandler } from "./_kit/wrap-handler";
+import { validate } from "./_kit/schema";
 import {
   setYunxiaoToken,
   setYunxiaoOrganization,
@@ -21,23 +32,26 @@ export function registerIntegrationHandlers(): void {
 
   ipcMain.handle(IntegrationChannels.getConnections, () => wrapHandler(() => getConnections()));
 
-  ipcMain.handle(IntegrationChannels.getConnection, (_event, { toolId }: { toolId: string }) =>
-    wrapHandler(() => getConnection(toolId))
-  );
-
-  ipcMain.handle(
-    IntegrationChannels.connect,
-    (_event, input: { toolId: string; credentials: Record<string, string> }) =>
-      wrapHandler(async () => {
-        if (input.toolId.startsWith("yunxiao-")) {
-          return setYunxiaoToken(input.credentials["x-yunxiao-token"] ?? "");
-        }
-        return null;
-      })
-  );
-
-  ipcMain.handle(IntegrationChannels.disconnect, (_event, { toolId }: { toolId: string }) =>
+  ipcMain.handle(IntegrationChannels.getConnection, (_event, input: unknown) =>
     wrapHandler(() => {
+      const { toolId } = validate(toolIdInputSchema, input);
+      return getConnection(toolId);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.connect, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { toolId, credentials } = validate(connectInputSchema, input);
+      if (toolId.startsWith("yunxiao-")) {
+        return setYunxiaoToken(credentials["x-yunxiao-token"] ?? "");
+      }
+      return null;
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.disconnect, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { toolId } = validate(toolIdInputSchema, input);
       if (toolId.startsWith("yunxiao-")) {
         disconnectYunxiao();
       } else {
@@ -46,30 +60,19 @@ export function registerIntegrationHandlers(): void {
     })
   );
 
-  ipcMain.handle(
-    IntegrationChannels.listProjectConfigs,
-    (_event, { projectId }: { projectId: string }) =>
-      wrapHandler(async () => {
-        void projectId;
-        return [];
-      })
+  ipcMain.handle(IntegrationChannels.listProjectConfigs, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { projectId } = validate(listProjectConfigsInputSchema, input);
+      void projectId;
+      return [];
+    })
   );
 
-  ipcMain.handle(
-    IntegrationChannels.setProjectConfig,
-    (
-      _event,
-      input: {
-        projectId: string;
-        toolId: string;
-        enabled: boolean;
-        overrides: Record<string, unknown>;
-      }
-    ) =>
-      wrapHandler(async () => {
-        void input;
-        return null;
-      })
+  ipcMain.handle(IntegrationChannels.setProjectConfig, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      validate(setProjectConfigInputSchema, input);
+      return null;
+    })
   );
 
   ipcMain.handle(IntegrationChannels.listCustom, () =>
@@ -78,28 +81,30 @@ export function registerIntegrationHandlers(): void {
     })
   );
 
-  ipcMain.handle(
-    IntegrationChannels.createCustom,
-    (_event, input: { name: string; mcpServerUrl: string; skillConfig: string }) =>
-      wrapHandler(async () => {
-        void input;
-        return null;
-      })
-  );
-
-  ipcMain.handle(IntegrationChannels.removeCustom, (_event, { id }: { id: string }) =>
+  ipcMain.handle(IntegrationChannels.createCustom, (_event, input: unknown) =>
     wrapHandler(async () => {
-      void id;
+      validate(createCustomInputSchema, input);
+      return null;
     })
   );
 
-  ipcMain.handle(IntegrationChannels.yunxiaoSetToken, (_event, { token }: { token: string }) =>
-    wrapHandler(() => setYunxiaoToken(token))
+  ipcMain.handle(IntegrationChannels.removeCustom, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      validate(removeCustomInputSchema, input);
+    })
   );
 
-  ipcMain.handle(
-    IntegrationChannels.yunxiaoSetOrganization,
-    (_event, { organizationId }: { organizationId: string }) =>
-      wrapHandler(() => setYunxiaoOrganization(organizationId))
+  ipcMain.handle(IntegrationChannels.yunxiaoSetToken, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { token } = validate(yunxiaoSetTokenInputSchema, input);
+      return setYunxiaoToken(token);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.yunxiaoSetOrganization, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { organizationId } = validate(yunxiaoSetOrganizationInputSchema, input);
+      return setYunxiaoOrganization(organizationId);
+    })
   );
 }

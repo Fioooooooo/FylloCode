@@ -1,28 +1,28 @@
 ## 1. Phase 0 — 清理与对齐（无行为变化）
 
-- [ ] 1.1 删除 `electron/main/cli/claude/` 整个目录（`session.ts` / `session-map.ts` / `process.ts` / `parser.ts` / `mapper.ts` / `types.ts`），并在代码库全局搜索 `ClaudeSession` / `spawnClaude` / `cli/claude` 确认无引用残留
-- [ ] 1.2 `electron/preload/index.ts:30` 将 `console.error(error)` 替换为通过 `electron-log` 的 preload 入口写日志（沿用现有 logger 规范），或至少改为调用 `electronAPI.ipcRenderer` 发送给主进程 logger
-- [ ] 1.3 在 `openspec/specs/ipc-protocol/` 等受影响 spec 的 Requirement 上检索实际代码现状，记录与本次重构相关的偏差（仅用于 Phase 2 迁移时作为回归基准，不修改文件）
-- [ ] 1.4 运行 `pnpm typecheck && pnpm lint && pnpm build` 基线验证并记录；运行 `pnpm dev` 手工冒烟（启动 → 切项目 → 聊天一条 → apply 一个 stage → archive → 退出），确保重构前行为作为 golden 基线
+- [x] 1.1 删除 `electron/main/cli/claude/` 整个目录（`session.ts` / `session-map.ts` / `process.ts` / `parser.ts` / `mapper.ts` / `types.ts`），并在代码库全局搜索 `ClaudeSession` / `spawnClaude` / `cli/claude` 确认无引用残留
+- [x] 1.2 `electron/preload/index.ts:30` 将 `console.error(error)` 替换为通过 `electron-log` 的 preload 入口写日志（沿用现有 logger 规范），或至少改为调用 `electronAPI.ipcRenderer` 发送给主进程 logger
+- [x] 1.3 在 `openspec/specs/ipc-protocol/` 等受影响 spec 的 Requirement 上检索实际代码现状，记录与本次重构相关的偏差（仅用于 Phase 2 迁移时作为回归基准，不修改文件）
+- [x] 1.4 运行 `pnpm typecheck && pnpm lint && pnpm build` 基线验证并记录；运行 `pnpm dev` 手工冒烟（启动 → 切项目 → 聊天一条 → apply 一个 stage → archive → 退出），确保重构前行为作为 golden 基线
 
 ## 2. Phase 1 — 建立 IPC kit 与共享常量
 
-- [ ] 2.1 新增 `shared/constants/error-codes.ts`，声明 `IpcErrorCodes` 常量对象与 `IpcErrorCode` 联合类型（按 design.md §5 清单）
-- [ ] 2.2 `shared/types/ipc.ts` 中 `IpcResponse.error.code` 类型收紧为 `IpcErrorCode`（保持字符串值兼容，仅加类型约束）
-- [ ] 2.3 新增 `shared/constants/agents.ts`，导出 `DEFAULT_ACP_AGENT_ID = "claude-acp"`
-- [ ] 2.4 新增 `electron/main/ipc/_kit/errors.ts`，导出 `ipcError(code: IpcErrorCode, message: string)`；替换 `ipc/chat.ts`、`ipc/proposal.ts`、`ipc/proposal-apply.ts`、`ipc/workflow.ts`、`ipc/acp-agents.ts` 中所有 `createSessionError` / `createError` / `createWorkflowError` / `createAgentError` / 就地 `Object.assign(new Error(), { code })` 调用
-- [ ] 2.5 `electron/main/ipc/utils.ts` 迁移为 `electron/main/ipc/_kit/wrap-handler.ts`，保持现有行为；删除原 `utils.ts`（或保留 re-export 一个版本内，Phase 2 删除）
-- [ ] 2.6 安装 `zod` 作为生产依赖（`pnpm add zod`）；在 `electron.vite.config.ts` 的 main 入口 external 中视情况排除
-- [ ] 2.7 新增 `electron/main/ipc/_kit/schema.ts`，导出 `validate<T>(schema, input): T`，校验失败抛出带 `VALIDATION_ERROR` 的错误，由 `wrapHandler` 归一化
-- [ ] 2.8 为每个 IPC 域新增 `shared/schemas/ipc/<domain>.ts`（chat/project/proposal/workflow/integration/settings/window/net/acp-agents），按 handler 当前入参字段定义 zod schema
-- [ ] 2.9 在 `electron/main/ipc/*.ts` 所有非流式 handler 入口加 `validate(schema, input)` 调用，确认 renderer 异常入参返回 `VALIDATION_ERROR`
-- [ ] 2.10 新增 `electron/main/services/chat/session-event-mapper.ts`，将 `AcpSession` 的 `SessionEvent` 映射为 `MessageChunkData`（合并现有 `chat.ts` switch 与 `proposal-apply.ts` `toChunkData`，至少覆盖 `text_delta` / `tool_call_start` / `tool_call_update` / `session_info_update` / `done` / `error` / `session_id_resolved`）
-- [ ] 2.11 新增 `electron/main/ipc/_kit/stream-channel.ts`，导出 `makeStreamChannel<TOwnerMeta>({ event, portChannel, onReady, mapEvent })`，实现 design.md §2 描述的 ready 握手、portClosed 守卫、done/error 归一
-- [ ] 2.12 重写 `ipc/chat.ts` 的 `ChatStreamChannels.streamMessage` 改用 `makeStreamChannel`
-- [ ] 2.13 重写 `ipc/proposal-apply.ts` 的 `ProposalChannels.stageStream` 改用 `makeStreamChannel`
-- [ ] 2.14 重写 `ipc/proposal-apply.ts` 的 `ProposalChannels.archive` 改用 `makeStreamChannel`
-- [ ] 2.15 补齐 `archive` 路径对 `session_info_update` 的处理（参照 chat 路径），消除三处 stream handler 事件集差异
-- [ ] 2.16 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟：chat 发一条、apply 跑一个 stage、archive 跑完、全程观察 `data/logs/main.log` 无异常
+- [x] 2.1 新增 `shared/constants/error-codes.ts`，声明 `IpcErrorCodes` 常量对象与 `IpcErrorCode` 联合类型（按 design.md §5 清单）
+- [x] 2.2 `shared/types/ipc.ts` 中 `IpcResponse.error.code` 类型收紧为 `IpcErrorCode`（保持字符串值兼容，仅加类型约束）
+- [x] 2.3 新增 `shared/constants/agents.ts`，导出 `DEFAULT_ACP_AGENT_ID = "claude-acp"`
+- [x] 2.4 新增 `electron/main/ipc/_kit/errors.ts`，导出 `ipcError(code: IpcErrorCode, message: string)`；替换 `ipc/chat.ts`、`ipc/proposal.ts`、`ipc/proposal-apply.ts`、`ipc/workflow.ts`、`ipc/acp-agents.ts` 中所有 `createSessionError` / `createError` / `createWorkflowError` / `createAgentError` / 就地 `Object.assign(new Error(), { code })` 调用
+- [x] 2.5 `electron/main/ipc/utils.ts` 迁移为 `electron/main/ipc/_kit/wrap-handler.ts`，保持现有行为；删除原 `utils.ts`（或保留 re-export 一个版本内，Phase 2 删除）
+- [x] 2.6 安装 `zod` 作为生产依赖（`pnpm add zod`）；在 `electron.vite.config.ts` 的 main 入口 external 中视情况排除
+- [x] 2.7 新增 `electron/main/ipc/_kit/schema.ts`，导出 `validate<T>(schema, input): T`，校验失败抛出带 `VALIDATION_ERROR` 的错误，由 `wrapHandler` 归一化
+- [x] 2.8 为每个 IPC 域新增 `shared/schemas/ipc/<domain>.ts`（chat/project/proposal/workflow/integration/settings/window/net/acp-agents），按 handler 当前入参字段定义 zod schema
+- [x] 2.9 在 `electron/main/ipc/*.ts` 所有非流式 handler 入口加 `validate(schema, input)` 调用，确认 renderer 异常入参返回 `VALIDATION_ERROR`
+- [x] 2.10 新增 `electron/main/services/chat/session-event-mapper.ts`，将 `AcpSession` 的 `SessionEvent` 映射为 `MessageChunkData`（合并现有 `chat.ts` switch 与 `proposal-apply.ts` `toChunkData`，至少覆盖 `text_delta` / `tool_call_start` / `tool_call_update` / `session_info_update` / `done` / `error` / `session_id_resolved`）
+- [x] 2.11 新增 `electron/main/ipc/_kit/stream-channel.ts`，导出 `makeStreamChannel<TOwnerMeta>({ event, portChannel, onReady, mapEvent })`，实现 design.md §2 描述的 ready 握手、portClosed 守卫、done/error 归一
+- [x] 2.12 重写 `ipc/chat.ts` 的 `ChatStreamChannels.streamMessage` 改用 `makeStreamChannel`
+- [x] 2.13 重写 `ipc/proposal-apply.ts` 的 `ProposalChannels.stageStream` 改用 `makeStreamChannel`
+- [x] 2.14 重写 `ipc/proposal-apply.ts` 的 `ProposalChannels.archive` 改用 `makeStreamChannel`
+- [x] 2.15 补齐 `archive` 路径对 `session_info_update` 的处理（参照 chat 路径），消除三处 stream handler 事件集差异
+- [x] 2.16 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟：chat 发一条、apply 跑一个 stage、archive 跑完、全程观察 `data/logs/main.log` 无异常
 
 ## 3. Phase 2 — 目录重排（物理搬家）
 

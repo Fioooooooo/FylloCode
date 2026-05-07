@@ -1,11 +1,15 @@
 import { BrowserWindow, ipcMain } from "electron";
 import { AcpAgentChannels } from "@shared/types/channels";
 import type { AcpInstallProgress, AcpRegistry } from "@shared/types/acp-agent";
-import { createAgentError, detectAgentStatuses } from "@main/acp/detector";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { installAgentInputSchema } from "@shared/schemas/ipc/acp-agents";
+import { detectAgentStatuses } from "@main/acp/detector";
 import { getAgentIcons } from "@main/acp/iconCache";
 import { installAgent } from "@main/acp/installer";
 import { getRegistry, refreshRegistry } from "@main/acp/registryCache";
-import { wrapHandler } from "./utils";
+import { wrapHandler } from "./_kit/wrap-handler";
+import { validate } from "./_kit/schema";
+import { ipcError } from "./_kit/errors";
 
 function broadcastRegistryUpdated(registry: AcpRegistry): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -54,14 +58,15 @@ export function registerAcpAgentHandlers(): void {
     })
   );
 
-  ipcMain.handle(AcpAgentChannels.install, (_event, agentId: string) =>
+  ipcMain.handle(AcpAgentChannels.install, (_event, agentId: unknown) =>
     wrapHandler(async () => {
+      const id = validate(installAgentInputSchema, agentId);
       const registry = await getRegistry({
         onUpdated: broadcastRegistryUpdated,
       });
-      const agent = registry.agents.find((item) => item.id === agentId);
+      const agent = registry.agents.find((item) => item.id === id);
       if (!agent) {
-        throw createAgentError("AGENT_NOT_FOUND", `未知 Agent: ${agentId}`);
+        throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `未知 Agent: ${id}`);
       }
 
       return installAgent(agent, broadcastInstallProgress);
