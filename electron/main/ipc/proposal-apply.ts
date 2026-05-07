@@ -16,26 +16,29 @@ import {
   stageStreamCancelInputSchema,
   stageStreamInputSchema,
 } from "@shared/schemas/ipc/proposal";
-import type { SessionEvent } from "@main/chat-agent/types";
-import { AcpSession } from "@main/chat-agent/acp-session";
-import { MessageAssembler } from "@main/chat-agent/message-assembler";
-import { loadSessionMeta } from "@main/chat-agent/session-store";
-import { toMessageChunk } from "@main/chat-agent/session-event-mapper";
-import { loadProject } from "@main/services/project-store";
-import { getUserWorkflowDirectory, listBuiltInWorkflowFileNames } from "@main/workflows";
+import type { SessionEvent } from "@main/domain/chat/session-events";
+import { AcpSession } from "@main/services/chat/acp-session";
+import { MessageAssembler } from "@main/domain/chat/message-assembler";
+import { loadSessionMeta } from "@main/infra/storage/session-store";
+import { toMessageChunk } from "@main/services/chat/session-event-mapper";
+import { loadProject } from "@main/infra/storage/project-store";
+import {
+  getUserWorkflowDirectory,
+  listBuiltInWorkflowFileNames,
+} from "@main/services/workflow/built-in-loader";
 import { readWorkflowDirectory, resolveProjectWorkflowDirectory } from "./workflow";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
 import { makeStreamChannel } from "./_kit/stream-channel";
-import logger from "@main/utils/logger";
+import logger from "@main/infra/logger";
 import {
   appendApplyRunMessage,
   loadApplyRunMessages,
   loadApplyRunMeta,
   saveApplyRunMeta,
-} from "./proposal-apply/apply-run-store";
-import { buildStagePrompt } from "./proposal-apply/stage-runners";
+} from "@main/infra/storage/apply-run-store";
+import { buildStagePrompt } from "@main/services/proposal/stage-prompts";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 
 const activeApplySessions = new Map<string, AcpSession>();

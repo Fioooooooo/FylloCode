@@ -3,7 +3,7 @@ import { MessageChannelMain } from "electron";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
-import logger from "@main/utils/logger";
+import logger from "@main/infra/logger";
 
 /** Shape of the business-provided runner that drives a single stream. */
 export interface StreamRunner {

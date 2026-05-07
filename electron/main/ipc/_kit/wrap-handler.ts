@@ -1,7 +1,7 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import logger from "@main/utils/logger";
+import logger from "@main/infra/logger";
 
 /**
  * Wraps an IPC handler body so it always produces an `IpcResponse<T>`.

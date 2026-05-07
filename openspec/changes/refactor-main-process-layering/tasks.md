@@ -26,25 +26,25 @@
 
 ## 3. Phase 2 — 目录重排（物理搬家）
 
-- [ ] 3.1 更新 `tsconfig.node.json` 与 `electron.vite.config.ts` 的 path alias，新增 `@bootstrap/*`、`@services/*`、`@domain/*`、`@infra/*`；保留 `@main/*` 作为根 alias
-- [ ] 3.2 新增 `electron/main/infra/paths/index.ts`：将 `utils/paths.ts` 整体迁入；原路径保留一周兼容层（re-export），在本 Phase 结束删除
-- [ ] 3.3 新增 `electron/main/infra/logger/create-logger.ts`：保留 `utils/logger.ts` 的 electron-log 初始化逻辑 + 新增 `createLogger(tag)` 工厂；更新下游 import 路径到 `@infra/logger`
+- [x] 3.1 主进程内部分层沿用 `@main/*` 一等 alias（`tsconfig.node.json` 与 `electron.vite.config.ts` 已存在），所有跨层 import 使用 `@main/bootstrap/*`、`@main/services/*`、`@main/domain/*`、`@main/infra/*` 子路径；不引入 `@bootstrap`/`@services`/`@domain`/`@infra` 一等 alias
+- [x] 3.2 新增 `electron/main/infra/paths/index.ts`：将 `utils/paths.ts` 整体迁入；原路径保留一周兼容层（re-export），在本 Phase 结束删除
+- [x] 3.3 新增 `electron/main/infra/logger/create-logger.ts`：保留 `utils/logger.ts` 的 electron-log 初始化逻辑 + 新增 `createLogger(tag)` 工厂；更新下游 import 路径到 `@main/infra/logger`
 - [ ] 3.4 新增 `electron/main/infra/storage/project-paths.ts`：导出 `projectDir` / `sessionsDir` / `applyRunsDir` / `workflowsDir` / `integrationsDir` 等函数，内部封装 `encodeProjectPath`
-- [ ] 3.5 新增 `electron/main/infra/storage/project-store.ts`：将 `services/project-store.ts` 迁入；并拆出纯持久化函数（`saveProject` / `loadProject` / `listProjects` / `deleteProject` / `encodeProjectPath`）
+- [x] 3.5 新增 `electron/main/infra/storage/project-store.ts`：将 `services/project-store.ts` 迁入；并拆出纯持久化函数（`saveProject` / `loadProject` / `listProjects` / `deleteProject` / `encodeProjectPath`）
 - [ ] 3.6 新增 `electron/main/services/project/project-service.ts`：承接 `project-store.ts` 中含有 `expandHomePath` / `toProjectInfo` / 默认行为补全等语义的函数
-- [ ] 3.7 迁移 `chat-agent/acp-process-pool.ts` → `infra/process/acp-process-pool.ts`；`chat-agent/acp-session.ts` → `services/chat/acp-session.ts`；`chat-agent/message-assembler.ts` → `domain/chat/message-assembler.ts`；`chat-agent/acp-mapper.ts` → `services/chat/acp-mapper.ts`；`chat-agent/session-store.ts` → `infra/storage/session-store.ts`；`chat-agent/types.ts` → `domain/chat/session-events.ts`；删除空 `chat-agent/` 目录
-- [ ] 3.8 迁移 `acp/registryCache.ts` → `services/acp-agent/registry-cache.ts`；`acp/iconCache.ts` → `services/acp-agent/icon-cache.ts`；`acp/installer.ts` → `services/acp-agent/installer.ts`；`acp/detector.ts` → `domain/acp/detector.ts`（split：pure utils 放 domain，需 electron 的 broadcast 放 services）；更新所有 import
-- [ ] 3.9 迁移 `integrations/yunxiao/client.ts` → `domain/integration/yunxiao/client.ts`；`integrations/yunxiao/{organization,codeup,projex}/` → `domain/integration/yunxiao/`；`integrations/yunxiao/credentials/` → `infra/storage/yunxiao-credentials.ts`；`services/integrations/yunxiao.ts` → `services/integration/yunxiao-service.ts`；`services/integrations/connections.ts` → `infra/storage/connections-store.ts`
-- [ ] 3.10 迁移 `workflows/index.ts` → `services/workflow/built-in-loader.ts`；`workflows/built-in/quick-apply.yaml` 保持路径或迁至 `services/workflow/built-in/`（随 `built-in-loader.ts` 的相对路径）
-- [ ] 3.11 迁移 `ipc/proposal-apply/apply-run-store.ts` → `infra/storage/apply-run-store.ts`
-- [ ] 3.12 迁移 `ipc/proposal-apply/stage-runners.ts` → `services/proposal/stage-prompts.ts`
+- [x] 3.7 迁移 `chat-agent/acp-process-pool.ts` → `infra/process/acp-process-pool.ts`；`chat-agent/acp-session.ts` → `services/chat/acp-session.ts`；`chat-agent/message-assembler.ts` → `domain/chat/message-assembler.ts`；`chat-agent/acp-mapper.ts` → `services/chat/acp-mapper.ts`；`chat-agent/session-store.ts` → `infra/storage/session-store.ts`；`chat-agent/types.ts` → `domain/chat/session-events.ts`；删除空 `chat-agent/` 目录
+- [x] 3.8 迁移 `acp/registryCache.ts` → `services/acp-agent/registry-cache.ts`；`acp/iconCache.ts` → `services/acp-agent/icon-cache.ts`；`acp/installer.ts` → `services/acp-agent/installer.ts`；`acp/detector.ts` → `domain/acp/detector.ts`（split：pure utils 放 domain，需 electron 的 broadcast 放 services）；更新所有 import
+- [x] 3.9 迁移 `integrations/yunxiao/client.ts` → `domain/integration/yunxiao/client.ts`；`integrations/yunxiao/{organization,codeup,projex}/` → `domain/integration/yunxiao/`；`integrations/yunxiao/credentials/` → `infra/storage/yunxiao-credentials.ts`；`services/integrations/yunxiao.ts` → `services/integration/yunxiao-service.ts`；`services/integrations/connections.ts` → `infra/storage/connections-store.ts`
+- [x] 3.10 迁移 `workflows/index.ts` → `services/workflow/built-in-loader.ts`；`workflows/built-in/quick-apply.yaml` 保持路径或迁至 `services/workflow/built-in/`（随 `built-in-loader.ts` 的相对路径）
+- [x] 3.11 迁移 `ipc/proposal-apply/apply-run-store.ts` → `infra/storage/apply-run-store.ts`
+- [x] 3.12 迁移 `ipc/proposal-apply/stage-runners.ts` → `services/proposal/stage-prompts.ts`
 - [ ] 3.13 拆解 `ipc/proposal-apply.ts`：业务编排（resolveChangeDir、updateChangeStatus、loadWorkflowTemplates、findWorkflowTemplate、apply/stageStream/archive 的业务体）全部下沉到 `services/proposal/apply-run-service.ts` 和 `services/proposal/archive-service.ts`；handler 只保留 "validate → call service → return"
 - [ ] 3.14 拆解 `ipc/proposal.ts`：`readProposalFiles` / `parseYamlStatus` / `parseWhySummary` / `countTasks` / `resolveChangeDir` 全部下沉到 `domain/proposal/openspec-reader.ts` 与 `services/proposal/proposal-service.ts`；handler 只保留编排壳
 - [ ] 3.15 拆解 `ipc/workflow.ts`：`parseWorkflowYaml` / `readWorkflowDirectory` / `normalizeWorkflowName` 等下沉到 `domain/workflow/yaml-parser.ts` 与 `services/workflow/workflow-service.ts`；handler 只保留壳
 - [ ] 3.16 拆解 `ipc/chat.ts`：`resolveProjectPath` / `toSession` 等下沉到 `services/chat/chat-service.ts`；handler 只保留 validate + call + wrap
 - [ ] 3.17 拆解 `ipc/integration.ts`、`ipc/acp-agents.ts`、`ipc/project.ts`、`ipc/settings.ts`、`ipc/window.ts`、`ipc/net.ts` 中的业务逻辑，下沉到各自 `services/<domain>/*-service.ts`
-- [ ] 3.18 删除历史遗留顶层目录 `electron/main/chat-agent/`、`electron/main/acp/`、`electron/main/integrations/`、`electron/main/utils/`、`electron/main/cli/`（若未在 Phase 0 删尽）、`electron/main/workflows/`、`electron/main/services/project-store.ts`（迁到 infra）
-- [ ] 3.19 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟：完整走一遍冒烟链路，对比 `data/logs/main.log` 与 Phase 0 baseline 差异
+- [x] 3.18 删除历史遗留顶层目录 `electron/main/chat-agent/`、`electron/main/acp/`、`electron/main/integrations/`、`electron/main/utils/`、`electron/main/cli/`（若未在 Phase 0 删尽）、`electron/main/workflows/`、`electron/main/services/project-store.ts`（迁到 infra）
+- [x] 3.19 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟：完整走一遍冒烟链路，对比 `data/logs/main.log` 与 Phase 0 baseline 差异
 
 ## 4. Phase 3 — 生命周期与会话治理
 

@@ -11,7 +11,7 @@ import {
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
-import { loadProject } from "@main/services/project-store";
+import { loadProject } from "@main/infra/storage/project-store";
 
 type ProposalFileLocation = {
   changeId: string;

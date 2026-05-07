@@ -19,7 +19,7 @@ import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
 import { makeStreamChannel } from "./_kit/stream-channel";
-import { AcpSession } from "../chat-agent/acp-session";
+import { AcpSession } from "@main/services/chat/acp-session";
 import {
   appendMessage,
   deleteSession,
@@ -28,11 +28,11 @@ import {
   loadSessionMeta,
   saveSessionMeta,
   type SessionMeta,
-} from "../chat-agent/session-store";
-import { toMessageChunk } from "../chat-agent/session-event-mapper";
-import { loadProject } from "@main/services/project-store";
-import type { SessionEvent } from "../chat-agent/types";
-import logger from "@main/utils/logger";
+} from "@main/infra/storage/session-store";
+import { toMessageChunk } from "@main/services/chat/session-event-mapper";
+import { loadProject } from "@main/infra/storage/project-store";
+import type { SessionEvent } from "@main/domain/chat/session-events";
+import logger from "@main/infra/logger";
 
 // Active sessions: fylloSessionId → AcpSession
 const activeSessions = new Map<string, AcpSession>();

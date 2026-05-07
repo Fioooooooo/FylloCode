@@ -184,9 +184,11 @@ export type IpcErrorCode = (typeof IpcErrorCodes)[keyof typeof IpcErrorCodes];
 
 ### 9. 迁移期类型冲突处理
 
-`shared/types/channels.ts` 既被主进程也被前端消费，搬家不动。`tsconfig.node.json` 与 `tsconfig.web.json` 中 `paths` 需要同步新增别名；electron-vite 的 `resolve.alias` 也要同步（electron.vite.config.ts）。
+`shared/types/channels.ts` 既被主进程也被前端消费，搬家不动。主进程内部分层仅通过现有的 `@main/*` alias（`tsconfig.node.json` + `electron.vite.config.ts`）定位到具体的 `@main/bootstrap/*` / `@main/services/*` / `@main/domain/*` / `@main/infra/*` 子目录，不额外引入一等 alias。这样一来：
 
-**为什么不只加主进程别名**：schema 要放 shared，前端可能在 composables 中做乐观校验（未来），保持一致更稳。
+- 项目的一等 alias 继续按"构建目标 / 进程"分（`@shared`、`@main`、`@preload`、`@renderer`），主进程内部的分层通过物理目录名体现；
+- tsconfig、vite config、未来的 `no-restricted-imports` 规则都只维护 `@main/*` 这一条映射；
+- ESLint 分层约束写成 `@main/ipc/**` 禁止 import `@main/domain/**` / `@main/infra/**` 等具体前缀，同样清晰。
 
 ## Risks / Trade-offs
 

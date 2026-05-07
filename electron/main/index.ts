@@ -3,8 +3,8 @@ import { join } from "path";
 import { electronApp, optimizer, is, platform } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { registerAllHandlers } from "./ipc";
-import { initBuiltInWorkflows } from "./workflows";
-import logger from "@main/utils/logger";
+import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
+import logger from "@main/infra/logger";
 
 function createWindow(): void {
   // Create the browser window.

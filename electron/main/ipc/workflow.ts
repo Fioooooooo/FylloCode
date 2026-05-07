@@ -15,10 +15,13 @@ import {
   listWorkflowsInputSchema,
   saveWorkflowInputSchema,
 } from "@shared/schemas/ipc/workflow";
-import { encodeProjectPath, loadProject } from "@main/services/project-store";
-import { getDataSubPath } from "@main/utils/paths";
-import { getUserWorkflowDirectory, listBuiltInWorkflowFileNames } from "@main/workflows";
-import logger from "@main/utils/logger";
+import { encodeProjectPath, loadProject } from "@main/infra/storage/project-store";
+import { getDataSubPath } from "@main/infra/paths";
+import {
+  getUserWorkflowDirectory,
+  listBuiltInWorkflowFileNames,
+} from "@main/services/workflow/built-in-loader";
+import logger from "@main/infra/logger";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";

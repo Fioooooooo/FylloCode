@@ -16,12 +16,12 @@ import {
   setYunxiaoToken,
   setYunxiaoOrganization,
   disconnectYunxiao,
-} from "@main/services/integrations/yunxiao";
+} from "@main/services/integration/yunxiao-service";
 import {
   getConnections,
   getConnection,
   removeConnection,
-} from "@main/services/integrations/connections";
+} from "@main/infra/storage/connections-store";
 
 export function registerIntegrationHandlers(): void {
   ipcMain.handle(IntegrationChannels.listTools, () =>

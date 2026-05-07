@@ -22,7 +22,7 @@ import {
   loadProject,
   saveProject,
   toProjectInfo,
-} from "@main/services/project-store";
+} from "@main/infra/storage/project-store";
 import { promises as fs } from "fs";
 
 function expandHomePath(inputPath: string): string {
