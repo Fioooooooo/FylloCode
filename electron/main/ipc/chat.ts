@@ -29,13 +29,11 @@ import {
   resolveProjectPath,
   updateSession,
 } from "@main/services/chat/chat-service";
+import { sessionRegistry } from "@main/services/chat/session-registry";
 import { loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
-
-// Active sessions: fylloSessionId → AcpSession
-const activeSessions = new Map<string, AcpSession>();
 
 function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
@@ -134,7 +132,7 @@ export function registerChatHandlers(): void {
           projectPath,
           cwd: projectPath,
         });
-        activeSessions.set(sessionId, session);
+        sessionRegistry.register("chat", sessionId, session);
 
         session.on("event", (ev: SessionEvent) => {
           switch (ev.type) {
@@ -166,11 +164,11 @@ export function registerChatHandlers(): void {
               break;
             case "done":
               sink.sendDone(ev.totalTokens);
-              activeSessions.delete(sessionId);
+              sessionRegistry.unregister("chat", sessionId);
               break;
             case "error":
               sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-              activeSessions.delete(sessionId);
+              sessionRegistry.unregister("chat", sessionId);
               break;
           }
         });
@@ -181,7 +179,7 @@ export function registerChatHandlers(): void {
           },
           cancel: () => {
             session.cancel();
-            activeSessions.delete(sessionId);
+            sessionRegistry.unregister("chat", sessionId);
           },
         };
       },
@@ -191,11 +189,7 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatStreamChannels.streamCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
       const { sessionId } = validate(streamCancelInputSchema, input);
-      const session = activeSessions.get(sessionId);
-      if (session) {
-        session.cancel();
-        activeSessions.delete(sessionId);
-      }
+      sessionRegistry.cancel("chat", sessionId);
     })
   );
 }

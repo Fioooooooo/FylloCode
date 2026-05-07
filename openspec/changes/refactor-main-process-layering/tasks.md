@@ -48,20 +48,20 @@
 
 ## 4. Phase 3 — 生命周期与会话治理
 
-- [ ] 4.1 新增 `electron/main/bootstrap/lifecycle.ts`：`Disposable` 接口 + `registerDisposable` + `disposeAll`（逆序 await，5s 超时兜底）
-- [ ] 4.2 新增 `electron/main/bootstrap/window.ts`：将 `index.ts` 的 `createWindow` 逻辑迁入
-- [ ] 4.3 新增 `electron/main/bootstrap/index.ts`：整合 `app.whenReady` / `before-quit` / `window-all-closed` / `activate` 流程；`before-quit` 中 `preventDefault()` + `await disposeAll()` + `app.exit(0)`
-- [ ] 4.4 `electron/main/index.ts` 精简为 `import "./bootstrap"` 启动引导
-- [ ] 4.5 新增 `electron/main/services/chat/session-registry.ts`：实现 `SessionRegistry`（`register` / `get` / `cancel` / `cancelByOwner` / `cancelAll`），owner 类型为 `"chat" | "apply" | "archive"`
+- [x] 4.1 新增 `electron/main/bootstrap/lifecycle.ts`：`Disposable` 接口 + `registerDisposable` + `disposeAll`（逆序 await，5s 超时兜底）
+- [x] 4.2 新增 `electron/main/bootstrap/window.ts`：将 `index.ts` 的 `createWindow` 逻辑迁入
+- [x] 4.3 新增 `electron/main/bootstrap/index.ts`：整合 `app.whenReady` / `before-quit` / `window-all-closed` / `activate` 流程；`before-quit` 中 `preventDefault()` + `await disposeAll()` + `app.exit(0)`
+- [x] 4.4 `electron/main/index.ts` 精简为 `import "./bootstrap"` 启动引导
+- [x] 4.5 新增 `electron/main/services/chat/session-registry.ts`：实现 `SessionRegistry`（`register` / `get` / `cancel` / `cancelByOwner` / `cancelAll`），owner 类型为 `"chat" | "apply" | "archive"`
 - [ ] 4.6 `services/chat/acp-session.ts` 暴露 `dispose()` 用于解绑事件订阅（供 registry 调用）
-- [ ] 4.7 迁移 `ipc/chat.ts` 中的 `activeSessions`、`ipc/proposal-apply.ts` 中的 `activeApplySessions` / `activeArchiveSessions` 到 `SessionRegistry`；对应 service 方法接收 registry 作为依赖
-- [ ] 4.8 `SessionRegistry` 注册为 disposable（dispose 时 cancelAll）
-- [ ] 4.9 `infra/process/acp-process-pool.ts` 加 exponential backoff（序列 `[0, 500, 2000, 5000]`），超过上限后标记 giveUp，下次 `getOrStartProcess` 抛 `ACP_EXIT_GIVEUP`
-- [ ] 4.10 新增 `acp:event:agentUnavailable` 事件 channel（在 `shared/types/channels.ts` 中登记）；pool 在 giveUp 时广播
-- [ ] 4.11 acp pool 的 `stdio` 从 `["pipe", "pipe", "inherit"]` 改为 `["pipe", "pipe", "pipe"]`，将 stderr 按行接管到 `createLogger("infra.process.acp").warn({ agentId }, line)`
-- [ ] 4.12 `acp-process-pool` 注册为 disposable（dispose 时对所有 child 发送 kill 并等待 exit，然后清空 pool）
+- [x] 4.7 迁移 `ipc/chat.ts` 中的 `activeSessions`、`ipc/proposal-apply.ts` 中的 `activeApplySessions` / `activeArchiveSessions` 到 `SessionRegistry`；对应 service 方法接收 registry 作为依赖
+- [x] 4.8 `SessionRegistry` 注册为 disposable（dispose 时 cancelAll）
+- [x] 4.9 `infra/process/acp-process-pool.ts` 加 exponential backoff（序列 `[0, 500, 2000, 5000]`），超过上限后标记 giveUp，下次 `getOrStartProcess` 抛 `ACP_EXIT_GIVEUP`
+- [x] 4.10 新增 `acp:event:agentUnavailable` 事件 channel（在 `shared/types/channels.ts` 中登记）；pool 在 giveUp 时广播
+- [x] 4.11 acp pool 的 `stdio` 从 `["pipe", "pipe", "inherit"]` 改为 `["pipe", "pipe", "pipe"]`，将 stderr 按行接管到 `createLogger("infra.process.acp").warn({ agentId }, line)`
+- [x] 4.12 `acp-process-pool` 注册为 disposable（dispose 时对所有 child 发送 kill 并等待 exit，然后清空 pool）
 - [ ] 4.13 全局搜索 `logger` 直接 import，替换为 `createLogger("<domain>.<sub>")`；tag 命名遵循 design.md §7
-- [ ] 4.14 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟重点：`Cmd+Q` 优雅退出、ACP 子进程被意外 kill 后能 backoff 重启、多次 kill 后 giveUp 并前端收到 `agentUnavailable`
+- [x] 4.14 运行 `pnpm typecheck && pnpm lint && pnpm build`；手工冒烟重点：`Cmd+Q` 优雅退出、ACP 子进程被意外 kill 后能 backoff 重启、多次 kill 后 giveUp 并前端收到 `agentUnavailable`
 
 ## 5. Phase 4 — 测试与 ESLint 约束
 

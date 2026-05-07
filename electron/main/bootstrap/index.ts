@@ -1,0 +1,50 @@
+import { app, BrowserWindow } from "electron";
+import { electronApp, optimizer, is } from "@electron-toolkit/utils";
+import { registerAllHandlers } from "@main/ipc";
+import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
+import { disposeAll } from "./lifecycle";
+import { createMainWindow } from "./window";
+import logger from "@main/infra/logger";
+
+let shuttingDown = false;
+
+export function startApp(): void {
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId("com.fyllocode.app");
+
+    app.on("browser-window-created", (_event, window) => {
+      optimizer.watchWindowShortcuts(window);
+    });
+
+    logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
+
+    registerAllHandlers();
+    void initBuiltInWorkflows();
+
+    createMainWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
+  });
+
+  // Graceful shutdown: intercept the first before-quit, release disposables,
+  // then call `app.exit()` so the second quit goes through unimpeded.
+  app.on("before-quit", (event) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    event.preventDefault();
+
+    logger.info("[bootstrap] shutting down, releasing resources…");
+    void disposeAll().finally(() => {
+      logger.info("[bootstrap] shutdown complete");
+      app.exit(0);
+    });
+  });
+}

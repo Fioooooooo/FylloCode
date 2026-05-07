@@ -14,6 +14,7 @@ import {
 } from "@shared/schemas/ipc/proposal";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import { AcpSession } from "@main/services/chat/acp-session";
+import { sessionRegistry } from "@main/services/chat/session-registry";
 import { MessageAssembler } from "@main/domain/chat/message-assembler";
 import { loadSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
@@ -36,9 +37,6 @@ import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
 import { makeStreamChannel } from "./_kit/stream-channel";
 import logger from "@main/infra/logger";
-
-const activeApplySessions = new Map<string, AcpSession>();
-const activeArchiveSessions = new Map<string, AcpSession>();
 
 function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
@@ -84,7 +82,7 @@ export function registerProposalApplyHandlers(): void {
           cwd: projectPath,
         });
 
-        activeApplySessions.set(form.runId, session);
+        sessionRegistry.register("apply", form.runId, session);
 
         session.on("event", (ev: SessionEvent) => {
           switch (ev.type) {
@@ -128,14 +126,14 @@ export function registerProposalApplyHandlers(): void {
                 });
 
                 sink.sendDone(ev.totalTokens);
-                activeApplySessions.delete(form.runId);
+                sessionRegistry.unregister("apply", form.runId);
               })().catch((error: unknown) => {
                 logger.error("[proposal-apply] failed to persist completed message", error);
                 sink.sendError(
                   IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
                   error instanceof Error ? error.message : String(error)
                 );
-                activeApplySessions.delete(form.runId);
+                sessionRegistry.unregister("apply", form.runId);
               });
               break;
             case "error":
@@ -147,7 +145,7 @@ export function registerProposalApplyHandlers(): void {
                 logger.error("[proposal-apply] failed to persist run error status", error);
               });
               sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-              activeApplySessions.delete(form.runId);
+              sessionRegistry.unregister("apply", form.runId);
               break;
           }
         });
@@ -170,7 +168,7 @@ export function registerProposalApplyHandlers(): void {
           },
           cancel: () => {
             session.cancel();
-            activeApplySessions.delete(form.runId);
+            sessionRegistry.unregister("apply", form.runId);
           },
         };
       },
@@ -180,10 +178,7 @@ export function registerProposalApplyHandlers(): void {
   ipcMain.handle(ProposalChannels.stageStreamCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
       const { runId } = validate(stageStreamCancelInputSchema, input);
-      const session = activeApplySessions.get(runId);
-      if (!session) return;
-      session.cancel();
-      activeApplySessions.delete(runId);
+      sessionRegistry.cancel("apply", runId);
     })
   );
 
@@ -235,7 +230,7 @@ export function registerProposalApplyHandlers(): void {
           projectPath,
           cwd: projectPath,
         });
-        activeArchiveSessions.set(sessionKey, session);
+        sessionRegistry.register("archive", sessionKey, session);
 
         session.on("event", (ev: SessionEvent) => {
           if (
@@ -251,13 +246,13 @@ export function registerProposalApplyHandlers(): void {
 
           if (ev.type === "done") {
             sink.sendDone(ev.totalTokens);
-            activeArchiveSessions.delete(sessionKey);
+            sessionRegistry.unregister("archive", sessionKey);
             return;
           }
 
           if (ev.type === "error") {
             sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-            activeArchiveSessions.delete(sessionKey);
+            sessionRegistry.unregister("archive", sessionKey);
           }
         });
 
@@ -267,7 +262,7 @@ export function registerProposalApplyHandlers(): void {
           },
           cancel: () => {
             session.cancel();
-            activeArchiveSessions.delete(sessionKey);
+            sessionRegistry.unregister("archive", sessionKey);
           },
         };
       },
@@ -278,10 +273,7 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const form = validate(archiveCancelInputSchema, input);
       const sessionKey = `${form.projectId}:${form.changeId}`;
-      const session = activeArchiveSessions.get(sessionKey);
-      if (!session) return;
-      session.cancel();
-      activeArchiveSessions.delete(sessionKey);
+      sessionRegistry.cancel("archive", sessionKey);
     })
   );
 

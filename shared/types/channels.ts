@@ -79,6 +79,7 @@ export const AcpAgentChannels = {
   install: "acp:install",
   registryUpdated: "acp:registryUpdated",
   installProgress: "acp:installProgress",
+  agentUnavailable: "acp:event:agentUnavailable",
 } as const;
 
 export const WindowChannels = {
