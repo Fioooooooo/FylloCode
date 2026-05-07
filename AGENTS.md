@@ -55,6 +55,7 @@ pnpm test:coverage    # 生成覆盖率报告
 如需更多详细信息，Agent 可以主动查看下方的各类详细文档。
 
 - **架构文档** - [Architecture](./docs/Architecture.md)
+- **主进程分层** - [MainProcess](./docs/MainProcess.md)
 - **数据模型** - [DataModel](./docs/DataModel.md)
 - **IPC 通信** - [IPC](./docs/IPC.md)
 - **测试规范** - [Testing](./docs/Testing.md)
@@ -73,7 +74,7 @@ pnpm test:coverage    # 生成覆盖率报告
 
 在开始任何实现之前，先判断：**此次改动是否超出了"纯代码实现细节"的范围？**
 
-凡是涉及"系统应该如何工作"的改动——包括但不限于数据结构、存储格式、IPC 契约、共享类型、跨模块职责、用户可见行为、系统级约束——都必须先加载 `openspec-propose` skill，不得直接实施。
+凡是涉及"系统应该如何工作"的改动——包括但不限于数据结构、存储格式、IPC 契约、共享类型、跨模块职责、用户可见行为、系统级约束——都必须先加载 `fyllo-propose` skill，不得直接实施。
 
 只有确认改动仅影响"代码如何实现"（内部逻辑、局部重构、样式微调等），才可直接推进。
 
@@ -82,8 +83,8 @@ pnpm test:coverage    # 生成覆盖率报告
 所有 Agent 默认遵循以下简版规则，无需额外确认：
 
 - **涉及已有功能改动时，先读 spec**：只要改动触及已有页面、交互流程、状态流转、IPC、共享类型或既有 bug，先阅读对应 `openspec/specs/<capability>/spec.md`。
-- **涉及功能定义变化时，必须先加载 `openspec-propose` skill**：新增功能；修改用户可见行为、交互语义、默认值、空态/异常态；修改数据结构、存储格式、IPC 契约、共享类型、公共接口；修改跨模块职责边界；这类改动必须先加载 `openspec-propose` skill，并按该 skill 的流程创建 change，再进入实现。
-- **涉及运行时基础设施或横切工程约束时，也必须先加载 `openspec-propose` skill**：新增或修改 logging、error handling、配置加载、持久化路径规则、跨进程统一能力、全局安全约束等系统级行为约束时，即使不直接涉及页面、交互或 IPC 公共接口，也必须先加载 `openspec-propose` skill，并按该 skill 的流程创建 change，再进入实现。
+- **涉及功能定义变化时，必须先加载 `fyllo-propose` skill**：新增功能；修改用户可见行为、交互语义、默认值、空态/异常态；修改数据结构、存储格式、IPC 契约、共享类型、公共接口；修改跨模块职责边界；这类改动必须先加载 `fyllo-propose` skill，并按该 skill 的流程创建 change，再进入实现。
+- **涉及运行时基础设施或横切工程约束时，也必须先加载 `fyllo-propose` skill**：新增或修改 logging、error handling、配置加载、持久化路径规则、跨进程统一能力、全局安全约束等系统级行为约束时，即使不直接涉及页面、交互或 IPC 公共接口，也必须先加载 `fyllo-propose` skill，并按该 skill 的流程创建 change，再进入实现。
 - **纯实现细节改动通常不用建 change**：样式微调但不改交互、局部重构但不改行为、测试补充、日志与注释修正、类型补强、内部实现替换但外部输入输出不变，这类改动通常可直接实施。
 - **bug 修复按是否改变 requirement 判断**：如果只是实现偏差，按现有 spec 修复；如果修复后需要新增或修改 requirement/scenario，先建 change。
 - **拿不准时先求证，再主动询问用户**：如果无法明确判断这是“实现变化”还是“功能定义变化”，先查相关 spec、代码、文档与已有 change；若证据足以说明只是实现细节，则可直接实施；若求证后仍无法形成单一合理结论，或无法排除功能定义、系统级约束或公共契约变化，应主动询问用户，而不是自行假定。
