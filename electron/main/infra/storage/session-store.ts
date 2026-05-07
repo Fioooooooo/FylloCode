@@ -1,7 +1,6 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { getDataSubPath } from "@main/infra/paths";
-import { encodeProjectPath } from "@main/infra/storage/project-store";
+import { sessionsDir } from "@main/infra/storage/project-paths";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
@@ -15,16 +14,12 @@ export interface SessionMeta {
   updatedAt: string;
 }
 
-function sessionDir(projectPath: string): string {
-  return join(getDataSubPath("projects"), encodeProjectPath(projectPath), "sessions");
-}
-
 function metaPath(projectPath: string, sessionId: string): string {
-  return join(sessionDir(projectPath), `${sessionId}.json`);
+  return join(sessionsDir(projectPath), `${sessionId}.json`);
 }
 
 function messagesPath(projectPath: string, sessionId: string): string {
-  return join(sessionDir(projectPath), `${sessionId}.messages.jsonl`);
+  return join(sessionsDir(projectPath), `${sessionId}.messages.jsonl`);
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -32,7 +27,7 @@ async function ensureDir(dir: string): Promise<void> {
 }
 
 export async function saveSessionMeta(projectPath: string, meta: SessionMeta): Promise<void> {
-  await ensureDir(sessionDir(projectPath));
+  await ensureDir(sessionsDir(projectPath));
   await fs.writeFile(metaPath(projectPath, meta.sessionId), JSON.stringify(meta, null, 2), "utf8");
 }
 
@@ -50,7 +45,7 @@ export async function loadSessionMeta(
 
 export async function listSessionMetas(projectPath: string): Promise<SessionMeta[]> {
   try {
-    const dir = sessionDir(projectPath);
+    const dir = sessionsDir(projectPath);
     const files = await fs.readdir(dir);
     const metas: SessionMeta[] = [];
     for (const file of files) {
@@ -80,7 +75,7 @@ export async function appendMessage(
   sessionId: string,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(sessionDir(projectPath));
+  await ensureDir(sessionsDir(projectPath));
   const line = JSON.stringify(message) + "\n";
   await fs.appendFile(messagesPath(projectPath, sessionId), line, "utf8");
 }

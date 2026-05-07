@@ -1,8 +1,9 @@
 import { ipcMain } from "electron";
 import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
-import type { Message, Session } from "@shared/types/chat";
+import type { Message } from "@shared/types/chat";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
+import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   createSessionInputSchema,
   getSessionInputSchema,
@@ -17,71 +18,43 @@ import {
 } from "@shared/schemas/ipc/chat";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
-import { ipcError } from "./_kit/errors";
 import { makeStreamChannel } from "./_kit/stream-channel";
 import { AcpSession } from "@main/services/chat/acp-session";
 import {
-  appendMessage,
-  deleteSession,
-  listSessionMetas,
-  loadMessages as loadPersistedMessages,
-  loadSessionMeta,
-  saveSessionMeta,
-  type SessionMeta,
-} from "@main/infra/storage/session-store";
+  createSession,
+  listSessions,
+  loadSessionMessages,
+  persistSessionMessage,
+  removeSession,
+  resolveProjectPath,
+  updateSession,
+} from "@main/services/chat/chat-service";
+import { loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
-import { loadProject } from "@main/infra/storage/project-store";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
 
 // Active sessions: fylloSessionId → AcpSession
 const activeSessions = new Map<string, AcpSession>();
 
-async function resolveProjectPath(projectId: string): Promise<string> {
-  const project = await loadProject(projectId);
-  if (!project) {
-    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
-  }
-
-  return project.path;
-}
-
-function toSession(meta: SessionMeta, projectId: string): Session {
-  return {
-    id: meta.sessionId,
-    projectId,
-    agentId: meta.agentId,
-    title: meta.title,
-    status: "ended",
-    turnCount: meta.turnCount,
-    createdAt: new Date(meta.createdAt),
-    updatedAt: new Date(meta.updatedAt),
-    messages: [],
-  };
+function mapAcpErrorCode(raw: string): IpcErrorCode {
+  if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
+  if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
+  if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
+  return IpcErrorCodes.ACP_ERROR;
 }
 
 export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
       const query = validate(listSessionsInputSchema, input);
-      const projectPath = await resolveProjectPath(query.projectId);
-      const metas = await listSessionMetas(projectPath);
-
-      void query.page;
-      void query.limit;
-
-      return metas
-        .sort(
-          (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-        )
-        .map((meta) => toSession(meta, query.projectId));
+      return listSessions(query.projectId);
     })
   );
 
   ipcMain.handle(ChatChannels.getSession, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { id } = validate(getSessionInputSchema, input);
-      void id;
+      validate(getSessionInputSchema, input);
       return null;
     })
   );
@@ -89,56 +62,28 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      const now = new Date();
-      const meta: SessionMeta = {
-        sessionId: `session-${now.getTime()}`,
-        agentId: form.agentId ?? DEFAULT_ACP_AGENT_ID,
-        title: form.title,
-        turnCount: 0,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-
-      await saveSessionMeta(projectPath, meta);
-      return toSession(meta, form.projectId);
+      return createSession(form);
     })
   );
 
   ipcMain.handle(ChatChannels.updateSession, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { id, patch, projectId } = validate(updateSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(projectId);
-      const meta = await loadSessionMeta(projectPath, id);
-      if (!meta) {
-        throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${id}`);
-      }
-
-      const nextMeta: SessionMeta = {
-        ...meta,
-        title: patch.title ?? meta.title,
-        agentId: patch.agentId ?? meta.agentId,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await saveSessionMeta(projectPath, nextMeta);
-      return toSession(nextMeta, projectId);
+      const form = validate(updateSessionInputSchema, input);
+      return updateSession(form);
     })
   );
 
   ipcMain.handle(ChatChannels.removeSession, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { id, projectId } = validate(removeSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(projectId);
-      await deleteSession(projectPath, id);
+      const form = validate(removeSessionInputSchema, input);
+      await removeSession(form);
     })
   );
 
   ipcMain.handle(ChatChannels.loadMessages, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { sessionId, projectId } = validate(loadMessagesInputSchema, input);
-      const projectPath = await resolveProjectPath(projectId);
-      return loadPersistedMessages(projectPath, sessionId);
+      const form = validate(loadMessagesInputSchema, input);
+      return loadSessionMessages(form);
     })
   );
 
@@ -151,13 +96,16 @@ export function registerChatHandlers(): void {
 
   ipcMain.handle(ChatChannels.persistMessage, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { sessionId, projectId, message } = validate(persistMessageInputSchema, input);
-      const typedMessage = message as Message;
+      const form = validate(persistMessageInputSchema, input);
+      const message = form.message as Message;
       logger.debug(
-        `[chat] persistMessage sessionId=${sessionId} role=${typedMessage.role} parts=${typedMessage.parts.length}`
+        `[chat] persistMessage sessionId=${form.sessionId} role=${message.role} parts=${message.parts.length}`
       );
-      const projectPath = await resolveProjectPath(projectId);
-      await appendMessage(projectPath, sessionId, typedMessage);
+      await persistSessionMessage({
+        sessionId: form.sessionId,
+        projectId: form.projectId,
+        message,
+      });
       logger.debug("[chat] persistMessage done");
     })
   );
@@ -210,7 +158,6 @@ export function registerChatHandlers(): void {
                     updatedAt: new Date().toISOString(),
                   });
                 }
-
                 const chunk = toMessageChunk(ev);
                 if (chunk) sink.sendChunk(chunk);
               })().catch((error: unknown) => {
@@ -251,11 +198,4 @@ export function registerChatHandlers(): void {
       }
     })
   );
-}
-
-function mapAcpErrorCode(raw: string): import("@shared/constants/error-codes").IpcErrorCode {
-  if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
-  if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
-  if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
-  return IpcErrorCodes.ACP_ERROR;
 }

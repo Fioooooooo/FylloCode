@@ -1,12 +1,8 @@
-import { promises as fs } from "fs";
-import { join } from "path";
 import { ipcMain } from "electron";
-import { load, dump } from "js-yaml";
 import { ProposalChannels } from "@shared/types/channels";
-import type { ApplyRunMeta, ProposalStatus } from "@shared/types/proposal";
-import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
+import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   applyInputSchema,
   archiveCancelInputSchema,
@@ -21,132 +17,28 @@ import { AcpSession } from "@main/services/chat/acp-session";
 import { MessageAssembler } from "@main/domain/chat/message-assembler";
 import { loadSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
-import { loadProject } from "@main/infra/storage/project-store";
 import {
-  getUserWorkflowDirectory,
-  listBuiltInWorkflowFileNames,
-} from "@main/services/workflow/built-in-loader";
-import { readWorkflowDirectory, resolveProjectWorkflowDirectory } from "./workflow";
+  appendApplyRunMessage,
+  loadApplyRunMessages,
+  loadApplyRunMeta,
+} from "@main/infra/storage/apply-run-store";
+import { buildStagePrompt } from "@main/services/proposal/stage-prompts";
+import {
+  buildArchiveStage,
+  createApplyRun,
+  getCompletedApplyStageIndex,
+  resolveProjectPath,
+  updateRunMetaIfCurrent,
+} from "@main/services/proposal/apply-run-service";
+import { newStageFylloSessionId } from "@main/infra/ids";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
 import { makeStreamChannel } from "./_kit/stream-channel";
 import logger from "@main/infra/logger";
-import {
-  appendApplyRunMessage,
-  loadApplyRunMessages,
-  loadApplyRunMeta,
-  saveApplyRunMeta,
-} from "@main/infra/storage/apply-run-store";
-import { buildStagePrompt } from "@main/services/proposal/stage-prompts";
-import type { IpcErrorCode } from "@shared/constants/error-codes";
 
 const activeApplySessions = new Map<string, AcpSession>();
 const activeArchiveSessions = new Map<string, AcpSession>();
-
-async function resolveProjectPath(projectId: string): Promise<string> {
-  const project = await loadProject(projectId);
-  if (!project) {
-    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
-  }
-
-  return project.path;
-}
-
-async function resolveChangeDir(projectPath: string, changeId: string): Promise<string | null> {
-  const rootDir = join(projectPath, "openspec", "changes", changeId);
-  const archiveDir = join(projectPath, "openspec", "changes", "archive", changeId);
-
-  try {
-    await fs.access(join(rootDir, ".openspec.yaml"));
-    return rootDir;
-  } catch {
-    try {
-      await fs.access(join(archiveDir, ".openspec.yaml"));
-      return archiveDir;
-    } catch {
-      return null;
-    }
-  }
-}
-
-async function loadWorkflowTemplates(projectId: string): Promise<WorkflowTemplate[]> {
-  const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
-  const userTemplates = await readWorkflowDirectory(getUserWorkflowDirectory(), "custom");
-  const projectWorkflowDirectory = await resolveProjectWorkflowDirectory(projectId);
-  const projectTemplates = projectWorkflowDirectory
-    ? await readWorkflowDirectory(projectWorkflowDirectory, "custom")
-    : [];
-
-  const builtInTemplates = userTemplates
-    .filter((template) => builtInFileNames.has(`${template.id}.yaml`))
-    .map((template) => ({ ...template, source: "built-in" as const }));
-  const customUserTemplates = userTemplates.filter(
-    (template) => !builtInFileNames.has(`${template.id}.yaml`)
-  );
-
-  return [...customUserTemplates, ...projectTemplates, ...builtInTemplates];
-}
-
-async function findWorkflowTemplate(
-  projectId: string,
-  workflowId: string
-): Promise<WorkflowTemplate | null> {
-  const templates = await loadWorkflowTemplates(projectId);
-  return templates.find((template) => template.id === workflowId) ?? null;
-}
-
-async function updateChangeStatus(
-  projectPath: string,
-  changeId: string,
-  nextStatus: ProposalStatus
-): Promise<void> {
-  const changeDir = await resolveChangeDir(projectPath, changeId);
-  if (!changeDir) {
-    throw ipcError(IpcErrorCodes.PROPOSAL_NOT_FOUND, `Proposal not found: ${changeId}`);
-  }
-
-  const yamlPath = join(changeDir, ".openspec.yaml");
-  const content = await fs.readFile(yamlPath, "utf8");
-  const parsed = load(content);
-  const nextDoc = parsed && typeof parsed === "object" ? parsed : {};
-  (nextDoc as Record<string, unknown>).status = nextStatus;
-  await fs.writeFile(yamlPath, dump(nextDoc), "utf8");
-}
-
-async function updateRunMetaIfCurrent(
-  projectPath: string,
-  changeId: string,
-  runId: string,
-  updater: (meta: ApplyRunMeta) => ApplyRunMeta
-): Promise<void> {
-  const current = await loadApplyRunMeta(projectPath, changeId);
-  if (!current || current.runId !== runId) {
-    return;
-  }
-
-  await saveApplyRunMeta(projectPath, updater(current));
-}
-
-function getCompletedApplyStageIndex(runMeta: ApplyRunMeta): number {
-  const completedUntil = Math.min(runMeta.currentStageIndex, runMeta.stages.length) - 1;
-  for (let index = completedUntil; index >= 0; index -= 1) {
-    if (runMeta.stages[index]?.type === "proposal-apply") {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function buildArchiveStage(agentId: string): WorkflowStage {
-  return {
-    id: "archive",
-    name: "归档",
-    type: "proposal-archive",
-    agent: agentId,
-  };
-}
 
 function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
@@ -159,33 +51,7 @@ export function registerProposalApplyHandlers(): void {
   ipcMain.handle(ProposalChannels.apply, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(applyInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      const template = await findWorkflowTemplate(form.projectId, form.workflowId);
-      if (!template) {
-        throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${form.workflowId}`);
-      }
-
-      const runId = `run-${Date.now()}`;
-      const startedAt = new Date().toISOString();
-      const runMeta: ApplyRunMeta = {
-        runId,
-        changeId: form.changeId,
-        workflowId: form.workflowId,
-        stages: template.stages,
-        currentStageIndex: 0,
-        stageAcpSessionIds: {},
-        status: "running",
-        startedAt,
-        updatedAt: startedAt,
-      };
-
-      await saveApplyRunMeta(projectPath, runMeta);
-      await updateChangeStatus(projectPath, form.changeId, "applying");
-
-      return {
-        runId,
-        stages: template.stages,
-      };
+      return createApplyRun(form);
     })
   );
 
@@ -209,11 +75,10 @@ export function registerProposalApplyHandlers(): void {
         }
 
         const prompt = buildStagePrompt({ changeId: form.changeId, projectPath, stage });
-
         const agentId = stage.agent ?? DEFAULT_ACP_AGENT_ID;
         const assembler = new MessageAssembler(form.runId);
         const session = new AcpSession({
-          fylloSessionId: `${form.runId}-${form.stageIndex}`,
+          fylloSessionId: newStageFylloSessionId(form.runId, form.stageIndex),
           agentId,
           projectPath,
           cwd: projectPath,
@@ -244,7 +109,6 @@ export function registerProposalApplyHandlers(): void {
               break;
             }
             case "session_info_update":
-              // Apply run does not surface title updates to renderer.
               break;
             case "done":
               void (async () => {
@@ -317,10 +181,7 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const { runId } = validate(stageStreamCancelInputSchema, input);
       const session = activeApplySessions.get(runId);
-      if (!session) {
-        return;
-      }
-
+      if (!session) return;
       session.cancel();
       activeApplySessions.delete(runId);
     })
@@ -352,7 +213,7 @@ export function registerProposalApplyHandlers(): void {
           );
         }
 
-        const fylloSessionId = `${runMeta.runId}-${completedStageIndex}`;
+        const fylloSessionId = newStageFylloSessionId(runMeta.runId, completedStageIndex);
         const sessionMeta = await loadSessionMeta(projectPath, fylloSessionId);
         if (!sessionMeta?.acpSessionId) {
           throw ipcError(
@@ -418,10 +279,7 @@ export function registerProposalApplyHandlers(): void {
       const form = validate(archiveCancelInputSchema, input);
       const sessionKey = `${form.projectId}:${form.changeId}`;
       const session = activeArchiveSessions.get(sessionKey);
-      if (!session) {
-        return;
-      }
-
+      if (!session) return;
       session.cancel();
       activeArchiveSessions.delete(sessionKey);
     })
@@ -431,7 +289,7 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const form = validate(loadRunInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
-      return await loadApplyRunMeta(projectPath, form.changeId);
+      return loadApplyRunMeta(projectPath, form.changeId);
     })
   );
 
@@ -439,7 +297,7 @@ export function registerProposalApplyHandlers(): void {
     wrapHandler(async () => {
       const form = validate(loadRunMessagesInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
-      return await loadApplyRunMessages(projectPath, form.changeId, form.stageIndex);
+      return loadApplyRunMessages(projectPath, form.changeId, form.stageIndex);
     })
   );
 }

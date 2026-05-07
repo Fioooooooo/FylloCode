@@ -1,17 +1,12 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { getDataSubPath } from "@main/infra/paths";
-import { encodeProjectPath } from "@main/infra/storage/project-store";
+import { applyRunsDir } from "@main/infra/storage/project-paths";
 import type { ApplyRunMeta } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
-function applyRunsRoot(projectPath: string): string {
-  return join(getDataSubPath("projects"), encodeProjectPath(projectPath), "apply-runs");
-}
-
 export function applyRunDir(projectPath: string, changeId: string): string {
-  return join(applyRunsRoot(projectPath), changeId);
+  return join(applyRunsDir(projectPath), changeId);
 }
 
 function runMetaPath(projectPath: string, changeId: string): string {

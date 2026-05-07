@@ -1,13 +1,11 @@
 import { promises as fs } from "fs";
 import { basename, join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { encodeProjectPath } from "@main/infra/storage/project-paths";
 import type { ProjectInfo, ProjectMeta } from "@shared/types/project";
 
 export type { ProjectMeta };
-
-export function encodeProjectPath(projectPath: string): string {
-  return projectPath.replace(/^\//, "").replace(/[\\/]/g, "-");
-}
+export { encodeProjectPath };
 
 function projectsDir(): string {
   return getDataSubPath("projects");
