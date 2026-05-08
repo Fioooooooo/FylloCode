@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { sessionRegistry } from "./session-registry";
-import type { AcpSession } from "./acp-session";
+import { sessionRegistry } from "@main/services/chat/session-registry";
+import type { AcpSession } from "@main/services/chat/acp-session";
 
 // Mock lifecycle so registering a disposable during module load is a no-op.
 vi.mock("@main/bootstrap/lifecycle", () => ({

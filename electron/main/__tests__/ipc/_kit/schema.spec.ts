@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { validate } from "./schema";
+import { validate } from "@main/ipc/_kit/schema";
 
 describe("validate", () => {
   const schema = z.object({

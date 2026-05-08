@@ -1,92 +1,121 @@
 # 测试规范
 
+## 总则
+
+- 项目使用 Vitest `projects` 运行两套测试：
+  - `renderer`：`happy-dom` 环境，覆盖 `frontend/` 渲染进程代码
+  - `main`：`node` 环境，覆盖 `electron/main/` 与 `shared/` 中的可单测模块
+- 测试文件**只放在专用 `__tests__` 目录中**，不与生产代码并置，不散落在源码树里。
+- 测试目录按源码目录镜像组织，方便从实现快速定位到对应测试。
+
 ## 目录结构
 
-```
+```text
 frontend/src/__tests__/
-├── setup.ts              # 全局 mock / stub（每次测试前自动执行）
-├── components/pages/     # 页面组件测试
-├── composables/          # composable 测试
-└── utils/                # 工具函数测试
+├── setup.ts
+├── bootstrap/
+├── components/
+├── stores/
+└── ...
+
+electron/main/__tests__/
+├── setup.ts
+├── bootstrap/
+├── domain/
+├── infra/
+├── ipc/
+├── services/
+└── ...
+
+shared/__tests__/        # 如需为 shared 模块补测试，统一放这里
 ```
 
-测试文件命名：`*.spec.ts`，放在 `__tests__/` 对应子目录，不分散在源码目录内。
+命名规则：
+
+- 测试文件使用 `kebab-case`
+- 文件名使用 `*.spec.ts` 或 `*.test.ts`
+- 新增测试时，优先放到对应层级的 `__tests__/` 镜像子目录
 
 ## 运行命令
 
 ```bash
-pnpm test             # 单次运行所有测试（CI 用）
-pnpm test:watch       # 监听模式
-pnpm test:coverage    # 生成覆盖率报告（输出到 ./coverage/）
-# 运行单个文件
-pnpm vitest run frontend/src/__tests__/components/pages/index.spec.ts
+pnpm test
+pnpm test:watch
+pnpm test:coverage
+
+# 运行单个 renderer 测试
+pnpm vitest run frontend/src/__tests__/components/proposal-detail-header.spec.ts
+
+# 运行单个 main 测试
+pnpm vitest run electron/main/__tests__/ipc/_kit/wrap-handler.spec.ts
 ```
 
-## @nuxt/ui 组件测试适配
+## Renderer 测试
 
-`@nuxt/ui` 组件在 Vite 构建时由插件自动注入，Vitest 不经过该插件，因此：
+Renderer 测试统一放在 `frontend/src/__tests__/`，运行在 `renderer` project 下。
 
-1. **composables**（如 `useToast`）在 `setup.ts` 中用 `vi.mock` 手动 mock
-2. **UI 组件**在 `setup.ts` 中全局 stub，避免 `Failed to resolve component` 警告
+### 范围
 
-### 当前 stub 清单（`setup.ts`）
+- 组件测试：验证状态、交互和 slot 组合，不测试 UI 库内部实现
+- Store 测试：验证状态流转、异步 action、副作用与错误回收
+- Bootstrap 测试：验证启动任务注册、并发执行和失败隔离
+- 纯前端工具函数测试：如后续新增 `utils/`、`composables/` 测试，也放在同一棵 `__tests__/` 树中
 
-| 组件                                       | Stub 方式                               | 说明               |
-| ------------------------------------------ | --------------------------------------- | ------------------ |
-| `RouterView`                               | `true`（空元素）                        | —                  |
-| `UApp`                                     | `true`                                  | —                  |
-| `UButton`                                  | `<button @click>` 保留 click 事件       | 可测试点击交互     |
-| `UInput`                                   | `<input>` 保留 v-model                  | 可测试输入双向绑定 |
-| `UCard`                                    | `<div>` 保留 header/default/footer slot | 可测试 slot 内容   |
-| `UBadge`、`USelect`、`UCheckbox`、`UAlert` | `true`                                  | 无需交互验证       |
+### 全局 setup
 
-**新增 @nuxt/ui 组件时：**
+`frontend/src/__tests__/setup.ts` 负责：
 
-- 需要交互测试 → 在 `setup.ts` 添加有意义的 stub（参考 `UButton`）
-- 纯展示组件 → 设为 `true`
+- mock `@nuxt/ui/composables`（如 `useToast`）
+- stub 全局自动注册的 `@nuxt/ui` 组件
+- stub `RouterView`、`UApp` 等壳组件，减少无关渲染噪音
+
+当前已提供可交互 stub 的组件包括：
+
+- `UButton`
+- `UInput`
+- `UCard`
+- `UDropdownMenu`
+
+新增 `@nuxt/ui` 组件时：
+
+- 需要交互验证：在 `setup.ts` 中补一个保留关键行为的 stub
+- 仅展示用途：直接 stub 为 `true`
 
 ### Mock 约定
 
-| 目标                         | 方式                                        | 位置         |
-| ---------------------------- | ------------------------------------------- | ------------ |
-| `useToast()` 等 composables  | `vi.mock('@nuxt/ui/composables')`           | `setup.ts`   |
-| `window.electron`（IPC API） | 在 `setup.ts` 中挂载到 `globalThis`         | `setup.ts`   |
-| `setTimeout` / `setInterval` | `vi.useFakeTimers()` / `vi.useRealTimers()` | 单个测试文件 |
+- 优先 mock `@renderer/api/*` 薄封装，而不是在组件或 store 测试里直接 mock 底层 IPC
+- 如果测试对象直接依赖 preload 暴露能力，按实际调用 mock `window.api`；只有直接使用原始 Electron bridge 时才 mock `window.electron`
+- 定时器相关逻辑在单个测试文件内使用 `vi.useFakeTimers()` / `vi.useRealTimers()`
 
-## 各类测试策略
+## Main 测试
 
-### 组件测试
+Main 测试统一放在 `electron/main/__tests__/`，运行在 `main` project 下。
 
-聚焦**状态与交互逻辑**，不验证 UI 库内部渲染：
+### 范围
 
-```ts
-import { mount } from "@vue/test-utils";
-import MyComponent from "@renderer/components/MyComponent.vue";
+- `domain/`：纯逻辑、解析器、映射器
+- `infra/`：纯函数和可隔离的基础设施帮助函数
+- `services/`：不依赖真实 Electron 进程即可验证的编排逻辑
+- `ipc/_kit/`：请求校验、错误归一化、handler 包装等基础设施
 
-test("点击按钮触发事件", async () => {
-  const wrapper = mount(MyComponent);
-  await wrapper.find("button").trigger("click");
-  expect(wrapper.emitted("submit")).toBeTruthy();
-});
-```
+### 全局 setup
 
-### Composable 测试
+`electron/main/__tests__/setup.ts` 负责：
 
-重点测试**状态流转、副作用时机、边界条件**。涉及 IPC 的 composable 需 mock `window.electron`：
+- mock `electron`
+- mock `@electron-toolkit/utils`
+- mock `electron-log/main`
 
-```ts
-// 在测试文件顶部或 setup.ts 中
-globalThis.window = {
-  electron: { ipcRenderer: { invoke: vi.fn(), on: vi.fn() } },
-} as unknown as Window;
-```
+因此 `pnpm test` 可以在**不启动 Electron** 的情况下直接运行主进程单元测试。
 
-### 工具函数测试
+### 编写约定
 
-纯函数，直接用 Vitest API，不依赖 Vue 运行时。
+- 测试优先通过 `@main/*`、`@shared/*` 别名引用实现，避免目录迁移时频繁改相对路径
+- handler 的业务逻辑应下沉到 `services/` / `domain/`，测试也优先覆盖下沉后的模块
+- 若新增 `shared` 模块测试，统一放在 `shared/__tests__/`
 
 ## 覆盖率
 
 - 报告输出到 `./coverage/`
-- 已排除：`__tests__/`、`config/`、`assets/`、类型声明文件
-- 目标：Statements > 80%
+- `__tests__/`、生成文件、类型声明、前端 `config/`、`assets/` 等路径不计入覆盖率
+- 目标：`Statements > 80%`

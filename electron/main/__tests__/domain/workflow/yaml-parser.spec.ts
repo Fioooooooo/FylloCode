@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWorkflowYaml } from "./yaml-parser";
+import { parseWorkflowYaml } from "@main/domain/workflow/yaml-parser";
 
 describe("parseWorkflowYaml", () => {
   it("parses a minimal workflow with one stage", () => {

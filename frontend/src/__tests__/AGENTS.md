@@ -5,9 +5,9 @@
 ```
 frontend/src/__tests__/
 ├── setup.ts              # 全局测试环境初始化（mock、stub 配置）
+├── bootstrap/            # 启动预热相关测试
 ├── components/           # 组件测试
-│   └── pages/
-│       └── index.spec.ts
+├── stores/               # Pinia store 测试
 ├── composables/          # composable 测试（待补充）
 ├── utils/                # 工具函数测试（待补充）
 └── AGENTS.md             # 本文件
@@ -16,7 +16,7 @@ frontend/src/__tests__/
 ## 命名规范
 
 - 测试文件：`*.spec.ts` 或 `*.test.ts`
-- 与源码同级：测试放在 `__tests__` 子目录中，不分散在源码目录内
+- 测试统一放在 `__tests__` 子目录中，按源码目录镜像组织，不与生产代码并置
 
 ## 运行命令
 
@@ -59,7 +59,7 @@ pnpm test:coverage # 生成覆盖率报告
 1. 与组件分离，单独放在 `frontend/src/composables/` 目录
 2. 测试文件放在 `__tests__/composables/`
 3. 重点测试 **状态流转、副作用时机、边界条件**
-4. 涉及 Electron IPC 的 composable，在测试中 mock `window.electron`
+4. 涉及 IPC 的 composable，优先 mock `window.api`；如果直接碰到原始 preload bridge，再 mock `window.electron`
 
 ## 纯函数 / Utils 测试
 
@@ -69,11 +69,11 @@ pnpm test:coverage # 生成覆盖率报告
 
 ## Mock 约定
 
-| 目标                                 | 方式                                        | 位置         |
-| ------------------------------------ | ------------------------------------------- | ------------ |
-| `useToast()` 等 @nuxt/ui composables | `vi.mock('@nuxt/ui/composables')`           | `setup.ts`   |
-| `window.electron`（IPC API）         | 待补充：在 `setup.ts` 中挂载到 `globalThis` | `setup.ts`   |
-| `setTimeout` / `interval`            | `vi.useFakeTimers()` / `vi.useRealTimers()` | 单个测试文件 |
+| 目标                                 | 方式                                              | 位置                  |
+| ------------------------------------ | ------------------------------------------------- | --------------------- |
+| `useToast()` 等 @nuxt/ui composables | `vi.mock('@nuxt/ui/composables')`                 | `setup.ts`            |
+| `window.api` / `window.electron`     | 按需在测试文件或 `setup.ts` 中挂载到 `globalThis` | 测试文件 / `setup.ts` |
+| `setTimeout` / `interval`            | `vi.useFakeTimers()` / `vi.useRealTimers()`       | 单个测试文件          |
 
 ## 覆盖率
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DynamicToolUIPart } from "ai";
-import { MessageAssembler } from "./message-assembler";
-import type { SessionEvent } from "./session-events";
+import { MessageAssembler } from "@main/domain/chat/message-assembler";
+import type { SessionEvent } from "@main/domain/chat/session-events";
 
 describe("MessageAssembler", () => {
   it("accumulates text_delta events into a single text part", () => {

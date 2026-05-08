@@ -8,7 +8,7 @@ import {
   resolveApplyRunChangeId,
   stripArchivePrefix,
   toTitleCase,
-} from "./openspec-reader";
+} from "@main/domain/proposal/openspec-reader";
 
 vi.mock("fs", async () => {
   const actual = await vi.importActual<typeof import("fs")>("fs");

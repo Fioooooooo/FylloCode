@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // session-event-mapper 的 SessionEvent 类型定义依赖仅 types，这里为测试目的构造输入。
-import { toMessageChunk } from "./session-event-mapper";
+import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 
 describe("toMessageChunk", () => {

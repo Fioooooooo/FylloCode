@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { disposeAll, registerDisposable, resetLifecycleForTests } from "./lifecycle";
+import { disposeAll, registerDisposable, resetLifecycleForTests } from "@main/bootstrap/lifecycle";
 
 beforeEach(() => {
   resetLifecycleForTests();

@@ -221,7 +221,7 @@ logger.error("...");
    );
    ```
 6. **preload API**：`electron/preload/api/foo.ts` 暴露 `bar`；更新 `preload/index.d.ts`。
-7. **单测**：service 和 domain 的纯函数补 `*.spec.ts`。
+7. **单测**：service、domain、infra 以及 `ipc/_kit` 的纯函数补单元测试，测试文件统一放在 `electron/main/__tests__/`，按源码目录镜像组织。
 8. **spec**：若改变用户可见行为，先走 OpenSpec change。
 
 ## 新增一个持久化资源

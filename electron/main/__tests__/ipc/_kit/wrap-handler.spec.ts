@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { wrapHandler } from "./wrap-handler";
-import { ipcError } from "./errors";
+import { wrapHandler } from "@main/ipc/_kit/wrap-handler";
+import { ipcError } from "@main/ipc/_kit/errors";
 
 vi.mock("@main/infra/logger", () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

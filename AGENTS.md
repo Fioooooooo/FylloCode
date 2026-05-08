@@ -63,7 +63,7 @@ pnpm test:coverage    # 生成覆盖率报告
 - **编码规范** - [CodeStyle](./docs/CodeStyle.md)
 - **OpenSpec 使用规范** - [OpenSpec](./docs/OpenSpec.md)
 
-若 Agent 准备开展分析、设计、实现、重构、测试或其他 action，应先主动查阅与任务相关的现有文档，再决定下一步。
+若 Agent 准备开展分析、设计、实现、重构、测试或其他 action，必须先主动查阅与任务相关的现有文档，了解规范与约束后，再决定下一步。
 
 ## 功能需求规范（OpenSpec）
 

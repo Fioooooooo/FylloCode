@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newRunId, newSessionId, newStageFylloSessionId } from "./index";
+import { newRunId, newSessionId, newStageFylloSessionId } from "@main/infra/ids";
 
 describe("infra/ids", () => {
   it("newSessionId produces strictly-ordered unique values", async () => {

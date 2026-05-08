@@ -38,7 +38,7 @@ frontend/src/
 ├── utils/           # 跨组件的纯工具函数
 ├── types/           # 仅前端使用的类型（跨进程类型放 shared/types）
 ├── assets/          # 图片、CSS（main.css 通过 main.ts 引入）
-├── __tests__/       # 测试专属 fixture / setup / 与目录并置之外的测试
+├── __tests__/       # 测试专属 fixture / setup / 所有渲染进程测试
 ├── typed-router.d.ts  # 由 vue-router/auto 生成（已纳入版本控制，禁手改）
 └── vite-env.d.ts
 ```
@@ -259,8 +259,8 @@ frontend/src/bootstrap/
 ## 测试
 
 - Vitest + happy-dom + `@vue/test-utils`。
-- 测试文件与源码并置（`foo.spec.ts` 紧邻 `foo.ts`）或放在 `__tests__/`。
-- 测试 `frontend/src/__tests__/setup.ts` 统一处理全局 mock（如 `window.api`）。
+- 测试文件统一放在 `frontend/src/__tests__/`，按源码目录镜像组织，不与生产代码并置。
+- `frontend/src/__tests__/setup.ts` 统一处理 `@nuxt/ui` stub 和常用全局 mock。
 - Renderer 项目跑在 `vitest.config.mts` 的 `renderer` workspace 下；`main` workspace 只跑主进程测试。
 
 ## 新增一个"页面 + store + IPC 消费者"的完整流程

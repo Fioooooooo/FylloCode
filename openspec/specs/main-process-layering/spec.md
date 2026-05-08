@@ -188,12 +188,12 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 
 ### Requirement: 主进程核心模块具备单元测试
 
-`domain/`、`infra/` 下的纯函数模块，以及 `services/chat/session-registry.ts`、`ipc/_kit/stream-channel.ts` SHALL 具备 Vitest 单元测试，测试文件紧邻源文件放置（`*.spec.ts`）。`pnpm test` 需能在不启动 Electron 的情况下运行并通过。
+`domain/`、`infra/` 下的纯函数模块，以及 `services/chat/session-registry.ts`、`ipc/_kit/stream-channel.ts` SHALL 具备 Vitest 单元测试。测试文件 SHALL 统一放置在 `electron/main/__tests__/` 下，并按源码目录镜像组织（例如 `electron/main/__tests__/ipc/_kit/stream-channel.spec.ts`）。`pnpm test` 需能在不启动 Electron 的情况下运行并通过。
 
 #### Scenario: 测试文件位置
 
 - **WHEN** 查看 `electron/main/ipc/_kit/stream-channel.ts` 所在目录
-- **THEN** 存在同级的 `stream-channel.spec.ts` 测试文件
+- **THEN** 存在 `electron/main/__tests__/ipc/_kit/stream-channel.spec.ts` 测试文件
 
 #### Scenario: 测试可脱离 Electron 运行
 
