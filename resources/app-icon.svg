@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <title>FylloCode App Icon</title>
+  <rect x="96" y="96" width="832" height="832" rx="204" fill="#fff"/>
+  <rect
+    x="96"
+    y="96"
+    width="832"
+    height="832"
+    rx="204"
+    fill="none"
+    stroke="#e5e7eb"
+    stroke-width="8"
+  />
+  <g fill-rule="evenodd" transform="translate(196.2 237.1) scale(1.937)">
+    <path fill="#0f766e" d="M0 0l163.23 283.51 41-70.73L81.23 0H0z"/>
+    <path fill="#2dd4bf" d="M0 0h326l-40 71H41L0 0z"/>
+    <path fill="#0891b2" d="M55 95h218.46l-40 71H96L55 95z"/>
+  </g>
+</svg>

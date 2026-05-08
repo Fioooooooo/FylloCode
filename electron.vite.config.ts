@@ -67,8 +67,8 @@ export default defineConfig(({ command }) => ({
         prose: true,
         ui: {
           colors: {
-            primary: "green",
-            secondary: "blue",
+            primary: "teal",
+            secondary: "cyan",
             neutral: "slate",
           },
         },

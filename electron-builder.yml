@@ -2,11 +2,10 @@ appId: com.fyllocode.app
 productName: FylloCode
 directories:
   buildResources: build
+beforePack: ./scripts/electron-builder-before-pack.cjs
 files:
-  - "!**/*"
   - "out/**"
   - "resources/**"
-  - "package.json"
 asarUnpack:
   - resources/**
 win:
@@ -39,5 +38,3 @@ npmRebuild: false
 publish:
   provider: generic
   url: https://example.com/auto-updates
-electronDownload:
-  mirror: https://npmmirror.com/mirrors/electron/
