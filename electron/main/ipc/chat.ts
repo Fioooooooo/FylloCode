@@ -19,7 +19,9 @@ import {
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { makeStreamChannel } from "./_kit/stream-channel";
+import { ipcError } from "./_kit/errors";
 import { AcpSession } from "@main/services/chat/acp-session";
+import { MessageAssembler } from "@main/services/chat/message-assembler";
 import {
   createSession,
   listSessions,
@@ -30,7 +32,7 @@ import {
   updateSession,
 } from "@main/services/chat/chat-service";
 import { sessionRegistry } from "@main/services/chat/session-registry";
-import { loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
+import { appendMessage, loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
@@ -95,7 +97,10 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.persistMessage, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(persistMessageInputSchema, input);
-      const message = form.message as Message;
+      const message = form.message as unknown as Message;
+      if (message.role !== "user") {
+        throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "message.role must be user");
+      }
       logger.debug(
         `[chat] persistMessage sessionId=${form.sessionId} role=${message.role} parts=${message.parts.length}`
       );
@@ -132,6 +137,7 @@ export function registerChatHandlers(): void {
           projectPath,
           cwd: projectPath,
         });
+        const assembler = new MessageAssembler(sessionId);
         sessionRegistry.register("chat", sessionId, session);
 
         session.on("event", (ev: SessionEvent) => {
@@ -142,6 +148,7 @@ export function registerChatHandlers(): void {
             case "text_delta":
             case "tool_call_start":
             case "tool_call_update": {
+              assembler.apply(ev);
               const chunk = toMessageChunk(ev);
               if (chunk) sink.sendChunk(chunk);
               break;
@@ -163,8 +170,21 @@ export function registerChatHandlers(): void {
               });
               break;
             case "done":
-              sink.sendDone(ev.totalTokens);
-              sessionRegistry.unregister("chat", sessionId);
+              void (async () => {
+                const message = assembler.flush();
+                if (message) {
+                  await appendMessage(projectPath, sessionId, message);
+                }
+                sink.sendDone(ev.totalTokens);
+                sessionRegistry.unregister("chat", sessionId);
+              })().catch((error: unknown) => {
+                logger.error("[chat] failed to persist completed assistant message", error);
+                sink.sendError(
+                  IpcErrorCodes.ACP_ERROR,
+                  error instanceof Error ? error.message : String(error)
+                );
+                sessionRegistry.unregister("chat", sessionId);
+              });
               break;
             case "error":
               sink.sendError(mapAcpErrorCode(ev.code), ev.message);

@@ -175,6 +175,7 @@ async function viewRunHistory(): Promise<void> {
 
   try {
     await proposalRunStore.resumeRun(projectId, changeIdSnapshot);
+    await proposalRunStore.resumeArchive(projectId, changeIdSnapshot);
   } catch (error: unknown) {
     console.error("Failed to load proposal run history:", error);
   }
@@ -195,6 +196,13 @@ onMounted(() => {
     if (projectId && proposal?.status === "applying") {
       await proposalRunStore.resumeRun(projectId, changeId.value);
       if (proposalRunStore.runMeta) {
+        sidePanelOpen.value = true;
+      }
+    }
+
+    if (projectId) {
+      const hasArchive = await proposalRunStore.resumeArchive(projectId, changeId.value);
+      if (hasArchive) {
         sidePanelOpen.value = true;
       }
     }

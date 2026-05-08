@@ -1,4 +1,5 @@
 import { ipcMain } from "electron";
+import { generateId, type UIMessage } from "ai";
 import { ProposalChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { DEFAULT_ACP_AGENT_ID } from "@shared/constants/agents";
@@ -7,11 +8,15 @@ import {
   applyInputSchema,
   archiveCancelInputSchema,
   archiveInputSchema,
+  loadArchiveInputSchema,
+  loadArchiveMessagesInputSchema,
   loadRunInputSchema,
   loadRunMessagesInputSchema,
   stageStreamCancelInputSchema,
   stageStreamInputSchema,
 } from "@shared/schemas/ipc/proposal";
+import type { MessageMeta } from "@shared/types/chat";
+import type { ArchiveRunMeta } from "@shared/types/proposal";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import { AcpSession } from "@main/services/chat/acp-session";
 import { sessionRegistry } from "@main/services/chat/session-registry";
@@ -19,9 +24,13 @@ import { MessageAssembler } from "@main/services/chat/message-assembler";
 import { loadSessionMeta } from "@main/infra/storage/session-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import {
+  appendArchiveMessage,
   appendApplyRunMessage,
+  loadArchiveMessages,
+  loadArchiveRunMeta,
   loadApplyRunMessages,
   loadApplyRunMeta,
+  saveArchiveRunMeta,
 } from "@main/infra/storage/apply-run-store";
 import { buildStagePrompt } from "@main/services/proposal/stage-prompts";
 import {
@@ -44,6 +53,22 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
   if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
   return IpcErrorCodes.ACP_ERROR;
+}
+
+function buildUserMessage(sessionId: string, text: string): UIMessage<MessageMeta> {
+  return {
+    id: generateId(),
+    role: "user",
+    parts: [{ type: "text", text }],
+    metadata: { sessionId, createdAt: new Date() },
+  };
+}
+
+function persistError(error: unknown): Error {
+  return ipcError(
+    IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
+    error instanceof Error ? error.message : String(error)
+  );
 }
 
 export function registerProposalApplyHandlers(): void {
@@ -75,9 +100,18 @@ export function registerProposalApplyHandlers(): void {
 
         const prompt = buildStagePrompt({ changeId: form.changeId, projectPath, stage });
         const agentId = stage.agent ?? DEFAULT_ACP_AGENT_ID;
-        const assembler = new MessageAssembler(form.runId);
+        const fylloSessionId = newStageFylloSessionId(form.runId, form.stageIndex);
+        const userMessage = buildUserMessage(fylloSessionId, prompt);
+        try {
+          await appendApplyRunMessage(projectPath, form.changeId, form.stageIndex, userMessage);
+        } catch (error: unknown) {
+          throw persistError(error);
+        }
+        sink.sendChunk({ kind: "user_message", message: userMessage });
+
+        const assembler = new MessageAssembler(fylloSessionId);
         const session = new AcpSession({
-          fylloSessionId: newStageFylloSessionId(form.runId, form.stageIndex),
+          fylloSessionId,
           agentId,
           projectPath,
           cwd: projectPath,
@@ -224,6 +258,26 @@ export function registerProposalApplyHandlers(): void {
           projectPath,
           stage,
         });
+        const archiveRunId = `archive-${Date.now()}`;
+        const startedAt = new Date().toISOString();
+        const archiveMeta: ArchiveRunMeta = {
+          runId: archiveRunId,
+          changeId: form.changeId,
+          status: "running",
+          startedAt,
+          updatedAt: startedAt,
+        };
+        const userMessage = buildUserMessage(fylloSessionId, prompt);
+
+        try {
+          await saveArchiveRunMeta(projectPath, archiveMeta);
+          await appendArchiveMessage(projectPath, form.changeId, userMessage);
+        } catch (error: unknown) {
+          throw persistError(error);
+        }
+
+        sink.sendChunk({ kind: "user_message", message: userMessage });
+        const assembler = new MessageAssembler(fylloSessionId);
 
         const session = new AcpSession({
           fylloSessionId,
@@ -237,23 +291,58 @@ export function registerProposalApplyHandlers(): void {
           if (
             ev.type === "text_delta" ||
             ev.type === "tool_call_start" ||
-            ev.type === "tool_call_update" ||
-            ev.type === "session_info_update"
+            ev.type === "tool_call_update"
           ) {
+            assembler.apply(ev);
+            const chunk = toMessageChunk(ev);
+            if (chunk) sink.sendChunk(chunk);
+            return;
+          }
+
+          if (ev.type === "session_info_update") {
             const chunk = toMessageChunk(ev);
             if (chunk) sink.sendChunk(chunk);
             return;
           }
 
           if (ev.type === "done") {
-            sink.sendDone(ev.totalTokens);
-            sessionRegistry.unregister("archive", sessionKey);
+            void (async () => {
+              const message = assembler.flush();
+              if (message) {
+                await appendArchiveMessage(projectPath, form.changeId, message);
+              }
+              await saveArchiveRunMeta(projectPath, {
+                ...archiveMeta,
+                status: "done",
+                updatedAt: new Date().toISOString(),
+              });
+              sink.sendDone(ev.totalTokens);
+              sessionRegistry.unregister("archive", sessionKey);
+            })().catch((error: unknown) => {
+              logger.error("[proposal-archive] failed to persist completed archive message", error);
+              sink.sendError(
+                IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
+                error instanceof Error ? error.message : String(error)
+              );
+              sessionRegistry.unregister("archive", sessionKey);
+            });
             return;
           }
 
           if (ev.type === "error") {
-            sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-            sessionRegistry.unregister("archive", sessionKey);
+            void (async () => {
+              await saveArchiveRunMeta(projectPath, {
+                ...archiveMeta,
+                status: "error",
+                updatedAt: new Date().toISOString(),
+              });
+              sink.sendError(mapAcpErrorCode(ev.code), ev.message);
+              sessionRegistry.unregister("archive", sessionKey);
+            })().catch((error: unknown) => {
+              logger.error("[proposal-archive] failed to persist archive error status", error);
+              sink.sendError(mapAcpErrorCode(ev.code), ev.message);
+              sessionRegistry.unregister("archive", sessionKey);
+            });
           }
         });
 
@@ -293,6 +382,24 @@ export function registerProposalApplyHandlers(): void {
       const projectPath = await resolveProjectPath(form.projectId);
       const applyRunChangeId = await resolveApplyRunChangeId(projectPath, form.changeId);
       return loadApplyRunMessages(projectPath, applyRunChangeId, form.stageIndex);
+    })
+  );
+
+  ipcMain.handle(ProposalChannels.loadArchive, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(loadArchiveInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      const applyRunChangeId = await resolveApplyRunChangeId(projectPath, form.changeId);
+      return loadArchiveRunMeta(projectPath, applyRunChangeId);
+    })
+  );
+
+  ipcMain.handle(ProposalChannels.loadArchiveMessages, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(loadArchiveMessagesInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      const applyRunChangeId = await resolveApplyRunChangeId(projectPath, form.changeId);
+      return loadArchiveMessages(projectPath, applyRunChangeId);
     })
   );
 }

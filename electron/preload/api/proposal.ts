@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import type { IpcErrorInfo, IpcResponse, MessageChunkData } from "@shared/types/ipc";
-import type { ProposalMeta, ApplyRunMeta } from "@shared/types/proposal";
+import type { ProposalMeta, ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -130,5 +130,19 @@ export const proposalApi = {
     stageIndex: number;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return ipcRenderer.invoke(ProposalChannels.loadRunMessages, input);
+  },
+
+  loadArchive(input: {
+    projectId: string;
+    changeId: string;
+  }): Promise<IpcResponse<ArchiveRunMeta | null>> {
+    return ipcRenderer.invoke(ProposalChannels.loadArchive, input);
+  },
+
+  loadArchiveMessages(input: {
+    projectId: string;
+    changeId: string;
+  }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
+    return ipcRenderer.invoke(ProposalChannels.loadArchiveMessages, input);
   },
 };

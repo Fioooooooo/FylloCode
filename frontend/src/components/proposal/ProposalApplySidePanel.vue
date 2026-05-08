@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import ChatComark from "@renderer/components/chat/ChatComark";
+import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta } from "@shared/types/proposal";
 import type { UIMessage } from "ai";
@@ -96,49 +96,7 @@ function getStageCount(): number {
         </div>
       </div>
 
-      <div v-else class="space-y-3">
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="space-y-2 rounded-lg border border-default bg-elevated/30 px-3 py-3"
-        >
-          <div v-for="(part, index) in message.parts" :key="index">
-            <div v-if="part.type === 'text'" class="prose prose-sm dark:prose-invert max-w-none">
-              <ChatComark :markdown="part.text" />
-            </div>
-
-            <div
-              v-else-if="part.type === 'dynamic-tool'"
-              class="flex items-start gap-2 rounded-md border border-default bg-default px-3 py-2 text-xs"
-            >
-              <UIcon
-                v-if="part.state === 'input-available'"
-                name="i-lucide-loader-2"
-                class="w-3.5 h-3.5 animate-spin text-warning mt-0.5 shrink-0"
-              />
-              <UIcon
-                v-else
-                name="i-lucide-check"
-                class="w-3.5 h-3.5 text-success mt-0.5 shrink-0"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="font-medium text-highlighted">
-                  {{ part.toolName }}
-                </div>
-                <div v-if="part.state === 'input-available'" class="text-muted">调用中</div>
-                <div v-else class="mt-1 text-muted whitespace-pre-wrap">
-                  {{ part.title ?? part.toolName }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="isStreaming" class="flex items-center gap-2 text-xs text-muted">
-          <UIcon name="i-lucide-loader-2" class="w-3.5 h-3.5 animate-spin" />
-          <span>正在执行...</span>
-        </div>
-      </div>
+      <UIMessageList v-else :messages="messages" :is-streaming="isStreaming" type="side" />
     </div>
   </div>
 </template>

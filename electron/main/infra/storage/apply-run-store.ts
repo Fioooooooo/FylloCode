@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { applyRunsDir } from "@main/infra/storage/project-paths";
-import type { ApplyRunMeta } from "@shared/types/proposal";
+import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
@@ -15,6 +15,14 @@ function runMetaPath(projectPath: string, changeId: string): string {
 
 function stageMessagesPath(projectPath: string, changeId: string, stageIndex: number): string {
   return join(applyRunDir(projectPath, changeId), `stage-${stageIndex}.messages.jsonl`);
+}
+
+export function archiveRunMetaPath(projectPath: string, changeId: string): string {
+  return join(applyRunDir(projectPath, changeId), "archive.json");
+}
+
+export function archiveMessagesPath(projectPath: string, changeId: string): string {
+  return join(applyRunDir(projectPath, changeId), "archive.messages.jsonl");
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -63,6 +71,55 @@ export async function loadApplyRunMessages(
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
     const content = await fs.readFile(stageMessagesPath(projectPath, changeId, stageIndex), "utf8");
+    return content
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as UIMessage<MessageMeta>);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveArchiveRunMeta(projectPath: string, meta: ArchiveRunMeta): Promise<void> {
+  await ensureDir(applyRunDir(projectPath, meta.changeId));
+  await fs.writeFile(
+    archiveRunMetaPath(projectPath, meta.changeId),
+    JSON.stringify(meta, null, 2),
+    "utf8"
+  );
+}
+
+export async function loadArchiveRunMeta(
+  projectPath: string,
+  changeId: string
+): Promise<ArchiveRunMeta | null> {
+  try {
+    const content = await fs.readFile(archiveRunMetaPath(projectPath, changeId), "utf8");
+    return JSON.parse(content) as ArchiveRunMeta;
+  } catch {
+    return null;
+  }
+}
+
+export async function appendArchiveMessage(
+  projectPath: string,
+  changeId: string,
+  message: UIMessage<MessageMeta>
+): Promise<void> {
+  await ensureDir(applyRunDir(projectPath, changeId));
+  await fs.appendFile(
+    archiveMessagesPath(projectPath, changeId),
+    `${JSON.stringify(message)}\n`,
+    "utf8"
+  );
+}
+
+export async function loadArchiveMessages(
+  projectPath: string,
+  changeId: string
+): Promise<UIMessage<MessageMeta>[]> {
+  try {
+    const content = await fs.readFile(archiveMessagesPath(projectPath, changeId), "utf8");
     return content
       .split("\n")
       .filter((line) => line.trim())

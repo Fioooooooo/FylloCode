@@ -1,125 +1,30 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { generateId, type DynamicToolUIPart, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { proposalApi } from "@renderer/api/proposal";
+import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import type { MessageMeta } from "@shared/types/chat";
-import type { MessageChunkData } from "@shared/types/ipc";
-import type { ApplyRunMeta } from "@shared/types/proposal";
+import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 
 export const useProposalRunStore = defineStore("proposal-run", () => {
   const runMeta = ref<ApplyRunMeta | null>(null);
+  const archiveRunMeta = ref<ArchiveRunMeta | null>(null);
   const messages = ref<UIMessage<MessageMeta>[]>([]);
   const isStreaming = ref(false);
   const cancelFn = ref<(() => void) | null>(null);
   const isArchiving = ref(false);
-
-  let activeAssistantId: string | null = null;
-  let activeTextPartIdx = -1;
-
-  function resetActiveMessage(): void {
-    activeAssistantId = null;
-    activeTextPartIdx = -1;
-  }
+  const assembler = useUIMessageAssembler(messages, {
+    sessionId: () => archiveRunMeta.value?.runId ?? runMeta.value?.runId ?? "proposal-run",
+  });
 
   function clearRunState(): void {
     runMeta.value = null;
+    archiveRunMeta.value = null;
     messages.value = [];
     isStreaming.value = false;
     cancelFn.value = null;
-    resetActiveMessage();
-  }
-
-  function ensureAssistantMessage(): UIMessage<MessageMeta> {
-    if (activeAssistantId) {
-      const existing = messages.value.find((message) => message.id === activeAssistantId);
-      if (existing) {
-        return existing;
-      }
-    }
-
-    const message: UIMessage<MessageMeta> = {
-      id: generateId(),
-      role: "assistant",
-      parts: [],
-      metadata: {
-        sessionId: runMeta.value?.runId ?? "proposal-run",
-        createdAt: new Date(),
-      },
-    };
-    messages.value.push(message);
-    activeAssistantId = message.id;
-    activeTextPartIdx = -1;
-    return message;
-  }
-
-  function applyChunk(data: MessageChunkData): void {
-    if (data.kind === "text_delta") {
-      const message = ensureAssistantMessage();
-      const part = activeTextPartIdx >= 0 ? message.parts[activeTextPartIdx] : null;
-
-      if (part && part.type === "text") {
-        part.text += data.text;
-      } else {
-        message.parts.push({ type: "text", text: data.text });
-        activeTextPartIdx = message.parts.length - 1;
-      }
-    } else if (data.kind === "tool_call_start") {
-      const message = ensureAssistantMessage();
-      const part: DynamicToolUIPart = {
-        type: "dynamic-tool",
-        toolCallId: data.toolCallId,
-        toolName: data.title,
-        state: "input-available",
-        input: {},
-      };
-      message.parts.push(part);
-      activeTextPartIdx = -1;
-    } else if (data.kind === "tool_call_update") {
-      if (!activeAssistantId) {
-        return;
-      }
-
-      const message = messages.value.find((item) => item.id === activeAssistantId);
-      if (!message) {
-        return;
-      }
-
-      const idx = message.parts.findIndex(
-        (part) => part.type === "dynamic-tool" && part.toolCallId === data.toolCallId
-      );
-      if (idx === -1) {
-        return;
-      }
-
-      const prev = message.parts[idx] as DynamicToolUIPart;
-      const description =
-        typeof data.input?.description === "string" ? data.input.description : undefined;
-
-      if (data.status === "in_progress") {
-        const needsUpdate = data.input || data.content;
-        if (needsUpdate) {
-          message.parts.splice(idx, 1, {
-            type: "dynamic-tool",
-            toolCallId: prev.toolCallId,
-            toolName: prev.toolName,
-            title: description ?? data.content,
-            state: "input-available",
-            input: data.input ?? prev.input,
-          } as DynamicToolUIPart);
-        }
-      } else if (data.status === "completed" || data.status === "failed") {
-        message.parts.splice(idx, 1, {
-          type: "dynamic-tool",
-          toolCallId: prev.toolCallId,
-          toolName: prev.toolName,
-          title: prev.title,
-          state: "output-available",
-          input: prev.input,
-          output: data.content ?? "",
-        } as DynamicToolUIPart);
-      }
-    }
+    assembler.resetActive();
   }
 
   async function startRun(projectId: string, changeId: string, workflowId: string): Promise<void> {
@@ -140,8 +45,8 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
       startedAt: now,
       updatedAt: now,
     };
-    messages.value = [];
-    resetActiveMessage();
+    archiveRunMeta.value = null;
+    assembler.setMessages([]);
     streamCurrentStage(projectId, changeId);
   }
 
@@ -166,6 +71,26 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     };
   }
 
+  function buildArchiveRunMetaView(meta: ArchiveRunMeta): ApplyRunMeta {
+    const stage: WorkflowStage = {
+      id: "archive",
+      name: "归档",
+      type: "proposal-archive",
+    };
+
+    return {
+      runId: meta.runId,
+      changeId: meta.changeId,
+      workflowId: "archive",
+      stages: [stage],
+      currentStageIndex: 0,
+      stageAcpSessionIds: {},
+      status: meta.status,
+      startedAt: meta.startedAt,
+      updatedAt: meta.updatedAt,
+    };
+  }
+
   function streamCurrentStage(projectId: string, changeId: string): void {
     const meta = runMeta.value;
     if (!meta) {
@@ -179,8 +104,8 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
       return;
     }
 
-    messages.value = [];
-    resetActiveMessage();
+    archiveRunMeta.value = null;
+    assembler.setMessages([]);
     isStreaming.value = true;
     cancelFn.value = proposalApi.stageStream(
       {
@@ -191,12 +116,12 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
       },
       {
         onChunk(data) {
-          applyChunk(data);
+          assembler.applyChunk(data);
         },
         onDone() {
           isStreaming.value = false;
           cancelFn.value = null;
-          resetActiveMessage();
+          assembler.resetActive();
 
           const current = runMeta.value;
           if (!current) {
@@ -219,7 +144,7 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
           console.error("Proposal apply stream error:", error.code, error.message);
           isStreaming.value = false;
           cancelFn.value = null;
-          resetActiveMessage();
+          assembler.resetActive();
 
           if (runMeta.value) {
             runMeta.value = {
@@ -246,6 +171,7 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     }
 
     runMeta.value = result.data;
+    archiveRunMeta.value = null;
 
     const maxStageIndex = Math.max(result.data.stages.length - 1, 0);
     const stageIndex =
@@ -258,14 +184,39 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
       throw new Error(messagesResult.error.message);
     }
 
-    messages.value = messagesResult.data;
+    assembler.setMessages(messagesResult.data);
+  }
+
+  async function resumeArchive(projectId: string, changeId: string): Promise<boolean> {
+    const archiveResult = await proposalApi.loadArchive({ projectId, changeId });
+    if (!archiveResult.ok) {
+      throw new Error(archiveResult.error.message);
+    }
+
+    if (!archiveResult.data) {
+      return false;
+    }
+
+    const messagesResult = await proposalApi.loadArchiveMessages({ projectId, changeId });
+    if (!messagesResult.ok) {
+      throw new Error(messagesResult.error.message);
+    }
+
+    archiveRunMeta.value = archiveResult.data;
+    runMeta.value = buildArchiveRunMetaView(archiveResult.data);
+    assembler.setMessages(messagesResult.data);
+    isStreaming.value = archiveResult.data.status === "running";
+    isArchiving.value = archiveResult.data.status === "running";
+    cancelFn.value = null;
+    return true;
   }
 
   async function startArchive(projectId: string, changeId: string): Promise<void> {
     const previousMeta = runMeta.value;
+    const previousArchiveMeta = archiveRunMeta.value;
     runMeta.value = buildArchiveRunMeta(changeId);
-    messages.value = [];
-    resetActiveMessage();
+    archiveRunMeta.value = null;
+    assembler.setMessages([]);
     isStreaming.value = true;
     isArchiving.value = true;
 
@@ -278,15 +229,16 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
         },
         {
           onChunk(data) {
-            applyChunk(data);
+            assembler.applyChunk(data);
           },
           onDone() {
             settled = true;
             isStreaming.value = false;
             isArchiving.value = false;
             cancelFn.value = null;
-            resetActiveMessage();
+            assembler.resetActive();
             runMeta.value = previousMeta;
+            archiveRunMeta.value = previousArchiveMeta;
             resolve();
           },
           onError(error) {
@@ -295,8 +247,9 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
             isStreaming.value = false;
             isArchiving.value = false;
             cancelFn.value = null;
-            resetActiveMessage();
+            assembler.resetActive();
             runMeta.value = previousMeta;
+            archiveRunMeta.value = previousArchiveMeta;
             reject(new Error(error.message));
           },
         }
@@ -314,11 +267,12 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     cancelFn.value = null;
     isStreaming.value = false;
     isArchiving.value = false;
-    resetActiveMessage();
+    assembler.resetActive();
   }
 
   return {
     runMeta,
+    archiveRunMeta,
     messages,
     isStreaming,
     isArchiving,
@@ -327,6 +281,7 @@ export const useProposalRunStore = defineStore("proposal-run", () => {
     startArchive,
     streamCurrentStage,
     resumeRun,
+    resumeArchive,
     cancelRun,
   };
 });

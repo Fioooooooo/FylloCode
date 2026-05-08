@@ -43,8 +43,14 @@ export const sendMessageInputSchema = z.object({
 export const persistMessageInputSchema = z.object({
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
-  // The message payload is a UIMessage we trust from preload; forward as-is.
-  message: z.unknown(),
+  message: z
+    .object({
+      id: z.string().min(1),
+      role: z.literal("user"),
+      parts: z.array(z.unknown()),
+      metadata: z.unknown().optional(),
+    })
+    .passthrough(),
 });
 
 export const streamMessageInputSchema = z.object({

@@ -1,9 +1,10 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { generateId, type DynamicToolUIPart } from "ai";
+import { generateId } from "ai";
 import { useToast } from "@nuxt/ui/composables";
 import type { ChatStatus, Message, ModeType, Session, TokenUsage } from "@shared/types/chat";
 import { chatApi } from "@renderer/api/chat";
+import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { useProjectStore } from "./project";
 import { useSessionStore } from "./session";
 
@@ -67,26 +68,9 @@ export const useChatStore = defineStore("chat", () => {
     prompt: string,
     sessionStore: ReturnType<typeof useSessionStore>
   ): void {
-    let activeAssistantId: string | null = null;
-    let activeTextPartIdx = -1;
-
-    function ensureAssistantMessage(): Message {
-      if (activeAssistantId) {
-        const existing = activeSession.messages.find((message) => message.id === activeAssistantId);
-        if (existing) return existing;
-      }
-
-      const message: Message = {
-        id: generateId(),
-        role: "assistant",
-        parts: [],
-        metadata: { sessionId: activeSession.id, createdAt: new Date() },
-      };
-      activeSession.messages.push(message);
-      activeAssistantId = message.id;
-      activeTextPartIdx = -1;
-      return message;
-    }
+    const assembler = useUIMessageAssembler(ref(activeSession.messages), {
+      sessionId: activeSession.id,
+    });
 
     chatApi.streamMessage(activeSession.id, projectId, activeSession.agentId, prompt, {
       onChunk(data) {
@@ -94,75 +78,17 @@ export const useChatStore = defineStore("chat", () => {
           chatStatus.value = "streaming";
         }
 
-        if (data.kind === "text_delta") {
-          const message = ensureAssistantMessage();
-          const existingPart = activeTextPartIdx >= 0 ? message.parts[activeTextPartIdx] : null;
-          if (existingPart && existingPart.type === "text") {
-            existingPart.text += data.text;
-          } else {
-            message.parts.push({ type: "text", text: data.text });
-            activeTextPartIdx = message.parts.length - 1;
-          }
-        } else if (data.kind === "tool_call_start") {
-          const message = ensureAssistantMessage();
-          const part: DynamicToolUIPart = {
-            type: "dynamic-tool",
-            toolCallId: data.toolCallId,
-            toolName: data.title,
-            state: "input-available",
-            input: {},
-          };
-          message.parts.push(part);
-          activeTextPartIdx = -1;
-        } else if (data.kind === "tool_call_update") {
-          if (!activeAssistantId) return;
-
-          const message = activeSession.messages.find((item) => item.id === activeAssistantId);
-          if (!message) return;
-
-          const idx = message.parts.findIndex(
-            (part) => part.type === "dynamic-tool" && part.toolCallId === data.toolCallId
-          );
-          if (idx === -1) return;
-
-          const prev = message.parts[idx] as DynamicToolUIPart;
-          const description =
-            typeof data.input?.description === "string" ? data.input.description : undefined;
-
-          if (data.status === "in_progress") {
-            const needsUpdate = data.input || data.content;
-            if (needsUpdate) {
-              message.parts.splice(idx, 1, {
-                type: "dynamic-tool",
-                toolCallId: prev.toolCallId,
-                toolName: prev.toolName,
-                title: description ?? data.content,
-                state: "input-available",
-                input: data.input ?? prev.input,
-              } as DynamicToolUIPart);
-            }
-          } else if (data.status === "completed" || data.status === "failed") {
-            const updated: DynamicToolUIPart = {
-              type: "dynamic-tool",
-              toolCallId: prev.toolCallId,
-              toolName: prev.toolName,
-              title: prev.title,
-              state: "output-available",
-              input: prev.input,
-              output: data.content ?? "",
-            };
-            message.parts.splice(idx, 1, updated);
-          }
-        } else if (data.kind === "session_info_update") {
+        if (data.kind === "session_info_update") {
           activeSession.title = data.title;
           activeSession.updatedAt = new Date();
           sessionStore.sortSessions();
+          return;
         }
+
+        assembler.applyChunk(data);
       },
       onDone(done) {
-        const finishedId = activeAssistantId;
-        activeAssistantId = null;
-        activeTextPartIdx = -1;
+        assembler.resetActive();
         chatStatus.value = "ready";
         tokenUsage.value = {
           ...tokenUsage.value,
@@ -172,21 +98,9 @@ export const useChatStore = defineStore("chat", () => {
         activeSession.updatedAt = new Date();
         activeSession.status = "ended";
         sessionStore.sortSessions();
-
-        if (!finishedId) {
-          return;
-        }
-
-        const message = activeSession.messages.find((item) => item.id === finishedId);
-        if (!message) {
-          return;
-        }
-
-        persistMessage(activeSession.id, projectId, message);
       },
       onError(err) {
-        activeAssistantId = null;
-        activeTextPartIdx = -1;
+        assembler.resetActive();
         chatStatus.value = "error";
         activeSession.status = "ended";
         activeSession.updatedAt = new Date();

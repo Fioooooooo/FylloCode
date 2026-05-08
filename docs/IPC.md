@@ -30,11 +30,32 @@
 | `chat:updateSession`  | `ChatChannels.updateSession`       | handle |
 | `chat:removeSession`  | `ChatChannels.removeSession`       | handle |
 | `chat:sendMessage`    | `ChatChannels.sendMessage`         | handle |
+| `chat:persistMessage` | `ChatChannels.persistMessage`      | handle |
 | `chat:stream:message` | `ChatStreamChannels.streamMessage` | handle |
 | `chat:stream:port`    | `ChatStreamChannels.streamPort`    | handle |
 | `chat:stream:cancel`  | `ChatStreamChannels.streamCancel`  | on     |
 
 流式消息通过 `MessagePort` 传输，消息格式见 `shared/types/ipc.ts` 的 `StreamMessage<T>`。
+`chat:persistMessage` 仅用于持久化 `role === "user"` 的消息；assistant 消息由主进程在
+`chat:stream:message` 完成时写盘。
+
+### Proposal（`window.api.proposal`）
+
+| Channel                        | 常量                                   | 类型   |
+| ------------------------------ | -------------------------------------- | ------ |
+| `proposal:list`                | `ProposalChannels.list`                | handle |
+| `proposal:readFile`            | `ProposalChannels.readFile`            | handle |
+| `proposal:apply`               | `ProposalChannels.apply`               | handle |
+| `proposal:stageStream`         | `ProposalChannels.stageStream`         | handle |
+| `proposal:stageStream:port`    | `ProposalChannels.stageStreamPort`     | handle |
+| `proposal:stageStream:cancel`  | `ProposalChannels.stageStreamCancel`   | handle |
+| `proposal:archive`             | `ProposalChannels.archive`             | handle |
+| `proposal:archive:port`        | `ProposalChannels.archivePort`         | handle |
+| `proposal:archive:cancel`      | `ProposalChannels.archiveCancel`       | handle |
+| `proposal:loadRun`             | `ProposalChannels.loadRun`             | handle |
+| `proposal:loadRunMessages`     | `ProposalChannels.loadRunMessages`     | handle |
+| `proposal:loadArchive`         | `ProposalChannels.loadArchive`         | handle |
+| `proposal:loadArchiveMessages` | `ProposalChannels.loadArchiveMessages` | handle |
 
 ### Project（`window.api.project`）
 

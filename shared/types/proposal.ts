@@ -24,3 +24,11 @@ export interface ApplyRunMeta {
   startedAt: string;
   updatedAt: string;
 }
+
+export interface ArchiveRunMeta {
+  runId: string;
+  changeId: string;
+  status: "running" | "done" | "error";
+  startedAt: string;
+  updatedAt: string;
+}

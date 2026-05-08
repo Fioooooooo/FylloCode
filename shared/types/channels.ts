@@ -38,6 +38,8 @@ export const ProposalChannels = {
   archiveCancel: "proposal:archive:cancel",
   loadRun: "proposal:loadRun",
   loadRunMessages: "proposal:loadRunMessages",
+  loadArchive: "proposal:loadArchive",
+  loadArchiveMessages: "proposal:loadArchiveMessages",
 } as const;
 
 export const NetChannels = {

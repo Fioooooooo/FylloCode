@@ -165,6 +165,36 @@ interface WorkflowDeleteRequest {
 }
 ```
 
+## Proposal Apply Run（`proposal.ts`）
+
+项目内 proposal apply 运行状态存放在：
+
+```text
+data/projects/<encodedProjectPath>/apply-runs/<changeId>/
+├── run.json
+├── stage-0.messages.jsonl
+├── stage-N.messages.jsonl
+├── archive.json
+└── archive.messages.jsonl
+```
+
+`run.json` 保存 `ApplyRunMeta`；每个 `stage-{N}.messages.jsonl` 按追加顺序保存该 stage
+的 `UIMessage<MessageMeta>`，新运行会先写入 stage user message，再追加 assistant message。
+
+`archive.json` 保存独立的 `ArchiveRunMeta`：
+
+```ts
+interface ArchiveRunMeta {
+  runId: string;
+  changeId: string;
+  status: "running" | "done" | "error";
+  startedAt: string;
+  updatedAt: string;
+}
+```
+
+`archive.messages.jsonl` 保存 archive 流程的 user + assistant 消息，独立于 stage 消息文件。
+
 ## Integration（`integration.ts`）
 
 ```ts

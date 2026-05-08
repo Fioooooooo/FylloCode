@@ -42,3 +42,10 @@ export const loadRunMessagesInputSchema = z.object({
   changeId: z.string().min(1),
   stageIndex: z.number().int().nonnegative(),
 });
+
+export const loadArchiveInputSchema = z.object({
+  projectId: z.string().min(1),
+  changeId: z.string().min(1),
+});
+
+export const loadArchiveMessagesInputSchema = loadArchiveInputSchema;

@@ -1,4 +1,6 @@
 import type { IpcErrorCode } from "../constants/error-codes";
+import type { MessageMeta } from "./chat";
+import type { UIMessage, ChatStatus } from "ai";
 
 export interface IpcErrorInfo {
   code: IpcErrorCode;
@@ -29,7 +31,8 @@ export type MessageChunkData =
       content?: string;
     }
   | { kind: "session_info_update"; title: string }
-  | { kind: "status"; agentStatus: import("ai").ChatStatus };
+  | { kind: "user_message"; message: UIMessage<MessageMeta> }
+  | { kind: "status"; agentStatus: ChatStatus };
 
 // Event push message type for ipcRenderer.on subscriptions
 export interface EventMessage<T = unknown> {
