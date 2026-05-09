@@ -1,20 +1,20 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { is } from "@electron-toolkit/utils";
-import { getDataSubPath } from "@main/infra/paths";
+import { getDataSubPath, getResourcesPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
+
+const BUILT_IN_WORKFLOW_RELATIVE_PATH = ["workflows", "built-in"] as const;
 
 /**
  * Location of the read-only, app-shipped workflow templates.
  *
  * - Dev: `resources/workflows/built-in/` inside the repo.
- * - Prod: `process.resourcesPath/workflows/built-in/`, which is where
- *   electron-builder places everything under `resources/**` (see
- *   electron-builder.yml).
+ * - Prod: `resources/workflows/built-in/` inside the packaged app. With the
+ *   current electron-builder config this is unpacked to
+ *   `process.resourcesPath/app.asar.unpacked/resources/workflows/built-in/`.
  */
 export function getBuiltInWorkflowDirectory(): string {
-  const base = is.dev ? join(process.cwd(), "resources") : process.resourcesPath;
-  return join(base, "workflows", "built-in");
+  return join(getResourcesPath(), ...BUILT_IN_WORKFLOW_RELATIVE_PATH);
 }
 
 export function getUserWorkflowDirectory(): string {
@@ -25,27 +25,40 @@ function isWorkflowFile(fileName: string): boolean {
   return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
 }
 
-export async function listBuiltInWorkflowFileNames(): Promise<string[]> {
+async function readBuiltInWorkflowDirectory(): Promise<{
+  directory: string;
+  fileNames: string[];
+} | null> {
+  const directory = getBuiltInWorkflowDirectory();
   try {
-    const entries = await fs.readdir(getBuiltInWorkflowDirectory(), { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && isWorkflowFile(entry.name))
-      .map((entry) => entry.name);
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    return {
+      directory,
+      fileNames: entries
+        .filter((entry) => entry.isFile() && isWorkflowFile(entry.name))
+        .map((entry) => entry.name),
+    };
   } catch (error) {
-    logger.warn("[workflow] Failed to read built-in workflow directory", error);
-    return [];
+    logger.warn(`[workflow] Failed to read built-in workflow directory: ${directory}`, error);
+    return null;
   }
+}
+
+export async function listBuiltInWorkflowFileNames(): Promise<string[]> {
+  return (await readBuiltInWorkflowDirectory())?.fileNames ?? [];
 }
 
 export async function initBuiltInWorkflows(): Promise<void> {
   try {
-    const fileNames = await listBuiltInWorkflowFileNames();
+    const source = await readBuiltInWorkflowDirectory();
+    if (!source) return;
+
     const targetDirectory = getUserWorkflowDirectory();
     await fs.mkdir(targetDirectory, { recursive: true });
 
     await Promise.all(
-      fileNames.map(async (fileName) => {
-        const sourcePath = join(getBuiltInWorkflowDirectory(), fileName);
+      source.fileNames.map(async (fileName) => {
+        const sourcePath = join(source.directory, fileName);
         const targetPath = join(targetDirectory, fileName);
 
         try {

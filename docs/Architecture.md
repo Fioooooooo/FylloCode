@@ -98,8 +98,11 @@ FylloCode/
 | `getDataSubPath("integrations")` | `data/integrations/` | `~/Library/Application Support/FylloCode/integrations/`      |
 | `getDataSubPath("workflows")`    | `data/workflows/`    | `~/Library/Application Support/FylloCode/workflows/`         |
 | `getLogsPath()`                  | `data/logs/`         | `~/Library/Logs/FylloCode/`（macOS）                         |
+| `getResourcesPath()`             | `resources/`         | packaged app 的 `resources/` 根目录                          |
 
 项目作用域路径工厂见 `electron/main/infra/storage/project-paths.ts`：`projectDir` / `sessionsDir` / `applyRunsDir` / `workflowsDir`。**禁止** 在 service / ipc 层直接 `join + encodeProjectPath`。
+
+随应用分发的根目录 `resources/` 内容也通过 `electron/main/infra/paths/index.ts` 获取。生产环境不得在 service / ipc 层直接拼接 `process.resourcesPath`、`app.getAppPath()` 或 `app.asar.unpacked`；这些 Electron 打包布局差异由 `getResourcesPath()` 统一处理。
 
 ### 目录结构
 
@@ -120,7 +123,7 @@ data/
 ```
 
 - `{encodedPath}` 由项目路径通过 `encodeProjectPath()` 编码。
-- 内置 workflow 模板是 **只读应用资源**，源在 `resources/workflows/built-in/`；启动时 `initBuiltInWorkflows()` 会把模板拷贝到 `data/workflows/` 作为用户可编辑副本。
+- 内置 workflow 模板是 **只读应用资源**，源在 `resources/workflows/built-in/`；启动时 `initBuiltInWorkflows()` 会通过 `getResourcesPath()` 定位资源根目录，并把模板拷贝到 `data/workflows/` 作为用户可编辑副本。
 - Electron 内部缓存（Code Cache、GPU Cache 等）始终使用系统默认路径，不受以上规范影响。
 
 ## 日志

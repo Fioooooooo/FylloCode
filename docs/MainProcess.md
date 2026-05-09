@@ -183,12 +183,15 @@ registerDisposable({
 | 会话目录               | `sessionsDir(projectPath)`             | 同上                                |
 | Apply run 目录         | `applyRunsDir(projectPath)`            | 同上                                |
 | 工作流目录             | `workflowsDir(projectPath)`            | 同上                                |
+| 应用随附资源根目录     | `getResourcesPath()`                   | `@main/infra/paths`                 |
 | 新建 session id        | `newSessionId()`                       | `@main/infra/ids`                   |
 | 新建 apply run id      | `newRunId()`                           | 同上                                |
 | Stage 级 Fyllo 会话 id | `newStageFylloSessionId(runId, index)` | 同上                                |
 | 默认 ACP agent         | `DEFAULT_ACP_AGENT_ID`                 | `@shared/constants/agents`          |
 
 **禁止** 在 service / ipc 层直接 `join + encodeProjectPath`、`` `session-${Date.now()}` ``、硬编码 `"claude-acp"`。
+
+随应用分发的根目录 `resources/` 必须通过 `@main/infra/paths` 的 `getResourcesPath()` 获取。业务模块只在资源根目录下拼接自己的子路径（例如 workflow 使用 `workflows/built-in`），不得直接依赖 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 等打包布局细节。
 
 ## 日志
 

@@ -1,34 +1,4 @@
-# workflow-ipc 规范
-
-## Purpose
-
-Workflow IPC 负责 workflow 文件的读取、保存、删除与内置初始化，定义主进程如何暴露 workflow IPC handler、如何持久化项目级自定义 workflow，以及如何从随应用分发的资源中初始化内置 workflow。
-
-## Requirements
-
-### Requirement: 主进程提供 workflow IPC channel
-
-系统 SHALL 在主进程注册 `workflow:list`、`workflow:save`、`workflow:delete` IPC handler，供前端读写 workflow 数据。
-
-#### Scenario: 列出所有 workflow
-
-- **WHEN** 前端调用 `workflow:list`，传入当前 `projectId`
-- **THEN** 主进程通过 `loadProject(projectId)` 解析出 `projectPath`，再用 `encodeProjectPath` 构造项目级目录
-- **AND** 返回内置 workflow 列表与该项目的自定义 workflow 列表合并结果
-- **AND** 每条记录包含 `id`、`name`、`source`、`yaml` 字段
-
-#### Scenario: 保存自定义 workflow
-
-- **WHEN** 前端调用 `workflow:save`，传入 `name`、`yaml`、`projectId`
-- **THEN** 主进程通过 `loadProject(projectId)` + `encodeProjectPath` 构造写入路径
-- **AND** 将 YAML 内容写入 `getDataSubPath("projects")/{encodedPath}/workflows/{name}.yaml`
-- **AND** 返回保存成功的响应
-
-#### Scenario: 删除自定义 workflow
-
-- **WHEN** 前端调用 `workflow:delete`，传入 `name` 和 `projectId`
-- **THEN** 主进程按同样路径规则定位文件并删除
-- **AND** 内置 workflow 不可删除，尝试删除时返回错误
+## MODIFIED Requirements
 
 ### Requirement: 主进程启动时静默初始化内置 workflow
 

@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { existsSync } from "fs";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 
@@ -36,4 +37,21 @@ export function getLogsPath(): string {
     return join(process.cwd(), "data", "logs");
   }
   return app.getPath("logs");
+}
+
+export function getResourcesPath(): string {
+  const candidates = getResourcesPathCandidates();
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
+export function getResourcesPathCandidates(): string[] {
+  if (is.dev) {
+    return [join(process.cwd(), "resources")];
+  }
+
+  return [
+    join(process.resourcesPath, "app.asar.unpacked", "resources"),
+    join(app.getAppPath(), "resources"),
+    join(process.resourcesPath, "resources"),
+  ];
 }
