@@ -27,38 +27,35 @@ Chat 界面定义了消息流的渲染方式以及侧边栏的展示行为。
 
 ### Requirement: Chat 主区域与 Proposal SidePanel 共享 UIMessage 列表组件
 
-系统 SHALL 将 `UIMessage<MessageMeta>[]` 的列表渲染抽成共享 Vue 组件（命名建议 `UIMessageList`，实现阶段可调整），通过 `type: "chat" | "side"` prop 标识使用场景。`ChatContainer.vue` 与 `ProposalApplySidePanel.vue` 的消息列表部分 SHALL 都通过该组件渲染，不再各自编写 `v-for message / v-for part` 的渲染逻辑。
+系统 SHALL 将 `UIMessageList` 组件通过 `type: "chat" | "side"` prop 标识使用场景，并新增可选 `agentId?: string` prop 用于在 `type="chat"` 时解析 assistant 头像。`ChatContainer.vue` 与 `ProposalApplySidePanel.vue` 的消息列表部分 SHALL 都通过该组件渲染，不再各自编写 `v-for message / v-for part` 的渲染逻辑。
 
 共享组件的必要 props：
 
 - `messages: UIMessage<MessageMeta>[]`
-- `isStreaming: boolean`
+- `status: ChatStatus`
 - `type: "chat" | "side"`
+- `agentId?: string`（可选，仅在 `type="chat"` 时用于解析 assistant 头像）
 
 组件内部 SHALL 使用 `ai` 包的 `isReasoningUIPart` / `isTextUIPart` / `isToolUIPart` 派发到对应子组件（`UChatMessages` / `UChatTool` / `ChatComark` 等），保持与当前 chat 主区域一致的渲染通路。
 
-本次变更 SHALL NOT 基于 `type` 做样式差异化；`type` 为 TypeScript 接口层面的占位，组件内部在本次 change 中 SHALL NOT 出现基于 `type` 的条件分支。未来样式差异化通过在该 prop 之上扩展实现。
+当 `type="chat"` 且 `agentId` 提供时，assistant 头像 SHALL 显示该 agent 对应的 ACP agent icon（来自 `useAcpAgentsStore.icons`）。若 `agentId` 未提供或对应 icon 不存在，则不显示头像（保持与 `type="side"` 一致的行为）。
 
 渲染端 SHALL 使用 `UIMessage.id` 作为 `v-for :key`；该 id 在流式活跃期间为渲染进程生成的临时 id，在 resume 后为磁盘加载的 id，系统 SHALL NOT 做跨进程 id 匹配。
 
-#### Scenario: Chat 主区域使用共享组件渲染消息列表
+#### Scenario: Chat 主区域使用共享组件渲染消息列表并显示 agent 头像
 
 - **WHEN** 用户打开 chat 页面
-- **THEN** `ChatContainer.vue` 通过 `<UIMessageList :messages :isStreaming type="chat" />` 渲染 `activeSession.messages`
+- **THEN** `ChatContainer.vue` 通过 `<UIMessageList :messages :status type="chat" :agentId />` 渲染 `activeSession.messages`
+- **AND** assistant 消息的头像显示当前 session 对应 ACP agent 的 icon
 - **AND** 渲染结果与当前 chat 消息表现一致（text / tool / reasoning 分派保持现状）
 
-#### Scenario: Proposal SidePanel 使用共享组件渲染消息列表
+#### Scenario: Proposal SidePanel 使用共享组件保持现有行为
 
 - **WHEN** 用户打开 proposal 详情页，SidePanel 展开
-- **THEN** `ProposalApplySidePanel.vue` 通过 `<UIMessageList :messages :isStreaming type="side" />` 渲染 `messages`
+- **THEN** `ProposalApplySidePanel.vue` 通过 `<UIMessageList :messages :status type="side" />` 渲染 `messages`
 - **AND** SidePanel 外壳（stage 进度条、关闭按钮、空态、流式指示器）保持现状
 - **AND** 消息列表渲染通路与 chat 一致，能显示 text part 与 dynamic-tool part
-
-#### Scenario: 本次变更不做样式差异化
-
-- **WHEN** 查看共享组件在当前 change 的实现
-- **THEN** 组件内部不包含基于 `type` prop 的条件分支
-- **AND** `type === "chat"` 与 `type === "side"` 两种场景视觉表现一致（除外壳外）
+- **AND** assistant 不显示头像（与变更前行为一致）
 
 ### Requirement: 渲染进程 UIMessage 组装逻辑抽为共享 composable
 

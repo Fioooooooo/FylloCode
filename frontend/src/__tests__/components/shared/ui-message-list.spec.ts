@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -31,7 +32,11 @@ function toolMessage(): UIMessage<MessageMeta> {
   };
 }
 
-function mountList(messages: UIMessage<MessageMeta>[], status: ChatStatus = "ready"): VueWrapper {
+function mountList(
+  messages: UIMessage<MessageMeta>[],
+  status: ChatStatus = "ready",
+  agentId?: string
+): VueWrapper {
   const chatMessagesStub = {
     props: ["messages", "status"],
     template:
@@ -49,8 +54,10 @@ function mountList(messages: UIMessage<MessageMeta>[], status: ChatStatus = "rea
       messages,
       status,
       type: "chat",
+      agentId,
     },
     global: {
+      plugins: [createPinia()],
       stubs: {
         ChatComark: {
           props: ["markdown"],
@@ -68,6 +75,10 @@ function mountList(messages: UIMessage<MessageMeta>[], status: ChatStatus = "rea
 }
 
 describe("UIMessageList", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   it("renders text parts", () => {
     const wrapper = mountList([textMessage()]);
 

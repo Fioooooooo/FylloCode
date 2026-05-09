@@ -1,37 +1,51 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { storeToRefs } from "pinia";
 import type { UIMessage } from "ai";
 import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import ChatComark from "@renderer/components/chat/ChatComark";
 import { getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
+import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 
 const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
   status: ChatStatus;
   type: "chat" | "side";
+  agentId?: string;
 }>();
+
+const acpAgentsStore = useAcpAgentsStore();
+const { icons } = storeToRefs(acpAgentsStore);
 
 const userAvatar = computed(() =>
   props.type === "chat"
     ? {
         side: "right" as const,
-        avatar: { icon: "i-lucide-user" as const },
-        ui: { container: "flex-row-reverse justify-start" },
+        avatar: {
+          src: "/icon.svg",
+          ui: {
+            root: "bg-teal-50 ring-1 ring-teal-500/20 rounded-full p-1.5",
+            image: "rounded-none mt-1",
+          },
+        },
+        ui: { container: "flex-row-reverse justify-start", leadingAvatarSize: "md" },
       }
     : undefined
 );
 
-const assistantAvatar = computed(() =>
-  props.type === "chat"
-    ? {
-        side: "left" as const,
-        avatar: { src: "/claude.webp", ui: { root: "bg-transparent" } },
-        actions: [{ label: "Copy to clipboard", icon: "i-lucide-copy" }],
-      }
-    : undefined
-);
+const assistantAvatar = computed(() => {
+  if (props.type !== "chat") return undefined;
+
+  const iconSrc = props.agentId ? icons.value[props.agentId] : undefined;
+  return {
+    side: "left" as const,
+    avatar: iconSrc ? { src: iconSrc, ui: { root: "bg-transparent" } } : undefined,
+    ui: { leadingAvatarSize: "sm" },
+    actions: [{ label: "Copy to clipboard", icon: "i-lucide-copy" }],
+  };
+});
 </script>
 
 <template>

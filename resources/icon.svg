@@ -1,5 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 326 283.51">
-  <g fill-rule="evenodd">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <g fill-rule="evenodd" filter="url(#shadow)">
     <path fill="#0f766e" d="M0 0l163.23 283.51 41-70.73L81.23 0H0z"/>
     <path fill="#2dd4bf" opacity=".85" d="M0 0h326l-40 71H41L0 0z"/>
     <path fill="#0891b2" opacity=".8" d="M55 95h218.46l-40 71H96L55 95z"/>

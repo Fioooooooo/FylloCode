@@ -2,16 +2,15 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
-import { useChatStore } from "@renderer/stores/chat";
 
 const agent = defineModel<string | undefined>();
 
-const acpAgentsStore = useAcpAgentsStore();
-const chatStore = useChatStore();
-const { statuses, icons } = storeToRefs(acpAgentsStore);
-const { chatStatus } = storeToRefs(chatStore);
+const props = defineProps<{
+  disabled?: boolean;
+}>();
 
-const disabled = computed(() => chatStatus.value === "streaming");
+const acpAgentsStore = useAcpAgentsStore();
+const { statuses, icons } = storeToRefs(acpAgentsStore);
 
 const installedAgents = computed(() =>
   Object.entries(statuses.value)
@@ -43,7 +42,7 @@ const currentAvatar = computed(() => {
     size="sm"
     :icon="currentIcon"
     :avatar="currentAvatar"
-    :disabled="disabled"
+    :disabled="props.disabled"
     variant="ghost"
     class="data-[state=open]:bg-elevated"
     :ui="{

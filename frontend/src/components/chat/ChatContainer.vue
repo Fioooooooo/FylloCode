@@ -29,6 +29,8 @@ const agent = computed<string | undefined>({
   },
 });
 
+const isAgentLocked = computed(() => (activeSession.value?.messages.length ?? 0) > 0);
+
 const input = ref("");
 
 async function handleSubmit(): Promise<void> {
@@ -43,7 +45,12 @@ async function handleSubmit(): Promise<void> {
   <div class="flex-1 flex flex-col min-h-0">
     <div class="flex-1 overflow-y-auto py-4 px-2 relative">
       <div class="max-w-240 mx-auto">
-        <UIMessageList :messages="activeSession?.messages ?? []" :status="chatStatus" type="chat" />
+        <UIMessageList
+          :messages="activeSession?.messages ?? []"
+          :status="chatStatus"
+          type="chat"
+          :agent-id="activeSession?.agentId"
+        />
       </div>
     </div>
 
@@ -57,7 +64,7 @@ async function handleSubmit(): Promise<void> {
           @submit="handleSubmit"
         >
           <template #footer>
-            <ChatAgentSelect v-model="agent" />
+            <ChatAgentSelect v-model="agent" :disabled="isAgentLocked" />
 
             <UChatPromptSubmit :status="chatStatus" color="neutral" size="sm" />
           </template>
