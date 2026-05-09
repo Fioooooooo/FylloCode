@@ -25,6 +25,7 @@ interface AgentProcess {
 const pool = new Map<string, AgentProcess>();
 const restarting = new Map<string, Promise<AgentProcess>>();
 const giveUp = new Set<string>();
+let shuttingDown = false;
 
 // Exponential backoff for automatic restarts after an unexpected exit.
 // The length of this array doubles as the give-up threshold.
@@ -140,6 +141,10 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
       stderrBuffer = "";
     }
 
+    if (shuttingDown) {
+      return;
+    }
+
     const nextFailures = entry.failures + 1;
     if (nextFailures > BACKOFF_MS.length) {
       giveUp.add(agentId);
@@ -191,35 +196,46 @@ export async function getOrStartProcess(agentId: string): Promise<AgentProcess> 
 }
 
 async function dispose(): Promise<void> {
+  shuttingDown = true;
   const entries = Array.from(pool.values());
   pool.clear();
   restarting.clear();
 
   await Promise.all(
-    entries.map(
-      (entry) =>
-        new Promise<void>((resolve) => {
-          const onClose = (): void => resolve();
-          entry.child.once("close", onClose);
-          try {
-            entry.child.kill();
-          } catch {
-            resolve();
-          }
-          setTimeout(() => {
-            entry.child.removeListener("close", onClose);
-            resolve();
-          }, 2_000);
+    entries.map(async (entry) => {
+      // 1. Graceful: close every active session so the agent can clean up.
+      const closePromises = Array.from(entry.sessionHandlers.keys()).map((sessionId) =>
+        entry.connection.closeSession({ sessionId }).catch(() => {
+          /* ignore — agent may not support close or session already dead */
         })
-    )
+      );
+      await Promise.all(closePromises);
+
+      // 2. Graceful: close the stdio stream.  This sends EOF to the child
+      //    process, which should exit cleanly without writing to stderr.
+      entry.child.stdin.end();
+
+      // 3. Wait for the child to exit (up to 2 s).
+      const closed = new Promise<void>((resolve) => {
+        const onClose = (): void => resolve();
+        entry.child.once("close", onClose);
+        setTimeout(() => {
+          entry.child.removeListener("close", onClose);
+          resolve();
+        }, 2_000);
+      });
+      await closed;
+
+      // 4. Force-kill if still alive.
+      if (!entry.child.killed) {
+        try {
+          entry.child.kill();
+        } catch {
+          /* ignore */
+        }
+      }
+    })
   );
 }
 
 registerDisposable({ name: "acp-process-pool", dispose });
-
-/** Test-only: reset internal state between tests. */
-export function resetAcpPoolForTests(): void {
-  pool.clear();
-  restarting.clear();
-  giveUp.clear();
-}
