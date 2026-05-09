@@ -31,11 +31,6 @@ const agent = computed<string | undefined>({
 
 const input = ref("");
 
-const messages = computed(() => activeSession.value?.messages ?? []);
-const isStreaming = computed(
-  () => chatStatus.value === "submitted" || chatStatus.value === "streaming"
-);
-
 async function handleSubmit(): Promise<void> {
   const text = input.value.trim();
   if (!text) return;
@@ -48,7 +43,7 @@ async function handleSubmit(): Promise<void> {
   <div class="flex-1 flex flex-col min-h-0">
     <div class="flex-1 overflow-y-auto py-4 px-2 relative">
       <div class="max-w-240 mx-auto">
-        <UIMessageList :messages="messages" :is-streaming="isStreaming" type="chat" />
+        <UIMessageList :messages="activeSession?.messages ?? []" :status="chatStatus" type="chat" />
       </div>
     </div>
 

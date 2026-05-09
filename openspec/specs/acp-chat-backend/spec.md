@@ -165,6 +165,50 @@ type MessageChunkData =
 - **WHEN** 同一轮回复中 `text_delta` 和 `tool_call_start` 交替到达
 - **THEN** 所有内容归并到同一条 assistant UIMessage 的 `parts` 数组，顺序与到达顺序一致
 
+### Requirement: Main 进程在 chat stream done 时组装并持久化 assistant UIMessage
+
+系统 SHALL 在 `chat:stream:message` 的主进程 handler 中维护 `MessageAssembler` 实例（来自 `@main/services/chat/message-assembler`），在 `text_delta` / `tool_call_start` / `tool_call_update` 事件上调用 `assembler.apply(ev)`，并在收到 `done` 事件时先执行 `assembler.flush()`，将返回的 `UIMessage<MessageMeta>` 通过 `appendMessage` 写入 `sessions/<sessionId>.messages.jsonl`，随后再通过 sink 发送 `done` chunk。落盘失败 SHALL 通过 sink 以 `ACP_ERROR` 归一化抛错，不阻塞 session 注销。
+
+`MessageAssembler.flush()` 产生的 `UIMessage.id` 由主进程自行 `generateId()` 生成，与渲染进程活跃期间使用的临时 id 独立。
+
+#### Scenario: Stage 正常完成时主进程组装并落盘 assistant 消息
+
+- **WHEN** `chat:stream:message` 的 `AcpSession` emit `done` 事件
+- **THEN** 主进程调用 `assembler.flush()` 得到完整 `UIMessage<MessageMeta>`
+- **AND** 通过 `appendMessage(projectPath, sessionId, message)` 将该消息写入磁盘
+- **AND** 通过 sink 发送 `{ type: "done", data: { totalTokens } }`
+- **AND** 从 `sessionRegistry` 注销对应的 `chat` session
+
+#### Scenario: 渲染进程在流中途关闭仍完成 assistant 落盘
+
+- **WHEN** 渲染进程在 chat stream 进行中关闭 MessagePort
+- **THEN** 主进程的 `AcpSession` 继续运行
+- **AND** `MessageAssembler` 继续累积事件
+- **AND** `done` 到达时 assistant 消息正常写入 `sessions/<sessionId>.messages.jsonl`
+
+#### Scenario: Assistant 消息落盘失败
+
+- **WHEN** `appendMessage` 抛出异常
+- **THEN** 主进程通过 sink 发送 `{ type: "error", data: { code: "ACP_ERROR", message } }`
+- **AND** 从 `sessionRegistry` 注销对应的 `chat` session
+
+### Requirement: `chat:persistMessage` 仅用于 user message
+
+`chat:persistMessage` IPC 的入参校验 SHALL 约束 `message.role === "user"`。非 `"user"` 的请求 SHALL 返回 `VALIDATION_ERROR`。
+
+渲染进程 SHALL 在 `sendMessage` 时，于 `queueUserMessage` 之后调用 `chat:persistMessage` 落盘 user 消息。assistant 消息的持久化 SHALL 由主进程在 `chat:stream:message` 的 `done` 事件内完成，渲染进程 SHALL NOT 在 `onDone` 内调用 `chat:persistMessage` 落盘 assistant。
+
+#### Scenario: 渲染进程发送 user 消息
+
+- **WHEN** 用户点击发送
+- **THEN** 渲染进程创建 user UIMessage，push 到 `session.messages`
+- **AND** 调用 `chat:persistMessage(sessionId, projectId, userMessage)` 触发落盘
+
+#### Scenario: `persistMessage` 拒绝 assistant 消息
+
+- **WHEN** 渲染进程调用 `chat:persistMessage` 传入 `role !== "user"` 的消息
+- **THEN** 主进程返回 `VALIDATION_ERROR`
+
 ### Requirement: Session 信息持久化
 
 系统 SHALL 将每个 session 的元数据（含 `acpSessionId`、`agentId`）持久化到 `getDataSubPath('sessions')/<sessionId>.json`，支持应用重启后恢复 ACP session 上下文。

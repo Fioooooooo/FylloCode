@@ -98,6 +98,84 @@ prompt 构造规则（策略 Map，按 `stage.type` 分发）：
 - **THEN** main 进程更新 `run.json` 的 `status` 为 `"error"`
 - **AND** 通过 port 发送 `{ type: "error", data: { code, message } }`（如果 port 仍活着）
 
+### Requirement: Stage user message 由主进程落盘并通过 user_message chunk 实时推送
+
+系统 SHALL 在 `proposal:stageStream` handler 的 `onReady` 阶段，在调用 `session.start(prompt)` 之前：
+
+1. 构造 `UIMessage<MessageMeta>`，`role` 为 `"user"`，`parts` 为单个 `{ type: "text", text: prompt }`，`metadata.sessionId` 为 `stageFylloSessionId`，`metadata.createdAt` 为当前时间
+2. 通过 `appendApplyRunMessage(projectPath, changeId, stageIndex, userMessage)` 将该消息作为 `stage-{stageIndex}.messages.jsonl` 的首行写入
+3. 通过 sink 发送 `{ type: "chunk", data: { kind: "user_message", message: userMessage } }` 给渲染进程
+
+`MessageAssembler` 随后只处理 assistant 相关事件；`done` 时 `flush()` 的 assistant `UIMessage` 通过 `appendApplyRunMessage` 追加到同一 jsonl 文件（磁盘顺序：user 首行，assistant 后续）。
+
+#### Scenario: Stage stream 启动时落盘 user 消息
+
+- **WHEN** `proposal:stageStream` 的 handler 完成 runMeta 校验、prompt 构造
+- **THEN** 主进程构造 role 为 `"user"` 的 `UIMessage<MessageMeta>`
+- **AND** 通过 `appendApplyRunMessage` 将该消息写入 `apply-runs/<changeId>/stage-{stageIndex}.messages.jsonl`
+- **AND** 通过 sink 发送 `{ type: "chunk", data: { kind: "user_message", message } }`
+- **AND** 之后才调用 `session.start(prompt)`
+
+#### Scenario: user 落盘失败
+
+- **WHEN** 首次 `appendApplyRunMessage` 写入 user 消息时抛出异常
+- **THEN** 主进程通过 sink 发送 `{ type: "error", data: { code: "APPLY_RUN_PERSIST_FAILED", message } }`
+- **AND** 不启动 `AcpSession`
+- **AND** 从 `sessionRegistry` 注销（或不注册）对应的 `apply` session
+
+### Requirement: Archive 流独立落盘与状态持久化
+
+系统 SHALL 在 `proposal:archive` handler 的 `onReady` 阶段：
+
+1. 构造 `ArchiveRunMeta`，结构为 `{ runId: "archive-<timestamp>", changeId, status: "running", startedAt, updatedAt }`，通过 `saveArchiveRunMeta` 写入 `apply-runs/<changeId>/archive.json`
+2. 构造 archive 的 user message（`role: "user"`，`parts: [{ type: "text", text: prompt }]`），通过 `appendArchiveMessage` 写入 `apply-runs/<changeId>/archive.messages.jsonl`，并通过 sink 发送 `{ kind: "user_message", message }` chunk
+3. 使用 `MessageAssembler` 收集 assistant 事件；`done` 时 `flush()` → `appendArchiveMessage` → 更新 `archive.json` 的 `status` 为 `"done"` 与 `updatedAt`
+4. 若 `AcpSession` emit `error`，更新 `archive.json` 的 `status` 为 `"error"` 后再通过 sink 发送错误 chunk
+
+archive 的持久化路径 SHALL 与 stage 完全解耦：不写入 `stage-*.messages.jsonl`，不修改 `run.json` 的 `stages` 数组。
+
+#### Scenario: Archive 流启动时初始化 meta 与 user 消息
+
+- **WHEN** `proposal:archive` handler 的 `onReady` 执行
+- **THEN** 主进程写入 `archive.json`（status: "running"）
+- **AND** 落盘 archive user message 到 `archive.messages.jsonl`
+- **AND** 通过 sink 发送 `user_message` chunk
+- **AND** 启动 `AcpSession`
+
+#### Scenario: Archive 正常完成
+
+- **WHEN** `AcpSession` emit `done` 事件
+- **THEN** 主进程调用 `assembler.flush()` 得到完整 assistant `UIMessage<MessageMeta>`
+- **AND** 通过 `appendArchiveMessage` 将该消息追加到 `archive.messages.jsonl`
+- **AND** 更新 `archive.json` 的 `status` 为 `"done"`，更新 `updatedAt`
+- **AND** 通过 sink 发送 `{ type: "done" }`
+
+#### Scenario: Archive 执行出错
+
+- **WHEN** `AcpSession` emit `error` 事件
+- **THEN** 主进程更新 `archive.json` 的 `status` 为 `"error"`，更新 `updatedAt`
+- **AND** 通过 sink 发送 `{ type: "error", data: { code, message } }`
+
+### Requirement: Archive 恢复 IPC
+
+系统 SHALL 提供 `proposal:loadArchive` 与 `proposal:loadArchiveMessages` IPC handler，用于页面重开后的 archive 恢复。
+
+- `proposal:loadArchive`：读取 `apply-runs/<changeId>/archive.json`，返回 `ArchiveRunMeta` 或 `null`（文件不存在时）
+- `proposal:loadArchiveMessages`：读取 `apply-runs/<changeId>/archive.messages.jsonl`，返回 `UIMessage<MessageMeta>[]`
+
+#### Scenario: 页面重新打开，存在 archive 记录
+
+- **WHEN** 用户打开 proposal 详情页，且 `archive.json` 存在
+- **THEN** 调用 `resumeArchive(projectId, changeId)`
+- **AND** 读取 `archive.json` 恢复 `archiveRunMeta`
+- **AND** 读取 `archive.messages.jsonl` 恢复历史消息
+- **AND** SidePanel 展示 archive 的 user prompt 与 assistant 输出
+
+#### Scenario: archive.json 不存在
+
+- **WHEN** `proposal:loadArchive` 被调用，但 `archive.json` 不存在
+- **THEN** 返回 `null`，不视为错误
+
 ### Requirement: 多 stage 由 renderer 串行驱动
 
 系统 SHALL 由 renderer 在当前 stage `done` 后，自动发起下一个 `proposal:stageStream`，直到所有 stage 完成。

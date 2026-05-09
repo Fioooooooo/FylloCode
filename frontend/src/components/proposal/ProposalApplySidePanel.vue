@@ -96,7 +96,12 @@ function getStageCount(): number {
         </div>
       </div>
 
-      <UIMessageList v-else :messages="messages" :is-streaming="isStreaming" type="side" />
+      <UIMessageList
+        v-else
+        :messages="messages"
+        :status="isStreaming ? 'streaming' : 'ready'"
+        type="side"
+      />
     </div>
   </div>
 </template>

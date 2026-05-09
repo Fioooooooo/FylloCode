@@ -1,19 +1,37 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import type { UIMessage } from "ai";
 import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import ChatComark from "@renderer/components/chat/ChatComark";
 import { getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
-import type { MessageMeta } from "@shared/types/chat";
-import type { UIMessage } from "ai";
+import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 
 const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
-  isStreaming: boolean;
+  status: ChatStatus;
   type: "chat" | "side";
 }>();
 
-const status = computed(() => (props.isStreaming ? "streaming" : "ready"));
+const userAvatar = computed(() =>
+  props.type === "chat"
+    ? {
+        side: "right" as const,
+        avatar: { icon: "i-lucide-user" as const },
+        ui: { container: "flex-row-reverse justify-start" },
+      }
+    : undefined
+);
+
+const assistantAvatar = computed(() =>
+  props.type === "chat"
+    ? {
+        side: "left" as const,
+        avatar: { src: "/claude.webp", ui: { root: "bg-transparent" } },
+        actions: [{ label: "Copy to clipboard", icon: "i-lucide-copy" }],
+      }
+    : undefined
+);
 </script>
 
 <template>
@@ -24,30 +42,8 @@ const status = computed(() => (props.isStreaming ? "streaming" : "ready"));
       :auto-scroll="false"
       :messages="messages"
       :status="status"
-      :user="{
-        side: 'right',
-        avatar: {
-          icon: 'i-lucide-user',
-        },
-        ui: {
-          container: 'flex-row-reverse justify-start',
-        },
-      }"
-      :assistant="{
-        side: 'left',
-        avatar: {
-          src: '/claude.webp',
-          ui: {
-            root: 'bg-transparent',
-          },
-        },
-        actions: [
-          {
-            label: 'Copy to clipboard',
-            icon: 'i-lucide-copy',
-          },
-        ],
-      }"
+      :user="userAvatar"
+      :assistant="assistantAvatar"
     >
       <template #content="{ message }">
         <template
@@ -86,10 +82,5 @@ const status = computed(() => (props.isStreaming ? "streaming" : "ready"));
         </template>
       </template>
     </UChatMessages>
-
-    <div v-if="isStreaming" class="mt-2 flex items-center gap-2 text-xs text-muted">
-      <UIcon name="i-lucide-loader-2" class="w-3.5 h-3.5 animate-spin" />
-      <span>正在执行...</span>
-    </div>
   </div>
 </template>

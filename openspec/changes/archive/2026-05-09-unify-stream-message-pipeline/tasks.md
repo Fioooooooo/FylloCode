@@ -88,7 +88,7 @@
 - [x] 13.1 `pnpm typecheck` 全量通过（关注 `MessageChunkData` 穷尽检查）
 - [x] 13.2 `pnpm lint` 通过
 - [x] 13.3 `pnpm test` 全量通过（含新增单测）
-- [ ] 13.4 `pnpm dev` 手工回归：
+- [x] 13.4 `pnpm dev` 手工回归：
   - chat 发送含 tool 调用的消息 → 刷新页面后 assistant 消息从磁盘恢复，展示一致
   - proposal apply 单 stage → SidePanel 先显示 user prompt 再显示 assistant；stage 完成后刷新页面，消息按 user→assistant 顺序恢复
   - proposal apply 多 stage 串行 → 每个 stage 切换时 `messages` 重置为新 stage 的 user + assistant 顺序
