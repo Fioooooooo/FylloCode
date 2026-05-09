@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
 import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
+import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { disposeAll } from "./lifecycle";
 import { createMainWindow } from "./window";
 import logger from "@main/infra/logger";
@@ -9,12 +10,14 @@ import logger from "@main/infra/logger";
 let shuttingDown = false;
 
 export function startApp(): void {
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     electronApp.setAppUserModelId("com.fyllocode.app");
 
     app.on("browser-window-created", (_event, window) => {
       optimizer.watchWindowShortcuts(window);
     });
+
+    await syncShellPath();
 
     logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
 
