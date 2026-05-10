@@ -53,17 +53,11 @@ function buildWorkflowMenuItems(workflows: WorkflowTemplate[]): DropdownMenuItem
 }
 
 const workflowMenuItems = computed<DropdownMenuItem[][]>(() => {
-  const groups: DropdownMenuItem[][] = [];
-
-  if (workflowStore.customTemplates.length > 0) {
-    groups.push(buildWorkflowMenuItems(workflowStore.customTemplates));
+  if (workflowStore.customTemplates.length === 0) {
+    return [];
   }
 
-  if (workflowStore.builtInTemplates.length > 0) {
-    groups.push(buildWorkflowMenuItems(workflowStore.builtInTemplates));
-  }
-
-  return groups;
+  return [buildWorkflowMenuItems(workflowStore.customTemplates)];
 });
 
 async function ensureProposalLoaded(): Promise<void> {

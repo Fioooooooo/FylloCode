@@ -254,15 +254,9 @@ watch(
   <div class="flex flex-1 overflow-hidden bg-default">
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-240 mx-auto px-6 py-8 space-y-6">
-        <div class="flex items-start justify-between gap-4">
-          <div class="space-y-1">
-            <h1 class="text-2xl font-bold text-highlighted">任务面板</h1>
-            <p class="text-sm text-muted">集中查看本地任务，并快速发起 AI 讨论。</p>
-          </div>
-
-          <UButton color="primary" icon="i-lucide-plus" @click="showCreateTaskModal = true">
-            新建任务
-          </UButton>
+        <div class="space-y-1">
+          <h1 class="text-2xl font-bold text-highlighted">任务面板</h1>
+          <p class="text-sm text-muted">集中查看本地任务，并快速发起 AI 讨论。</p>
         </div>
 
         <div class="space-y-2">
@@ -277,13 +271,23 @@ watch(
         </div>
 
         <template v-if="selectedSource === 'local'">
-          <URadioGroup
-            v-model="taskStore.statusFilter"
-            :items="statusItems"
-            value-key="value"
-            orientation="horizontal"
-            color="primary"
-          />
+          <div class="flex items-center gap-6">
+            <UButton
+              color="primary"
+              icon="i-lucide-plus"
+              size="sm"
+              @click="showCreateTaskModal = true"
+            >
+              新建任务
+            </UButton>
+            <URadioGroup
+              v-model="taskStore.statusFilter"
+              :items="statusItems"
+              value-key="value"
+              orientation="horizontal"
+              color="primary"
+            />
+          </div>
 
           <div
             v-if="taskStore.loading"
