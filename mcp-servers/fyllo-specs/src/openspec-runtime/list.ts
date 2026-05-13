@@ -4,7 +4,7 @@ import { spawnOpenspec } from "./spawner";
 import type { ChangeSummary } from "./types";
 
 export async function listChanges(projectRoot = resolveProjectRoot()): Promise<ChangeSummary[]> {
-  const cliPath = resolveOpenspecCli(projectRoot);
+  const cliPath = resolveOpenspecCli();
   const result = (await spawnOpenspec(cliPath, ["list", "--json"], projectRoot)) as {
     changes?: ChangeSummary[];
   };

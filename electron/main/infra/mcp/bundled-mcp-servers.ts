@@ -10,6 +10,11 @@ function resolveBundlePath(): string {
   return join(getAppUnpackedPath(), "mcp-servers", "fyllo-specs", "index.js");
 }
 
+function resolveOpenspecCliPath(): string {
+  const appRoot = is.dev ? process.cwd() : getAppUnpackedPath();
+  return join(appRoot, "node_modules", "@fission-ai", "openspec", "bin", "openspec.js");
+}
+
 export function getBundledMcpServers(opts: { projectPath: string }): McpServerSpec[] {
   if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
     return [];
@@ -23,6 +28,7 @@ export function getBundledMcpServers(opts: { projectPath: string }): McpServerSp
       env: {
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: opts.projectPath,
+        FYLLO_OPENSPEC_CLI_PATH: resolveOpenspecCliPath(),
         FYLLO_MCP_TELEMETRY: "0",
       },
     },

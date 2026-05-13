@@ -7,7 +7,7 @@ export async function getInstructions(
   changeName: string,
   artifactId: string
 ): Promise<InstructionPayload> {
-  const cliPath = resolveOpenspecCli(projectRoot);
+  const cliPath = resolveOpenspecCli();
   return (await spawnOpenspec(
     cliPath,
     ["instructions", artifactId, "--change", changeName, "--json"],

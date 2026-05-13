@@ -1,3 +1,4 @@
+import { join } from "path";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { is } from "@electron-toolkit/utils";
 import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
@@ -18,6 +19,9 @@ describe("bundled mcp servers", () => {
     expect(specs[0]?.name).toBe("fyllo-specs");
     expect(specs[0]?.command).toBe(process.execPath);
     expect(specs[0]?.env.FYLLO_PROJECT_PATH).toBe("/tmp/project");
+    expect(specs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
+      join(process.cwd(), "node_modules", "@fission-ai", "openspec", "bin", "openspec.js")
+    );
   });
 
   it("respects disable flag", () => {

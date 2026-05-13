@@ -13,7 +13,7 @@ export async function createChange(projectRoot: string, name: string): Promise<v
   if (existsSync(path)) {
     return;
   }
-  const cliPath = resolveOpenspecCli(projectRoot);
+  const cliPath = resolveOpenspecCli();
   await spawnOpenspec(cliPath, ["new", "change", name], projectRoot, {}, false);
   const doc = (load(readFileSync(path, "utf8")) as Record<string, unknown>) ?? {};
   doc.status = "creating";

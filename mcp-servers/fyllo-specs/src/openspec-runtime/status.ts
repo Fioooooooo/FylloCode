@@ -10,7 +10,7 @@ export async function computeStatus(
   artifacts: ArtifactStatus[];
   schemaName: string;
 }> {
-  const cliPath = resolveOpenspecCli(projectRoot);
+  const cliPath = resolveOpenspecCli();
   const result = (await spawnOpenspec(
     cliPath,
     ["status", "--change", changeName, "--json"],

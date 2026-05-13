@@ -8,6 +8,7 @@ import {
   listChanges,
   resolveOpenspecCli,
 } from "../src/openspec-runtime";
+import { buildSpawnArgs } from "../src/openspec-runtime/spawner";
 import { loadApplyState, parseTaskCheckboxes } from "../src/openspec-runtime/tasks";
 import { resolveProjectRoot } from "../src/utils/project-root";
 
@@ -19,13 +20,31 @@ const fixtureRoot = join(
   "fixtures",
   "openspec-sample"
 );
-const cliPath = resolveOpenspecCli(process.cwd());
+const cliPath = resolveOpenspecCli();
 
 describe("openspec-runtime", () => {
   process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
 
   it("resolves the CLI path", () => {
-    expect(resolveOpenspecCli(fixtureRoot)).toContain("openspec.js");
+    expect(resolveOpenspecCli()).toContain("openspec.js");
+  });
+
+  it("uses injected CLI path instead of project root node_modules", () => {
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      expect(resolveOpenspecCli()).toBe(cliPath);
+    } finally {
+      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
+    }
+  });
+
+  it("spawns CLI directly outside Electron runtime", () => {
+    expect(buildSpawnArgs("/tmp/openspec.js", ["list", "--json"])).toEqual([
+      "/tmp/openspec.js",
+      "list",
+      "--json",
+    ]);
   });
 
   it("lists active changes", async () => {
