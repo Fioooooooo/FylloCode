@@ -9,8 +9,9 @@ import { vi } from "vitest";
 const mockToast = { add: vi.fn() };
 const buttonStub = {
   template:
-    "<button :data-color=\"color || 'neutral'\" @click=\"$emit('click')\"><slot /></button>",
-  props: ["loading", "icon", "color", "variant", "size"],
+    '<button :data-color="color || \'neutral\'" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
+  props: ["loading", "icon", "color", "variant", "size", "disabled"],
+  emits: ["click"],
 };
 const dropdownMenuStub = {
   template:
@@ -44,11 +45,55 @@ config.global.stubs = {
   DropdownMenu: dropdownMenuStub,
   UTooltip: tooltipStub,
   Tooltip: tooltipStub,
-  UBadge: true,
   UInput: {
     template:
       '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
     props: ["modelValue", "placeholder"],
+    emits: ["update:modelValue"],
+  },
+  Input: {
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    props: ["modelValue", "placeholder"],
+    emits: ["update:modelValue"],
+  },
+  UTextarea: {
+    template:
+      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></textarea>',
+    props: ["modelValue", "rows", "placeholder"],
+    emits: ["update:modelValue"],
+  },
+  Textarea: {
+    template:
+      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></textarea>',
+    props: ["modelValue", "rows", "placeholder"],
+    emits: ["update:modelValue"],
+  },
+  UFormField: {
+    template:
+      '<label><span v-if="label">{{ label }}</span><slot /><span v-if="error">{{ error }}</span></label>',
+    props: ["label", "required", "error"],
+  },
+  FormField: {
+    template:
+      '<label><span v-if="label">{{ label }}</span><slot /><span v-if="error">{{ error }}</span></label>',
+    props: ["label", "required", "error"],
+  },
+  UModal: {
+    template:
+      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description"],
+  },
+  Modal: {
+    template:
+      '<div v-if="open"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description"],
+  },
+  UBadge: {
+    template: "<span><slot /></span>",
+  },
+  Badge: {
+    template: "<span><slot /></span>",
   },
   UIcon: true,
   Icon: true,
