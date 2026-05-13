@@ -242,6 +242,35 @@ logger.error("...");
 4. `services/<domain>/xxx-service.ts` 实现业务规则（校验、默认值、跨资源协调）。
 5. handler 只做 validate + 调 service。
 
+## Integration 主进程落点
+
+本次 integration provider / project 拆分后，主进程按下面的职责组织：
+
+- `electron/main/infra/storage/provider-credential-store.ts`
+  - 以 `providerId` 为 key 持久化 `{userData}/integrations/credentials/{providerId}.json`
+- `electron/main/infra/storage/provider-connection-store.ts`
+  - 维护 `{userData}/integrations/connections.json`
+  - 保存 provider 级连接状态、账户标识、脱敏凭证回显
+- `electron/main/services/integration/provider-resource-service.ts`
+  - 按 `(providerId, resourceType)` 路由资源拉取实现
+  - 负责 5 分钟会话级缓存与鉴权失败回写过期状态
+- `electron/main/infra/storage/project-integration-store.ts`
+  - 以 `projectId` 持久化 `ProjectIntegrationConfig`
+  - 管理 `stage -> [{ providerId, resourceType, resourceId }]`
+- `electron/main/services/integration/provider-service.ts`
+  - 编排 manifest、provider 连接/断开/探测、资源列表、项目级挂载写入校验
+- `electron/main/ipc/integration.ts`
+  - 暴露 `integrations:providers:*` 与 `integrations:project:*`
+  - handler 仅做 `validate -> service`
+
+当前真实 provider 实现仅覆盖 `yunxiao`，其资源适配分散在：
+
+- `domain/integration/yunxiao/projex/`
+- `domain/integration/yunxiao/codeup/`
+- `domain/integration/yunxiao/flow/`
+
+其它 provider 只允许出现在 manifest 与前端占位态中；若没有主进程适配，不得在 handler 或 service 中伪造“可连接”能力。
+
 ## 违规排查
 
 | 报错                                                      | 原因 / 修复                                                           |

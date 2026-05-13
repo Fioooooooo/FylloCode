@@ -79,14 +79,28 @@
 
 ### Integration（`window.api.integration`）
 
-| Channel                          | 常量                                     | 类型   |
-| -------------------------------- | ---------------------------------------- | ------ |
-| `integration:listTools`          | `IntegrationChannels.listTools`          | handle |
-| `integration:getConnection`      | `IntegrationChannels.getConnection`      | handle |
-| `integration:connect`            | `IntegrationChannels.connect`            | handle |
-| `integration:disconnect`         | `IntegrationChannels.disconnect`         | handle |
-| `integration:listProjectConfigs` | `IntegrationChannels.listProjectConfigs` | handle |
-| `integration:setProjectConfig`   | `IntegrationChannels.setProjectConfig`   | handle |
+| Channel                                | 常量                                         | 类型   |
+| -------------------------------------- | -------------------------------------------- | ------ |
+| `integration:listTools`                | `IntegrationChannels.listTools`              | handle |
+| `integration:getConnection`            | `IntegrationChannels.getConnection`          | handle |
+| `integration:connect`                  | `IntegrationChannels.connect`                | handle |
+| `integration:disconnect`               | `IntegrationChannels.disconnect`             | handle |
+| `integration:listProjectConfigs`       | `IntegrationChannels.listProjectConfigs`     | handle |
+| `integration:setProjectConfig`         | `IntegrationChannels.setProjectConfig`       | handle |
+| `integrations:providers:list`          | `IntegrationChannels.providersList`          | handle |
+| `integrations:providers:connect`       | `IntegrationChannels.providersConnect`       | handle |
+| `integrations:providers:disconnect`    | `IntegrationChannels.providersDisconnect`    | handle |
+| `integrations:providers:probe`         | `IntegrationChannels.providersProbe`         | handle |
+| `integrations:providers:listResources` | `IntegrationChannels.providersListResources` | handle |
+| `integrations:project:get`             | `IntegrationChannels.projectGet`             | handle |
+| `integrations:project:set`             | `IntegrationChannels.projectSet`             | handle |
+
+新增的 `integrations:*` 通道用于 provider/project 语义：
+
+- `providers:*`：全局 provider 凭证、连接状态、探测与资源列表
+- `project:*`：当前项目的阶段资源挂载配置
+
+当前真实支持的 provider 仅覆盖 `yunxiao`。旧 `integration:*` 的 tool-centric 通道仍保留给遗留页面过渡使用。
 
 ### Settings（`window.api.settings`）
 

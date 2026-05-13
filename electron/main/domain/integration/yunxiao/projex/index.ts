@@ -23,6 +23,54 @@ export type {
 
 const client = new YunxiaoClient();
 
+export interface YunxiaoProject {
+  id: string;
+  name: string;
+  description?: string;
+  customCode?: string;
+  logicalStatus?: string;
+}
+
+function buildProjectNameCondition(search?: string): string | undefined {
+  const keyword = search?.trim();
+  if (!keyword) return undefined;
+  return JSON.stringify({
+    conditionGroups: [
+      [
+        {
+          className: "string",
+          fieldIdentifier: "name",
+          format: "input",
+          operator: "BETWEEN",
+          toValue: null,
+          value: [keyword],
+        },
+      ],
+    ],
+  });
+}
+
+export async function searchProjects(params: {
+  organizationId: string;
+  search?: string;
+  page?: number;
+  perPage?: number;
+}): Promise<YunxiaoProject[]> {
+  const token = getYunxiaoToken();
+  return client.post<YunxiaoProject[]>(
+    `/oapi/v1/projex/organizations/${params.organizationId}/projects:search`,
+    token,
+    {
+      conditions: buildProjectNameCondition(params.search),
+      extraConditions: "",
+      orderBy: "gmtCreate",
+      page: params.page ?? 1,
+      perPage: params.perPage ?? 20,
+      sort: "desc",
+    }
+  );
+}
+
 /**
  * 搜索工作项
  */

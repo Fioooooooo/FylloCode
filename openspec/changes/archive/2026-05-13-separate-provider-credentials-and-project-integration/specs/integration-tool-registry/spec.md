@@ -1,10 +1,4 @@
-# integration-tool-registry 规范
-
-## Purpose
-
-集成工具注册表定义了集成页面的工具展示、分类组织、连接状态、搜索和筛选行为。工具的静态 UI 元数据（名称、图标、connectionFields 等）定义在前端配置文件中，连接状态从主进程获取。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 集成页面按分类展示工具
 
@@ -87,3 +81,11 @@
 - **WHEN** 用户在搜索框中输入"云效"
 - **THEN** 仅名称包含"云效"的 provider 卡片保持可见
 - **AND** 不匹配的 provider 卡片在当前视图内被隐藏
+
+## REMOVED Requirements
+
+### Requirement: 用户可按连接状态筛选工具
+
+**Reason**: 新模型下 /integration 仅展示当前项目已挂载的 provider，这些 provider 原则上已经连接；"按连接状态筛选"在新语义下失去意义。全局连接状态筛选若有需要，应改到 settings 的集成提供方页面实现。
+
+**Migration**: 需要按连接状态查看 provider 的用户，应在 settings 的集成提供方 tab 视图中使用（如未来提供）的连接状态筛选能力；在 /integration 上不再提供该筛选入口。

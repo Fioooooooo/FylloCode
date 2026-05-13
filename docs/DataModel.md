@@ -198,30 +198,59 @@ interface ArchiveRunMeta {
 ## Integration（`integration.ts`）
 
 ```ts
-interface IntegrationTool {
+type IntegrationCategoryId =
+  | "project-management"
+  | "source-control"
+  | "ci-cd"
+  | "deployment"
+  | "communication"
+  | "observability";
+
+type ProviderConnectionState = "not-connected" | "connected" | "expired";
+
+interface ProviderManifest {
   id;
   name;
   description;
-  categoryId: IntegrationCategoryId;
-  connectionType: "api-token" | "oauth";
-  connectionFields: ConnectionField[];
-  parameterFields: ToolParameterField[];
-  projectConfigFields: ToolParameterField[];
+  authType: "api-token" | "oauth";
+  credentialFields: ProviderCredentialField[];
+  capabilities: ProviderCapability[];
   logoIcon;
   logoColor;
   comingSoon: boolean;
 }
 
-interface ToolConnection {
-  toolId;
-  status: "not-connected" | "connected" | "connecting";
+interface ProviderConnection {
+  providerId;
+  state: "connected" | "expired";
   accountName?;
+  accountId?;
   connectedAt?;
-  credentials?;
+  credentialPreview?;
 }
+
+interface ProviderResource {
+  id;
+  name;
+  providerId;
+  resourceType;
+  subtitle?;
+}
+
+interface ProjectIntegrationEntry {
+  providerId;
+  resourceType;
+  resourceId;
+}
+
+type ProjectIntegrationConfig = Record<IntegrationCategoryId, ProjectIntegrationEntry[]>;
 ```
 
-**集成分类：** `"project-management" | "source-control" | "ci-cd" | "deployment" | "communication" | "observability"`
+当前 manifest 允许存在多个 provider 条目，但当前真实可连接、可探测、可拉取资源的 provider 仅覆盖 `yunxiao`，对应：
+
+- `projex-project`
+- `codeup-repo`
+- `flow-pipeline`
 
 ## Settings（`settings.ts`）
 

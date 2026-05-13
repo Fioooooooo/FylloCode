@@ -2,24 +2,42 @@ import { ipcMain } from "electron";
 import { IntegrationChannels } from "@shared/types/channels";
 import {
   connectInputSchema,
+  getProjectIntegrationInputSchema,
   listProjectConfigsInputSchema,
+  listProviderResourcesInputSchema,
+  providerConnectInputSchema,
+  providerIdInputSchema,
   setProjectConfigInputSchema,
+  setProjectIntegrationInputSchema,
   toolIdInputSchema,
   yunxiaoSetOrganizationInputSchema,
   yunxiaoSetTokenInputSchema,
 } from "@shared/schemas/ipc/integration";
+import { providerMap } from "@shared/constants/integration-providers";
+import type { ProjectIntegrationEntry, ProviderId } from "@shared/types/integration";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
+import {
+  connectProvider,
+  disconnectProvider,
+  getProjectIntegration,
+  listProviderResources,
+  listProviders,
+  probeProvider,
+  setProjectIntegrationStage,
+} from "@main/services/integration/provider-service";
 import {
   setYunxiaoToken,
   setYunxiaoOrganization,
   disconnectYunxiao,
 } from "@main/services/integration/yunxiao-service";
 import {
-  getConnections,
-  getConnection,
-  removeConnection,
-} from "@main/infra/storage/connections-store";
+  getConnection as getProviderConnection,
+  listConnections as listProviderConnections,
+  removeConnection as removeProviderConnection,
+} from "@main/infra/storage/provider-connection-store";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError } from "@shared/errors/ipc-error";
 
 export function registerIntegrationHandlers(): void {
   ipcMain.handle(IntegrationChannels.listTools, () =>
@@ -28,12 +46,15 @@ export function registerIntegrationHandlers(): void {
     })
   );
 
-  ipcMain.handle(IntegrationChannels.getConnections, () => wrapHandler(() => getConnections()));
+  ipcMain.handle(IntegrationChannels.getConnections, () =>
+    wrapHandler(() => listProviderConnections())
+  );
 
   ipcMain.handle(IntegrationChannels.getConnection, (_event, input: unknown) =>
     wrapHandler(() => {
       const { toolId } = validate(toolIdInputSchema, input);
-      return getConnection(toolId);
+      const providerId = (toolId.startsWith("yunxiao-") ? "yunxiao" : toolId) as ProviderId;
+      return getProviderConnection(providerId);
     })
   );
 
@@ -41,7 +62,8 @@ export function registerIntegrationHandlers(): void {
     wrapHandler(async () => {
       const { toolId, credentials } = validate(connectInputSchema, input);
       if (toolId.startsWith("yunxiao-")) {
-        return setYunxiaoToken(credentials["x-yunxiao-token"] ?? "");
+        await connectProvider("yunxiao", credentials);
+        return getProviderConnection("yunxiao");
       }
       return null;
     })
@@ -53,7 +75,7 @@ export function registerIntegrationHandlers(): void {
       if (toolId.startsWith("yunxiao-")) {
         disconnectYunxiao();
       } else {
-        removeConnection(toolId);
+        removeProviderConnection(toolId as ProviderId);
       }
     })
   );
@@ -84,6 +106,71 @@ export function registerIntegrationHandlers(): void {
     wrapHandler(() => {
       const { organizationId } = validate(yunxiaoSetOrganizationInputSchema, input);
       return setYunxiaoOrganization(organizationId);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.providersList, () => wrapHandler(() => listProviders()));
+
+  ipcMain.handle(IntegrationChannels.providersConnect, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { providerId, credentials } = validate(providerConnectInputSchema, input);
+      return connectProvider(providerId as ProviderId, credentials);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.providersDisconnect, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { providerId } = validate(providerIdInputSchema, input);
+      disconnectProvider(providerId as ProviderId);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.providersProbe, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { providerId } = validate(providerIdInputSchema, input);
+      return probeProvider(providerId as ProviderId);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.providersListResources, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { providerId, resourceType, query } = validate(listProviderResourcesInputSchema, input);
+      return listProviderResources({
+        providerId: providerId as ProviderId,
+        resourceType: resourceType as Parameters<typeof listProviderResources>[0]["resourceType"],
+        query,
+      });
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.projectGet, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { projectId } = validate(getProjectIntegrationInputSchema, input);
+      return getProjectIntegration(projectId);
+    })
+  );
+
+  ipcMain.handle(IntegrationChannels.projectSet, (_event, input: unknown) =>
+    wrapHandler(() => {
+      const { projectId, stage, resources } = validate(setProjectIntegrationInputSchema, input);
+      for (const resource of resources) {
+        const provider = providerMap.get(resource.providerId as ProviderId);
+        const isValid = provider?.capabilities.some(
+          (capability) =>
+            capability.stage === stage && capability.resourceType === resource.resourceType
+        );
+        if (!isValid) {
+          throw ipcError(
+            IpcErrorCodes.INTEGRATION_RESOURCE_TYPE_NOT_SUPPORTED,
+            `Invalid integration resource tuple: ${resource.providerId}/${resource.resourceType}/${stage}`
+          );
+        }
+      }
+      return setProjectIntegrationStage(
+        projectId,
+        stage as Parameters<typeof setProjectIntegrationStage>[1],
+        resources as ProjectIntegrationEntry[]
+      );
     })
   );
 }

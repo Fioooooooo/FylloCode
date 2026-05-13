@@ -181,6 +181,39 @@ export const projectApi = {
 
 调用方式：`store` 或 `composables` `import { projectApi } from "@renderer/api/project"`，返回 `IpcResponse<T>`，`if (res.ok) { ... } else { ... }` 分支处理。
 
+## Integration 渲染层落点
+
+本次 integration 改为“settings 管 provider 凭证，`/integration` 管项目资源挂载”后，渲染层职责如下：
+
+- `frontend/src/integrations/providers.ts`
+  - provider manifest 单一事实源
+  - 声明 provider 的 `authType`、`credentialFields`、`capabilities`、`comingSoon`
+- `frontend/src/stores/integration.providers.ts`
+  - provider 列表、连接状态、资源列表缓存、项目级挂载配置的唯一状态入口
+  - 负责调用 `frontend/src/api/integration.ts`
+  - 负责 settings 与 `/integration` 共用的搜索词、loading 态、资源选项缓存
+- `frontend/src/components/settings/SettingsIntegrationProviders.vue`
+  - settings 内 tab 视图，不新增子路由
+  - 支持 `?tab=integration-providers&focus=<providerId>` 定位 provider 卡片
+- `frontend/src/components/settings/IntegrationProviderCard.vue`
+  - provider 级连接/断开/过期回显
+  - 当前仅 `yunxiao` 提供真实 API Token 连接表单
+- `frontend/src/components/integration/ProviderStageSection.vue`
+  - `/integration` 页面阶段区块
+  - 展示已挂载 provider 卡片、资源标签、资源选择面板、未连接跳转引导
+- `frontend/src/pages/settings.vue`
+  - 继续沿用现有 tab 切换模式；不得为了 integration-provider 视图把整个 settings 改造成子路由
+- `frontend/src/pages/integration.vue`
+  - 只负责当前项目维度的阶段资源挂载，不承载凭证写操作
+
+实现上的硬约束：
+
+- 页面与组件不得直接调用 `window.api.integration.*`，只能通过 `integrationApi` 和 store。
+- provider 未连接或已过期时，`/integration` 只显示跳转到 settings 的引导，不得在页面内再次嵌入连接表单。
+- 搜索语义分两层：
+  - settings 与 `/integration` 顶部搜索：按 provider 名称 / 描述 / capability 过滤 provider
+  - 资源选择面板内搜索：按 provider 资源列表的 query 拉取远端结果
+
 ## 启动预热（Bootstrap）
 
 ### 设计原则

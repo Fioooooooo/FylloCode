@@ -1,10 +1,4 @@
-# integration-config-panel 规范
-
-## Purpose
-
-集成配置面板定义了工具卡片展开后的配置区块结构。当前仅包含账户连接区块。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 工具卡片展开后显示配置面板
 

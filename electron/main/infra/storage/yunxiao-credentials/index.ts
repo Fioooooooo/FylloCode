@@ -1,6 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { getDataSubPath } from "@main/infra/paths";
+import {
+  clearCredentials,
+  loadCredentials,
+  saveCredentials,
+} from "@main/infra/storage/provider-credential-store";
 
 /** 云效集成凭证文件格式（存储于 data/integrations/yunxiao/credentials.json） */
 export interface YunxiaoCredentials {
@@ -12,25 +14,16 @@ export interface YunxiaoCredentials {
   organizationId?: string;
 }
 
-const CREDENTIALS_FILE = "credentials.json";
-
-function getCredentialsPath(): string {
-  return join(getDataSubPath("integrations"), "yunxiao", CREDENTIALS_FILE);
-}
-
 function readCredentials(): YunxiaoCredentials {
-  try {
-    const content = readFileSync(getCredentialsPath(), "utf-8");
-    return JSON.parse(content) as YunxiaoCredentials;
-  } catch {
-    return {};
-  }
+  return loadCredentials("yunxiao") as YunxiaoCredentials;
 }
 
 function writeCredentials(data: YunxiaoCredentials): void {
-  const filePath = getCredentialsPath();
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  if (Object.keys(data).length === 0) {
+    clearCredentials("yunxiao");
+    return;
+  }
+  saveCredentials("yunxiao", data as Record<string, string>);
 }
 
 /**

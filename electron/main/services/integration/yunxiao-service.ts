@@ -3,7 +3,7 @@ import {
   getYunxiaoToken,
   listOrganizations,
 } from "@main/domain/integration/yunxiao";
-import { saveConnection, removeConnection } from "@main/infra/storage/connections-store";
+import { connectProvider, disconnectProvider } from "@main/services/integration/provider-service";
 import type { YunxiaoOrganization } from "@shared/types/integration";
 
 const TOOL_ID = "yunxiao";
@@ -13,19 +13,11 @@ const TOOL_ID = "yunxiao";
  * 存储 token 后立即拉取组织列表验证有效性，成功后写入连接状态。
  */
 export async function setYunxiaoToken(token: string): Promise<YunxiaoOrganization[]> {
-  saveYunxiaoCredentials({ "x-yunxiao-token": token });
-
+  const connection = await connectProvider(TOOL_ID, { "x-yunxiao-token": token });
   const orgs = await listOrganizations();
-
-  saveConnection({
-    toolId: TOOL_ID,
-    status: "connected",
-    connectedAt: new Date().toISOString(),
-    credentialPreview: {
-      "x-yunxiao-token": maskToken(token),
-    },
-  });
-
+  if (connection.accountId) {
+    saveYunxiaoCredentials({ userId: connection.accountId });
+  }
   return orgs.map(({ id, name, description }) => ({ id, name, description }));
 }
 
@@ -51,7 +43,7 @@ export function getYunxiaoCredentialPreview(): Record<string, string> {
  */
 export function disconnectYunxiao(): void {
   saveYunxiaoCredentials({ "x-yunxiao-token": undefined, organizationId: undefined });
-  removeConnection(TOOL_ID);
+  disconnectProvider(TOOL_ID);
 }
 
 function maskToken(token: string): string {

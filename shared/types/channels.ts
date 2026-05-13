@@ -62,6 +62,13 @@ export const IntegrationChannels = {
   setProjectConfig: "integration:setProjectConfig",
   yunxiaoSetToken: "integration:yunxiao:setToken",
   yunxiaoSetOrganization: "integration:yunxiao:setOrganization",
+  providersList: "integrations:providers:list",
+  providersConnect: "integrations:providers:connect",
+  providersDisconnect: "integrations:providers:disconnect",
+  providersProbe: "integrations:providers:probe",
+  providersListResources: "integrations:providers:listResources",
+  projectGet: "integrations:project:get",
+  projectSet: "integrations:project:set",
 } as const;
 
 export const SettingsChannels = {

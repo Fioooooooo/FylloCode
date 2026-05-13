@@ -1,10 +1,18 @@
-# integration-project-enablement 规范
+## REMOVED Requirements
 
-## Purpose
+### Requirement: 工具可按项目启用
 
-集成工具的项目级启用功能允许用户针对特定项目独立控制工具的启用状态，并支持覆盖全局配置的项目专属参数。
+**Reason**: 新模型下不再使用"项目启用开关"作为 provider 在项目中的激活信号。provider 在项目中"是否启用"由其下挂载的资源数量隐式决定：挂载了至少一个资源即视为已启用，未挂载即未启用。这样使"是否启用"与"用哪些资源"统一为单一语义。
 
-## Requirements
+**Migration**: 用户应在 /integration 页面通过"添加资源"为阶段内的 provider 挂载具体资源；一旦挂载任意资源该 provider 即在该项目生效。移除某 provider 下的全部资源即等同于在该项目中停用该 provider。
+
+### Requirement: 项目级配置覆盖全局设置
+
+**Reason**: 新模型下凭证层已从项目维度彻底抽离到全局 provider 层（详见 `integration-providers` 规范），项目级不再允许覆盖全局凭证参数。极少数"同一 provider 在不同项目下使用不同 scope"的高级场景将由未来的"同 provider 多账号"能力承担，不在本次范围内。
+
+**Migration**: 已有使用项目级凭证覆盖的场景在本次升级时会被清空（参见 design.md 迁移计划），用户需在 settings 的集成提供方页面以全局方式重新连接；对需要多账号区分的场景，暂时通过使用不同 provider 实现（如 GitHub 公有云与 GitHub Enterprise 若 manifest 分立）或等待后续"多账号"能力发布。
+
+## ADDED Requirements
 
 ### Requirement: 项目维度的阶段资源挂载
 
