@@ -29,14 +29,19 @@ function readLines(filePath: string): UIMessage<MessageMeta>[] {
     .trim()
     .split("\n")
     .map((line: string) => {
-      const message = JSON.parse(line) as UIMessage<MessageMeta>;
+      const message = JSON.parse(line) as Omit<UIMessage<MessageMeta>, "metadata"> & {
+        metadata: {
+          sessionId: string;
+          createdAt: string;
+        };
+      };
       return {
         ...message,
         metadata: {
           ...message.metadata,
           createdAt: new Date(message.metadata.createdAt),
         },
-      };
+      } as UIMessage<MessageMeta>;
     });
 }
 

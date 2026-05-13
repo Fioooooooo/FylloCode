@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import { Writable, Readable } from "stream";
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
 import { readInstalledRecords } from "@main/domain/acp/detector";
@@ -120,7 +120,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
   await connection.initialize({
     protocolVersion: PROTOCOL_VERSION,
     clientCapabilities: {},
-    clientInfo: { name: "FylloCode", version: "1.0.0" },
+    clientInfo: { name: "FylloCode", version: app.getVersion() },
   });
 
   const entry: AgentProcess = {
