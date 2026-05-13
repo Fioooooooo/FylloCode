@@ -3,11 +3,13 @@ import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
+import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
 import { useChatStore } from "@renderer/stores/chat";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import { useTaskStore } from "@renderer/stores/task";
-import type { TaskItem, TaskSource, TaskStatus } from "@shared/types/task";
+import { buildSourceDisplay } from "@renderer/utils/task";
+import type { TaskItem, TaskSource, TaskStatus, UpdateTaskInput } from "@shared/types/task";
 
 const router = useRouter();
 const projectStore = useProjectStore();
@@ -16,6 +18,8 @@ const chatStore = useChatStore();
 const taskStore = useTaskStore();
 
 const showCreateTaskModal = ref(false);
+const showDetailModal = ref(false);
+const activeDetailTask = ref<TaskItem | null>(null);
 const selectedSource = ref<TaskSource>("local");
 
 const sourceTabs: Array<{ label: string; value: TaskSource }> = [
@@ -159,24 +163,6 @@ const mockGithubTasks: TaskItem[] = [
   },
 ];
 
-function buildSourceDisplay(task: TaskItem): string {
-  const meta = task.sourceMeta;
-
-  if (task.source === "yunxiao" && meta.source === "yunxiao" && meta.key) {
-    return `云效 ${meta.key}`;
-  }
-
-  if (task.source === "github" && meta.source === "github" && meta.repository && meta.number) {
-    return `${meta.repository}#${meta.number}`;
-  }
-
-  if (task.source === "local") {
-    return "本地";
-  }
-
-  return task.source === "yunxiao" ? "云效" : "GitHub";
-}
-
 function buildTaskPrompt(task: TaskItem): string {
   const sourceDisplay = buildSourceDisplay(task);
   const url =
@@ -228,6 +214,23 @@ async function handleCreateTask(input: { title: string; description?: string }):
 
 async function handleDeleteTask(task: TaskItem): Promise<void> {
   await taskStore.deleteTask(task.id);
+}
+
+function handleViewDetail(task: TaskItem): void {
+  activeDetailTask.value = task;
+  showDetailModal.value = true;
+}
+
+async function handleSaveDetail(payload: {
+  taskId: string;
+  updates: UpdateTaskInput;
+}): Promise<void> {
+  try {
+    const updatedTask = await taskStore.updateTask(payload.taskId, payload.updates);
+    activeDetailTask.value = updatedTask;
+  } catch {
+    // taskStore 已经持有错误状态，弹窗保持编辑态即可
+  }
 }
 
 async function startChatFromTask(task: TaskItem): Promise<void> {
@@ -322,6 +325,7 @@ watch(
               v-for="task in taskStore.filteredTasks"
               :key="task.id"
               :task="task"
+              @view-detail="handleViewDetail"
               @start-discussion="startChatFromTask"
               @delete="handleDeleteTask"
             />
@@ -333,6 +337,7 @@ watch(
             v-for="task in selectedSource === 'yunxiao' ? mockYunxiaoTasks : mockGithubTasks"
             :key="task.id"
             :task="task"
+            @view-detail="handleViewDetail"
             @start-discussion="startChatFromTask"
           />
         </div>
@@ -341,4 +346,10 @@ watch(
   </div>
 
   <CreateTaskModal v-model:open="showCreateTaskModal" @create="handleCreateTask" />
+  <TaskDetailModal
+    v-model:open="showDetailModal"
+    :task="activeDetailTask"
+    :error="taskStore.error"
+    @save="handleSaveDetail"
+  />
 </template>

@@ -9,6 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "start-discussion": [task: TaskItem];
+  "view-detail": [task: TaskItem];
   delete: [task: TaskItem];
 }>();
 
@@ -27,47 +28,60 @@ function handleDelete(): void {
   showDeleteConfirm.value = false;
   emit("delete", props.task);
 }
+
+function handleViewDetail(): void {
+  emit("view-detail", props.task);
+}
 </script>
 
 <template>
   <div
     class="flex h-full flex-col rounded-lg border border-default bg-elevated px-4 py-4 space-y-3 transition-colors hover:border-accented"
   >
-    <div class="flex items-center gap-3">
-      <h3 class="text-base font-semibold text-highlighted leading-6 truncate flex-1">
-        {{ task.title }}
-      </h3>
-      <span class="text-xs text-muted shrink-0">
-        {{ timeAgo(task.createdAt) }}
-      </span>
-    </div>
-
-    <p
-      class="text-sm leading-relaxed line-clamp-2 whitespace-pre-wrap"
-      :class="task.description ? 'text-muted' : 'italic text-muted/70'"
+    <div
+      data-role="detail-trigger"
+      class="space-y-3 cursor-pointer rounded-md transition-colors hover:text-highlighted"
+      @click="handleViewDetail"
     >
-      {{ task.description || "暂无描述" }}
-    </p>
+      <div class="flex items-center gap-3">
+        <h3 class="text-base font-semibold text-highlighted leading-6 truncate flex-1">
+          {{ task.title }}
+        </h3>
+        <span class="text-xs text-muted shrink-0">
+          {{ timeAgo(task.createdAt) }}
+        </span>
+      </div>
 
-    <div v-if="task.labels.length" class="flex flex-wrap items-center gap-1.5">
-      <UBadge
-        v-for="label in task.labels"
-        :key="label.id"
-        color="neutral"
-        variant="outline"
-        size="xs"
+      <p
+        class="text-sm leading-relaxed line-clamp-2 whitespace-pre-wrap"
+        :class="task.description ? 'text-muted' : 'italic text-muted/70'"
       >
-        {{ label.name }}
-      </UBadge>
+        {{ task.description || "暂无描述" }}
+      </p>
+
+      <div v-if="task.labels.length" class="flex flex-wrap items-center gap-1.5">
+        <UBadge
+          v-for="label in task.labels"
+          :key="label.id"
+          color="neutral"
+          variant="outline"
+          size="xs"
+        >
+          {{ label.name }}
+        </UBadge>
+      </div>
     </div>
 
-    <div class="mt-auto flex items-center justify-between gap-3 border-t border-default pt-3">
+    <div
+      class="mt-auto flex items-center justify-between gap-3 border-t border-default pt-3"
+      @click.stop
+    >
       <div class="flex flex-wrap items-center gap-2">
         <UButton
           color="primary"
           size="sm"
           icon="i-lucide-message-circle-more"
-          @click="emit('start-discussion', task)"
+          @click.stop="emit('start-discussion', task)"
         >
           发起讨论
         </UButton>
@@ -106,7 +120,7 @@ function handleDelete(): void {
         icon="i-lucide-trash-2"
         title="删除任务"
         class="text-muted transition-colors hover:bg-error/10 hover:text-error"
-        @click="showDeleteConfirm = true"
+        @click.stop="showDeleteConfirm = true"
       />
     </div>
   </div>
