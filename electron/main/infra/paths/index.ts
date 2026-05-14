@@ -53,6 +53,13 @@ export function getResourcesPath(): string {
 }
 
 /**
+ * 获取 app.asar 目录路径
+ */
+export function getAppAsarPath(): string {
+  return join(process.resourcesPath, "app.asar");
+}
+
+/**
  * 获取 app.asar.unpacked 目录路径
  */
 export function getAppUnpackedPath(): string {

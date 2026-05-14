@@ -24,6 +24,28 @@ describe("bundled mcp servers", () => {
     );
   });
 
+  it("returns production openspec cli path from app.asar", () => {
+    (is as { dev: boolean }).dev = false;
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/FylloCode.app/Contents/Resources",
+    });
+
+    const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
+
+    expect(specs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
+      join(
+        "/Applications/FylloCode.app/Contents/Resources",
+        "app.asar",
+        "node_modules",
+        "@fission-ai",
+        "openspec",
+        "bin",
+        "openspec.js"
+      )
+    );
+  });
+
   it("respects disable flag", () => {
     process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
     expect(getBundledMcpServers({ projectPath: "/tmp/project" })).toEqual([]);

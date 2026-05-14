@@ -1,6 +1,6 @@
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
-import { getAppUnpackedPath } from "@main/infra/paths";
+import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
 import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
 
 function resolveBundlePath(): string {
@@ -11,7 +11,10 @@ function resolveBundlePath(): string {
 }
 
 function resolveOpenspecCliPath(): string {
-  const appRoot = is.dev ? process.cwd() : getAppUnpackedPath();
+  // The OpenSpec CLI stays inside app.asar in production so Node resolves its
+  // ESM package dependencies (for example `commander`) from the same packaged
+  // node_modules tree instead of crossing into app.asar.unpacked.
+  const appRoot = is.dev ? process.cwd() : getAppAsarPath();
   return join(appRoot, "node_modules", "@fission-ai", "openspec", "bin", "openspec.js");
 }
 

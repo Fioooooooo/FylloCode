@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   archiveChange,
@@ -76,6 +76,58 @@ describe("openspec-runtime", () => {
 
   it("uses project root fallback", () => {
     expect(resolveProjectRoot()).toBeTruthy();
+  });
+
+  it("prefers app.asar CLI fallback over app.asar.unpacked", () => {
+    const tempRoot = `/private/tmp/fyllocode-openspec-cli-${Math.random().toString(36).slice(2)}`;
+    const resourcesPath = join(tempRoot, "FylloCode.app", "Contents", "Resources");
+    const appAsarCli = join(
+      resourcesPath,
+      "app.asar",
+      "node_modules",
+      "@fission-ai",
+      "openspec",
+      "bin",
+      "openspec.js"
+    );
+    const appUnpackedCli = join(
+      resourcesPath,
+      "app.asar.unpacked",
+      "node_modules",
+      "@fission-ai",
+      "openspec",
+      "bin",
+      "openspec.js"
+    );
+    const originalCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    const originalResourcesPath = (process as NodeJS.Process & { resourcesPath?: string })
+      .resourcesPath;
+
+    delete process.env.FYLLO_OPENSPEC_CLI_PATH;
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: resourcesPath,
+    });
+
+    mkdirSync(join(appAsarCli, ".."), { recursive: true });
+    mkdirSync(join(appUnpackedCli, ".."), { recursive: true });
+    writeFileSync(appAsarCli, "");
+    writeFileSync(appUnpackedCli, "");
+
+    try {
+      expect(resolveOpenspecCli()).toBe(appAsarCli);
+    } finally {
+      if (originalCli === undefined) {
+        delete process.env.FYLLO_OPENSPEC_CLI_PATH;
+      } else {
+        process.env.FYLLO_OPENSPEC_CLI_PATH = originalCli;
+      }
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: originalResourcesPath,
+      });
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it("creates and archives without throwing on fixture", async () => {
