@@ -55,17 +55,13 @@ pnpm test:coverage    # 生成覆盖率报告
 
 如需更多详细信息，Agent 可以主动查看下方的各类详细文档。
 
-- **架构文档** - [Architecture](./docs/Architecture.md)
-- **主进程分层** - [MainProcess](./docs/MainProcess.md)
-- **渲染进程分层** - [RendererProcess](./docs/RendererProcess.md)
-- **数据模型** - [DataModel](./docs/DataModel.md)
-- **IPC 通信** - [IPC](./docs/IPC.md)
-- **测试规范** - [Testing](./docs/Testing.md)
-- **编码规范** - [CodeStyle](./docs/CodeStyle.md)
-- **OpenSpec 使用规范** - [OpenSpec](./docs/OpenSpec.md)
+- **架构文档** - [Architecture](guidelines/Architecture.md)
+- **主进程分层** - [MainProcess](guidelines/MainProcess.md)
+- **渲染进程分层** - [RendererProcess](guidelines/RendererProcess.md)
+- **数据模型** - [DataModel](guidelines/DataModel.md)
+- **IPC 通信** - [IPC](guidelines/IPC.md)
+- **测试规范** - [Testing](guidelines/Testing.md)
+- **编码规范** - [CodeStyle](guidelines/CodeStyle.md)
+- **OpenSpec 使用规范** - [OpenSpec](guidelines/OpenSpec.md)
 
 若 Agent 准备开展分析、设计、实现、重构、测试或其他 action，必须先主动查阅与任务相关的现有文档，了解规范与约束后，再决定下一步。
-
-## 功能需求规范（OpenSpec）
-
-详细规则见 [OpenSpec 使用规范](./docs/OpenSpec.md)。
