@@ -27,7 +27,7 @@ const userAvatar = computed(() =>
         avatar: {
           src: `${import.meta.env.BASE_URL}icon.svg`,
           ui: {
-            root: "bg-teal-50 ring-1 ring-teal-500/20 rounded-full p-1.5",
+            root: "bg-teal-50 ring-1 ring-teal-500/20 rounded-full p-1.5 bg-default",
             image: "rounded-none mt-1",
           },
         },

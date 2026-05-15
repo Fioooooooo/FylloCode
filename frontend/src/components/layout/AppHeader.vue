@@ -72,8 +72,8 @@ function toggleTheme(): void {
     </div>
 
     <!-- Right: Controls -->
-    <div class="w-[20%] h-full flex items-center justify-end pr-2">
-      <div class="flex items-center justify-end gap-1" style="-webkit-app-region: no-drag">
+    <div class="w-[20%] h-full flex items-center justify-end pr-4">
+      <div class="flex items-center justify-end gap-2" style="-webkit-app-region: no-drag">
         <!-- System Bell -->
         <UButton
           variant="ghost"

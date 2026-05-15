@@ -262,7 +262,7 @@ watch(
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-240 mx-auto px-6 py-8 space-y-6">
         <div class="space-y-1">
-          <h1 class="text-2xl font-bold text-highlighted">任务面板</h1>
+          <h1 class="text-2xl font-bold text-highlighted">任务看板</h1>
           <p class="text-sm text-muted">集中查看本地任务，并快速发起 AI 讨论。</p>
         </div>
 

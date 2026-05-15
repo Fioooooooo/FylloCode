@@ -19,10 +19,19 @@ vi.mock("@renderer/stores/project", () => ({
 }));
 
 describe("ActivityBar", () => {
-  it("renders all registered items", () => {
+  it("renders the brand icon and all registered item labels", () => {
     const wrapper = mount(ActivityBar);
     const buttons = wrapper.findAll("button");
+    const brandIcon = wrapper.get('[data-test="activity-bar-brand-icon"]');
+
     expect(buttons).toHaveLength(activityBarItems.length);
+    expect(brandIcon.attributes("src")).toContain("icon.svg");
+
+    for (const item of activityBarItems) {
+      expect(wrapper.get(`[data-test="activity-bar-item-${item.id}"]`).text()).toContain(
+        item.label
+      );
+    }
   });
 
   it("highlights the item matching current route", async () => {
@@ -53,5 +62,23 @@ describe("ActivityBar", () => {
 
     expect(activeButtons).toHaveLength(1);
     expect(activeButtons[0].attributes("to")).toBe("/proposal");
+  });
+
+  it("renders three sections with settings separated at the bottom", () => {
+    const wrapper = mount(ActivityBar);
+
+    expect(wrapper.find('[data-test="activity-bar-brand"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="activity-bar-menu"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="activity-bar-settings"]').exists()).toBe(true);
+
+    const menuButtons = wrapper.find('[data-test="activity-bar-menu"]').findAll("button");
+    const settingsButtons = wrapper.find('[data-test="activity-bar-settings"]').findAll("button");
+
+    expect(menuButtons).toHaveLength(
+      activityBarItems.filter((item) => item.group === "top").length
+    );
+    expect(settingsButtons).toHaveLength(
+      activityBarItems.filter((item) => item.group === "bottom").length
+    );
   });
 });

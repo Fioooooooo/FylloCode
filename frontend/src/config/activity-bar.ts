@@ -45,7 +45,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
   {
     id: "cron",
     icon: "i-lucide-calendar-days",
-    label: "定时任务",
+    label: "定时",
     path: "/cron",
     group: "top",
     requiresProject: true,
