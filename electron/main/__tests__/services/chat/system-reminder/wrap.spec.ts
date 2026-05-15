@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { wrapAsSystemReminder } from "@main/services/chat/system-reminder/wrap";
+import { wrapAsSystemReminder } from "@main/domain/chat/system-reminder-wrap";
 
 describe("wrapAsSystemReminder", () => {
   it("wraps plain content with system reminder tags", () => {

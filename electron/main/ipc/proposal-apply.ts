@@ -135,6 +135,11 @@ export function registerProposalApplyHandlers(): void {
               reminderPart
             );
           },
+          recoveryContext: {
+            hasPersistedHistory: true,
+            loadPersistedHistory: async () =>
+              loadApplyRunMessages(projectPath, form.changeId, form.stageIndex),
+          },
         });
 
         sessionRegistry.register("apply", form.runId, session);
@@ -323,6 +328,10 @@ export function registerProposalApplyHandlers(): void {
               archiveMessagesPath(projectPath, form.changeId),
               reminderPart
             );
+          },
+          recoveryContext: {
+            hasPersistedHistory: true,
+            loadPersistedHistory: async () => loadArchiveMessages(projectPath, form.changeId),
           },
         });
         sessionRegistry.register("archive", sessionKey, session);

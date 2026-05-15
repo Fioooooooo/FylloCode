@@ -33,6 +33,7 @@ import {
 import { sessionRegistry } from "@main/services/chat/session-registry";
 import {
   appendMessage,
+  loadMessages,
   loadSessionMeta,
   patchSessionMeta,
 } from "@main/infra/storage/session-store";
@@ -150,6 +151,10 @@ export function registerChatHandlers(): void {
               sessionMessagesPath(projectPath, sessionId),
               reminderPart
             );
+          },
+          recoveryContext: {
+            hasPersistedHistory: true,
+            loadPersistedHistory: async () => loadMessages(projectPath, sessionId),
           },
         });
         const assembler = new MessageAssembler(sessionId);

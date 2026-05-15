@@ -3,6 +3,7 @@ import { Writable, Readable } from "stream";
 import { app, BrowserWindow } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
+import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords } from "@main/domain/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
@@ -20,6 +21,7 @@ interface AgentProcess {
   ready: boolean;
   sessionHandlers: Map<string, SessionUpdateHandler>;
   failures: number;
+  initializeResponse: InitializeResponse;
 }
 
 const pool = new Map<string, AgentProcess>();
@@ -117,11 +119,14 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     stream
   );
 
-  await connection.initialize({
+  const initializeResponse = await connection.initialize({
     protocolVersion: PROTOCOL_VERSION,
     clientCapabilities: {},
     clientInfo: { name: "FylloCode", version: app.getVersion() },
   });
+  logger.info(
+    `[infra.process.acp] ${agentId} initialize response: ${JSON.stringify(initializeResponse)}`
+  );
 
   const entry: AgentProcess = {
     connection,
@@ -129,6 +134,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     ready: true,
     sessionHandlers,
     failures: priorFailures,
+    initializeResponse,
   };
   pool.set(agentId, entry);
 

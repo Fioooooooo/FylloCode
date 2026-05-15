@@ -1,5 +1,5 @@
 import type { TextUIPart } from "ai";
-import { wrapAsSystemReminder } from "./wrap";
+import { wrapAsSystemReminder } from "@main/domain/chat/system-reminder-wrap";
 import { resolveChatSystemReminder } from "./providers/chat";
 import { resolveApplySystemReminder } from "./providers/apply";
 import { resolveArchiveSystemReminder } from "./providers/archive";
