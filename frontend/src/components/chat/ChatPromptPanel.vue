@@ -83,7 +83,6 @@ const {
                 @select="handleCommandSelect"
               />
               <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
-              <span>{{ chatStatus }}</span>
             </div>
 
             <UChatPromptSubmit

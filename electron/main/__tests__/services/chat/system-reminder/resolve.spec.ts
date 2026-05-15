@@ -66,7 +66,7 @@ describe("resolveSystemReminder", () => {
     });
     expect(reminder?.text.trim().startsWith("<system-reminder>")).toBe(true);
     expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
-    expect(reminder?.text).toContain("Current stage index: 2");
+    expect(reminder?.text).toContain("当前 stage index: 2");
     expect(reminder?.text).toContain("Run id: run-1");
   });
 

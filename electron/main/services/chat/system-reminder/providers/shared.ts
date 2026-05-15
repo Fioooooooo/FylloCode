@@ -58,12 +58,10 @@ export function renderSystemReminderTemplate(
     sanitizedValues[field] = sanitized;
   }
 
-  const rendered = template.replace(VARIABLE_PATTERN, (match, field: string) => {
+  return template.replace(VARIABLE_PATTERN, (match, field: string) => {
     if (!ALLOWED_VARIABLE_SET.has(field)) {
       return match;
     }
     return sanitizedValues[field as AllowedVariable];
   });
-
-  return rendered;
 }

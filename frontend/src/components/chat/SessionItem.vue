@@ -2,12 +2,14 @@
 import { computed, toRef } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
+import { useChatStore } from "@renderer/stores";
 
 const props = defineProps<{
   session: Session;
 }>();
 
 const sessionStore = useSessionStore();
+const chatStore = useChatStore();
 
 const session = toRef(props, "session");
 const active = computed(() => sessionStore.activeSessionId === session.value.id);
@@ -54,6 +56,7 @@ function formatTime(date: Date): string {
 
 async function handleSelect(): Promise<void> {
   await sessionStore.selectSession(session.value.id);
+  chatStore.chatStatus = "ready";
 }
 
 async function handleRename(): Promise<void> {
