@@ -54,8 +54,8 @@ importers:
         specifier: ^0.16.46
         version: 0.16.46
       markstream-vue:
-        specifier: 0.0.14-beta.8
-        version: 0.0.14-beta.8(katex@0.16.46)(mermaid@11.15.0)(stream-monaco@0.0.40(monaco-editor@0.55.1))(vue@3.5.32(typescript@6.0.3))
+        specifier: 1.0.0-rc.0
+        version: 1.0.0-rc.0(katex@0.16.46)(mermaid@11.15.0)(stream-monaco@0.0.40(monaco-editor@0.55.1))(vue@3.5.32(typescript@6.0.3))
       mermaid:
         specifier: ^11.15.0
         version: 11.15.0
@@ -144,6 +144,9 @@ importers:
       vite:
         specifier: ^7.3.2
         version: 7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3)
+      vite-plugin-monaco-editor-esm:
+        specifier: ^2.0.2
+        version: 2.0.2(monaco-editor@0.55.1)
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(happy-dom@20.9.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3))
@@ -3838,8 +3841,8 @@ packages:
   markdown-it-task-checkbox@1.0.6:
     resolution: {integrity: sha512-7pxkHuvqTOu3iwVGmDPeYjQg+AIS9VQxzyLP9JCg9lBjgPAJXGEkChK6A2iFuj3tS0GV3HG2u5AMNhcQqwxpJw==}
 
-  markdown-it-ts@0.0.9:
-    resolution: {integrity: sha512-krzuXIaUUiXI8SLlyssp1q4FzDlnfP3wrJwb7ulzwa1DLTYnYDtVe9R5NLTi2FZTo59APCD6to5JnFFj5bs0nA==}
+  markdown-it-ts@1.0.0:
+    resolution: {integrity: sha512-hQT/yCYryC3jNs2wJ35R4m1zKcBxNuFaKCGzwpmq2OuMXMNbUK1oTwCxONIjy5lXWWG1UCNbGXe1nbTiWbH/iA==}
     engines: {node: '>=18'}
 
   markdown-it@14.1.1:
@@ -3861,12 +3864,11 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  markstream-core@0.0.1:
-    resolution: {integrity: sha512-Ka4PUJPe3nyY+oUsdUs/qp7vQsd/53LuyLqeQci1h8ao7SRcTi6hgEfVRpPDDv5Y/cHz25TaYSLIE2dYvKtl4g==}
+  markstream-core@1.0.0-rc.0:
+    resolution: {integrity: sha512-2zIjuufifGit8M+lXKIxBylSYS5PNfNbzoI0zJgB++7K+KZYRcdHBWmklCApg2z0qoVlKjZm6+HxTYkAWCdVRQ==}
 
-  markstream-vue@0.0.14-beta.8:
-    resolution: {integrity: sha512-LAnP/uRu6IrowmAdJSxz9aVhr+VBIvFUQeotmlaICK6QKNoB9CLd5bD/m3By/tys3uCddJ8cy7STXzd6CKqRuw==}
-    hasBin: true
+  markstream-vue@1.0.0-rc.0:
+    resolution: {integrity: sha512-t0D0chv1MZcYFkbacWEiMC/iMHmRypFdptXq0AjjPH3yA5MEiHK0U1I3LZT3fzJ2wAbfazXE1A5BK8OND4AHsQ==}
     peerDependencies:
       '@antv/infographic': ^0.2.3
       '@terrastruct/d2': '>=0.1.33'
@@ -4738,8 +4740,8 @@ packages:
     resolution: {integrity: sha512-UhDfHmA92YAlNnCfhmq0VeNL5bDbiZGg7sZ2IvPsXubGkiNa9EC+tUTsjBRsYUAz87btI6/1wf4XoVvQ3uRnmQ==}
     engines: {node: '>=18'}
 
-  stream-markdown-parser@0.0.95:
-    resolution: {integrity: sha512-ZFMAYsrManQrb/2IopWZkZraoGRr5WaiRuAsZTWLCFulNPJdPku9r4+NqkEBBQ3kcybX/1BFREuldizK4OwSHA==}
+  stream-markdown-parser@1.0.0-rc.0:
+    resolution: {integrity: sha512-mhD4qIl96dn38v4Rlf3AqwFz/Bo/iFvCPqdbUIey7GwAj1CthaW/SCgemFBSlrsg1pCyMJzT4XVcb/OAuGG05Q==}
 
   stream-monaco@0.0.40:
     resolution: {integrity: sha512-emnU5PsbJxe3PuiSyv+IeNTMVY0SAATHD7Xv4ZBhDC3FRFpTm2XDvOQfN/DdGblYX0wf6gh2GVOkVr62BSIERQ==}
@@ -5136,6 +5138,11 @@ packages:
 
   vfile@6.0.3:
     resolution: {integrity: sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==}
+
+  vite-plugin-monaco-editor-esm@2.0.2:
+    resolution: {integrity: sha512-XVkOpL/r0rw1NpbO30vUwG4S0THkC9KB1vjjV8olGd49h4/EQsKl3DrxB6KRDwyZNC9mKiiZgk2L6njUYj3oKQ==}
+    peerDependencies:
+      monaco-editor: '>=0.33.0'
 
   vite@7.3.2:
     resolution: {integrity: sha512-Bby3NOsna2jsjfLVOHKes8sGwgl4TT0E6vvpYgnAYDIF/tie7MRaFthmKuHx1NSXjiTueXH3do80FMQgvEktRg==}
@@ -9539,8 +9546,10 @@ snapshots:
 
   markdown-it-task-checkbox@1.0.6: {}
 
-  markdown-it-ts@0.0.9:
+  markdown-it-ts@1.0.0:
     dependencies:
+      '@types/linkify-it': 5.0.0
+      '@types/mdurl': 2.0.0
       entities: 4.5.0
       linkify-it: 5.0.0
       mdurl: 2.0.0
@@ -9562,14 +9571,14 @@ snapshots:
 
   marked@17.0.6: {}
 
-  markstream-core@0.0.1: {}
+  markstream-core@1.0.0-rc.0: {}
 
-  markstream-vue@0.0.14-beta.8(katex@0.16.46)(mermaid@11.15.0)(stream-monaco@0.0.40(monaco-editor@0.55.1))(vue@3.5.32(typescript@6.0.3)):
+  markstream-vue@1.0.0-rc.0(katex@0.16.46)(mermaid@11.15.0)(stream-monaco@0.0.40(monaco-editor@0.55.1))(vue@3.5.32(typescript@6.0.3)):
     dependencies:
       '@chenglou/pretext': 0.0.5
       '@floating-ui/dom': 1.7.6
-      markstream-core: 0.0.1
-      stream-markdown-parser: 0.0.95
+      markstream-core: 1.0.0-rc.0
+      stream-markdown-parser: 1.0.0-rc.0
       vue: 3.5.32(typescript@6.0.3)
     optionalDependencies:
       katex: 0.16.46
@@ -10517,7 +10526,7 @@ snapshots:
 
   stdin-discarder@0.2.2: {}
 
-  stream-markdown-parser@0.0.95:
+  stream-markdown-parser@1.0.0-rc.0:
     dependencies:
       markdown-it-container: 4.0.0
       markdown-it-footnote: 4.0.0
@@ -10526,7 +10535,7 @@ snapshots:
       markdown-it-sub: 2.0.0
       markdown-it-sup: 2.0.0
       markdown-it-task-checkbox: 1.0.6
-      markdown-it-ts: 0.0.9
+      markdown-it-ts: 1.0.0
 
   stream-monaco@0.0.40(monaco-editor@0.55.1):
     dependencies:
@@ -10901,6 +10910,10 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
+
+  vite-plugin-monaco-editor-esm@2.0.2(monaco-editor@0.55.1):
+    dependencies:
+      monaco-editor: 0.55.1
 
   vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3):
     dependencies:

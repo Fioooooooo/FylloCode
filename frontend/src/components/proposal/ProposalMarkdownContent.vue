@@ -79,7 +79,11 @@ function handleModelValueUpdate(value: unknown): void {
         </div>
 
         <div v-else class="prose prose-sm dark:prose-invert max-w-none">
-          <MarkStream :content="activeContent" :is-streaming="false" />
+          <MarkStream
+            :id="`proposal-${props.modelValue}`"
+            :content="activeContent"
+            :is-streaming="false"
+          />
         </div>
       </div>
     </div>

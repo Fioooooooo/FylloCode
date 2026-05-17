@@ -70,7 +70,11 @@ const assistantAvatar = computed(() => {
             :text="part.text"
             :streaming="isPartStreaming(part)"
           >
-            <MarkStream :content="part.text" :is-streaming="isPartStreaming(part)" />
+            <MarkStream
+              :id="`${message.id}-${part.type}-${index}`"
+              :content="part.text"
+              :is-streaming="isPartStreaming(part)"
+            />
           </UChatReasoning>
 
           <UChatTool
@@ -87,6 +91,7 @@ const assistantAvatar = computed(() => {
           <template v-else-if="isTextUIPart(part)">
             <MarkStream
               v-if="message.role === 'assistant'"
+              :id="`${message.id}-${part.type}-${index}`"
               :content="part.text"
               :is-streaming="isPartStreaming(part)"
             />

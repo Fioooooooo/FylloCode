@@ -2,6 +2,7 @@
 import MarkdownRender from "markstream-vue";
 
 defineProps<{
+  id: string;
   content: string;
   isStreaming: boolean;
 }>();
@@ -9,16 +10,17 @@ defineProps<{
 
 <template>
   <MarkdownRender
+    :custom-id="id"
     :content="content"
     :final="!isStreaming"
+    :fade="false"
+    :typewriter="isStreaming"
+    :smooth-streaming="isStreaming ? 'auto' : false"
     :max-live-nodes="isStreaming ? 0 : undefined"
-    :batch-rendering="true"
+    :batch-rendering="isStreaming"
     :render-batch-size="16"
     :render-batch-delay="8"
     :render-batch-budget-ms="4"
-    :fade="!isStreaming"
-    :typewriter="isStreaming"
-    :smooth-streaming="isStreaming ? 'auto' : false"
   />
 </template>
 
