@@ -10,7 +10,7 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 
 - **Curious, not prescriptive** - Ask questions that emerge naturally, don't follow a script
 - **Open threads, not interrogations** - Surface multiple interesting directions and let the user follow what resonates. Don't funnel them through a single path of questions.
-- **Visual** - Use ASCII diagrams liberally when they'd help clarify thinking
+- **Visual** - Use `mermaid` diagrams liberally when they'd help clarify thinking
 - **Adaptive** - Follow interesting threads, pivot when new information emerges
 - **Patient** - Don't rush to conclusions, let the shape of the problem emerge
 - **Grounded** - Explore the actual codebase when relevant, don't just theorize
@@ -44,21 +44,24 @@ Depending on what the user brings, you might:
 
 **Visualize**
 
-```
-┌─────────────────────────────────────────┐
-│     Use ASCII diagrams liberally        │
-├─────────────────────────────────────────┤
-│                                         │
-│      ┌────────┐         ┌────────┐      │
-│      │ State  │────────▶│ State  │      │
-│      │   A    │         │   B    │      │
-│      └────────┘         └────────┘      │
-│                                         │
-│   System diagrams, state machines,      │
-│   data flows, architecture sketches,    │
-│   dependency graphs, comparison tables  │
-│                                         │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A["State A"] --> B["State B"]
+
+    note1["Use mermaid diagrams liberally"]
+    note2["System diagrams"]
+    note3["State machines"]
+    note4["Data flows"]
+    note5["Architecture sketches"]
+    note6["Dependency graphs"]
+    note7["Comparison tables"]
+
+    note1 --- note2
+    note1 --- note3
+    note1 --- note4
+    note1 --- note5
+    note1 --- note6
+    note1 --- note7
 ```
 
 **Surface risks and unknowns**
@@ -139,59 +142,35 @@ If `state.activeChanges` has entries, or the user mentions a specific change:
 
 **User brings a vague idea:**
 
-```
 User: I'm thinking about adding real-time collaboration
 
 You: Real-time collab is a big space. Let me think about this...
 
-      COLLABORATION SPECTRUM
-      ════════════════════════════════════════════
-
-      Awareness          Coordination         Sync
-          │                   │                 │
-          ▼                   ▼                 ▼
-      ┌────────┐         ┌────────┐        ┌────────┐
-      │Presence│         │Cursors │        │  CRDT  │
-      │  "3    │         │ Multi  │        │Conflict│
-      │online" │         │ select │        │  free  │
-      └────────┘         └────────┘        └────────┘
-          │                   │                 │
-       trivial            moderate           complex
-
-      Where's your head at?
+```mermaid
+flowchart LR
+    A["Awareness<br/>Presence<br/>3 online<br/>trivial"]
+    B["Coordination<br/>Cursors<br/>Multi select<br/>moderate"]
+    C["Sync<br/>CRDT<br/>Conflict free<br/>complex"]
+    A --> B --> C
 ```
+
+You: Where's your head at?
 
 **User brings a specific problem:**
 
-```
 User: The auth system is a mess
 
 You: [reads codebase]
 
-     ┌─────────────────────────────────────────────┐
-     │              CURRENT AUTH FLOW              │
-     └─────────────────────────────────────────────┘
-                        │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-     ┌─────────┐  ┌─────────┐  ┌─────────┐
-     │ Google  │  │  GitHub │  │  Email  │
-     │  OAuth  │  │  OAuth  │  │  Magic  │
-     └────┬────┘  └────┬────┘  └────┬────┘
-          │             │             │
-          └─────────────┼─────────────┘
-                        ▼
-                  ┌───────────┐
-                  │  Session  │
-                  └─────┬─────┘
-                        │
-                        ▼
-                  ┌───────────┐
-                  │   Perms   │
-                  └───────────┘
-
-     I see three tangles. Which one's burning?
+```mermaid
+flowchart TD
+    G["Google OAuth"] --> S["Session"]
+    H["GitHub OAuth"] --> S
+    E["Email Magic"] --> S
+    S --> P["Perms"]
 ```
+
+You: I see three tangles. Which one's burning?
 
 **User is stuck mid-implementation:**
 
@@ -205,7 +184,7 @@ You: [state.currentChange shows task 4: "Implement OAuth flow" is in progress]
 
      Let me trace what's involved...
 
-     [draws diagram, explores options, suggests paths]
+     [writes a mermaid diagram, explores options, suggests paths]
 
      Want to update the design to reflect this?
      Or add a spike task to investigate?
@@ -213,7 +192,6 @@ You: [state.currentChange shows task 4: "Implement OAuth flow" is in progress]
 
 **User wants to compare options:**
 
-```
 User: Should we use Postgres or SQLite?
 
 You: Generic answer is boring. What's the context?
@@ -222,24 +200,33 @@ User: A CLI tool that tracks local dev environments
 
 You: That changes everything.
 
-     ┌─────────────────────────────────────────────────┐
-     │          CLI TOOL DATA STORAGE                  │
-     └─────────────────────────────────────────────────┘
-
-     Key constraints:
-     • No daemon running
-     • Must work offline
-     • Single user
-
-                  SQLite          Postgres
-     Deployment   embedded ✓      needs server ✗
-     Offline      yes ✓           no ✗
-     Single file  yes ✓           no ✗
-
-     SQLite. Not even close.
-
-     Unless... is there a sync component?
+```mermaid
+flowchart TD
+    C["CLI Tool Data Storage"]
+    K["No daemon running"]
+    O["Must work offline"]
+    S["Single user"]
+    C --> K
+    C --> O
+    C --> S
 ```
+
+You:
+
+Key constraints:
+• No daemon running
+• Must work offline
+• Single user
+
+             SQLite          Postgres
+
+Deployment embedded ✓ needs server ✗
+Offline yes ✓ no ✗
+Single file yes ✓ no ✗
+
+SQLite. Not even close.
+
+Unless... is there a sync component?
 
 ---
 
@@ -279,6 +266,6 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
 - **Don't auto-capture** - Offer to save insights, don't just do it
-- **Do visualize** - A good diagram is worth many paragraphs
+- **Do visualize** - A good `mermaid` diagram is worth many paragraphs
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own
