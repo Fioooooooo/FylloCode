@@ -38,7 +38,7 @@ function buildTask(id: string, source: TaskItem["source"], updatedAt: string): T
     id,
     projectId: "project-1",
     title: id,
-    description: "",
+    description: { format: "plain_text", content: "" },
     status: "open",
     source,
     sourceMeta:

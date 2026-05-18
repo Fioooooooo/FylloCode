@@ -63,7 +63,10 @@ describe("useTaskStore", () => {
         id: "yunxiao:space-1:task-1",
         projectId: "project-1",
         title: "云效任务",
-        description: "详情描述",
+        description: {
+          format: "html",
+          content: "<p>详情描述</p>",
+        },
         status: "open",
         source: "yunxiao",
         sourceMeta: { source: "yunxiao", key: "YX-1", issueType: "任务" },
@@ -144,7 +147,10 @@ describe("useTaskStore", () => {
 
     const detail = await store.loadTaskDetail("yunxiao:space-1:task-1");
 
-    expect(detail.description).toBe("详情描述");
+    expect(detail.description).toEqual({
+      format: "html",
+      content: "<p>详情描述</p>",
+    });
     expect(store.detailLoadingTaskId).toBeNull();
     expect(store.detailErrorTaskId).toBeNull();
     expect(store.error).toBeNull();

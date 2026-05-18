@@ -127,4 +127,9 @@ config.global.stubs = {
     template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
   },
   UAlert: true,
+  UEditor: {
+    template:
+      '<div :data-content-type="contentType" :data-editable="String(editable)">{{ modelValue }}</div>',
+    props: ["modelValue", "contentType", "editable"],
+  },
 };

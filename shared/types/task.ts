@@ -2,6 +2,15 @@ export type TaskSource = "local" | "yunxiao" | "github";
 
 export type TaskStatus = "open" | "closed";
 
+export const taskDescriptionFormats = ["plain_text", "markdown", "html"] as const;
+
+export type TaskDescriptionFormat = (typeof taskDescriptionFormats)[number];
+
+export interface TaskDescription {
+  format: TaskDescriptionFormat;
+  content: string;
+}
+
 export interface TaskUser {
   id: string;
   name: string;
@@ -39,7 +48,7 @@ export interface TaskItem {
   id: string;
   projectId: string;
   title: string;
-  description: string;
+  description: TaskDescription;
   status: TaskStatus;
   source: TaskSource;
   sourceMeta: TaskSourceMeta;
@@ -52,7 +61,7 @@ export interface TaskItem {
 
 export interface CreateLocalTaskInput {
   title: string;
-  description?: string;
+  description?: TaskDescription;
   proposalId?: string;
 }
 

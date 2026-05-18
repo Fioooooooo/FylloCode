@@ -1,10 +1,4 @@
-# task-local Specification
-
-## Purpose
-
-定义本地任务的数据模型、存储机制、IPC 接口，以及主进程与渲染进程之间的任务管理契约。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 本地任务使用 UnifiedTask schema
 
@@ -15,21 +9,6 @@
 - **WHEN** 用户创建一个标题为"Fix login bug"的新本地任务
 - **THEN** 系统生成一个 `TaskItem`，具有 `source: "local"`、`status: "open"` 和 `sourceMeta: { source: "local" }`
 - **AND** 该任务的 `description` 为 `{ format: "plain_text", content: "" }` 或用户输入的纯文本内容
-
-### Requirement: 本地任务按项目持久化
-
-系统 SHALL 将本地任务存储在项目级文件中，路径为 `data/projects/<encodedProjectPath>/tasks/tasks.json`。文件 SHALL 包含一个带有 `tasks` 数组和 `version` 字段的 JSON 对象，用于 schema 迁移。
-
-#### Scenario: 为项目 A 存储任务
-
-- **WHEN** 为项目 A 保存任务
-- **THEN** 任务被写入 `data/projects/<encodedProjectAPath>/tasks/tasks.json`
-
-#### Scenario: 为项目 B 存储任务
-
-- **WHEN** 为项目 B 保存任务
-- **THEN** 任务被写入 `data/projects/<encodedProjectBPath>/tasks/tasks.json` 的独立文件
-- **AND** 项目 A 的任务不受影响
 
 ### Requirement: 本地任务通过 IPC 支持 CRUD
 
@@ -57,36 +36,6 @@
 
 - **WHEN** 渲染进程调用 `task:delete` 并传入 `taskId` 和 `projectId`
 - **THEN** 主进程移除该任务并持久化变更
-
-### Requirement: 任务 ID 在项目范围内本地唯一
-
-系统 SHALL 使用项目现有的 ID 生成策略（`ai` 包的 `generateId` 或类似方法）生成任务 ID。ID SHALL 在项目范围内唯一。
-
-#### Scenario: 两个项目拥有不同的任务 ID 空间
-
-- **WHEN** 项目 A 有一条 id 为 "task-1" 的任务
-- **AND** 项目 B 有一条 id 为 "task-1" 的任务
-- **THEN** 两条任务在各自的存储文件中独立共存
-
-### Requirement: 本地任务存储安全处理并发访问
-
-系统 SHALL 在每次写操作前读取任务文件，以防止并发修改导致的数据丢失。
-
-#### Scenario: 快速连续的任务操作
-
-- **WHEN** 两个任务操作快速连续发生
-- **THEN** 第二个操作读取第一个操作写入后的状态
-- **AND** 没有任务数据丢失
-
-### Requirement: 本地任务存储在读取时规范化数据
-
-系统 SHALL 在从存储读取时验证并规范化任务数据，为缺失的可选字段提供合理的默认值。
-
-#### Scenario: 读取缺失字段的遗留任务文件
-
-- **WHEN** 系统读取一个缺失可选字段（如 `labels`、`assignee`）的任务文件
-- **THEN** 缺失字段被填充为安全默认值（`labels: []`、`assignee: undefined`）
-- **AND** 任务保持可用
 
 ### Requirement: 本地任务创建需要最小字段集
 

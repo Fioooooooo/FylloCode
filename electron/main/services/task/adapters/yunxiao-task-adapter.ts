@@ -10,7 +10,7 @@ import {
   type SearchWorkitemsParams,
   type Workitem,
 } from "@main/domain/integration/yunxiao/projex";
-import type { TaskItem, TaskLabel, YunxiaoTaskMeta } from "@shared/types/task";
+import type { TaskDescription, TaskItem, TaskLabel, YunxiaoTaskMeta } from "@shared/types/task";
 import type { ProjectIntegrationEntry } from "@shared/types/integration";
 import type { TaskAdapter } from "./task-adapter";
 
@@ -194,6 +194,43 @@ function resolveCategory(workitem: Workitem): YunxiaoCategory {
   return "Task";
 }
 
+type YunxiaoRichTextPayload = {
+  htmlValue?: unknown;
+};
+
+export function mapYunxiaoDescription(workitem: Workitem): TaskDescription {
+  const content = workitem.description ?? "";
+
+  if (workitem.formatType === "MARKDOWN") {
+    return {
+      format: "markdown",
+      content,
+    };
+  }
+
+  if (workitem.formatType === "RICHTEXT") {
+    try {
+      const parsed = JSON.parse(content) as YunxiaoRichTextPayload;
+      if (typeof parsed.htmlValue === "string") {
+        return {
+          format: "html",
+          content: parsed.htmlValue,
+        };
+      }
+    } catch {
+      return {
+        format: "plain_text",
+        content,
+      };
+    }
+  }
+
+  return {
+    format: "plain_text",
+    content,
+  };
+}
+
 function mapToTaskItem(
   projectId: string,
   spaceId: string,
@@ -214,7 +251,7 @@ function mapToTaskItem(
     id: `yunxiao:${spaceId}:${workitem.id}`,
     projectId,
     title: workitem.subject,
-    description: workitem.description ?? "",
+    description: mapYunxiaoDescription(workitem),
     status: "open",
     source: "yunxiao",
     sourceMeta,
@@ -335,6 +372,7 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
       organizationId,
       id: parsed.workitemId,
     });
+    logger.info(JSON.stringify(workitem));
     const category = resolveCategory(workitem);
     return mapToTaskItem(projectId, parsed.spaceId, category, workitem);
   }

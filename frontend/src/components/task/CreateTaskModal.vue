@@ -44,7 +44,10 @@ function submit(): void {
 
   emit("create", {
     title: nextTitle,
-    description: description.value.trim() || undefined,
+    description: {
+      format: "plain_text",
+      content: description.value.trim(),
+    },
   });
 }
 </script>

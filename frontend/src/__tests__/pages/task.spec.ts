@@ -207,7 +207,7 @@ describe("task page", () => {
         id: "yx-1",
         projectId: "project-1",
         title: "云效任务",
-        description: "",
+        description: { format: "plain_text", content: "" },
         status: "open",
         source: "yunxiao",
         sourceMeta: {
@@ -241,7 +241,10 @@ describe("task page", () => {
         id: "yunxiao:space-1:102",
         projectId: "project-1",
         title: "云效任务",
-        description: "描述",
+        description: {
+          format: "html",
+          content: "<table><tr><td>需求详细说明</td></tr></table>",
+        },
         status: "open",
         source: "yunxiao",
         sourceMeta: {
@@ -265,6 +268,8 @@ describe("task page", () => {
         "**来源**: 云效 YX-102 (https://devops.aliyun.com/projex/project/space-1/task/102)\n**标题**: 云效任务"
       )
     );
+    expect(sendMessageMock).toHaveBeenCalledWith(expect.stringContaining("需求详细说明"));
+    expect(sendMessageMock).not.toHaveBeenCalledWith(expect.stringContaining("<table>"));
     expect(sendMessageMock).not.toHaveBeenCalledWith(expect.stringContaining("()"));
   });
 
@@ -273,7 +278,10 @@ describe("task page", () => {
       id: "yunxiao:space-1:102",
       projectId: "project-1",
       title: "云效任务详情",
-      description: "详情描述",
+      description: {
+        format: "markdown",
+        content: "详情描述",
+      },
       status: "open",
       source: "yunxiao",
       sourceMeta: {
@@ -289,7 +297,7 @@ describe("task page", () => {
       {
         ...detailTask,
         title: "云效任务",
-        description: "",
+        description: { format: "plain_text", content: "" },
       },
     ];
     loadTaskDetailMock.mockResolvedValue(detailTask);
@@ -324,7 +332,7 @@ describe("task page", () => {
         id: "yunxiao:space-1:103",
         projectId: "project-1",
         title: "云效任务",
-        description: "",
+        description: { format: "plain_text", content: "" },
         status: "open",
         source: "yunxiao",
         sourceMeta: {

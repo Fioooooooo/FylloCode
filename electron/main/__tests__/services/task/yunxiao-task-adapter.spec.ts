@@ -36,6 +36,7 @@ vi.mock("@main/infra/logger", () => ({
 import {
   buildWorkitemUrl,
   buildSearchWorkitemsParams,
+  mapYunxiaoDescription,
   yunxiaoTaskAdapter,
 } from "@main/services/task/adapters/yunxiao-task-adapter";
 
@@ -172,7 +173,10 @@ describe("yunxiao-task-adapter", () => {
       source: "yunxiao",
       status: "open",
       title: "Task 101",
-      description: "Description 101",
+      description: {
+        format: "plain_text",
+        content: "Description 101",
+      },
       sourceMeta: {
         source: "yunxiao",
         key: "YX-101",
@@ -343,7 +347,10 @@ describe("yunxiao-task-adapter", () => {
     expect(mocks.searchWorkitems).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       id: "yunxiao:space-1:detail-102",
-      description: "detail markdown body",
+      description: {
+        format: "markdown",
+        content: "detail markdown body",
+      },
       sourceMeta: {
         key: "YX-102",
         issueType: "任务",
@@ -358,12 +365,12 @@ describe("yunxiao-task-adapter", () => {
     expect(mocks.getWorkitem).not.toHaveBeenCalled();
   });
 
-  it("keeps description raw for richtext details", async () => {
+  it("maps richtext details to html descriptions", async () => {
     mocks.getWorkitem.mockResolvedValue(
       buildWorkitem("detail-201", {
         categoryId: "Req",
         formatType: "RICHTEXT",
-        description: "<p>富文本描述</p>",
+        description: JSON.stringify({ htmlValue: "<p>富文本描述</p>" }),
         serialNumber: "YX-201",
         space: { id: "space-1", name: "项目一" },
         workitemType: { id: "type-2", name: "需求" },
@@ -372,7 +379,48 @@ describe("yunxiao-task-adapter", () => {
 
     const result = await yunxiaoTaskAdapter.get("yunxiao:space-1:detail-201", "project-1");
 
-    expect(result?.description).toBe("<p>富文本描述</p>");
+    expect(result?.description).toEqual({
+      format: "html",
+      content: "<p>富文本描述</p>",
+    });
     expect(result?.sourceMeta).toMatchObject({ issueType: "需求" });
+  });
+
+  it("maps markdown richtext fallback and unknown formats through the canonical mapper", () => {
+    expect(
+      mapYunxiaoDescription(
+        buildWorkitem("markdown-1", {
+          formatType: "MARKDOWN",
+          description: "## 标题\n- 列表",
+        })
+      )
+    ).toEqual({
+      format: "markdown",
+      content: "## 标题\n- 列表",
+    });
+
+    expect(
+      mapYunxiaoDescription(
+        buildWorkitem("richtext-invalid", {
+          formatType: "RICHTEXT",
+          description: "{invalid json",
+        })
+      )
+    ).toEqual({
+      format: "plain_text",
+      content: "{invalid json",
+    });
+
+    expect(
+      mapYunxiaoDescription(
+        buildWorkitem("unknown-1", {
+          formatType: "PLAIN",
+          description: "raw body",
+        })
+      )
+    ).toEqual({
+      format: "plain_text",
+      content: "raw body",
+    });
   });
 });

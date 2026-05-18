@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { getTaskDescriptionSummary } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
 import type { TaskItem } from "@shared/types/task";
 
@@ -23,6 +24,8 @@ const externalUrl = computed(() => {
   const meta = props.task.sourceMeta as { url?: string };
   return typeof meta.url === "string" && meta.url ? meta.url : null;
 });
+
+const descriptionSummary = computed(() => getTaskDescriptionSummary(props.task));
 
 function handleDelete(): void {
   showDeleteConfirm.value = false;
@@ -54,9 +57,9 @@ function handleViewDetail(): void {
 
       <p
         class="text-sm leading-relaxed line-clamp-2 whitespace-pre-wrap"
-        :class="task.description ? 'text-muted' : 'italic text-muted/70'"
+        :class="descriptionSummary ? 'text-muted' : 'italic text-muted/70'"
       >
-        {{ task.description || "暂无描述" }}
+        {{ descriptionSummary || "暂无描述" }}
       </p>
 
       <div v-if="task.labels.length" class="flex flex-wrap items-center gap-1.5">

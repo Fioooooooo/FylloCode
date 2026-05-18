@@ -2,7 +2,14 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { encodeProjectPath } from "@main/infra/storage/project-paths";
 import { getDataSubPath } from "@main/infra/paths";
-import type { TaskItem, TaskSource, TaskSourceMeta, TaskStatus } from "@shared/types/task";
+import type {
+  TaskDescription,
+  TaskDescriptionFormat,
+  TaskItem,
+  TaskSource,
+  TaskSourceMeta,
+  TaskStatus,
+} from "@shared/types/task";
 
 interface TaskStoreDocument {
   version: 1;
@@ -42,6 +49,10 @@ function isTaskSource(value: unknown): value is TaskSource {
 
 function isTaskStatus(value: unknown): value is TaskStatus {
   return value === "open" || value === "closed";
+}
+
+function isTaskDescriptionFormat(value: unknown): value is TaskDescriptionFormat {
+  return value === "plain_text" || value === "markdown" || value === "html";
 }
 
 function toDate(value: unknown): Date {
@@ -115,6 +126,22 @@ function normalizeAssignee(value: unknown): TaskItem["assignee"] {
   };
 }
 
+function normalizeDescription(value: unknown): TaskDescription | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const description = value as { format?: unknown; content?: unknown };
+  if (!isTaskDescriptionFormat(description.format) || typeof description.content !== "string") {
+    return null;
+  }
+
+  return {
+    format: description.format,
+    content: description.content,
+  };
+}
+
 function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -135,13 +162,17 @@ function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | 
   }
 
   const source = isTaskSource(item.source) ? item.source : "local";
+  const description = normalizeDescription(item.description);
+  if (!description) {
+    return null;
+  }
 
   return {
     id: item.id,
     projectId:
       typeof item.projectId === "string" && item.projectId ? item.projectId : fallbackProjectId,
     title: item.title,
-    description: typeof item.description === "string" ? item.description : "",
+    description,
     status: isTaskStatus(item.status) ? item.status : "open",
     source,
     sourceMeta: normalizeSourceMeta(source, item.sourceMeta),

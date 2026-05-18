@@ -9,8 +9,14 @@ import { useChatStore } from "@renderer/stores/chat";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import { useTaskStore } from "@renderer/stores/task";
-import { buildSourceDisplay } from "@renderer/utils/task";
-import type { TaskItem, TaskSource, TaskStatus, UpdateTaskInput } from "@shared/types/task";
+import { buildSourceDisplay, getTaskDescriptionPlainText } from "@renderer/utils/task";
+import type {
+  CreateLocalTaskInput,
+  TaskItem,
+  TaskSource,
+  TaskStatus,
+  UpdateTaskInput,
+} from "@shared/types/task";
 
 const router = useRouter();
 const projectStore = useProjectStore();
@@ -35,6 +41,7 @@ const isLocalSource = computed(() => selectedSource.value === "local");
 
 function buildTaskPrompt(task: TaskItem): string {
   const sourceDisplay = buildSourceDisplay(task);
+  const descriptionText = getTaskDescriptionPlainText(task.description);
   const url =
     task.source !== "local" && "url" in task.sourceMeta && task.sourceMeta.url
       ? ` (${task.sourceMeta.url})`
@@ -47,8 +54,8 @@ function buildTaskPrompt(task: TaskItem): string {
     `**标题**: ${task.title}`,
   ];
 
-  if (task.description.trim()) {
-    sections.push("", "**描述**:", task.description.trim());
+  if (descriptionText) {
+    sections.push("", "**描述**:", descriptionText);
   }
 
   sections.push(
@@ -74,7 +81,7 @@ async function handleSourceChange(source: string | number): Promise<void> {
   await loadCurrentSource(nextSource);
 }
 
-async function handleCreateTask(input: { title: string; description?: string }): Promise<void> {
+async function handleCreateTask(input: CreateLocalTaskInput): Promise<void> {
   await taskStore.createTask(input);
   showCreateTaskModal.value = false;
 

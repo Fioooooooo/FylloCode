@@ -21,7 +21,7 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
     id: "task-1",
     projectId: "tmp-project",
     title: "Fix bug",
-    description: "Details",
+    description: { format: "plain_text", content: "Details" },
     status: "open",
     source: "local",
     sourceMeta: { source: "local" },
@@ -68,7 +68,7 @@ describe("task-store", () => {
     await expect(loadTasks(projectPath)).resolves.toEqual([item]);
   });
 
-  it("normalizes legacy tasks with missing optional fields", async () => {
+  it("normalizes persisted tasks with missing optional fields", async () => {
     mkdirSync(dirname(tasksPath(projectPath)), { recursive: true });
     writeFileSync(
       tasksPath(projectPath),
@@ -77,7 +77,11 @@ describe("task-store", () => {
         tasks: [
           {
             id: "task-1",
-            title: "Legacy task",
+            title: "Stored task",
+            description: {
+              format: "plain_text",
+              content: "",
+            },
             createdAt: "2026-05-10T00:00:00.000Z",
             updatedAt: "2026-05-10T00:00:00.000Z",
           },
@@ -88,8 +92,8 @@ describe("task-store", () => {
 
     await expect(loadTasks(projectPath)).resolves.toEqual([
       task({
-        title: "Legacy task",
-        description: "",
+        title: "Stored task",
+        description: { format: "plain_text", content: "" },
         status: "open",
         source: "local",
         sourceMeta: { source: "local" },
@@ -97,5 +101,27 @@ describe("task-store", () => {
         assignee: undefined,
       }),
     ]);
+  });
+
+  it("drops persisted tasks with legacy string descriptions", async () => {
+    mkdirSync(dirname(tasksPath(projectPath)), { recursive: true });
+    writeFileSync(
+      tasksPath(projectPath),
+      JSON.stringify({
+        version: 1,
+        tasks: [
+          {
+            id: "task-legacy",
+            title: "Legacy task",
+            description: "string description",
+            createdAt: "2026-05-10T00:00:00.000Z",
+            updatedAt: "2026-05-10T00:00:00.000Z",
+          },
+        ],
+      }),
+      "utf8"
+    );
+
+    await expect(loadTasks(projectPath)).resolves.toEqual([]);
   });
 });

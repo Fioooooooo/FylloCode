@@ -3,12 +3,18 @@ import { describe, expect, it } from "vitest";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
 import type { TaskItem } from "@shared/types/task";
 
+const editorStub = {
+  template:
+    '<div :data-content-type="contentType" :data-editable="String(editable)">{{ modelValue }}</div>',
+  props: ["modelValue", "contentType", "editable"],
+};
+
 function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
   return {
     id: "task-1",
     projectId: "project-1",
     title: "修复登录失败",
-    description: "第一行\n第二行",
+    description: { format: "plain_text", content: "第一行\n第二行" },
     status: "open",
     source: "local",
     sourceMeta: { source: "local" },
@@ -19,14 +25,24 @@ function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
   };
 }
 
+function mountModal(task: TaskItem, props?: Record<string, unknown>): ReturnType<typeof mount> {
+  return mount(TaskDetailModal, {
+    props: {
+      open: true,
+      task,
+      ...props,
+    },
+    global: {
+      stubs: {
+        UEditor: editorStub,
+      },
+    },
+  });
+}
+
 describe("TaskDetailModal", () => {
   it("opens local tasks in view mode by default", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask(),
-      },
-    });
+    const wrapper = mountModal(buildTask());
 
     expect(wrapper.text()).toContain("任务详情");
     expect(wrapper.text()).toContain("编辑");
@@ -34,26 +50,18 @@ describe("TaskDetailModal", () => {
   });
 
   it("does not render edit button for external tasks", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({
-          source: "github",
-          sourceMeta: { source: "github", repository: "example/repo", number: 42 },
-        }),
-      },
-    });
+    const wrapper = mountModal(
+      buildTask({
+        source: "github",
+        sourceMeta: { source: "github", repository: "example/repo", number: 42 },
+      })
+    );
 
     expect(wrapper.text()).not.toContain("编辑");
   });
 
   it("prefills fields when entering edit mode", async () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask(),
-      },
-    });
+    const wrapper = mountModal(buildTask());
 
     const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
     await editButton?.trigger("click");
@@ -66,12 +74,7 @@ describe("TaskDetailModal", () => {
   });
 
   it("disables save when title is blank", async () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask(),
-      },
-    });
+    const wrapper = mountModal(buildTask());
 
     const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
     await editButton?.trigger("click");
@@ -82,12 +85,7 @@ describe("TaskDetailModal", () => {
   });
 
   it("discards edits when clicking cancel", async () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask(),
-      },
-    });
+    const wrapper = mountModal(buildTask());
 
     const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
     await editButton?.trigger("click");
@@ -101,12 +99,7 @@ describe("TaskDetailModal", () => {
   });
 
   it("emits save with the expected payload", async () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask(),
-      },
-    });
+    const wrapper = mountModal(buildTask());
 
     const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
     await editButton?.trigger("click");
@@ -122,7 +115,10 @@ describe("TaskDetailModal", () => {
           taskId: "task-1",
           updates: {
             title: "修复登录失败 v2",
-            description: "更新后的描述",
+            description: {
+              format: "plain_text",
+              content: "更新后的描述",
+            },
             status: "open",
           },
         },
@@ -131,74 +127,84 @@ describe("TaskDetailModal", () => {
   });
 
   it("shows placeholder text when description is empty", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ description: "" }),
-      },
-    });
+    const wrapper = mountModal(buildTask({ description: { format: "plain_text", content: "" } }));
 
     expect(wrapper.text()).toContain("暂无描述");
   });
 
   it("shows detail loading state in description area", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ source: "yunxiao", sourceMeta: { source: "yunxiao", key: "YX-1" } }),
-        detailLoading: true,
-      },
-    });
+    const wrapper = mountModal(
+      buildTask({ source: "yunxiao", sourceMeta: { source: "yunxiao", key: "YX-1" } }),
+      { detailLoading: true }
+    );
 
     expect(wrapper.get('[data-test="detail-loading"]').text()).toContain("正在加载详情");
   });
 
   it("shows detail error state in description area", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ source: "yunxiao", sourceMeta: { source: "yunxiao", key: "YX-1" } }),
-        detailError: "load failed",
-      },
-    });
+    const wrapper = mountModal(
+      buildTask({ source: "yunxiao", sourceMeta: { source: "yunxiao", key: "YX-1" } }),
+      { detailError: "load failed" }
+    );
 
     expect(wrapper.get('[data-test="detail-error"]').text()).toContain("详情加载失败");
   });
 
   it("displays status badge in view mode", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ status: "open" }),
-      },
-    });
+    const wrapper = mountModal(buildTask({ status: "open" }));
 
     expect(wrapper.text()).toContain("打开");
   });
 
   it("displays closed status badge for closed task", () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ status: "closed" }),
-      },
-    });
+    const wrapper = mountModal(buildTask({ status: "closed" }));
 
     expect(wrapper.text()).toContain("关闭");
   });
 
   it("preselects status in edit mode", async () => {
-    const wrapper = mount(TaskDetailModal, {
-      props: {
-        open: true,
-        task: buildTask({ status: "closed" }),
-      },
-    });
+    const wrapper = mountModal(buildTask({ status: "closed" }));
 
     const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
     await editButton?.trigger("click");
 
     expect(wrapper.text()).toContain("编辑任务");
     expect(wrapper.text()).toContain("关闭");
+  });
+
+  it("maps plain text descriptions to markdown editor mode", () => {
+    const wrapper = mountModal(
+      buildTask({ description: { format: "plain_text", content: "纯文本" } })
+    );
+
+    expect((wrapper.vm as unknown as { editorContentType: string }).editorContentType).toBe(
+      "markdown"
+    );
+  });
+
+  it("maps markdown descriptions to markdown editor mode", () => {
+    const wrapper = mountModal(
+      buildTask({
+        source: "yunxiao",
+        sourceMeta: { source: "yunxiao", key: "YX-1", issueType: "任务" },
+        description: { format: "markdown", content: "## 标题" },
+      })
+    );
+
+    expect((wrapper.vm as unknown as { editorContentType: string }).editorContentType).toBe(
+      "markdown"
+    );
+  });
+
+  it("maps html descriptions to html editor mode", () => {
+    const wrapper = mountModal(
+      buildTask({
+        source: "yunxiao",
+        sourceMeta: { source: "yunxiao", key: "YX-1", issueType: "任务" },
+        description: { format: "html", content: "<p>概述</p>" },
+      })
+    );
+
+    expect((wrapper.vm as unknown as { editorContentType: string }).editorContentType).toBe("html");
   });
 });

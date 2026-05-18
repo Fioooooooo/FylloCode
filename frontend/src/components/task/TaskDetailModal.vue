@@ -2,7 +2,12 @@
 import { computed, ref, watch } from "vue";
 import { buildSourceDisplay } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
-import type { TaskItem, TaskStatus, UpdateTaskInput } from "@shared/types/task";
+import type {
+  TaskDescriptionFormat,
+  TaskItem,
+  TaskStatus,
+  UpdateTaskInput,
+} from "@shared/types/task";
 
 const props = defineProps<{
   open: boolean;
@@ -32,6 +37,18 @@ const isLocalTask = computed(() => props.task?.source === "local");
 const canEdit = computed(() => Boolean(props.task && isLocalTask.value));
 const canSave = computed(() => Boolean(title.value.trim()));
 const sourceDisplay = computed(() => (props.task ? buildSourceDisplay(props.task) : ""));
+const editorContent = computed(() => props.task?.description.content ?? "");
+const editorContentType = computed<"html" | "markdown">(() => {
+  return mapEditorContentType(props.task?.description.format);
+});
+
+function mapEditorContentType(format?: TaskDescriptionFormat): "html" | "markdown" {
+  if (format === "html") {
+    return "html";
+  }
+
+  return "markdown";
+}
 
 function resetForm(): void {
   title.value = "";
@@ -55,7 +72,7 @@ function startEditing(): void {
   }
 
   title.value = props.task.title;
-  description.value = props.task.description;
+  description.value = props.task.description.content;
   status.value = props.task.status;
   titleError.value = "";
   mode.value = "edit";
@@ -81,7 +98,10 @@ function submit(): void {
     taskId: props.task.id,
     updates: {
       title: nextTitle,
-      description: description.value.trim(),
+      description: {
+        format: "plain_text",
+        content: description.value.trim(),
+      },
       status: status.value,
     },
   });
@@ -164,12 +184,14 @@ watch(
             <p v-else-if="detailError" class="text-sm italic text-muted" data-test="detail-error">
               详情加载失败
             </p>
-            <p
-              v-else-if="task.description"
-              class="whitespace-pre-wrap text-sm leading-6 text-toned"
-            >
-              {{ task.description }}
-            </p>
+            <UEditor
+              v-else-if="editorContent"
+              data-test="task-description-editor"
+              :data-content-type="editorContentType"
+              :model-value="editorContent"
+              :editable="false"
+              :content-type="editorContentType"
+            />
             <p v-else class="text-sm italic text-muted">暂无描述</p>
           </div>
         </template>

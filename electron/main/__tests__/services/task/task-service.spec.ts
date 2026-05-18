@@ -26,7 +26,7 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
     id: "task-1",
     projectId: "tmp-project",
     title: "Task",
-    description: "",
+    description: { format: "plain_text", content: "" },
     status: "open",
     source: "local",
     sourceMeta: { source: "local" },
@@ -66,7 +66,7 @@ describe("task-service", () => {
       id: "task-generated",
       projectId: "tmp-project",
       title: "New task",
-      description: "",
+      description: { format: "plain_text", content: "" },
       status: "open",
       source: "local",
       sourceMeta: { source: "local" },
@@ -90,10 +90,26 @@ describe("task-service", () => {
       id: "task-1",
       title: "Updated",
       status: "closed",
-      description: "",
+      description: { format: "plain_text", content: "" },
     });
     expect(updated.updatedAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
     expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [updated]);
+  });
+
+  it("persists structured plain text descriptions for create and update", async () => {
+    const existing = task();
+    mocks.loadTasks.mockResolvedValueOnce([]).mockResolvedValueOnce([existing]);
+
+    const created = await createTask("/tmp/project", {
+      title: "Task with description",
+      description: { format: "plain_text", content: "create body" },
+    });
+    const updated = await updateTask("/tmp/project", "task-1", {
+      description: { format: "plain_text", content: "updated body" },
+    });
+
+    expect(created.description).toEqual({ format: "plain_text", content: "create body" });
+    expect(updated.description).toEqual({ format: "plain_text", content: "updated body" });
   });
 
   it("deletes existing tasks", async () => {

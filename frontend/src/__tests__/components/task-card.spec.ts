@@ -8,7 +8,7 @@ function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
     id: "task-1",
     projectId: "project-1",
     title: "修复登录失败",
-    description: "排查 token 过期逻辑",
+    description: { format: "plain_text", content: "排查 token 过期逻辑" },
     status: "open",
     source: "local",
     sourceMeta: { source: "local" },
@@ -76,5 +76,28 @@ describe("TaskCard", () => {
     });
 
     expect(wrapper.text()).toContain("任务来源");
+  });
+
+  it("renders html descriptions as plain text summary", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask({
+          source: "yunxiao",
+          description: {
+            format: "html",
+            content: "<p>富文本描述</p>",
+          },
+          sourceMeta: {
+            source: "yunxiao",
+            url: "https://devops.aliyun.com/projex/project/space-1/task/102",
+            key: "YX-102",
+            issueType: "任务",
+          },
+        }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("富文本描述");
+    expect(wrapper.text()).not.toContain("<p>");
   });
 });

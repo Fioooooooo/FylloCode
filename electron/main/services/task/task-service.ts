@@ -3,11 +3,21 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { encodeProjectPath } from "@main/infra/storage/project-paths";
 import { loadProject } from "@main/infra/storage/project-store";
 import { ipcError } from "@main/ipc/_kit/errors";
-import type { CreateLocalTaskInput, TaskItem, UpdateTaskInput } from "@shared/types/task";
+import type {
+  CreateLocalTaskInput,
+  TaskDescription,
+  TaskItem,
+  UpdateTaskInput,
+} from "@shared/types/task";
 import {
   loadTasks as loadTaskItems,
   saveTasks as saveTaskItems,
 } from "@main/infra/storage/task-store";
+
+const EMPTY_LOCAL_DESCRIPTION: TaskDescription = {
+  format: "plain_text",
+  content: "",
+};
 
 export async function resolveTaskProjectPath(projectId: string): Promise<string> {
   const project = await loadProject(projectId);
@@ -20,6 +30,10 @@ export async function resolveTaskProjectPath(projectId: string): Promise<string>
 
 function sortTasks(tasks: TaskItem[]): TaskItem[] {
   return [...tasks].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+}
+
+function createLocalDescription(description?: TaskDescription): TaskDescription {
+  return description ? { ...description } : { ...EMPTY_LOCAL_DESCRIPTION };
 }
 
 function applyPatch(task: TaskItem, patch: UpdateTaskInput): TaskItem {
@@ -50,7 +64,7 @@ export async function createTask(
     id: generateId(),
     projectId,
     title: input.title,
-    description: input.description ?? "",
+    description: createLocalDescription(input.description),
     status: "open",
     source: "local",
     sourceMeta: { source: "local" },
