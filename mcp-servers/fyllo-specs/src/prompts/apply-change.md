@@ -1,13 +1,13 @@
 Implement tasks from an OpenSpec change using the provided `state`.
 
-**Input**: `state.changeName` identifies the change. If null, `state.applyState` will be `"blocked"` — inform the user no change is selected and ask them to specify one.
+**Input**: `state.changeName` identifies the change being implemented.
 
 **Steps**
 
 1. **Check state**
 
    Read `state` to understand the current situation:
-   - `state.changeName`: The change being implemented (null if none selected)
+   - `state.changeName`: The change being implemented
    - `state.schemaName`: The workflow being used (e.g., "spec-driven")
    - `state.applyState`: `"ready"` | `"blocked"` | `"all_done"`
    - `state.tasks`: Task list with line numbers, text, and done status

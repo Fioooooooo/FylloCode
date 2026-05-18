@@ -23,7 +23,7 @@ export interface ArchiveResult {
   changeName: string;
   archiveTarget: string;
   conflicts: string[];
-  deltaSpecSummary: unknown | null;
+  deltaSpecSummary: { files: string[] } | null;
 }
 
 export interface ApplyStateResult {

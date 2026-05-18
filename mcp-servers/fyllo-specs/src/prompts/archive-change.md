@@ -6,10 +6,10 @@ Archive a completed change using the provided `state`.
 
 1. **Check artifact completion**
 
-   Read `state.artifactStatus` to check completion.
+   Read `state.deltaSpecSummary.files` to see which artifact files exist in the change directory.
 
-   **If any artifacts are not `done`:**
-   - Display warning listing incomplete artifacts
+   **If expected artifacts (proposal, design, specs, tasks) are missing or not `done`:**
+   - Display warning listing the gap
    - Ask the user to confirm they want to proceed
    - Proceed if user confirms
 

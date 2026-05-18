@@ -1,16 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { archiveChange } from "../openspec-runtime";
+import { archiveChange, changeDir } from "../openspec-runtime";
 import { resolveProjectRoot } from "../utils/project-root";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 const archiveChangeInputSchema = z.object({
-  changeName: z.string().optional().describe("Name of the change to archive."),
+  changeName: z.string().describe("Name of the change to archive."),
   confirm: z
     .boolean()
     .optional()
+    .default(false)
     .describe(
       "Set to true to perform the actual archive move. Omit (or false) to preview conflicts and completion status first."
     ),
@@ -28,11 +29,7 @@ export async function archiveChangeTool(
 ): Promise<string> {
   return runTool("archive-change", { includeInstruction: input.includeInstruction }, async () => {
     const projectRoot = resolveProjectRoot();
-    if (!input.changeName) {
-      throw new Error("changeName is required");
-    }
-
-    const changeDirPath = join(projectRoot, "openspec", "changes", input.changeName);
+    const changeDirPath = changeDir(projectRoot, input.changeName);
     if (!existsSync(changeDirPath)) {
       throw new Error(`Change not found: ${input.changeName}`);
     }
@@ -41,18 +38,17 @@ export async function archiveChangeTool(
       .split("\n")
       .filter((line) => /^- \[ \]/.test(line.trimEnd())).length;
 
-    const result = await archiveChange(projectRoot, input.changeName ?? "", {
+    const result = await archiveChange(projectRoot, input.changeName, {
       confirm: input.confirm,
     });
 
     return {
       changeName: result.changeName,
-      artifactStatus: (result.deltaSpecSummary as { files?: string[] } | null)?.files ?? [],
       incompleteTasks,
       deltaSpecSummary: result.deltaSpecSummary,
       archiveTarget: result.archiveTarget,
       conflicts: result.conflicts,
-      confirm: input.confirm ?? false,
+      confirm: input.confirm,
     };
   });
 }

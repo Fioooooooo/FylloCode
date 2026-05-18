@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { globSync } from "tinyglobby";
 import { readYamlFile, writeYamlFile } from "./fs";
+import { changeDir } from "./paths";
 import type { ApplyStateResult, ArtifactStatus } from "./types";
 import { computeStatus } from "./status";
 
@@ -9,10 +10,6 @@ export interface TaskLine {
   line: number;
   text: string;
   done: boolean;
-}
-
-function changeDir(projectRoot: string, name: string): string {
-  return join(projectRoot, "openspec", "changes", name);
 }
 
 function tasksPath(projectRoot: string, name: string): string {

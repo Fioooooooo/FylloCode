@@ -1,12 +1,9 @@
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
+import { changeDir } from "./paths";
 import { resolveOpenspecCli } from "./resolve-cli";
 import { spawnOpenspec } from "./spawner";
 import type { ArchiveResult } from "./types";
-
-function changeDir(projectRoot: string, name: string): string {
-  return join(projectRoot, "openspec", "changes", name);
-}
 
 function archiveTargetPath(projectRoot: string, name: string): string {
   return join(

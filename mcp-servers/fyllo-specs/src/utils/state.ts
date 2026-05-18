@@ -14,7 +14,7 @@ export interface RunToolOptions {
 export async function runTool(
   promptId: string,
   options: RunToolOptions,
-  build: () => Promise<Record<string, unknown>>
+  build: () => Promise<object>
 ): Promise<string> {
   const { includeInstruction = true } = options;
   const { loadPrompt } = await import("./load-prompt");

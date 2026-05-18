@@ -1,27 +1,19 @@
 Create or inspect an OpenSpec change using the provided `state`.
 
-**Input**: `state.changeName` identifies the change (null if none created yet). `state.description` may contain the user's intent.
+**Input**: `state.changeName` is the kebab-case name for this change.
 
 **Steps**
 
-1. **If no change name provided**
+1. **Check state**
 
-   If `state.changeName` is null, ask the user what they want to build. Derive a kebab-case name from their description (e.g., "add user authentication" → `add-user-auth`).
-
-   Then call this tool again with `name` set to the derived name to create the change directory.
-
-   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
-
-2. **Check state**
-
-   Once `state.changeName` is set, read `state` to understand the current situation:
+   Read `state` to understand the current situation:
    - `state.artifacts`: list of artifacts with their status and instruction data
    - `state.applyRequires`: artifact IDs needed before implementation can start
    - `state.nextArtifact`: the next artifact ID that needs to be created (null if all done)
    - `state.template`: template structure for the next artifact
    - `state.instruction`: schema-specific guidance for the next artifact
 
-3. **Create artifacts in sequence until apply-ready**
+2. **Create artifacts in sequence until apply-ready**
 
    Loop through artifacts in dependency order until all `state.applyRequires` artifacts are `done`:
 
@@ -33,7 +25,7 @@ Create or inspect an OpenSpec change using the provided `state`.
 
    If an artifact requires user input (unclear context), ask before proceeding.
 
-4. **Show final status**
+3. **Show final status**
 
    After all `applyRequires` artifacts are complete, summarize:
    - Change name and location
@@ -70,4 +62,4 @@ The agents that later implement this proposal will start fresh — they will NOT
 - Create ALL artifacts needed for implementation (as defined by `state.applyRequires`)
 - Always read dependency artifacts before creating a new one
 - If context is critically unclear, ask the user — but prefer making reasonable decisions to keep momentum
-- If a change with that name already exists (`state.artifacts` is non-empty), ask if the user wants to continue it or start fresh
+- If a change with that name already exists (`state.artifacts` is non-empty and contains `done` items), ask if the user wants to continue it or start fresh

@@ -5,16 +5,11 @@ import { createChange, computeStatus, getInstructions } from "../openspec-runtim
 import { resolveProjectRoot } from "../utils/project-root";
 
 const createProposalInputSchema = z.object({
-  name: z
+  changeName: z
     .string()
-    .optional()
     .describe(
-      "Kebab-case name for the change (e.g. 'add-user-auth'). Omit to inspect without creating."
+      "Kebab-case name for the change (e.g. 'add-user-auth'). Derive this from the user's intent before calling — ask the user what they want to build first if it isn't already clear."
     ),
-  description: z
-    .string()
-    .optional()
-    .describe("Brief description of what the change is about. Used to guide artifact generation."),
   includeInstruction: z
     .boolean()
     .optional()
@@ -29,33 +24,30 @@ export async function createProposalTool(
 ): Promise<string> {
   return runTool("create-proposal", { includeInstruction: input.includeInstruction }, async () => {
     const projectRoot = resolveProjectRoot();
-    if (input.name) {
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(input.name)) {
-        throw new Error("name must be kebab-case");
-      }
-      await createChange(projectRoot, input.name);
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(input.changeName)) {
+      throw new Error("changeName must be kebab-case");
     }
-    const status = input.name ? await computeStatus(projectRoot, input.name) : null;
-    if (input.name && !status) {
-      throw new Error(`Change not found: ${input.name}`);
+    await createChange(projectRoot, input.changeName);
+
+    const status = await computeStatus(projectRoot, input.changeName);
+    if (!status) {
+      throw new Error(`Change not found: ${input.changeName}`);
     }
-    const artifacts = status
-      ? await Promise.all(
-          status.artifacts.map(async (artifact) => ({
-            ...artifact,
-            ...(await getInstructions(projectRoot, input.name!, artifact.id)),
-          }))
-        )
-      : [];
+    const artifacts = await Promise.all(
+      status.artifacts.map(async (artifact) => ({
+        ...artifact,
+        ...(await getInstructions(projectRoot, input.changeName, artifact.id)),
+      }))
+    );
+    const nextArtifact = artifacts.find((artifact) => artifact.status !== "done") ?? null;
     return {
-      changeName: input.name ?? null,
-      description: input.description ?? null,
-      schemaName: "spec-driven",
-      applyRequires: status?.applyRequires ?? [],
+      changeName: input.changeName,
+      schemaName: status.schemaName,
+      applyRequires: status.applyRequires,
       artifacts,
-      template: artifacts[0]?.template ?? null,
-      instruction: artifacts[0]?.instruction ?? null,
-      nextArtifact: artifacts.find((artifact) => artifact.status !== "done")?.id ?? null,
+      template: nextArtifact?.template ?? null,
+      instruction: nextArtifact?.instruction ?? null,
+      nextArtifact: nextArtifact?.id ?? null,
     };
   });
 }
@@ -65,7 +57,7 @@ export function registerCreateProposalTool(server: McpServer): void {
     "create-proposal",
     {
       description:
-        "Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.",
+        "Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation. Before calling, confirm the user's intent and derive a kebab-case `changeName` from it (e.g. 'add user authentication' → 'add-user-auth').",
       inputSchema: createProposalInputSchema,
     },
     async (input) => {

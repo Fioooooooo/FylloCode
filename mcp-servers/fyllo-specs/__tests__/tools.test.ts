@@ -46,14 +46,14 @@ describe("tools", () => {
   });
 
   it("create-proposal returns error state for invalid input", async () => {
-    const text = await createProposalTool({ name: "bad name" });
+    const text = await createProposalTool({ changeName: "bad name" });
     const state = parseState(text);
     expect(state.errors).toBeInstanceOf(Array);
     expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
   });
 
   it("create-proposal returns plain JSON error when includeInstruction is false", async () => {
-    const text = await createProposalTool({ name: "bad name", includeInstruction: false });
+    const text = await createProposalTool({ changeName: "bad name", includeInstruction: false });
     expect(text).not.toContain("<tool_instruction>");
     const state = JSON.parse(text);
     expect(state.errors).toBeInstanceOf(Array);
@@ -69,25 +69,6 @@ describe("tools", () => {
       const text = await applyChangeTool({ changeName: "sample-change" });
       expect(text).toContain('"changeName": "sample-change"');
       expect(text).toContain('"applyState": "ready"');
-    } finally {
-      process.env.FYLLO_PROJECT_PATH = prev;
-      process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
-    }
-  });
-
-  it("apply-change handles missing selection", async () => {
-    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
-    mkdirSync(join(root, "openspec"), { recursive: true });
-    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
-    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
-    const prev = process.env.FYLLO_PROJECT_PATH;
-    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
-    process.env.FYLLO_PROJECT_PATH = root;
-    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
-    try {
-      const text = await applyChangeTool({});
-      expect(text).toContain('"changeName": null');
-      expect(text).toContain('"applyState": "blocked"');
     } finally {
       process.env.FYLLO_PROJECT_PATH = prev;
       process.env.FYLLO_OPENSPEC_CLI_PATH = prevCli;
@@ -129,15 +110,6 @@ describe("tools", () => {
     } finally {
       process.env.FYLLO_PROJECT_PATH = prev;
     }
-  });
-
-  it("archive-change returns error state for missing name", async () => {
-    const text = await archiveChangeTool({});
-    const state = parseState(text);
-    expect(state.errors).toBeInstanceOf(Array);
-    expect((state.errors as Array<{ message: string }>)[0].message).toContain(
-      "changeName is required"
-    );
   });
 
   it("archive-change successfully archives a change with confirm: true", async () => {

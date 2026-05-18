@@ -7,3 +7,5 @@ export { computeStatus } from "./status";
 export { getInstructions } from "./instructions";
 export { createChange } from "./create-change";
 export { archiveChange } from "./archive-change";
+export { readProjectSchema } from "./read-config";
+export { changeDir } from "./paths";
