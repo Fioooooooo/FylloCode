@@ -4,6 +4,13 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.3.1] - 2026-05-18
+
+### Changed
+
+- `apply-change`: `applyState` now respects `applyRequires` when deciding whether implementation is blocked. Non-required artifacts that are not yet `done` no longer incorrectly block Apply.
+- `explore`: updated prompt guidance to prefer `mermaid` diagrams over ASCII-style diagrams for exploration and reasoning.
+
 ## [0.3.0] - 2026-05-18
 
 ### Changed

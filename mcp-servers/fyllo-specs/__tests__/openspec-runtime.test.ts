@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { join } from "path";
 import {
   archiveChange,
@@ -66,6 +67,31 @@ describe("openspec-runtime", () => {
   it("reads apply state", async () => {
     const result = await loadApplyState(fixtureRoot, "sample-change");
     expect(result.progress.total).toBeGreaterThan(0);
+  });
+
+  it("treats non-required ready artifacts as apply-ready", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-apply-state-"));
+    const changeRoot = join(root, "openspec", "changes", "test-proposal");
+    const specRoot = join(changeRoot, "specs", "example-capability");
+
+    mkdirSync(specRoot, { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    writeFileSync(
+      join(changeRoot, ".openspec.yaml"),
+      "schema: spec-driven\nstatus: proposed\n",
+      "utf8"
+    );
+    writeFileSync(join(changeRoot, "proposal.md"), "# Proposal\n", "utf8");
+    writeFileSync(join(changeRoot, "design.md"), "# Design\n", "utf8");
+    writeFileSync(join(changeRoot, "tasks.md"), "- [ ] implement something\n", "utf8");
+    writeFileSync(join(specRoot, "spec.md"), "## ADDED Requirements\n", "utf8");
+
+    try {
+      const result = await loadApplyState(root, "test-proposal");
+      expect(result.applyState).toBe("ready");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("parses task checkboxes", () => {

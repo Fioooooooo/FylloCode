@@ -37,10 +37,17 @@ export function parseTaskCheckboxes(text: string): TaskLine[] {
 }
 
 function getApplyState(
+  applyRequires: string[],
   artifacts: ArtifactStatus[],
   tasks: TaskLine[]
 ): "ready" | "blocked" | "all_done" {
-  if (artifacts.some((artifact) => artifact.status !== "done")) {
+  const artifactById = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
+  const isMissingRequiredArtifact = applyRequires.some((artifactId) => {
+    const artifact = artifactById.get(artifactId);
+    return !artifact || artifact.status !== "done";
+  });
+
+  if (isMissingRequiredArtifact) {
     return "blocked";
   }
   if (tasks.every((task) => task.done)) {
@@ -76,7 +83,7 @@ export async function loadApplyState(
   const tasksText = readFileSync(tasksPath(projectRoot, changeName), "utf8");
   const tasks = parseTaskCheckboxes(tasksText);
   const status = await computeStatus(projectRoot, changeName);
-  const applyState = getApplyState(status.artifacts, tasks);
+  const applyState = getApplyState(status.applyRequires, status.artifacts, tasks);
   const yamlPathValue = yamlPath(projectRoot, changeName);
   const doc = readYamlFile<Record<string, unknown>>(yamlPathValue) ?? {};
 
