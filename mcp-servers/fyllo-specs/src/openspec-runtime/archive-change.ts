@@ -41,6 +41,7 @@ export async function archiveChange(
       archiveTarget: target,
       conflicts,
       deltaSpecSummary: existsSync(source) ? deltaSummary(source) : null,
+      archiveRawOutput: null,
     };
   }
 
@@ -50,18 +51,19 @@ export async function archiveChange(
   }
 
   const cliPath = resolveOpenspecCli();
-  await spawnOpenspec(
+  const archiveRawOutput = (await spawnOpenspec(
     cliPath,
     ["archive", name, "--yes"],
     projectRoot,
     {},
     false // archive command output is plain text, not JSON
-  );
+  )) as string;
 
   return {
     changeName: name,
     archiveTarget: target,
     conflicts: [],
     deltaSpecSummary: null,
+    archiveRawOutput,
   };
 }

@@ -47,6 +47,7 @@ export async function archiveChangeTool(
       incompleteTasks,
       deltaSpecSummary: result.deltaSpecSummary,
       archiveTarget: result.archiveTarget,
+      archiveRawOutput: result.archiveRawOutput,
       conflicts: result.conflicts,
       confirm: input.confirm,
     };

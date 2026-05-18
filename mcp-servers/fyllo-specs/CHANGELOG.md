@@ -10,6 +10,7 @@ The format is based on Keep a Changelog.
 
 - `apply-change`: `applyState` now respects `applyRequires` when deciding whether implementation is blocked. Non-required artifacts that are not yet `done` no longer incorrectly block Apply.
 - `explore`: updated prompt guidance to prefer `mermaid` diagrams over ASCII-style diagrams for exploration and reasoning.
+- `archive-change`: `confirm: true` responses now include `archiveRawOutput`, forwarding the raw stdout from `openspec archive ... --yes` so agents can summarize the actual archive/sync result. The archive prompt now tells agents to prefer this output over inference.
 
 ## [0.3.0] - 2026-05-18
 

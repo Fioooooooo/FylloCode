@@ -24,6 +24,7 @@ export interface ArchiveResult {
   archiveTarget: string;
   conflicts: string[];
   deltaSpecSummary: { files: string[] } | null;
+  archiveRawOutput: string | null;
 }
 
 export interface ApplyStateResult {

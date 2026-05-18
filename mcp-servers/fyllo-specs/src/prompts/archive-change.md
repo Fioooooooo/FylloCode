@@ -39,10 +39,13 @@ Archive a completed change using the provided `state`.
 
 5. **Display summary**
 
+   If `state.archiveRawOutput` is non-null, read it and use it as the primary source for what the archive command actually did.
+
    Show archive completion summary including:
    - Change name
    - Archive location (`state.archiveTarget`)
    - Whether specs were synced
+   - Any important messages, warnings, or sync details surfaced in `state.archiveRawOutput`
    - Note about any warnings (incomplete artifacts/tasks)
 
 **Output On Success**
@@ -62,4 +65,5 @@ All artifacts complete. All tasks complete.
 - Do not invoke the OpenSpec CLI or shell archive commands directly. Archive operations are handled by this MCP server via `confirm: true`.
 - Don't block archive on warnings — just inform and confirm
 - If `state.conflicts` is non-empty, do NOT proceed with `confirm: true` — report the conflict instead
+- If `state.archiveRawOutput` is available, prefer it over inference when describing the actual archive result
 - Show a clear summary of what happened

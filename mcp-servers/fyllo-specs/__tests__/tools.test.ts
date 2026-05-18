@@ -141,6 +141,8 @@ describe("tools", () => {
       expect(state.confirm).toBe(true);
       expect(state.incompleteTasks).toBe(1);
       expect(state.archiveTarget).toContain("test-archive");
+      expect(typeof state.archiveRawOutput).toBe("string");
+      expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
       // Source directory should be gone
       expect(existsSync(changeDir)).toBe(false);
       // Archive directory should exist
@@ -193,6 +195,8 @@ describe("tools", () => {
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
       expect(state.changeName).toBe("test-sync-spec");
+      expect(typeof state.archiveRawOutput).toBe("string");
+      expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
 
       // Main spec should be updated by openspec CLI
       const mainSpecContent = readFileSync(join(mainSpecDir, "spec.md"), "utf8");
