@@ -11,6 +11,7 @@ const streamErrorRef = ref<{ code: string; message: string } | null>({
   code: "stream_failed",
   message: "bad network",
 });
+const iconsRef = ref<Record<string, string>>({});
 
 const selectSession = vi.fn(async (sessionId: string) => {
   activeSessionIdRef.value = sessionId;
@@ -48,6 +49,14 @@ vi.mock("@renderer/stores", () => ({
   }),
 }));
 
+vi.mock("@renderer/stores/acp-agents", () => ({
+  useAcpAgentsStore: () => ({
+    get icons() {
+      return iconsRef.value;
+    },
+  }),
+}));
+
 function makeSession(id: string): Session {
   return {
     id,
@@ -69,6 +78,7 @@ describe("SessionItem", () => {
     activeSessionIdRef.value = "session-1";
     chatStatusRef.value = "error";
     streamErrorRef.value = { code: "stream_failed", message: "bad network" };
+    iconsRef.value = {};
     selectSession.mockClear();
     renameSession.mockClear();
     deleteSession.mockClear();
@@ -102,5 +112,47 @@ describe("SessionItem", () => {
     expect(chatStatusRef.value).toBe("ready");
     expect(streamErrorRef.value).toBeNull();
     expect(activeSessionIdRef.value).toBe("session-2");
+  });
+
+  it("renders agent icon when the session agent has a matching icon", () => {
+    iconsRef.value = {
+      "claude-code": "data:image/png;base64,agent-icon",
+    };
+
+    const wrapper = mount(SessionItem, {
+      props: {
+        session: makeSession("session-2"),
+      },
+      global: {
+        plugins: [createPinia()],
+      },
+    });
+
+    const icon = wrapper.get('[data-test="session-agent-icon"]');
+    expect(icon.attributes("src")).toBe("data:image/png;base64,agent-icon");
+    expect(icon.attributes("alt")).toBe("claude-code icon");
+  });
+
+  it("keeps a stable leading slot when the session agent icon is missing", () => {
+    const session = {
+      ...makeSession("session-3"),
+      agentId: "unknown-agent",
+      title: "Long session title",
+      turnCount: 4,
+    };
+
+    const wrapper = mount(SessionItem, {
+      props: {
+        session,
+      },
+      global: {
+        plugins: [createPinia()],
+      },
+    });
+
+    expect(wrapper.get('[data-test="session-agent-icon-slot"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="session-agent-icon"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("Long session title");
+    expect(wrapper.text()).toContain("4 turns");
   });
 });

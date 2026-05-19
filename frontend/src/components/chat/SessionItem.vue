@@ -3,6 +3,7 @@ import { computed, toRef } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
 import { useChatStore } from "@renderer/stores";
+import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 
 const props = defineProps<{
   session: Session;
@@ -10,9 +11,11 @@ const props = defineProps<{
 
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
+const acpAgentsStore = useAcpAgentsStore();
 
 const session = toRef(props, "session");
 const active = computed(() => sessionStore.activeSessionId === session.value.id);
+const agentIcon = computed(() => acpAgentsStore.icons[session.value.agentId] ?? null);
 
 const menuItems = computed(() => [
   {
@@ -94,14 +97,29 @@ async function handleDelete(): Promise<void> {
       />
     </div>
 
-    <div class="flex-1 min-w-0">
-      <div class="text-sm font-medium truncate text-highlighted">
-        {{ session.title }}
+    <div class="flex min-w-0 flex-1 items-start gap-2.5">
+      <div
+        class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-elevated/40"
+        data-test="session-agent-icon-slot"
+      >
+        <img
+          v-if="agentIcon"
+          :src="agentIcon"
+          :alt="`${session.agentId} icon`"
+          class="h-full w-full object-cover"
+          data-test="session-agent-icon"
+        />
       </div>
-      <div class="text-xs text-muted mt-0.5 flex items-center gap-1">
-        <span>{{ formatTime(session.updatedAt) }}</span>
-        <span>·</span>
-        <span>{{ session.turnCount }} turns</span>
+
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-sm font-medium text-highlighted">
+          {{ session.title }}
+        </div>
+        <div class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+          <span>{{ formatTime(session.updatedAt) }}</span>
+          <span>·</span>
+          <span>{{ session.turnCount }} turns</span>
+        </div>
       </div>
     </div>
 
