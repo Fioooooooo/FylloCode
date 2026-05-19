@@ -104,16 +104,6 @@ export const useChatStore = defineStore("chat", () => {
       prompt,
       {
         onChunk(data) {
-          if (data?.kind && data?.kind === "available_commands_update") {
-            // available_commands_update 提前处理，防止意外更新 chatStatus
-            sessionStore.setSessionAvailableCommands(activeSession.id, data.commands);
-            return;
-          }
-
-          if (isCurrentStreamRun(streamRunId) && chatStatus.value === "submitted") {
-            chatStatus.value = "streaming";
-          }
-
           switch (data.kind) {
             case "session_info_update":
               activeSession.title = data.title;
@@ -127,6 +117,9 @@ export const useChatStore = defineStore("chat", () => {
                 cost: data.cost,
               };
               return;
+            case "available_commands_update":
+              sessionStore.setSessionAvailableCommands(activeSession.id, data.commands);
+              return;
             case "user_message":
             case "status":
               return;
@@ -134,6 +127,10 @@ export const useChatStore = defineStore("chat", () => {
             case "reasoning_delta":
             case "tool_call_start":
             case "tool_call_update":
+              if (isCurrentStreamRun(streamRunId) && chatStatus.value === "submitted") {
+                chatStatus.value = "streaming";
+              }
+
               assembler.applyChunk(data);
               return;
             default: {
