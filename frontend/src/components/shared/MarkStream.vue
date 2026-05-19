@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import MarkdownRender from "markstream-vue";
+import { useDark } from "@vueuse/core";
 
 defineProps<{
   id: string;
   content: string;
   isStreaming: boolean;
 }>();
+
+const isDark = useDark();
 </script>
 
 <template>
@@ -21,6 +24,7 @@ defineProps<{
     :render-batch-size="16"
     :render-batch-delay="8"
     :render-batch-budget-ms="4"
+    :is-dark="isDark"
   />
 </template>
 
@@ -28,6 +32,7 @@ defineProps<{
 .markstream-vue :deep(.paragraph-node) {
   margin-top: 0;
 }
+
 .markstream-vue :deep(.paragraph-node:last-child) {
   margin-bottom: 0;
 }
