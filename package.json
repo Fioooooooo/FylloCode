@@ -1,6 +1,6 @@
 {
   "name": "FylloCode",
-  "version": "0.9.0-beta.1",
+  "version": "0.9.0-beta.2",
   "description": "An Electron application with Vue and TypeScript",
   "main": "./out/main/index.js",
   "author": "Fio<fuyitao2018@gmail.com>",
