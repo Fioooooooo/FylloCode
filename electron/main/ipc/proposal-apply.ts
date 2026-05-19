@@ -129,13 +129,14 @@ export function registerProposalApplyHandlers(): void {
           fylloSessionId,
           agentId,
           projectPath,
-          cwd: projectPath,
+          cwd: runMeta.worktreePath ?? projectPath,
           owner: "apply",
           sessionStore,
           reminderContext: {
             changeId: form.changeId,
             stageIndex: form.stageIndex,
             runId: form.runId,
+            worktreePath: runMeta.worktreePath,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
@@ -331,12 +332,13 @@ export function registerProposalApplyHandlers(): void {
           fylloSessionId,
           agentId,
           projectPath,
-          cwd: projectPath,
+          cwd: runMeta.worktreePath ?? projectPath,
           owner: "archive",
           sessionStore,
           reminderContext: {
             changeId: form.changeId,
             runId: archiveRunId,
+            worktreePath: runMeta.worktreePath,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(

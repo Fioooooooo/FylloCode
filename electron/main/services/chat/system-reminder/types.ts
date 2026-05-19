@@ -9,4 +9,5 @@ export interface SystemReminderContext {
   changeId?: string;
   stageIndex?: number;
   runId?: string;
+  worktreePath?: string;
 }

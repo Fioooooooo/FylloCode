@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
 import { listChanges, computeStatus } from "../openspec-runtime";
-import { resolveProjectRoot } from "../utils/project-root";
+import { validateTargetPath } from "../utils/project-root";
 
 const exploreInputSchema = z.object({
   changeName: z
@@ -11,6 +11,10 @@ const exploreInputSchema = z.object({
     .describe(
       "Name of a specific change to inspect. Omit to get an overview of all active changes."
     ),
+  targetPath: z
+    .string()
+    .min(1)
+    .describe("Absolute path to the project root or a registered git worktree."),
   includeInstruction: z
     .boolean()
     .optional()
@@ -22,7 +26,16 @@ const exploreInputSchema = z.object({
 
 export async function exploreTool(input: z.infer<typeof exploreInputSchema>): Promise<string> {
   return runTool("explore", { includeInstruction: input.includeInstruction }, async () => {
-    const projectRoot = resolveProjectRoot();
+    const result = validateTargetPath(input.targetPath);
+    if (!result.ok) {
+      const error = new Error(
+        result.rawOutput ? `${result.error}\n\n${result.rawOutput}` : result.error
+      );
+      error.name = "InvalidTargetPath";
+      throw error;
+    }
+
+    const projectRoot = result.resolved;
     const activeChanges = await listChanges(projectRoot);
     const currentChange = input.changeName
       ? await computeStatus(projectRoot, input.changeName)

@@ -178,6 +178,14 @@ export async function readProposalFiles(projectPath: string): Promise<ProposalMe
   }
 }
 
+export async function findProposalMetaById(
+  projectPath: string,
+  changeId: string
+): Promise<ProposalMeta | null> {
+  const proposals = await readProposalFiles(projectPath);
+  return proposals.find((proposal) => proposal.id === changeId) ?? null;
+}
+
 export async function resolveChangeDir(
   projectPath: string,
   changeId: string

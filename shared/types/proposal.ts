@@ -11,6 +11,7 @@ export interface ProposalMeta {
   doneTasks: number;
   hasDesign: boolean;
   date: string;
+  worktreePath?: string;
 }
 
 export interface ApplyRunMeta {
@@ -23,6 +24,7 @@ export interface ApplyRunMeta {
   status: "running" | "done" | "error";
   startedAt: string;
   updatedAt: string;
+  worktreePath?: string;
 }
 
 export interface ArchiveRunMeta {

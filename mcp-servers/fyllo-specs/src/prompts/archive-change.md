@@ -1,6 +1,8 @@
 Archive a completed change using the provided `state`.
 
-**Input**: `state.changeName` identifies the change to archive.
+**Input**: `targetPath` is required. It must be an absolute path to the main repo root or a
+registered git worktree for that repo. In P1, the agent should default to passing
+`$FYLLO_PROJECT_PATH` (the main repo root). `state.changeName` identifies the change to archive.
 
 **Steps**
 

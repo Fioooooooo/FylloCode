@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { existsSync } from "fs";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { resolveProjectRoot } from "../utils/project-root";
+import { validateTargetPath } from "../utils/project-root";
 import { changeDir } from "../openspec-runtime";
 import { loadApplyState } from "../openspec-runtime/tasks";
 
@@ -12,6 +12,10 @@ const applyChangeInputSchema = z.object({
     .describe(
       "Name of the change to implement. Use the explore tool first if multiple active changes exist and the target is not yet decided."
     ),
+  targetPath: z
+    .string()
+    .min(1)
+    .describe("Absolute path to the project root or a registered git worktree."),
   includeInstruction: z
     .boolean()
     .optional()
@@ -25,7 +29,16 @@ export async function applyChangeTool(
   input: z.infer<typeof applyChangeInputSchema>
 ): Promise<string> {
   return runTool("apply-change", { includeInstruction: input.includeInstruction }, async () => {
-    const projectRoot = resolveProjectRoot();
+    const result = validateTargetPath(input.targetPath);
+    if (!result.ok) {
+      const error = new Error(
+        result.rawOutput ? `${result.error}\n\n${result.rawOutput}` : result.error
+      );
+      error.name = "InvalidTargetPath";
+      throw error;
+    }
+
+    const projectRoot = result.resolved;
     if (!existsSync(changeDir(projectRoot, input.changeName))) {
       throw new Error(`Change not found: ${input.changeName}`);
     }

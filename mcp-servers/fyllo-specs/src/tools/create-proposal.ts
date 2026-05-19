@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
 import { createChange, computeStatus, getInstructions } from "../openspec-runtime";
-import { resolveProjectRoot } from "../utils/project-root";
+import { validateTargetPath } from "../utils/project-root";
 
 const createProposalInputSchema = z.object({
   changeName: z
@@ -10,6 +10,10 @@ const createProposalInputSchema = z.object({
     .describe(
       "Kebab-case name for the change (e.g. 'add-user-auth'). Derive this from the user's intent before calling — ask the user what they want to build first if it isn't already clear."
     ),
+  targetPath: z
+    .string()
+    .min(1)
+    .describe("Absolute path to the project root or a registered git worktree."),
   includeInstruction: z
     .boolean()
     .optional()
@@ -23,7 +27,16 @@ export async function createProposalTool(
   input: z.infer<typeof createProposalInputSchema>
 ): Promise<string> {
   return runTool("create-proposal", { includeInstruction: input.includeInstruction }, async () => {
-    const projectRoot = resolveProjectRoot();
+    const result = validateTargetPath(input.targetPath);
+    if (!result.ok) {
+      const error = new Error(
+        result.rawOutput ? `${result.error}\n\n${result.rawOutput}` : result.error
+      );
+      error.name = "InvalidTargetPath";
+      throw error;
+    }
+
+    const projectRoot = result.resolved;
     if (!/^[a-z0-9][a-z0-9-]*$/.test(input.changeName)) {
       throw new Error("changeName must be kebab-case");
     }

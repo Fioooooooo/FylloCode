@@ -1,17 +1,42 @@
-import { describe, expect, it } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CallToolResultSchema, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { describe, expect, it, vi } from "vitest";
 import { applyChangeTool } from "../src/tools/apply-change";
 import { createProposalTool } from "../src/tools/create-proposal";
 import { archiveChangeTool } from "../src/tools/archive-change";
 import { exploreTool } from "../src/tools/explore";
+import { registerTools } from "../src/tools";
+import { gitChildProcess } from "../src/utils/project-root";
 
 function parseState(text: string): Record<string, unknown> {
   const match = text.match(/<state>\n([\s\S]+?)\n<\/state>/);
   if (match) return JSON.parse(match[1]);
   // When includeInstruction is false, the response is plain JSON without XML tags
   return JSON.parse(text);
+}
+
+async function createToolClient(): Promise<{
+  client: Client;
+  close: () => Promise<void>;
+}> {
+  const server = new McpServer({ name: "fyllo-specs-test", version: "1.0.0" });
+  registerTools(server);
+  const client = new Client({ name: "fyllo-specs-client", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return {
+    client,
+    close: async () => {
+      await clientTransport.close();
+      await serverTransport.close();
+      await server.close();
+    },
+  };
 }
 
 describe("tools", () => {
@@ -23,51 +48,211 @@ describe("tools", () => {
     "bin",
     "openspec.js"
   );
-  const fixtureRoot = join(
-    process.cwd(),
-    "mcp-servers",
-    "fyllo-specs",
-    "__tests__",
-    "fixtures",
-    "openspec-sample"
-  );
+  const repoRoot = process.cwd();
 
   it("explore returns state", async () => {
-    const text = await exploreTool({});
-    expect(text).toContain("<tool_instruction>");
-    expect(text).toContain("<state>");
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await exploreTool({ targetPath: repoRoot });
+      expect(text).toContain("<tool_instruction>");
+      expect(text).toContain("<state>");
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
+  });
+
+  it("tools reject missing targetPath via MCP SDK validation", async () => {
+    const { client, close } = await createToolClient();
+    try {
+      const exploreResult = await client.request(
+        { method: "tools/call", params: { name: "explore", arguments: {} } },
+        CallToolResultSchema
+      );
+      expect(exploreResult.isError).toBe(true);
+      expect(exploreResult.content[0].type).toBe("text");
+      expect(exploreResult.content[0].text).toContain(String(ErrorCode.InvalidParams));
+      expect(exploreResult.content[0].text).toContain("targetPath");
+
+      const createProposalResult = await client.request(
+        {
+          method: "tools/call",
+          params: { name: "create-proposal", arguments: { changeName: "sample-change" } },
+        },
+        CallToolResultSchema
+      );
+      expect(createProposalResult.isError).toBe(true);
+      expect(createProposalResult.content[0].type).toBe("text");
+      expect(createProposalResult.content[0].text).toContain(String(ErrorCode.InvalidParams));
+      expect(createProposalResult.content[0].text).toContain("targetPath");
+
+      const applyChangeResult = await client.request(
+        {
+          method: "tools/call",
+          params: { name: "apply-change", arguments: { changeName: "sample-change" } },
+        },
+        CallToolResultSchema
+      );
+      expect(applyChangeResult.isError).toBe(true);
+      expect(applyChangeResult.content[0].type).toBe("text");
+      expect(applyChangeResult.content[0].text).toContain(String(ErrorCode.InvalidParams));
+      expect(applyChangeResult.content[0].text).toContain("targetPath");
+
+      const archiveChangeResult = await client.request(
+        {
+          method: "tools/call",
+          params: { name: "archive-change", arguments: { changeName: "sample-change" } },
+        },
+        CallToolResultSchema
+      );
+      expect(archiveChangeResult.isError).toBe(true);
+      expect(archiveChangeResult.content[0].type).toBe("text");
+      expect(archiveChangeResult.content[0].text).toContain(String(ErrorCode.InvalidParams));
+      expect(archiveChangeResult.content[0].text).toContain("targetPath");
+    } finally {
+      await close();
+    }
+  });
+
+  it("explore rejects relative targetPath without calling git", async () => {
+    const spawnSyncSpy = vi.spyOn(gitChildProcess, "spawnSync");
+    try {
+      const text = await exploreTool({ targetPath: "./relative-path" });
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ type: string }>)[0].type).toBe("InvalidTargetPath");
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain(
+        "targetPath must be an absolute path"
+      );
+      expect(spawnSyncSpy).not.toHaveBeenCalled();
+    } finally {
+      spawnSyncSpy.mockRestore();
+    }
   });
 
   it("explore returns plain JSON when includeInstruction is false", async () => {
-    const text = await exploreTool({ includeInstruction: false });
-    expect(text).not.toContain("<tool_instruction>");
-    const state = JSON.parse(text);
-    expect(state).toHaveProperty("activeChanges");
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await exploreTool({ targetPath: repoRoot, includeInstruction: false });
+      expect(text).not.toContain("<tool_instruction>");
+      const state = JSON.parse(text);
+      expect(state).toHaveProperty("activeChanges");
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
   });
 
   it("create-proposal returns error state for invalid input", async () => {
-    const text = await createProposalTool({ changeName: "bad name" });
-    const state = parseState(text);
-    expect(state.errors).toBeInstanceOf(Array);
-    expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await createProposalTool({ changeName: "bad name", targetPath: repoRoot });
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
   });
 
   it("create-proposal returns plain JSON error when includeInstruction is false", async () => {
-    const text = await createProposalTool({ changeName: "bad name", includeInstruction: false });
-    expect(text).not.toContain("<tool_instruction>");
-    const state = JSON.parse(text);
-    expect(state.errors).toBeInstanceOf(Array);
-    expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await createProposalTool({
+        changeName: "bad name",
+        targetPath: repoRoot,
+        includeInstruction: false,
+      });
+      expect(text).not.toContain("<tool_instruction>");
+      const state = JSON.parse(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
+  });
+
+  it("create-proposal rejects unregistered absolute targetPath with git output", async () => {
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await createProposalTool({
+        changeName: "valid-change",
+        targetPath: "/tmp/random-path",
+      });
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ type: string }>)[0].type).toBe("InvalidTargetPath");
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain(
+        "targetPath is not a registered git worktree"
+      );
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain("worktree ");
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
+  });
+
+  it("explore accepts the git project root targetPath", async () => {
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await exploreTool({ targetPath: repoRoot, includeInstruction: false });
+      const state = JSON.parse(text);
+      expect(state.projectRoot).toBe(repoRoot);
+      expect(state.activeChanges).toBeInstanceOf(Array);
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
+  });
+
+  it("explore accepts targetPath with trailing slash", async () => {
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    try {
+      const text = await exploreTool({ targetPath: `${repoRoot}/`, includeInstruction: false });
+      const state = JSON.parse(text);
+      expect(state.projectRoot).toBe(repoRoot);
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
+  });
+
+  it("explore uses non-git fallback only for the project root", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    try {
+      const okText = await exploreTool({ targetPath: root, includeInstruction: false });
+      const okState = JSON.parse(okText);
+      expect(okState.projectRoot).toBe(root);
+
+      const badText = await exploreTool({ targetPath: "/tmp/elsewhere" });
+      const badState = parseState(badText);
+      expect((badState.errors as Array<{ type: string }>)[0].type).toBe("InvalidTargetPath");
+      expect((badState.errors as Array<{ message: string }>)[0].message).toContain(
+        "targetPath must be the project root for non-git projects"
+      );
+    } finally {
+      process.env.FYLLO_PROJECT_PATH = prev;
+    }
   });
 
   it("apply-change returns ready for the active change", async () => {
     const prev = process.env.FYLLO_PROJECT_PATH;
     const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
-    process.env.FYLLO_PROJECT_PATH = fixtureRoot;
+    process.env.FYLLO_PROJECT_PATH = repoRoot;
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
-      const text = await applyChangeTool({ changeName: "sample-change" });
-      expect(text).toContain('"changeName": "sample-change"');
+      const text = await applyChangeTool({
+        changeName: "add-multi-worktree-foundation",
+        targetPath: repoRoot,
+      });
+      expect(text).toContain('"changeName": "add-multi-worktree-foundation"');
       expect(text).toContain('"applyState": "ready"');
     } finally {
       process.env.FYLLO_PROJECT_PATH = prev;
@@ -85,7 +270,7 @@ describe("tools", () => {
     process.env.FYLLO_PROJECT_PATH = root;
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
-      const text = await applyChangeTool({ changeName: "missing-change" });
+      const text = await applyChangeTool({ changeName: "missing-change", targetPath: root });
       const state = parseState(text);
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("Change not found");
@@ -103,7 +288,7 @@ describe("tools", () => {
     const prev = process.env.FYLLO_PROJECT_PATH;
     process.env.FYLLO_PROJECT_PATH = root;
     try {
-      const text = await archiveChangeTool({ changeName: "missing-change" });
+      const text = await archiveChangeTool({ changeName: "missing-change", targetPath: root });
       const state = parseState(text);
       expect(state.errors).toBeInstanceOf(Array);
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("Change not found");
@@ -134,7 +319,11 @@ describe("tools", () => {
     process.env.FYLLO_PROJECT_PATH = root;
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
-      const text = await archiveChangeTool({ changeName: "test-archive", confirm: true });
+      const text = await archiveChangeTool({
+        changeName: "test-archive",
+        targetPath: root,
+        confirm: true,
+      });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
       expect(state.changeName).toBe("test-archive");
@@ -143,11 +332,8 @@ describe("tools", () => {
       expect(state.archiveTarget).toContain("test-archive");
       expect(typeof state.archiveRawOutput).toBe("string");
       expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
-      // Source directory should be gone
       expect(existsSync(changeDir)).toBe(false);
-      // Archive directory should exist
       expect(existsSync(state.archiveTarget as string)).toBe(true);
-      // tasks.md should be in archive
       expect(existsSync(join(state.archiveTarget as string, "tasks.md"))).toBe(true);
     } finally {
       process.env.FYLLO_PROJECT_PATH = prev;
@@ -162,14 +348,12 @@ describe("tools", () => {
     mkdirSync(changeDir, { recursive: true });
     mkdirSync(mainSpecDir, { recursive: true });
 
-    // Existing main spec
     writeFileSync(
       join(mainSpecDir, "spec.md"),
       "# test-cap Specification\n\n## Purpose\nTest.\n\n## Requirements\n\n### Requirement: Existing\n\nSystem SHALL do the original thing.\n\n#### Scenario: Original scenario\n\n- **WHEN** something happens\n- **THEN** it works\n",
       "utf8"
     );
 
-    // Delta spec in change
     const specChangeDir = join(changeDir, "specs", "test-cap");
     mkdirSync(specChangeDir, { recursive: true });
     writeFileSync(
@@ -191,19 +375,21 @@ describe("tools", () => {
     process.env.FYLLO_PROJECT_PATH = root;
     process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
     try {
-      const text = await archiveChangeTool({ changeName: "test-sync-spec", confirm: true });
+      const text = await archiveChangeTool({
+        changeName: "test-sync-spec",
+        targetPath: root,
+        confirm: true,
+      });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
       expect(state.changeName).toBe("test-sync-spec");
       expect(typeof state.archiveRawOutput).toBe("string");
       expect((state.archiveRawOutput as string).length).toBeGreaterThan(0);
 
-      // Main spec should be updated by openspec CLI
       const mainSpecContent = readFileSync(join(mainSpecDir, "spec.md"), "utf8");
       expect(mainSpecContent).toContain("System SHALL do the updated thing.");
       expect(mainSpecContent).toContain("System SHALL support the new feature.");
 
-      // Change should be archived
       expect(existsSync(changeDir)).toBe(false);
       expect(existsSync(state.archiveTarget as string)).toBe(true);
     } finally {

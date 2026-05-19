@@ -326,11 +326,13 @@ describe("registerProposalApplyHandlers", () => {
 
     expect(opts).toEqual(
       expect.objectContaining({
+        cwd: "/tmp/project",
         owner: "apply",
         reminderContext: {
           changeId: "change-1",
           stageIndex: 0,
           runId: "run-1",
+          worktreePath: undefined,
         },
       })
     );
@@ -367,6 +369,33 @@ describe("registerProposalApplyHandlers", () => {
     mocks.eventHandler!({ type: "session_id_resolved", acpSessionId: "acp-stage-3" });
 
     expect(mocks.updateRunMetaIfCurrent).not.toHaveBeenCalled();
+  });
+
+  it("uses apply run worktreePath as cwd when present", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({
+      ...runMeta,
+      worktreePath: "/tmp/project/.worktrees/change-1",
+    });
+
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    const opts = acpSessionMock.mock.calls[0]?.[0] as AcpSessionOpts | undefined;
+    expect(opts).toEqual(
+      expect.objectContaining({
+        cwd: "/tmp/project/.worktrees/change-1",
+        projectPath: "/tmp/project",
+        reminderContext: expect.objectContaining({
+          worktreePath: "/tmp/project/.worktrees/change-1",
+        }),
+      })
+    );
   });
 
   it("forwards stage reasoning_delta through assembler and sink", async () => {
@@ -436,11 +465,13 @@ describe("registerProposalApplyHandlers", () => {
 
     expect(typedOpts).toEqual(
       expect.objectContaining({
+        cwd: "/tmp/project",
         fylloSessionId: "run-1-archive",
         owner: "archive",
         reminderContext: expect.objectContaining({
           changeId: "change-1",
           runId: expect.stringMatching(/^archive-/),
+          worktreePath: undefined,
         }),
       })
     );
@@ -462,6 +493,36 @@ describe("registerProposalApplyHandlers", () => {
     expect(
       sink.sendChunk.mock.calls.filter(([chunk]) => chunk.kind === "user_message")
     ).toHaveLength(1);
+  });
+
+  it("uses apply run worktreePath for archive cwd when present", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({
+      ...runMeta,
+      status: "done",
+      worktreePath: "/tmp/project/.worktrees/change-1",
+    });
+
+    handler(ProposalChannels.archive)(
+      { sender: { postMessage: vi.fn() } },
+      { projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+
+    const calls = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession).mock
+      .calls;
+    const [opts] = calls[calls.length - 1];
+    const typedOpts = opts as AcpSessionOpts | undefined;
+    expect(typedOpts).toEqual(
+      expect.objectContaining({
+        cwd: "/tmp/project/.worktrees/change-1",
+        projectPath: "/tmp/project",
+        reminderContext: expect.objectContaining({
+          worktreePath: "/tmp/project/.worktrees/change-1",
+        }),
+      })
+    );
   });
 
   it("rejects archive when the completed stage acpSessionId is missing", async () => {

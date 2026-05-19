@@ -1,4 +1,4 @@
-import { rmSync } from "fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
@@ -22,6 +22,7 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  applyRunDir,
   appendArchiveMessage,
   loadApplyRunMeta,
   loadArchiveMessages,
@@ -157,5 +158,49 @@ describe("apply-run-store archive storage", () => {
 
     await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toBeNull();
     expect(loggerWarn).toHaveBeenCalledOnce();
+  });
+
+  it("loads saved apply run meta with worktreePath omitted as undefined", async () => {
+    await saveApplyRunMeta("/tmp/project", runMeta({ worktreePath: undefined }));
+
+    const raw = readFileSync(`${applyRunDir("/tmp/project", "change-1")}/run.json`, "utf8");
+    expect(raw).not.toContain("worktreePath");
+
+    const meta = await loadApplyRunMeta("/tmp/project", "change-1");
+    expect(meta?.worktreePath).toBeUndefined();
+  });
+
+  it("loads legacy apply run meta without a worktreePath field", async () => {
+    const dir = applyRunDir("/tmp/project", "change-1");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      `${dir}/run.json`,
+      JSON.stringify({
+        runId: "run-1",
+        changeId: "change-1",
+        workflowId: "workflow-1",
+        stages: [],
+        currentStageIndex: 1,
+        stageAcpSessionIds: { 0: "acp-0" },
+        status: "running",
+        startedAt: "2026-05-08T00:00:00.000Z",
+        updatedAt: "2026-05-08T00:00:00.000Z",
+      }),
+      "utf8"
+    );
+
+    const meta = await loadApplyRunMeta("/tmp/project", "change-1");
+    expect(meta?.worktreePath).toBeUndefined();
+  });
+
+  it("round-trips an absolute worktreePath for apply run meta", async () => {
+    await saveApplyRunMeta(
+      "/tmp/project",
+      runMeta({ worktreePath: "/tmp/project/.worktrees/change-1" })
+    );
+
+    await expect(loadApplyRunMeta("/tmp/project", "change-1")).resolves.toEqual(
+      runMeta({ worktreePath: "/tmp/project/.worktrees/change-1" })
+    );
   });
 });

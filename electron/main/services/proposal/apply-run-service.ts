@@ -1,12 +1,16 @@
 import { promises as fs } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { load, dump } from "js-yaml";
 import type { ApplyRunMeta, ProposalStatus } from "@shared/types/proposal";
 import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import { saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
-import { resolveApplyRunChangeId, resolveChangeDir } from "@main/domain/proposal/openspec-reader";
+import {
+  findProposalMetaById,
+  resolveApplyRunChangeId,
+  resolveChangeDir,
+} from "@main/domain/proposal/openspec-reader";
 import { loadAllWorkflowTemplates } from "@main/services/workflow/workflow-service";
 import { newRunId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
@@ -79,6 +83,7 @@ export async function createApplyRun(input: {
 }): Promise<{ runId: string; stages: WorkflowStage[] }> {
   const projectPath = await resolveProjectPath(input.projectId);
   const template = await findWorkflowTemplate(input.projectId, input.workflowId);
+  const proposalMeta = await findProposalMetaById(projectPath, input.changeId);
   if (!template) {
     throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${input.workflowId}`);
   }
@@ -95,6 +100,7 @@ export async function createApplyRun(input: {
     status: "running",
     startedAt,
     updatedAt: startedAt,
+    worktreePath: proposalMeta?.worktreePath ? resolve(proposalMeta.worktreePath) : undefined,
   };
 
   await saveApplyRunMeta(projectPath, runMeta);

@@ -2,12 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
 import { archiveChange, changeDir } from "../openspec-runtime";
-import { resolveProjectRoot } from "../utils/project-root";
+import { validateTargetPath } from "../utils/project-root";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 const archiveChangeInputSchema = z.object({
   changeName: z.string().describe("Name of the change to archive."),
+  targetPath: z
+    .string()
+    .min(1)
+    .describe("Absolute path to the project root or a registered git worktree."),
   confirm: z
     .boolean()
     .optional()
@@ -28,7 +32,16 @@ export async function archiveChangeTool(
   input: z.infer<typeof archiveChangeInputSchema>
 ): Promise<string> {
   return runTool("archive-change", { includeInstruction: input.includeInstruction }, async () => {
-    const projectRoot = resolveProjectRoot();
+    const validation = validateTargetPath(input.targetPath);
+    if (!validation.ok) {
+      const error = new Error(
+        validation.rawOutput ? `${validation.error}\n\n${validation.rawOutput}` : validation.error
+      );
+      error.name = "InvalidTargetPath";
+      throw error;
+    }
+
+    const projectRoot = validation.resolved;
     const changeDirPath = changeDir(projectRoot, input.changeName);
     if (!existsSync(changeDirPath)) {
       throw new Error(`Change not found: ${input.changeName}`);

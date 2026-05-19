@@ -33,6 +33,7 @@ interface ReminderContext {
   changeId?: string;
   stageIndex?: number;
   runId?: string;
+  worktreePath?: string;
 }
 
 type PromptPart = { type: "text"; text: string };
