@@ -30,7 +30,7 @@ IPC 契约见 **[IPC](./IPC.md)**。
 FylloCode/
 ├── electron/           # Electron 进程代码
 │   ├── main/           # 主进程（详见 MainProcess.md）
-│   └── preload/        # 预加载：contextBridge 暴露 window.api / window.electron
+│   └── preload/        # 预加载：contextBridge 暴露 window.api
 ├── frontend/           # 渲染进程（详见 RendererProcess.md）
 ├── mcp-servers/        # 内置 MCP server 源码与测试
 ├── shared/             # 跨进程共享：types / constants / schemas / errors
@@ -60,7 +60,6 @@ FylloCode/
            │
            │ contextBridge  (electron/preload/)
            │  exposeInMainWorld("api", { chat, project, ... })
-           │  exposeInMainWorld("electron", electronAPI)
            ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │               渲染进程 (Chromium, Vue 3)                        │
@@ -79,7 +78,7 @@ FylloCode/
 
 - 主进程：Node + Electron API 的唯一持有者。详见 **[MainProcess](./MainProcess.md)**。
 - 渲染进程：只运行 Vue 3 应用，通过 `window.api.*` 调用主进程；不得直接访问 Node / Electron API。详见 **[RendererProcess](./RendererProcess.md)**。
-- 预加载脚本：`contextBridge.exposeInMainWorld` 暴露 `window.api`（业务 API）和 `window.electron`（`@electron-toolkit/preload` 提供）；类型声明维护在 `electron/preload/index.d.ts`。
+- 预加载脚本：`contextBridge.exposeInMainWorld` 仅暴露 `window.api`（业务 API）；类型声明维护在 `electron/preload/index.d.ts`。
 - 共享目录：`shared/types/`（跨进程类型）、`shared/constants/`（错误码、默认值）、`shared/schemas/ipc/`（zod 入参 schema）、`shared/errors/`（`ipcError` 工厂）。
 - IPC channel 命名、响应结构、错误码、流式协议见 **[IPC](./IPC.md)**。
 

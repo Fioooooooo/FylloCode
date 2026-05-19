@@ -84,7 +84,7 @@ Renderer 测试统一放在 `frontend/src/__tests__/`，运行在 `renderer` pro
 ### Mock 约定
 
 - 优先 mock `@renderer/api/*` 薄封装，而不是在组件或 store 测试里直接 mock 底层 IPC
-- 如果测试对象直接依赖 preload 暴露能力，按实际调用 mock `window.api`；只有直接使用原始 Electron bridge 时才 mock `window.electron`
+- 如果测试对象直接依赖 preload 暴露能力，按实际调用 mock `window.api`
 - 定时器相关逻辑在单个测试文件内使用 `vi.useFakeTimers()` / `vi.useRealTimers()`
 
 ## Main 测试

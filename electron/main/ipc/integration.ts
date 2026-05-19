@@ -3,15 +3,11 @@ import { IntegrationChannels } from "@shared/types/channels";
 import {
   connectInputSchema,
   getProjectIntegrationInputSchema,
-  listProjectConfigsInputSchema,
   listProviderResourcesInputSchema,
   providerConnectInputSchema,
   providerIdInputSchema,
-  setProjectConfigInputSchema,
   setProjectIntegrationInputSchema,
   toolIdInputSchema,
-  yunxiaoSetOrganizationInputSchema,
-  yunxiaoSetTokenInputSchema,
 } from "@shared/schemas/ipc/integration";
 import { providerMap } from "@shared/constants/integration-providers";
 import type { ProjectIntegrationEntry, ProviderId } from "@shared/types/integration";
@@ -26,11 +22,7 @@ import {
   probeProvider,
   setProjectIntegrationStage,
 } from "@main/services/integration/provider-service";
-import {
-  setYunxiaoToken,
-  setYunxiaoOrganization,
-  disconnectYunxiao,
-} from "@main/services/integration/yunxiao-service";
+import { disconnectYunxiao } from "@main/services/integration/yunxiao-service";
 import {
   getConnection as getProviderConnection,
   listConnections as listProviderConnections,
@@ -40,22 +32,8 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 
 export function registerIntegrationHandlers(): void {
-  ipcMain.handle(IntegrationChannels.listTools, () =>
-    wrapHandler(async () => {
-      return [];
-    })
-  );
-
   ipcMain.handle(IntegrationChannels.getConnections, () =>
     wrapHandler(() => listProviderConnections())
-  );
-
-  ipcMain.handle(IntegrationChannels.getConnection, (_event, input: unknown) =>
-    wrapHandler(() => {
-      const { toolId } = validate(toolIdInputSchema, input);
-      const providerId = (toolId.startsWith("yunxiao-") ? "yunxiao" : toolId) as ProviderId;
-      return getProviderConnection(providerId);
-    })
   );
 
   ipcMain.handle(IntegrationChannels.connect, (_event, input: unknown) =>
@@ -77,35 +55,6 @@ export function registerIntegrationHandlers(): void {
       } else {
         removeProviderConnection(toolId as ProviderId);
       }
-    })
-  );
-
-  ipcMain.handle(IntegrationChannels.listProjectConfigs, (_event, input: unknown) =>
-    wrapHandler(async () => {
-      const { projectId } = validate(listProjectConfigsInputSchema, input);
-      void projectId;
-      return [];
-    })
-  );
-
-  ipcMain.handle(IntegrationChannels.setProjectConfig, (_event, input: unknown) =>
-    wrapHandler(async () => {
-      validate(setProjectConfigInputSchema, input);
-      return null;
-    })
-  );
-
-  ipcMain.handle(IntegrationChannels.yunxiaoSetToken, (_event, input: unknown) =>
-    wrapHandler(() => {
-      const { token } = validate(yunxiaoSetTokenInputSchema, input);
-      return setYunxiaoToken(token);
-    })
-  );
-
-  ipcMain.handle(IntegrationChannels.yunxiaoSetOrganization, (_event, input: unknown) =>
-    wrapHandler(() => {
-      const { organizationId } = validate(yunxiaoSetOrganizationInputSchema, input);
-      return setYunxiaoOrganization(organizationId);
     })
   );
 

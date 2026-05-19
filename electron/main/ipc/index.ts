@@ -5,8 +5,6 @@ import { registerProposalApplyHandlers } from "./proposal-apply";
 import { registerIntegrationHandlers } from "./integration";
 import { registerAcpAgentHandlers } from "./acp-agents";
 import { registerSettingsHandlers } from "./settings";
-import { registerWindowHandlers } from "./window";
-import { registerNetHandlers } from "./net";
 import { registerWorkflowHandlers } from "./workflow";
 import { registerTaskHandlers } from "./task";
 
@@ -20,6 +18,4 @@ export function registerAllHandlers(): void {
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();
-  registerWindowHandlers();
-  registerNetHandlers();
 }

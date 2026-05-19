@@ -12,12 +12,10 @@ import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 vi.mock("@renderer/api/chat", () => ({
   chatApi: {
     listSessions: vi.fn(),
-    getSession: vi.fn(),
     createSession: vi.fn(),
     updateSession: vi.fn(),
     removeSession: vi.fn(),
     loadMessages: vi.fn(),
-    sendMessage: vi.fn(),
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
   },

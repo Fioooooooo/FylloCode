@@ -6,10 +6,6 @@ export const listSessionsInputSchema = z.object({
   limit: z.number().int().positive().optional(),
 });
 
-export const getSessionInputSchema = z.object({
-  id: z.string().min(1),
-});
-
 export const createSessionInputSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
@@ -33,11 +29,6 @@ export const removeSessionInputSchema = z.object({
 export const loadMessagesInputSchema = z.object({
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
-});
-
-export const sendMessageInputSchema = z.object({
-  sessionId: z.string().min(1),
-  content: z.string(),
 });
 
 export const persistMessageInputSchema = z.object({

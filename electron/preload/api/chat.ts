@@ -19,10 +19,6 @@ export const chatApi = {
     return ipcRenderer.invoke(ChatChannels.listSessions, query);
   },
 
-  getSession(id: string): Promise<IpcResponse<Session | null>> {
-    return ipcRenderer.invoke(ChatChannels.getSession, { id });
-  },
-
   createSession(input: {
     projectId: string;
     title: string;
@@ -41,10 +37,6 @@ export const chatApi = {
 
   loadMessages(sessionId: string, projectId: string): Promise<IpcResponse<Message[]>> {
     return ipcRenderer.invoke(ChatChannels.loadMessages, { sessionId, projectId });
-  },
-
-  sendMessage(input: { sessionId: string; content: string }): Promise<IpcResponse<Message>> {
-    return ipcRenderer.invoke(ChatChannels.sendMessage, input);
   },
 
   persistMessage(

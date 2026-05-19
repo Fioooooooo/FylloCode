@@ -23,10 +23,6 @@ export const chatApi = {
     return window.api.chat.listSessions(query);
   },
 
-  getSession(id: string): Promise<IpcResponse<Session | null>> {
-    return window.api.chat.getSession(id);
-  },
-
   createSession(input: {
     projectId: string;
     title: string;
@@ -45,10 +41,6 @@ export const chatApi = {
 
   loadMessages(sessionId: string, projectId: string): Promise<IpcResponse<Message[]>> {
     return window.api.chat.loadMessages(sessionId, projectId);
-  },
-
-  sendMessage(input: { sessionId: string; content: string }): Promise<IpcResponse<Message>> {
-    return window.api.chat.sendMessage(input);
   },
 
   persistMessage(

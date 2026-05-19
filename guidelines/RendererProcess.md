@@ -1,6 +1,6 @@
 # 渲染进程规范（RendererProcess）
 
-渲染进程（`frontend/`）是运行在 Chromium 环境中的 Vue 3 单页应用。所有主进程能力通过 `window.api` / `window.electron` 暴露；渲染进程不得直接访问 Node / Electron API。
+渲染进程（`frontend/`）是运行在 Chromium 环境中的 Vue 3 单页应用。所有主进程能力通过 `window.api` 暴露；渲染进程不得直接访问 Node / Electron API。
 
 ## 启动顺序
 

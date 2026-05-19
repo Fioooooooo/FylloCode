@@ -5,12 +5,10 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   createSessionInputSchema,
-  getSessionInputSchema,
   listSessionsInputSchema,
   loadMessagesInputSchema,
   persistMessageInputSchema,
   removeSessionInputSchema,
-  sendMessageInputSchema,
   streamCancelInputSchema,
   streamMessageInputSchema,
   updateSessionInputSchema,
@@ -59,13 +57,6 @@ export function registerChatHandlers(): void {
     })
   );
 
-  ipcMain.handle(ChatChannels.getSession, (_event, input: unknown) =>
-    wrapHandler(async () => {
-      validate(getSessionInputSchema, input);
-      return null;
-    })
-  );
-
   ipcMain.handle(ChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
@@ -91,13 +82,6 @@ export function registerChatHandlers(): void {
     wrapHandler(async () => {
       const form = validate(loadMessagesInputSchema, input);
       return loadSessionMessages(form);
-    })
-  );
-
-  ipcMain.handle(ChatChannels.sendMessage, (_event, input: unknown) =>
-    wrapHandler(async () => {
-      validate(sendMessageInputSchema, input);
-      return null;
     })
   );
 

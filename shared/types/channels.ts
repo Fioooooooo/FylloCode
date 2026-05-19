@@ -1,12 +1,10 @@
 // Request-response channels: domain:action
 export const ChatChannels = {
   listSessions: "chat:listSessions",
-  getSession: "chat:getSession",
   createSession: "chat:createSession",
   updateSession: "chat:updateSession",
   removeSession: "chat:removeSession",
   loadMessages: "chat:loadMessages",
-  sendMessage: "chat:sendMessage",
   persistMessage: "chat:persistMessage",
 } as const;
 
@@ -48,21 +46,10 @@ export const TaskChannels = {
   delete: "task:delete",
 } as const;
 
-export const NetChannels = {
-  fetch: "net:fetch",
-  fetchImage: "net:fetchImage",
-} as const;
-
 export const IntegrationChannels = {
-  listTools: "integration:listTools",
   getConnections: "integration:getConnections",
-  getConnection: "integration:getConnection",
   connect: "integration:connect",
   disconnect: "integration:disconnect",
-  listProjectConfigs: "integration:listProjectConfigs",
-  setProjectConfig: "integration:setProjectConfig",
-  yunxiaoSetToken: "integration:yunxiao:setToken",
-  yunxiaoSetOrganization: "integration:yunxiao:setOrganization",
   providersList: "integrations:providers:list",
   providersConnect: "integrations:providers:connect",
   providersDisconnect: "integrations:providers:disconnect",
@@ -93,12 +80,4 @@ export const AcpAgentChannels = {
   registryUpdated: "acp:registryUpdated",
   installProgress: "acp:installProgress",
   agentUnavailable: "acp:event:agentUnavailable",
-} as const;
-
-export const WindowChannels = {
-  minimize: "window:minimize",
-  maximize: "window:maximize",
-  close: "window:close",
-  toggleDevTools: "window:toggleDevTools",
-  isMaximized: "window:isMaximized",
 } as const;

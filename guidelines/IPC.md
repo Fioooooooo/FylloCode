@@ -5,10 +5,10 @@
 ```
 渲染进程 (Vue)
   └─ window.api.<domain>.<method>()        # 请求-响应
-  └─ window.electron.ipcRenderer.on()      # 事件订阅
+  └─ window.api.<domain>.on<Event>()       # 事件订阅（由 preload 封装）
 
 预加载脚本 (contextBridge)
-  └─ 安全暴露 window.api 和 window.electron
+  └─ 安全暴露 window.api
 
 主进程 (Electron)
   └─ ipcMain.handle()   # 处理请求-响应
@@ -25,11 +25,10 @@
 | Channel               | 常量                               | 类型   |
 | --------------------- | ---------------------------------- | ------ |
 | `chat:listSessions`   | `ChatChannels.listSessions`        | handle |
-| `chat:getSession`     | `ChatChannels.getSession`          | handle |
 | `chat:createSession`  | `ChatChannels.createSession`       | handle |
 | `chat:updateSession`  | `ChatChannels.updateSession`       | handle |
 | `chat:removeSession`  | `ChatChannels.removeSession`       | handle |
-| `chat:sendMessage`    | `ChatChannels.sendMessage`         | handle |
+| `chat:loadMessages`   | `ChatChannels.loadMessages`        | handle |
 | `chat:persistMessage` | `ChatChannels.persistMessage`      | handle |
 | `chat:stream:message` | `ChatStreamChannels.streamMessage` | handle |
 | `chat:stream:port`    | `ChatStreamChannels.streamPort`    | handle |
@@ -59,15 +58,13 @@
 
 ### Project（`window.api.project`）
 
-| Channel                  | 常量                             | 类型   |
-| ------------------------ | -------------------------------- | ------ |
-| `project:list`           | `ProjectChannels.list`           | handle |
-| `project:getById`        | `ProjectChannels.getById`        | handle |
-| `project:getDefaultPath` | `ProjectChannels.getDefaultPath` | handle |
-| `project:create`         | `ProjectChannels.create`         | handle |
-| `project:update`         | `ProjectChannels.update`         | handle |
-| `project:remove`         | `ProjectChannels.remove`         | handle |
-| `project:openFolder`     | `ProjectChannels.openFolder`     | handle |
+| Channel              | 常量                         | 类型   |
+| -------------------- | ---------------------------- | ------ |
+| `project:list`       | `ProjectChannels.list`       | handle |
+| `project:getById`    | `ProjectChannels.getById`    | handle |
+| `project:update`     | `ProjectChannels.update`     | handle |
+| `project:remove`     | `ProjectChannels.remove`     | handle |
+| `project:openFolder` | `ProjectChannels.openFolder` | handle |
 
 ### Workflow（`window.api.workflow`）
 
@@ -91,12 +88,9 @@
 
 | Channel                                | 常量                                         | 类型   |
 | -------------------------------------- | -------------------------------------------- | ------ |
-| `integration:listTools`                | `IntegrationChannels.listTools`              | handle |
-| `integration:getConnection`            | `IntegrationChannels.getConnection`          | handle |
+| `integration:getConnections`           | `IntegrationChannels.getConnections`         | handle |
 | `integration:connect`                  | `IntegrationChannels.connect`                | handle |
 | `integration:disconnect`               | `IntegrationChannels.disconnect`             | handle |
-| `integration:listProjectConfigs`       | `IntegrationChannels.listProjectConfigs`     | handle |
-| `integration:setProjectConfig`         | `IntegrationChannels.setProjectConfig`       | handle |
 | `integrations:providers:list`          | `IntegrationChannels.providersList`          | handle |
 | `integrations:providers:connect`       | `IntegrationChannels.providersConnect`       | handle |
 | `integrations:providers:disconnect`    | `IntegrationChannels.providersDisconnect`    | handle |
@@ -110,25 +104,34 @@
 - `providers:*`：全局 provider 凭证、连接状态、探测与资源列表
 - `project:*`：当前项目的阶段资源挂载配置
 
-当前真实支持的 provider 仅覆盖 `yunxiao`。旧 `integration:*` 的 tool-centric 通道仍保留给遗留页面过渡使用。
+当前真实支持的 provider 仅覆盖 `yunxiao`。`integration:*` 仅保留当前仍被 renderer 消费的连接入口；provider/project 语义统一通过 `integrations:*` 通道提供。
 
 ### Settings（`window.api.settings`）
 
 | Channel               | 常量                          | 类型   |
 | --------------------- | ----------------------------- | ------ |
 | `settings:get`        | `SettingsChannels.get`        | handle |
+| `settings:getAppInfo` | `SettingsChannels.getAppInfo` | handle |
 | `settings:update`     | `SettingsChannels.update`     | handle |
-| `settings:listAgents` | `SettingsChannels.listAgents` | handle |
 
-### Window（`window.api.window`）
+### ACP Agents（`window.api.acpAgents`）
 
-| Channel                 | 常量                            | 类型   |
-| ----------------------- | ------------------------------- | ------ |
-| `window:minimize`       | `WindowChannels.minimize`       | on     |
-| `window:maximize`       | `WindowChannels.maximize`       | on     |
-| `window:close`          | `WindowChannels.close`          | on     |
-| `window:toggleDevTools` | `WindowChannels.toggleDevTools` | on     |
-| `window:isMaximized`    | `WindowChannels.isMaximized`    | handle |
+| Channel                      | 常量                                | 类型   |
+| ---------------------------- | ----------------------------------- | ------ |
+| `acp:getRegistry`            | `AcpAgentChannels.getRegistry`      | handle |
+| `acp:refreshRegistry`        | `AcpAgentChannels.refreshRegistry`  | handle |
+| `acp:getIcons`               | `AcpAgentChannels.getIcons`         | handle |
+| `acp:detectStatus`           | `AcpAgentChannels.detectStatus`     | handle |
+| `acp:install`                | `AcpAgentChannels.install`          | handle |
+| `acp:registryUpdated`        | `AcpAgentChannels.registryUpdated`  | event  |
+| `acp:installProgress`        | `AcpAgentChannels.installProgress`  | event  |
+| `acp:event:agentUnavailable` | `AcpAgentChannels.agentUnavailable` | event  |
+
+当前 preload 公开的订阅入口为 `window.api.acpAgents.onRegistryUpdated()` 和
+`window.api.acpAgents.onInstallProgress()`；事件订阅在 preload 内部使用
+`ipcRenderer.on/off` 封装，renderer 业务代码不得直接触碰底层 bridge。
+`acp:event:agentUnavailable` 当前仅作为主进程内部推送 channel 保留，尚未通过公开
+preload API 暴露给 renderer。
 
 ## 响应格式
 

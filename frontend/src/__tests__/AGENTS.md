@@ -59,7 +59,7 @@ pnpm test:coverage # 生成覆盖率报告
 1. 与组件分离，单独放在 `frontend/src/composables/` 目录
 2. 测试文件放在 `__tests__/composables/`
 3. 重点测试 **状态流转、副作用时机、边界条件**
-4. 涉及 IPC 的 composable，优先 mock `window.api`；如果直接碰到原始 preload bridge，再 mock `window.electron`
+4. 涉及 IPC 的 composable，优先 mock `window.api`
 
 ## 纯函数 / Utils 测试
 
@@ -72,7 +72,7 @@ pnpm test:coverage # 生成覆盖率报告
 | 目标                                 | 方式                                              | 位置                  |
 | ------------------------------------ | ------------------------------------------------- | --------------------- |
 | `useToast()` 等 @nuxt/ui composables | `vi.mock('@nuxt/ui/composables')`                 | `setup.ts`            |
-| `window.api` / `window.electron`     | 按需在测试文件或 `setup.ts` 中挂载到 `globalThis` | 测试文件 / `setup.ts` |
+| `window.api`                         | 按需在测试文件或 `setup.ts` 中挂载到 `globalThis` | 测试文件 / `setup.ts` |
 | `setTimeout` / `interval`            | `vi.useFakeTimers()` / `vi.useRealTimers()`       | 单个测试文件          |
 
 ## 覆盖率
