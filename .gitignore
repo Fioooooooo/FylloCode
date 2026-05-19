@@ -16,3 +16,4 @@ auto-imports.d.ts
 components.d.ts
 .eslintrc-auto-import.json
 *.tsbuildinfo
+.worktrees/
