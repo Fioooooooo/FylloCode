@@ -11,7 +11,6 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 </context>
 
 <rules>
-
 ## Apply Stage Goals
 
 - Drive the implementation strictly against the existing proposal artifacts. Do not reinvent the requirements, expand the scope, or fold in opportunistic refactors.
@@ -48,7 +47,6 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 - Verification effort must scale to change risk: small edits at minimum get a targeted check; logic changes need new or updated tests; anything affecting build, types, routing, or state transitions needs the matching verification.
 - When finishing or pausing, report: which tasks were completed, the evidence behind each, what verification ran, and what remains.
 - When all tasks are done, explicitly signal that the change is ready for the Archive stage.
-
 </rules>
 
 <critical priority="must-not-violate">
@@ -63,4 +61,4 @@ The following constraints MUST NOT be violated in the Apply stage. If bypassing 
 - **MUST match verification to risk.** Logic / build / type / routing / state changes require the corresponding checks before claiming done.
 - **MUST call `apply-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction`, `state.contextFiles`, and per-task guidance define how to read artifacts, pick the next task, and update `tasks.md`. Passing `false` returns only state JSON and skips the workflow contract.
   - **Why**: `includeInstruction: false` is for status-polling re-entries within the same run, not for the initial draft. Skipping the instruction loses the read-order and per-task constraints, and produces work that diverges from the proposal.
-    </critical>
+</critical>

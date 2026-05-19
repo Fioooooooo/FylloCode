@@ -1,4 +1,4 @@
-import template from "../templates/chat.md?raw";
+import template from "../templates/chat.txt?raw";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
 

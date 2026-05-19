@@ -1,4 +1,4 @@
-declare module "*.md?raw" {
+declare module "*.txt?raw" {
   const content: string;
   export default content;
 }

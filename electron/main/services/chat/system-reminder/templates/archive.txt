@@ -11,7 +11,6 @@ Your job is to keep the archive result, the spec state, and the commit history m
 </context>
 
 <rules>
-
 ## Archive Stage Goals
 
 - Sync the main spec first, then archive, then make a single commit covering the change-related diffs.
@@ -40,7 +39,6 @@ Your job is to keep the archive result, the spec state, and the commit history m
   - **Why**: the runtime flow keeps state.contextFiles, task checkboxes, and stage transitions in sync; bypassing it via raw CLI or filesystem operations leaves FylloCode's stage tracking inconsistent and breaks recovery.
 - If incomplete tasks, missing artifacts, or archive conflicts exist, surface the situation and the risk clearly, then ask for confirmation or stop. Do not paper over it.
 - After completing, summarize explicitly: archive location, whether the spec was synced, any warnings, whether the commit landed, and the commit message used.
-
 </rules>
 
 <critical priority="must-not-violate">
@@ -56,4 +54,4 @@ The following constraints MUST NOT be violated in the Archive stage. If bypassin
 - **MUST report incomplete tasks, missing artifacts, or conflicts honestly** before proceeding or stopping.
 - **MUST call `archive-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction` defines the sync → archive → commit ordering, conflict handling, and reporting contract. Passing `false` returns only state JSON and discards that workflow.
   - **Why**: `includeInstruction: false` is for status-polling re-entries within the same run, not for the initial draft. Skipping the instruction risks reordered or partial archive operations that leave specs, artifacts, and commits inconsistent.
-    </critical>
+</critical>

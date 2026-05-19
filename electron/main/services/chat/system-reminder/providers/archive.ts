@@ -1,4 +1,4 @@
-import template from "../templates/archive.md?raw";
+import template from "../templates/archive.txt?raw";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
 
