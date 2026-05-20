@@ -152,109 +152,90 @@ reminder 相关代码（provider、模板、类型）SHALL 全部位于 `electro
 
 ### Requirement: chat reminder 编排 worktree 创建
 
-`chat.txt` system-reminder 模板正文 SHALL 包含一个 `<worktree>` 段（位于 `<rules>` 段尾、`<critical>` 段之前），明确以下编排步骤，用户每次同意 propose 时由 agent 用 Bash 执行：
+`chat.txt` system-reminder 模板正文 SHALL 不再包含 shell-command worktree 编排序列。它 SHALL 指示 agent 在获得用户明确同意后调用 `mcp__fyllo_specs__create-proposal`，并依赖 tool 返回的 `state.workspace.path` 读取和修改所有 proposal artifacts。
 
-1. **non-git 项目自检**：`git -C {{mainProjectPath}} rev-parse --is-inside-work-tree`；失败时跳过 worktree 编排，直接以 `targetPath: {{mainProjectPath}}` 调 create-proposal。
-2. **维护主仓库 .gitignore**（仅首次需要）：检查并追加 `.worktrees/` 行；追加后 `git add .gitignore && git commit -m "chore: ignore .worktrees"`；commit 失败时把 stderr 完整复述给用户，由用户决定下一步。
-3. **创建 worktree**：`git -C {{mainProjectPath}} worktree add .worktrees/<changeName> -b proposal/<changeName>`；记录绝对路径 `{{mainProjectPath}}/.worktrees/<changeName>`；失败（含 changeName 重名）把 stderr 完整复述给用户。
-4. **调 create-proposal**：`mcp__fyllo_specs__create-proposal targetPath=<worktree 绝对路径>`，工具内部不创建 worktree、不修改 git 状态。
-5. **多 change 语义**：同一 chat session 允许孵化多个 change，每个 change 独立 worktree；用户表述模糊（例 "刚才那个 change"）且历史中存在多个 worktreePath 时，agent 必须先反问目标。
-6. **路径口径**：chat session cwd 仍为主仓库；后续 chat 内对 worktree artifacts 的 Read / Edit 必须用绝对路径。
+reminder SHALL 说明：
 
-`<worktree>` 段 SHALL 不出现 `git merge` / `git push` / `git worktree remove` / `git branch -d` 等任何 archive 阶段才会用到的命令——chat 阶段只负责创建 worktree，清理工作由 P4 的 archive 阶段编排。
+- `create-proposal.workspaceMode` 可取 `"linked"` 或 `"main"`。
+- 省略 `workspaceMode` 时默认使用 `"linked"`。
+- 如果用户明确要求直接在 main workspace 工作，agent SHALL 在本次 `create-proposal` 调用中传入 `workspaceMode: "main"`。
+- `workspaceMode` 是单次调用参数，不是项目偏好。
+- `create-proposal` 返回后，agent SHALL 使用 `state.workspace.path` 作为 proposal artifacts 的工作目录。
+- agent SHALL NOT 在 Chat stage 手动执行 `git worktree add`。
 
-`<worktree>` 段 SHALL 不指示 agent 主动调用 `mcp__fyllo_specs__apply-change` 或 `mcp__fyllo_specs__archive-change`——chat 阶段的核心职责未变，仍然在 propose 后等待用户进入 Apply / Archive 阶段。
+`chat.txt` SHALL NOT 包含 `.gitignore` 维护、`git worktree add`、`git merge`、`git worktree remove` 或 `git branch -d` 的 shell 命令。
 
-#### Scenario: chat reminder 包含 worktree 编排
+#### Scenario: chat reminder 不再包含 worktree shell 创建
 
 - **WHEN** 主进程为 chat owner 渲染 system-reminder 文本
-- **THEN** 文本中包含 `<worktree>` 与 `</worktree>` 两个标签
-- **AND** 标签之间的内文包含 `git worktree add` 字符串
-- **AND** 标签之间的内文包含 `mcp__fyllo_specs__create-proposal` 与 `targetPath` 字符串
-- **AND** 标签之间的内文不包含 `git merge` / `git worktree remove` / `git branch -d` 字符串
+- **THEN** 文本包含 `workspaceMode`
+- **AND** 文本包含 `state.workspace.path`
+- **AND** 文本包含 `mcp__fyllo_specs__create-proposal`
+- **AND** 文本不包含 `git worktree add`
+- **AND** 文本不包含 `.worktrees/<changeName>` shell command sequence
 
-#### Scenario: chat reminder 不修改既有 chat stage 行为约束
+#### Scenario: chat reminder 保留 consent 与 stage 约束
 
 - **WHEN** 主进程为 chat owner 渲染 system-reminder 文本
 - **THEN** 文本仍含 `<authority>` / `<context>` / `<rules>` / `<critical>` 段
-- **AND** `<rules>` 段中"MUST NOT modify code directly" / "MUST ask at most one question per turn" / "MUST obtain explicit user consent before calling create-proposal" 等既有 SHALL 全部保留
-- **AND** `<worktree>` 段位于 `<rules>` 段尾、`<critical>` 段之前
+- **AND** `<critical>` 段中 "MUST obtain explicit user consent before calling create-proposal" 约束仍存在
+- **AND** 文本指示 agent 不得在用户进入 Apply 或 Archive stage 前调用 `apply-change` 或 `archive-change`
 
 ### Requirement: apply reminder 暴露 worktreePath
 
-`apply.txt` system-reminder 模板正文 SHALL 包含一个 `<worktree>` 段（位于 `<context>` 段之后、`<rules>` 段之前），向 agent 暴露当前 stage 的工作目录：
+`apply.txt` system-reminder 模板正文 SHALL 描述当前 stage workspace 已由 proposal workflow 准备完成。它 SHALL 使用 `{{worktreePath}}` / `{{mainProjectPath}}` 暴露当前 cwd 语义，但 SHALL NOT 指示 agent 创建、迁移、merge、remove 或删除 worktree。
 
-- 渲染 `{{worktreePath}}` 占位符（取自 `SystemReminderContext.worktreePath`，undefined 时自动渲染为空字符串）。
-- 文本中明确说明"空字符串表示当前 stage 的 cwd 是主仓库"。
-- 文本中明确说明"业务代码改动产生的 commit 由 agent 自己完成；archive 阶段不会替你 commit 业务代码"。
+reminder SHALL 说明：
 
-#### Scenario: apply reminder 含 worktreePath 占位符段
+- 当前 stage cwd 已由 host 设置为 `runMeta.worktreePath ?? projectPath`。
+- 空的 `{{worktreePath}}` 表示当前 stage 运行在 main workspace。
+- 非空的 `{{worktreePath}}` 表示当前 stage 运行在 linked worktree。
+- agent SHALL 使用当前 stage workspace path 作为 `targetPath` 调用 `mcp__fyllo_specs__apply-change`。
+- 业务代码 commit 仍由 agent 负责；Archive 不会替 agent 创建业务代码 commit。
 
-- **WHEN** 主进程为 apply owner 渲染 system-reminder 文本
-- **AND** ApplyRunMeta.worktreePath 为非空字符串 `<mainRepo>/.worktrees/foo`
-- **THEN** 渲染后的文本包含 `<worktree>` 标签
-- **AND** 标签之间的内文包含字面量 `<mainRepo>/.worktrees/foo`（`{{worktreePath}}` 已替换）
-
-#### Scenario: apply reminder worktreePath 为空时显式说明含义
+#### Scenario: apply reminder 不再包含 worktree lifecycle 命令
 
 - **WHEN** 主进程为 apply owner 渲染 system-reminder 文本
-- **AND** ApplyRunMeta.worktreePath 为 `undefined`（旧 ApplyRunMeta 或 P3 未启用）
-- **THEN** 渲染后的文本仍包含 `<worktree>` 标签
-- **AND** `{{worktreePath}}` 占位符渲染为空字符串
-- **AND** 标签之间的内文包含明确叙述："空字符串"或"空值"代表主仓库 cwd
+- **THEN** 文本包含当前 stage cwd / workspace 说明
+- **AND** 文本包含 `mcp__fyllo_specs__apply-change`
+- **AND** 文本不包含 `git worktree add`
+- **AND** 文本不包含 `git merge --ff-only`
+- **AND** 文本不包含 `git worktree remove`
+- **AND** 文本不包含 `git branch -d`
 
-#### Scenario: apply reminder 仍保留既有 apply stage 行为约束
+#### Scenario: apply reminder 仍暴露 main fallback
 
-- **WHEN** 主进程为 apply owner 渲染 system-reminder 文本
-- **THEN** 文本仍含 `<authority>` / `<context>` / `<rules>` / `<critical>` 段
-- **AND** 现有 SHALL（"MUST read state.contextFiles"、"MUST work one task at a time" 等）全部保留
+- **WHEN** ApplyRunMeta.worktreePath 为 `undefined`
+- **THEN** apply reminder 渲染后的 `{{worktreePath}}` 为空字符串
+- **AND** 文本明确说明空字符串代表 main workspace
 
 ### Requirement: archive reminder 编排 worktree 4 步收尾
 
-`archive.txt` system-reminder 模板正文 SHALL 包含一个 `<worktree>` 段（位于 `</context>` 闭合标签之后、`<rules>` 开始标签之前），段内 SHALL 明确以下内容：
+`archive.txt` system-reminder 模板正文 SHALL 不再指示 agent 手动执行 git commit / merge / worktree cleanup shell 命令。它 SHALL 指示 agent 调用 `mcp__fyllo_specs__archive-change`，传入 `confirm: true` 与匹配 `type(scope): summary` 的 `commitMessage`。
 
-- 当 `{{worktreePath}}` 占位符渲染为空字符串时，agent 跳过 git 编排，仅完成 archive-change + 归档 commit。
-- 当 `{{worktreePath}}` 渲染为非空字符串时，archive-change 完成 OpenSpec 文件移动后，agent 用 Bash 执行 4 步 git 收尾：
-  1. `git -C {{worktreePath}} add -A && git -C {{worktreePath}} commit -m "<commit message>"`（commit message 仍按 `<rules>` / `<critical>` 段已规定的 `type(scope): summary` 模板，scope 用 `openspec`）。
-  2. `git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}`；失败 stderr 复述用户、不自动 fall back。
-  3. `git -C {{mainProjectPath}} worktree remove {{worktreePath}}`；失败 stderr 复述用户、不加 `--force`。
-  4. `git -C {{mainProjectPath}} branch -d proposal/{{changeId}}`；失败 stderr 复述用户、不 `-D`。
+reminder SHALL 说明：
 
-`<worktree>` 段 SHALL 引用以下三个白名单占位符（已由 P2 添加到 `ALLOWED_VARIABLES`）：`{{worktreePath}}`、`{{mainProjectPath}}`、`{{changeId}}`。SHALL NOT 引用 `branchName` 等其他占位符——分支名 `proposal/{{changeId}}` 以字面量出现。
+- `archive-change` 内部执行 OpenSpec archive 与 workspace git finalization。
+- agent SHALL 检查返回的 `state.archive` 对象以判断 OpenSpec archive 结果。
+- agent SHALL 检查返回的 `state.workspace` 对象以判断 git finalization 结果。
+- 失败时，agent SHALL 汇报失败发生在 `archive` 还是 `workspace`，列出已完成的 `workspace.gitOps`，在存在时指出 `workspace.failedStep`，并转述对应子对象的 `error.retryHint`。
+- 除非用户明确要求脱离 MCP workflow 进行手动恢复，agent SHALL NOT 手动执行 `git commit`、`git merge --ff-only`、`git worktree remove` 或 `git branch -d`。
 
-`<critical>` 段 SHALL 包含以下新增 SHALL 条款（与原有 SHALL 并列，原有内容保留）：
-
-- 完整顺序为 `sync → archive → commit → merge → worktree-cleanup`，禁止重排或跳步；merge / cleanup 仅在 `{{worktreePath}}` 非空时执行。
-- merge 必须用 `git merge --ff-only`，失败时停止，禁止 force / 自动普通 merge fall back。
-- worktree cleanup 仅在 merge 成功后执行；merge 失败时禁止执行 worktree remove / branch delete。
-- 禁止 `worktree remove --force` / `branch -D`；失败 stderr 由用户决定 force。
-
-#### Scenario: archive reminder 含 worktree 段
+#### Scenario: archive reminder 不再包含手写 git cleanup 命令
 
 - **WHEN** 主进程为 archive owner 渲染 system-reminder 文本
-- **THEN** 文本含 `<worktree>` 与 `</worktree>` 闭合标签
-- **AND** 标签之间内文含 `git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}` 模板（占位符渲染后的字面量）
-- **AND** 标签之间内文含 `git -C {{mainProjectPath}} worktree remove` 与 `git -C {{mainProjectPath}} branch -d proposal/{{changeId}}` 模板
-- **AND** `<critical>` 段含 `merge --ff-only` 字符串
-- **AND** `<critical>` 段含禁止 `--force` / `-D` 强删的 SHALL 描述
+- **THEN** 文本包含 `mcp__fyllo_specs__archive-change`
+- **AND** 文本包含 `commitMessage`
+- **AND** 文本包含 `state.archive`
+- **AND** 文本包含 `state.workspace`
+- **AND** 文本不包含 `git -C {{worktreePath}} add -A`
+- **AND** 文本不包含 `git -C {{mainProjectPath}} merge --ff-only`
+- **AND** 文本不包含 `git -C {{mainProjectPath}} worktree remove`
+- **AND** 文本不包含 `git -C {{mainProjectPath}} branch -d`
 
-#### Scenario: archive reminder worktreePath 为空时显式说明降级
-
-- **WHEN** runMeta.worktreePath 为 `undefined`
-- **THEN** `<worktree>` 段开头明确说明 "若 `{{worktreePath}}` 为空字符串，跳过本段全部 git 编排"
-- **AND** `{{worktreePath}}` 占位符在该段中被渲染为空字符串
-- **AND** agent 收到 reminder 后跳过 4 步 git 收尾
-
-#### Scenario: archive prompt 文案精简
-
-- **WHEN** main process 为 `proposal-archive` stage type 构造 prompt
-- **THEN** prompt 文本严格等于 `归档 {changeId}`
-- **AND** prompt 文本不含 "提交代码" / "merge" / "worktree" / "commit" 等编排关键词
-- **AND** worktree 收尾步骤完全由 archive system-reminder 与 archive-change tool_instruction 共同保障
-
-#### Scenario: archive reminder 既有 SHALL 全部保留
+#### Scenario: archive reminder 保留 archive stage 约束
 
 - **WHEN** 主进程为 archive owner 渲染 system-reminder 文本
-- **THEN** 文本仍含 `<authority>` / `<context>` / `<rules>` / `<critical>` 既有段
-- **AND** 既有 SHALL 全部保留（commit subject 格式 `type(scope): summary`、commit only change-related files、不能 bypass MCP 等）
-- **AND** `<worktree>` 段位于 `</context>` 闭合后、`<rules>` 开始前
+- **THEN** 文本仍含 `<authority>` / `<context>` / `<rules>` / `<critical>` 段
+- **AND** 文本仍要求使用 `mcp__fyllo_specs__archive-change` 作为主要 archive 路径
+- **AND** 文本仍要求汇报 incomplete tasks、missing artifacts、conflicts、commit result 与最终 archive outcome

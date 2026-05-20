@@ -26,7 +26,7 @@
 
 `归档 {changeId}`
 
-具体的 sync 主 spec / archive-change 文件移动 / git commit / merge 进 main / worktree cleanup 等操作 SHALL 由 archive system-reminder 与 `archive-change` MCP tool 的 `tool_instruction` 共同保障。归档 prompt SHALL NOT 出现 "提交代码" / "merge" / "worktree" / "commit" 等编排关键词。
+具体的 sync 主 spec / archive-change 文件移动 / git commit / merge 进 main / worktree cleanup 等操作 SHALL 由 `archive-change` MCP tool 内部执行，并由 archive system-reminder 约束 agent 读取 tool 的 `archive` 与 `workspace` 分层结果。归档 prompt SHALL NOT 出现 "提交代码" / "merge" / "worktree" / "commit" 等编排关键词。
 
 归档流程 SHALL 使用与 stage stream 相同的 MessagePort 流式传输方式。归档 ACP session 的 cwd SHALL 为 `runMeta.worktreePath ?? projectPath`（P1 通路）。
 
@@ -56,84 +56,93 @@
 
 ### Requirement: Archive completes 4-step git cleanup when worktreePath is non-empty
 
-archive 阶段完成 OpenSpec 文件归档移动与归档 commit 后，当 `runMeta.worktreePath` 非空时，agent SHALL 在 archive system-reminder 编排下用 Bash 执行以下 4 步 git 收尾：
+archive 阶段完成 OpenSpec 文件归档移动后，workspace git finalization SHALL 在 `archive-change` MCP tool 内部执行，而不是由 archive system-reminder 指示 agent 执行 shell 命令。
 
-1. `git -C {{mainProjectPath}} merge --ff-only proposal/{{changeId}}`
-2. `git -C {{mainProjectPath}} worktree remove {{worktreePath}}`
-3. `git -C {{mainProjectPath}} branch -d proposal/{{changeId}}`
+对于 main workspace archive，`archive-change` SHALL 在 OpenSpec archive 成功后只执行 `commit` git step。
 
-（commit 步骤位于 archive-change 文件移动之后、merge 之前，已由 archive.txt 的 `<rules>` / `<critical>` 段约束。）
+对于 linked workspace archive，`archive-change` SHALL 在 OpenSpec archive 成功后按以下固定顺序执行：
 
-merge 操作 SHALL 使用 `--ff-only`，SHALL NOT 自动 fall back 到普通 merge / rebase。worktree remove SHALL NOT 使用 `--force`。branch delete SHALL NOT 使用 `-D` 强删。
+1. `commit`
+2. `merge-to-main`
+3. `worktree-remove`
+4. `branch-delete`
 
-任一步失败时 archive ACP session SHALL 把 stderr 完整复述给用户，archive ACP session 不自动重试、不自动 fall back。后续动作（rebase / 普通 merge / `--force`）由用户决策并通过对话告知 agent。
+每一步 SHALL 在 `state.workspace.gitOps` 中记录 `cwd`、`command`、`exitCode`、`stdout`、`stderr` 与 `ok`。tool SHALL 在第一步失败时立即停止，且 SHALL NOT 执行后续步骤。
 
-archive ACP session 在 4 步全部成功后 SHALL：
+#### Scenario: main workspace archive 只执行 commit
 
-- 主仓库 `git -C {{mainProjectPath}} log` 当前分支头部含归档 commit；
-- `git -C {{mainProjectPath}} worktree list` 不再含 `{{worktreePath}}`；
-- `git -C {{mainProjectPath}} branch` 不再含 `proposal/{{changeId}}`。
+- **WHEN** archive ACP session 运行在 main workspace
+- **AND** agent 调用 `archive-change`，传入 `confirm: true` 与合法 `commitMessage`
+- **AND** OpenSpec archive 成功
+- **THEN** `archive-change` 返回 `state.archive.ok === true`
+- **AND** `state.workspace.mode === "main"`
+- **AND** `state.workspace.gitOps` 只包含一个名为 `commit` 的 step
+- **AND** `state.workspace.ok === true`
 
-#### Scenario: 全成路径
+#### Scenario: linked workspace archive 完成全部 git steps
 
-- **WHEN** archive ACP session 在 worktreePath 非空的 ApplyRunMeta 上启动
-- **AND** archive-change confirm:true 完成 OpenSpec 文件移动
-- **AND** agent 完成归档 commit
-- **AND** main 自 worktree 创建后未被推进
-- **THEN** agent 执行 `git -C <main> merge --ff-only proposal/<changeId>` 成功
-- **AND** agent 执行 `git -C <main> worktree remove <worktreePath>` 成功
-- **AND** agent 执行 `git -C <main> branch -d proposal/<changeId>` 成功
-- **AND** 磁盘上 worktree 目录不存在
-- **AND** main 当前分支 HEAD 含归档 commit
+- **WHEN** archive ACP session 运行在 linked worktree
+- **AND** agent 调用 `archive-change`，传入 `confirm: true` 与合法 `commitMessage`
+- **AND** OpenSpec archive 成功
+- **AND** main 可以 fast-forward 到 proposal branch
+- **THEN** `archive-change` 返回 `state.archive.ok === true`
+- **AND** `state.workspace.mode === "linked"`
+- **AND** `state.workspace.gitOps` 按顺序包含 `commit`、`merge-to-main`、`worktree-remove`、`branch-delete`
+- **AND** `state.workspace.ok === true`
+- **AND** `state.workspace.failedStep === null`
 
-#### Scenario: merge 冲突
+#### Scenario: linked workspace merge 失败时停止 cleanup
 
-- **WHEN** main 在 worktree 创建后被推进
-- **AND** agent 执行 `git -C <main> merge --ff-only proposal/<changeId>`
-- **THEN** 命令失败，stderr 含 "Not possible to fast-forward"
-- **AND** agent 把 stderr 完整复述给用户
-- **AND** agent 不自动尝试普通 merge 或 rebase
-- **AND** agent 不执行后续 worktree remove / branch -d
-- **AND** archive ACP session 等待用户进一步指示
+- **WHEN** archive ACP session 运行在 linked worktree
+- **AND** OpenSpec archive 成功
+- **AND** `merge-to-main` 失败
+- **THEN** `archive-change` 返回 `state.status === "failed"`
+- **AND** `state.archive.ok === true`
+- **AND** `state.workspace.ok === false`
+- **AND** `state.workspace.failedStep === "merge-to-main"`
+- **AND** `state.workspace.gitOps` 包含 `commit` 与 `merge-to-main`
+- **AND** `state.workspace.gitOps` 不包含 `worktree-remove` 或 `branch-delete`
+- **AND** archive ACP session 向用户报告 `state.workspace.error.retryHint`
 
-#### Scenario: worktree remove 被锁定文件占用
+#### Scenario: worktree remove 失败时保留 branch delete
 
-- **WHEN** merge --ff-only 已成功
-- **AND** worktree 内某文件被外部进程锁定
-- **AND** agent 执行 `git -C <main> worktree remove <worktreePath>`
-- **THEN** 命令失败，stderr 含 locking error
-- **AND** agent 把 stderr 完整复述给用户
-- **AND** agent 不自动加 `--force`
-- **AND** 后续 branch -d 不执行（因 worktree 仍占用分支）
+- **WHEN** linked archive 的 `commit` 与 `merge-to-main` 成功
+- **AND** `worktree-remove` 失败
+- **THEN** `archive-change` 返回 `state.workspace.failedStep === "worktree-remove"`
+- **AND** `state.workspace.gitOps` 不包含 `branch-delete`
+- **AND** archive ACP session 报告由于 worktree 仍占用分支，branch deletion 未被尝试
 
-#### Scenario: branch delete 失败
+#### Scenario: invalid commit message 阻止 archive
 
-- **WHEN** merge / worktree remove 已成功
-- **AND** agent 执行 `git -C <main> branch -d proposal/<changeId>`
-- **AND** 由于历史异常（如用户曾 reset main），git 报 "branch is not fully merged"
-- **THEN** stderr 复述用户
-- **AND** agent 不自动 `-D` 强删
+- **WHEN** agent 调用 `archive-change`，传入 `confirm: true` 与非法 `commitMessage`
+- **THEN** `archive-change` 返回失败 state
+- **AND** OpenSpec archive 未执行
+- **AND** workspace git finalization 未执行
+- **AND** archive ACP session 报告必需的 `type(scope): summary` 格式
 
 ### Requirement: Archive skips git cleanup when worktreePath is empty
 
-archive 阶段在 `runMeta.worktreePath` 为空字符串或 `undefined` 时，SHALL 跳过 4 步 git 收尾，仅完成 archive-change 文件移动 + 归档 commit；行为完全等价于 multi-worktree 工作流引入前。
+archive 阶段在 `runMeta.worktreePath` 为空字符串或 `undefined` 时，`archive-change` MCP tool SHALL 将 workspace 视为 main mode。它 SHALL 跳过 linked-worktree finalization steps，并在 OpenSpec archive 成功后只执行 archive commit step。这样既保留 main-workspace 行为，也把 commit 操作移入 MCP tool runtime。
 
-archive system-reminder 文本 SHALL 在 `<worktree>` 段开头明确这一降级条件，让 agent 通过对 `{{worktreePath}}` 占位符渲染结果的判断（空字符串 vs 非空字符串）选择路径。
+archive system-reminder SHALL 说明空的 `{{worktreePath}}` 表示 main workspace，但 SHALL NOT 指示 agent 手动执行 git cleanup commands。
 
 #### Scenario: 非 git 项目 archive
 
 - **WHEN** `<projectPath>/.git` 不存在
 - **AND** runMeta.worktreePath 为 `undefined`
 - **AND** 用户触发 archive
-- **THEN** archive ACP session cwd 等于 projectPath（P1 fallback）
+- **THEN** archive ACP session cwd 等于 projectPath
 - **AND** archive system-reminder 渲染后的 `{{worktreePath}}` 为空字符串
-- **AND** agent 完成 archive-change + commit 后**不**执行 merge / worktree remove / branch -d
-- **AND** archive 行为与 multi-worktree 工作流引入前完全等价
+- **AND** agent 调用 `archive-change`，传入 `targetPath === projectPath`、`confirm: true` 与合法 `commitMessage`
+- **AND** `archive-change` 返回 `state.workspace.mode === "main"`
+- **AND** `state.workspace.gitOps` 只包含 `commit`
+- **AND** 不尝试 merge / worktree remove / branch delete step
 
 #### Scenario: 旧 ApplyRunMeta archive
 
-- **WHEN** runMeta 为 P3 启用前持久化的 JSON（不含 worktreePath 字段）
+- **WHEN** runMeta 为旧版本持久化的 JSON（不含 worktreePath 字段）
 - **AND** 用户触发 archive
 - **THEN** runMeta.worktreePath 反序列化为 `undefined`
-- **AND** archive 行为与多 worktree 工作流引入前完全等价
-- **AND** 不报错、不留遗留 worktree
+- **AND** archive ACP session cwd 等于 projectPath
+- **AND** archive 行为遵循 main workspace mode
+- **AND** 不尝试 linked worktree cleanup step
