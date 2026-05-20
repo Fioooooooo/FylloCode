@@ -131,7 +131,7 @@ pnpm dev
 - [ ] Auto-update
 - [ ] i18n (English UI)
 - [ ] Auto build guidelines
-- [ ] Git linked workspace for task apply
+- [x] Git linked workspace for task apply
 - [ ] More ACP Agent control
 
 ## 技术栈
