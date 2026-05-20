@@ -129,6 +129,7 @@ describe("SessionItem", () => {
     });
 
     const icon = wrapper.get('[data-test="session-agent-icon"]');
+    expect(wrapper.find('[data-test="session-media"]').exists()).toBe(true);
     expect(icon.attributes("src")).toBe("data:image/png;base64,agent-icon");
     expect(icon.attributes("alt")).toBe("claude-code icon");
   });
@@ -150,9 +151,33 @@ describe("SessionItem", () => {
       },
     });
 
-    expect(wrapper.find('[data-test="session-agent-icon-slot"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="session-media"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="session-agent-icon"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="session-agent-icon-fallback"]').exists()).toBe(true);
+    expect(wrapper.get('[data-test="session-title"]').text()).toBe("Long session title");
+    expect(wrapper.get('[data-test="session-meta"]').text()).toContain("4 turns");
     expect(wrapper.text()).toContain("Long session title");
     expect(wrapper.text()).toContain("4 turns");
+  });
+
+  it("keeps the running indicator inside the leading media area", () => {
+    const wrapper = mount(SessionItem, {
+      props: {
+        session: {
+          ...makeSession("session-4"),
+          status: "running",
+        },
+      },
+      global: {
+        plugins: [createPinia()],
+      },
+    });
+
+    const media = wrapper.get('[data-test="session-media"]');
+    const indicator = media.get('[data-test="session-running-indicator"]');
+
+    expect(media.classes().some((className) => className.includes("ring-success"))).toBe(false);
+    expect(indicator.classes()).not.toContain("animate-pulse");
+    expect(wrapper.find('[data-test="session-status"]').exists()).toBe(false);
   });
 });

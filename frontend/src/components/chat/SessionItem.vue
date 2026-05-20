@@ -78,52 +78,60 @@ async function handleDelete(): Promise<void> {
 
 <template>
   <div
-    class="group relative flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-default/50 last:border-b-0"
-    :class="active ? 'bg-primary/5' : 'hover:bg-muted/50'"
+    class="group relative flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-colors"
+    :class="active ? 'bg-primary/8' : 'hover:bg-muted/60'"
     @click="
       void handleSelect().catch((error: unknown) => {
         console.error('Failed to select session:', error);
       })
     "
   >
-    <div class="mt-1.5 shrink-0">
+    <div
+      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden text-muted"
+      data-test="session-media"
+    >
       <span
-        class="w-2 h-2 rounded-full block"
-        :class="
-          session.status === 'running'
-            ? 'bg-success animate-pulse'
-            : 'bg-neutral-300 dark:bg-neutral-600'
-        "
+        v-if="session.status === 'running'"
+        class="absolute right-0.5 bottom-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-default"
+        data-test="session-running-indicator"
+      />
+
+      <img
+        v-if="agentIcon"
+        :src="agentIcon"
+        :alt="`${session.agentId} icon`"
+        class="h-full w-full object-cover"
+        data-test="session-agent-icon"
+      />
+      <UIcon
+        v-else
+        name="i-lucide-bot"
+        class="h-3.5 w-3.5"
+        data-test="session-agent-icon-fallback"
       />
     </div>
 
-    <div class="flex min-w-0 flex-1 items-start gap-2.5">
+    <div class="min-w-0 flex-1 pr-8">
       <div
-        class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-elevated/40"
-        data-test="session-agent-icon-slot"
+        class="truncate text-sm font-medium leading-5 text-highlighted"
+        data-test="session-title"
       >
-        <img
-          v-if="agentIcon"
-          :src="agentIcon"
-          :alt="`${session.agentId} icon`"
-          class="h-full w-full object-cover"
-          data-test="session-agent-icon"
-        />
+        {{ session.title }}
       </div>
-
-      <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium text-highlighted">
-          {{ session.title }}
-        </div>
-        <div class="mt-0.5 flex items-center gap-1 text-xs text-muted">
-          <span>{{ formatTime(session.updatedAt) }}</span>
-          <span>·</span>
-          <span>{{ session.turnCount }} turns</span>
-        </div>
+      <div
+        class="mt-1 flex items-center gap-1 text-xs leading-4 text-muted"
+        data-test="session-meta"
+      >
+        <span>{{ formatTime(session.updatedAt) }}</span>
+        <span>·</span>
+        <span>{{ session.turnCount }} turns</span>
       </div>
     </div>
 
-    <div class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
+    <div
+      class="absolute top-2 right-2 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      @click.stop
+    >
       <UDropdownMenu :items="menuItems">
         <UButton variant="ghost" color="neutral" size="xs" class="text-muted" @click.stop>
           <UIcon name="i-lucide-more-vertical" class="w-4 h-4" />

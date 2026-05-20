@@ -47,8 +47,10 @@ function handleCreateSession(): void {
     </div>
 
     <!-- Session List -->
-    <div v-else class="flex-1 overflow-y-auto">
-      <SessionItem v-for="session in sessions" :key="session.id" :session="session" />
+    <div v-else class="flex-1 overflow-y-auto px-2 py-2">
+      <div class="space-y-1">
+        <SessionItem v-for="session in sessions" :key="session.id" :session="session" />
+      </div>
     </div>
   </div>
 </template>
