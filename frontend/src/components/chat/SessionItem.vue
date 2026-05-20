@@ -87,12 +87,12 @@ async function handleDelete(): Promise<void> {
     "
   >
     <div
-      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden text-muted"
+      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted"
       data-test="session-media"
     >
       <span
         v-if="session.status === 'running'"
-        class="absolute right-0.5 bottom-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-default"
+        class="absolute -left-0.5 -top-0.5 h-2 w-2 rounded-full bg-success/80 animate-pulse"
         data-test="session-running-indicator"
       />
 

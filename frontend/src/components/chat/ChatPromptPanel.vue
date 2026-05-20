@@ -52,48 +52,47 @@ const {
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="max-w-240 mx-auto">
-      <div
-        :ref="setPromptShellRef"
-        @keydown.capture="handlePromptKeydown"
-        @focusout="handlePromptFocusOut"
+  <div class="py-4">
+    <div
+      :ref="setPromptShellRef"
+      @keydown.capture="handlePromptKeydown"
+      @focusout="handlePromptFocusOut"
+    >
+      <UChatPrompt
+        v-model="input"
+        :placeholder="temporaryPlaceholder"
+        variant="subtle"
+        :maxrows="15"
+        class="sticky bottom-0 [view-transition-name:chat-prompt]"
+        :ui="{ base: 'px-1.5' }"
+        @submit="handleSubmit"
       >
-        <UChatPrompt
-          v-model="input"
-          :placeholder="temporaryPlaceholder"
-          variant="subtle"
-          class="sticky bottom-0 [view-transition-name:chat-prompt]"
-          :ui="{ base: 'px-1.5' }"
-          @submit="handleSubmit"
-        >
-          <template #footer>
-            <div class="inline-flex items-center gap-2 min-w-0">
-              <ContextUsageRing
-                v-if="activeSession"
-                :used="activeSession.tokenUsage.used"
-                :size="activeSession.tokenUsage.size"
-                :cost="activeSession.tokenUsage.cost"
-              />
-              <SlashCommandMenu
-                v-model:open="commandMenuOpen"
-                v-model:search-term="commandSearchTerm"
-                :commands="availableCommands"
-                @button-trigger="handleSlashButtonClick"
-                @select="handleCommandSelect"
-              />
-              <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
-            </div>
-
-            <UChatPromptSubmit
-              :status="chatStatus"
-              color="neutral"
-              size="sm"
-              @stop="chatStore.cancelStream()"
+        <template #footer>
+          <div class="inline-flex items-center gap-2 min-w-0">
+            <ContextUsageRing
+              v-if="activeSession"
+              :used="activeSession.tokenUsage.used"
+              :size="activeSession.tokenUsage.size"
+              :cost="activeSession.tokenUsage.cost"
             />
-          </template>
-        </UChatPrompt>
-      </div>
+            <SlashCommandMenu
+              v-model:open="commandMenuOpen"
+              v-model:search-term="commandSearchTerm"
+              :commands="availableCommands"
+              @button-trigger="handleSlashButtonClick"
+              @select="handleCommandSelect"
+            />
+            <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
+          </div>
+
+          <UChatPromptSubmit
+            :status="chatStatus"
+            color="neutral"
+            size="sm"
+            @stop="chatStore.cancelStream()"
+          />
+        </template>
+      </UChatPrompt>
     </div>
   </div>
 </template>

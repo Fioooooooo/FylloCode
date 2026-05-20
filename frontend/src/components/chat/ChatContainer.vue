@@ -14,7 +14,7 @@ const { activeSession } = storeToRefs(useSessionStore());
 <template>
   <div class="flex-1 flex flex-col min-h-0">
     <div class="flex-1 overflow-y-auto py-4 px-2 relative">
-      <div class="max-w-240 mx-auto">
+      <div class="max-w-3xl mx-auto">
         <UIMessageList
           :messages="activeSession?.messages ?? []"
           :status="chatStatus"
@@ -28,6 +28,10 @@ const { activeSession } = storeToRefs(useSessionStore());
       </div>
     </div>
 
-    <ChatPromptPanel />
+    <div>
+      <div class="max-w-3xl mx-auto">
+        <ChatPromptPanel />
+      </div>
+    </div>
   </div>
 </template>
