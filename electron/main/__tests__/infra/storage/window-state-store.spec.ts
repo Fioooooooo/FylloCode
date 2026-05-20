@@ -1,9 +1,13 @@
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-window-state-${Math.random().toString(36).slice(2)}`,
-}));
+const { tempRoot } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-window-state-"),
+  };
+});
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),

@@ -105,7 +105,7 @@ describe("openspec-runtime", () => {
   });
 
   it("prefers app.asar CLI fallback over app.asar.unpacked", () => {
-    const tempRoot = `/private/tmp/fyllocode-openspec-cli-${Math.random().toString(36).slice(2)}`;
+    const tempRoot = mkdtempSync(join(tmpdir(), "fyllocode-openspec-cli-"));
     const resourcesPath = join(tempRoot, "FylloCode.app", "Contents", "Resources");
     const appAsarCli = join(
       resourcesPath,

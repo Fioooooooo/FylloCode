@@ -4,16 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProposalMeta } from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
-const { tempRoot, mocks } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-apply-run-service-${Math.random().toString(36).slice(2)}`,
-  mocks: {
-    findProposalMetaById: vi.fn(),
-    loadAllWorkflowTemplates: vi.fn(),
-    loadProject: vi.fn(),
-    newRunId: vi.fn(),
-    resolveChangeDir: vi.fn(),
-  },
-}));
+const { tempRoot, mocks } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-apply-run-service-"),
+    mocks: {
+      findProposalMetaById: vi.fn(),
+      loadAllWorkflowTemplates: vi.fn(),
+      loadProject: vi.fn(),
+      newRunId: vi.fn(),
+      resolveChangeDir: vi.fn(),
+    },
+  };
+});
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),

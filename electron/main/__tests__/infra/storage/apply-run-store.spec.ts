@@ -4,10 +4,14 @@ import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 
-const { tempRoot, loggerWarn } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-apply-run-${Math.random().toString(36).slice(2)}`,
-  loggerWarn: vi.fn(),
-}));
+const { tempRoot, loggerWarn } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-apply-run-"),
+    loggerWarn: vi.fn(),
+  };
+});
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),

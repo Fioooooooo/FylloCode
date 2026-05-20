@@ -2,9 +2,10 @@ import { mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestTempRoot } from "@main/__tests__/test-temp-root";
 import { getAppUnpackedPath, getResourcesPath } from "@main/infra/paths";
 
-const tempRoot = `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-resources-paths-${Math.random().toString(36).slice(2)}`;
+const tempRoot = createTestTempRoot("fyllocode-resources-paths-");
 const resourcesPath = join(tempRoot, "FylloCode.app", "Contents", "Resources");
 
 function setProcessCwd(path: string): void {

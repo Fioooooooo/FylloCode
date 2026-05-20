@@ -2,10 +2,14 @@ import { rmSync } from "fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplyRunMeta } from "@shared/types/proposal";
 
-const { tempRoot, loggerWarn } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-apply-stage-acp-session-store-${Math.random().toString(36).slice(2)}`,
-  loggerWarn: vi.fn(),
-}));
+const { tempRoot, loggerWarn } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-apply-stage-acp-session-store-"),
+    loggerWarn: vi.fn(),
+  };
+});
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),

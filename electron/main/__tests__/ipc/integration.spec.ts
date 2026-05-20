@@ -4,9 +4,13 @@ import { rmSync } from "fs";
 import { IntegrationChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 
-const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-integration-ipc-${Math.random().toString(36).slice(2)}`,
-}));
+const { tempRoot } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-integration-ipc-"),
+  };
+});
 
 const mocks = vi.hoisted(() => ({
   getYunxiaoUser: vi.fn(),

@@ -3,9 +3,13 @@ import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
 
-const { tempRoot } = vi.hoisted(() => ({
-  tempRoot: `${(process.env.RUNNER_TEMP ?? process.env.TMPDIR ?? process.env.TEMP ?? "/tmp").replace(/\/$/, "")}/fyllocode-session-store-${Math.random().toString(36).slice(2)}`,
-}));
+const { tempRoot } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-session-store-"),
+  };
+});
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
