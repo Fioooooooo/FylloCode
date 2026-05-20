@@ -47,10 +47,8 @@ function selectTab(tab: SettingsTab): void {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col overflow-hidden bg-default sm:flex-row">
-    <nav
-      class="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-default px-2 py-4 sm:w-44 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r"
-    >
+  <div class="flex flex-1 overflow-hidden bg-default flex-row">
+    <nav class="flex shrink-0 gap-1 border-default px-2 py-4 w-65 flex-col border-r overflow-auto">
       <UButton
         variant="ghost"
         :color="activeTab === 'agents' ? 'primary' : 'neutral'"
