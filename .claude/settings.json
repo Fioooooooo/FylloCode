@@ -19,12 +19,8 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git tag:*)",
-      "Bash(openspec:*)",
       "Bash(pnpm typecheck:*)",
-      "Bash(node /Users/tao/.claude/plugins/cache/openai-codex/*)",
-      "Skill(git:commit)",
-      "Skill(openspec:*)",
-      "Skill(codex:*)"
+      "Skill(git:commit)"
     ],
     "deny": [
       "Read(.env)",
