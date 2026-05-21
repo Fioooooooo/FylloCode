@@ -15,4 +15,16 @@ describe("fyllo-specs prompts", () => {
       );
     });
   }
+
+  it("create-proposal prompt ends with an explicit draft write-back", () => {
+    const text = readFileSync(join(promptDir, "create-proposal.md"), "utf8");
+    expect(text).toMatch(/status:\s*draft/);
+    expect(text).toMatch(/all required artifacts are complete/i);
+  });
+
+  it("explore prompt is read-only and does not mutate proposal status", () => {
+    const text = readFileSync(join(promptDir, "explore.md"), "utf8");
+    expect(text).toMatch(/read-only/i);
+    expect(text).toMatch(/must not mutate proposal status/i);
+  });
 });

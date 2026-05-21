@@ -63,6 +63,8 @@
 
 `explore` tool 接收参数 `{ changeName?: string, targetPath: string, includeInstruction?: boolean }`。`targetPath` 必填，校验规则参见「所有 tool 入参必填 targetPath 并校验合法性」Requirement。tool 内部 projectRoot SHALL 取自 `path.resolve(input.targetPath)`。
 
+`explore` SHALL 只读，不得修改 proposal 文件、`.openspec.yaml` 状态或任何生命周期阶段。
+
 返回 state 至少包含：
 
 | 字段            | 类型                         | 说明                                                          |
@@ -96,6 +98,8 @@ tool SHALL 在执行 OpenSpec 创建前解析本次工作区：
 - 当 `workspaceMode === "linked"` 但 `targetPath` 不是 git 项目时，tool SHALL fallback 到 main workspace，返回 `workspace.mode === "main"` 与 `workspace.path === path.resolve(input.targetPath)`，并在 state warnings 中说明 non-git fallback。
 
 tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)` 创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
+
+在所有 required artifacts 完成后，`create-proposal` prompt SHALL 继续要求 agent 将同一 change 的 `.openspec.yaml` `status` 显式写回 `draft`，然后才结束创建工作流。
 
 返回 state 至少包含：
 
@@ -131,6 +135,12 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **WHEN** `create-proposal` 返回 state
 - **THEN** tool instruction SHALL 指示 agent 在 `state.workspace.path` 下读取和修改 proposal artifacts
 - **AND** 当 `workspace.path` 存在时，instruction SHALL NOT 让 agent 从 `targetPath` 自行推导 artifact 路径
+
+#### Scenario: creation workflow finalizes to draft
+
+- **WHEN** agent 完成所有 required artifacts
+- **THEN** prompt SHALL 要求写回同一 change 的 `.openspec.yaml`，将 `status` 设置为 `draft`
+- **AND** 创建工作流仅在该写回完成后结束
 
 #### Scenario: non-git linked fallback
 
@@ -573,3 +583,29 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 - **WHEN** 检查 `mcp-servers/fyllo-specs/src/tools/archive-change.ts`
 - **THEN** 它先调用 `runtime-openspec#archiveChange`，再调用 `runtime-workspace#finalizeArchiveWorkspace`
 - **AND** 当 OpenSpec archive 失败时，不调用 workspace finalization
+
+### Requirement: create-proposal must close creating state to draft
+
+`create-proposal` tool SHALL keep `creating` as the initial intermediate state for a new change, but its prompt SHALL explicitly require the agent to update the corresponding `.openspec.yaml` `status` to `draft` after all required artifacts are complete. The agent SHALL perform that write-back inside the creation workflow and SHALL NOT depend on a second `create-proposal` invocation.
+
+#### Scenario: proposal creation finishes
+
+- **WHEN** the agent finishes all required artifacts for a change created through `create-proposal`
+- **THEN** the agent writes `.openspec.yaml` with `status: draft` before stopping the creation workflow
+- **AND** the resulting proposal can be treated as ready for implementation in proposal list and detail views
+
+#### Scenario: creating is only transitional
+
+- **WHEN** a proposal is still in `creating`
+- **THEN** it SHALL NOT be treated as the final actionable state for implementation
+- **AND** `create-proposal` prompt SHALL instruct the agent to complete artifacts first and then write back `draft`
+
+### Requirement: explore is read-only
+
+`explore` tool SHALL NOT modify proposal `.openspec.yaml` state and SHALL NOT perform any lifecycle transition. It only returns exploratory instructions and state.
+
+#### Scenario: explore does not mutate status
+
+- **WHEN** the agent calls `explore` in any phase of a proposal lifecycle
+- **THEN** the call SHALL NOT change `creating` into `draft`
+- **AND** the call SHALL NOT modify any proposal files

@@ -34,12 +34,13 @@ workspace and returns it in `state.workspace.path`.
    - Create the artifact file using `state.template` as the structure
    - Apply `state.instruction` as guidance — but do NOT copy instruction/context/rules blocks into the file
    - Show brief progress: "Created <artifact-id>"
+   - After all required artifacts are complete, write `<state.workspace.path>/openspec/changes/<changeName>/.openspec.yaml` back with `status: draft` before ending the workflow.
 
    If an artifact requires user input (unclear context), ask before proceeding.
 
 3. **Show final status**
 
-   After all `applyRequires` artifacts are complete, summarize:
+   After all `applyRequires` artifacts are complete and `.openspec.yaml` has been written back with `status: draft`, summarize:
    - Change name and location
    - List of artifacts created with brief descriptions
    - "All artifacts created! Ready for implementation."
