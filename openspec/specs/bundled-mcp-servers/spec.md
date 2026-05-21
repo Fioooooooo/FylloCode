@@ -14,7 +14,7 @@
 
 - **WHEN** 检查项目根目录
 - **THEN** 存在 `mcp-servers/fyllo-specs/src/index.ts` 作为 stdio MCP server 的入口
-- **AND** 存在 `mcp-servers/fyllo-specs/src/prompts/` 目录包含四个 markdown 文件
+- **AND** 存在 `mcp-servers/fyllo-specs/src/tools/instructions/` 目录包含四个 markdown 文件
 - **AND** 不在 `electron/main/` 任何子目录下放置 MCP server 源码
 
 ### Requirement: 构建产物输出与分发位置

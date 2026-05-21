@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义 `fyllo-specs` MCP server 的四个 tool（explore / create-proposal / apply-change / archive-change）的输入 schema、返回结构、prompt 独立文件约定，以及底层 openspec-runtime 适配层的职责边界与错误归一化行为。
+定义 `fyllo-specs` MCP server 的四个 tool（explore / create-proposal / apply-change / archive-change）的输入 schema、返回结构、prompt 独立文件约定，以及底层 runtime-openspec / runtime-workspace 适配层的职责边界与错误归一化行为。
 
 ## Requirements
 
@@ -25,11 +25,11 @@
 
 ### Requirement: tool prompt 正文以独立 md 文件维护
 
-每个 tool 的 prompt 正文 SHALL 存放在 `mcp-servers/fyllo-specs/src/prompts/<tool-name>.md`。TypeScript 代码 SHALL 不内嵌 prompt 文本 literal，只通过统一的 `loadPrompt(id)` 读取。构建阶段 SHALL 通过 esbuild `text` loader 将 md 内容内联进产物，最终产物为单文件 JS，无外部资源依赖。
+每个 tool 的 prompt 正文 SHALL 存放在 `mcp-servers/fyllo-specs/src/tools/instructions/<tool-name>.md`。TypeScript 代码 SHALL 不内嵌 prompt 文本 literal，只通过统一的 `loadPrompt(id)` 读取。构建阶段 SHALL 通过 esbuild `text` loader 将 md 内容内联进产物，最终产物为单文件 JS，无外部资源依赖。
 
 #### Scenario: 四个 prompt md 文件存在
 
-- **WHEN** 检查 `mcp-servers/fyllo-specs/src/prompts/`
+- **WHEN** 检查 `mcp-servers/fyllo-specs/src/tools/instructions/`
 - **THEN** 存在且仅存在 `explore.md`、`create-proposal.md`、`apply-change.md`、`archive-change.md` 四个文件
 
 #### Scenario: 代码不内嵌 prompt literal
@@ -95,7 +95,7 @@ tool SHALL 在执行 OpenSpec 创建前解析本次工作区：
 - 当 `workspaceMode === "linked"` 且 `targetPath` 是 git 项目时，tool SHALL 创建或复用 `<targetPath>/.worktrees/<changeName>` 作为 git linked worktree，并将 `workspace.path` 设为该绝对路径。
 - 当 `workspaceMode === "linked"` 但 `targetPath` 不是 git 项目时，tool SHALL fallback 到 main workspace，返回 `workspace.mode === "main"` 与 `workspace.path === path.resolve(input.targetPath)`，并在 state warnings 中说明 non-git fallback。
 
-tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `openspec-runtime#createChange(projectRoot, changeName)` 创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
+tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)` 创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
 
 返回 state 至少包含：
 
@@ -288,9 +288,9 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 - **AND** `state.workspace.gitOps` 为空数组
 - **AND** state errors 或 `archive.error` 明确说明 commit message 格式错误
 
-### Requirement: openspec-runtime 适配层封装 CLI spawn
+### Requirement: runtime-openspec 适配层封装 CLI spawn
 
-系统 SHALL 在 `mcp-servers/fyllo-specs/src/openspec-runtime/` 提供适配层，负责所有与 `@fission-ai/openspec` 的交互。适配层 SHALL 通过 spawn `@fission-ai/openspec` 随应用分发的 CLI（`bin/openspec.js`）并解析 `--json` stdout 实现 openspec 相关语义，SHALL 不以 `import`/`require` 形式引用 `@fission-ai/openspec` 的任何模块（因该包的 `package.json#exports` 未开放子路径；`dist/core/*` 属于内部实现不稳定）。
+系统 SHALL 在 `mcp-servers/fyllo-specs/src/runtime-openspec/` 提供适配层，负责所有与 `@fission-ai/openspec` 的交互。适配层 SHALL 通过 spawn `@fission-ai/openspec` 随应用分发的 CLI（`bin/openspec.js`）并解析 `--json` stdout 实现 openspec 相关语义，SHALL 不以 `import`/`require` 形式引用 `@fission-ai/openspec` 的任何模块（因该包的 `package.json#exports` 未开放子路径；`dist/core/*` 属于内部实现不稳定）。
 
 适配层对 tool 层暴露且仅暴露以下 5 个函数：
 
@@ -307,11 +307,11 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **WHEN** 在 `mcp-servers/fyllo-specs/src/tools/` 任意文件中检查 import / require
 - **THEN** 不存在 `from "@fission-ai/openspec"` 或 `from "@fission-ai/openspec/*"` 的 import
 - **AND** 不存在直接调用 `child_process.spawn` / `execa` 启动 `openspec` 的代码
-- **AND** 所有 openspec 语义经由 `import ... from "../openspec-runtime"`
+- **AND** 所有 openspec 语义经由 `import ... from "../runtime-openspec"`
 
 #### Scenario: 适配层不以库形式 require openspec
 
-- **WHEN** 在 `mcp-servers/fyllo-specs/src/openspec-runtime/` 下检查文件的 import / require
+- **WHEN** 在 `mcp-servers/fyllo-specs/src/runtime-openspec/` 下检查文件的 import / require
 - **THEN** 不存在 `import ... from "@fission-ai/openspec"` 或 `require("@fission-ai/openspec/...")`
 - **AND** 存在通过 `child_process.spawn`（或等价 API）启动 `bin/openspec.js` 的代码路径
 
@@ -454,16 +454,16 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 - **WHEN** 调用任一 tool 传入 `targetPath: <FYLLO_PROJECT_PATH> + "/"`（含 trailing slash）
 - **THEN** 校验通过（path.resolve 剥离 trailing slash 后等于 main repo）
 
-### Requirement: workspace-runtime 封装 git 工作区操作
+### Requirement: runtime-workspace 封装 git 工作区操作
 
-系统 SHALL 在 `mcp-servers/fyllo-specs/src/workspace-runtime/` 提供内部适配层，负责所有 git worktree 与 archive finalization 操作。
+系统 SHALL 在 `mcp-servers/fyllo-specs/src/runtime-workspace/` 提供内部适配层，负责所有 git worktree 与 archive finalization 操作。
 
-`workspace-runtime` SHALL 向 tool 层或 workflow 编排层暴露以下能力：
+`runtime-workspace` SHALL 向 tool 层或 workflow 编排层暴露以下能力：
 
 - `prepareProposalWorkspace(input: { mainProjectPath: string; changeName: string; workspaceMode: "linked" | "main" }): Promise<{ workspace: { mode: "linked" | "main"; path: string }; warnings: string[] }>`
 - `finalizeArchiveWorkspace(input: { mainProjectPath: string; workspacePath: string; changeName: string; commitMessage: string }): Promise<{ mode: "linked" | "main"; path: string; ok: boolean; gitOps: ArchiveGitOpResult[]; failedStep: ArchiveGitStep | null; error?: WorkspaceRuntimeError }>`
 
-`workspace-runtime` SHALL 负责直接调用 git 子进程完成：
+`runtime-workspace` SHALL 负责直接调用 git 子进程完成：
 
 - 检查 `mainProjectPath` 是否为 git repo
 - 按需维护 `.worktrees/` ignore 规则
@@ -473,22 +473,22 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 - `git worktree remove`
 - `git branch -d`
 
-`openspec-runtime` SHALL NOT import `workspace-runtime`，`workspace-runtime` SHALL NOT import `openspec-runtime`。两者只能在 tool handler 或很薄的 workflow module 中组合。
+`runtime-openspec` SHALL NOT import `runtime-workspace`，`runtime-workspace` SHALL NOT import `runtime-openspec`。两者只能在 tool handler 或很薄的 workflow module 中组合。
 
 #### Scenario: runtime 模块保持分层隔离
 
-- **WHEN** 检查 `mcp-servers/fyllo-specs/src/openspec-runtime/` 下的 imports
-- **THEN** 没有文件 import `../workspace-runtime`
+- **WHEN** 检查 `mcp-servers/fyllo-specs/src/runtime-openspec/` 下的 imports
+- **THEN** 没有文件 import `../runtime-workspace`
 - **AND** 没有文件执行 `git worktree add`、`git merge`、`git worktree remove` 或 `git branch -d`
 
 #### Scenario: tool 层组合 runtimes
 
 - **WHEN** 检查 `mcp-servers/fyllo-specs/src/tools/create-proposal.ts`
-- **THEN** 它先使用 `workspace-runtime` 解析 workspace，再调用 `openspec-runtime#createChange`
+- **THEN** 它先使用 `runtime-workspace` 解析 workspace，再调用 `runtime-openspec#createChange`
 - **AND** 它将 `workspace.path` 传给 OpenSpec runtime calls
 
 #### Scenario: archive tool 先 archive 再执行 workspace finalization
 
 - **WHEN** 检查 `mcp-servers/fyllo-specs/src/tools/archive-change.ts`
-- **THEN** 它先调用 `openspec-runtime#archiveChange`，再调用 `workspace-runtime#finalizeArchiveWorkspace`
+- **THEN** 它先调用 `runtime-openspec#archiveChange`，再调用 `runtime-workspace#finalizeArchiveWorkspace`
 - **AND** 当 OpenSpec archive 失败时，不调用 workspace finalization
