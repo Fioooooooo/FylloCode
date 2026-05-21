@@ -97,7 +97,7 @@ tool SHALL 在执行 OpenSpec 创建前解析本次工作区：
 - 当 `workspaceMode === "linked"` 且 `targetPath` 是 git 项目时，tool SHALL 创建或复用 `<targetPath>/.worktrees/<changeName>` 作为 git linked worktree，并将 `workspace.path` 设为该绝对路径。
 - 当 `workspaceMode === "linked"` 但 `targetPath` 不是 git 项目时，tool SHALL fallback 到 main workspace，返回 `workspace.mode === "main"` 与 `workspace.path === path.resolve(input.targetPath)`，并在 state warnings 中说明 non-git fallback。
 
-tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)`；`createChange` SHALL 在执行 OpenSpec CLI `new change` 前先完成最小 OpenSpec 初始化，再创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
+tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)`。`runtime-openspec#createChange` SHALL 在执行 OpenSpec CLI `new change` 前确保该 `projectRoot` 已完成最小 OpenSpec 初始化，然后创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
 
 在所有 required artifacts 完成后，`create-proposal` prompt SHALL 继续要求 agent 将同一 change 的 `.openspec.yaml` `status` 显式写回 `draft`，然后才结束创建工作流。
 
@@ -149,6 +149,24 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **AND** 返回 `state.workspace.mode === "main"`
 - **AND** 返回 `state.workspace.path === path.resolve(targetPath)`
 - **AND** `state.warnings` 包含 non-git fallback 说明
+
+#### Scenario: create-proposal initializes missing OpenSpec project structure
+
+- **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
+- **AND** 解析出的 `workspace.path` 下缺少 `openspec/changes/archive/`、`openspec/specs/` 或 `openspec/config.yaml`
+- **THEN** `runtime-openspec#createChange` 在调用 OpenSpec CLI `new change` 前创建缺失的 `openspec/changes/archive/` 目录
+- **AND** 创建缺失的 `openspec/specs/` 目录
+- **AND** 当 `openspec/config.yaml` 缺失时写入默认 `schema: spec-driven` 配置模板
+- **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
+- **AND** tool 返回正常 `create-proposal` state
+
+#### Scenario: existing OpenSpec config is preserved
+
+- **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
+- **AND** 解析出的 `workspace.path` 下已存在 `openspec/config.yaml`
+- **THEN** `runtime-openspec#createChange` SHALL NOT 覆盖或改写该文件内容
+- **AND** 仍然创建缺失的 `openspec/changes/archive/` 与 `openspec/specs/` 目录
+- **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
 
 ### Requirement: apply-change tool 返回 state
 
@@ -390,7 +408,13 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 - `createChange(projectRoot: string, name: string)`
 - `archiveChange(projectRoot: string, name: string, opts: { confirm?: boolean })`
 
-tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/openspec`；所有与 openspec 相关的行为 SHALL 经适配层，且 `createChange` 的初始化职责不得上移到 tool 层。
+`createChange(projectRoot, name)` SHALL 在 spawn OpenSpec CLI 前执行最小 OpenSpec 项目初始化检查。该检查 SHALL 确保：
+
+- `<projectRoot>/openspec/changes/archive/` 存在；
+- `<projectRoot>/openspec/specs/` 存在；
+- `<projectRoot>/openspec/config.yaml` 存在；若不存在，写入默认 `schema: spec-driven` 配置模板；若已存在，保持原内容不变。
+
+tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/openspec`；所有与 openspec 相关的行为 SHALL 经由 `import ... from "../runtime-openspec"`。
 
 #### Scenario: tool 不直接引用 openspec
 
@@ -404,6 +428,23 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **WHEN** 在 `mcp-servers/fyllo-specs/src/runtime-openspec/` 下检查文件的 import / require
 - **THEN** 不存在 `import ... from "@fission-ai/openspec"` 或 `require("@fission-ai/openspec/...")`
 - **AND** 存在通过 `child_process.spawn`（或等价 API）启动 `bin/openspec.js` 的代码路径
+
+#### Scenario: createChange initializes before spawning CLI
+
+- **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
+- **AND** `<projectRoot>/openspec/config.yaml` 不存在
+- **THEN** runtime-openspec SHALL 在 spawn OpenSpec CLI 前写入默认 `config.yaml`
+- **AND** 在 spawn OpenSpec CLI 前创建 `<projectRoot>/openspec/changes/archive/`
+- **AND** 在 spawn OpenSpec CLI 前创建 `<projectRoot>/openspec/specs/`
+- **AND** spawn OpenSpec CLI 创建 change
+
+#### Scenario: createChange preserves existing config before spawning CLI
+
+- **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
+- **AND** `<projectRoot>/openspec/config.yaml` 已存在且包含自定义内容
+- **THEN** runtime-openspec SHALL NOT 覆盖该文件
+- **AND** SHALL 在 spawn OpenSpec CLI 前补齐缺失目录
+- **AND** spawn OpenSpec CLI 创建 change
 
 ### Requirement: 禁用 openspec 遥测
 
