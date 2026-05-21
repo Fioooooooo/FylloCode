@@ -22,6 +22,8 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 - Read every file listed in `state.contextFiles` first. No code change before this is done.
 - Confirm at least the proposal, spec, and tasks; read `design` when it exists. Do not skip dependent artifacts.
 - Consult project documentation and conventions relevant to this change, especially the `guidelines/` docs.
+- Use `mcp__fyllo_skills__guidelines` as the bundled source for the project guidelines file contract and maintenance rules.
+- Read applicable local repository guidelines before editing code.
 - Read before write, evidence before assertion. If a fact is reachable from existing code, types, docs, or specs, do not assume it.
 
 ## Implementation Rules
@@ -34,6 +36,7 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 - Reuse existing components, patterns, utilities, directory structure, and interface conventions. Do not introduce new abstractions or reshape architecture unless it is strictly necessary.
 - Do not fix unrelated issues opportunistically. Do not let a local fix grow into a sweeping refactor.
 - Every change must respect the codebase's layering, typing, routing, API, state management, testing, and formatting conventions.
+- If implementation reveals local guidelines are missing, stale, or inconsistent with repository facts, update the relevant guidelines as part of the same change.
 
 ## When to Pause
 

@@ -107,4 +107,35 @@ describe("system-reminder templates", () => {
   it("allows apply.txt to be wrapped without nested wrapper tags", () => {
     expect(() => wrapAsSystemReminder(applyTemplate)).not.toThrow();
   });
+
+  it("routes chat and apply reminders to fyllo-skills guidelines", () => {
+    const chatReminder = renderSystemReminderTemplate(
+      chatTemplate,
+      createContext({ owner: "chat" })
+    );
+    const applyReminder = renderSystemReminderTemplate(
+      applyTemplate,
+      createContext({ owner: "apply" })
+    );
+
+    expect(chatReminder).toContain("fyllo-skills.guidelines");
+    expect(applyReminder).toContain("fyllo-skills.guidelines");
+  });
+
+  it("keeps detailed guideline template headings out of chat and apply reminders", () => {
+    const chatReminder = renderSystemReminderTemplate(
+      chatTemplate,
+      createContext({ owner: "chat" })
+    );
+    const applyReminder = renderSystemReminderTemplate(
+      applyTemplate,
+      createContext({ owner: "apply" })
+    );
+
+    for (const reminder of [chatReminder, applyReminder]) {
+      expect(reminder).not.toContain("AGENTS.md Index");
+      expect(reminder).not.toContain("Guideline Document Format");
+      expect(reminder).not.toContain("Maintenance Triggers");
+    }
+  });
 });

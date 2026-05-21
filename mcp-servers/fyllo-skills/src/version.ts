@@ -1,0 +1,1 @@
+export const FYLLO_SKILLS_SERVER_VERSION = "0.1.0";

@@ -42,6 +42,7 @@ describe("archive system-reminder template", () => {
     expect(reminder).toContain("Workspace Policy");
     expect(reminder).toContain("/abs/.worktrees/foo");
     expect(reminder).toContain("mcp__fyllo_specs__archive-change");
+    expect(reminder).toContain("fyllo-skills.guidelines");
     expect(reminder).toContain("state.archive");
     expect(reminder).toContain("state.workspace");
     expect(reminder).toContain('state.workspace.recovery.required === "agent"');
@@ -52,6 +53,8 @@ describe("archive system-reminder template", () => {
     expect(reminder).not.toContain("git -C /abs merge --ff-only");
     expect(reminder).not.toContain("git -C /abs worktree remove");
     expect(reminder).not.toContain("git -C /abs branch -d");
+    expect(reminder).not.toContain("AGENTS.md Index");
+    expect(reminder).not.toContain("Guideline Document Format");
   });
 
   it("allows bounded agent recovery only after archive succeeded and workspace recovery is required", () => {

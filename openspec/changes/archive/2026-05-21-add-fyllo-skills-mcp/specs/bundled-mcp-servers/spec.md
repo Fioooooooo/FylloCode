@@ -1,10 +1,4 @@
-# bundled-mcp-servers Specification
-
-## Purpose
-
-定义 FylloCode 内置 MCP server 的分发契约、启动参数构造、env 约定、路径解析规则，以及与 ACP `newSession` / `resumeSession` 的对接方式。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 内置 MCP server 以顶级构建目标形式存在
 

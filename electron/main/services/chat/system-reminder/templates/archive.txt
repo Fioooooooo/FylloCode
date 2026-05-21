@@ -24,6 +24,11 @@ Your job is to keep the archive result, the spec state, and the commit history m
 3. Archive only when there is no conflict. If the target archive path conflicts, stop and report — never force through.
 4. Call `mcp__fyllo_specs__archive-change` with `confirm: true` and `commitMessage` so the tool archives and finalizes the workspace.
 
+## Project Guidelines
+
+- `mcp__fyllo_skills__guidelines` is the bundled source for the project guidelines file contract and maintenance rules.
+- Before final archive, check whether the completed change altered commands, architecture, tests, workflow, data contracts, or project conventions that should have updated local guidelines.
+
 ## Commit Rules
 
 - The commit subject (first line) MUST follow `type(scope): summary`.

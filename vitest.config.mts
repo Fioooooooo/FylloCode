@@ -49,6 +49,7 @@ export default defineConfig({
           include: [
             "electron/main/__tests__/**/*.{test,spec}.ts",
             "mcp-servers/fyllo-specs/__tests__/**/*.{test,spec}.ts",
+            "mcp-servers/fyllo-skills/__tests__/**/*.{test,spec}.ts",
             "shared/__tests__/**/*.{test,spec}.ts",
           ],
           setupFiles: ["electron/main/__tests__/setup.ts"],
@@ -63,7 +64,13 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "html"],
       reportsDirectory: "./coverage",
-      include: ["frontend/src", "electron/main", "mcp-servers/fyllo-specs", "shared"],
+      include: [
+        "frontend/src",
+        "electron/main",
+        "mcp-servers/fyllo-specs",
+        "mcp-servers/fyllo-skills",
+        "shared",
+      ],
       exclude: [
         "frontend/src/**/*.spec.ts",
         "frontend/src/**/*.test.ts",

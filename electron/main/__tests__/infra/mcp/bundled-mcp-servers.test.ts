@@ -14,17 +14,37 @@ describe("bundled mcp servers", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns dev bundle spec", () => {
+  it("returns dev bundle specs in stable order", () => {
     const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
-    expect(specs[0]?.name).toBe("fyllo-specs");
+    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-skills"]);
     expect(specs[0]?.command).toBe(process.execPath);
-    expect(specs[0]?.env.FYLLO_PROJECT_PATH).toBe("/tmp/project");
+    expect(specs[0]?.args[0]).toBe(
+      join(process.cwd(), "out", "mcp-servers", "fyllo-specs", "index.js")
+    );
+    expect(specs[1]?.args[0]).toBe(
+      join(process.cwd(), "out", "mcp-servers", "fyllo-skills", "index.js")
+    );
+    expect(specs[0]?.env).toEqual(
+      expect.objectContaining({
+        ELECTRON_RUN_AS_NODE: "1",
+        FYLLO_PROJECT_PATH: "/tmp/project",
+        FYLLO_MCP_TELEMETRY: "0",
+      })
+    );
+    expect(specs[1]?.env).toEqual(
+      expect.objectContaining({
+        ELECTRON_RUN_AS_NODE: "1",
+        FYLLO_PROJECT_PATH: "/tmp/project",
+        FYLLO_MCP_TELEMETRY: "0",
+      })
+    );
     expect(specs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
       join(process.cwd(), "node_modules", "@fission-ai", "openspec", "bin", "openspec.js")
     );
+    expect(specs[1]?.env.FYLLO_OPENSPEC_CLI_PATH).toBeUndefined();
   });
 
-  it("returns production openspec cli path from app.asar", () => {
+  it("returns production bundle specs from unpacked resources", () => {
     (is as { dev: boolean }).dev = false;
     Object.defineProperty(process, "resourcesPath", {
       configurable: true,
@@ -33,6 +53,25 @@ describe("bundled mcp servers", () => {
 
     const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
 
+    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-skills"]);
+    expect(specs[0]?.args[0]).toBe(
+      join(
+        "/Applications/FylloCode.app/Contents/Resources",
+        "app.asar.unpacked",
+        "mcp-servers",
+        "fyllo-specs",
+        "index.js"
+      )
+    );
+    expect(specs[1]?.args[0]).toBe(
+      join(
+        "/Applications/FylloCode.app/Contents/Resources",
+        "app.asar.unpacked",
+        "mcp-servers",
+        "fyllo-skills",
+        "index.js"
+      )
+    );
     expect(specs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
       join(
         "/Applications/FylloCode.app/Contents/Resources",
@@ -44,6 +83,7 @@ describe("bundled mcp servers", () => {
         "openspec.js"
       )
     );
+    expect(specs[1]?.env.FYLLO_OPENSPEC_CLI_PATH).toBeUndefined();
   });
 
   it("respects disable flag", () => {
