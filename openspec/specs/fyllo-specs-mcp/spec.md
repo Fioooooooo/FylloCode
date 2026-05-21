@@ -186,6 +186,8 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 - `commitMessage` 的第一行 SHALL 匹配 `type(scope): summary` 格式。
 - tool SHALL 先执行 OpenSpec archive；OpenSpec archive 失败或冲突时 SHALL 不执行任何 git 操作。
 - OpenSpec archive 成功后，tool SHALL 执行 workspace git finalization，并按步骤返回结果。
+- 若 workspace finalization 遇到 linked worktree `merge-to-main` fast-forward 失败，且 main workspace 与 linked worktree 均为 clean、proposal branch 存在、失败属于普通非快进分叉，tool SHALL 自动 rebase proposal worktree 到当前 main branch，重试 fast-forward merge，并在成功后继续 cleanup。
+- 若自动恢复不安全或恢复过程中发生冲突，tool SHALL 停止后续 cleanup，返回结构化 recovery state，让 agent 从该中间态接手 workspace finalization。
 
 返回 state SHALL 采用分层结构：
 
@@ -210,15 +212,45 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
     path: string;
     ok: boolean;
     gitOps: {
-      step: "commit" | "merge-to-main" | "worktree-remove" | "branch-delete";
+      step:
+        | "commit"
+        | "merge-to-main"
+        | "rebase-onto-main"
+        | "merge-to-main-retry"
+        | "worktree-remove"
+        | "branch-delete";
       cwd: string;
       command: string;
       exitCode: number | null;
       stdout: string;
       stderr: string;
       ok: boolean;
+      outcome?: "created" | "noop" | "failed";
     }[];
-    failedStep: "commit" | "merge-to-main" | "worktree-remove" | "branch-delete" | null;
+    failedStep:
+      | "commit"
+      | "merge-to-main"
+      | "rebase-onto-main"
+      | "merge-to-main-retry"
+      | "worktree-remove"
+      | "branch-delete"
+      | null;
+    recovery?: {
+      required: "none" | "agent";
+      kind:
+        | "none"
+        | "rebase-conflict"
+        | "dirty-workspace"
+        | "missing-branch"
+        | "unknown-git-error";
+      mainPath: string;
+      workspacePath: string;
+      mainBranch: string | null;
+      proposalBranch: string;
+      completedSteps: string[];
+      remainingSteps: string[];
+      instructions: string[];
+    };
     error?: {
       code: string;
       message: string;
@@ -250,37 +282,85 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 - **AND** `state.archive.ok === false`
 - **AND** `state.archive.error` 存在
 - **AND** `state.workspace.gitOps` 为空数组
-- **AND** tool 不执行 git commit / merge / worktree remove / branch delete
+- **AND** tool 不执行 git commit / merge / rebase / worktree remove / branch delete
 
-#### Scenario: main workspace archive 只执行 commit
+#### Scenario: main workspace archive commit 有 diff
 
 - **WHEN** 调用 `archive-change` 传入 `targetPath === FYLLO_PROJECT_PATH`、`confirm: true`、合法 `commitMessage`
 - **AND** OpenSpec archive 成功
+- **AND** workspace 存在待提交 diff
 - **THEN** tool 执行 git commit step
 - **AND** `state.workspace.mode === "main"`
 - **AND** `state.workspace.gitOps` 仅包含 `step === "commit"` 的结果
-- **AND** 不执行 `merge-to-main` / `worktree-remove` / `branch-delete`
+- **AND** commit op `outcome === "created"`
+- **AND** 不执行 `merge-to-main` / `rebase-onto-main` / `merge-to-main-retry` / `worktree-remove` / `branch-delete`
 
-#### Scenario: linked workspace archive 执行四步链
+#### Scenario: main workspace archive commit 无 diff 时成功 no-op
+
+- **WHEN** 调用 `archive-change` 传入 `targetPath === FYLLO_PROJECT_PATH`、`confirm: true`、合法 `commitMessage`
+- **AND** OpenSpec archive 成功
+- **AND** `git add -A` 后没有可提交 diff
+- **THEN** `state.status === "done"`
+- **AND** `state.workspace.mode === "main"`
+- **AND** `state.workspace.gitOps` 仅包含 `step === "commit"` 的结果
+- **AND** commit op `ok === true`
+- **AND** commit op `outcome === "noop"`
+- **AND** 不把 `nothing to commit` 视为 archive failure
+
+#### Scenario: linked workspace archive 直接完成全部 git steps
 
 - **WHEN** 调用 `archive-change` 传入 registered linked worktree `targetPath`、`confirm: true`、合法 `commitMessage`
 - **AND** OpenSpec archive 成功
+- **AND** main 可以直接 fast-forward 到 proposal branch
 - **THEN** tool 按固定顺序执行 `commit`、`merge-to-main`、`worktree-remove`、`branch-delete`
 - **AND** `state.workspace.gitOps` 按执行顺序记录每一步的 `cwd`、`command`、`exitCode`、`stdout`、`stderr`、`ok`
 - **AND** 全部成功时 `state.status === "done"`、`state.workspace.ok === true`、`state.workspace.failedStep === null`
+- **AND** `state.workspace.recovery.required === "none"`
 
-#### Scenario: linked workspace git 失败时短路后续步骤
+#### Scenario: linked workspace merge 失败后自动 rebase 并完成 cleanup
 
-- **WHEN** linked workspace archive 的 `merge-to-main` step 失败
+- **WHEN** linked workspace archive 的首次 `merge-to-main` 因非 fast-forward 失败
+- **AND** `state.archive.ok === true`
+- **AND** main workspace 与 linked worktree 均为 clean
+- **AND** proposal branch 存在且 linked worktree 没有进行中的 rebase
+- **THEN** tool 执行 `rebase-onto-main`
+- **AND** rebase 成功后执行 `merge-to-main-retry`
+- **AND** retry merge 成功后继续执行 `worktree-remove` 与 `branch-delete`
+- **AND** `state.workspace.gitOps` 按顺序包含 `commit`、失败的 `merge-to-main`、成功的 `rebase-onto-main`、成功的 `merge-to-main-retry`、`worktree-remove`、`branch-delete`
+- **AND** `state.status === "done"`
+- **AND** `state.workspace.ok === true`
+- **AND** `state.workspace.failedStep === null`
+- **AND** `state.workspace.recovery.required === "none"`
+
+#### Scenario: linked workspace rebase 冲突时要求 agent 接手
+
+- **WHEN** linked workspace archive 的首次 `merge-to-main` 因非 fast-forward 失败
+- **AND** tool 尝试 `rebase-onto-main`
+- **AND** rebase 因内容冲突失败
 - **THEN** `state.status === "failed"`
 - **AND** `state.archive.ok === true`
 - **AND** `state.workspace.ok === false`
-- **AND** `state.workspace.failedStep === "merge-to-main"`
-- **AND** `state.workspace.gitOps` 包含成功的 `commit` step 和失败的 `merge-to-main` step
-- **AND** `state.workspace.gitOps` 不包含 `worktree-remove` 或 `branch-delete`
-- **AND** `state.workspace.error.retryHint` 提供合适的恢复提示
+- **AND** `state.workspace.failedStep === "rebase-onto-main"`
+- **AND** `state.workspace.gitOps` 包含成功的 `commit`、失败的 `merge-to-main`、失败的 `rebase-onto-main`
+- **AND** `state.workspace.gitOps` 不包含 `merge-to-main-retry`、`worktree-remove` 或 `branch-delete`
+- **AND** `state.workspace.recovery.required === "agent"`
+- **AND** `state.workspace.recovery.kind === "rebase-conflict"`
+- **AND** `state.workspace.recovery.remainingSteps` 包含解决 rebase、重试 fast-forward merge、移除 worktree、删除 proposal branch
 
-#### Scenario: 非法 commit message 作为 workspace 错误返回
+#### Scenario: linked workspace dirty 时不自动 rebase
+
+- **WHEN** linked workspace archive 的首次 `merge-to-main` 因非 fast-forward 失败
+- **AND** main workspace 或 linked worktree 存在未提交变更
+- **THEN** tool 不执行 `rebase-onto-main`
+- **AND** `state.status === "failed"`
+- **AND** `state.archive.ok === true`
+- **AND** `state.workspace.ok === false`
+- **AND** `state.workspace.failedStep === "merge-to-main"`
+- **AND** `state.workspace.recovery.required === "agent"`
+- **AND** `state.workspace.recovery.kind === "dirty-workspace"`
+- **AND** `state.workspace.error.retryHint` 指示 agent 先保护并清理 dirty workspace 后再继续 finalization
+
+#### Scenario: 非法 commit message 阻止 archive
 
 - **WHEN** 调用 `archive-change` 传入 `confirm: true` 且 `commitMessage` 第一行不匹配 `type(scope): summary`
 - **THEN** `state.status === "failed"`
@@ -461,15 +541,16 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 `runtime-workspace` SHALL 向 tool 层或 workflow 编排层暴露以下能力：
 
 - `prepareProposalWorkspace(input: { mainProjectPath: string; changeName: string; workspaceMode: "linked" | "main" }): Promise<{ workspace: { mode: "linked" | "main"; path: string }; warnings: string[] }>`
-- `finalizeArchiveWorkspace(input: { mainProjectPath: string; workspacePath: string; changeName: string; commitMessage: string }): Promise<{ mode: "linked" | "main"; path: string; ok: boolean; gitOps: ArchiveGitOpResult[]; failedStep: ArchiveGitStep | null; error?: WorkspaceRuntimeError }>`
+- `finalizeArchiveWorkspace(input: { mainProjectPath: string; workspacePath: string; changeName: string; commitMessage: string }): Promise<{ mode: "linked" | "main"; path: string; ok: boolean; gitOps: ArchiveGitOpResult[]; failedStep: ArchiveGitStep | null; recovery?: ArchiveWorkspaceRecovery; error?: WorkspaceRuntimeError }>`
 
 `runtime-workspace` SHALL 负责直接调用 git 子进程完成：
 
 - 检查 `mainProjectPath` 是否为 git repo
 - 按需维护 `.worktrees/` ignore 规则
 - 创建 linked worktree
-- git commit
+- git commit 或 no-op commit
 - `git merge --ff-only`
+- `git rebase <mainBranch>` for safe linked archive recovery
 - `git worktree remove`
 - `git branch -d`
 
@@ -479,7 +560,7 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 
 - **WHEN** 检查 `mcp-servers/fyllo-specs/src/runtime-openspec/` 下的 imports
 - **THEN** 没有文件 import `../runtime-workspace`
-- **AND** 没有文件执行 `git worktree add`、`git merge`、`git worktree remove` 或 `git branch -d`
+- **AND** 没有文件执行 `git worktree add`、`git merge`、`git rebase`、`git worktree remove` 或 `git branch -d`
 
 #### Scenario: tool 层组合 runtimes
 

@@ -115,6 +115,8 @@ archive system-reminder SHALL 说明空的 `{{worktreePath}}` 表示 main worksp
 - **AND** archive 行为遵循 main workspace mode
 - **AND** 不尝试 linked worktree cleanup step
 
+## ADDED Requirements
+
 ### Requirement: Archive system-reminder allows bounded agent recovery after tool finalization failure
 
 archive system-reminder SHALL continue to require `mcp__fyllo_specs__archive-change` as the primary archive path. It SHALL NOT allow agent to invoke the OpenSpec CLI directly, manually move archive files, or bypass `archive-change` when `state.archive.ok === false`.
