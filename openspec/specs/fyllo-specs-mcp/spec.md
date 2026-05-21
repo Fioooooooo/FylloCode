@@ -97,7 +97,7 @@ tool SHALL 在执行 OpenSpec 创建前解析本次工作区：
 - 当 `workspaceMode === "linked"` 且 `targetPath` 是 git 项目时，tool SHALL 创建或复用 `<targetPath>/.worktrees/<changeName>` 作为 git linked worktree，并将 `workspace.path` 设为该绝对路径。
 - 当 `workspaceMode === "linked"` 但 `targetPath` 不是 git 项目时，tool SHALL fallback 到 main workspace，返回 `workspace.mode === "main"` 与 `workspace.path === path.resolve(input.targetPath)`，并在 state warnings 中说明 non-git fallback。
 
-tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)` 创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
+tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用 `runtime-openspec#createChange(projectRoot, changeName)`；`createChange` SHALL 在执行 OpenSpec CLI `new change` 前先完成最小 OpenSpec 初始化，再创建目录并写入初始 `.openspec.yaml { schema, status: "creating" }`。
 
 在所有 required artifacts 完成后，`create-proposal` prompt SHALL 继续要求 agent 将同一 change 的 `.openspec.yaml` `status` 显式写回 `draft`，然后才结束创建工作流。
 
@@ -390,7 +390,7 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 - `createChange(projectRoot: string, name: string)`
 - `archiveChange(projectRoot: string, name: string, opts: { confirm?: boolean })`
 
-tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/openspec`；所有与 openspec 相关的行为 SHALL 经适配层。
+tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/openspec`；所有与 openspec 相关的行为 SHALL 经适配层，且 `createChange` 的初始化职责不得上移到 tool 层。
 
 #### Scenario: tool 不直接引用 openspec
 

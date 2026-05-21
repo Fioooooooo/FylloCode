@@ -183,8 +183,6 @@ describe("tools", () => {
 
   it("create-proposal uses explicit main workspace", async () => {
     const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
-    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
-    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
 
     const prev = process.env.FYLLO_PROJECT_PATH;
     const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
@@ -200,6 +198,9 @@ describe("tools", () => {
       const state = JSON.parse(text);
       expect(state.workspace).toEqual({ mode: "main", path: root });
       expect(state.warnings).toEqual([]);
+      expect(existsSync(join(root, "openspec", "config.yaml"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
       expect(existsSync(join(root, "openspec", "changes", "main-workspace-change"))).toBe(true);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -233,8 +234,6 @@ describe("tools", () => {
 
   it("create-proposal defaults to linked workspace for git projects", async () => {
     const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
-    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
-    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
     initGitRepo(root);
 
     const prev = process.env.FYLLO_PROJECT_PATH;
@@ -253,6 +252,9 @@ describe("tools", () => {
       expect(
         existsSync(join(workspacePath, "openspec", "changes", "linked-workspace-change"))
       ).toBe(true);
+      expect(existsSync(join(workspacePath, "openspec", "config.yaml"))).toBe(true);
+      expect(existsSync(join(workspacePath, "openspec", "changes", "archive"))).toBe(true);
+      expect(existsSync(join(workspacePath, "openspec", "specs"))).toBe(true);
       expect(readFileSync(join(root, ".gitignore"), "utf8")).toContain(".worktrees/");
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
   archiveChange,
   computeStatus,
+  createChange,
   getInstructions,
   listChanges,
   resolveOpenspecCli,
@@ -62,6 +63,45 @@ describe("openspec-runtime", () => {
   it("loads instructions", async () => {
     const result = await getInstructions(fixtureRoot, "sample-change", "proposal");
     expect(result).toHaveProperty("instruction");
+  });
+
+  it("initializes missing openspec project structure before creating a change", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-init-"));
+
+    try {
+      await createChange(root, "sample-change");
+
+      expect(existsSync(join(root, "openspec", "config.yaml"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "changes", "sample-change"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves an existing config file when creating a change", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-"));
+    const configPath = join(root, "openspec", "config.yaml");
+    const originalConfig = [
+      "schema: spec-driven",
+      "context: |",
+      "  custom project context",
+      "",
+    ].join("\n");
+
+    mkdirSync(join(root, "openspec"), { recursive: true });
+    writeFileSync(configPath, originalConfig, "utf8");
+
+    try {
+      await createChange(root, "preserved-change");
+
+      expect(readFileSync(configPath, "utf8")).toBe(originalConfig);
+      expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("reads apply state", async () => {
