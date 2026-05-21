@@ -6,7 +6,11 @@ import { validateTargetPath } from "../utils/project-root";
 import { finalizeArchiveWorkspace } from "../runtime-workspace";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import type { ArchiveGitOpResult } from "../runtime-workspace";
+import type {
+  ArchiveGitOpResult,
+  ArchiveGitStep,
+  ArchiveWorkspaceRecovery,
+} from "../runtime-workspace";
 
 const commitMessageSchema = /^[a-z]+(?:-[a-z]+)*\([a-z0-9-]+\): .+/;
 
@@ -42,6 +46,7 @@ function emptyWorkspace(projectRoot: string): {
   ok: boolean;
   gitOps: [];
   failedStep: null;
+  recovery: ArchiveWorkspaceRecovery;
 } {
   return {
     mode: "main",
@@ -49,6 +54,17 @@ function emptyWorkspace(projectRoot: string): {
     ok: true,
     gitOps: [],
     failedStep: null,
+    recovery: {
+      required: "none",
+      kind: "none",
+      mainPath: projectRoot,
+      workspacePath: projectRoot,
+      mainBranch: null,
+      proposalBranch: "",
+      completedSteps: [],
+      remainingSteps: [],
+      instructions: [],
+    },
   };
 }
 
@@ -72,7 +88,8 @@ function invalidCommitMessageState(input: { changeName: string; projectRoot: str
     path: string;
     ok: false;
     gitOps: ArchiveGitOpResult[];
-    failedStep: null;
+    failedStep: ArchiveGitStep | null;
+    recovery: ArchiveWorkspaceRecovery;
   };
 } {
   return {

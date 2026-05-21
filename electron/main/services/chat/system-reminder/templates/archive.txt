@@ -37,8 +37,10 @@ Your job is to keep the archive result, the spec state, and the commit history m
 - Run archive actions through `mcp__fyllo_specs__archive-change` and the existing runtime flow. Do not improvise an alternate path.
 - Do not invoke the OpenSpec CLI directly or move archive files by hand. Archive actions go through the existing MCP / runtime flow.
   - **Why**: the runtime flow keeps state.contextFiles, task checkboxes, and stage transitions in sync; bypassing it via raw CLI or filesystem operations leaves FylloCode's stage tracking inconsistent and breaks recovery.
+- If `mcp__fyllo_specs__archive-change` returns `state.archive.ok === false`, stop. Do not move archive files manually, rerun OpenSpec archive through shell commands, or run git finalization commands.
+- If `mcp__fyllo_specs__archive-change` returns `state.archive.ok === true`, `state.workspace.ok === false`, and `state.workspace.recovery.required === "agent"`, OpenSpec archive already succeeded. You may continue only the bounded workspace git finalization described by `state.workspace.recovery` without rerunning archive.
 - If incomplete tasks, missing artifacts, or archive conflicts exist, surface the situation and the risk clearly, then ask for confirmation or stop. Do not paper over it.
-- After completing, summarize explicitly: archive location, whether the spec was synced, any warnings, whether workspace finalization landed, and the commit message used.
+- After completing or pausing, summarize explicitly: archive location, whether the spec was synced, any warnings, archive success, failed workspace step when present, completed `state.workspace.gitOps`, recovery kind and remaining steps when present, whether workspace finalization landed, and the commit message used.
 </rules>
 
 <workspace>
@@ -52,20 +54,21 @@ FylloCode has already selected and set the current workspace for this Archive st
   - **Why**: archive files, synced specs, and finalization state may live in a linked worktree, and using the main project path can archive the wrong change or finalize the wrong workspace.
 - Treat `state.archive` as the source of truth for OpenSpec archive results, and `state.workspace` as the source of truth for workspace finalization results.
   - **Why**: archive failures and workspace/git failures require different recovery paths; merging them into one status makes it easy to report or retry the wrong step.
-- Do not manually run git commit, merge, worktree cleanup, or branch deletion in the Archive stage unless the user explicitly asks you to do so. If manual workspace recovery is requested, state that it bypasses the MCP workspace runtime before proceeding.
-  - **Why**: workspace lifecycle normally belongs to the MCP tool runtime so failures can be returned as structured state instead of shell output that the agent must interpret.
+- Do not manually run git commit, merge, worktree cleanup, or branch deletion before calling `mcp__fyllo_specs__archive-change`. After the tool reports `state.archive.ok === true`, `state.workspace.ok === false`, and `state.workspace.recovery.required === "agent"`, use the returned recovery state as the boundary for any further git commands.
+  - **Why**: workspace lifecycle normally belongs to the MCP tool runtime; bounded agent recovery starts only after the runtime has archived successfully and returned structured finalization state.
 </workspace>
 
 <critical priority="must-not-violate">
 The following constraints MUST NOT be violated in the Archive stage. If bypassing one is genuinely required, surface the reason to the user and obtain explicit consent first.
 
-- **MUST let `mcp__fyllo_specs__archive-change` perform archive and workspace finalization.** No shell reimplementation unless the user explicitly requests manual recovery after a tool failure.
+- **MUST let `mcp__fyllo_specs__archive-change` perform archive and workspace finalization first.** No shell reimplementation before the tool returns structured recovery state.
 - **MUST use `mcp__fyllo_specs__archive-change` as the primary stage tool** for the archive action.
 - **MUST default to `Sync now` for delta specs.** Skip sync only with explicit user acceptance of the risk.
 - **MUST stop on archive path conflicts.** Never force through.
 - **MUST use `type(scope): summary` for the commit subject** and accurately describe the archive/sync actions.
 - **MUST inspect `state.archive` and `state.workspace` separately** and report which part failed.
-- **MUST NOT manually run git commit / merge / worktree cleanup commands** unless the user explicitly asks for manual recovery after a tool failure.
+- **MUST NOT manually run git commit / merge / worktree cleanup commands before `archive-change`.** After `state.archive.ok === true`, `state.workspace.ok === false`, and `state.workspace.recovery.required === "agent"`, bounded git recovery from `state.workspace.recovery` is allowed.
+- **MUST NOT run git finalization commands when `state.archive.ok === false`.** Report the archive error or conflict instead.
 - **MUST NOT bypass the MCP / runtime flow** by calling the OpenSpec CLI directly or moving files manually.
 - **MUST report incomplete tasks, missing artifacts, or conflicts honestly** before proceeding or stopping.
 - **MUST call `archive-change` with `includeInstruction: true`** (or leave it unset) on the first invocation of this run. The returned `tool_instruction` defines the sync → archive → commit ordering, conflict handling, and reporting contract. Passing `false` returns only state JSON and discards that workflow.

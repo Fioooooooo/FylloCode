@@ -443,6 +443,7 @@ describe("tools", () => {
       expect(state.archive.archiveRawOutput).toBeNull();
       expect(state.archive.incompleteTasks).toBe(1);
       expect(state.workspace.gitOps).toEqual([]);
+      expect(state.workspace.recovery.required).toBe("none");
       expect(existsSync(changeDir)).toBe(true);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -476,6 +477,7 @@ describe("tools", () => {
       expect(state.archive.ok).toBe(false);
       expect(state.archive.error.code).toBe("invalid-commit-message");
       expect(state.workspace.gitOps).toEqual([]);
+      expect(state.workspace.recovery.required).toBe("none");
       expect(existsSync(changeDir)).toBe(true);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -526,6 +528,12 @@ describe("tools", () => {
       expect(
         (state.workspace as { gitOps: Array<{ step: string }> }).gitOps.map((op) => op.step)
       ).toEqual(["commit"]);
+      expect((state.workspace as { gitOps: Array<{ outcome?: string }> }).gitOps[0].outcome).toBe(
+        "created"
+      );
+      expect((state.workspace as { recovery: { required: string } }).recovery.required).toBe(
+        "none"
+      );
       expect(existsSync(changeDir)).toBe(false);
       const archiveTarget = (state.archive as { archiveTarget: string }).archiveTarget;
       expect(existsSync(archiveTarget)).toBe(true);

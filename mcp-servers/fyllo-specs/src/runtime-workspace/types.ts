@@ -5,7 +5,13 @@ export interface WorkspaceInfo {
   path: string;
 }
 
-export type ArchiveGitStep = "commit" | "merge-to-main" | "worktree-remove" | "branch-delete";
+export type ArchiveGitStep =
+  | "commit"
+  | "merge-to-main"
+  | "rebase-onto-main"
+  | "merge-to-main-retry"
+  | "worktree-remove"
+  | "branch-delete";
 
 export interface ArchiveGitOpResult {
   step: ArchiveGitStep;
@@ -15,6 +21,7 @@ export interface ArchiveGitOpResult {
   stdout: string;
   stderr: string;
   ok: boolean;
+  outcome?: "created" | "noop" | "failed";
 }
 
 export interface WorkspaceRuntimeError {
@@ -28,9 +35,22 @@ export interface PrepareProposalWorkspaceResult {
   warnings: string[];
 }
 
+export interface ArchiveWorkspaceRecovery {
+  required: "none" | "agent";
+  kind: "none" | "rebase-conflict" | "dirty-workspace" | "missing-branch" | "unknown-git-error";
+  mainPath: string;
+  workspacePath: string;
+  mainBranch: string | null;
+  proposalBranch: string;
+  completedSteps: string[];
+  remainingSteps: string[];
+  instructions: string[];
+}
+
 export interface FinalizeArchiveWorkspaceResult extends WorkspaceInfo {
   ok: boolean;
   gitOps: ArchiveGitOpResult[];
   failedStep: ArchiveGitStep | null;
+  recovery?: ArchiveWorkspaceRecovery;
   error?: WorkspaceRuntimeError;
 }

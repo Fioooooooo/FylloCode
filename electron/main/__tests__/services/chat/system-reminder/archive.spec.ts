@@ -44,12 +44,34 @@ describe("archive system-reminder template", () => {
     expect(reminder).toContain("mcp__fyllo_specs__archive-change");
     expect(reminder).toContain("state.archive");
     expect(reminder).toContain("state.workspace");
-    expect(reminder).toContain("bypasses the MCP workspace runtime");
+    expect(reminder).toContain('state.workspace.recovery.required === "agent"');
+    expect(reminder).toContain("bounded git recovery");
+    expect(reminder).toContain("MUST NOT run git finalization commands when");
     expect(reminder).not.toBeNull();
     expect(reminder!.indexOf("<rules>")).toBeLessThan(reminder!.indexOf("<workspace>"));
     expect(reminder).not.toContain("git -C /abs merge --ff-only");
     expect(reminder).not.toContain("git -C /abs worktree remove");
     expect(reminder).not.toContain("git -C /abs branch -d");
+  });
+
+  it("allows bounded agent recovery only after archive succeeded and workspace recovery is required", () => {
+    const reminder = renderSystemReminderTemplate(archiveTemplate, createContext());
+
+    expect(reminder).toContain(
+      'state.archive.ok === true`, `state.workspace.ok === false`, and `state.workspace.recovery.required === "agent"'
+    );
+    expect(reminder).toContain("OpenSpec archive already succeeded");
+    expect(reminder).toContain("without rerunning archive");
+    expect(reminder).toContain("After `state.archive.ok === true`");
+  });
+
+  it("forbids bypass and git finalization commands when archive fails", () => {
+    const reminder = renderSystemReminderTemplate(archiveTemplate, createContext());
+
+    expect(reminder).toContain("state.archive.ok === false");
+    expect(reminder).toContain("Do not move archive files manually");
+    expect(reminder).toContain("or run git finalization commands");
+    expect(reminder).toContain("Report the archive error or conflict instead");
   });
 
   it("renders an empty worktreePath as main workspace", () => {

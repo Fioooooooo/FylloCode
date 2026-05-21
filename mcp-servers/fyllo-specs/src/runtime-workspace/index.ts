@@ -1,6 +1,7 @@
 export type {
   ArchiveGitOpResult,
   ArchiveGitStep,
+  ArchiveWorkspaceRecovery,
   FinalizeArchiveWorkspaceResult,
   PrepareProposalWorkspaceResult,
   WorkspaceInfo,
