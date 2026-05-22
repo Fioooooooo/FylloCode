@@ -4,6 +4,10 @@ context: |
   语言：中文（简体）
   所有产出物必须用简体中文撰写。
 
+rules:
+  tasks:
+    - 评估本次 change 是否需要新增或修改 guidelines 文件（guidelines/*.md）。若有，在 tasks 中加入对应 task，明确指出要修改哪个文件、修改什么内容。
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.

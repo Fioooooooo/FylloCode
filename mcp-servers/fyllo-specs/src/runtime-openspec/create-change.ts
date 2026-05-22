@@ -4,7 +4,14 @@ import { dump, load } from "js-yaml";
 import { resolveOpenspecCli } from "./resolve-cli";
 import { spawnOpenspec } from "./spawner";
 
+export const GUIDELINES_TASKS_RULE_EN =
+  "Evaluate whether this change should add or update local repository guidelines. If so, add a task in tasks.md that names the specific guideline file and what to change.";
+
 const DEFAULT_CONFIG_YAML = `schema: spec-driven
+
+rules:
+  tasks:
+    - ${GUIDELINES_TASKS_RULE_EN}
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
@@ -17,17 +24,32 @@ const DEFAULT_CONFIG_YAML = `schema: spec-driven
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
 `;
 
 function yamlPath(projectRoot: string, name: string): string {
   return join(projectRoot, "openspec", "changes", name, ".openspec.yaml");
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function augmentExistingConfig(configPath: string): void {
+  const original = readFileSync(configPath, "utf8");
+  if (original.includes(GUIDELINES_TASKS_RULE_EN)) {
+    return;
+  }
+
+  const parsed = load(original);
+  const doc: Record<string, unknown> = isPlainObject(parsed) ? { ...parsed } : {};
+
+  const rules = isPlainObject(doc.rules) ? { ...doc.rules } : {};
+  const existingTasks = Array.isArray(rules.tasks) ? [...rules.tasks] : [];
+  existingTasks.push(GUIDELINES_TASKS_RULE_EN);
+  rules.tasks = existingTasks;
+  doc.rules = rules;
+
+  writeFileSync(configPath, dump(doc, { lineWidth: -1 }), "utf8");
 }
 
 function ensureOpenSpecProjectInitialized(projectRoot: string): void {
@@ -37,7 +59,10 @@ function ensureOpenSpecProjectInitialized(projectRoot: string): void {
   const configPath = join(projectRoot, "openspec", "config.yaml");
   if (!existsSync(configPath)) {
     writeFileSync(configPath, DEFAULT_CONFIG_YAML, "utf8");
+    return;
   }
+
+  augmentExistingConfig(configPath);
 }
 
 export async function createChange(projectRoot: string, name: string): Promise<void> {

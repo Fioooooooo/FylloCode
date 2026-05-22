@@ -156,7 +156,7 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **AND** 解析出的 `workspace.path` 下缺少 `openspec/changes/archive/`、`openspec/specs/` 或 `openspec/config.yaml`
 - **THEN** `runtime-openspec#createChange` 在调用 OpenSpec CLI `new change` 前创建缺失的 `openspec/changes/archive/` 目录
 - **AND** 创建缺失的 `openspec/specs/` 目录
-- **AND** 当 `openspec/config.yaml` 缺失时写入默认 `schema: spec-driven` 配置模板
+- **AND** 当 `openspec/config.yaml` 缺失时写入默认 `schema: spec-driven` 配置模板，且模板的 `rules.tasks` 数组中包含默认的 guidelines-evaluation 英文规则
 - **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
 - **AND** tool 返回正常 `create-proposal` state
 
@@ -164,7 +164,19 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 
 - **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
 - **AND** 解析出的 `workspace.path` 下已存在 `openspec/config.yaml`
+- **AND** 文件文本中已包含默认 guidelines-evaluation 英文规则字面量
 - **THEN** `runtime-openspec#createChange` SHALL NOT 覆盖或改写该文件内容
+- **AND** 仍然创建缺失的 `openspec/changes/archive/` 与 `openspec/specs/` 目录
+- **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
+
+#### Scenario: existing OpenSpec config is augmented with default guidelines rule
+
+- **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
+- **AND** 解析出的 `workspace.path` 下已存在 `openspec/config.yaml`
+- **AND** 文件文本中不包含默认 guidelines-evaluation 英文规则字面量
+- **THEN** `runtime-openspec#createChange` SHALL 解析该文件，将默认规则字符串追加到 `rules.tasks` 数组（必要时创建 `rules` 与 `rules.tasks` 字段）
+- **AND** SHALL 保留原文件中的其他 `rules` 条目、其他顶层字段（如 `schema`、`context`）
+- **AND** SHALL 在 spawn OpenSpec CLI 前完成回写
 - **AND** 仍然创建缺失的 `openspec/changes/archive/` 与 `openspec/specs/` 目录
 - **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
 
@@ -412,7 +424,7 @@ tool 在 state 中一并更新 `<targetPath>/openspec/changes/<changeName>/.open
 
 - `<projectRoot>/openspec/changes/archive/` 存在；
 - `<projectRoot>/openspec/specs/` 存在；
-- `<projectRoot>/openspec/config.yaml` 存在；若不存在，写入默认 `schema: spec-driven` 配置模板；若已存在，保持原内容不变。
+- `<projectRoot>/openspec/config.yaml` 存在；若不存在，写入默认 `schema: spec-driven` 配置模板，且该模板的 `rules.tasks` 数组中默认包含一条引导 agent 在生成 tasks.md 时评估本次 change 是否需要新增或修改 guidelines 文件的英文规则；若已存在，则在文件文本中检测该默认规则字面量，若未包含则解析-合并-回写以补齐 `rules.tasks`，若已包含则保持原文件字节不变。补齐时 SHALL 保留原文件中其他 `rules` 条目与其他顶层字段。
 
 tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/openspec`；所有与 openspec 相关的行为 SHALL 经由 `import ... from "../runtime-openspec"`。
 
@@ -434,16 +446,27 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
 - **AND** `<projectRoot>/openspec/config.yaml` 不存在
 - **THEN** runtime-openspec SHALL 在 spawn OpenSpec CLI 前写入默认 `config.yaml`
+- **AND** 该默认 `config.yaml` 的 `rules.tasks` 数组包含默认的 guidelines-evaluation 英文规则
 - **AND** 在 spawn OpenSpec CLI 前创建 `<projectRoot>/openspec/changes/archive/`
 - **AND** 在 spawn OpenSpec CLI 前创建 `<projectRoot>/openspec/specs/`
 - **AND** spawn OpenSpec CLI 创建 change
 
-#### Scenario: createChange preserves existing config before spawning CLI
+#### Scenario: createChange preserves existing config when default rule already present
 
 - **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
-- **AND** `<projectRoot>/openspec/config.yaml` 已存在且包含自定义内容
+- **AND** `<projectRoot>/openspec/config.yaml` 已存在且文件文本中包含默认 guidelines-evaluation 英文规则字面量
 - **THEN** runtime-openspec SHALL NOT 覆盖该文件
 - **AND** SHALL 在 spawn OpenSpec CLI 前补齐缺失目录
+- **AND** spawn OpenSpec CLI 创建 change
+
+#### Scenario: createChange augments existing config when default rule missing
+
+- **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
+- **AND** `<projectRoot>/openspec/config.yaml` 已存在但文件文本中不包含默认 guidelines-evaluation 英文规则字面量
+- **THEN** runtime-openspec SHALL 解析该文件并将默认规则字符串追加到 `rules.tasks` 数组（必要时创建 `rules` 与 `rules.tasks` 字段）
+- **AND** SHALL 保留原文件中其他 `rules` 条目与其他顶层字段（如 `schema`、`context`）
+- **AND** SHALL 在 spawn OpenSpec CLI 前完成回写
+- **AND** 在 spawn OpenSpec CLI 前补齐缺失的 `openspec/changes/archive/` 与 `openspec/specs/` 目录
 - **AND** spawn OpenSpec CLI 创建 change
 
 ### Requirement: 禁用 openspec 遥测

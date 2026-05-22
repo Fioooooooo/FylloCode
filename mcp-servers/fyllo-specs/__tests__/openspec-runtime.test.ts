@@ -10,6 +10,7 @@ import {
   listChanges,
   resolveOpenspecCli,
 } from "../src/runtime-openspec";
+import { GUIDELINES_TASKS_RULE_EN } from "../src/runtime-openspec/create-change";
 import { buildSpawnArgs } from "../src/runtime-openspec/spawner";
 import { loadApplyState, parseTaskCheckboxes } from "../src/runtime-openspec/tasks";
 import { resolveProjectRoot } from "../src/utils/project-root";
@@ -71,7 +72,9 @@ describe("openspec-runtime", () => {
     try {
       await createChange(root, "sample-change");
 
-      expect(existsSync(join(root, "openspec", "config.yaml"))).toBe(true);
+      const configPath = join(root, "openspec", "config.yaml");
+      expect(existsSync(configPath)).toBe(true);
+      expect(readFileSync(configPath, "utf8")).toContain(GUIDELINES_TASKS_RULE_EN);
       expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
       expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
       expect(existsSync(join(root, "openspec", "changes", "sample-change"))).toBe(true);
@@ -80,13 +83,16 @@ describe("openspec-runtime", () => {
     }
   });
 
-  it("preserves an existing config file when creating a change", async () => {
-    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-"));
+  it("preserves an existing config byte-for-byte when default guidelines rule is present", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-preserve-"));
     const configPath = join(root, "openspec", "config.yaml");
     const originalConfig = [
       "schema: spec-driven",
       "context: |",
       "  custom project context",
+      "rules:",
+      "  tasks:",
+      `    - ${GUIDELINES_TASKS_RULE_EN}`,
       "",
     ].join("\n");
 
@@ -99,6 +105,47 @@ describe("openspec-runtime", () => {
       expect(readFileSync(configPath, "utf8")).toBe(originalConfig);
       expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
       expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("augments an existing config when default guidelines rule is missing", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-augment-"));
+    const configPath = join(root, "openspec", "config.yaml");
+    const originalConfig = [
+      "schema: spec-driven",
+      "context: |",
+      "  custom project context",
+      "rules:",
+      "  proposal:",
+      "    - Keep proposals under 500 words",
+      "",
+    ].join("\n");
+
+    mkdirSync(join(root, "openspec"), { recursive: true });
+    writeFileSync(configPath, originalConfig, "utf8");
+
+    try {
+      await createChange(root, "augmented-change");
+
+      const updated = readFileSync(configPath, "utf8");
+      expect(updated).toContain(GUIDELINES_TASKS_RULE_EN);
+
+      const { load } = await import("js-yaml");
+      const doc = load(updated) as {
+        schema?: string;
+        context?: string;
+        rules?: { proposal?: string[]; tasks?: string[] };
+      };
+      expect(doc.schema).toBe("spec-driven");
+      expect(doc.context).toContain("custom project context");
+      expect(doc.rules?.proposal).toEqual(["Keep proposals under 500 words"]);
+      expect(doc.rules?.tasks).toEqual([GUIDELINES_TASKS_RULE_EN]);
+
+      const afterFirstAugment = readFileSync(configPath, "utf8");
+      await createChange(root, "augmented-change-second-run");
+      expect(readFileSync(configPath, "utf8")).toBe(afterFirstAugment);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
