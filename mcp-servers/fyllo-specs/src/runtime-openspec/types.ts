@@ -53,3 +53,16 @@ export class OpenspecTimeoutError extends Error {
     this.name = "OpenspecTimeoutError";
   }
 }
+
+export class OpenspecArchiveNotConfirmedError extends Error {
+  constructor(
+    public readonly signal: string,
+    public readonly rawOutputExcerpt: string,
+    public readonly changeName: string
+  ) {
+    super(
+      `OpenSpec archive did not confirm completion (signal=${signal}). stdout(<=800B)=${rawOutputExcerpt}`
+    );
+    this.name = "OpenspecArchiveNotConfirmed";
+  }
+}

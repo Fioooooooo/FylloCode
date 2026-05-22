@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { archiveChange, changeDir } from "../runtime-openspec";
+import { archiveChange, changeDir, OpenspecArchiveNotConfirmedError } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
 import { finalizeArchiveWorkspace } from "../runtime-workspace";
 import { existsSync, readFileSync } from "fs";
@@ -150,6 +150,13 @@ export async function archiveChangeTool(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const notConfirmed =
+        error instanceof OpenspecArchiveNotConfirmedError ||
+        (error instanceof Error && error.name === "OpenspecArchiveNotConfirmed");
+      const code = notConfirmed ? "openspec-archive-not-confirmed" : "openspec-archive-failed";
+      const retryHint = notConfirmed
+        ? "OpenSpec exited successfully but did not confirm archival. Inspect the captured stdout signal (e.g. validation-failed, spec-update-aborted, success-marker-missing) and resolve the underlying cause before retrying."
+        : "Resolve the OpenSpec archive failure, then call archive-change again.";
       return {
         changeName: input.changeName,
         status: "failed",
@@ -160,9 +167,9 @@ export async function archiveChangeTool(
           conflicts: [],
           incompleteTasks,
           error: {
-            code: "openspec-archive-failed",
+            code,
             message,
-            retryHint: "Resolve the OpenSpec archive failure, then call archive-change again.",
+            retryHint,
           },
         },
         workspace: {
