@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import SlashCommandMenu from "@renderer/components/chat/SlashCommandMenu.vue";
+import SlashCommandMenu from "@renderer/components/chat/prompt/SlashCommandMenu.vue";
 
 const buttonStub = {
   inheritAttrs: false,

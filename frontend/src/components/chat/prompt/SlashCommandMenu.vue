@@ -66,10 +66,10 @@ function handleCommandSelect(item: unknown): void {
       <UButton
         v-if="hasAvailableCommands"
         data-test="slash-button"
-        variant="subtle"
+        variant="ghost"
         size="sm"
         color="neutral"
-        icon="i-lucide-slash-square"
+        icon="i-lucide-command"
         @click="emit('button-trigger')"
       />
     </template>

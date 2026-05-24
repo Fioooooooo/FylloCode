@@ -4,7 +4,7 @@ import { useChatStore } from "@renderer/stores/chat";
 import { useSessionStore } from "@renderer/stores/session";
 import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
 import ChatStreamError from "./ChatStreamError.vue";
-import ChatPromptPanel from "./ChatPromptPanel.vue";
+import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError } = storeToRefs(store);

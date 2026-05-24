@@ -2,7 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import ChatPromptPanel from "@renderer/components/chat/ChatPromptPanel.vue";
+import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
 
 const buttonStub = {
@@ -18,6 +18,7 @@ const chatPromptStub = {
   emits: ["submit", "update:modelValue"],
   template: `
     <div>
+      <slot name="header" />
       <textarea
         :value="modelValue"
         :placeholder="placeholder"
@@ -35,7 +36,7 @@ const promptSubmitStub = {
   template: '<button data-test="stop-button" type="button" @click="$emit(\'stop\')" />',
 };
 
-const slashCommandMenuStub = {
+const slashCommandStub = {
   props: ["commands", "open", "searchTerm"],
   emits: ["button-trigger", "select", "update:open", "update:searchTerm"],
   template: `
@@ -67,6 +68,8 @@ const setDraftAgent = vi.fn();
 const activeSessionRef = ref<Session | null>(null);
 const draftAgentIdRef = ref<string | null>("claude-code");
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
+const createObjectUrl = vi.fn((file: File) => `blob:${file.name}`);
+const revokeObjectUrl = vi.fn();
 
 vi.mock("@renderer/stores/chat", () => ({
   useChatStore: () => ({
@@ -125,11 +128,44 @@ function mountPanel(): VueWrapper {
         ChatPrompt: chatPromptStub,
         UChatPromptSubmit: promptSubmitStub,
         ChatPromptSubmit: promptSubmitStub,
-        SlashCommandMenu: slashCommandMenuStub,
+        SlashCommand: slashCommandStub,
         ChatAgentSelect: {
           props: ["modelValue"],
           emits: ["update:modelValue"],
           template: '<div data-test="agent-select">{{ modelValue ?? "none" }}</div>',
+        },
+        AttachmentList: {
+          props: ["attachments"],
+          emits: ["remove"],
+          template: `
+            <div data-test="attachments">
+              <span data-test="attachment-count">{{ attachments.length }}</span>
+              <button
+                v-if="attachments.length > 0"
+                data-test="attachment-remove"
+                type="button"
+                @click="$emit('remove', attachments[0].id)"
+              />
+            </div>
+          `,
+        },
+        PromptActionMenu: {
+          emits: ["select-files"],
+          template: `
+            <div>
+              <button data-test="prompt-action-menu" type="button" />
+              <button
+                data-test="prompt-action-upload-image"
+                type="button"
+                @click="$emit('select-files', [{ name: 'diagram.png', type: 'image/png', size: 24576 }])"
+              />
+              <button
+                data-test="prompt-action-upload-file"
+                type="button"
+                @click="$emit('select-files', [{ name: 'notes.md', type: 'text/markdown', size: 2048 }])"
+              />
+            </div>
+          `,
         },
         ContextUsageRing: { template: '<div data-test="usage-ring"></div>' },
       },
@@ -147,6 +183,16 @@ describe("ChatPromptPanel", () => {
     cancelStream.mockClear();
     setSessionAgent.mockClear();
     setDraftAgent.mockClear();
+    createObjectUrl.mockClear();
+    revokeObjectUrl.mockClear();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
   });
 
   it("shows the slash button only when commands exist", async () => {
@@ -234,5 +280,37 @@ describe("ChatPromptPanel", () => {
     activeSessionRef.value = session;
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="agent-select"]').exists()).toBe(false);
+  });
+
+  it("adds image and file attachments from separate prompt action entries", async () => {
+    const wrapper = mountPanel();
+
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.objectContaining({ name: "diagram.png" }));
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("1");
+
+    await wrapper.get('[data-test="prompt-action-upload-file"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
+  });
+
+  it("removes attachments and revokes image previews", async () => {
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("1");
+
+    await wrapper.get('[data-test="attachment-remove"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
   });
 });
