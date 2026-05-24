@@ -71,4 +71,8 @@ export const chatApi = {
   ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
     return window.api.chat.saveAttachment(projectId, sessionId, fileName, mimeType, base64Data);
   },
+
+  readAttachmentDataUrl(uri: string, mediaType: string): Promise<IpcResponse<{ dataUrl: string }>> {
+    return window.api.chat.readAttachmentDataUrl(uri, mediaType);
+  },
 };

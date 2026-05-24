@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isUserFilePart, isUserImagePart } from "@renderer/utils/chat-message-parts";
+import {
+  getFilePartUrl,
+  isUserFilePart,
+  isUserImagePart,
+} from "@renderer/utils/chat-message-parts";
 
 describe("chat-message-parts", () => {
   it("detects image file parts including svg", () => {
@@ -22,6 +26,26 @@ describe("chat-message-parts", () => {
         filename: "doc.pdf",
       } as never)
     ).toBe(true);
+  });
+
+  it("returns raw string URLs and falls back to empty string for missing or invalid values", () => {
+    expect(
+      getFilePartUrl({
+        type: "file",
+        mediaType: "image/png",
+        url: "file:///tmp/demo.png",
+        filename: "demo.png",
+      } as never)
+    ).toBe("file:///tmp/demo.png");
+    expect(getFilePartUrl({ type: "text", text: "hello" } as never)).toBe("");
+    expect(
+      getFilePartUrl({
+        type: "file",
+        mediaType: "image/png",
+        url: 123,
+        filename: "demo.png",
+      } as never)
+    ).toBe("");
   });
 
   it("returns false for text parts and file parts without mediaType", () => {

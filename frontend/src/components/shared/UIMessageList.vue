@@ -2,23 +2,100 @@
 import type { UIMessage } from "ai";
 import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
+import { onUnmounted, reactive, watch } from "vue";
+import { chatApi } from "@renderer/api/chat";
 import MarkStream from "./MarkStream.vue";
 import { getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
-import { isUserFilePart, isUserImagePart } from "@renderer/utils/chat-message-parts";
+import {
+  getFilePartUrl,
+  isUserFilePart,
+  isUserImagePart,
+} from "@renderer/utils/chat-message-parts";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 
-defineProps<{
+const { messages, status } = defineProps<{
   messages: UIMessage<MessageMeta>[];
   status: ChatStatus;
   type: "chat" | "side";
   agentId?: string;
 }>();
 
-function getFilePartUrl(part: UIMessage["parts"][number]): string {
-  const value = (part as { url?: unknown }).url;
+const imageSrcByPartKey = reactive<Record<string, string>>({});
+const imageRequestUrlByPartKey = reactive<Record<string, string>>({});
+let isDisposed = false;
+
+onUnmounted(() => {
+  isDisposed = true;
+});
+
+function getImagePartKey(messageId: string, index: number): string {
+  return `${messageId}-${index}`;
+}
+
+function getFilePartMediaType(part: UIMessage["parts"][number]): string {
+  const value = (part as { mediaType?: unknown }).mediaType;
   return typeof value === "string" ? value : "";
 }
+
+async function resolveImagePartSrc(key: string, url: string, mediaType: string): Promise<void> {
+  try {
+    const response = await chatApi.readAttachmentDataUrl(url, mediaType);
+    if (isDisposed || imageRequestUrlByPartKey[key] !== url || !response.ok) {
+      return;
+    }
+
+    imageSrcByPartKey[key] = response.data.dataUrl;
+  } catch {
+    // Image preview failures must not affect the rest of the message list.
+  }
+}
+
+watch(
+  () => messages,
+  () => {
+    const activeKeys = new Set<string>();
+
+    for (const message of messages) {
+      message.parts.forEach((part, index) => {
+        if (message.role !== "user" || !isUserImagePart(part)) {
+          return;
+        }
+
+        const key = getImagePartKey(message.id, index);
+        const url = getFilePartUrl(part);
+        activeKeys.add(key);
+
+        if (imageRequestUrlByPartKey[key] === url) {
+          return;
+        }
+
+        imageRequestUrlByPartKey[key] = url;
+
+        if (!url) {
+          imageSrcByPartKey[key] = "";
+          return;
+        }
+
+        if (!url.startsWith("file://")) {
+          imageSrcByPartKey[key] = url;
+          return;
+        }
+
+        imageSrcByPartKey[key] = "";
+        void resolveImagePartSrc(key, url, getFilePartMediaType(part));
+      });
+    }
+
+    for (const key of Object.keys(imageSrcByPartKey)) {
+      if (!activeKeys.has(key)) {
+        delete imageSrcByPartKey[key];
+        delete imageRequestUrlByPartKey[key];
+      }
+    }
+  },
+  { deep: true, immediate: true }
+);
 
 function getFilePartName(part: UIMessage["parts"][number]): string {
   const value = (part as { filename?: unknown }).filename;
@@ -92,7 +169,7 @@ function getFilePartExtension(part: UIMessage["parts"][number]): string {
             class="relative h-32 w-32 overflow-hidden rounded-md border border-default bg-elevated/60"
           >
             <img
-              :src="getFilePartUrl(part)"
+              :src="imageSrcByPartKey[getImagePartKey(message.id, index)] ?? ''"
               :alt="getFilePartName(part)"
               class="h-full w-full object-cover"
             />

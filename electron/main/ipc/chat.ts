@@ -8,6 +8,7 @@ import {
   listSessionsInputSchema,
   loadMessagesInputSchema,
   persistMessageInputSchema,
+  readAttachmentDataUrlInputSchema,
   removeSessionInputSchema,
   saveAttachmentInputSchema,
   streamCancelInputSchema,
@@ -38,7 +39,11 @@ import {
 } from "@main/infra/storage/session-store";
 import { sessionMessagesPath } from "@main/infra/storage/session-store";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
-import { removeSessionAttachments, saveAttachment } from "@main/infra/storage/attachment-store";
+import {
+  readAttachmentDataUrl,
+  removeSessionAttachments,
+  saveAttachment,
+} from "@main/infra/storage/attachment-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
@@ -127,6 +132,14 @@ export function registerChatHandlers(): void {
         name: saved.name,
         mimeType: saved.mimeType,
       };
+    })
+  );
+
+  ipcMain.handle(ChatChannels.readAttachmentDataUrl, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(readAttachmentDataUrlInputSchema, input);
+      const dataUrl = await readAttachmentDataUrl(form.uri, form.mediaType);
+      return { dataUrl };
     })
   );
 

@@ -60,6 +60,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `acp:ensureAgent`：入参 `{ agentId: string }`，返回 `IpcResponse<{ promptCapabilities: { image: boolean; audio: boolean; embeddedContext: boolean } }>`；用于懒启动 / 复用 ACP agent 并读取归一化 prompt capability。启动失败沿用 ACP 启动错误码，如 `ACP_NOT_READY`、`ACP_EXIT_GIVEUP`、`SPAWN_ERROR`、`ACP_ERROR`。
 - `acp:loadCapabilitiesCache`：无入参，返回 `IpcResponse<Record<agentId, AcpPromptCapabilities>>`；用于 renderer 启动期读取 `<userData>/acp/agent-capabilities.json` 的内存快照。
 - `chat:saveAttachment`：入参 `{ projectId, sessionId, fileName, mimeType, base64Data }`，其中 `base64Data` 解码后不得超过 25 MB；返回 `IpcResponse<{ uri: string; name: string; mimeType: string }>`，`uri` 为 `file://`。校验失败返回 `VALIDATION_ERROR`。
+- `chat:readAttachmentDataUrl`：入参 `{ uri, mediaType }`，其中 `uri` 必须为 `file://`，`mediaType` 必须以 `image/` 开头；返回 `IpcResponse<{ dataUrl: string }>`，用于 renderer 将已持久化图片附件读取为 `<img src>` 可用的 data URL。本次读取接口不设置文件大小上限。
 - `chat:stream:message` 的 `prompt` 字段为 `ChatPromptPart[]`；当 prompt part 与 agent capability 不匹配时，主进程返回 `PROMPT_CAPABILITY_MISMATCH`。
 
 ## Verification

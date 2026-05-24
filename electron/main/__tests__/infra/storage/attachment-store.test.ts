@@ -1,6 +1,11 @@
-import { existsSync, readFileSync, rmSync } from "fs";
+import { existsSync, promises as fsPromises, readFileSync, rmSync } from "fs";
+import { join } from "path";
+import { pathToFileURL } from "url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { saveAttachmentInputSchema } from "@shared/schemas/ipc/chat";
+import {
+  readAttachmentDataUrlInputSchema,
+  saveAttachmentInputSchema,
+} from "@shared/schemas/ipc/chat";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
@@ -14,7 +19,11 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
-import { removeSessionAttachments, saveAttachment } from "@main/infra/storage/attachment-store";
+import {
+  readAttachmentDataUrl,
+  removeSessionAttachments,
+  saveAttachment,
+} from "@main/infra/storage/attachment-store";
 
 const projectPath = "/tmp/项目 with spaces";
 
@@ -55,6 +64,17 @@ describe("attachment-store", () => {
     expect(saved.absolutePath).toMatch(/\.markdown$/);
   });
 
+  it("reads a file:// image attachment into a data URL", async () => {
+    const attachmentDir = join(tempRoot, "附件 目录");
+    const filePath = join(attachmentDir, "截图 1.png");
+    await fsPromises.mkdir(attachmentDir, { recursive: true });
+    await fsPromises.writeFile(filePath, Buffer.from("image-data"));
+
+    await expect(
+      readAttachmentDataUrl(pathToFileURL(filePath).toString(), "image/png")
+    ).resolves.toBe(`data:image/png;base64,${Buffer.from("image-data").toString("base64")}`);
+  });
+
   it("rejects attachments larger than 25MB at the IPC schema boundary", () => {
     const payload = {
       projectId: "project-1",
@@ -65,6 +85,30 @@ describe("attachment-store", () => {
     };
 
     expect(saveAttachmentInputSchema.safeParse(payload).success).toBe(false);
+  });
+
+  it("validates readAttachmentDataUrl input without a size limit", () => {
+    expect(
+      readAttachmentDataUrlInputSchema.safeParse({
+        uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+        mediaType: "image/png",
+      }).success
+    ).toBe(true);
+    expect(
+      readAttachmentDataUrlInputSchema.safeParse({
+        uri: "https://example.com/x.png",
+        mediaType: "image/png",
+      }).success
+    ).toBe(false);
+    expect(
+      readAttachmentDataUrlInputSchema.safeParse({
+        uri: "file:///tmp/doc.pdf",
+        mediaType: "application/pdf",
+      }).success
+    ).toBe(false);
+    expect(readAttachmentDataUrlInputSchema.safeParse({ uri: "file:///tmp/x.png" }).success).toBe(
+      false
+    );
   });
 
   it("removes session attachments and ignores missing directories", async () => {

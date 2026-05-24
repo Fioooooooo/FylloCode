@@ -99,7 +99,7 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 
 `message.role === 'user'` 分支 SHALL 在 text part 之外，通过 `isUserImagePart(part)` 与 `isUserFilePart(part)`（`frontend/src/utils/chat-message-parts.ts` 提供）派发：
 
-- `isUserImagePart(part)` 命中 → 渲染图片缩略图卡片（`<img :src="part.url">`，沿用 `AttachmentCard.vue` 图片分支样式）
+- `isUserImagePart(part)` 命中 → 渲染图片缩略图卡片（`<img>` 的 `src` SHALL 从 `part.url` 解析；当 `part.url` 为 `file://` URI 时，组件 SHALL 通过 `chatApi.readAttachmentDataUrl(part.url, part.mediaType)` 获取 data URL，并使用返回的 `dataUrl` 作为 `src`；沿用 `AttachmentCard.vue` 图片分支样式）
 - `isUserFilePart(part)` 命中 → 渲染文件名片（图标 + `part.filename` + 扩展标签，沿用 `AttachmentCard.vue` 文件分支样式）
 - `isTextUIPart(part)` 命中 → 走现有 text 渲染（含 system-reminder 跳过逻辑）
 
@@ -125,8 +125,9 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 
 #### Scenario: user 消息含图片 part
 
-- **WHEN** user 消息的 `parts` 含 `{ type: "file", mediaType: "image/png", url, filename }`
+- **WHEN** user 消息的 `parts` 含 `{ type: "file", mediaType: "image/png", url: "file:///tmp/截图 1.png", filename }`
 - **THEN** `UIMessageList` 渲染图片缩略图卡片
+- **AND** `<img>` 的 `src` 是 `chatApi.readAttachmentDataUrl` 返回的 data URL，而不是未处理的 `file:///tmp/截图 1.png`
 - **AND** assistant 消息不渲染任何 file part
 
 #### Scenario: user 消息含文件 part
@@ -556,7 +557,7 @@ isUserFilePart(part: UIMessage["parts"][number]): boolean
 
 `UIMessageList` 在 `message.role === 'user'` 分支 SHALL 通过这两个 helper 派发：
 
-- `isUserImagePart(part)` → 渲染缩略图卡片（用 `part.url` 作 `<img :src>`，沿用 `AttachmentCard.vue` 风格的图片预览样式）
+- `isUserImagePart(part)` → 渲染缩略图卡片（`<img>` 的 `src` SHALL 从 `part.url` 解析；当 `part.url` 为 `file://` URI 时，组件 SHALL 通过 `chatApi.readAttachmentDataUrl(part.url, part.mediaType)` 获取 data URL，并使用返回的 `dataUrl` 作为 `src`；沿用 `AttachmentCard.vue` 风格的图片预览样式）
 - `isUserFilePart(part)` → 渲染文件名片（图标 + 文件名 `part.filename` + 扩展标签，沿用 `AttachmentCard.vue` 文件分支样式）
 - `isTextUIPart(part)` 与 `isSystemReminderPart(part)` 分支保持现状
 
@@ -564,8 +565,16 @@ assistant 分支 SHALL NOT 调这两个 helper（assistant 当前不渲染 file 
 
 #### Scenario: user 消息含图片 part 渲染缩略图
 
-- **WHEN** 历史 session 加载后，某条 user 消息 `parts` 含 `{ type: "file", mediaType: "image/png", url: "file:///abs/x.png", filename: "x.png" }`
-- **THEN** `UIMessageList` 渲染该 part 为图片缩略图，`<img>` 的 `src` 为 `file:///abs/x.png`
+- **WHEN** 历史 session 加载后，某条 user 消息 `parts` 含 `{ type: "file", mediaType: "image/png", url: "file:///abs/截图 1.png", filename: "截图 1.png" }`
+- **THEN** `UIMessageList` 渲染该 part 为图片缩略图
+- **AND** `<img>` 的 `src` 是 `chatApi.readAttachmentDataUrl` 返回的 data URL
+- **AND** 数据层 `part.url` 仍保持为 `file:///abs/截图 1.png`
+
+#### Scenario: user 消息含非 file URL 图片 part 渲染缩略图
+
+- **WHEN** 某条 user 消息 `parts` 含 `{ type: "file", mediaType: "image/png", url: "data:image/png;base64,abc", filename: "x.png" }`
+- **THEN** `UIMessageList` 渲染该 part 为图片缩略图
+- **AND** `<img>` 的 `src` 为原始 `data:image/png;base64,abc`
 
 #### Scenario: user 消息含文件 part 渲染名片
 

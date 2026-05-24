@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => {
   return {
     appendMessage: vi.fn(),
     prependReminderToLastUserMessage: vi.fn(),
+    readAttachmentDataUrl: vi.fn(),
+    removeSessionAttachments: vi.fn(),
+    saveAttachment: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveProjectPath: vi.fn(),
     loadSessionMeta: vi.fn(),
@@ -66,6 +69,12 @@ vi.mock("@main/infra/storage/session-store", () => ({
 
 vi.mock("@main/infra/storage/message-reminder-store", () => ({
   prependReminderToLastUserMessage: mocks.prependReminderToLastUserMessage,
+}));
+
+vi.mock("@main/infra/storage/attachment-store", () => ({
+  readAttachmentDataUrl: mocks.readAttachmentDataUrl,
+  removeSessionAttachments: mocks.removeSessionAttachments,
+  saveAttachment: mocks.saveAttachment,
 }));
 
 vi.mock("@main/services/chat/session-registry", () => ({
@@ -167,6 +176,56 @@ describe("registerChatHandlers", () => {
       error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
     });
     expect(mocks.persistSessionMessage).not.toHaveBeenCalled();
+  });
+
+  it("reads attachment file URIs as data URLs", async () => {
+    mocks.readAttachmentDataUrl.mockResolvedValueOnce("data:image/png;base64,AAAA");
+
+    const result = await handler(ChatChannels.readAttachmentDataUrl)(
+      {},
+      {
+        uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+        mediaType: "image/png",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        dataUrl: "data:image/png;base64,AAAA",
+      },
+    });
+    expect(mocks.readAttachmentDataUrl).toHaveBeenCalledWith(
+      "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+      "image/png"
+    );
+  });
+
+  it("rejects invalid readAttachmentDataUrl input before reading", async () => {
+    const nonFileResult = await handler(ChatChannels.readAttachmentDataUrl)(
+      {},
+      {
+        uri: "https://example.com/x.png",
+        mediaType: "image/png",
+      }
+    );
+    const nonImageResult = await handler(ChatChannels.readAttachmentDataUrl)(
+      {},
+      {
+        uri: "file:///tmp/doc.pdf",
+        mediaType: "application/pdf",
+      }
+    );
+
+    expect(nonFileResult).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(nonImageResult).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(mocks.readAttachmentDataUrl).not.toHaveBeenCalled();
   });
 
   it("persists assembled assistant message before sending done", async () => {

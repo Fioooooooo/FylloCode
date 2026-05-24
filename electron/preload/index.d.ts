@@ -8,9 +8,10 @@ import type { workflowApi } from "./api/workflow";
 import type { taskApi } from "./api/task";
 
 type SettingsApi = typeof settingsApi;
+type ChatApi = typeof chatApi;
 
 export interface AppApi {
-  chat: typeof chatApi;
+  chat: ChatApi;
   project: typeof projectApi;
   proposal: typeof proposalApi;
   integration: typeof integrationApi;

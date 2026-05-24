@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import { extname, join } from "path";
-import { pathToFileURL } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { sessionsDir } from "@main/infra/storage/project-paths";
 
 export interface SavedAttachment {
@@ -49,6 +49,11 @@ export async function saveAttachment(
     name: fileName,
     mimeType,
   };
+}
+
+export async function readAttachmentDataUrl(uri: string, mediaType: string): Promise<string> {
+  const buffer = await fs.readFile(fileURLToPath(uri));
+  return `data:${mediaType};base64,${buffer.toString("base64")}`;
 }
 
 export async function removeSessionAttachments(

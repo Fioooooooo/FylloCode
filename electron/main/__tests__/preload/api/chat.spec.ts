@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatStreamChannels } from "@shared/types/channels";
+import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
 
 const mocks = vi.hoisted(() => ({
   ipcRenderer: {
@@ -108,5 +108,16 @@ describe("preload chatApi.streamMessage", () => {
     expect(port.close).toHaveBeenCalledTimes(1);
     expect(port.start).not.toHaveBeenCalled();
     expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("invokes readAttachmentDataUrl on the correct channel", async () => {
+    const { chatApi } = await import("../../../../preload/api/chat");
+
+    await chatApi.readAttachmentDataUrl("file:///tmp/%E6%88%AA%E5%9B%BE%201.png", "image/png");
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.readAttachmentDataUrl, {
+      uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+      mediaType: "image/png",
+    });
   });
 });

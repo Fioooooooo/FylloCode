@@ -1,9 +1,16 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import UIMessageList from "@renderer/components/shared/UIMessageList.vue";
+import { chatApi } from "@renderer/api/chat";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
+
+vi.mock("@renderer/api/chat", () => ({
+  chatApi: {
+    readAttachmentDataUrl: vi.fn(),
+  },
+}));
 
 function textMessage(): UIMessage<MessageMeta> {
   return {
@@ -86,6 +93,11 @@ function mountList(
 describe("UIMessageList", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.clearAllMocks();
+    vi.mocked(chatApi.readAttachmentDataUrl).mockResolvedValue({
+      ok: true,
+      data: { dataUrl: "data:image/png;base64,AAAA" },
+    });
   });
 
   it("renders text parts", () => {
@@ -138,5 +150,48 @@ describe("UIMessageList", () => {
     ]);
 
     expect(wrapper.text()).toContain("assistant output");
+  });
+
+  it("resolves file:// image parts through chatApi.readAttachmentDataUrl", async () => {
+    const wrapper = mountList([
+      userMessage([
+        {
+          type: "file",
+          mediaType: "image/png",
+          url: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+          filename: "截图 1.png",
+        },
+      ]),
+    ]);
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(chatApi.readAttachmentDataUrl)).toHaveBeenCalledWith(
+        "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+        "image/png"
+      );
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-test="user-message-image-card"] img').attributes("src")).toBe(
+        "data:image/png;base64,AAAA"
+      );
+    });
+  });
+
+  it("uses non-file image URLs directly without IPC", () => {
+    const wrapper = mountList([
+      userMessage([
+        {
+          type: "file",
+          mediaType: "image/png",
+          url: "data:image/png;base64,BBBB",
+          filename: "inline.png",
+        },
+      ]),
+    ]);
+
+    expect(vi.mocked(chatApi.readAttachmentDataUrl)).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="user-message-image-card"] img').attributes("src")).toBe(
+      "data:image/png;base64,BBBB"
+    );
   });
 });

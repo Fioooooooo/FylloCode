@@ -118,4 +118,11 @@ export const chatApi = {
       base64Data,
     });
   },
+
+  readAttachmentDataUrl(uri: string, mediaType: string): Promise<IpcResponse<{ dataUrl: string }>> {
+    return ipcRenderer.invoke(ChatChannels.readAttachmentDataUrl, {
+      uri,
+      mediaType,
+    });
+  },
 };

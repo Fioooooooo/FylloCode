@@ -102,6 +102,21 @@ export const saveAttachmentInputSchema = z.object({
     ),
 });
 
+export const readAttachmentDataUrlInputSchema = z.object({
+  uri: z
+    .string()
+    .min(1)
+    .refine((value) => value.startsWith("file://"), {
+      message: "uri must be a file:// URI",
+    }),
+  mediaType: z
+    .string()
+    .min(1)
+    .refine((value) => value.startsWith("image/"), {
+      message: "mediaType must be an image/* media type",
+    }),
+});
+
 export const streamMessageInputSchema = z.object({
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
