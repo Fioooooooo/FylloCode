@@ -9,6 +9,7 @@ import {
   loadMessagesInputSchema,
   persistMessageInputSchema,
   removeSessionInputSchema,
+  saveAttachmentInputSchema,
   streamCancelInputSchema,
   streamMessageInputSchema,
   updateSessionInputSchema,
@@ -37,6 +38,7 @@ import {
 } from "@main/infra/storage/session-store";
 import { sessionMessagesPath } from "@main/infra/storage/session-store";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
+import { removeSessionAttachments, saveAttachment } from "@main/infra/storage/attachment-store";
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
@@ -46,6 +48,9 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
   if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
   if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
+  if (raw === IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH) {
+    return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
+  }
   return IpcErrorCodes.ACP_ERROR;
 }
 
@@ -74,7 +79,9 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.removeSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(removeSessionInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
       await removeSession(form);
+      await removeSessionAttachments(projectPath, form.id);
     })
   );
 
@@ -101,6 +108,25 @@ export function registerChatHandlers(): void {
         message,
       });
       logger.debug("[chat] persistMessage done");
+    })
+  );
+
+  ipcMain.handle(ChatChannels.saveAttachment, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(saveAttachmentInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      const saved = await saveAttachment(
+        projectPath,
+        form.sessionId,
+        form.fileName,
+        form.mimeType,
+        form.base64Data
+      );
+      return {
+        uri: saved.fileUri,
+        name: saved.name,
+        mimeType: saved.mimeType,
+      };
     })
   );
 

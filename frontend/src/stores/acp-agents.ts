@@ -1,13 +1,25 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { acpAgentsApi } from "@renderer/api/acp-agents";
-import type { AcpAgentStatus, AcpInstallProgress, AcpRegistry } from "@shared/types/acp-agent";
+import type {
+  AcpAgentStatus,
+  AcpInstallProgress,
+  AcpPromptCapabilities,
+  AcpRegistry,
+} from "@shared/types/acp-agent";
+
+const DEFAULT_PROMPT_CAPABILITIES: AcpPromptCapabilities = {
+  image: false,
+  audio: false,
+  embeddedContext: false,
+};
 
 export const useAcpAgentsStore = defineStore("acp-agents", () => {
   const registry = ref<AcpRegistry | null>(null);
   const icons = ref<Record<string, string>>({});
   const statuses = ref<Record<string, AcpAgentStatus>>({});
   const installProgress = ref<Record<string, AcpInstallProgress>>({});
+  const promptCapabilitiesByAgent = ref<Map<string, AcpPromptCapabilities>>(new Map());
   const registryLoading = ref(false);
   const registryError = ref<string | null>(null);
   const initialized = ref(false);
@@ -38,6 +50,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
 
   let stopRegistryUpdatedListener: (() => void) | null = null;
   let stopInstallProgressListener: (() => void) | null = null;
+  let stopAgentUnavailableListener: (() => void) | null = null;
   let initPromise: Promise<void> | null = null;
 
   function mapStatuses(items: AcpAgentStatus[]): Record<string, AcpAgentStatus> {
@@ -63,6 +76,14 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
           ...installProgress.value,
           [progress.agentId]: progress,
         };
+      });
+    }
+
+    if (!stopAgentUnavailableListener) {
+      stopAgentUnavailableListener = acpAgentsApi.onAgentUnavailable(({ agentId }) => {
+        const next = new Map(promptCapabilitiesByAgent.value);
+        next.delete(agentId);
+        promptCapabilitiesByAgent.value = next;
       });
     }
   }
@@ -120,6 +141,37 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     }
 
     statuses.value = mapStatuses(response.data);
+  }
+
+  async function loadCapabilitiesCache(): Promise<void> {
+    ensureAgentListeners();
+    const response = await acpAgentsApi.loadCapabilitiesCache();
+    if (!response.ok) {
+      return;
+    }
+
+    promptCapabilitiesByAgent.value = new Map(Object.entries(response.data));
+  }
+
+  async function refreshCapabilities(agentId: string): Promise<void> {
+    ensureAgentListeners();
+    const response = await acpAgentsApi.ensureAgent(agentId);
+    if (!response.ok) {
+      return;
+    }
+
+    promptCapabilitiesByAgent.value = new Map(promptCapabilitiesByAgent.value).set(
+      agentId,
+      response.data.promptCapabilities
+    );
+  }
+
+  function getPromptCapabilities(agentId: string | null | undefined): AcpPromptCapabilities {
+    if (!agentId) {
+      return DEFAULT_PROMPT_CAPABILITIES;
+    }
+
+    return promptCapabilitiesByAgent.value.get(agentId) ?? DEFAULT_PROMPT_CAPABILITIES;
   }
 
   async function ensureInitialized(): Promise<void> {
@@ -209,6 +261,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     icons,
     statuses,
     installProgress,
+    promptCapabilitiesByAgent,
     registryLoading,
     registryError,
     initialized,
@@ -224,6 +277,9 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     loadRegistry,
     loadIcons,
     refreshStatus,
+    loadCapabilitiesCache,
+    refreshCapabilities,
+    getPromptCapabilities,
     installAgent,
   };
 });

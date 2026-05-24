@@ -5,6 +5,7 @@ import type {
   AcpAgentStatus,
   AcpInstallProgress,
   AcpInstalledRecord,
+  AcpPromptCapabilities,
   AcpRegistry,
 } from "@shared/types/acp-agent";
 
@@ -40,11 +41,25 @@ export const acpAgentsApi = {
     return ipcRenderer.invoke(AcpAgentChannels.install, agentId);
   },
 
+  ensureAgent(
+    agentId: string
+  ): Promise<IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>> {
+    return ipcRenderer.invoke(AcpAgentChannels.ensureAgent, { agentId });
+  },
+
+  loadCapabilitiesCache(): Promise<IpcResponse<Record<string, AcpPromptCapabilities>>> {
+    return ipcRenderer.invoke(AcpAgentChannels.loadCapabilitiesCache);
+  },
+
   onRegistryUpdated(listener: (registry: AcpRegistry) => void): () => void {
     return subscribeToChannel(AcpAgentChannels.registryUpdated, listener);
   },
 
   onInstallProgress(listener: (progress: AcpInstallProgress) => void): () => void {
     return subscribeToChannel(AcpAgentChannels.installProgress, listener);
+  },
+
+  onAgentUnavailable(listener: (event: { agentId: string; reason: string }) => void): () => void {
+    return subscribeToChannel(AcpAgentChannels.agentUnavailable, listener);
   },
 };

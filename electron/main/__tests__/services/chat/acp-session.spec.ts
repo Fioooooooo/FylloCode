@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { pathToFileURL } from "url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { InitializeResponse, SessionNotification } from "@agentclientprotocol/sdk";
 import type { TextUIPart } from "ai";
 import type { Message } from "@shared/types/chat";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 
 const mocks = vi.hoisted(() => {
@@ -90,7 +95,13 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("AcpSession", () => {
+  let tempRoot: string;
+
   beforeEach(() => {
+    if (tempRoot) {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+    tempRoot = mkdtempSync(join(tmpdir(), "fyllocode-acp-session-"));
     vi.clearAllMocks();
     mocks.sessionHandlers.clear();
     mocks.getOrStartProcess.mockResolvedValue({
@@ -107,6 +118,10 @@ describe("AcpSession", () => {
     mocks.getBundledMcpServers.mockReturnValue([]);
     mocks.toAcpMcpServerEnv.mockImplementation((env: unknown) => env);
     mocks.resolveSystemReminder.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
   });
 
   async function createSession(
@@ -133,7 +148,7 @@ describe("AcpSession", () => {
     mocks.resolveSystemReminder.mockResolvedValue(reminderPart);
 
     const session = await createSession({ onReminderInjected });
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.newSession).toHaveBeenCalledTimes(1);
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-new");
@@ -149,7 +164,7 @@ describe("AcpSession", () => {
     mocks.connection.newSession.mockReturnValueOnce(newSessionDeferred.promise);
 
     const session = await createSession();
-    const startPromise = session.start("hello");
+    const startPromise = session.start([{ type: "text", text: "hello" }]);
 
     await vi.waitFor(() => {
       expect(mocks.connection.newSession).toHaveBeenCalledTimes(1);
@@ -171,7 +186,7 @@ describe("AcpSession", () => {
     mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
 
     const session = await createSession();
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.prompt).toHaveBeenCalledWith({
       sessionId: "acp-existing",
@@ -194,7 +209,7 @@ describe("AcpSession", () => {
       .mockResolvedValueOnce({ usage: { outputTokens: 4 } });
 
     const session = await createSession();
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.resumeSession).toHaveBeenCalledWith({
       sessionId: "acp-existing",
@@ -232,7 +247,7 @@ describe("AcpSession", () => {
         loadPersistedHistory: async () => [],
       },
     });
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
     expect(mocks.connection.loadSession).toHaveBeenCalledWith({
@@ -256,7 +271,7 @@ describe("AcpSession", () => {
     const session = await createSession();
     const seen: SessionEvent[] = [];
     session.on("event", (event) => seen.push(event));
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
     expect(mocks.connection.loadSession).not.toHaveBeenCalled();
@@ -309,7 +324,7 @@ describe("AcpSession", () => {
     });
     const seen: SessionEvent[] = [];
     session.on("event", (event) => seen.push(event));
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(seen).not.toContainEqual({ type: "text_delta", text: "replayed" });
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-existing");
@@ -362,7 +377,7 @@ describe("AcpSession", () => {
         loadPersistedHistory: async () => persistedMessages,
       },
     });
-    await session.start("hello");
+    await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.connection.newSession).toHaveBeenCalledTimes(1);
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-new");
@@ -379,5 +394,91 @@ describe("AcpSession", () => {
       ],
     });
     expect(mocks.sessionHandlers.has("acp-existing")).toBe(false);
+  });
+
+  it("converts ChatPromptPart text, image and resource_link into ACP prompt blocks", async () => {
+    const imagePath = join(tempRoot, "截图 file.png");
+    writeFileSync(imagePath, "image-binary");
+    mocks.getOrStartProcess.mockResolvedValue({
+      connection: mocks.connection,
+      sessionHandlers: mocks.sessionHandlers,
+      initializeResponse: initializeResponse({
+        agentCapabilities: {
+          loadSession: true,
+          sessionCapabilities: { resume: {}, close: {}, list: {} },
+          promptCapabilities: { image: true, embeddedContext: true },
+        },
+      }),
+    });
+
+    const session = await createSession();
+    await session.start([
+      { type: "text", text: "hello" },
+      {
+        type: "image",
+        mediaType: "image/png",
+        uri: pathToFileURL(imagePath).toString(),
+        filename: "截图 file.png",
+      },
+      {
+        type: "resource_link",
+        uri: "file:///tmp/doc.pdf",
+        mediaType: "application/pdf",
+        filename: "doc.pdf",
+      },
+    ]);
+
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-new",
+      prompt: [
+        { type: "text", text: "hello" },
+        {
+          type: "image",
+          mimeType: "image/png",
+          data: Buffer.from("image-binary").toString("base64"),
+        },
+        {
+          type: "resource_link",
+          uri: "file:///tmp/doc.pdf",
+          name: "doc.pdf",
+          mimeType: "application/pdf",
+        },
+      ],
+    });
+  });
+
+  it("emits PROMPT_CAPABILITY_MISMATCH and does not prompt when capabilities reject a part", async () => {
+    mocks.getOrStartProcess.mockResolvedValue({
+      connection: mocks.connection,
+      sessionHandlers: mocks.sessionHandlers,
+      initializeResponse: initializeResponse({
+        agentCapabilities: {
+          loadSession: true,
+          sessionCapabilities: { resume: {}, close: {}, list: {} },
+          promptCapabilities: { image: false, embeddedContext: true },
+        },
+      }),
+    });
+
+    const session = await createSession();
+    const seen: SessionEvent[] = [];
+    session.on("event", (event) => seen.push(event));
+    await session.start([
+      { type: "text", text: "hello" },
+      {
+        type: "image",
+        mediaType: "image/png",
+        uri: "file:///tmp/missing.png",
+        filename: "missing.png",
+      },
+    ]);
+
+    expect(mocks.connection.prompt).not.toHaveBeenCalled();
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        code: IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
+      })
+    );
   });
 });

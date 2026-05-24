@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import { promises as fs } from "fs";
+import { fileURLToPath } from "url";
 import type {
   ClientSideConnection,
   InitializeResponse,
@@ -28,6 +30,9 @@ import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled
 import type { SessionOwner } from "@main/services/chat/session-registry";
 import type { TextUIPart } from "ai";
 import { resolveSystemReminder } from "@main/services/chat/system-reminder";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
+import { normalizePromptCapabilities } from "@shared/types/acp-agent";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 interface ReminderContext {
   changeId?: string;
@@ -36,7 +41,10 @@ interface ReminderContext {
   worktreePath?: string;
 }
 
-type PromptPart = { type: "text"; text: string };
+type PromptPart =
+  | { type: "text"; text: string }
+  | { type: "image"; mimeType: string; data: string }
+  | { type: "resource_link"; uri: string; name: string; mimeType: string };
 type AcpMcpServers = NonNullable<Parameters<ClientSideConnection["newSession"]>[0]["mcpServers"]>;
 
 interface StartContext {
@@ -72,14 +80,14 @@ export class AcpSession extends EventEmitter {
     };
   }
 
-  async start(prompt: string): Promise<void> {
+  async start(parts: ChatPromptPart[]): Promise<void> {
     const context = await this.prepareStartContext();
     if (!context) {
       return;
     }
 
     try {
-      await this.runStartFlow(context, prompt);
+      await this.runStartFlow(context, parts);
     } catch (err: unknown) {
       this.handleStartError(err);
     } finally {
@@ -163,10 +171,11 @@ export class AcpSession extends EventEmitter {
     }
   }
 
-  private async runStartFlow(context: StartContext, prompt: string): Promise<void> {
+  private async runStartFlow(context: StartContext, parts: ChatPromptPart[]): Promise<void> {
     this.throwIfCancelled("before start flow");
+    this.assertPromptCapabilities(context.entry.initializeResponse, parts);
 
-    if (await this.tryHandlePersistedSession(context, prompt)) {
+    if (await this.tryHandlePersistedSession(context, parts)) {
       return;
     }
 
@@ -177,14 +186,17 @@ export class AcpSession extends EventEmitter {
       runtimeState: context.runtimeState,
       persistedSessionId: context.persistedSessionId,
       mcpServers: context.mcpServers,
-      prompt,
+      prompt: this.getPrimaryTextPrompt(parts),
     });
 
     this.throwIfCancelled("after recovery flow");
-    await this.completeRecoveredPrompt(context, recovery, prompt);
+    await this.completeRecoveredPrompt(context, recovery, parts);
   }
 
-  private async tryHandlePersistedSession(context: StartContext, prompt: string): Promise<boolean> {
+  private async tryHandlePersistedSession(
+    context: StartContext,
+    parts: ChatPromptPart[]
+  ): Promise<boolean> {
     const { persistedSessionId } = context;
     if (!persistedSessionId) {
       logger.info(`${this.logPrefix()} no persisted ACP session; proceeding to new session flow`);
@@ -199,7 +211,7 @@ export class AcpSession extends EventEmitter {
       connection: context.entry.connection,
       sessionHandlers: context.entry.sessionHandlers,
       sessionId: persistedSessionId,
-      prompt,
+      prompt: parts,
       runtimeState: context.runtimeState,
     });
     this.throwIfCancelled("after direct prompt");
@@ -227,7 +239,7 @@ export class AcpSession extends EventEmitter {
   private async completeRecoveredPrompt(
     context: StartContext,
     recovery: RecoveryOutcome,
-    prompt: string
+    parts: ChatPromptPart[]
   ): Promise<void> {
     if (recovery.previousSessionId && recovery.previousSessionId !== recovery.sessionId) {
       context.entry.sessionHandlers.delete(recovery.previousSessionId);
@@ -267,7 +279,7 @@ export class AcpSession extends EventEmitter {
     this.throwIfCancelled("after resolving reminder");
     const promptParts: PromptPart[] = [
       ...reminderParts.map((part) => ({ type: "text" as const, text: part.text })),
-      { type: "text", text: prompt },
+      ...(await this.toAcpPromptParts(parts)),
     ];
 
     logger.info(
@@ -302,9 +314,10 @@ export class AcpSession extends EventEmitter {
       );
       return;
     }
+    const e = err as Error & { code?: string };
     this.emit("event", {
       type: "error",
-      code: "ACP_ERROR",
+      code: typeof e.code === "string" ? e.code : "ACP_ERROR",
       message: promptErrorMessage(err),
     } satisfies SessionEvent);
   }
@@ -346,7 +359,7 @@ export class AcpSession extends EventEmitter {
     connection: ClientSideConnection;
     sessionHandlers: Map<string, (notification: SessionNotification) => void>;
     sessionId: string;
-    prompt: string;
+    prompt: ChatPromptPart[];
     runtimeState: SessionRuntimeState;
   }): Promise<
     | { status: "completed"; result: unknown }
@@ -361,7 +374,7 @@ export class AcpSession extends EventEmitter {
         sessionHandlers: args.sessionHandlers,
         runtimeState: args.runtimeState,
         sessionId: args.sessionId,
-        prompt: [{ type: "text", text: args.prompt }],
+        prompt: await this.toAcpPromptParts(args.prompt),
       });
       return { status: "completed", result };
     } catch (error: unknown) {
@@ -593,6 +606,68 @@ export class AcpSession extends EventEmitter {
       sessionId: args.sessionId,
       prompt: args.prompt,
     });
+  }
+
+  private assertPromptCapabilities(
+    initializeResponse: InitializeResponse,
+    parts: ChatPromptPart[]
+  ): void {
+    const capabilities = normalizePromptCapabilities(
+      initializeResponse.agentCapabilities?.promptCapabilities
+    );
+    if (parts.some((part) => part.type === "image") && !capabilities.image) {
+      throw this.createAcpError(
+        IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
+        "当前 agent 不支持图片输入"
+      );
+    }
+    if (parts.some((part) => part.type === "resource_link") && !capabilities.embeddedContext) {
+      throw this.createAcpError(
+        IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
+        "当前 agent 不支持文件输入"
+      );
+    }
+  }
+
+  private async toAcpPromptParts(parts: ChatPromptPart[]): Promise<PromptPart[]> {
+    const promptParts: PromptPart[] = [];
+    for (const part of parts) {
+      if (part.type === "text") {
+        promptParts.push({ type: "text", text: part.text });
+        continue;
+      }
+      if (part.type === "resource_link") {
+        promptParts.push({
+          type: "resource_link",
+          uri: part.uri,
+          name: part.filename,
+          mimeType: part.mediaType,
+        });
+        continue;
+      }
+
+      try {
+        const data = await fs.readFile(fileURLToPath(part.uri));
+        promptParts.push({
+          type: "image",
+          mimeType: part.mediaType,
+          data: data.toString("base64"),
+        });
+      } catch {
+        throw this.createAcpError(IpcErrorCodes.ACP_ERROR, "无法读取附件文件");
+      }
+    }
+    return promptParts;
+  }
+
+  private getPrimaryTextPrompt(parts: ChatPromptPart[]): string {
+    return parts.find((part) => part.type === "text")?.text ?? "";
+  }
+
+  private createAcpError(code: string, message: string): Error & { code: string } {
+    const error = new Error(message) as Error & { code: string };
+    error.code = code;
+    return error;
   }
 
   private emitDone(result: unknown): void {

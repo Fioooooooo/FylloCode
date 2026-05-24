@@ -6,11 +6,12 @@ import type { RequestPermissionRequest, SessionNotification } from "@agentclient
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords } from "@main/domain/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
-import type { AcpAgentEntry } from "@shared/types/acp-agent";
+import { normalizePromptCapabilities, type AcpAgentEntry } from "@shared/types/acp-agent";
 import { AcpAgentChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
+import { upsertPromptCapabilities } from "@main/infra/storage/agent-capability-store";
 import logger from "@main/infra/logger";
 
 type SessionUpdateHandler = (notification: SessionNotification) => void;
@@ -127,6 +128,15 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
   logger.info(
     `[infra.process.acp] ${agentId} initialize response: ${JSON.stringify(initializeResponse)}`
   );
+  try {
+    await upsertPromptCapabilities(
+      agentId,
+      normalizePromptCapabilities(initializeResponse.agentCapabilities?.promptCapabilities),
+      record.installedVersion ?? ""
+    );
+  } catch (error: unknown) {
+    logger.error(`[infra.process.acp] failed to persist prompt capabilities for ${agentId}`, error);
+  }
 
   const entry: AgentProcess = {
     connection,

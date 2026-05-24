@@ -186,7 +186,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -218,7 +218,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -280,7 +280,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -320,7 +320,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -344,7 +344,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -376,7 +376,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -420,7 +420,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 
@@ -460,7 +460,7 @@ describe("registerChatHandlers", () => {
         sessionId: "session-1",
         projectId: "project-1",
         agentId: "claude-acp",
-        prompt: "hello",
+        prompt: [{ type: "text", text: "hello" }],
       }
     );
 

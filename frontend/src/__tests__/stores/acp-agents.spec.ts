@@ -4,6 +4,8 @@ import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import { acpAgentsApi } from "@renderer/api/acp-agents";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 
+let agentUnavailableListener: ((event: { agentId: string; reason: string }) => void) | null = null;
+
 vi.mock("@renderer/api/acp-agents", () => ({
   acpAgentsApi: {
     getRegistry: vi.fn(),
@@ -11,8 +13,14 @@ vi.mock("@renderer/api/acp-agents", () => ({
     getIcons: vi.fn(),
     detectStatus: vi.fn(),
     install: vi.fn(),
+    ensureAgent: vi.fn(),
+    loadCapabilitiesCache: vi.fn(),
     onRegistryUpdated: vi.fn(() => () => {}),
     onInstallProgress: vi.fn(() => () => {}),
+    onAgentUnavailable: vi.fn((listener) => {
+      agentUnavailableListener = listener;
+      return () => {};
+    }),
   },
 }));
 
@@ -50,6 +58,7 @@ describe("useAcpAgentsStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    agentUnavailableListener = null;
 
     vi.mocked(acpAgentsApi.getRegistry).mockResolvedValue({
       ok: true,
@@ -74,6 +83,18 @@ describe("useAcpAgentsStore", () => {
         installMethod: "npx",
         installedVersion: "1.2.3",
         installedAt: Date.now(),
+      },
+    });
+    vi.mocked(acpAgentsApi.loadCapabilitiesCache).mockResolvedValue({
+      ok: true,
+      data: {
+        "claude-code": { image: true, audio: false, embeddedContext: true },
+      },
+    });
+    vi.mocked(acpAgentsApi.ensureAgent).mockResolvedValue({
+      ok: true,
+      data: {
+        promptCapabilities: { image: false, audio: true, embeddedContext: false },
       },
     });
   });
@@ -150,5 +171,51 @@ describe("useAcpAgentsStore", () => {
     expect(store.resolveInstalledAgent("claude-code")).toBe("claude-code");
     expect(store.resolveInstalledAgent("missing-agent")).toBe("claude-code");
     expect(store.resolveInstalledAgent(null)).toBe("claude-code");
+  });
+
+  it("loads prompt capabilities cache and returns default values for misses", async () => {
+    const store = useAcpAgentsStore();
+
+    expect(store.getPromptCapabilities("missing")).toEqual({
+      image: false,
+      audio: false,
+      embeddedContext: false,
+    });
+
+    await store.loadCapabilitiesCache();
+
+    expect(store.getPromptCapabilities("claude-code")).toEqual({
+      image: true,
+      audio: false,
+      embeddedContext: true,
+    });
+  });
+
+  it("refreshes prompt capabilities for an agent", async () => {
+    const store = useAcpAgentsStore();
+
+    await store.refreshCapabilities("claude-code");
+
+    expect(acpAgentsApi.ensureAgent).toHaveBeenCalledWith("claude-code");
+    expect(store.getPromptCapabilities("claude-code")).toEqual({
+      image: false,
+      audio: true,
+      embeddedContext: false,
+    });
+  });
+
+  it("clears in-memory prompt capabilities on agentUnavailable", async () => {
+    const store = useAcpAgentsStore();
+
+    await store.loadCapabilitiesCache();
+    expect(store.getPromptCapabilities("claude-code").image).toBe(true);
+
+    agentUnavailableListener?.({ agentId: "claude-code", reason: "crashed" });
+
+    expect(store.getPromptCapabilities("claude-code")).toEqual({
+      image: false,
+      audio: false,
+      embeddedContext: false,
+    });
   });
 });

@@ -5,7 +5,8 @@ export function registerAcpAgentsTask(): void {
   onFylloBootstrap({
     name: "acp-agents",
     async run({ pinia }) {
-      await useAcpAgentsStore(pinia).ensureInitialized();
+      const store = useAcpAgentsStore(pinia);
+      await Promise.all([store.loadCapabilitiesCache(), store.ensureInitialized()]);
     },
   });
 }

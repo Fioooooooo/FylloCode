@@ -1,4 +1,45 @@
 import { z } from "zod";
+import { chatPromptPartSchema } from "@shared/types/chat-prompt";
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+function getBase64DecodedByteLength(value: string): number | null {
+  const normalized = value.replace(/\s/g, "");
+  if (normalized.length === 0 || normalized.length % 4 !== 0) {
+    return null;
+  }
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+    return null;
+  }
+
+  const padding = normalized.endsWith("==") ? 2 : normalized.endsWith("=") ? 1 : 0;
+  return (normalized.length / 4) * 3 - padding;
+}
+
+const userTextPartSchema = z
+  .object({
+    type: z.literal("text"),
+    text: z.string(),
+  })
+  .passthrough();
+
+const userFilePartSchema = z
+  .object({
+    type: z.literal("file"),
+    mediaType: z.string().min(1),
+    url: z.string().refine((value) => value.startsWith("file://"), {
+      message: "file part url must be a file:// URI",
+    }),
+    filename: z.string().min(1),
+  })
+  .passthrough();
+
+const userMessagePartsSchema = z
+  .array(z.discriminatedUnion("type", [userTextPartSchema, userFilePartSchema]))
+  .min(1)
+  .refine((parts) => parts.some((part) => part.type === "text"), {
+    message: "user message parts must include at least one text part",
+  });
 
 export const listSessionsInputSchema = z.object({
   projectId: z.string().min(1),
@@ -38,17 +79,34 @@ export const persistMessageInputSchema = z.object({
     .object({
       id: z.string().min(1),
       role: z.literal("user"),
-      parts: z.array(z.unknown()),
+      parts: userMessagePartsSchema,
       metadata: z.unknown().optional(),
     })
     .passthrough(),
+});
+
+export const saveAttachmentInputSchema = z.object({
+  projectId: z.string().min(1),
+  sessionId: z.string().min(1),
+  fileName: z.string().min(1),
+  mimeType: z.string().min(1),
+  base64Data: z
+    .string()
+    .min(1)
+    .refine(
+      (value) => {
+        const byteLength = getBase64DecodedByteLength(value);
+        return byteLength !== null && byteLength <= MAX_ATTACHMENT_BYTES;
+      },
+      { message: "base64Data must be valid base64 and decode to 25MB or less" }
+    ),
 });
 
 export const streamMessageInputSchema = z.object({
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
   agentId: z.string(),
-  prompt: z.string(),
+  prompt: z.array(chatPromptPartSchema).min(1),
 });
 
 export const streamCancelInputSchema = z.object({

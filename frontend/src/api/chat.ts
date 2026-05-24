@@ -1,5 +1,6 @@
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import type { Session, Message } from "@shared/types/chat";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 
@@ -55,9 +56,19 @@ export const chatApi = {
     sessionId: string,
     projectId: string,
     agentId: string,
-    prompt: string,
+    parts: ChatPromptPart[],
     callbacks: StreamCallbacks
   ): () => void {
-    return window.api.chat.streamMessage(sessionId, projectId, agentId, prompt, callbacks);
+    return window.api.chat.streamMessage(sessionId, projectId, agentId, parts, callbacks);
+  },
+
+  saveAttachment(
+    projectId: string,
+    sessionId: string,
+    fileName: string,
+    mimeType: string,
+    base64Data: string
+  ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
+    return window.api.chat.saveAttachment(projectId, sessionId, fileName, mimeType, base64Data);
   },
 };

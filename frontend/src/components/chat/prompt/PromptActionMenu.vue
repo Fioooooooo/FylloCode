@@ -1,9 +1,26 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import type { AcpPromptCapabilities } from "@shared/types/acp-agent";
+
+declare function useFileUpload(options: {
+  accept: string;
+  multiple: boolean;
+  reset: boolean;
+  dropzone: boolean;
+  onUpdate: (files: File[]) => void;
+}): { open: () => void };
+
 type PromptActionMenuItem = {
   label: string;
   icon: string;
+  disabled: boolean;
+  tooltip?: string;
   onSelect: () => void;
 };
+
+const props = defineProps<{
+  promptCapabilities: AcpPromptCapabilities;
+}>();
 
 const emit = defineEmits<{
   "select-files": [files: File[]];
@@ -14,7 +31,7 @@ const { open: openImageUpload } = useFileUpload({
   multiple: true,
   reset: true,
   dropzone: false,
-  onUpdate: (files) => emit("select-files", files),
+  onUpdate: (files: File[]) => emit("select-files", files),
 });
 
 const { open: openFileUpload } = useFileUpload({
@@ -22,21 +39,33 @@ const { open: openFileUpload } = useFileUpload({
   multiple: true,
   reset: true,
   dropzone: false,
-  onUpdate: (files) => emit("select-files", files),
+  onUpdate: (files: File[]) => emit("select-files", files),
 });
 
-const items: PromptActionMenuItem[] = [
+const items = computed<PromptActionMenuItem[]>(() => [
   {
     label: "上传图片",
     icon: "i-lucide-image",
-    onSelect: openImageUpload,
+    disabled: !props.promptCapabilities.image,
+    tooltip: props.promptCapabilities.image ? undefined : "当前 agent 不支持图片输入",
+    onSelect: () => {
+      if (props.promptCapabilities.image) {
+        openImageUpload();
+      }
+    },
   },
   {
     label: "上传文件",
     icon: "i-lucide-file-text",
-    onSelect: openFileUpload,
+    disabled: !props.promptCapabilities.embeddedContext,
+    tooltip: props.promptCapabilities.embeddedContext ? undefined : "当前 agent 不支持文件输入",
+    onSelect: () => {
+      if (props.promptCapabilities.embeddedContext) {
+        openFileUpload();
+      }
+    },
   },
-];
+]);
 </script>
 
 <template>

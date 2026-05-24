@@ -54,6 +54,12 @@ keywords: [data-model, shared-types, persistence, serialization]
 - Bad: 在 renderer 侧本地声明一个与 `shared/types/project.ts` 名字相同但字段不一致的 `ProjectInfo`。
 - Bad: 未更新 storage 测试就修改 `meta.json`、`connections.json`、`run.json`、`archive.json` 结构。
 
+## Chat Prompt Attachments
+
+- ACP prompt capability 缓存写入 `<userData>/acp/agent-capabilities.json`，schema 为 `{ version: 1, agents: { <agentId>: { promptCapabilities, capturedAgentVersion, capturedAt } } }`。`promptCapabilities` 三个字段必须是归一化后的 boolean。
+- Chat prompt 附件写入 `<userData>/projects/<encoded(projectPath)>/sessions/<sessionId>/attachments/<uuid>.<ext>`；目录 owner 是 session，`chat:removeSession` 必须同步递归删除该 session 的 `attachments/` 目录。
+- `<sessionId>.messages.jsonl` 中的 user message `parts` 支持 AI SDK `text` 与 `FileUIPart` 混合：`{ type: "file", mediaType, url: "file://...", filename }`。assistant message part 结构不因此扩展。
+
 ## Verification
 
 - `pnpm typecheck`

@@ -8,7 +8,8 @@ import {
 
 export function useChatPrompt(options: {
   hasAvailableCommands: Ref<boolean>;
-  onSubmit: (text: string) => Promise<void> | void;
+  onSubmit: (text: string) => Promise<boolean | void> | boolean | void;
+  canSubmit?: () => boolean;
 }): {
   input: Ref<string>;
   setPromptShellRef: (element: Element | ComponentPublicInstance | null) => void;
@@ -144,13 +145,17 @@ export function useChatPrompt(options: {
 
   async function handleSubmit(): Promise<void> {
     const text = input.value.trim();
-    if (!text) {
+    if (!text && options.canSubmit?.() !== true) {
+      return;
+    }
+
+    const submitted = await onSubmit(input.value);
+    if (submitted === false) {
       return;
     }
 
     input.value = "";
     clearTemporaryPlaceholder();
-    await onSubmit(text);
   }
 
   watch(input, (value) => {

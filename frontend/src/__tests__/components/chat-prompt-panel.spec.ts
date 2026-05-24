@@ -31,9 +31,10 @@ const chatPromptStub = {
 };
 
 const promptSubmitStub = {
-  props: ["status", "color", "size"],
+  props: ["status", "color", "size", "disabled"],
   emits: ["stop"],
-  template: '<button data-test="stop-button" type="button" @click="$emit(\'stop\')" />',
+  template:
+    '<button data-test="stop-button" type="button" :disabled="disabled" @click="$emit(\'stop\')" />',
 };
 
 const slashCommandStub = {
@@ -65,9 +66,18 @@ const sendMessage = vi.fn(async () => undefined);
 const cancelStream = vi.fn();
 const setSessionAgent = vi.fn(() => Promise.resolve());
 const setDraftAgent = vi.fn();
+const createSession = vi.fn();
+const refreshCapabilities = vi.fn(() => Promise.resolve());
+const getPromptCapabilities = vi.fn();
+const saveAttachment = vi.hoisted(() => vi.fn());
 const activeSessionRef = ref<Session | null>(null);
 const draftAgentIdRef = ref<string | null>("claude-code");
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
+const promptCapabilitiesRef = ref({
+  image: true,
+  audio: false,
+  embeddedContext: true,
+});
 const createObjectUrl = vi.fn((file: File) => `blob:${file.name}`);
 const revokeObjectUrl = vi.fn();
 
@@ -78,10 +88,30 @@ vi.mock("@renderer/stores/chat", () => ({
   }),
 }));
 
+vi.mock("@renderer/api/chat", () => ({
+  chatApi: {
+    saveAttachment,
+  },
+}));
+
+vi.mock("@renderer/stores/acp-agents", () => ({
+  useAcpAgentsStore: () => ({
+    refreshCapabilities,
+    getPromptCapabilities,
+  }),
+}));
+
+vi.mock("@renderer/stores/project", () => ({
+  useProjectStore: () => ({
+    currentProject: { id: "project-1" },
+  }),
+}));
+
 vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     draftAgentId: computed(() => draftAgentIdRef.value),
+    createSession,
     setSessionAgent,
     setDraftAgent,
   }),
@@ -150,6 +180,7 @@ function mountPanel(): VueWrapper {
           `,
         },
         PromptActionMenu: {
+          props: ["promptCapabilities"],
           emits: ["select-files"],
           template: `
             <div>
@@ -181,8 +212,28 @@ describe("ChatPromptPanel", () => {
     chatStatusRef.value = "ready";
     sendMessage.mockClear();
     cancelStream.mockClear();
+    createSession.mockReset();
     setSessionAgent.mockClear();
     setDraftAgent.mockClear();
+    refreshCapabilities.mockClear();
+    getPromptCapabilities.mockImplementation(() => promptCapabilitiesRef.value);
+    promptCapabilitiesRef.value = {
+      image: true,
+      audio: false,
+      embeddedContext: true,
+    };
+    saveAttachment.mockReset();
+    saveAttachment.mockResolvedValue({
+      ok: true,
+      data: { uri: "file:///tmp/attachment", name: "attachment", mimeType: "image/png" },
+    });
+    createSession.mockImplementation(async (input: { projectId: string; agentId: string }) => {
+      const session = makeSession();
+      session.projectId = input.projectId;
+      session.agentId = input.agentId;
+      activeSessionRef.value = session;
+      return session;
+    });
     createObjectUrl.mockClear();
     revokeObjectUrl.mockClear();
     Object.defineProperty(URL, "createObjectURL", {
@@ -192,6 +243,21 @@ describe("ChatPromptPanel", () => {
     Object.defineProperty(URL, "revokeObjectURL", {
       configurable: true,
       value: revokeObjectUrl,
+    });
+    class FileReaderStub {
+      result: string | ArrayBuffer | null = null;
+      error: Error | null = null;
+      onerror: (() => void) | null = null;
+      onload: (() => void) | null = null;
+
+      readAsDataURL(file: File): void {
+        this.result = `data:${file.type};base64,ZmFrZQ==`;
+        this.onload?.();
+      }
+    }
+    Object.defineProperty(globalThis, "FileReader", {
+      configurable: true,
+      value: FileReaderStub,
     });
   });
 
@@ -226,7 +292,7 @@ describe("ChatPromptPanel", () => {
     await textarea.setValue("hello world");
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
     await wrapper.vm.$nextTick();
-    expect(sendMessage).toHaveBeenCalledWith("hello world");
+    expect(sendMessage).toHaveBeenCalledWith([{ type: "text", text: "hello world" }]);
 
     await wrapper.get('[data-test="stop-button"]').trigger("click");
     expect(cancelStream).toHaveBeenCalledTimes(1);
@@ -312,5 +378,77 @@ describe("ChatPromptPanel", () => {
 
     expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
+  });
+
+  it("blocks unsupported image attachments and keeps the prompt content", async () => {
+    promptCapabilitiesRef.value = {
+      image: false,
+      audio: false,
+      embeddedContext: true,
+    };
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(saveAttachment).toHaveBeenCalled();
+    });
+    await wrapper.get("textarea").setValue("see image");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("see image");
+  });
+
+  it("assembles text first and then attachment parts", async () => {
+    activeSessionRef.value = makeSession();
+    saveAttachment.mockResolvedValueOnce({
+      ok: true,
+      data: { uri: "file:///tmp/diagram.png", name: "diagram.png", mimeType: "image/png" },
+    });
+    saveAttachment.mockResolvedValueOnce({
+      ok: true,
+      data: { uri: "file:///tmp/notes.md", name: "notes.md", mimeType: "text/markdown" },
+    });
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await wrapper.get('[data-test="prompt-action-upload-file"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(saveAttachment).toHaveBeenCalledTimes(2);
+    });
+    await wrapper.get("textarea").setValue("");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+
+    expect(sendMessage).toHaveBeenCalledWith([
+      { type: "text", text: "" },
+      {
+        type: "image",
+        mediaType: "image/png",
+        uri: "file:///tmp/diagram.png",
+        filename: "diagram.png",
+      },
+      {
+        type: "resource_link",
+        mediaType: "text/markdown",
+        uri: "file:///tmp/notes.md",
+        filename: "notes.md",
+      },
+    ]);
+  });
+
+  it("disables audio when unsupported and shows placeholder toast when enabled", async () => {
+    const wrapper = mountPanel();
+    expect(wrapper.get('button[aria-label="语音输入"]').attributes("disabled")).toBeDefined();
+
+    promptCapabilitiesRef.value = {
+      image: true,
+      audio: true,
+      embeddedContext: true,
+    };
+    await wrapper.vm.$nextTick();
+    await wrapper.get('button[aria-label="语音输入"]').trigger("click");
+
+    const { useToast } = await import("@nuxt/ui/composables");
+    expect(useToast().add).toHaveBeenCalledWith({ title: "即将开放", color: "info" });
   });
 });

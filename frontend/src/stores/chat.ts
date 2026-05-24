@@ -4,6 +4,7 @@ import { generateId } from "ai";
 import { useToast } from "@nuxt/ui/composables";
 import type { ChatStatus, Message, ModeType, Session } from "@shared/types/chat";
 import type { MessageChunkData } from "@shared/types/ipc";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import { chatApi, type StreamError } from "@renderer/api/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { useProjectStore } from "./project";
@@ -12,16 +13,32 @@ import { useSessionStore } from "./session";
 const DEFAULT_SESSION_TITLE = "New Session";
 const FALLBACK_SESSION_TITLE_MAX_LENGTH = 30;
 
-function buildUserMessage(sessionId: string, content: string): Message {
+function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
   return {
     id: generateId(),
     role: "user",
-    parts: [{ type: "text", text: content }],
+    parts: parts.map((part) => {
+      if (part.type === "text") {
+        return { type: "text", text: part.text };
+      }
+
+      return {
+        type: "file",
+        mediaType: part.mediaType,
+        url: part.uri,
+        filename: part.filename,
+      };
+    }) as Message["parts"],
     metadata: { sessionId, createdAt: new Date() },
   };
 }
 
-function buildFallbackSessionTitle(content: string): string {
+function getPrimaryText(parts: ChatPromptPart[]): string {
+  return parts.find((part) => part.type === "text")?.text ?? "";
+}
+
+function buildFallbackSessionTitle(parts: ChatPromptPart[]): string {
+  const content = getPrimaryText(parts);
   const taskTitle = content.match(/^\*\*标题\*\*:\s*(.+)$/m)?.[1]?.trim();
   if (taskTitle) {
     return Array.from(taskTitle).slice(0, FALLBACK_SESSION_TITLE_MAX_LENGTH).join("");
@@ -69,10 +86,10 @@ export const useChatStore = defineStore("chat", () => {
 
   function queueUserMessage(
     session: Session,
-    content: string,
+    parts: ChatPromptPart[],
     sessionStore: ReturnType<typeof useSessionStore>
   ): Message {
-    const userMessage = buildUserMessage(session.id, content);
+    const userMessage = buildUserMessage(session.id, parts);
     session.messages.push(userMessage);
     session.turnCount++;
     session.updatedAt = new Date();
@@ -92,7 +109,7 @@ export const useChatStore = defineStore("chat", () => {
   function streamSessionMessage(
     activeSession: Session,
     projectId: string,
-    prompt: string,
+    parts: ChatPromptPart[],
     sessionStore: ReturnType<typeof useSessionStore>,
     streamRunId: number
   ): void {
@@ -104,7 +121,7 @@ export const useChatStore = defineStore("chat", () => {
       activeSession.id,
       projectId,
       activeSession.agentId,
-      prompt,
+      parts,
       {
         onChunk(data) {
           if (!isCurrentStreamRun(streamRunId)) {
@@ -181,9 +198,9 @@ export const useChatStore = defineStore("chat", () => {
     );
   }
 
-  async function sendMessage(content: string): Promise<void> {
-    const prompt = content.trim();
-    if (!prompt) {
+  async function sendMessage(parts: ChatPromptPart[]): Promise<void> {
+    const hasPromptContent = parts.some((part) => part.type !== "text" || part.text.trim());
+    if (!hasPromptContent) {
       return;
     }
 
@@ -212,7 +229,7 @@ export const useChatStore = defineStore("chat", () => {
       }
 
       chatStatus.value = "submitted";
-      const fallbackTitleSnapshot = buildFallbackSessionTitle(prompt);
+      const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
 
       try {
         const createdSession = await sessionStore.createSession({
@@ -241,10 +258,10 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
 
-    const userMessage = queueUserMessage(activeSession, prompt, sessionStore);
+    const userMessage = queueUserMessage(activeSession, parts, sessionStore);
     chatStatus.value = "submitted";
     persistMessage(activeSession.id, projectIdSnapshot, userMessage);
-    streamSessionMessage(activeSession, projectIdSnapshot, prompt, sessionStore, streamRunId);
+    streamSessionMessage(activeSession, projectIdSnapshot, parts, sessionStore, streamRunId);
   }
 
   function setMode(newMode: ModeType): void {

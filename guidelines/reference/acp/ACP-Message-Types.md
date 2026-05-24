@@ -196,6 +196,20 @@ ContentBlock 出现在 `agent_message_chunk`、`user_message_chunk`、`agent_tho
 
 ---
 
+## ChatPromptPart 到 ContentBlock 映射
+
+FylloCode 的 `chat:stream:message` IPC 接收 `ChatPromptPart[]`，主进程在 `AcpSession` 中转换为 ACP `ContentBlock[]`：
+
+| ChatPromptPart                  | ACP ContentBlock                                 | 说明                                    |
+| ------------------------------- | ------------------------------------------------ | --------------------------------------- |
+| `{ type: "text", text }`        | `{ type: "text", text }`                         | 文本直通                                |
+| `{ type: "image", uri, ... }`   | `{ type: "image", mimeType, data }`              | 从 `file://` 读盘后 base64 编码         |
+| `{ type: "resource_link", ...}` | `{ type: "resource_link", uri, name, mimeType }` | 文件不读内容，仅把 `file://` 传给 agent |
+
+发送前必须按 `InitializeResponse.agentCapabilities.promptCapabilities` 做 gate：图片要求 `image === true`，文件链接要求 `embeddedContext === true`。
+
+---
+
 ## 持久化分类
 
 | 类型                             | 是否持久化 | 说明                        |

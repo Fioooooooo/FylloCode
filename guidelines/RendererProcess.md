@@ -57,6 +57,12 @@ keywords: [renderer, vue, pinia, routing, ui]
 - Bad: 在 Vue 组件内直接 `window.api.integration.projectSet(...)`。
 - Bad: 在页面里直接写 `fetch(...)`、`ipcRenderer.invoke(...)` 或用多个组件各自加载同一份全局配置数据。
 
+## Chat Prompt Capabilities
+
+- `useAcpAgentsStore.promptCapabilitiesByAgent` 维护 renderer 内存态的 `Map<agentId, AcpPromptCapabilities>`；启动期通过 `loadCapabilitiesCache()` 预热，切换 agent 时通过 `refreshCapabilities(agentId)` 触发主进程 `acp:ensureAgent`。
+- 未命中 capability 时，`getPromptCapabilities(agentId)` 必须返回 `{ image: false, audio: false, embeddedContext: false }`，UI 入口按不支持处理。
+- `frontend/src/utils/chat-message-parts.ts` 提供 `isUserImagePart` / `isUserFilePart`，只用于 user message 的 AI SDK `FileUIPart` 渲染分派；assistant file part 当前不渲染。
+
 ## Verification
 
 - `pnpm lint`

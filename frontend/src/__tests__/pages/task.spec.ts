@@ -263,14 +263,13 @@ describe("task page", () => {
     await flushPromises();
     await wrapper.get('[data-test="start-discussion"]').trigger("click");
 
-    expect(sendMessageMock).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "**来源**: 云效 YX-102 (https://devops.aliyun.com/projex/project/space-1/task/102)\n**标题**: 云效任务"
-      )
+    const promptText = sendMessageMock.mock.calls[0]?.[0]?.[0]?.text as string;
+    expect(promptText).toContain(
+      "**来源**: 云效 YX-102 (https://devops.aliyun.com/projex/project/space-1/task/102)\n**标题**: 云效任务"
     );
-    expect(sendMessageMock).toHaveBeenCalledWith(expect.stringContaining("需求详细说明"));
-    expect(sendMessageMock).not.toHaveBeenCalledWith(expect.stringContaining("<table>"));
-    expect(sendMessageMock).not.toHaveBeenCalledWith(expect.stringContaining("()"));
+    expect(promptText).toContain("需求详细说明");
+    expect(promptText).not.toContain("<table>");
+    expect(promptText).not.toContain("()");
   });
 
   it("loads yunxiao task detail after opening the modal", async () => {

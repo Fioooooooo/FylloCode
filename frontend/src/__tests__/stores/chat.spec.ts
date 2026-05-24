@@ -77,6 +77,10 @@ function deferred<T>(): {
   return { promise, resolve, reject };
 }
 
+function textParts(text: string): [{ type: "text"; text: string }] {
+  return [{ type: "text", text }];
+}
+
 function prepareDraftConversation(): void {
   const acpAgentsStore = useAcpAgentsStore();
   acpAgentsStore.registry = mockRegistry;
@@ -143,7 +147,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
       projectId: "project-1",
@@ -170,7 +174,7 @@ describe("useChatStore", () => {
       "session-1",
       "project-1",
       "claude-code",
-      "hello world",
+      [{ type: "text", text: "hello world" }],
       expect.any(Object)
     );
     expect(chatStore.streamError).toBeNull();
@@ -184,7 +188,7 @@ describe("useChatStore", () => {
     vi.mocked(chatApi.createSession).mockReturnValueOnce(createDeferred.promise);
 
     const chatStore = useChatStore();
-    const sendPromise = chatStore.sendMessage("hello world");
+    const sendPromise = chatStore.sendMessage(textParts("hello world"));
 
     expect(chatStore.chatStatus).toBe("submitted");
 
@@ -231,7 +235,7 @@ describe("useChatStore", () => {
     );
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     expect(chatStore.chatStatus).toBe("submitted");
     expect(callbacks).not.toBeNull();
@@ -279,7 +283,7 @@ describe("useChatStore", () => {
     );
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
     stop();
 
     expect(observedMessageCounts).toContain(1);
@@ -320,7 +324,9 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("  hello\n\nworld   this message is intentionally long  ");
+    await chatStore.sendMessage(
+      textParts("  hello\n\nworld   this message is intentionally long  ")
+    );
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
       projectId: "project-1",
@@ -356,7 +362,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     expect(sessionStore.activeSession?.title).toBe("hello world");
     expect(callbacks).not.toBeNull();
@@ -390,7 +396,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     callbacks!.onChunk({
       kind: "usage_update",
@@ -432,7 +438,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     expect(chatApi.persistMessage).toHaveBeenCalledTimes(1);
     callbacks!.onChunk({ kind: "text_delta", text: "assistant reply" });
@@ -473,7 +479,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     callbacks!.onChunk({
       kind: "available_commands_update",
@@ -512,7 +518,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     callbacks!.onChunk({ kind: "reasoning_delta", text: "thinking" });
 
@@ -550,7 +556,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
 
     expect(chatStore.cancelFn).toBe(cancel);
 
@@ -594,7 +600,7 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
     callbacks!.onError({ code: "stream_failed", message: "bad network" });
 
     const sessionSnapshot = JSON.stringify({
@@ -641,13 +647,13 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
     streamCallbacks[0]!.onError({ code: "stream_failed", message: "bad network" });
 
     expect(chatStore.chatStatus).toBe("error");
     expect(chatStore.streamError).toEqual({ code: "stream_failed", message: "bad network" });
 
-    await chatStore.sendMessage("retry request");
+    await chatStore.sendMessage(textParts("retry request"));
 
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
@@ -681,10 +687,10 @@ describe("useChatStore", () => {
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
-    await chatStore.sendMessage("hello world");
+    await chatStore.sendMessage(textParts("hello world"));
     streamCallbacks[0]!.onError({ code: "stream_failed", message: "bad network" });
 
-    await chatStore.sendMessage("retry request");
+    await chatStore.sendMessage(textParts("retry request"));
     streamCallbacks[1]!.onChunk({ kind: "text_delta", text: "assistant reply" });
     streamCallbacks[1]!.onDone({ totalTokens: 5 });
 

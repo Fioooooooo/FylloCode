@@ -6,6 +6,7 @@ export const ChatChannels = {
   removeSession: "chat:removeSession",
   loadMessages: "chat:loadMessages",
   persistMessage: "chat:persistMessage",
+  saveAttachment: "chat:saveAttachment",
 } as const;
 
 export const ChatStreamChannels = {
@@ -77,6 +78,8 @@ export const AcpAgentChannels = {
   getIcons: "acp:getIcons",
   detectStatus: "acp:detectStatus",
   install: "acp:install",
+  ensureAgent: "acp:ensureAgent",
+  loadCapabilitiesCache: "acp:loadCapabilitiesCache",
   registryUpdated: "acp:registryUpdated",
   installProgress: "acp:installProgress",
   agentUnavailable: "acp:event:agentUnavailable",

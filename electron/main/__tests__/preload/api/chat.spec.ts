@@ -53,11 +53,17 @@ describe("preload chatApi.streamMessage", () => {
     const { chatApi } = await import("../../../../preload/api/chat");
     const port = createPort();
 
-    const cancel = chatApi.streamMessage("session-1", "project-1", "agent-1", "hello", {
-      onChunk: vi.fn(),
-      onDone: vi.fn(),
-      onError: vi.fn(),
-    });
+    const cancel = chatApi.streamMessage(
+      "session-1",
+      "project-1",
+      "agent-1",
+      [{ type: "text", text: "hello" }],
+      {
+        onChunk: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+      }
+    );
     emitStreamPort(port);
 
     expect(port.start).toHaveBeenCalledTimes(1);
@@ -81,11 +87,17 @@ describe("preload chatApi.streamMessage", () => {
     const { chatApi } = await import("../../../../preload/api/chat");
     const port = createPort();
 
-    const cancel = chatApi.streamMessage("session-1", "project-1", "agent-1", "hello", {
-      onChunk: vi.fn(),
-      onDone: vi.fn(),
-      onError: vi.fn(),
-    });
+    const cancel = chatApi.streamMessage(
+      "session-1",
+      "project-1",
+      "agent-1",
+      [{ type: "text", text: "hello" }],
+      {
+        onChunk: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+      }
+    );
 
     cancel();
     emitStreamPort(port);

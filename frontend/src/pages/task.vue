@@ -142,7 +142,7 @@ async function startChatFromTask(task: TaskItem): Promise<void> {
   }
 
   sessionStore.beginDraftSession();
-  await chatStore.sendMessage(buildTaskPrompt(task));
+  await chatStore.sendMessage([{ type: "text", text: buildTaskPrompt(task) }]);
   await router.push("/chat");
 }
 

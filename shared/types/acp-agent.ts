@@ -66,6 +66,24 @@ export interface AcpAgentStatus {
   latestVersion?: string;
 }
 
+export interface AcpPromptCapabilities {
+  image: boolean;
+  audio: boolean;
+  embeddedContext: boolean;
+}
+
+export function normalizePromptCapabilities(input?: {
+  image?: boolean;
+  audio?: boolean;
+  embeddedContext?: boolean;
+}): AcpPromptCapabilities {
+  return {
+    image: input?.image === true,
+    audio: input?.audio === true,
+    embeddedContext: input?.embeddedContext === true,
+  };
+}
+
 export interface AcpInstallProgress {
   agentId: string;
   status: "downloading" | "installing" | "done" | "error";

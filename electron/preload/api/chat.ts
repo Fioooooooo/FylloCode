@@ -2,6 +2,7 @@ import { ipcRenderer } from "electron";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { Session, Message } from "@shared/types/chat";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 export interface StreamCallbacks {
@@ -51,7 +52,7 @@ export const chatApi = {
     sessionId: string,
     projectId: string,
     agentId: string,
-    prompt: string,
+    parts: ChatPromptPart[],
     callbacks: StreamCallbacks
   ): () => void {
     let port: MessagePort | null = null;
@@ -59,7 +60,7 @@ export const chatApi = {
 
     // Invoke to trigger main to create MessagePort and start streaming
     void ipcRenderer
-      .invoke(ChatStreamChannels.streamMessage, { sessionId, projectId, agentId, prompt })
+      .invoke(ChatStreamChannels.streamMessage, { sessionId, projectId, agentId, prompt: parts })
       .catch((error: unknown) => {
         callbacks.onError({
           code: "STREAM_INIT_FAILED",
@@ -100,5 +101,21 @@ export const chatApi = {
       port?.close();
       port = null;
     };
+  },
+
+  saveAttachment(
+    projectId: string,
+    sessionId: string,
+    fileName: string,
+    mimeType: string,
+    base64Data: string
+  ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
+    return ipcRenderer.invoke(ChatChannels.saveAttachment, {
+      projectId,
+      sessionId,
+      fileName,
+      mimeType,
+      base64Data,
+    });
   },
 };

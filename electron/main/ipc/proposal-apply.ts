@@ -55,6 +55,9 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
   if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
   if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
   if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
+  if (raw === IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH) {
+    return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
+  }
   return IpcErrorCodes.ACP_ERROR;
 }
 
@@ -221,7 +224,7 @@ export function registerProposalApplyHandlers(): void {
         return {
           start: async () => {
             try {
-              await session.start(prompt);
+              await session.start([{ type: "text", text: prompt }]);
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : String(error);
               void updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => ({
@@ -416,7 +419,7 @@ export function registerProposalApplyHandlers(): void {
 
         return {
           start: async () => {
-            await session.start(prompt);
+            await session.start([{ type: "text", text: prompt }]);
           },
           cancel: () => {
             session.cancel();
