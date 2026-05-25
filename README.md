@@ -20,9 +20,11 @@
 
 ---
 
-## The Problem
+## Why FylloCode
 
-Coding Agents are powerful, but in real projects they drift. Give one a task and it will start writing code immediately — often misunderstanding the scope, ignoring conventions, or making decisions you would have caught in a 30-second review. The longer a session runs, the further it drifts. You end up spending more time reviewing diffs than you saved.
+In this new era, the work that really needs our attention is no longer repetitive coding, but higher-level business understanding and architecture design. The future workflow I have in mind is: understand the business → think through the architecture → write a Proposal → review the Proposal → let the Agent implement it automatically, then move on to the next Proposal.
+
+That thinking led me to build FylloCode — a step from Vibe Coding toward Agentic Coding.
 
 ## How FylloCode Solves It
 
@@ -48,19 +50,18 @@ FylloCode enforces a structured workflow that separates **thinking** from **doin
 
 **Archive** — Specs are updated, the change is recorded with full traceability. Your project's knowledge base grows with every shipped change.
 
-### Why This Is More Accurate Than Agent + Skill
+### Why Separating Thinking from Execution Matters
 
 Most Coding Agents understand a task and write code in the same session. Any misunderstanding becomes code directly, and code is expensive to review.
-
 FylloCode physically separates understanding from execution. Misunderstandings can only become proposal text — and text is cheap to review. A 2-minute proposal review catches problems that would take 20 minutes to find in a diff.
 
 ## Features
 
 ### Agent Protocol (ACP)
 
-FylloCode connects to any Coding Agent through the [Agent Client Protocol](https://github.com/anthropics/agent-client-protocol). Claude Code, Codex, or any ACP-compatible agent — one protocol, one interface.
+FylloCode connects to any Coding Agent through ACP (Agent Client Protocol). Claude Code, Codex, or any ACP-compatible agent — one protocol, one interface, without juggling a pile of terminal windows.
 
-<!-- TODO: screenshot of agent selection -->
+There are currently 35 agents available in the ACP Registry, with support for parallel chats and parallel Proposal Apply runs.
 
 ![FylloCode-ACP](docs/screenshot/acp-registry.png)
 
@@ -68,33 +69,46 @@ FylloCode connects to any Coding Agent through the [Agent Client Protocol](https
 
 Each workflow stage injects a system reminder that constrains what the Agent can and cannot do. In Chat, the Agent is instructed to explore and propose, not code. In Apply, it follows the approved task list. This isn't a suggestion — it's a hard boundary enforced at session start.
 
-![FylloCode-ACP](docs/screenshot/chat.png)
+![FylloCode-Chat](docs/screenshot/chat.png)
 
 ### Task Panel
 
 View and manage tasks from your local list or synced from external platforms. Tasks serve as the entry point to the entire workflow — select a task, start a Chat, and the Agent begins with full context.
 
-![FylloCode-ACP](docs/screenshot/task.png)
+![FylloCode-Task](docs/screenshot/task.png)
 
 ### Integration with Development Platforms
 
 Connect to platforms like Yunxiao (Alibaba Cloud DevOps) at the provider level — one authentication, multiple tools across task management, source code, and CI/CD. More platform integrations (GitHub, TAPD, Jira, etc.) are planned.
 
-![FylloCode-ACP](docs/screenshot/integration-provider.png)
+Task integrations use APIs instead of Agent Skills by design. API calls are fast and do not spend tokens, so tokens stay focused on the work that actually needs reasoning.
+
+![FylloCode-Integration](docs/screenshot/integration-provider.png)
 
 ### Workflow Editor
 
 Define and customize multi-stage workflows. Built-in templates get you started; edit the YAML to fit your team's process.
 
-![FylloCode-ACP](docs/screenshot/workflow.png)
+![FylloCode-Workflow](docs/screenshot/workflow.png)
 
 ### OpenSpec-Driven Proposals
 
 Proposals are structured artifacts — not chat messages. Each proposal contains a design document, spec changes, and a concrete task list with file paths and acceptance criteria. The built-in `fyllo-specs` MCP server manages the full lifecycle: explore → create-proposal → apply-change → archive-change.
 
-![FylloCode-ACP](docs/screenshot/proposal-list.png)
+![FylloCode-Proposal-list](docs/screenshot/proposal-list.png)
 
-![FylloCode-ACP](docs/screenshot/proposal-detail.png)
+![FylloCode-Proposal-detail](docs/screenshot/proposal-detail.png)
+
+### Streaming Rendering Engine
+
+FylloCode uses [markstream-vue](https://github.com/Simon-He95/markstream-vue) as its streaming rendering engine. It is fast and smooth, with built-in integration for Monaco Editor, KaTeX, and Mermaid. While working on Proposals, it can render flowcharts and formatted specs in real time, making architecture flows and business logic easier to inspect.
+
+### Engineering Guardrails
+
+FylloCode provides two layers of engineering guardrails:
+
+- Soft constraints — Capture engineering conventions as Guidelines and continuously maintain them through the built-in `fyllo-skills` MCP server, without manual upkeep.
+- Hard constraints — Agents may not always follow Guidelines perfectly, so FylloCode's health checks establish engineering-level enforcement through lint, test runners, git hooks, and CI.
 
 ## Quick Start
 
@@ -142,3 +156,7 @@ Electron · Vue 3 · TypeScript · ACP SDK · MCP SDK · Nuxt UI · Tailwind CSS
 ## License
 
 [AGPL-3.0](LICENSE)
+
+## Community
+
+[LinuxDO](https://linux.do/): sincere, friendly, united, and professional
