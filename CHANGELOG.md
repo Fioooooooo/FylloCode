@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.10.1] - 2026-05-25
+
+This patch release adds the first end-to-end multimodal chat prompt flow. Users can attach files and images to chat prompts, agents can advertise prompt attachment capabilities, and local image attachments now render safely in chat history.
+
+### Added
+
+- Multimodal chat prompt support for image and file attachments, including prompt-side attachment UI and submission handling
+- Agent prompt capability loading and caching so the renderer can enable attachment entry points only when the active agent supports them
+- IPC and preload APIs for reading local attachment files as data URLs for image preview rendering
+- Chat attachment storage and prompt part utilities for preserving file metadata through the chat flow
+
+### Changed
+
+- Chat prompt UI was reorganized into smaller prompt-specific components for attachment cards, attachment lists, action menus, and slash commands
+- Chat message rendering was split into dedicated `ChatMessageList`, `AssistantMessage`, and `UserMessage` components under `components/chat/message`
+- User image preview resolution now lives in a focused `useUserImagePart` composable
+
+### Fixed
+
+- Local `file://` image attachments now render through a controlled data URL read path instead of relying on direct renderer access
+- Chat and proposal message list call sites now use the renamed message component after the chat message directory reorganization
+
 ## [0.10.0] - 2026-05-24
 
 This release extends the built-in MCP workflow layer beyond the initial `0.9.0` stable baseline. It adds the new `fyllo-skills` bundled server, deepens `fyllo-specs` automation around OpenSpec setup and archive finalization, and fixes a visible chat stop-state issue during the first-message setup path.

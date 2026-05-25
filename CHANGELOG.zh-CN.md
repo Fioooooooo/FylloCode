@@ -4,6 +4,28 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.10.1] - 2026-05-25
+
+这个补丁版本补上了第一版端到端的多模态 Chat prompt 流程。用户现在可以在 Chat prompt 中附加文件和图片，agent 可以声明自身的 prompt 附件能力，本地图片附件也能在聊天历史中安全预览。
+
+### 新增
+
+- 新增 Chat prompt 的多模态附件能力，支持图片与文件附件的前端入口、展示与提交处理
+- 新增 agent prompt capability 的加载与缓存，让 renderer 只在当前 agent 支持时展示对应附件入口
+- 新增用于读取本地附件为 data URL 的 IPC 与 preload API，用于图片预览渲染
+- 新增 Chat attachment 存储与 prompt part 工具函数，保证文件元数据能贯穿聊天流程
+
+### 调整
+
+- Chat prompt UI 被拆分为更小的 prompt 专属组件，包括附件卡片、附件列表、操作菜单与 slash command 菜单
+- Chat 消息渲染拆分为 `components/chat/message` 下的 `ChatMessageList`、`AssistantMessage` 与 `UserMessage`
+- 用户图片预览解析逻辑下沉到独立的 `useUserImagePart` composable
+
+### 修复
+
+- 本地 `file://` 图片附件现在通过受控的 data URL 读取路径渲染，不再依赖 renderer 直接访问本地文件
+- Chat 与 Proposal 的消息列表调用点已同步使用重命名后的消息组件，适配新的 chat message 目录结构
+
 ## [0.10.0] - 2026-05-24
 
 这个版本是在 `0.9.0` 稳定基线之上，对内置 MCP 工作流层做的一次明显扩展。它新增了 `fyllo-skills` bundled server，继续增强了 `fyllo-specs` 在 OpenSpec 初始化与 archive 收尾阶段的自动化能力，并修复了首条消息 setup 阶段可见的 chat 停止状态问题。
