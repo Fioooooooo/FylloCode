@@ -5,7 +5,7 @@ import { CallToolResultSchema, ErrorCode } from "@modelcontextprotocol/sdk/types
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spawnSync } from "child_process";
+import spawn from "cross-spawn";
 import { describe, expect, it, vi } from "vitest";
 import { applyChangeTool } from "../src/tools/apply-change";
 import { createProposalTool } from "../src/tools/create-proposal";
@@ -15,7 +15,7 @@ import { registerTools } from "../src/tools";
 import { gitChildProcess } from "../src/utils/project-root";
 
 function git(cwd: string, args: string[]): void {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  const result = spawn.sync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout);
   }

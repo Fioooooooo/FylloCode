@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("child_process", () => ({
-  spawn: mocks.spawn,
+vi.mock("cross-spawn", () => ({
+  default: mocks.spawn,
 }));
 
 vi.mock("@main/domain/acp/detector", () => ({
@@ -146,6 +146,35 @@ describe("acp-process-pool", () => {
     expect(mocks.spawn).toHaveBeenCalledTimes(1);
     const opts = mocks.spawn.mock.calls[0][2];
     expect(opts.detached).toBe(false);
+  });
+
+  it("uses cross-spawn for Windows npx agents", async () => {
+    setPlatform("win32");
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-acp": { installMethod: "npx" },
+    });
+    mocks.getRegistry.mockResolvedValue({
+      agents: [
+        {
+          id: "claude-acp",
+          distribution: {
+            npx: {
+              package: "@anthropic-ai/claude-code-acp@1.2.3",
+              args: ["--stdio"],
+            },
+          },
+        },
+      ],
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      "npx",
+      ["--no-install", "@anthropic-ai/claude-code-acp", "--stdio"],
+      expect.objectContaining({ detached: false })
+    );
   });
 
   it("dispose graceful close skips signal escalation", async () => {

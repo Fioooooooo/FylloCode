@@ -38,6 +38,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - MUST: 使用 kebab-case 命名目录和非组件 TypeScript 文件，使用 PascalCase 命名 Vue 组件文件。
 - MUST: 将类型、类、枚举命名为 PascalCase，将变量、函数、store action 命名为 camelCase。
 - MUST: 让 IPC channel 字符串遵循 `domain:action` 命名，并通过共享常量集中维护，而不是分散硬编码。
+- MUST: 启动外部进程时使用 `cross-spawn`，不得从 `child_process` / `node:child_process` 直接导入 `spawn` 或 `spawnSync`；需要 Node 子进程类型时使用 `import type`。
 - MUST: 对自动生成文件保持只读，不手动修改 `frontend/auto-imports.d.ts`、`frontend/components.d.ts`、`frontend/.eslintrc-auto-import.json`、`frontend/src/typed-router.d.ts`、`out/`、`dist/`。
 - MUST: 在渲染层使用 Tailwind utility classes 和 `@nuxt/ui` 主题 token，避免散落的独立 CSS 文件和硬编码颜色值。
 - MUST: 让注释服务于非显然约束、边界和历史原因，不写重复代码字面意思的噪音注释。

@@ -1,7 +1,7 @@
-import { spawn } from "child_process";
 import { existsSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import spawn from "cross-spawn";
 import { OpenspecCliError, OpenspecTimeoutError } from "./types";
 
 const TIMEOUT_MS = 30_000;

@@ -1,6 +1,6 @@
-import { spawn } from "child_process";
 import { existsSync } from "fs";
 import path from "path";
+import spawn from "cross-spawn";
 import type { ArchiveGitOpResult, ArchiveGitStep } from "./types";
 
 function shellQuote(value: string): string {

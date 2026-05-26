@@ -1,5 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
+import type { ChildProcessWithoutNullStreams } from "child_process";
 import { Writable, Readable } from "stream";
+import spawn from "cross-spawn";
 import { app, BrowserWindow } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";

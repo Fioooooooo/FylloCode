@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, copyFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import spawn from "cross-spawn";
 
 const rootDir = process.cwd();
 const sourceSvg = join(rootDir, "resources", "app-icon.svg");

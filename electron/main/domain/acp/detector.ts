@@ -1,6 +1,6 @@
-import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import { join } from "path";
+import spawn from "cross-spawn";
 import type {
   AcpAgentBinaryDistribution,
   AcpAgentDistribution,
@@ -99,12 +99,12 @@ export async function findCommandPath(command: string): Promise<string | null> {
       return null;
     }
 
-    const [firstMatch] = result.stdout
+    const matches = result.stdout
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
 
-    return firstMatch ?? null;
+    return matches[0] ?? null;
   } catch {
     return null;
   }

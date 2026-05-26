@@ -1,8 +1,8 @@
-import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import { basename, dirname, extname, join, relative } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
+import spawn from "cross-spawn";
 import type {
   AcpAgentEntry,
   AcpInstallMethod,

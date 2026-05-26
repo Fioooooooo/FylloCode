@@ -47,6 +47,20 @@ export default defineConfig(
       ],
     },
   },
+  {
+    files: ["**/*.{js,mjs,cjs,ts,mts,tsx,vue}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportDeclaration[source.value=/^(node:)?child_process$/] ImportSpecifier[imported.name=/^(spawn|spawnSync)$/]",
+          message:
+            "Use cross-spawn for process creation; native child_process spawn/spawnSync is not cross-platform safe.",
+        },
+      ],
+    },
+  },
 
   // --- Main-process layering guard ----------------------------------------
   // Enforces dependency direction inside electron/main/:

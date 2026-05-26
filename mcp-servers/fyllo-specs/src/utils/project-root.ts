@@ -1,6 +1,6 @@
-import { spawnSync } from "child_process";
 import { existsSync, realpathSync } from "fs";
 import path from "path";
+import spawn from "cross-spawn";
 
 export interface TargetPathValidationResult {
   ok: boolean;
@@ -14,7 +14,7 @@ export function resolveProjectRoot(): string {
 }
 
 export const gitChildProcess = {
-  spawnSync,
+  spawnSync: spawn.sync,
 };
 
 function normalizePathForComparison(value: string): string {

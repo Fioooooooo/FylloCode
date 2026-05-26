@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spawnSync } from "child_process";
+import spawn from "cross-spawn";
 import { wrapState } from "../src/utils/state";
 import { finalizeArchiveWorkspace } from "../src/runtime-workspace";
 
 function git(cwd: string, args: string[]): void {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  const result = spawn.sync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout);
   }

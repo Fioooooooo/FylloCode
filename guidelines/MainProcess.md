@@ -40,6 +40,7 @@ keywords: [electron, main-process, ipc, services, infra]
 - MUST: 将业务编排写在 `services/`，将纯逻辑和解析器写在 `domain/`，将文件系统、路径、进程、日志、ID 生成等能力写在 `infra/`。
 - MUST: 将持久化路径通过 `infra/paths` 与 `infra/storage/project-paths.ts` 提供的函数统一生成，不得在 service 或 handler 层手写 `join(...)` 拼装项目作用域目录。
 - MUST: 将长期存活的子进程、定时器、watcher、registry 和其他资源注册到主进程 lifecycle/disposable 体系中，确保退出时能清理。
+- MUST: 主进程中创建子进程时使用 `cross-spawn`，不得从 `child_process` / `node:child_process` 直接导入 `spawn` 或 `spawnSync`；该约束由 `eslint.config.mjs` 拦截。仅类型导入（如 `ChildProcessWithoutNullStreams`）可继续来自 `child_process`。
 - MUST: 对会派生孙进程的子进程（典型如 ACP agent）启用进程组隔离，并在 dispose 阶段按整棵树清理：POSIX 平台 `spawn(..., { detached: true })` 让 child 成为 process group leader，dispose 时用 `process.kill(-pid, signal)` 对组发信号；Windows 平台不设置 `detached`，dispose 时改用 `taskkill /T /F` 递归杀树。直接对单个 child 调 `kill()` 不会传递到孙进程，会留下孤儿。
 - MUST: 通过 `sessionRegistry` 管理活跃 ACP session，不得在各业务模块各自维护 `Map<string, AcpSession>`。
 - MUST: 通过 `@main/infra/logger` 或渲染侧对应转发 logger 记录日志，不得在主进程内使用散落的 `console.log`。
@@ -52,7 +53,9 @@ keywords: [electron, main-process, ipc, services, infra]
 - Good: `electron/main/ipc/chat.ts` 中先 `validate(streamMessageInputSchema, input)`，再调用 service/session 入口，而不是直接创建文件路径或子进程。
 - Good: `electron/main/services/proposal/**` 中编排 apply/archive 流程，`infra/storage/**` 只负责文件读写与序列化。
 - Good: `electron/main/infra/process/acp-process-pool.ts` 管理 ACP 子进程重试、give-up 状态和退出清理。
+- Good: 使用 `cross-spawn` 启动 `npm`、`npx`、`uvx`、`git` 等外部命令，避免 Windows `.cmd` shim、PATHEXT 和参数转义差异泄漏到业务代码。
 - Bad: 在 `ipc/*.ts` 里直接 `spawn(...)`、`fs.writeFile(...)` 或导入 `@main/infra/storage/*`。
+- Bad: `import { spawn } from "child_process"` 后直接启动外部命令。
 - Bad: 在 `services/` 中硬编码 `session-${Date.now()}`、`process.resourcesPath` 或项目数据目录字符串。
 
 ## Verification
