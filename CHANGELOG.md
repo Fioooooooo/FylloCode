@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.10.2] - 2026-05-26
+
+This patch release adds a project health check entry point, improves ACP shutdown so it cleans up the entire process tree.
+
+### Added
+
+- Project health check in the top navigation, with a one-click entry that guides the agent to evaluate static constraints, test constraints, and workflow constraints, then help close gaps through the standard proposal flow
+
+### Changed
+
+- ACP process shutdown now performs bounded session close, stdin close, and process-tree termination so agent children and MCP grandchildren are cleaned up together
+- Main-process disposable timeout was raised to 8 seconds to cover the ACP teardown sequence with headroom
+
+### Fixed
+
+- Fixed an issue where MCP child processes spawned by ACP agents could remain orphaned after app quit
+
 ## [0.10.1] - 2026-05-25
 
 This patch release adds the first end-to-end multimodal chat prompt flow. Users can attach files and images to chat prompts, agents can advertise prompt attachment capabilities, and local image attachments now render safely in chat history.
