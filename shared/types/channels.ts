@@ -67,6 +67,11 @@ export const SettingsChannels = {
   update: "settings:update",
 } as const;
 
+export const AppChannels = {
+  openDevTools: "app:openDevTools",
+  reportRendererError: "app:reportRendererError",
+} as const;
+
 export const WorkflowChannels = {
   list: "workflow:list",
   save: "workflow:save",

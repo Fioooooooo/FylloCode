@@ -1,3 +1,4 @@
+import { registerAppHandlers } from "./app";
 import { registerChatHandlers } from "./chat";
 import { registerProjectHandlers } from "./project";
 import { registerProposalHandlers } from "./proposal";
@@ -9,6 +10,7 @@ import { registerWorkflowHandlers } from "./workflow";
 import { registerTaskHandlers } from "./task";
 
 export function registerAllHandlers(): void {
+  registerAppHandlers();
   registerChatHandlers();
   registerProjectHandlers();
   registerProposalHandlers();

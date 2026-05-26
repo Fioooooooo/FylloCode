@@ -1,3 +1,4 @@
+import type { appApi } from "./api/app";
 import type { chatApi } from "./api/chat";
 import type { projectApi } from "./api/project";
 import type { proposalApi } from "./api/proposal";
@@ -11,6 +12,7 @@ type SettingsApi = typeof settingsApi;
 type ChatApi = typeof chatApi;
 
 export interface AppApi {
+  app: typeof appApi;
   chat: ChatApi;
   project: typeof projectApi;
   proposal: typeof proposalApi;

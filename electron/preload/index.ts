@@ -1,5 +1,6 @@
 import { contextBridge } from "electron";
 import log from "electron-log/renderer";
+import { appApi } from "./api/app";
 import { chatApi } from "./api/chat";
 import { projectApi } from "./api/project";
 import { proposalApi } from "./api/proposal";
@@ -10,6 +11,7 @@ import { workflowApi } from "./api/workflow";
 import { taskApi } from "./api/task";
 
 const api = {
+  app: appApi,
   chat: chatApi,
   project: projectApi,
   proposal: proposalApi,
