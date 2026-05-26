@@ -6,19 +6,53 @@ beforePack: ./scripts/electron-builder-before-pack.cjs
 files:
   - "out/**"
   - "resources/**"
+  - "package.json"
+
+  - "!**/*.map"
+
+  - "!electron/**"
+  - "!frontend/**"
+  - "!mcp-servers/**"
+  - "!guidelines/**"
+  - "!openspec/**"
+  - "!scripts/**"
+  - "!build/**"
+
+  - "!**/.claude/**"
+  - "!**/.github/**"
+  - "!**/.cursor/**"
+  - "!**/.vscode/**"
+  - "!electron-builder.yml"
+  - "!electron.vite.config.{js,ts,mjs,cjs}"
+  - "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml}"
+  - "!{.env,.env.*,.npmrc,pnpm-lock.yaml,pnpm-workspace.yaml}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+
+  - "!**/*.{test,spec}.{js,mjs,cjs,ts,tsx}"
+  - "!**/{test,tests,__tests__,powered-test}/**"
+  - "!**/{example,examples}/**"
+  - "!**/docs/**"
+  - "!**/{benchmark,benchmarks,playwright-tests,tests-examples}/**"
+  - "!**/{coverage,.nyc_output,.vite,.turbo,.cache,tmp,temp}/**"
+  - "!**/{README,README.md,README.markdown,Readme,Readme.md,readme,readme.md,CHANGELOG,CHANGELOG.md,CHANGELOG.markdown,HISTORY,HISTORY.md,CODE_OF_CONDUCT,CODE_OF_CONDUCT.md,SECURITY,SECURITY.md}"
+electronLanguages:
+  - en-US
+  - zh-CN
 asarUnpack:
   - resources/**
-  - node_modules/@fission-ai/openspec/**
 extraResources:
   - from: out/mcp-servers
     to: app.asar.unpacked/mcp-servers
 win:
   executableName: FylloCode
+  compression: store
 nsis:
   artifactName: ${name}-${version}-${os}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
 mac:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
   entitlementsInherit: build/entitlements.mac.plist
