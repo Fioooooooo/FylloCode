@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.10.3] - 2026-05-26
+
+This patch release focuses on bundle size, Windows compatibility, and local debugging. It tightens the desktop packaging scope, improves cross-platform child process startup paths, and adds a development entry point for diagnosing renderer errors.
+
+### Added
+
+- DevTools launcher in the top navigation for quickly opening developer tools from inside the desktop app
+- Renderer error and unhandled rejection reporting flow, passing frontend exceptions to main-process logs through the app IPC / preload API
+
+### Changed
+
+- Packaging rules now use stricter allowlist and exclusion strategies, reducing source files, project metadata, tests, examples, documentation, sourcemaps, and other non-runtime content in installers
+- Windows installer strategy was adjusted to reduce waiting cost during the installer loading phase
+- External child process startup now consistently uses `cross-spawn` across the main process, built-in MCP runtime, and script entry points for more stable cross-platform command execution
+- Added and archived the OpenSpec record for desktop packaging optimization, and updated the related constraints in the Build, CodeStyle, and MainProcess guidelines
+
+### Fixed
+
+- Fixed Windows project path persistence where paths were not safely encoded and could fail to restore correctly for special paths
+- Fixed inconsistent command resolution on some platforms when using Node's native child process spawn directly
+
 ## [0.10.2] - 2026-05-26
 
 This patch release adds a project health check entry point, improves ACP shutdown so it cleans up the entire process tree.
