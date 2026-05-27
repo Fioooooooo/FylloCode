@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { nextTick } from "vue";
+import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import { useChatStore } from "@renderer/stores/chat";
+import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
   loadMessages: vi.fn(),
+  probeEnsure: vi.fn(),
+  probeClose: vi.fn(),
+  probeSetConfigOption: vi.fn(),
+  onProbeUpdate: vi.fn(),
 }));
 
 vi.mock("@renderer/api/chat", () => ({
@@ -17,6 +25,11 @@ vi.mock("@renderer/api/chat", () => ({
     removeSession: vi.fn(),
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
+    setConfigOption: vi.fn(),
+    probeEnsure: mocks.probeEnsure,
+    probeClose: mocks.probeClose,
+    probeSetConfigOption: mocks.probeSetConfigOption,
+    onProbeUpdate: mocks.onProbeUpdate,
   },
 }));
 
@@ -39,7 +52,36 @@ function session(overrides: Partial<Session> = {}): Session {
 describe("useSessionStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     setActivePinia(createPinia());
+    mocks.probeEnsure.mockResolvedValue({
+      ok: true,
+      data: {
+        agentId: "claude-code",
+        status: "ready",
+        acpSessionId: "acp-1",
+        configOptions: [],
+      },
+    });
+    mocks.probeClose.mockResolvedValue({ ok: true, data: undefined });
+    mocks.probeSetConfigOption.mockResolvedValue({
+      ok: true,
+      data: {
+        agentId: "claude-code",
+        status: "ready",
+        acpSessionId: "acp-1",
+        configOptions: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "sonnet",
+            options: [{ value: "sonnet", name: "Sonnet" }],
+          },
+        ],
+      },
+    });
+    mocks.onProbeUpdate.mockReturnValue(vi.fn());
   });
 
   it("overwrites availableCommands for an existing session", () => {
@@ -152,5 +194,143 @@ describe("useSessionStore", () => {
     const store = useSessionStore();
     store.setSessionConfigOptions("missing", []);
     expect(store.sessions).toEqual([]);
+  });
+
+  it("ensureDraftProbe stores a ready snapshot", async () => {
+    const store = useSessionStore();
+
+    await store.ensureDraftProbe("claude-code", "project-1");
+
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      projectId: "project-1",
+    });
+    expect(store.draftProbeByAgent.get("claude-code")).toMatchObject({
+      status: "ready",
+      acpSessionId: "acp-1",
+    });
+  });
+
+  it("closeDraftProbe clears local state before awaiting IPC", async () => {
+    const store = useSessionStore();
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [],
+    });
+
+    const promise = store.closeDraftProbe("claude-code");
+
+    expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
+    await promise;
+    expect(mocks.probeClose).toHaveBeenCalledWith({ agentId: "claude-code" });
+  });
+
+  it("setDraftConfigOption optimistically updates and clears pending", async () => {
+    const store = useSessionStore();
+    const chatStore = useChatStore();
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [
+            { value: "haiku", name: "Haiku" },
+            { value: "sonnet", name: "Sonnet" },
+          ],
+        },
+      ],
+    });
+
+    const promise = store.setDraftConfigOption({
+      agentId: "claude-code",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+
+    expect(store.draftProbeByAgent.get("claude-code")?.configOptions[0]?.currentValue).toBe(
+      "sonnet"
+    );
+    expect(chatStore.pendingConfigIds.has("model")).toBe(true);
+    await promise;
+    expect(chatStore.pendingConfigIds.has("model")).toBe(false);
+    expect(mocks.probeSetConfigOption).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+  });
+
+  it("draftAgentId watcher closes old probe immediately and debounces ensure", async () => {
+    vi.useFakeTimers();
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.statuses = {
+      "claude-code": { id: "claude-code", installed: true },
+      codex: { id: "codex", installed: true },
+    } as never;
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    const store = useSessionStore();
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [],
+    });
+
+    store.setDraftAgent("claude-code");
+    await nextTick();
+    store.setDraftAgent("codex");
+    await nextTick();
+
+    expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
+    expect(mocks.probeEnsure).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(199);
+    expect(mocks.probeEnsure).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({ agentId: "codex", projectId: "project-1" });
+  });
+
+  it("draftAgentId watcher does not probe established sessions", async () => {
+    vi.useFakeTimers();
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.statuses = {
+      codex: { id: "codex", installed: true },
+    } as never;
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    const store = useSessionStore();
+    store.sessions = [session()];
+    store.activeSessionId = "session-1";
+
+    store.setDraftAgent("codex");
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(mocks.probeEnsure).not.toHaveBeenCalled();
+    expect(mocks.probeClose).not.toHaveBeenCalled();
   });
 });

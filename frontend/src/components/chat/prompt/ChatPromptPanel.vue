@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import { useChatPrompt } from "@renderer/composables/useChatPrompt";
@@ -30,6 +30,8 @@ const { chatStatus } = storeToRefs(chatStore);
 const { activeSession, draftAgentId } = storeToRefs(sessionStore);
 
 const agent = computed<string | undefined>({
+  // Read-only mirror; the single watcher in stores/session.ts owns all
+  // side-effects of an agent switch (capability refresh + draft probe).
   get: () => activeSession.value?.agentId ?? draftAgentId.value ?? undefined,
   set: (agentId) => {
     if (!agentId) {
@@ -252,16 +254,6 @@ function removeAttachment(id: string): void {
 function handleAudioClick(): void {
   toast.add({ title: "即将开放", color: "info" });
 }
-
-watch(
-  agent,
-  (agentId) => {
-    if (agentId) {
-      void acpAgentsStore.refreshCapabilities(agentId);
-    }
-  },
-  { immediate: true }
-);
 
 onBeforeUnmount(() => {
   attachments.value.forEach(revokeChatPromptAttachmentPreview);

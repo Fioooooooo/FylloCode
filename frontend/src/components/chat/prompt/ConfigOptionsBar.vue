@@ -14,11 +14,18 @@ const KNOWN_PRIORITY: Record<string, number> = {
 
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
-const { activeSession } = storeToRefs(sessionStore);
+const { activeDraftProbe, activeSession, draftAgentId } = storeToRefs(sessionStore);
 const { pendingConfigIds } = storeToRefs(chatStore);
 
+const sourceOptions = computed<AcpSessionConfigOption[]>(() => {
+  if (activeSession.value) {
+    return activeSession.value.configOptions ?? [];
+  }
+  return activeDraftProbe?.value?.status === "ready" ? activeDraftProbe.value.configOptions : [];
+});
+
 const sortedOptions = computed<AcpSessionConfigOption[]>(() => {
-  const options = activeSession.value?.configOptions ?? [];
+  const options = sourceOptions.value;
   if (options.length === 0) return [];
 
   const indexed = options.map((option, index) => ({ option, index }));
@@ -39,8 +46,18 @@ async function handleChange(
   value: string | boolean
 ): Promise<void> {
   const session = activeSession.value;
-  if (!session) return;
   try {
+    if (!session) {
+      if (!draftAgentId?.value) return;
+      await sessionStore.setDraftConfigOption({
+        agentId: draftAgentId.value,
+        configId: option.id,
+        type: option.type,
+        value,
+      });
+      return;
+    }
+
     await chatStore.setConfigOption({
       sessionId: session.id,
       configId: option.id,

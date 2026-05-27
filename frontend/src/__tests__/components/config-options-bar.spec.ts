@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount } from "@vue/test-utils";
+import { useChatStore } from "@renderer/stores/chat";
 import { useSessionStore } from "@renderer/stores/session";
 import ConfigOptionsBar from "@renderer/components/chat/prompt/ConfigOptionsBar.vue";
 import type { Session } from "@shared/types/chat";
 
 const ConfigOptionItemStub = {
   name: "ConfigOptionItem",
+  emits: ["change"],
   props: ["option", "isPending"],
-  template: '<div :data-test="`item-${option.id}`">{{ option.id }}</div>',
+  template:
+    "<button type=\"button\" :data-test=\"`item-${option.id}`\" @click=\"$emit('change', option.type === 'boolean' ? !option.currentValue : 'sonnet')\">{{ option.id }}</button>",
 };
 
 const TransitionStub = {
@@ -47,7 +50,7 @@ describe("ConfigOptionsBar", () => {
     setActivePinia(createPinia());
   });
 
-  it("renders nothing in draft state", () => {
+  it("renders nothing in draft state when probe is missing", () => {
     const sessionStore = useSessionStore();
     sessionStore.sessions = [];
     sessionStore.activeSessionId = null;
@@ -115,5 +118,164 @@ describe("ConfigOptionsBar", () => {
       "item-thought",
       "item-extra",
     ]);
+  });
+
+  it("renders draft probe config options when ready", () => {
+    const sessionStore = useSessionStore();
+    sessionStore.activeSessionId = null;
+    sessionStore.draftAgentId = "claude-code";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [{ value: "haiku", name: "Haiku" }],
+        },
+      ],
+    });
+
+    const wrapper = mountBar();
+
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(true);
+  });
+
+  it("renders nothing while draft probe is starting or failed", async () => {
+    const sessionStore = useSessionStore();
+    sessionStore.activeSessionId = null;
+    sessionStore.draftAgentId = "claude-code";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "starting",
+      acpSessionId: null,
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [{ value: "haiku", name: "Haiku" }],
+        },
+      ],
+    });
+
+    const wrapper = mountBar();
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(false);
+
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "failed",
+      acpSessionId: null,
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [{ value: "haiku", name: "Haiku" }],
+        },
+      ],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(false);
+  });
+
+  it("clears draft config options immediately after switching agent", async () => {
+    const sessionStore = useSessionStore();
+    sessionStore.activeSessionId = null;
+    sessionStore.draftAgentId = "claude-code";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [{ value: "haiku", name: "Haiku" }],
+        },
+      ],
+    });
+    const wrapper = mountBar();
+
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(true);
+
+    sessionStore.draftAgentId = "codex";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(false);
+  });
+
+  it("dispatches draft config changes to sessionStore", async () => {
+    const sessionStore = useSessionStore();
+    const setDraftConfigOption = vi.spyOn(sessionStore, "setDraftConfigOption").mockResolvedValue();
+    const chatStore = useChatStore();
+    const setConfigOption = vi.spyOn(chatStore, "setConfigOption").mockResolvedValue();
+    sessionStore.activeSessionId = null;
+    sessionStore.draftAgentId = "claude-code";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions: [
+        {
+          type: "select",
+          id: "model",
+          name: "Model",
+          currentValue: "haiku",
+          options: [{ value: "sonnet", name: "Sonnet" }],
+        },
+      ],
+    });
+
+    const wrapper = mountBar();
+    await wrapper.find('[data-test="item-model"]').trigger("click");
+
+    expect(setDraftConfigOption).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+    expect(setConfigOption).not.toHaveBeenCalled();
+  });
+
+  it("dispatches established session config changes to chatStore", async () => {
+    const sessionStore = useSessionStore();
+    const chatStore = useChatStore();
+    const setConfigOption = vi.spyOn(chatStore, "setConfigOption").mockResolvedValue();
+    const setDraftConfigOption = vi.spyOn(sessionStore, "setDraftConfigOption").mockResolvedValue();
+    sessionStore.sessions = [
+      makeSession({
+        configOptions: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "haiku",
+            options: [{ value: "sonnet", name: "Sonnet" }],
+          },
+        ],
+      }),
+    ];
+    sessionStore.activeSessionId = "session-1";
+
+    const wrapper = mountBar();
+    await wrapper.find('[data-test="item-model"]').trigger("click");
+
+    expect(setConfigOption).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+    expect(setDraftConfigOption).not.toHaveBeenCalled();
   });
 });

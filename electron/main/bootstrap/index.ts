@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
+import { setupProbeBroadcast } from "@main/ipc/chat";
 import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { disposeAll } from "./lifecycle";
@@ -24,10 +25,10 @@ export function startApp(): void {
     registerAllHandlers();
     void initBuiltInWorkflows();
 
-    createMainWindow();
+    setupProbeBroadcast(createMainWindow());
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+      if (BrowserWindow.getAllWindows().length === 0) setupProbeBroadcast(createMainWindow());
     });
   });
 

@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { acpAgentsApi } from "@renderer/api/acp-agents";
+import { useSessionStore } from "./session";
 import type {
   AcpAgentStatus,
   AcpInstallProgress,
@@ -84,6 +85,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
         const next = new Map(promptCapabilitiesByAgent.value);
         next.delete(agentId);
         promptCapabilitiesByAgent.value = next;
+        useSessionStore().applyProbeUpdate(agentId, null);
       });
     }
   }

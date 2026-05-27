@@ -199,6 +199,76 @@ describe("AcpSession", () => {
     expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
   });
 
+  it("preset branch skips newSession and recovery calls", async () => {
+    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-preset");
+
+    const session = await createSession({ presetAcpSessionId: "acp-preset" });
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(mocks.connection.newSession).not.toHaveBeenCalled();
+    expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
+    expect(mocks.connection.loadSession).not.toHaveBeenCalled();
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-preset",
+      prompt: [{ type: "text", text: "hello" }],
+    });
+    expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-preset");
+  });
+
+  it("preset branch injects reminder before user parts", async () => {
+    const reminderPart: TextUIPart = {
+      type: "text",
+      text: "<system-reminder>\nbody\n</system-reminder>",
+    };
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    mocks.resolveSystemReminder.mockResolvedValue(reminderPart);
+
+    const session = await createSession({
+      presetAcpSessionId: "acp-preset",
+      onReminderInjected,
+    });
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(onReminderInjected).toHaveBeenCalledWith(reminderPart);
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-preset",
+      prompt: [reminderPart, { type: "text", text: "hello" }],
+    });
+  });
+
+  it("preset branch does not emit config_options_update", async () => {
+    const session = await createSession({ presetAcpSessionId: "acp-preset" });
+    const events: SessionEvent[] = [];
+    session.on("event", (event) => events.push(event));
+
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(events.some((event) => event.type === "config_options_update")).toBe(false);
+  });
+
+  it("preset branch prompt failure does not enter recovery", async () => {
+    mocks.connection.prompt.mockRejectedValueOnce({
+      code: -32603,
+      message: "Internal error",
+      data: { details: "Session not found" },
+    });
+    const session = await createSession({ presetAcpSessionId: "acp-preset" });
+    const events: SessionEvent[] = [];
+    session.on("event", (event) => events.push(event));
+
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
+    expect(mocks.connection.loadSession).not.toHaveBeenCalled();
+    expect(mocks.connection.newSession).not.toHaveBeenCalled();
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        code: "ACP_ERROR",
+      })
+    );
+  });
+
   it("falls back to resumeSession on classified direct prompt missing-session failure", async () => {
     mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
     mocks.connection.prompt

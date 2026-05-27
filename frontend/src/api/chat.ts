@@ -2,6 +2,7 @@ import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { Session, Message } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
+import type { ProbeSnapshot } from "@shared/types/chat-probe";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 
@@ -15,6 +16,13 @@ export interface StreamCallbacks {
   onDone: (data: { totalTokens: number }) => void;
   onError: (error: StreamError) => void;
 }
+
+type ProbeConfigOptionInput = {
+  agentId: string;
+  configId: string;
+  type: "select" | "boolean";
+  value: string | boolean;
+};
 
 export const chatApi = {
   listSessions(query: {
@@ -58,9 +66,10 @@ export const chatApi = {
     projectId: string,
     agentId: string,
     parts: ChatPromptPart[],
-    callbacks: StreamCallbacks
+    callbacks: StreamCallbacks,
+    options?: { acpSessionId?: string }
   ): () => void {
-    return window.api.chat.streamMessage(sessionId, projectId, agentId, parts, callbacks);
+    return window.api.chat.streamMessage(sessionId, projectId, agentId, parts, callbacks, options);
   },
 
   saveAttachment(
@@ -85,5 +94,23 @@ export const chatApi = {
     value: string | boolean;
   }): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>> {
     return window.api.chat.setConfigOption(input);
+  },
+
+  probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>> {
+    return window.api.chat.probeEnsure(input);
+  },
+
+  probeClose(input: { agentId: string }): Promise<IpcResponse<void>> {
+    return window.api.chat.probeClose(input);
+  },
+
+  probeSetConfigOption(input: ProbeConfigOptionInput): Promise<IpcResponse<ProbeSnapshot>> {
+    return window.api.chat.probeSetConfigOption(input);
+  },
+
+  onProbeUpdate(
+    handler: (payload: { agentId: string; snapshot: ProbeSnapshot | null }) => void
+  ): () => void {
+    return window.api.chat.onProbeUpdate(handler);
   },
 };

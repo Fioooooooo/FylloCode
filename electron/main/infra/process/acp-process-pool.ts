@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "child_process";
+import { EventEmitter } from "events";
 import { Writable, Readable } from "stream";
 import spawn from "cross-spawn";
 import { app, BrowserWindow } from "electron";
@@ -16,6 +17,7 @@ import { upsertPromptCapabilities } from "@main/infra/storage/agent-capability-s
 import logger from "@main/infra/logger";
 
 type SessionUpdateHandler = (notification: SessionNotification) => void;
+type AgentUnavailableListener = (event: { agentId: string; reason: string }) => void;
 
 interface AgentProcess {
   connection: ClientSideConnection;
@@ -28,8 +30,10 @@ interface AgentProcess {
 
 const pool = new Map<string, AgentProcess>();
 const restarting = new Map<string, Promise<AgentProcess>>();
+const pendingStarts = new Map<string, Promise<AgentProcess>>();
 const giveUp = new Set<string>();
 let shuttingDown = false;
+const processPoolEvents = new EventEmitter();
 
 // Exponential backoff for automatic restarts after an unexpected exit.
 // The length of this array doubles as the give-up threshold.
@@ -43,9 +47,17 @@ const CLOSE_SESSION_TIMEOUT_MS = 300;
 const IS_WINDOWS = process.platform === "win32";
 
 function broadcastAgentUnavailable(agentId: string, reason: string): void {
+  processPoolEvents.emit("agentUnavailable", { agentId, reason });
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(AcpAgentChannels.agentUnavailable, { agentId, reason });
   }
+}
+
+export function onAgentUnavailable(listener: AgentUnavailableListener): () => void {
+  processPoolEvents.on("agentUnavailable", listener);
+  return () => {
+    processPoolEvents.off("agentUnavailable", listener);
+  };
 }
 
 function buildSpawnArgs(
@@ -217,7 +229,15 @@ export async function getOrStartProcess(agentId: string): Promise<AgentProcess> 
     existing.failures = 0;
     return existing;
   }
-  return startProcess(agentId, 0);
+  const inflight = pendingStarts.get(agentId);
+  if (inflight) {
+    return inflight;
+  }
+  const start = startProcess(agentId, 0).finally(() => {
+    pendingStarts.delete(agentId);
+  });
+  pendingStarts.set(agentId, start);
+  return start;
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -284,6 +304,7 @@ async function dispose(): Promise<void> {
   const entries = Array.from(pool.values());
   pool.clear();
   restarting.clear();
+  pendingStarts.clear();
 
   await Promise.all(
     entries.map(async (entry) => {

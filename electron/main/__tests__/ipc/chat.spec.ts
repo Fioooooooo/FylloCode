@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcMain } from "electron";
-import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
+import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import type { AcpSessionOpts } from "@main/services/chat/acp-session";
@@ -28,6 +28,10 @@ const mocks = vi.hoisted(() => {
     patchSessionMeta: vi.fn(),
     upsertSessionMeta: vi.fn(),
     setConfigOption: vi.fn(),
+    ensureProbe: vi.fn(),
+    closeProbe: vi.fn(),
+    setProbeConfigOption: vi.fn(),
+    takeProbeFor: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
@@ -60,6 +64,24 @@ vi.mock("@main/services/chat/chat-service", () => ({
 
 vi.mock("@main/services/chat/config-option-service", () => ({
   setConfigOption: mocks.setConfigOption,
+}));
+
+vi.mock("@main/services/chat/session-probe-service", () => ({
+  ensureProbe: mocks.ensureProbe,
+  closeProbe: mocks.closeProbe,
+  setProbeConfigOption: mocks.setProbeConfigOption,
+}));
+
+vi.mock("@main/services/chat/session-probe-registry", () => ({
+  sessionProbeRegistry: {
+    takeFor: mocks.takeProbeFor,
+  },
+}));
+
+vi.mock("@main/services/chat/session-probe-bus", () => ({
+  sessionProbeBus: {
+    onUpdate: vi.fn(),
+  },
 }));
 
 vi.mock("@main/infra/storage/session-store", () => ({
@@ -149,6 +171,20 @@ describe("registerChatHandlers", () => {
       const next = typeof update === "function" ? update(base) : update;
       return { ...base, ...next };
     });
+    mocks.ensureProbe.mockResolvedValue({
+      agentId: "claude-acp",
+      status: "ready",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+    });
+    mocks.closeProbe.mockResolvedValue(undefined);
+    mocks.setProbeConfigOption.mockResolvedValue({
+      agentId: "claude-acp",
+      status: "ready",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+    });
+    mocks.takeProbeFor.mockReturnValue(null);
     mocks.assemblerFlush.mockReturnValue(null);
     const { registerChatHandlers } = await import("@main/ipc/chat");
     registerChatHandlers();
@@ -642,5 +678,147 @@ describe("registerChatHandlers", () => {
       type: "select",
       value: "haiku",
     });
+  });
+
+  it("registers probe ensure/close/setConfigOption handlers", async () => {
+    const ensureResult = await handler(ChatProbeChannels.ensure)(
+      {},
+      { agentId: "claude-acp", projectId: "project-1" }
+    );
+    const closeResult = await handler(ChatProbeChannels.close)({}, { agentId: "claude-acp" });
+    const setResult = await handler(ChatProbeChannels.setConfigOption)(
+      {},
+      { agentId: "claude-acp", configId: "model", type: "select", value: "sonnet" }
+    );
+
+    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
+    expect(mocks.ensureProbe).toHaveBeenCalledWith("claude-acp", "/tmp/project");
+    expect(mocks.closeProbe).toHaveBeenCalledWith("claude-acp");
+    expect(mocks.setProbeConfigOption).toHaveBeenCalledWith({
+      agentId: "claude-acp",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+    expect(ensureResult).toEqual({
+      ok: true,
+      data: expect.objectContaining({ acpSessionId: "acp-probe" }),
+    });
+    expect(closeResult).toEqual({ ok: true, data: undefined });
+    expect(setResult).toEqual({
+      ok: true,
+      data: expect.objectContaining({ acpSessionId: "acp-probe" }),
+    });
+  });
+
+  it("promotes a matching probe acpSessionId into AcpSession preset options", async () => {
+    const configOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet" }],
+      },
+    ];
+    mocks.takeProbeFor.mockReturnValueOnce({
+      agentId: "claude-acp",
+      status: "ready",
+      acpSessionId: "acp-probe",
+      configOptions,
+      startedAt: Date.now(),
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+        acpSessionId: "acp-probe",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    const control = await mocks.onReady!(sink);
+
+    expect(mocks.takeProbeFor).toHaveBeenCalledWith("claude-acp", "acp-probe");
+    expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.objectContaining({
+        acpSessionId: "acp-probe",
+        agentId: "claude-acp",
+        config_options: configOptions,
+      })
+    );
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    expect(acpSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ presetAcpSessionId: "acp-probe" })
+    );
+    await (control as { start: () => Promise<void> }).start();
+    expect(sink.sendError).not.toHaveBeenCalled();
+  });
+
+  it("returns a stream error when acpSessionId does not match registry", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+        acpSessionId: "acp-probe",
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    expect(sink.sendError).toHaveBeenCalledWith(
+      IpcErrorCodes.VALIDATION_ERROR,
+      expect.stringContaining("probe acpSessionId")
+    );
+    expect(mocks.patchSessionMeta).not.toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.objectContaining({ acpSessionId: "acp-probe" })
+    );
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    expect(acpSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("does not consume probe registry when acpSessionId is omitted", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    expect(mocks.takeProbeFor).not.toHaveBeenCalled();
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    expect(acpSessionMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ presetAcpSessionId: expect.any(String) })
+    );
   });
 });

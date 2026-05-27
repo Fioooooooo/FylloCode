@@ -63,6 +63,13 @@ keywords: [renderer, vue, pinia, routing, ui]
 - 未命中 capability 时，`getPromptCapabilities(agentId)` 必须返回 `{ image: false, audio: false, embeddedContext: false }`，UI 入口按不支持处理。
 - `frontend/src/utils/chat-message-parts.ts` 提供 `isUserImagePart` / `isUserFilePart`，只用于 user message 的 AI SDK `FileUIPart` 渲染分派；assistant file part 当前不渲染。
 
+## Draft Session Probe
+
+- `useSessionStore.draftProbeByAgent` 维护草稿态 probe 的 renderer 内存镜像；`activeDraftProbe` 只跟随当前 `draftAgentId`，切 agent 时必须先清旧 entry，再 debounce 发起新 `probeEnsure`。
+- 草稿态 probe 通过 `frontend/src/api/chat.ts` 调用 preload 暴露的 `chat:probe:*` IPC；组件不得直接访问 `window.api.chat` 或 IPC channel。
+- `ConfigOptionsBar` 在已建立 session 时读取 `activeSession.configOptions`，草稿态只在 `activeDraftProbe.status === "ready"` 时读取 probe config options；starting/failed/null 均不渲染。
+- `sendMessage` 在草稿态创建首个 fyllo session 后，只能使用创建前捕获的 probe 快照决定是否传 `acpSessionId`，并必须在 `chatApi.streamMessage` 前同步清空对应 draft probe。
+
 ## Verification
 
 - `pnpm lint`

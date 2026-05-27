@@ -65,6 +65,7 @@ export interface AcpSessionOpts {
   reminderContext?: ReminderContext;
   onReminderInjected?: (reminderPart: TextUIPart) => Promise<void>;
   recoveryContext?: Partial<RecoveryContext>;
+  presetAcpSessionId?: string;
 }
 
 export class AcpSession extends EventEmitter {
@@ -72,9 +73,11 @@ export class AcpSession extends EventEmitter {
   private cancelled = false;
   private readonly cancelledAcpSessionIds = new Set<string>();
   private readonly recoveryContext: RecoveryContext;
+  private readonly presetAcpSessionId?: string;
 
   constructor(private readonly opts: AcpSessionOpts) {
     super();
+    this.presetAcpSessionId = opts.presetAcpSessionId;
     this.recoveryContext = {
       ...defaultRecoveryContext(),
       ...(opts.recoveryContext ?? {}),
@@ -176,6 +179,11 @@ export class AcpSession extends EventEmitter {
     this.throwIfCancelled("before start flow");
     this.assertPromptCapabilities(context.entry.initializeResponse, parts);
 
+    if (this.presetAcpSessionId !== undefined) {
+      await this.runPresetFlow(context, parts);
+      return;
+    }
+
     if (await this.tryHandlePersistedSession(context, parts)) {
       return;
     }
@@ -192,6 +200,50 @@ export class AcpSession extends EventEmitter {
 
     this.throwIfCancelled("after recovery flow");
     await this.completeRecoveredPrompt(context, recovery, parts);
+  }
+
+  private async runPresetFlow(context: StartContext, parts: ChatPromptPart[]): Promise<void> {
+    const acpSessionId = this.presetAcpSessionId;
+    if (acpSessionId === undefined) {
+      return;
+    }
+
+    this.acpSessionId = acpSessionId;
+    logger.info(`${this.logPrefix(acpSessionId)} using preset ACP session`);
+    await this.opts.sessionStore.loadAcpSessionId();
+
+    this.throwIfCancelled("before preset persist");
+    await this.persistResolvedSession(acpSessionId);
+    this.throwIfCancelled("before preset reminder");
+
+    const reminderParts = await this.resolveReminderParts({
+      createdNewSession: true,
+      recoveryHistoryReminder: null,
+      projectPath: this.opts.projectPath,
+      cwd: this.opts.cwd,
+      fylloSessionId: this.opts.fylloSessionId,
+      agentId: this.opts.agentId,
+    });
+    this.throwIfCancelled("after preset reminder");
+
+    const promptParts: PromptPart[] = [
+      ...reminderParts.map((part) => ({ type: "text" as const, text: part.text })),
+      ...(await this.toAcpPromptParts(parts)),
+    ];
+
+    logger.info(
+      `${this.logPrefix(acpSessionId)} preset prompt ready; reminderParts=${reminderParts.length}; promptParts=${promptParts.length}`
+    );
+
+    const result = await this.runPrompt({
+      connection: context.entry.connection,
+      sessionHandlers: context.entry.sessionHandlers,
+      runtimeState: context.runtimeState,
+      sessionId: acpSessionId,
+      prompt: promptParts,
+    });
+    this.throwIfCancelled("after preset prompt");
+    this.emitDone(result);
   }
 
   private async tryHandlePersistedSession(

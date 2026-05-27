@@ -1,5 +1,6 @@
+import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
-import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
+import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { Message } from "@shared/types/chat";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
@@ -8,6 +9,9 @@ import {
   listSessionsInputSchema,
   loadMessagesInputSchema,
   persistMessageInputSchema,
+  probeCloseInputSchema,
+  probeEnsureInputSchema,
+  probeSetConfigOptionInputSchema,
   readAttachmentDataUrlInputSchema,
   removeSessionInputSchema,
   saveAttachmentInputSchema,
@@ -32,6 +36,13 @@ import {
   updateSession,
 } from "@main/services/chat/chat-service";
 import { setConfigOption } from "@main/services/chat/config-option-service";
+import {
+  closeProbe,
+  ensureProbe,
+  setProbeConfigOption,
+} from "@main/services/chat/session-probe-service";
+import { sessionProbeRegistry } from "@main/services/chat/session-probe-registry";
+import { sessionProbeBus } from "@main/services/chat/session-probe-bus";
 import { sessionRegistry } from "@main/services/chat/session-registry";
 import {
   appendMessage,
@@ -59,6 +70,24 @@ function mapAcpErrorCode(raw: string): IpcErrorCode {
     return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
   }
   return IpcErrorCodes.ACP_ERROR;
+}
+
+let probeBroadcastWindow: BrowserWindow | null = null;
+let probeBroadcastSubscribed = false;
+
+export function setupProbeBroadcast(mainWindow: BrowserWindow): void {
+  probeBroadcastWindow = mainWindow;
+  if (probeBroadcastSubscribed) {
+    return;
+  }
+
+  sessionProbeBus.onUpdate((payload) => {
+    if (probeBroadcastWindow?.isDestroyed()) {
+      return;
+    }
+    probeBroadcastWindow?.webContents.send(ChatProbeChannels.update, payload);
+  });
+  probeBroadcastSubscribed = true;
 }
 
 export function registerChatHandlers(): void {
@@ -152,6 +181,28 @@ export function registerChatHandlers(): void {
     })
   );
 
+  ipcMain.handle(ChatProbeChannels.ensure, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(probeEnsureInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return ensureProbe(form.agentId, projectPath);
+    })
+  );
+
+  ipcMain.handle(ChatProbeChannels.close, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(probeCloseInputSchema, input);
+      await closeProbe(form.agentId);
+    })
+  );
+
+  ipcMain.handle(ChatProbeChannels.setConfigOption, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(probeSetConfigOptionInputSchema, input);
+      return setProbeConfigOption(form);
+    })
+  );
+
   // Streaming: create MessagePort via stream-channel kit
   ipcMain.handle(ChatStreamChannels.streamMessage, (event, input: unknown) => {
     const {
@@ -159,6 +210,7 @@ export function registerChatHandlers(): void {
       projectId,
       agentId: inputAgentId,
       prompt,
+      acpSessionId,
     } = validate(streamMessageInputSchema, input);
 
     return makeStreamChannel({
@@ -171,6 +223,27 @@ export function registerChatHandlers(): void {
         const agentId = inputAgentId || meta?.agentId;
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
+        }
+        let presetAcpSessionId: string | undefined;
+        if (acpSessionId) {
+          const probeEntry = sessionProbeRegistry.takeFor(agentId, acpSessionId);
+          if (!probeEntry) {
+            sink.sendError(
+              IpcErrorCodes.VALIDATION_ERROR,
+              "probe acpSessionId 不匹配或已被 consume"
+            );
+            return {
+              start: async () => {},
+              cancel: () => {},
+            };
+          }
+          await patchSessionMeta(projectPath, sessionId, {
+            acpSessionId,
+            agentId,
+            config_options: probeEntry.configOptions,
+            updatedAt: new Date().toISOString(),
+          });
+          presetAcpSessionId = acpSessionId;
         }
         const sessionStore = new ChatAcpSessionStore(projectPath, sessionId, agentId);
 
@@ -191,6 +264,7 @@ export function registerChatHandlers(): void {
             hasPersistedHistory: true,
             loadPersistedHistory: async () => loadMessages(projectPath, sessionId),
           },
+          ...(presetAcpSessionId ? { presetAcpSessionId } : {}),
         });
         const assembler = new MessageAssembler(sessionId);
         let sessionMetaPersist = Promise.resolve();

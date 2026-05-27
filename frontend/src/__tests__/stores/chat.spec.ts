@@ -19,6 +19,10 @@ vi.mock("@renderer/api/chat", () => ({
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
     setConfigOption: vi.fn(),
+    probeEnsure: vi.fn(),
+    probeClose: vi.fn(),
+    probeSetConfigOption: vi.fn(),
+    onProbeUpdate: vi.fn(),
   },
 }));
 
@@ -129,6 +133,7 @@ describe("useChatStore", () => {
       data: undefined,
     });
     vi.mocked(chatApi.streamMessage).mockReturnValue(() => {});
+    vi.mocked(chatApi.onProbeUpdate).mockReturnValue(vi.fn());
   });
 
   it("creates a real session lazily when sending the first draft message", async () => {
@@ -178,7 +183,8 @@ describe("useChatStore", () => {
       "project-1",
       "claude-code",
       [{ type: "text", text: "hello world" }],
-      expect.any(Object)
+      expect.any(Object),
+      {}
     );
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
@@ -292,6 +298,109 @@ describe("useChatStore", () => {
 
     expect(observedMessageCounts).toContain(1);
     expect(observedMessageCounts.at(-1)).toBe(1);
+  });
+
+  it("passes ready draft probe acpSessionId and clears it before streaming", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+    });
+    const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, _callbacks, options) => {
+        expect(applyProbeUpdateSpy).toHaveBeenCalledWith("claude-code", null);
+        expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(false);
+        expect(options).toEqual({ acpSessionId: "acp-probe" });
+        return () => {};
+      }
+    );
+
+    await useChatStore().sendMessage(textParts("hello world"));
+
+    expect(chatApi.streamMessage).toHaveBeenCalledWith(
+      "session-1",
+      "project-1",
+      "claude-code",
+      [{ type: "text", text: "hello world" }],
+      expect.any(Object),
+      { acpSessionId: "acp-probe" }
+    );
+  });
+
+  it("does not pass acpSessionId when draft probe failed", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "failed",
+      acpSessionId: null,
+      configOptions: [],
+      error: { code: "ACP_ERROR", message: "failed" },
+    });
+    const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
+
+    await useChatStore().sendMessage(textParts("hello world"));
+
+    expect(chatApi.streamMessage).toHaveBeenCalledWith(
+      "session-1",
+      "project-1",
+      "claude-code",
+      [{ type: "text", text: "hello world" }],
+      expect.any(Object),
+      {}
+    );
+    expect(applyProbeUpdateSpy).not.toHaveBeenCalledWith("claude-code", null);
+  });
+
+  it("does not read draftProbe when sending in an established session", async () => {
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [
+      {
+        id: "session-1",
+        projectId: "project-1",
+        agentId: "claude-code",
+        title: "Session",
+        status: "ended",
+        turnCount: 0,
+        tokenUsage: { used: 0, size: 0 },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        messages: [],
+      },
+    ];
+    sessionStore.activeSessionId = "session-1";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+    });
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project 1",
+      path: "/tmp/project-1",
+      metaPath: "/tmp/project-1-meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+
+    await useChatStore().sendMessage(textParts("hello again"));
+
+    expect(chatApi.createSession).not.toHaveBeenCalled();
+    expect(chatApi.streamMessage).toHaveBeenCalledWith(
+      "session-1",
+      "project-1",
+      "claude-code",
+      [{ type: "text", text: "hello again" }],
+      expect.any(Object),
+      {}
+    );
+    expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(true);
   });
 
   it("uses a normalized truncated first message as fallback session title", async () => {

@@ -17,6 +17,13 @@ export const ChatStreamChannels = {
   streamCancel: "chat:stream:cancel",
 } as const;
 
+export const ChatProbeChannels = {
+  ensure: "chat:probe:ensure",
+  close: "chat:probe:close",
+  setConfigOption: "chat:probe:setConfigOption",
+  update: "chat:probe:update",
+} as const;
+
 export const ProjectChannels = {
   list: "project:list",
   getById: "project:getById",

@@ -126,7 +126,8 @@ export const useChatStore = defineStore("chat", () => {
     projectId: string,
     parts: ChatPromptPart[],
     sessionStore: ReturnType<typeof useSessionStore>,
-    streamRunId: number
+    streamRunId: number,
+    options: { acpSessionId?: string }
   ): void {
     const assembler = useUIMessageAssembler(ref(activeSession.messages), {
       sessionId: activeSession.id,
@@ -212,7 +213,8 @@ export const useChatStore = defineStore("chat", () => {
           sessionStore.sortSessions();
           console.error("Stream error:", err.code, err.message);
         },
-      }
+      },
+      options
     );
   }
 
@@ -232,6 +234,7 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     let activeSession = currentSession;
+    let streamOptions: { acpSessionId?: string } = {};
     const streamRunId = beginStreamRun();
     streamError.value = null;
 
@@ -248,6 +251,7 @@ export const useChatStore = defineStore("chat", () => {
 
       chatStatus.value = "submitted";
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
+      const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
 
       try {
         const createdSession = await sessionStore.createSession({
@@ -259,6 +263,10 @@ export const useChatStore = defineStore("chat", () => {
           return;
         }
         activeSession = sessionStore.activeSession ?? createdSession;
+        if (probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId) {
+          streamOptions = { acpSessionId: probeBeforeCreate.acpSessionId };
+          sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null);
+        }
       } catch (error: unknown) {
         if (isCurrentStreamRun(streamRunId)) {
           chatStatus.value = "ready";
@@ -279,7 +287,14 @@ export const useChatStore = defineStore("chat", () => {
     const userMessage = queueUserMessage(activeSession, parts, sessionStore);
     chatStatus.value = "submitted";
     persistMessage(activeSession.id, projectIdSnapshot, userMessage);
-    streamSessionMessage(activeSession, projectIdSnapshot, parts, sessionStore, streamRunId);
+    streamSessionMessage(
+      activeSession,
+      projectIdSnapshot,
+      parts,
+      sessionStore,
+      streamRunId,
+      streamOptions
+    );
   }
 
   function setMode(newMode: ModeType): void {
@@ -372,6 +387,8 @@ export const useChatStore = defineStore("chat", () => {
     cancelFn,
     streamError,
     pendingConfigIds,
+    markConfigOptionPending,
+    clearConfigOptionPending,
     sendMessage,
     setMode,
     resetChatState,

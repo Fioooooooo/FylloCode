@@ -122,6 +122,7 @@ export const streamMessageInputSchema = z.object({
   projectId: z.string().min(1),
   agentId: z.string(),
   prompt: z.array(chatPromptPartSchema).min(1),
+  acpSessionId: z.string().min(1).optional(),
 });
 
 export const streamCancelInputSchema = z.object({
@@ -150,3 +151,34 @@ export const setConfigOptionInputSchema = z.discriminatedUnion("type", [
 ]);
 
 export type SetConfigOptionInput = z.infer<typeof setConfigOptionInputSchema>;
+
+export const probeEnsureInputSchema = z.object({
+  agentId: z.string().min(1),
+  projectId: z.string().min(1),
+});
+
+export const probeCloseInputSchema = z.object({
+  agentId: z.string().min(1),
+});
+
+const probeSetConfigOptionBaseSchema = z.object({
+  agentId: z.string().min(1),
+  configId: z.string().min(1),
+});
+
+const probeSetConfigOptionSelectSchema = probeSetConfigOptionBaseSchema.extend({
+  type: z.literal("select"),
+  value: z.string().min(1),
+});
+
+const probeSetConfigOptionBooleanSchema = probeSetConfigOptionBaseSchema.extend({
+  type: z.literal("boolean"),
+  value: z.boolean(),
+});
+
+export const probeSetConfigOptionInputSchema = z.discriminatedUnion("type", [
+  probeSetConfigOptionSelectSchema,
+  probeSetConfigOptionBooleanSchema,
+]);
+
+export type ProbeSetConfigOptionInput = z.infer<typeof probeSetConfigOptionInputSchema>;

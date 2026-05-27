@@ -58,6 +58,13 @@ keywords: [electron, main-process, ipc, services, infra]
 - Bad: `import { spawn } from "child_process"` 后直接启动外部命令。
 - Bad: 在 `services/` 中硬编码 `session-${Date.now()}`、`process.resourcesPath` 或项目数据目录字符串。
 
+## Chat Session Probe
+
+- `electron/main/services/chat/session-probe-service.ts` 负责草稿态 ACP `newSession` 握手、`closeSession` 释放和草稿态 `session/set_config_option`；probe 是 `agentId` 维度的主进程纯内存资源，不写入 SessionMeta。
+- `session-probe-registry.ts` 的 `takeFor(agentId, acpSessionId)` 是首条消息 promote 与 close 的唯一 consume 入口；`chat:stream:message` 只有在 `acpSessionId` 入参匹配 registry entry 时才把 probe 数据写入 SessionMeta，并构造 `AcpSession({ presetAcpSessionId })`。
+- `session-probe-bus.ts` 只广播 `{ agentId, snapshot }` 或 `{ agentId, snapshot: null }`；窗口发送逻辑留在 IPC 层的 `setupProbeBroadcast(mainWindow)`，service 层不得直接依赖 `BrowserWindow`。
+- `acp-process-pool.ts` 的 agent unavailable 事件必须清理 probe registry 并广播 null snapshot；agent 已不可用时不得再调用 `closeSession`。
+
 ## Verification
 
 - `pnpm lint`

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
+import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 
 const mocks = vi.hoisted(() => ({
   ipcRenderer: {
     invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
     once: vi.fn(),
   },
 }));
@@ -139,5 +141,75 @@ describe("preload chatApi.streamMessage", () => {
       type: "select",
       value: "haiku",
     });
+  });
+
+  it("passes acpSessionId in streamMessage options", async () => {
+    const { chatApi } = await import("../../../../preload/api/chat");
+
+    chatApi.streamMessage(
+      "session-1",
+      "project-1",
+      "agent-1",
+      [{ type: "text", text: "hello" }],
+      {
+        onChunk: vi.fn(),
+        onDone: vi.fn(),
+        onError: vi.fn(),
+      },
+      { acpSessionId: "acp-probe" }
+    );
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamMessage, {
+      sessionId: "session-1",
+      projectId: "project-1",
+      agentId: "agent-1",
+      prompt: [{ type: "text", text: "hello" }],
+      acpSessionId: "acp-probe",
+    });
+  });
+
+  it("invokes probe methods on the correct channels", async () => {
+    const { chatApi } = await import("../../../../preload/api/chat");
+
+    await chatApi.probeEnsure({ agentId: "agent-1", projectId: "project-1" });
+    await chatApi.probeClose({ agentId: "agent-1" });
+    await chatApi.probeSetConfigOption({
+      agentId: "agent-1",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.ensure, {
+      agentId: "agent-1",
+      projectId: "project-1",
+    });
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.close, {
+      agentId: "agent-1",
+    });
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.setConfigOption, {
+      agentId: "agent-1",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+  });
+
+  it("subscribes and unsubscribes probe update events", async () => {
+    const { chatApi } = await import("../../../../preload/api/chat");
+    const handler = vi.fn();
+
+    const unsubscribe = chatApi.onProbeUpdate(handler);
+    const listener = mocks.ipcRenderer.on.mock.calls.find(
+      ([channel]) => channel === ChatProbeChannels.update
+    )?.[1];
+    expect(listener).toBeTypeOf("function");
+
+    const payload = { agentId: "agent-1", snapshot: null };
+    listener({}, payload);
+    unsubscribe();
+
+    expect(handler).toHaveBeenCalledWith(payload);
+    expect(mocks.ipcRenderer.off).toHaveBeenCalledWith(ChatProbeChannels.update, listener);
   });
 });

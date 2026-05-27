@@ -128,6 +128,34 @@ describe("acp-process-pool", () => {
     expect(entry.initializeResponse).toEqual(initResponse);
   });
 
+  it("dedupes concurrent getOrStartProcess calls into a single spawn", async () => {
+    let resolveInit!: (value: unknown) => void;
+    const initStarted = new Promise<void>((resolveStarted) => {
+      mocks.initialize.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveInit = resolve;
+            resolveStarted();
+          })
+      );
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const first = getOrStartProcess("claude-acp");
+    const second = getOrStartProcess("claude-acp");
+
+    await initStarted;
+    resolveInit({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: true, sessionCapabilities: { resume: {} } },
+    });
+
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b);
+  });
+
   it("spawns ACP agent with detached: true on POSIX", async () => {
     setPlatform("darwin");
     const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");

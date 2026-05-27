@@ -1,9 +1,12 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
+import { useToast } from "@nuxt/ui/composables";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, Message, Session, TokenUsage } from "@shared/types/chat";
+import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import { chatApi } from "@renderer/api/chat";
 import { useAcpAgentsStore } from "./acp-agents";
+import { useChatStore } from "./chat";
 import { useProjectStore } from "./project";
 
 type SerializableDate = Date | string;
@@ -21,6 +24,16 @@ type SerializedSession = Omit<Session, "createdAt" | "updatedAt" | "messages" | 
   tokenUsage?: Partial<TokenUsage>;
   messages: SerializedMessage[];
 };
+
+export type DraftProbeStatus = ProbeStatus;
+
+export interface DraftProbeState {
+  agentId: string;
+  status: DraftProbeStatus;
+  acpSessionId: string | null;
+  configOptions: AcpSessionConfigOption[];
+  error?: { code: string; message: string };
+}
 
 function toDate(value: SerializableDate): Date {
   return value instanceof Date ? value : new Date(value);
@@ -63,15 +76,27 @@ function sortByUpdatedAt<T extends Pick<Session, "updatedAt">>(items: T[]): T[] 
 }
 
 export const useSessionStore = defineStore("session", () => {
+  const toast = useToast();
   const acpAgentsStore = useAcpAgentsStore();
   const sessions = ref<Session[]>([]);
   const activeSessionId = ref<string | null>(null);
   const draftAgentId = ref<string | null>(null);
+  const draftProbeByAgent = ref<Map<string, DraftProbeState>>(new Map());
   const isLoading = ref(false);
   const activeSession = computed<Session | null>(
     () => sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   );
+  const activeDraftProbe = computed<DraftProbeState | null>(() => {
+    if (!draftAgentId.value) {
+      return null;
+    }
+    return draftProbeByAgent.value.get(draftAgentId.value) ?? null;
+  });
+  const effectiveAgentId = computed<string | null>(
+    () => activeSession.value?.agentId ?? draftAgentId.value ?? null
+  );
   const loadedSessionIds = new Set<string>();
+  let ensureDraftProbeTimer: ReturnType<typeof setTimeout> | null = null;
 
   function syncDraftAgentId(preferredAgentId: string | null = draftAgentId.value): void {
     draftAgentId.value = acpAgentsStore.resolveInstalledAgent(preferredAgentId);
@@ -141,6 +166,135 @@ export const useSessionStore = defineStore("session", () => {
     }
 
     session.configOptions = options;
+  }
+
+  function setDraftProbe(agentId: string, snapshot: ProbeSnapshot): void {
+    draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
+      agentId: snapshot.agentId,
+      status: snapshot.status,
+      acpSessionId: snapshot.acpSessionId,
+      configOptions: snapshot.configOptions,
+      error: snapshot.error,
+    });
+  }
+
+  async function ensureDraftProbe(agentId: string, projectId: string): Promise<void> {
+    const starting = new Map(draftProbeByAgent.value);
+    starting.set(agentId, {
+      agentId,
+      status: "starting",
+      acpSessionId: null,
+      configOptions: [],
+    });
+    draftProbeByAgent.value = starting;
+
+    try {
+      const result = await chatApi.probeEnsure({ agentId, projectId });
+      if (result.ok) {
+        setDraftProbe(agentId, result.data);
+        return;
+      }
+
+      draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
+        agentId,
+        status: "failed",
+        acpSessionId: null,
+        configOptions: [],
+        error: result.error,
+      });
+    } catch (error: unknown) {
+      draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
+        agentId,
+        status: "failed",
+        acpSessionId: null,
+        configOptions: [],
+        error: {
+          code: "PROBE_ENSURE_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+
+  async function closeDraftProbe(agentId: string): Promise<void> {
+    const next = new Map(draftProbeByAgent.value);
+    next.delete(agentId);
+    draftProbeByAgent.value = next;
+    try {
+      await chatApi.probeClose({ agentId });
+    } catch {
+      // close is best-effort; local draft state has already been cleared.
+    }
+  }
+
+  function applyProbeUpdate(agentId: string, snapshot: ProbeSnapshot | null): void {
+    if (snapshot === null) {
+      const next = new Map(draftProbeByAgent.value);
+      next.delete(agentId);
+      draftProbeByAgent.value = next;
+      return;
+    }
+
+    setDraftProbe(agentId, snapshot);
+  }
+
+  async function setDraftConfigOption(input: {
+    agentId: string;
+    configId: string;
+    type: "select" | "boolean";
+    value: string | boolean;
+  }): Promise<void> {
+    const entry = draftProbeByAgent.value.get(input.agentId);
+    const target = entry?.configOptions.find((option) => option.id === input.configId);
+    if (!entry || !target) {
+      throw new Error(`Config option not found: ${input.configId}`);
+    }
+
+    const previousValue = target.currentValue;
+    if (target.type === "select" && typeof input.value === "string") {
+      target.currentValue = input.value;
+    } else if (target.type === "boolean" && typeof input.value === "boolean") {
+      target.currentValue = input.value;
+    }
+    draftProbeByAgent.value = new Map(draftProbeByAgent.value);
+
+    const chatStore = useChatStore();
+    chatStore.markConfigOptionPending(input.configId);
+
+    try {
+      const result = await chatApi.probeSetConfigOption(input);
+      if (!result.ok) {
+        throw new Error(result.error.message || result.error.code);
+      }
+      setDraftProbe(input.agentId, result.data);
+    } catch (error: unknown) {
+      const rollbackEntry = draftProbeByAgent.value.get(input.agentId);
+      const rollbackTarget = rollbackEntry?.configOptions.find(
+        (option) => option.id === input.configId
+      );
+      if (rollbackTarget && rollbackTarget.type === target.type) {
+        if (rollbackTarget.type === "select" && typeof previousValue === "string") {
+          rollbackTarget.currentValue = previousValue;
+        } else if (rollbackTarget.type === "boolean" && typeof previousValue === "boolean") {
+          rollbackTarget.currentValue = previousValue;
+        }
+        draftProbeByAgent.value = new Map(draftProbeByAgent.value);
+      }
+      toast.add({
+        title: "切换 Session 配置失败",
+        description: error instanceof Error ? error.message : String(error),
+        color: "error",
+      });
+      throw error;
+    } finally {
+      chatStore.clearConfigOptionPending(input.configId);
+    }
+  }
+
+  function subscribeProbeUpdates(): () => void {
+    return chatApi.onProbeUpdate(({ agentId, snapshot }) => {
+      applyProbeUpdate(agentId, snapshot);
+    });
   }
 
   async function loadSessions(projectId: string): Promise<void> {
@@ -278,11 +432,59 @@ export const useSessionStore = defineStore("session", () => {
     { immediate: true }
   );
 
+  // Single watcher for the "user changed the active agent" event. All
+  // side-effects of an agent switch (capability refresh, draft session
+  // probe lifecycle) live here so future additions stay in one place.
+  // ChatPromptPanel.vue intentionally has no agent watcher of its own.
+  watch(
+    () => effectiveAgentId.value,
+    (nextAgentId, previousAgentId) => {
+      if (nextAgentId) {
+        void acpAgentsStore.refreshCapabilities(nextAgentId).catch(() => {
+          // Capability refresh is best-effort; chat prompt state must keep working if it fails.
+        });
+      }
+
+      const isDraft = activeSessionId.value === null;
+
+      if (previousAgentId && previousAgentId !== nextAgentId) {
+        const wasDraft = draftProbeByAgent.value.has(previousAgentId);
+        if (wasDraft) {
+          void closeDraftProbe(previousAgentId);
+        }
+      }
+
+      if (ensureDraftProbeTimer) {
+        clearTimeout(ensureDraftProbeTimer);
+        ensureDraftProbeTimer = null;
+      }
+
+      if (!isDraft || !nextAgentId) {
+        return;
+      }
+
+      const projectId = useProjectStore().currentProject?.id;
+      if (!projectId) {
+        return;
+      }
+
+      ensureDraftProbeTimer = setTimeout(() => {
+        ensureDraftProbeTimer = null;
+        if (activeSessionId.value === null && draftAgentId.value === nextAgentId) {
+          void ensureDraftProbe(nextAgentId, projectId);
+        }
+      }, 200);
+    },
+    { immediate: true }
+  );
+
   return {
     sessions,
     activeSessionId,
     activeSession,
     draftAgentId,
+    draftProbeByAgent,
+    activeDraftProbe,
     isLoading,
     loadSessions,
     createSession,
@@ -293,6 +495,11 @@ export const useSessionStore = defineStore("session", () => {
     setSessionAgent,
     setSessionAvailableCommands,
     setSessionConfigOptions,
+    ensureDraftProbe,
+    closeDraftProbe,
+    setDraftConfigOption,
+    applyProbeUpdate,
+    subscribeProbeUpdates,
     setDraftAgent,
     clearSessions,
     sortSessions,

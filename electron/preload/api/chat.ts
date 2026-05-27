@@ -1,11 +1,19 @@
 import { ipcRenderer } from "electron";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
-import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
+import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { Session, Message } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
+import type { ProbeSnapshot } from "@shared/types/chat-probe";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
+type ProbeConfigOptionInput = {
+  agentId: string;
+  configId: string;
+  type: "select" | "boolean";
+  value: string | boolean;
+};
+type ProbeUpdatePayload = { agentId: string; snapshot: ProbeSnapshot | null };
 export interface StreamCallbacks {
   onChunk: (data: MessageChunkData) => void;
   onDone: (data: { totalTokens: number }) => void;
@@ -54,14 +62,21 @@ export const chatApi = {
     projectId: string,
     agentId: string,
     parts: ChatPromptPart[],
-    callbacks: StreamCallbacks
+    callbacks: StreamCallbacks,
+    options?: { acpSessionId?: string }
   ): () => void {
     let port: MessagePort | null = null;
     let cancelled = false;
 
     // Invoke to trigger main to create MessagePort and start streaming
     void ipcRenderer
-      .invoke(ChatStreamChannels.streamMessage, { sessionId, projectId, agentId, prompt: parts })
+      .invoke(ChatStreamChannels.streamMessage, {
+        sessionId,
+        projectId,
+        agentId,
+        prompt: parts,
+        ...(options?.acpSessionId ? { acpSessionId: options.acpSessionId } : {}),
+      })
       .catch((error: unknown) => {
         callbacks.onError({
           code: "STREAM_INIT_FAILED",
@@ -135,5 +150,27 @@ export const chatApi = {
     value: string | boolean;
   }): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>> {
     return ipcRenderer.invoke(ChatChannels.setConfigOption, input);
+  },
+
+  probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>> {
+    return ipcRenderer.invoke(ChatProbeChannels.ensure, input);
+  },
+
+  probeClose(input: { agentId: string }): Promise<IpcResponse<void>> {
+    return ipcRenderer.invoke(ChatProbeChannels.close, input);
+  },
+
+  probeSetConfigOption(input: ProbeConfigOptionInput): Promise<IpcResponse<ProbeSnapshot>> {
+    return ipcRenderer.invoke(ChatProbeChannels.setConfigOption, input);
+  },
+
+  onProbeUpdate(handler: (payload: ProbeUpdatePayload) => void): () => void {
+    const listener = (_event: Electron.IpcRendererEvent, payload: ProbeUpdatePayload): void => {
+      handler(payload);
+    };
+    ipcRenderer.on(ChatProbeChannels.update, listener);
+    return () => {
+      ipcRenderer.off(ChatProbeChannels.update, listener);
+    };
   },
 };
