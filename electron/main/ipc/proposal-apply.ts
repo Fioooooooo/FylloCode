@@ -171,6 +171,8 @@ export function registerProposalApplyHandlers(): void {
             }
             case "available_commands_update":
               break;
+            case "config_options_update":
+              break;
             case "session_info_update":
             case "usage_update":
               break;
@@ -368,6 +370,8 @@ export function registerProposalApplyHandlers(): void {
               break;
             }
             case "available_commands_update":
+              break;
+            case "config_options_update":
               break;
             case "session_info_update": {
               const chunk = toMessageChunk(ev);

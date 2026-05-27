@@ -91,6 +91,22 @@ describe("toMessageChunk", () => {
     expect(chunk && "commands" in chunk ? chunk.commands : null).toBe(commands);
   });
 
+  it("maps config_options_update without cloning", () => {
+    const options = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet" }],
+      },
+    ];
+    const ev: SessionEvent = { type: "config_options_update", options };
+    const chunk = toMessageChunk(ev);
+    expect(chunk).toEqual({ kind: "config_options_update", options });
+    expect(chunk && "options" in chunk ? chunk.options : null).toBe(options);
+  });
+
   it("returns null for terminal / internal events", () => {
     expect(toMessageChunk({ type: "done", totalTokens: 42 } as SessionEvent)).toBeNull();
     expect(

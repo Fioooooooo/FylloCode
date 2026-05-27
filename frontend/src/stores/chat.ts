@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { generateId } from "ai";
 import { useToast } from "@nuxt/ui/composables";
@@ -59,6 +59,21 @@ export const useChatStore = defineStore("chat", () => {
   const cancelFn = ref<(() => void) | null>(null);
   const streamError = ref<StreamError | null>(null);
   const activeStreamRunId = ref(0);
+  const pendingConfigIdSet = ref<Set<string>>(new Set());
+  const pendingConfigIds = computed<ReadonlySet<string>>(() => pendingConfigIdSet.value);
+
+  function markConfigOptionPending(configId: string): void {
+    const next = new Set(pendingConfigIdSet.value);
+    next.add(configId);
+    pendingConfigIdSet.value = next;
+  }
+
+  function clearConfigOptionPending(configId: string): void {
+    if (!pendingConfigIdSet.value.has(configId)) return;
+    const next = new Set(pendingConfigIdSet.value);
+    next.delete(configId);
+    pendingConfigIdSet.value = next;
+  }
 
   function beginStreamRun(): number {
     activeStreamRunId.value += 1;
@@ -143,6 +158,9 @@ export const useChatStore = defineStore("chat", () => {
               return;
             case "available_commands_update":
               sessionStore.setSessionAvailableCommands(activeSession.id, data.commands);
+              return;
+            case "config_options_update":
+              sessionStore.setSessionConfigOptions(activeSession.id, data.options);
               return;
             case "user_message":
             case "status":
@@ -286,14 +304,78 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
+  async function setConfigOption(input: {
+    sessionId: string;
+    configId: string;
+    type: "select" | "boolean";
+    value: string | boolean;
+  }): Promise<void> {
+    const sessionStore = useSessionStore();
+    const session = sessionStore.sessions.find((item) => item.id === input.sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${input.sessionId}`);
+    }
+
+    const target = session.configOptions?.find((option) => option.id === input.configId);
+    if (!target) {
+      throw new Error(`Config option not found: ${input.configId}`);
+    }
+
+    const previousValue = target.currentValue;
+    if (target.type === "select" && typeof input.value === "string") {
+      target.currentValue = input.value;
+    } else if (target.type === "boolean" && typeof input.value === "boolean") {
+      target.currentValue = input.value;
+    }
+
+    markConfigOptionPending(input.configId);
+
+    try {
+      const result = await chatApi.setConfigOption({
+        projectId: session.projectId,
+        sessionId: input.sessionId,
+        configId: input.configId,
+        type: input.type,
+        value: input.value,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error.message || result.error.code);
+      }
+
+      sessionStore.setSessionConfigOptions(input.sessionId, result.data.configOptions);
+    } catch (error: unknown) {
+      const rollbackTarget = sessionStore.sessions
+        .find((item) => item.id === input.sessionId)
+        ?.configOptions?.find((option) => option.id === input.configId);
+      if (rollbackTarget && rollbackTarget.type === target.type) {
+        if (rollbackTarget.type === "select" && typeof previousValue === "string") {
+          rollbackTarget.currentValue = previousValue;
+        } else if (rollbackTarget.type === "boolean" && typeof previousValue === "boolean") {
+          rollbackTarget.currentValue = previousValue;
+        }
+      }
+      toast.add({
+        title: "切换 Session 配置失败",
+        description: error instanceof Error ? error.message : String(error),
+        color: "error",
+      });
+      throw error;
+    } finally {
+      clearConfigOptionPending(input.configId);
+    }
+  }
+
   return {
     chatStatus,
     mode,
     cancelFn,
     streamError,
+    pendingConfigIds,
     sendMessage,
     setMode,
     resetChatState,
     cancelStream,
+    setConfigOption,
   };
 });

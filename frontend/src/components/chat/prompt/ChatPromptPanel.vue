@@ -16,6 +16,7 @@ import {
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import ChatAgentSelect from "../ChatAgentSelect.vue";
 import AttachmentList from "./AttachmentList.vue";
+import ConfigOptionsBar from "./ConfigOptionsBar.vue";
 import ContextUsageRing from "./ContextUsageRing.vue";
 import PromptActionMenu from "./PromptActionMenu.vue";
 import SlashCommandMenu from "./SlashCommandMenu.vue";
@@ -301,6 +302,7 @@ onBeforeUnmount(() => {
               @select="handleCommandSelect"
             />
             <ChatAgentSelect v-if="!isAgentLocked" v-model="agent" />
+            <ConfigOptionsBar />
           </div>
 
           <div class="inline-flex items-center gap-2 min-w-0">

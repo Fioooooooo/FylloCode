@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     loadSessionMeta: vi.fn(),
     patchSessionMeta: vi.fn(),
     upsertSessionMeta: vi.fn(),
+    setConfigOption: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
@@ -55,6 +56,10 @@ vi.mock("@main/services/chat/chat-service", () => ({
   removeSession: vi.fn(),
   resolveProjectPath: mocks.resolveProjectPath,
   updateSession: vi.fn(),
+}));
+
+vi.mock("@main/services/chat/config-option-service", () => ({
+  setConfigOption: mocks.setConfigOption,
 }));
 
 vi.mock("@main/infra/storage/session-store", () => ({
@@ -547,6 +552,95 @@ describe("registerChatHandlers", () => {
           available_commands: [],
         })
       );
+    });
+  });
+
+  it("forwards config_options_update chunk and persists config_options", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    const options = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet" }],
+      },
+    ];
+    mocks.eventHandler!({ type: "config_options_update", options });
+
+    expect(mocks.assemblerApply).not.toHaveBeenCalled();
+    expect(sink.sendChunk).toHaveBeenCalledWith({
+      kind: "config_options_update",
+      options,
+    });
+    await vi.waitFor(() => {
+      expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
+        "/tmp/project",
+        "session-1",
+        expect.objectContaining({ config_options: options })
+      );
+    });
+  });
+
+  it("rejects setConfigOption input missing configId before calling service", async () => {
+    const result = await handler(ChatChannels.setConfigOption)(
+      {},
+      { projectId: "p1", sessionId: "s1", type: "select", value: "haiku" }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(mocks.setConfigOption).not.toHaveBeenCalled();
+  });
+
+  it("returns configOptions on successful setConfigOption", async () => {
+    const configOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "haiku",
+        options: [{ value: "haiku", name: "Haiku" }],
+      },
+    ];
+    mocks.setConfigOption.mockResolvedValueOnce({ configOptions });
+
+    const result = await handler(ChatChannels.setConfigOption)(
+      {},
+      {
+        projectId: "p1",
+        sessionId: "s1",
+        configId: "model",
+        type: "select",
+        value: "haiku",
+      }
+    );
+
+    expect(result).toEqual({ ok: true, data: { configOptions } });
+    expect(mocks.setConfigOption).toHaveBeenCalledWith({
+      projectId: "p1",
+      sessionId: "s1",
+      configId: "model",
+      type: "select",
+      value: "haiku",
     });
   });
 });

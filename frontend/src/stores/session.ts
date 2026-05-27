@@ -1,5 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, Message, Session, TokenUsage } from "@shared/types/chat";
 import { chatApi } from "@renderer/api/chat";
 import { useAcpAgentsStore } from "./acp-agents";
@@ -120,6 +121,7 @@ export const useSessionStore = defineStore("session", () => {
     session.createdAt = nextSession.createdAt;
     session.updatedAt = nextSession.updatedAt;
     session.availableCommands = nextSession.availableCommands;
+    session.configOptions = nextSession.configOptions;
     return session;
   }
 
@@ -130,6 +132,15 @@ export const useSessionStore = defineStore("session", () => {
     }
 
     session.availableCommands = commands;
+  }
+
+  function setSessionConfigOptions(sessionId: string, options: AcpSessionConfigOption[]): void {
+    const session = findSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    session.configOptions = options;
   }
 
   async function loadSessions(projectId: string): Promise<void> {
@@ -281,6 +292,7 @@ export const useSessionStore = defineStore("session", () => {
     deleteSession,
     setSessionAgent,
     setSessionAvailableCommands,
+    setSessionConfigOptions,
     setDraftAgent,
     clearSessions,
     sortSessions,

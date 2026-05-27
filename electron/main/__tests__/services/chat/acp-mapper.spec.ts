@@ -136,4 +136,136 @@ describe("mapSessionUpdate", () => {
       cost: undefined,
     });
   });
+
+  describe("config_option_update", () => {
+    it("maps a flat select option, stripping _meta and normalizing nulls", () => {
+      const update = {
+        sessionUpdate: "config_option_update",
+        configOptions: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            description: null,
+            category: null,
+            currentValue: "sonnet",
+            options: [
+              { value: "sonnet", name: "Sonnet", description: null, _meta: { x: 1 } },
+              { value: "haiku", name: "Haiku" },
+            ],
+            _meta: { foo: "bar" },
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        type: "config_options_update",
+        options: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            description: undefined,
+            category: undefined,
+            currentValue: "sonnet",
+            options: [
+              { value: "sonnet", name: "Sonnet", description: undefined },
+              { value: "haiku", name: "Haiku", description: undefined },
+            ],
+          },
+        ],
+      });
+    });
+
+    it("preserves grouped select options", () => {
+      const update = {
+        sessionUpdate: "config_option_update",
+        configOptions: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "sonnet-4",
+            category: "model",
+            options: [
+              {
+                group: "anthropic",
+                name: "Anthropic",
+                options: [
+                  { value: "sonnet-4", name: "Sonnet 4" },
+                  { value: "haiku-4", name: "Haiku 4" },
+                ],
+              },
+              {
+                group: "openai",
+                name: "OpenAI",
+                options: [{ value: "gpt-5", name: "GPT-5" }],
+                _meta: { x: 1 },
+              },
+            ],
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      const event = mapSessionUpdate(update);
+      expect(event).toEqual({
+        type: "config_options_update",
+        options: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            description: undefined,
+            category: "model",
+            currentValue: "sonnet-4",
+            options: [
+              {
+                group: "anthropic",
+                name: "Anthropic",
+                options: [
+                  { value: "sonnet-4", name: "Sonnet 4", description: undefined },
+                  { value: "haiku-4", name: "Haiku 4", description: undefined },
+                ],
+              },
+              {
+                group: "openai",
+                name: "OpenAI",
+                options: [{ value: "gpt-5", name: "GPT-5", description: undefined }],
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    it("maps boolean options with categories", () => {
+      const update = {
+        sessionUpdate: "config_option_update",
+        configOptions: [
+          {
+            type: "boolean",
+            id: "stream",
+            name: "Stream",
+            description: "Stream output",
+            category: "_custom",
+            currentValue: true,
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        type: "config_options_update",
+        options: [
+          {
+            type: "boolean",
+            id: "stream",
+            name: "Stream",
+            description: "Stream output",
+            category: "_custom",
+            currentValue: true,
+          },
+        ],
+      });
+    });
+  });
 });

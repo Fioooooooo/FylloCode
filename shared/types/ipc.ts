@@ -1,4 +1,5 @@
 import type { IpcErrorCode } from "../constants/error-codes";
+import type { AcpSessionConfigOption } from "./acp-config";
 import type { AcpAvailableCommand, MessageMeta } from "./chat";
 import type { UIMessage, ChatStatus } from "ai";
 
@@ -39,6 +40,7 @@ export type MessageChunkData =
     }
   | { kind: "session_info_update"; title: string }
   | { kind: "available_commands_update"; commands: AcpAvailableCommand[] }
+  | { kind: "config_options_update"; options: AcpSessionConfigOption[] }
   | { kind: "user_message"; message: UIMessage<MessageMeta> }
   | { kind: "status"; agentStatus: ChatStatus };
 

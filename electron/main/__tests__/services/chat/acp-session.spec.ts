@@ -61,6 +61,7 @@ vi.mock("@main/infra/logger", () => ({
 
 vi.mock("@main/services/chat/acp-mapper", () => ({
   mapSessionUpdate: vi.fn((update: unknown) => update ?? null),
+  normalizeAcpSessionConfigOptions: vi.fn((input: unknown) => (Array.isArray(input) ? input : [])),
 }));
 
 function initializeResponse(overrides: Partial<InitializeResponse> = {}): InitializeResponse {
@@ -109,8 +110,8 @@ describe("AcpSession", () => {
       sessionHandlers: mocks.sessionHandlers,
       initializeResponse: initializeResponse(),
     });
-    mocks.connection.resumeSession.mockResolvedValue(undefined);
-    mocks.connection.loadSession.mockResolvedValue(undefined);
+    mocks.connection.resumeSession.mockResolvedValue({});
+    mocks.connection.loadSession.mockResolvedValue({});
     mocks.connection.newSession.mockResolvedValue({ sessionId: "acp-new" });
     mocks.connection.prompt.mockResolvedValue({ usage: { outputTokens: 12 } });
     mocks.sessionStore.loadAcpSessionId.mockResolvedValue(null);
@@ -314,6 +315,7 @@ describe("AcpSession", () => {
           title: "Recovered title",
         } as unknown as SessionNotification["update"],
       } as SessionNotification);
+      return {} as never;
     });
 
     const session = await createSession({
@@ -480,5 +482,105 @@ describe("AcpSession", () => {
         code: IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
       })
     );
+  });
+
+  describe("config_options emit", () => {
+    const sampleOptions = [
+      {
+        type: "select",
+        id: "model",
+        name: "Model",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet" }],
+      },
+    ];
+
+    it("emits config_options_update from newSession response", async () => {
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: sampleOptions,
+      });
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "hello" }]);
+
+      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+    });
+
+    it("emits empty config_options_update when newSession returns null configOptions", async () => {
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: null,
+      });
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "hello" }]);
+
+      expect(seen).toContainEqual({ type: "config_options_update", options: [] });
+    });
+
+    it("emits config_options_update from resumeSession response", async () => {
+      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+      mocks.connection.prompt
+        .mockRejectedValueOnce({
+          code: -32603,
+          message: "Internal error",
+          data: { details: "Session not found" },
+        })
+        .mockResolvedValueOnce({ usage: { outputTokens: 4 } });
+      mocks.connection.resumeSession.mockResolvedValueOnce({ configOptions: sampleOptions });
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "hello" }]);
+
+      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+    });
+
+    it("emits config_options_update from loadSession response even with suppressReplay", async () => {
+      mocks.getOrStartProcess.mockResolvedValue({
+        connection: mocks.connection,
+        sessionHandlers: mocks.sessionHandlers,
+        initializeResponse: initializeResponse({
+          agentCapabilities: {
+            loadSession: true,
+            sessionCapabilities: { close: {}, list: {} },
+          },
+        }),
+      });
+      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+      mocks.connection.prompt
+        .mockRejectedValueOnce({ code: -32602, message: "Session not found: acp-existing" })
+        .mockResolvedValueOnce({ usage: { outputTokens: 4 } });
+      mocks.connection.loadSession.mockResolvedValueOnce({ configOptions: sampleOptions });
+
+      const session = await createSession({
+        recoveryContext: {
+          hasPersistedHistory: true,
+          loadPersistedHistory: async () => [],
+        },
+      });
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "hello" }]);
+
+      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+    });
+
+    it("does not emit config_options_update from direct prompt success", async () => {
+      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "hello" }]);
+
+      expect(seen).not.toContainEqual(expect.objectContaining({ type: "config_options_update" }));
+    });
   });
 });

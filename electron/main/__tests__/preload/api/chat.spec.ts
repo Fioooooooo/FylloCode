@@ -120,4 +120,24 @@ describe("preload chatApi.streamMessage", () => {
       mediaType: "image/png",
     });
   });
+
+  it("invokes setConfigOption on the correct channel", async () => {
+    const { chatApi } = await import("../../../../preload/api/chat");
+
+    await chatApi.setConfigOption({
+      projectId: "p1",
+      sessionId: "s1",
+      configId: "model",
+      type: "select",
+      value: "haiku",
+    });
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.setConfigOption, {
+      projectId: "p1",
+      sessionId: "s1",
+      configId: "model",
+      type: "select",
+      value: "haiku",
+    });
+  });
 });

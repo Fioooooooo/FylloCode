@@ -155,6 +155,7 @@ export function useUIMessageAssembler(
         applyToolUpdate(chunk);
         return;
       case "available_commands_update":
+      case "config_options_update":
       case "usage_update":
       case "session_info_update":
       case "status":

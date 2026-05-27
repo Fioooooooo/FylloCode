@@ -130,6 +130,7 @@ export function shouldSuppressDuringReplay(event: SessionEvent): boolean {
   switch (event.type) {
     case "available_commands_update":
     case "session_info_update":
+    case "config_options_update":
       return false;
     case "text_delta":
     case "reasoning_delta":

@@ -4,10 +4,11 @@ import { fileURLToPath } from "url";
 import type {
   ClientSideConnection,
   InitializeResponse,
+  SessionConfigOption,
   SessionNotification,
 } from "@agentclientprotocol/sdk";
 import type { AcpSessionStore } from "@main/domain/chat/acp-session-store";
-import { mapSessionUpdate } from "./acp-mapper";
+import { mapSessionUpdate, normalizeAcpSessionConfigOptions } from "./acp-mapper";
 import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import {
@@ -306,6 +307,14 @@ export class AcpSession extends EventEmitter {
     } satisfies SessionEvent);
   }
 
+  private emitConfigOptions(raw: SessionConfigOption[] | null | undefined): void {
+    const options = normalizeAcpSessionConfigOptions(raw);
+    this.emit("event", {
+      type: "config_options_update",
+      options,
+    } satisfies SessionEvent);
+  }
+
   private handleStartError(err: unknown): void {
     logger.error(`${this.logPrefix(this.acpSessionId)} acp session error`, err);
     if (this.cancelled) {
@@ -410,13 +419,14 @@ export class AcpSession extends EventEmitter {
       try {
         this.throwIfCancelled("before resumeSession");
         logger.info(`${this.logPrefix(persistedSessionId)} attempting resumeSession`);
-        await connection.resumeSession({
+        const resumeResponse = await connection.resumeSession({
           sessionId: persistedSessionId,
           cwd: this.opts.cwd,
           mcpServers,
         });
         this.throwIfCancelled("after resumeSession");
         logger.info(`${this.logPrefix(persistedSessionId)} resumeSession succeeded`);
+        this.emitConfigOptions(resumeResponse.configOptions);
         return {
           sessionId: persistedSessionId,
           createdNewSession: false,
@@ -447,7 +457,7 @@ export class AcpSession extends EventEmitter {
         logger.info(
           `${this.logPrefix(persistedSessionId)} attempting loadSession; suppressReplay=${runtimeState.suppressReplay}`
         );
-        await connection.loadSession({
+        const loadResponse = await connection.loadSession({
           sessionId: persistedSessionId,
           cwd: this.opts.cwd,
           mcpServers,
@@ -456,6 +466,7 @@ export class AcpSession extends EventEmitter {
         logger.info(
           `${this.logPrefix(persistedSessionId)} loadSession succeeded; suppressedReplayEvents=${runtimeState.suppressedReplayEvents}`
         );
+        this.emitConfigOptions(loadResponse.configOptions);
         return {
           sessionId: persistedSessionId,
           createdNewSession: false,
@@ -490,6 +501,8 @@ export class AcpSession extends EventEmitter {
     );
     this.throwIfCancelled("before newSession");
     const created = await connection.newSession({ cwd: this.opts.cwd, mcpServers });
+    logger.info("SessionCreated", JSON.stringify(created.configOptions));
+
     this.acpSessionId = created.sessionId;
     this.throwIfCancelled("after newSession");
     const historyMessages = await this.recoveryContext.loadPersistedHistory();
@@ -498,6 +511,7 @@ export class AcpSession extends EventEmitter {
     logger.info(
       `${this.logPrefix(created.sessionId)} newSession created; historyMessages=${historyMessages.length}; historyReminder=${recoveryHistoryReminder ? "yes" : "no"}`
     );
+    this.emitConfigOptions(created.configOptions);
     return {
       sessionId: created.sessionId,
       createdNewSession: true,

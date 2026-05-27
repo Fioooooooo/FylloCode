@@ -11,6 +11,7 @@ import {
   readAttachmentDataUrlInputSchema,
   removeSessionInputSchema,
   saveAttachmentInputSchema,
+  setConfigOptionInputSchema,
   streamCancelInputSchema,
   streamMessageInputSchema,
   updateSessionInputSchema,
@@ -30,6 +31,7 @@ import {
   resolveProjectPath,
   updateSession,
 } from "@main/services/chat/chat-service";
+import { setConfigOption } from "@main/services/chat/config-option-service";
 import { sessionRegistry } from "@main/services/chat/session-registry";
 import {
   appendMessage,
@@ -143,6 +145,13 @@ export function registerChatHandlers(): void {
     })
   );
 
+  ipcMain.handle(ChatChannels.setConfigOption, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(setConfigOptionInputSchema, input);
+      return setConfigOption(form);
+    })
+  );
+
   // Streaming: create MessagePort via stream-channel kit
   ipcMain.handle(ChatStreamChannels.streamMessage, (event, input: unknown) => {
     const {
@@ -243,6 +252,18 @@ export function registerChatHandlers(): void {
                   updatedAt: new Date().toISOString(),
                 },
                 "[chat] failed to persist session available commands update"
+              );
+              break;
+            }
+            case "config_options_update": {
+              const chunk = toMessageChunk(ev);
+              if (chunk) sink.sendChunk(chunk);
+              enqueueSessionMetaPersist(
+                {
+                  config_options: ev.options,
+                  updatedAt: new Date().toISOString(),
+                },
+                "[chat] failed to persist session config options update"
               );
               break;
             }

@@ -63,6 +63,13 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `chat:readAttachmentDataUrl`：入参 `{ uri, mediaType }`，其中 `uri` 必须为 `file://`，`mediaType` 必须以 `image/` 开头；返回 `IpcResponse<{ dataUrl: string }>`，用于 renderer 将已持久化图片附件读取为 `<img src>` 可用的 data URL。本次读取接口不设置文件大小上限。
 - `chat:stream:message` 的 `prompt` 字段为 `ChatPromptPart[]`；当 prompt part 与 agent capability 不匹配时，主进程返回 `PROMPT_CAPABILITY_MISMATCH`。
 
+## Session Config Options Channels
+
+- `chat:setConfigOption`：入参 `{ projectId, sessionId, configId, type: "select" | "boolean", value: string | boolean }`，使用 zod discriminated union 校验 `value` 类型与 `type` 字面量匹配（`select` 仅接收非空 `string`，`boolean` 仅接收 `boolean`）。返回 `IpcResponse<{ configOptions: AcpSessionConfigOption[] }>`，主进程在调用 `connection.setSessionConfigOption` 成功后将全集 `configOptions` 写回 `SessionMeta.config_options`，再原样返回给 renderer。错误码集合：`VALIDATION_ERROR`（入参或 session 缺 `acpSessionId`）、`CONFIG_OPTION_INVALID_VALUE`（`value` 不在缓存的 select schema 中）、`CONFIG_OPTION_NOT_SUPPORTED`（agent 未实现 `session/set_config_option`，识别 ACP `-32601` 与语义等价错误）、`ACP_NOT_READY`、`ACP_ERROR`。
+- `MessageChunkData` 新增 `{ kind: "config_options_update"; options: AcpSessionConfigOption[] }` 分支，语义为「全集替换」：覆盖 `Session.configOptions` 而非 patch 单项；与 `available_commands_update` / `session_info_update` 同位治理（`acp-session-recovery#shouldSuppressDuringReplay` 白名单），`loadSession` replay 期间也不被抑制。
+- `AcpSessionConfigOption` 类型由 `shared/types/acp-config.ts` 导出，**不依赖** `@agentclientprotocol/sdk` 的 SDK 类型；主进程 `acp-mapper.normalizeAcpSessionConfigOptions` 负责剥除 `_meta`、把 `null` category/description 归一为 `undefined`，并保留 `select.options` 的平铺与分组两种形态。
+- `proposal:stageStream` / `proposal:archive` 的 session-event switch 显式忽略 `config_options_update`：不调用 `MessageAssembler.apply`、不发送 sink chunk、不写磁盘。
+
 ## Verification
 
 - `pnpm typecheck`

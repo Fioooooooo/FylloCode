@@ -1,5 +1,10 @@
-import type { SessionUpdate } from "@agentclientprotocol/sdk";
+import type { SessionConfigOption, SessionUpdate } from "@agentclientprotocol/sdk";
 import type { SessionEvent } from "@main/domain/chat/session-events";
+import type {
+  AcpSessionConfigOption,
+  AcpSessionConfigOptionGroup,
+  AcpSessionConfigOptionValueItem,
+} from "@shared/types/acp-config";
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import logger from "@main/infra/logger";
 
@@ -14,6 +19,79 @@ function normalizeAvailableCommands(
         ? command.input.hint
         : undefined,
   }));
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizeSelectOptions(
+  options: unknown
+): AcpSessionConfigOptionValueItem[] | AcpSessionConfigOptionGroup[] {
+  if (!Array.isArray(options)) return [];
+  if (options.length === 0) return [];
+
+  const isGrouped = options.every(
+    (entry) => entry != null && typeof entry === "object" && "group" in entry
+  );
+
+  if (isGrouped) {
+    return options.map((entry) => {
+      const group = entry as {
+        group: string;
+        name: string;
+        options?: Array<{ value: string; name: string; description?: string | null }>;
+      };
+      return {
+        group: group.group,
+        name: group.name,
+        options: (group.options ?? []).map((item) => ({
+          value: item.value,
+          name: item.name,
+          description: normalizeOptionalString(item.description),
+        })),
+      } satisfies AcpSessionConfigOptionGroup;
+    });
+  }
+
+  return options.map((entry) => {
+    const item = entry as { value: string; name: string; description?: string | null };
+    return {
+      value: item.value,
+      name: item.name,
+      description: normalizeOptionalString(item.description),
+    } satisfies AcpSessionConfigOptionValueItem;
+  });
+}
+
+export function normalizeAcpSessionConfigOptions(
+  input: SessionConfigOption[] | null | undefined
+): AcpSessionConfigOption[] {
+  if (!Array.isArray(input)) return [];
+
+  return input.map((raw) => {
+    const base = {
+      id: raw.id,
+      name: raw.name,
+      description: normalizeOptionalString(raw.description),
+      category: normalizeOptionalString(raw.category),
+    };
+
+    if (raw.type === "boolean") {
+      return {
+        ...base,
+        type: "boolean",
+        currentValue: Boolean(raw.currentValue),
+      };
+    }
+
+    return {
+      ...base,
+      type: "select",
+      currentValue: String(raw.currentValue),
+      options: normalizeSelectOptions(raw.options),
+    };
+  });
 }
 
 export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
@@ -105,6 +183,15 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
       const event: SessionEvent = {
         type: "session_info_update",
         title,
+      };
+      logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
+      return event;
+    }
+
+    case "config_option_update": {
+      const event: SessionEvent = {
+        type: "config_options_update",
+        options: normalizeAcpSessionConfigOptions(update.configOptions),
       };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;

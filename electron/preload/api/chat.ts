@@ -1,6 +1,7 @@
 import { ipcRenderer } from "electron";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import { ChatChannels, ChatStreamChannels } from "@shared/types/channels";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { Session, Message } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 
@@ -124,5 +125,15 @@ export const chatApi = {
       uri,
       mediaType,
     });
+  },
+
+  setConfigOption(input: {
+    projectId: string;
+    sessionId: string;
+    configId: string;
+    type: "select" | "boolean";
+    value: string | boolean;
+  }): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>> {
+    return ipcRenderer.invoke(ChatChannels.setConfigOption, input);
   },
 };

@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
@@ -12,6 +13,7 @@ export interface SessionMeta {
   turnCount: number;
   tokenUsage: TokenUsage;
   available_commands?: AcpAvailableCommand[];
+  config_options?: AcpSessionConfigOption[];
   createdAt: string;
   updatedAt: string;
 }
@@ -220,6 +222,7 @@ function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
     ...raw,
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
+    config_options: Array.isArray(raw.config_options) ? raw.config_options : undefined,
   };
 }
 

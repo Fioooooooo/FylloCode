@@ -127,3 +127,26 @@ export const streamMessageInputSchema = z.object({
 export const streamCancelInputSchema = z.object({
   sessionId: z.string().min(1),
 });
+
+const setConfigOptionBaseSchema = z.object({
+  projectId: z.string().min(1),
+  sessionId: z.string().min(1),
+  configId: z.string().min(1),
+});
+
+const setConfigOptionSelectSchema = setConfigOptionBaseSchema.extend({
+  type: z.literal("select"),
+  value: z.string().min(1),
+});
+
+const setConfigOptionBooleanSchema = setConfigOptionBaseSchema.extend({
+  type: z.literal("boolean"),
+  value: z.boolean(),
+});
+
+export const setConfigOptionInputSchema = z.discriminatedUnion("type", [
+  setConfigOptionSelectSchema,
+  setConfigOptionBooleanSchema,
+]);
+
+export type SetConfigOptionInput = z.infer<typeof setConfigOptionInputSchema>;

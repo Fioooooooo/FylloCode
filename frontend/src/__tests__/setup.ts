@@ -9,7 +9,7 @@ import { vi } from "vitest";
 const mockToast = { add: vi.fn() };
 const buttonStub = {
   template:
-    '<button :data-color="color || \'neutral\'" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
+    '<button :data-color="color || \'neutral\'" :data-icon="icon" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
   props: ["loading", "icon", "color", "variant", "size", "disabled"],
   emits: ["click"],
 };
@@ -119,9 +119,27 @@ config.global.stubs = {
     props: ["items", "modelValue", "valueKey", "orientation", "color"],
     emits: ["update:modelValue"],
   },
-  UIcon: true,
-  Icon: true,
+  UIcon: {
+    template: '<i :data-icon-name="name" :class="$attrs.class" />',
+    props: ["name"],
+  },
+  Icon: {
+    template: '<i :data-icon-name="name" :class="$attrs.class" />',
+    props: ["name"],
+  },
   USelect: true,
+  USwitch: {
+    template:
+      '<input type="checkbox" :data-test="$attrs[\'data-test\'] || \'switch\'" :checked="modelValue" :disabled="disabled" :aria-label="ariaLabel" @change="$emit(\'update:modelValue\', !modelValue)" />',
+    props: ["modelValue", "disabled", "ariaLabel"],
+    emits: ["update:modelValue"],
+  },
+  Switch: {
+    template:
+      '<input type="checkbox" :data-test="$attrs[\'data-test\'] || \'switch\'" :checked="modelValue" :disabled="disabled" :aria-label="ariaLabel" @change="$emit(\'update:modelValue\', !modelValue)" />',
+    props: ["modelValue", "disabled", "ariaLabel"],
+    emits: ["update:modelValue"],
+  },
   UCheckbox: true,
   UCard: {
     template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',

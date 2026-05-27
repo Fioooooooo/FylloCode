@@ -1,3 +1,4 @@
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, Message } from "@shared/types/chat";
 
 export type SessionEvent =
@@ -19,6 +20,7 @@ export type SessionEvent =
     }
   | { type: "session_info_update"; title: string }
   | { type: "available_commands_update"; commands: AcpAvailableCommand[] }
+  | { type: "config_options_update"; options: AcpSessionConfigOption[] }
   | { type: "done"; totalTokens: number }
   | { type: "error"; code: string; message: string }
   | { type: "session_id_resolved"; acpSessionId: string };

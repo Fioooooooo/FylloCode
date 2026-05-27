@@ -128,4 +128,29 @@ describe("useSessionStore", () => {
     await store.selectSession("session-b");
     expect(store.activeSession?.availableCommands).toEqual([]);
   });
+
+  it("setSessionConfigOptions overwrites configOptions for the session", () => {
+    const store = useSessionStore();
+    store.sessions = [session()];
+
+    store.setSessionConfigOptions("session-1", [
+      {
+        type: "select",
+        id: "model",
+        name: "Model",
+        currentValue: "haiku",
+        options: [{ value: "haiku", name: "Haiku" }],
+      },
+    ]);
+
+    expect(store.sessions[0]?.configOptions).toEqual([
+      expect.objectContaining({ id: "model", currentValue: "haiku" }),
+    ]);
+  });
+
+  it("setSessionConfigOptions does nothing when session is missing", () => {
+    const store = useSessionStore();
+    store.setSessionConfigOptions("missing", []);
+    expect(store.sessions).toEqual([]);
+  });
 });

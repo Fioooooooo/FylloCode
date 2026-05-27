@@ -1,4 +1,5 @@
 import type { UIMessage, ChatStatus } from "ai";
+import type { AcpSessionConfigOption } from "./acp-config";
 import type { ChatAgent } from "./chat-agent";
 
 export type { ChatStatus };
@@ -39,6 +40,7 @@ export interface Session {
   updatedAt: Date;
   messages: Message[];
   availableCommands?: AcpAvailableCommand[];
+  configOptions?: AcpSessionConfigOption[];
 }
 
 export type ProjectAgent = ChatAgent;

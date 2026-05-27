@@ -18,6 +18,7 @@ vi.mock("@renderer/api/chat", () => ({
     loadMessages: vi.fn(),
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
+    setConfigOption: vi.fn(),
   },
 }));
 
@@ -711,5 +712,207 @@ describe("useChatStore", () => {
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.cancelFn).toBeNull();
     expect(sessionStore.activeSession?.messages.at(-1)?.role).toBe("assistant");
+  });
+
+  describe("config options", () => {
+    function withSession(): {
+      sessionStore: ReturnType<typeof useSessionStore>;
+      chatStore: ReturnType<typeof useChatStore>;
+    } {
+      const acpAgentsStore = useAcpAgentsStore();
+      acpAgentsStore.registry = mockRegistry;
+      acpAgentsStore.statuses = mockStatuses;
+
+      const projectStore = useProjectStore();
+      projectStore.currentProject = {
+        id: "project-1",
+        name: "Project 1",
+        path: "/tmp/project-1",
+        metaPath: "/tmp/project-1-meta.json",
+        createdAt: new Date("2026-04-30T08:00:00.000Z"),
+        lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+      };
+
+      const sessionStore = useSessionStore();
+      sessionStore.sessions = [
+        {
+          id: "session-1",
+          projectId: "project-1",
+          agentId: "claude-code",
+          title: "Session",
+          status: "running",
+          turnCount: 1,
+          tokenUsage: { used: 0, size: 0 },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          messages: [],
+          configOptions: [
+            {
+              type: "select",
+              id: "model",
+              name: "Model",
+              currentValue: "sonnet",
+              options: [
+                { value: "sonnet", name: "Sonnet" },
+                { value: "haiku", name: "Haiku" },
+              ],
+            },
+          ],
+        },
+      ];
+      sessionStore.activeSessionId = "session-1";
+
+      const chatStore = useChatStore();
+      return { sessionStore, chatStore };
+    }
+
+    it("routes config_options_update chunks to setSessionConfigOptions", async () => {
+      const { sessionStore } = withSession();
+      let callbacks: StreamCallbacks | null = null;
+      vi.mocked(chatApi.streamMessage).mockImplementation(
+        (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+          callbacks = nextCallbacks;
+          return () => {};
+        }
+      );
+      const setSpy = vi.spyOn(sessionStore, "setSessionConfigOptions");
+
+      const chatStore = useChatStore();
+      await chatStore.sendMessage(textParts("hello"));
+
+      callbacks!.onChunk({
+        kind: "config_options_update",
+        options: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "haiku",
+            options: [{ value: "haiku", name: "Haiku" }],
+          },
+        ],
+      });
+
+      expect(setSpy).toHaveBeenCalledWith(
+        sessionStore.activeSession!.id,
+        expect.arrayContaining([expect.objectContaining({ id: "model", currentValue: "haiku" })])
+      );
+    });
+
+    it("optimistically updates currentValue and replaces full set on success", async () => {
+      const { sessionStore, chatStore } = withSession();
+      vi.mocked(chatApi.setConfigOption).mockResolvedValue({
+        ok: true,
+        data: {
+          configOptions: [
+            {
+              type: "select",
+              id: "model",
+              name: "Model",
+              currentValue: "haiku",
+              options: [
+                { value: "sonnet", name: "Sonnet" },
+                { value: "haiku", name: "Haiku" },
+              ],
+            },
+          ],
+        },
+      });
+
+      const promise = chatStore.setConfigOption({
+        sessionId: "session-1",
+        configId: "model",
+        type: "select",
+        value: "haiku",
+      });
+
+      expect(chatStore.pendingConfigIds.has("model")).toBe(true);
+      const optimistic = sessionStore.sessions[0]!.configOptions![0];
+      expect(optimistic.currentValue).toBe("haiku");
+
+      await promise;
+      expect(chatStore.pendingConfigIds.has("model")).toBe(false);
+      expect(sessionStore.sessions[0]!.configOptions![0]!.currentValue).toBe("haiku");
+    });
+
+    it("rolls back currentValue and clears pending when IPC fails", async () => {
+      const { sessionStore, chatStore } = withSession();
+      vi.mocked(chatApi.setConfigOption).mockResolvedValue({
+        ok: false,
+        error: { code: "CONFIG_OPTION_INVALID_VALUE", message: "bad" },
+      });
+
+      await expect(
+        chatStore.setConfigOption({
+          sessionId: "session-1",
+          configId: "model",
+          type: "select",
+          value: "haiku",
+        })
+      ).rejects.toBeTruthy();
+
+      expect(sessionStore.sessions[0]!.configOptions![0]!.currentValue).toBe("sonnet");
+      expect(chatStore.pendingConfigIds.has("model")).toBe(false);
+    });
+
+    it("turn-during server-push overrides optimistic value without rollback", async () => {
+      const { sessionStore, chatStore } = withSession();
+      let callbacks: StreamCallbacks | null = null;
+      vi.mocked(chatApi.streamMessage).mockImplementation(
+        (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+          callbacks = nextCallbacks;
+          return () => {};
+        }
+      );
+
+      let resolveSet: (response: Awaited<ReturnType<typeof chatApi.setConfigOption>>) => void;
+      vi.mocked(chatApi.setConfigOption).mockReturnValue(
+        new Promise((resolve) => {
+          resolveSet = resolve;
+        })
+      );
+
+      await chatStore.sendMessage(textParts("hi"));
+      const setPromise = chatStore.setConfigOption({
+        sessionId: "session-1",
+        configId: "model",
+        type: "select",
+        value: "haiku",
+      });
+
+      callbacks!.onChunk({
+        kind: "config_options_update",
+        options: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "opus",
+            options: [{ value: "opus", name: "Opus" }],
+          },
+        ],
+      });
+
+      expect(sessionStore.sessions[0]!.configOptions![0]!.currentValue).toBe("opus");
+
+      resolveSet!({
+        ok: true,
+        data: {
+          configOptions: [
+            {
+              type: "select",
+              id: "model",
+              name: "Model",
+              currentValue: "opus",
+              options: [{ value: "opus", name: "Opus" }],
+            },
+          ],
+        },
+      });
+
+      await setPromise;
+      expect(chatStore.pendingConfigIds.has("model")).toBe(false);
+      expect(sessionStore.sessions[0]!.configOptions![0]!.currentValue).toBe("opus");
+    });
   });
 });
