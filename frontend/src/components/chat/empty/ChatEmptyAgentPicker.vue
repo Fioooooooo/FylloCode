@@ -69,7 +69,7 @@ function handleConfirm(agentId: string): void {
         <p class="mt-1 text-sm text-muted">选择一个 Agent 开始你的会话</p>
       </header>
 
-      <div v-if="hasInstalled" class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div v-if="hasInstalled" class="flex justify-center items-center gap-3">
         <InstalledAgentTile
           v-for="item in visibleInstalled"
           :key="item.id"
@@ -82,13 +82,10 @@ function handleConfirm(agentId: string): void {
         <MoreAgentsTile variant="more" :total-count="totalAgents" @click="openModal" />
       </div>
 
-      <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <MoreAgentsTile
-          variant="promo"
-          :total-count="totalAgents"
-          class="sm:col-span-2"
-          @click="openModal"
-        />
+      <div v-else class="flex justify-center">
+        <div class="w-full max-w-sm">
+          <MoreAgentsTile variant="promo" :total-count="totalAgents" @click="openModal" />
+        </div>
       </div>
     </div>
 

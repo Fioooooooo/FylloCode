@@ -10,9 +10,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <button
-    type="button"
-    class="group flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-colors"
+  <div
+    class="w-32 h-32 p-4 group flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-center transition-colors"
     :class="
       variant === 'promo'
         ? 'min-h-36 w-full border-primary/40 bg-primary/5 hover:bg-primary/10'
@@ -40,5 +39,5 @@ const emit = defineEmits<{
       <template v-if="variant === 'promo'">点击安装你的第一个 Agent</template>
       <template v-else>浏览并安装更多</template>
     </span>
-  </button>
+  </div>
 </template>

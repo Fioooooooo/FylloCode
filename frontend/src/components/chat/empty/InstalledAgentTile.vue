@@ -12,9 +12,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <button
-    type="button"
-    class="group relative flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border bg-default p-4 transition-colors"
+  <div
+    class="w-32 h-32 p-4 group relative flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border bg-default transition-colors"
     :class="
       selected
         ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
@@ -33,5 +32,5 @@ const emit = defineEmits<{
       <UIcon v-else name="i-lucide-terminal" class="h-5 w-5 text-muted" />
     </div>
     <span class="line-clamp-1 text-sm font-medium text-highlighted">{{ name }}</span>
-  </button>
+  </div>
 </template>

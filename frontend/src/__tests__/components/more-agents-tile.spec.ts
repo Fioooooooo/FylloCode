@@ -11,7 +11,9 @@ describe("MoreAgentsTile", () => {
       },
     });
 
-    expect(wrapper.get("button").classes()).toContain("aspect-square");
+    const classes = wrapper.get("div").classes();
+    expect(classes).toContain("w-32");
+    expect(classes).toContain("h-32");
   });
 
   it("uses a bounded height for the first-agent promo tile", () => {
@@ -22,7 +24,7 @@ describe("MoreAgentsTile", () => {
       },
     });
 
-    const classes = wrapper.get("button").classes();
+    const classes = wrapper.get("div").classes();
     expect(classes).toContain("min-h-36");
     expect(classes).toContain("w-full");
     expect(classes).not.toContain("aspect-square");
