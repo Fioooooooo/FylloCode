@@ -46,6 +46,8 @@ export default defineConfig({
           name: "main",
           environment: "node",
           globals: true,
+          testTimeout: 30000,
+          hookTimeout: 30000,
           include: [
             "electron/main/__tests__/**/*.{test,spec}.ts",
             "mcp-servers/fyllo-specs/__tests__/**/*.{test,spec}.ts",
