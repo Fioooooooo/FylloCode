@@ -254,19 +254,29 @@ export const useChatStore = defineStore("chat", () => {
       chatStatus.value = "submitted";
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
       const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
+      const carryProbe =
+        probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId
+          ? {
+              configOptions: JSON.parse(
+                JSON.stringify(probeBeforeCreate.configOptions)
+              ) as typeof probeBeforeCreate.configOptions,
+              acpSessionId: probeBeforeCreate.acpSessionId,
+            }
+          : null;
 
       try {
         const createdSession = await sessionStore.createSession({
           projectId: projectIdSnapshot,
           agentId: draftAgentIdSnapshot,
           title: fallbackTitleSnapshot,
+          ...(carryProbe ?? {}),
         });
         if (!isCurrentStreamRun(streamRunId)) {
           return;
         }
         activeSession = sessionStore.activeSession ?? createdSession;
-        if (probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId) {
-          streamOptions = { acpSessionId: probeBeforeCreate.acpSessionId };
+        if (carryProbe) {
+          streamOptions = { acpSessionId: carryProbe.acpSessionId };
           sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null);
         }
       } catch (error: unknown) {

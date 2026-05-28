@@ -68,7 +68,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - `useSessionStore.draftProbeByAgent` 维护草稿态 probe 的 renderer 内存镜像；`activeDraftProbe` 只跟随当前 `draftAgentId`，切 agent 时必须先清旧 entry，再 debounce 发起新 `probeEnsure`。
 - 草稿态 probe 通过 `frontend/src/api/chat.ts` 调用 preload 暴露的 `chat:probe:*` IPC；组件不得直接访问 `window.api.chat` 或 IPC channel。
 - `ConfigOptionsBar` 在已建立 session 时读取 `activeSession.configOptions`，草稿态只在 `activeDraftProbe.status === "ready"` 时读取 probe config options；starting/failed/null 均不渲染。
-- `sendMessage` 在草稿态创建首个 fyllo session 后，只能使用创建前捕获的 probe 快照决定是否传 `acpSessionId`，并必须在 `chatApi.streamMessage` 前同步清空对应 draft probe。
+- `sendMessage` 在草稿态创建首个 fyllo session 时，必须使用创建前捕获的 probe 快照：当快照为 `ready` 且 `acpSessionId` 非空时，把 `configOptions` 与 `acpSessionId` 一并透传给 `useSessionStore.createSession`，`createSession` resolve 后再调用 `applyProbeUpdate(agentId, null)` 清空 draft probe；后续 `chatApi.streamMessage` 仍传同一个 `acpSessionId`。`createSession` 抛错路径下不清空 draft probe，让下次发送复用同一快照。
 
 ## Verification
 

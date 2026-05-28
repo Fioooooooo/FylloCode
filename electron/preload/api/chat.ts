@@ -33,6 +33,8 @@ export const chatApi = {
     projectId: string;
     title: string;
     agentId?: string;
+    configOptions?: AcpSessionConfigOption[];
+    acpSessionId?: string;
   }): Promise<IpcResponse<Session>> {
     return ipcRenderer.invoke(ChatChannels.createSession, input);
   },

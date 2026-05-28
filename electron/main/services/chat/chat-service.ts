@@ -1,6 +1,7 @@
 import type { Message, Session } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@main/infra/storage/session-store";
 import { newSessionId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
+import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 
 export async function resolveProjectPath(projectId: string): Promise<string> {
   const project = await loadProject(projectId);
@@ -53,6 +55,8 @@ export async function createSession(input: {
   projectId: string;
   title: string;
   agentId: string;
+  configOptions?: AcpSessionConfigOption[] | unknown[];
+  acpSessionId?: string;
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
   const now = new Date();
@@ -65,6 +69,14 @@ export async function createSession(input: {
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
+  if (input.acpSessionId) {
+    meta.acpSessionId = input.acpSessionId;
+  }
+  if (input.configOptions !== undefined) {
+    meta.config_options = normalizeAcpSessionConfigOptions(
+      input.configOptions as Parameters<typeof normalizeAcpSessionConfigOptions>[0]
+    );
+  }
   await createSessionMeta(projectPath, meta);
   return toSession(meta, input.projectId);
 }

@@ -319,11 +319,15 @@ export const useSessionStore = defineStore("session", () => {
     projectId: string;
     agentId: string;
     title?: string;
+    configOptions?: AcpSessionConfigOption[];
+    acpSessionId?: string;
   }): Promise<Session> {
     const result = await chatApi.createSession({
       projectId: input.projectId,
       title: input.title ?? "New Session",
       agentId: input.agentId,
+      ...(input.configOptions !== undefined ? { configOptions: input.configOptions } : {}),
+      ...(input.acpSessionId ? { acpSessionId: input.acpSessionId } : {}),
     });
     if (!result.ok) {
       throw new Error(result.error.message);

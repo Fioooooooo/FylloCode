@@ -61,7 +61,8 @@ keywords: [electron, main-process, ipc, services, infra]
 ## Chat Session Probe
 
 - `electron/main/services/chat/session-probe-service.ts` 负责草稿态 ACP `newSession` 握手、`closeSession` 释放和草稿态 `session/set_config_option`；probe 是 `agentId` 维度的主进程纯内存资源，不写入 SessionMeta。
-- `session-probe-registry.ts` 的 `takeFor(agentId, acpSessionId)` 是首条消息 promote 与 close 的唯一 consume 入口；`chat:stream:message` 只有在 `acpSessionId` 入参匹配 registry entry 时才把 probe 数据写入 SessionMeta，并构造 `AcpSession({ presetAcpSessionId })`。
+- `session-probe-registry.ts` 的 `takeFor(agentId, acpSessionId)` 是 promote 与 close 的唯一 consume 入口；`chat:stream:message` 只有在 `acpSessionId` 入参匹配 registry entry 时才把 probe 数据写入 SessionMeta，并构造 `AcpSession({ presetAcpSessionId })`。该写入与 `chat:createSession` 透传 probe 字段的写入互为幂等（值相同时只更新 `updatedAt`）：`createSession` 是首条消息阶段的优先写入路径，`takeFor` 是兜底。
+- `chat-service.createSession` 在入参带 `configOptions` / `acpSessionId` 时直接把它们写入新 SessionMeta（`config_options` 走 `normalizeAcpSessionConfigOptions`），缺失则保持旧路径；`takeFor` 不参与该写入，仅在 stream 阶段消费 registry entry。
 - `session-probe-bus.ts` 只广播 `{ agentId, snapshot }` 或 `{ agentId, snapshot: null }`；窗口发送逻辑留在 IPC 层的 `setupProbeBroadcast(mainWindow)`，service 层不得直接依赖 `BrowserWindow`。
 - `acp-process-pool.ts` 的 agent unavailable 事件必须清理 probe registry 并广播 null snapshot；agent 已不可用时不得再调用 `closeSession`。
 

@@ -278,4 +278,35 @@ describe("ConfigOptionsBar", () => {
     });
     expect(setDraftConfigOption).not.toHaveBeenCalled();
   });
+
+  it("does not blank options across the draft → session handoff", async () => {
+    const sessionStore = useSessionStore();
+    const configOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "haiku",
+        options: [{ value: "haiku", name: "Haiku" }],
+      },
+    ];
+    sessionStore.activeSessionId = null;
+    sessionStore.draftAgentId = "claude-code";
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      acpSessionId: "acp-1",
+      configOptions,
+    });
+
+    const wrapper = mountBar();
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(true);
+
+    sessionStore.sessions = [makeSession({ configOptions })];
+    sessionStore.activeSessionId = "session-1";
+    sessionStore.applyProbeUpdate("claude-code", null);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="item-model"]').exists()).toBe(true);
+  });
 });

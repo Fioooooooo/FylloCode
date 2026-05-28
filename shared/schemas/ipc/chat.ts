@@ -51,6 +51,8 @@ export const createSessionInputSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
   agentId: z.string().min(1),
+  configOptions: z.array(z.unknown()).optional(),
+  acpSessionId: z.string().min(1).optional(),
 });
 
 export const updateSessionInputSchema = z.object({

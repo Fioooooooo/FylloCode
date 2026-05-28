@@ -37,6 +37,8 @@ export const chatApi = {
     projectId: string;
     title: string;
     agentId?: string;
+    configOptions?: AcpSessionConfigOption[];
+    acpSessionId?: string;
   }): Promise<IpcResponse<Session>> {
     return window.api.chat.createSession(input);
   },

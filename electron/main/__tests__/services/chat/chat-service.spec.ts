@@ -23,7 +23,7 @@ vi.mock("@main/infra/storage/session-store", () => ({
   patchSessionMeta: mocks.patchSessionMeta,
 }));
 
-import { listSessions } from "@main/services/chat/chat-service";
+import { listSessions, createSession } from "@main/services/chat/chat-service";
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -68,5 +68,72 @@ describe("chat-service", () => {
       ["empty-commands", []],
       ["with-commands", [{ name: "review", description: "Review code" }]],
     ]);
+  });
+
+  it("maps persisted config_options when listing sessions", async () => {
+    mocks.listSessionMetas.mockResolvedValue([
+      meta({
+        sessionId: "with-config",
+        config_options: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "sonnet",
+            options: [{ value: "sonnet", name: "Sonnet" }],
+          },
+        ],
+      }),
+    ]);
+
+    const sessions = await listSessions("project-1");
+
+    expect(sessions[0]?.configOptions).toEqual([
+      expect.objectContaining({ id: "model", currentValue: "sonnet" }),
+    ]);
+  });
+
+  it("createSession writes probe configOptions and acpSessionId into new meta", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const probeOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet" }],
+      },
+    ];
+
+    const session = await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+      configOptions: probeOptions,
+      acpSessionId: "sess-A",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.acpSessionId).toBe("sess-A");
+    expect(persistedMeta.config_options).toEqual([
+      expect.objectContaining({ id: "model", currentValue: "sonnet" }),
+    ]);
+    expect(session.configOptions).toEqual(persistedMeta.config_options);
+  });
+
+  it("createSession leaves probe fields unset when caller omits them", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const session = await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.acpSessionId).toBeUndefined();
+    expect(persistedMeta.config_options).toBeUndefined();
+    expect(session.configOptions).toBeUndefined();
   });
 });

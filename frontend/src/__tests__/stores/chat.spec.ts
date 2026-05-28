@@ -303,11 +303,20 @@ describe("useChatStore", () => {
   it("passes ready draft probe acpSessionId and clears it before streaming", async () => {
     prepareDraftConversation();
     const sessionStore = useSessionStore();
+    const probeConfigOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "haiku",
+        options: [{ value: "haiku", name: "Haiku" }],
+      },
+    ];
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
       acpSessionId: "acp-probe",
-      configOptions: [],
+      configOptions: probeConfigOptions,
     });
     const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
     vi.mocked(chatApi.streamMessage).mockImplementation(
@@ -321,6 +330,13 @@ describe("useChatStore", () => {
 
     await useChatStore().sendMessage(textParts("hello world"));
 
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "hello world",
+      agentId: "claude-code",
+      configOptions: probeConfigOptions,
+      acpSessionId: "acp-probe",
+    });
     expect(chatApi.streamMessage).toHaveBeenCalledWith(
       "session-1",
       "project-1",
