@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.11.1] - 2026-05-28
+
+This patch release continues the Chat configuration options experience, fixes empty-state styling, and tightens repository quality checks.
+
+### Added
+
+- Chat session creation now carries draft probe config options, avoiding an empty config bar during first-session handoff
+- Repository quality constraints spec, documenting type-aware lint and coverage threshold requirements
+
+### Changed
+
+- Strengthened ESLint type-aware checks and expanded generated type file ignore rules
+- Adjusted Vitest timeout settings to improve stability for git-subprocess tests in slower environments
+
+### Fixed
+
+- Fixed the `MoreAgentsTile` styling in the Chat empty state
+- Fixed a structured clone failure when passing reactive-proxy config options across the IPC boundary
+
 ## [0.11.0] - 2026-05-27
 
 This release upgrades the first-run Chat experience and ACP configuration support. Chat can now show and set configuration options exposed by the active Agent at the session level. Agent selection has also moved into the Chat empty state, the desktop release workflow has been added, and several session-title and bundled MCP stability issues have been fixed.

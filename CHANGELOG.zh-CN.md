@@ -4,6 +4,25 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.11.1] - 2026-05-28
+
+这个补丁版本延续 Chat 配置项体验，修复空态样式问题，并收紧仓库质量检查规则。
+
+### 新增
+
+- Chat 创建 session 时支持携带草稿 probe 的配置项，避免配置栏在首次会话交接时出现空白状态
+- 新增仓库质量约束 spec，明确 type-aware lint 与覆盖率阈值要求
+
+### 调整
+
+- 强化 ESLint type-aware 检查，并扩展生成类型文件的忽略规则
+- 调整 Vitest 超时配置，提升涉及 git 子进程测试在慢速环境下的稳定性
+
+### 修复
+
+- 修复 Chat 空态 `MoreAgentsTile` 的样式问题
+- 修复 IPC 边界传递配置项时 reactive proxy 可能导致 structured clone 失败的问题
+
 ## [0.11.0] - 2026-05-27
 
 这个版本围绕 Chat 首次会话体验和 ACP 配置能力做了一次功能升级。Chat 现在可以在会话级别展示并设置 Agent 暴露的配置项；同时将 Agent 选择前置到 Chat 空态，补齐桌面发版 workflow，并修复若干会话标题与内置 MCP 稳定性问题。
