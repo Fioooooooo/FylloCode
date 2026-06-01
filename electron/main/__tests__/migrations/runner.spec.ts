@@ -1,19 +1,24 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
-import { mkdtempSync } from "fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MigrationContext, MigrationStore } from "@main/migrations/types";
+
+const { tempRoot } = await vi.hoisted(async () => {
+  const { createTestTempRoot } = await import("@main/__tests__/test-temp-root");
+
+  return {
+    tempRoot: createTestTempRoot("fyllocode-migrations-"),
+  };
+});
+
+vi.mock("@main/infra/paths", () => ({
+  getDataSubPath: vi.fn((subPath: string) => join(tempRoot, "userData", subPath)),
+}));
+
 import { runMigrations } from "@main/migrations/runner";
 
-let tempRoot: string;
-
 function migrationsPath(): string {
-  return join(tempRoot, "migrations");
-}
-
-function dataPath(): string {
-  return tempRoot;
+  return join(tempRoot, "userData", "migrations");
 }
 
 function readStore(): MigrationStore {
@@ -27,7 +32,7 @@ function makeMigration(id: string, fn?: (ctx: MigrationContext) => Promise<void>
 }
 
 beforeEach(() => {
-  tempRoot = mkdtempSync(join(tmpdir(), "fyllocode-migrations-"));
+  rmSync(tempRoot, { recursive: true, force: true });
 });
 
 afterEach(() => {
@@ -40,7 +45,7 @@ describe("runMigrations", () => {
       const m1 = makeMigration("20260601_001_foo");
       const m2 = makeMigration("20260601_002_bar");
 
-      await runMigrations([m1, m2], migrationsPath(), dataPath());
+      await runMigrations([m1, m2]);
 
       expect(m1.migrate).not.toHaveBeenCalled();
       expect(m2.migrate).not.toHaveBeenCalled();
@@ -51,7 +56,7 @@ describe("runMigrations", () => {
     });
 
     it("writes empty store with no baselineId when migration list is empty", async () => {
-      await runMigrations([], migrationsPath(), dataPath());
+      await runMigrations([]);
 
       const store = readStore();
       expect(store.baselineId).toBeUndefined();
@@ -61,11 +66,11 @@ describe("runMigrations", () => {
 
   describe("existing user upgrade (data/projects exists)", () => {
     it("executes all migrations without setting baselineId", async () => {
-      mkdirSync(join(tempRoot, "projects"), { recursive: true });
+      mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
       const m1 = makeMigration("20260601_001_foo");
       const m2 = makeMigration("20260601_002_bar");
 
-      await runMigrations([m1, m2], migrationsPath(), dataPath());
+      await runMigrations([m1, m2]);
 
       expect(m1.migrate).toHaveBeenCalledOnce();
       expect(m2.migrate).toHaveBeenCalledOnce();
@@ -78,11 +83,11 @@ describe("runMigrations", () => {
     });
 
     it("existing user detected via acp/installed.json", async () => {
-      mkdirSync(join(tempRoot, "acp"), { recursive: true });
-      writeFileSync(join(tempRoot, "acp", "installed.json"), "{}", "utf8");
+      mkdirSync(join(tempRoot, "userData", "acp"), { recursive: true });
+      writeFileSync(join(tempRoot, "userData", "acp", "installed.json"), "{}", "utf8");
 
       const m1 = makeMigration("20260601_001_foo");
-      await runMigrations([m1], migrationsPath(), dataPath());
+      await runMigrations([m1]);
 
       expect(m1.migrate).toHaveBeenCalledOnce();
       const store = readStore();
@@ -103,7 +108,7 @@ describe("runMigrations", () => {
       const m2 = makeMigration("20260601_002_bar");
       const m3 = makeMigration("20260601_003_baz");
 
-      await runMigrations([m1, m2, m3], migrationsPath(), dataPath());
+      await runMigrations([m1, m2, m3]);
 
       expect(m1.migrate).not.toHaveBeenCalled();
       expect(m2.migrate).not.toHaveBeenCalled();
@@ -127,7 +132,7 @@ describe("runMigrations", () => {
       const m1 = makeMigration("20260601_001_foo");
       const m2 = makeMigration("20260601_002_bar");
 
-      await runMigrations([m1, m2], migrationsPath(), dataPath());
+      await runMigrations([m1, m2]);
 
       expect(m1.migrate).not.toHaveBeenCalled();
       expect(m2.migrate).toHaveBeenCalledOnce();
@@ -136,11 +141,11 @@ describe("runMigrations", () => {
 
   describe("failure handling", () => {
     it("records failed migration and continues executing subsequent ones", async () => {
-      mkdirSync(join(tempRoot, "projects"), { recursive: true });
+      mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
       const m1 = makeMigration("20260601_001_foo", vi.fn().mockRejectedValue(new Error("boom")));
       const m2 = makeMigration("20260601_002_bar");
 
-      await runMigrations([m1, m2], migrationsPath(), dataPath());
+      await runMigrations([m1, m2]);
 
       expect(m1.migrate).toHaveBeenCalledOnce();
       expect(m2.migrate).toHaveBeenCalledOnce();
@@ -152,20 +157,20 @@ describe("runMigrations", () => {
     });
 
     it("does not retry failed migrations on subsequent runs", async () => {
-      mkdirSync(join(tempRoot, "projects"), { recursive: true });
+      mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
       const m1 = makeMigration("20260601_001_foo", vi.fn().mockRejectedValue(new Error("boom")));
 
-      await runMigrations([m1], migrationsPath(), dataPath());
-      await runMigrations([m1], migrationsPath(), dataPath());
+      await runMigrations([m1]);
+      await runMigrations([m1]);
 
       expect(m1.migrate).toHaveBeenCalledOnce();
     });
 
     it("does not throw even if all migrations fail", async () => {
-      mkdirSync(join(tempRoot, "projects"), { recursive: true });
+      mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
       const m1 = makeMigration("20260601_001_foo", vi.fn().mockRejectedValue(new Error("x")));
 
-      await expect(runMigrations([m1], migrationsPath(), dataPath())).resolves.toBeUndefined();
+      await expect(runMigrations([m1])).resolves.toBeUndefined();
     });
   });
 });
