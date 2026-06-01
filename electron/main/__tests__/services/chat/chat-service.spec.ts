@@ -74,7 +74,7 @@ describe("chat-service", () => {
     mocks.listSessionMetas.mockResolvedValue([
       meta({
         sessionId: "with-config",
-        config_options: [
+        configOptions: [
           {
             type: "select",
             id: "model",
@@ -116,10 +116,10 @@ describe("chat-service", () => {
 
     const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
     expect(persistedMeta.acpSessionId).toBe("sess-A");
-    expect(persistedMeta.config_options).toEqual([
+    expect(persistedMeta.configOptions).toEqual([
       expect.objectContaining({ id: "model", currentValue: "sonnet" }),
     ]);
-    expect(session.configOptions).toEqual(persistedMeta.config_options);
+    expect(session.configOptions).toEqual(persistedMeta.configOptions);
   });
 
   it("createSession leaves probe fields unset when caller omits them", async () => {
@@ -133,7 +133,7 @@ describe("chat-service", () => {
 
     const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
     expect(persistedMeta.acpSessionId).toBeUndefined();
-    expect(persistedMeta.config_options).toBeUndefined();
+    expect(persistedMeta.configOptions).toBeUndefined();
     expect(session.configOptions).toBeUndefined();
   });
 });

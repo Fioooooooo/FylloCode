@@ -34,12 +34,12 @@ TBD - created by archiving change optimize-agent-status-detection. Update Purpos
 
 ### Requirement: 安装状态本地缓存
 
-主进程 SHALL 将一次完整检测的结果缓存到 `getDataSubPath('acp')/status-cache.json`，结构为 `{ fetchedAt: number, statuses: AcpAgentStatus[] }`。该缓存为检测输出的只读派生快照，不替代 `installed.json`（安装账本权威源），且 SHALL NOT 设置时间 TTL。
+主进程 SHALL 将一次完整检测的结果缓存到 `getDataSubPath('acp')/status-cache.json`，结构为 `{ fetchedAt: string, statuses: AcpAgentStatus[] }`，其中 `fetchedAt` SHALL 为 ISO 8601 字符串（如 `"2026-06-01T05:38:28.407Z"`）。该缓存为检测输出的只读派生快照，不替代 `installed.json`（安装账本权威源），且 SHALL NOT 设置时间 TTL。
 
 #### Scenario: 写入状态缓存
 
 - **WHEN** 主进程完成一次完整的安装状态检测
-- **THEN** 主进程 SHALL 将结果以 `{ fetchedAt, statuses }` 写入 `status-cache.json`，`fetchedAt` 为写入时刻时间戳，`statuses` 为该次检测产出的完整 `AcpAgentStatus[]`（含 `installed: false` 的未安装 Agent）
+- **THEN** 主进程 SHALL 将结果以 `{ fetchedAt, statuses }` 写入 `status-cache.json`，`fetchedAt` 为写入时刻的 ISO 8601 字符串（`new Date().toISOString()`），`statuses` 为该次检测产出的完整 `AcpAgentStatus[]`（含 `installed: false` 的未安装 Agent）
 
 #### Scenario: 读取损坏或缺失的缓存
 

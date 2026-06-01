@@ -240,7 +240,7 @@ export function registerChatHandlers(): void {
           await patchSessionMeta(projectPath, sessionId, {
             acpSessionId,
             agentId,
-            config_options: probeEntry.configOptions,
+            configOptions: probeEntry.configOptions,
             updatedAt: new Date().toISOString(),
           });
           presetAcpSessionId = acpSessionId;
@@ -334,7 +334,7 @@ export function registerChatHandlers(): void {
               if (chunk) sink.sendChunk(chunk);
               enqueueSessionMetaPersist(
                 {
-                  config_options: ev.options,
+                  configOptions: ev.options,
                   updatedAt: new Date().toISOString(),
                 },
                 "[chat] failed to persist session config options update"

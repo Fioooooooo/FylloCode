@@ -66,7 +66,7 @@ describe("acp-status-cache", () => {
 
   it("returns null when statuses is not an array", async () => {
     mkdirSync(dirname(cachePath), { recursive: true });
-    writeFileSync(cachePath, JSON.stringify({ fetchedAt: 1, statuses: {} }), "utf8");
+    writeFileSync(cachePath, JSON.stringify({ fetchedAt: "invalid", statuses: {} }), "utf8");
 
     expect(await readStatusCache()).toBeNull();
   });
@@ -77,7 +77,7 @@ describe("acp-status-cache", () => {
     await writeStatusCache(statuses);
 
     const written = JSON.parse(readFileSync(cachePath, "utf8")) as AcpStatusCache;
-    expect(written.fetchedAt).toBe(new Date("2026-05-30T08:00:00.000Z").getTime());
+    expect(written.fetchedAt).toBe("2026-05-30T08:00:00.000Z");
     expect(written.statuses).toEqual(statuses);
 
     const cached = await readStatusCache();

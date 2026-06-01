@@ -46,7 +46,7 @@ keywords: [data-model, shared-types, persistence, serialization]
   - **幂等**：对目标字段/文件不存在、已是新格式等情况须静默跳过，不抛出异常，确保重复执行不产生副作用
   - **可测试**：通过 `MigrationContext.dataPath` 访问数据目录，不直接 import `getDataSubPath` 等全局路径单例
   - 纯缓存文件（`registry-cache.json`、`status-cache.json`）的格式变更无需迁移脚本，因其读取失败时有自动重建路径；账本类文件（`installed.json`、`sessions/*.json`）的格式变更 MUST 提供迁移脚本
-- SHOULD: 使用字符串时间戳或文件友好格式持久化运行状态，而不是把 `Date` 实例直接隐式写入 JSON。
+- MUST: FylloCode 主动声明的时间字段 SHALL 使用 ISO 8601 字符串（`new Date().toISOString()`），不得使用 Unix 毫秒时间戳数字（`Date.now()`）；TTL 计算 SHALL 使用 `Date.now() - new Date(fetchedAt).getTime() > TTL_MS`。
 - SHOULD: 为每种关键持久化结构保留对应的 storage/service 测试，证明序列化与反序列化行为。
 - MAY: 在仅限前端展示的局部视图模型中派生附加字段，但不要把这些派生字段反向写进共享持久化结构。
 
@@ -67,7 +67,7 @@ keywords: [data-model, shared-types, persistence, serialization]
 ## ACP 安装状态缓存
 
 - `<userData>/acp/installed.json`（`AcpInstalledMap`）是**安装账本（权威源）**：由安装/卸载流程写入，记录 `managedBy`、`installMethod`、`installPath`、`installedVersion`、`installedAt`。其中 `managedBy`（fyllocode/user）与 `installPath` 是检测无法重建的字段——检测只能看到“包是否存在”，无法判断“谁装的”，FylloCode 装的二进制也可能不在 PATH 上需靠 `installPath` 识别，因此该文件不可被检测结果替代。
-- `<userData>/acp/status-cache.json`（`AcpStatusCache`，结构 `{ fetchedAt: number, statuses: AcpAgentStatus[] }`）是**检测输出的只读派生快照**：`statuses` 元素即前端契约 `AcpAgentStatus`，含 `installed:false` 的未安装 Agent，供面板读一个文件直接渲染。它镜像 `acp-registry-cache.ts` 的 `{ fetchedAt, data }` 形态，但**不设 TTL**。
+- `<userData>/acp/status-cache.json`（`AcpStatusCache`，结构 `{ fetchedAt: string, statuses: AcpAgentStatus[] }`）是**检测输出的只读派生快照**：`statuses` 元素即前端契约 `AcpAgentStatus`，含 `installed:false` 的未安装 Agent，供面板读一个文件直接渲染。它镜像 `acp-registry-cache.ts` 的 `{ fetchedAt, data }` 形态，但**不设 TTL**。
 - 数据流单向：安装/卸载 → 写 `installed.json` → 作为检测输入并被检测回填修正 → 检测产出 `AcpAgentStatus[]` → 写 `status-cache.json`。`status-cache.json` 永不被手动编辑，无需与 `installed.json` 双向同步；重叠字段（`managedBy`/`installMethod`/版本）是检测时从账本拷贝而来。
 - 新鲜度模型：`acp:detectStatus` 走 stale-while-revalidate——有缓存立即返回并后台检测，完成后经 `acp:statusUpdated` 广播覆盖；`acp:detectStatusForced`（设置页 Refresh、安装/卸载后刷新）绕过缓存前台等真实结果。外部（终端 `npm i -g`）变更会在下次打开 App 后约 1 秒经后台刷新跟上，或手动 Refresh 立即反映。
 

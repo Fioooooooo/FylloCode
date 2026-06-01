@@ -82,7 +82,7 @@ function createRegistry(): AcpRegistry {
   };
 }
 
-function writeCache(data: AcpRegistry, fetchedAt = Date.now()): void {
+function writeCache(data: AcpRegistry, fetchedAt = new Date().toISOString()): void {
   mkdirSync(dirname(cachePath), { recursive: true });
   const payload: AcpRegistryCache = {
     fetchedAt,

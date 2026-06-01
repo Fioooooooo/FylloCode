@@ -85,7 +85,7 @@ describe("setConfigOption", () => {
   });
 
   it("returns normalized configOptions and persists them on success", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [flatModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
 
     const result = await setConfigOption({
       projectId: "p1",
@@ -104,7 +104,7 @@ describe("setConfigOption", () => {
       "/tmp/project",
       "session-1",
       expect.objectContaining({
-        config_options: result.configOptions,
+        configOptions: result.configOptions,
         updatedAt: expect.any(String),
       })
     );
@@ -127,7 +127,7 @@ describe("setConfigOption", () => {
   });
 
   it("returns CONFIG_OPTION_INVALID_VALUE when value is not in flat schema", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [flatModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
 
     await expect(
       setConfigOption({
@@ -142,7 +142,7 @@ describe("setConfigOption", () => {
   });
 
   it("accepts grouped schema and forwards RPC when value matches a group entry", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [groupedModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [groupedModelSchema] }));
 
     await setConfigOption({
       projectId: "p1",
@@ -160,7 +160,7 @@ describe("setConfigOption", () => {
   });
 
   it("rejects grouped schema when value matches no group entry", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [groupedModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [groupedModelSchema] }));
 
     await expect(
       setConfigOption({
@@ -174,7 +174,7 @@ describe("setConfigOption", () => {
   });
 
   it("maps -32601 RPC error to CONFIG_OPTION_NOT_SUPPORTED", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [flatModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
     mocks.setSessionConfigOption.mockRejectedValueOnce({
       code: -32601,
       message: "method not found",
@@ -192,7 +192,7 @@ describe("setConfigOption", () => {
   });
 
   it("maps other RPC errors to ACP_ERROR", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: [flatModelSchema] }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
     mocks.setSessionConfigOption.mockRejectedValueOnce(new Error("network down"));
 
     await expect(
@@ -207,7 +207,7 @@ describe("setConfigOption", () => {
   });
 
   it("skips pre-validation and forwards RPC when meta has no schema", async () => {
-    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ config_options: undefined }));
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: undefined }));
 
     await setConfigOption({
       projectId: "p1",
@@ -227,7 +227,7 @@ describe("setConfigOption", () => {
   it("forwards boolean payload with type field", async () => {
     mocks.loadSessionMeta.mockResolvedValue(
       makeMeta({
-        config_options: [{ type: "boolean", id: "stream", name: "Stream", currentValue: false }],
+        configOptions: [{ type: "boolean", id: "stream", name: "Stream", currentValue: false }],
       })
     );
     mocks.setSessionConfigOption.mockResolvedValueOnce({

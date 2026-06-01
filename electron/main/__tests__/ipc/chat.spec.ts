@@ -629,7 +629,7 @@ describe("registerChatHandlers", () => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
         "/tmp/project",
         "session-1",
-        expect.objectContaining({ config_options: options })
+        expect.objectContaining({ configOptions: options })
       );
     });
   });
@@ -754,7 +754,7 @@ describe("registerChatHandlers", () => {
       expect.objectContaining({
         acpSessionId: "acp-probe",
         agentId: "claude-acp",
-        config_options: configOptions,
+        configOptions: configOptions,
       })
     );
     const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);

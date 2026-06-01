@@ -432,7 +432,7 @@ export async function detectAgentStatuses(registry: {
         installMethod,
         installPath,
         installedVersion,
-        installedAt: existingRecord?.installedAt ?? Date.now(),
+        installedAt: existingRecord?.installedAt ?? new Date().toISOString(),
       };
 
       if (

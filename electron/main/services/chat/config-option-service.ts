@@ -41,7 +41,7 @@ export async function setConfigOption(
     );
   }
 
-  const schema = meta.config_options?.find((option) => option.id === configId);
+  const schema = meta.configOptions?.find((option) => option.id === configId);
   if (schema) {
     if (schema.type !== type) {
       throw ipcError(
@@ -93,11 +93,11 @@ export async function setConfigOption(
 
   try {
     await patchSessionMeta(projectPath, sessionId, {
-      config_options: normalized,
+      configOptions: normalized,
       updatedAt: new Date().toISOString(),
     });
   } catch (error: unknown) {
-    logger.error("[chat] failed to persist config_options after setConfigOption", error);
+    logger.error("[chat] failed to persist configOptions after setConfigOption", error);
   }
 
   return { configOptions: normalized };

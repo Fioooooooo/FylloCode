@@ -102,7 +102,7 @@ describe("useAcpAgentsStore", () => {
         managedBy: "fyllocode",
         installMethod: "npx",
         installedVersion: "1.2.3",
-        installedAt: Date.now(),
+        installedAt: new Date().toISOString(),
       },
     });
     vi.mocked(acpAgentsApi.uninstall).mockResolvedValue({

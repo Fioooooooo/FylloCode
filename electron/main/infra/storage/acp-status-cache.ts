@@ -28,7 +28,7 @@ export async function writeStatusCache(statuses: AcpAgentStatus[]): Promise<void
   await ensureAgentsDirectory();
 
   const payload: AcpStatusCache = {
-    fetchedAt: Date.now(),
+    fetchedAt: new Date().toISOString(),
     statuses,
   };
 

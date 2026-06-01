@@ -13,7 +13,7 @@ export interface SessionMeta {
   turnCount: number;
   tokenUsage: TokenUsage;
   available_commands?: AcpAvailableCommand[];
-  config_options?: AcpSessionConfigOption[];
+  configOptions?: AcpSessionConfigOption[];
   createdAt: string;
   updatedAt: string;
 }
@@ -222,7 +222,7 @@ function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
     ...raw,
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
-    config_options: Array.isArray(raw.config_options) ? raw.config_options : undefined,
+    configOptions: Array.isArray(raw.configOptions) ? raw.configOptions : undefined,
   };
 }
 

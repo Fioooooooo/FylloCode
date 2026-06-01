@@ -50,12 +50,12 @@ export interface AcpRegistry {
 }
 
 export interface AcpRegistryCache {
-  fetchedAt: number;
+  fetchedAt: string;
   data: AcpRegistry;
 }
 
 export interface AcpStatusCache {
-  fetchedAt: number;
+  fetchedAt: string;
   statuses: AcpAgentStatus[];
 }
 
@@ -64,7 +64,7 @@ export interface AcpInstalledRecord {
   installMethod: AcpInstallMethod;
   installPath?: string;
   installedVersion?: string;
-  installedAt: number;
+  installedAt: string;
 }
 
 export type AcpInstalledMap = Record<string, AcpInstalledRecord>;

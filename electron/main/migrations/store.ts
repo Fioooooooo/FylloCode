@@ -2,7 +2,9 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import type { MigrationStore } from "./types";
 
-const EMPTY_STORE: MigrationStore = { executed: [] };
+function emptyStore(): MigrationStore {
+  return { executed: [] };
+}
 
 function getMigrationsFilePath(migrationsPath: string): string {
   return join(migrationsPath, "migrations.json");
@@ -13,7 +15,7 @@ export async function readMigrationStore(migrationsPath: string): Promise<Migrat
     const content = await fs.readFile(getMigrationsFilePath(migrationsPath), "utf8");
     return JSON.parse(content) as MigrationStore;
   } catch {
-    return { ...EMPTY_STORE };
+    return emptyStore();
   }
 }
 

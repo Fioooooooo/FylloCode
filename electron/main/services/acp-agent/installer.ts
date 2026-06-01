@@ -93,7 +93,7 @@ async function finalizeInstallRecord(
     installMethod,
     installPath,
     installedVersion: agent.version,
-    installedAt: Date.now(),
+    installedAt: new Date().toISOString(),
   });
 
   const record: AcpInstalledRecord = {
@@ -101,7 +101,7 @@ async function finalizeInstallRecord(
     installMethod,
     installPath: detected.installPath ?? installPath,
     installedVersion: detected.detectedVersion ?? agent.version,
-    installedAt: Date.now(),
+    installedAt: new Date().toISOString(),
   };
 
   await upsertInstalledRecord(agent.id, record);

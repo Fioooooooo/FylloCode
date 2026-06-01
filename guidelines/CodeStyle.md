@@ -43,6 +43,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - MUST: 对自动生成文件保持只读，不手动修改 `frontend/auto-imports.d.ts`、`frontend/components.d.ts`、`frontend/.eslintrc-auto-import.json`、`frontend/src/typed-router.d.ts`、`out/`、`dist/`。
 - MUST: 在渲染层使用 Tailwind utility classes 和 `@nuxt/ui` 主题 token，避免散落的独立 CSS 文件和硬编码颜色值。
 - MUST: 让注释服务于非显然约束、边界和历史原因，不写重复代码字面意思的噪音注释。
+- MUST: FylloCode 主动声明的持久化字段 key（在 TypeScript 类型中显式定义、由 FylloCode 代码写入 JSON 文件的字段）SHALL 使用驼峰命名（camelCase）；ACP agent 返回值的内部结构（如 `available_commands` 数组内部字段）不受此约束，按原样存储。
 - SHOULD: 在 TypeScript 中优先使用 `type`，避免不必要的 `interface` 和 `any`；若必须接收未知输入，用 `unknown` 加类型守卫。
 - SHOULD: 为不明显的函数返回类型显式标注返回值。
 - MAY: 在 `assets/main.css` 中维护少量全局 CSS 变量或 `@apply` 组合，但不要把业务样式扩散回传统样式表模式。

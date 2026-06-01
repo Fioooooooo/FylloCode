@@ -39,7 +39,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     updatedAt: new Date(meta.updatedAt),
     messages: [],
     availableCommands: meta.available_commands,
-    configOptions: meta.config_options,
+    configOptions: meta.configOptions,
   };
 }
 
@@ -73,7 +73,7 @@ export async function createSession(input: {
     meta.acpSessionId = input.acpSessionId;
   }
   if (input.configOptions !== undefined) {
-    meta.config_options = normalizeAcpSessionConfigOptions(
+    meta.configOptions = normalizeAcpSessionConfigOptions(
       input.configOptions as Parameters<typeof normalizeAcpSessionConfigOptions>[0]
     );
   }

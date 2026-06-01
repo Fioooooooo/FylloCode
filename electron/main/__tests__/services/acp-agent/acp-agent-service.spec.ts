@@ -76,7 +76,7 @@ describe("acp-agent-service uninstall", () => {
         managedBy: "fyllocode",
         installMethod: "npx",
         installedVersion: "1.2.3",
-        installedAt: Date.now(),
+        installedAt: new Date().toISOString(),
       },
     });
   });
@@ -136,7 +136,10 @@ describe("acp-agent-service status detection", () => {
   });
 
   it("returns cache immediately and refreshes in the background when cache exists", async () => {
-    mocks.readStatusCache.mockResolvedValue({ fetchedAt: 1, statuses: cachedStatuses });
+    mocks.readStatusCache.mockResolvedValue({
+      fetchedAt: new Date().toISOString(),
+      statuses: cachedStatuses,
+    });
     const { listAgentStatuses } = await import("@main/services/acp-agent/acp-agent-service");
 
     const result = await listAgentStatuses();

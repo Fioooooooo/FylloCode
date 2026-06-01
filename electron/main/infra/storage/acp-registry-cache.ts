@@ -42,7 +42,7 @@ export async function readRegistryCache(): Promise<AcpRegistryCache | null> {
 }
 
 export function isRegistryCacheExpired(cache: AcpRegistryCache): boolean {
-  return Date.now() - cache.fetchedAt > REGISTRY_TTL_MS;
+  return Date.now() - new Date(cache.fetchedAt).getTime() > REGISTRY_TTL_MS;
 }
 
 async function writeRegistryCache(data: AcpRegistry): Promise<void> {
@@ -52,7 +52,7 @@ async function writeRegistryCache(data: AcpRegistry): Promise<void> {
   await invalidateChangedIcons(previousCache?.data ?? null, data);
 
   const payload: AcpRegistryCache = {
-    fetchedAt: Date.now(),
+    fetchedAt: new Date().toISOString(),
     data,
   };
 

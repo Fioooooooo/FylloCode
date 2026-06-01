@@ -8,7 +8,9 @@
 
 ### Requirement: Registry 数据本地缓存
 
-主进程 SHALL 将从 ACP registry 获取的数据缓存到 `getDataSubPath('agents')/registry-cache.json`，结构为 `{ fetchedAt: number, data: AcpRegistry }`。缓存 TTL 为 24 小时。
+主进程 SHALL 将从 ACP registry 获取的数据缓存到 `getDataSubPath('acp')/registry-cache.json`，结构为 `{ fetchedAt: string, data: AcpRegistry }`，其中 `fetchedAt` SHALL 为 ISO 8601 字符串（如 `"2026-06-01T05:38:28.407Z"`）。缓存 TTL 为 24 小时。
+
+TTL 判断 SHALL 使用 `Date.now() - new Date(fetchedAt).getTime() > TTL_MS` 计算。
 
 #### Scenario: 缓存命中（TTL 内）
 
@@ -39,6 +41,11 @@
 
 - **WHEN** 前端调用 `acp:refreshRegistry`
 - **THEN** 主进程忽略缓存 TTL，立即发起网络请求；成功后更新缓存并返回新数据；失败时返回错误
+
+#### Scenario: fetchedAt 以 ISO 字符串写入
+
+- **WHEN** 主进程写入或更新 `registry-cache.json`
+- **THEN** `fetchedAt` 字段 SHALL 为 ISO 8601 字符串（`new Date().toISOString()` 的输出），而非 Unix 毫秒时间戳数字
 
 ### Requirement: Agent 图标本地缓存
 
