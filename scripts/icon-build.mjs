@@ -12,7 +12,6 @@ const tempRoot = join(tmpdir(), `fyllocode-icon-${Date.now()}`);
 const tempPng = join(tempRoot, "icon-1024.png");
 const iconsetDir = join(tempRoot, "icon.iconset");
 
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -32,7 +31,6 @@ function run(command, args, options = {}) {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 async function ensureTool(command, hint) {
   try {
     await run("bash", ["-lc", `command -v ${command} >/dev/null 2>&1`], { stdio: "ignore" });
@@ -41,7 +39,6 @@ async function ensureTool(command, hint) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 async function main() {
   if (!existsSync(sourceSvg)) {
     throw new Error(`Missing source SVG: ${sourceSvg}`);
