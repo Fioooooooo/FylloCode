@@ -8,6 +8,7 @@ import {
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import {
+  detectAgentStatusesForced,
   ensureAgent,
   installAgentById,
   listAgentIcons,
@@ -23,6 +24,9 @@ export function registerAcpAgentHandlers(): void {
   ipcMain.handle(AcpAgentChannels.refreshRegistry, () => wrapHandler(() => reloadAgentRegistry()));
   ipcMain.handle(AcpAgentChannels.getIcons, () => wrapHandler(() => listAgentIcons()));
   ipcMain.handle(AcpAgentChannels.detectStatus, () => wrapHandler(() => listAgentStatuses()));
+  ipcMain.handle(AcpAgentChannels.detectStatusForced, () =>
+    wrapHandler(() => detectAgentStatusesForced())
+  );
   ipcMain.handle(AcpAgentChannels.ensureAgent, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(ensureAgentInputSchema, input);

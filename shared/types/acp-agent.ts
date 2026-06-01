@@ -53,6 +53,11 @@ export interface AcpRegistryCache {
   data: AcpRegistry;
 }
 
+export interface AcpStatusCache {
+  fetchedAt: number;
+  statuses: AcpAgentStatus[];
+}
+
 export interface AcpInstalledRecord {
   managedBy: AcpManagedBy;
   installMethod: AcpInstallMethod;

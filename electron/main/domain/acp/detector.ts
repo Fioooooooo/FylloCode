@@ -26,6 +26,24 @@ interface DetectedInstallation {
   installPath?: string;
 }
 
+interface NpmGlobalDependency {
+  version?: string;
+  path?: string;
+}
+
+/**
+ * 单次检测周期内共享的环境预扫描结果。
+ * npx / uvx 类 Agent 共用一次命令探测，避免逐 Agent 重复 spawn。
+ */
+interface DetectionContext {
+  npmPath: string | null;
+  uvPath: string | null;
+  /** `npm list -g --depth=0 --json` 的全量 dependencies；npm 不可用时为 null */
+  globalNpmPackages: Record<string, NpmGlobalDependency> | null;
+  /** `uv tool list` 的原始 stdout；uv 不可用或命令失败时为 null */
+  uvToolList: string | null;
+}
+
 export function createAgentError(code: string, message: string): Error & { code: string } {
   const error = new Error(message) as Error & { code: string };
   error.code = code;
@@ -206,35 +224,66 @@ async function tryReadCommandVersion(commandPath: string): Promise<string | unde
   }
 }
 
-async function detectNpxInstallation(agent: AcpAgentEntry): Promise<DetectedInstallation> {
+function parseGlobalNpmPackages(stdout: string): Record<string, NpmGlobalDependency> {
+  try {
+    const payload = JSON.parse(stdout || "{}") as {
+      dependencies?: Record<string, NpmGlobalDependency>;
+    };
+    return payload.dependencies ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 单次检测周期内只执行一次的环境预扫描：按 registry 包含的分发类型，
+ * 各执行一次 npm / uv 探测，供所有同类 Agent 复用，避免逐 Agent 重复 spawn。
+ */
+export async function buildDetectionContext(agents: AcpAgentEntry[]): Promise<DetectionContext> {
+  const hasNpx = agents.some((agent) => agent.distribution.npx);
+  const hasUvx = agents.some((agent) => agent.distribution.uvx);
+
+  const [npmPath, uvPath] = await Promise.all([
+    hasNpx ? findCommandPath("npm") : Promise.resolve(null),
+    hasUvx ? findCommandPath("uv") : Promise.resolve(null),
+  ]);
+
+  const [globalNpmPackages, uvToolList] = await Promise.all([
+    (async (): Promise<Record<string, NpmGlobalDependency> | null> => {
+      if (!npmPath) {
+        return null;
+      }
+      const result = await runCommand(npmPath, ["list", "-g", "--depth=0", "--json"]);
+      return parseGlobalNpmPackages(result.stdout);
+    })(),
+    (async (): Promise<string | null> => {
+      if (!uvPath) {
+        return null;
+      }
+      const result = await runCommand(uvPath, ["tool", "list"]);
+      return result.code === 0 ? result.stdout : null;
+    })(),
+  ]);
+
+  return { npmPath, uvPath, globalNpmPackages, uvToolList };
+}
+
+async function detectNpxInstallation(
+  agent: AcpAgentEntry,
+  context: DetectionContext
+): Promise<DetectedInstallation> {
   const distribution = agent.distribution.npx;
   if (!distribution) {
     return { installed: false };
   }
 
-  const npmPath = await findCommandPath("npm");
-  if (!npmPath) {
+  if (!context.npmPath || !context.globalNpmPackages) {
     return { installed: false, installMethod: "npx" };
   }
 
-  // npm list 只传包名不带版本，避免版本不匹配时误判为未安装
+  // distribution.package 可能带版本后缀（如 @scope/pkg@1.0.0），但 npm list --json 的 key 不含版本号
   const barePackageName = stripPackageVersion(distribution.package);
-
-  const result = await runCommand(npmPath, ["list", "-g", barePackageName, "--depth=0", "--json"]);
-
-  let payload: {
-    dependencies?: Record<string, { version?: string; path?: string }>;
-  } = {};
-  try {
-    payload = JSON.parse(result.stdout || "{}") as {
-      dependencies?: Record<string, { version?: string; path?: string }>;
-    };
-  } catch {
-    payload = {};
-  }
-
-  // npm list --json 返回的 dependencies key 不含版本号，但 distribution.package 可能带版本后缀（如 @scope/pkg@1.0.0）
-  const dependency = payload.dependencies?.[barePackageName];
+  const dependency = context.globalNpmPackages[barePackageName];
 
   if (!dependency) {
     return { installed: false, installMethod: "npx" };
@@ -248,23 +297,20 @@ async function detectNpxInstallation(agent: AcpAgentEntry): Promise<DetectedInst
   };
 }
 
-async function detectUvxInstallation(agent: AcpAgentEntry): Promise<DetectedInstallation> {
+async function detectUvxInstallation(
+  agent: AcpAgentEntry,
+  context: DetectionContext
+): Promise<DetectedInstallation> {
   const distribution = agent.distribution.uvx;
   if (!distribution) {
     return { installed: false };
   }
 
-  const uvPath = await findCommandPath("uv");
-  if (!uvPath) {
+  if (!context.uvPath || context.uvToolList === null) {
     return { installed: false, installMethod: "uvx" };
   }
 
-  const result = await runCommand(uvPath, ["tool", "list"]);
-  if (result.code !== 0) {
-    return { installed: false, installMethod: "uvx" };
-  }
-
-  const line = result.stdout
+  const line = context.uvToolList
     .split(/\r?\n/)
     .map((item) => item.trim())
     .find(
@@ -317,14 +363,17 @@ async function detectBinaryInstallation(
 
 export async function detectAgentInstallation(
   agent: AcpAgentEntry,
-  record?: AcpInstalledRecord
+  record?: AcpInstalledRecord,
+  context?: DetectionContext
 ): Promise<DetectedInstallation> {
   let detection: DetectedInstallation;
 
   if (agent.distribution.npx) {
-    detection = await detectNpxInstallation(agent);
+    const ctx = context ?? (await buildDetectionContext([agent]));
+    detection = await detectNpxInstallation(agent, ctx);
   } else if (agent.distribution.uvx) {
-    detection = await detectUvxInstallation(agent);
+    const ctx = context ?? (await buildDetectionContext([agent]));
+    detection = await detectUvxInstallation(agent, ctx);
   } else {
     return detectBinaryInstallation(agent, record);
   }
@@ -347,12 +396,13 @@ export async function detectAgentStatuses(registry: {
   agents: AcpAgentEntry[];
 }): Promise<AcpAgentStatus[]> {
   const records = await readInstalledRecords();
+  const context = await buildDetectionContext(registry.agents);
   let shouldPersist = false;
 
   const statuses = await Promise.all(
     registry.agents.map(async (agent) => {
       const existingRecord = records[agent.id];
-      const detection = await detectAgentInstallation(agent, existingRecord);
+      const detection = await detectAgentInstallation(agent, existingRecord, context);
 
       if (!detection.installed) {
         // 检测不到但 installed.json 有记录，说明用户已卸载，清除记录

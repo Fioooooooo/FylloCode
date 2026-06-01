@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import { AcpAgentChannels } from "@shared/types/channels";
 import {
   normalizePromptCapabilities,
+  type AcpAgentStatus,
   type AcpInstallProgress,
   type AcpPromptCapabilities,
   type AcpRegistry,
@@ -16,6 +17,7 @@ import {
 import { getAgentIcons } from "@main/infra/storage/acp-icon-cache";
 import { installAgent, uninstallAgent } from "@main/services/acp-agent/installer";
 import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-cache";
+import { readStatusCache, writeStatusCache } from "@main/infra/storage/acp-status-cache";
 import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
 import {
   getCachedPromptCapabilities,
@@ -27,6 +29,12 @@ import logger from "@main/infra/logger";
 export function broadcastRegistryUpdated(registry: AcpRegistry): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(AcpAgentChannels.registryUpdated, registry);
+  }
+}
+
+export function broadcastStatusUpdated(statuses: AcpAgentStatus[]): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(AcpAgentChannels.statusUpdated, statuses);
   }
 }
 
@@ -55,9 +63,57 @@ export async function listAgentIcons(): Promise<Record<string, string>> {
   return getAgentIcons(registry);
 }
 
-export async function listAgentStatuses(): ReturnType<typeof detectAgentStatuses> {
+/** 后台刷新去重：同一时刻只允许一次后台检测在飞行 */
+let statusRefreshInFlight: Promise<AcpAgentStatus[]> | null = null;
+
+async function refreshStatusesInBackground(): Promise<AcpAgentStatus[]> {
   const registry = await loadAgentRegistry();
-  return detectAgentStatuses(registry);
+  const statuses = await detectAgentStatuses(registry);
+  await writeStatusCache(statuses);
+  broadcastStatusUpdated(statuses);
+  return statuses;
+}
+
+function triggerBackgroundStatusRefresh(): void {
+  if (statusRefreshInFlight) {
+    return;
+  }
+  statusRefreshInFlight = refreshStatusesInBackground()
+    .catch((error: unknown) => {
+      logger.warn("[acp-agent-service] background status refresh failed", error);
+      return [];
+    })
+    .finally(() => {
+      statusRefreshInFlight = null;
+    }) as Promise<AcpAgentStatus[]>;
+}
+
+/**
+ * 自动检测（stale-while-revalidate）：有缓存立即返回并后台刷新，无缓存前台检测。
+ * 服务于 `acp:detectStatus`。
+ */
+export async function listAgentStatuses(): Promise<AcpAgentStatus[]> {
+  const cached = await readStatusCache();
+  if (cached) {
+    triggerBackgroundStatusRefresh();
+    return cached.statuses;
+  }
+
+  const registry = await loadAgentRegistry();
+  const statuses = await detectAgentStatuses(registry);
+  await writeStatusCache(statuses);
+  return statuses;
+}
+
+/**
+ * 强制实时检测：绕过缓存，前台等待真实结果并写回缓存。
+ * 服务于设置页手动刷新及安装/卸载后的状态刷新。
+ */
+export async function detectAgentStatusesForced(): Promise<AcpAgentStatus[]> {
+  const registry = await loadAgentRegistry();
+  const statuses = await detectAgentStatuses(registry);
+  await writeStatusCache(statuses);
+  return statuses;
 }
 
 export async function installAgentById(agentId: string): Promise<void> {

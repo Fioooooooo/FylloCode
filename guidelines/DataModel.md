@@ -60,6 +60,13 @@ keywords: [data-model, shared-types, persistence, serialization]
 - Chat prompt 附件写入 `<userData>/projects/<encoded(projectPath)>/sessions/<sessionId>/attachments/<uuid>.<ext>`；目录 owner 是 session，`chat:removeSession` 必须同步递归删除该 session 的 `attachments/` 目录。
 - `<sessionId>.messages.jsonl` 中的 user message `parts` 支持 AI SDK `text` 与 `FileUIPart` 混合：`{ type: "file", mediaType, url: "file://...", filename }`。assistant message part 结构不因此扩展。
 
+## ACP 安装状态缓存
+
+- `<userData>/acp/installed.json`（`AcpInstalledMap`）是**安装账本（权威源）**：由安装/卸载流程写入，记录 `managedBy`、`installMethod`、`installPath`、`installedVersion`、`installedAt`。其中 `managedBy`（fyllocode/user）与 `installPath` 是检测无法重建的字段——检测只能看到“包是否存在”，无法判断“谁装的”，FylloCode 装的二进制也可能不在 PATH 上需靠 `installPath` 识别，因此该文件不可被检测结果替代。
+- `<userData>/acp/status-cache.json`（`AcpStatusCache`，结构 `{ fetchedAt: number, statuses: AcpAgentStatus[] }`）是**检测输出的只读派生快照**：`statuses` 元素即前端契约 `AcpAgentStatus`，含 `installed:false` 的未安装 Agent，供面板读一个文件直接渲染。它镜像 `acp-registry-cache.ts` 的 `{ fetchedAt, data }` 形态，但**不设 TTL**。
+- 数据流单向：安装/卸载 → 写 `installed.json` → 作为检测输入并被检测回填修正 → 检测产出 `AcpAgentStatus[]` → 写 `status-cache.json`。`status-cache.json` 永不被手动编辑，无需与 `installed.json` 双向同步；重叠字段（`managedBy`/`installMethod`/版本）是检测时从账本拷贝而来。
+- 新鲜度模型：`acp:detectStatus` 走 stale-while-revalidate——有缓存立即返回并后台检测，完成后经 `acp:statusUpdated` 广播覆盖；`acp:detectStatusForced`（设置页 Refresh、安装/卸载后刷新）绕过缓存前台等真实结果。外部（终端 `npm i -g`）变更会在下次打开 App 后约 1 秒经后台刷新跟上，或手动 Refresh 立即反映。
+
 ## Verification
 
 - `pnpm typecheck`

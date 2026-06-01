@@ -6,6 +6,7 @@ import { appApi } from "@renderer/api/app";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 
 let agentUnavailableListener: ((event: { agentId: string; reason: string }) => void) | null = null;
+let statusUpdatedListener: ((statuses: AcpAgentStatus[]) => void) | null = null;
 
 vi.mock("@renderer/api/acp-agents", () => ({
   acpAgentsApi: {
@@ -13,11 +14,16 @@ vi.mock("@renderer/api/acp-agents", () => ({
     refreshRegistry: vi.fn(),
     getIcons: vi.fn(),
     detectStatus: vi.fn(),
+    detectStatusForced: vi.fn(),
     install: vi.fn(),
     uninstall: vi.fn(),
     ensureAgent: vi.fn(),
     loadCapabilitiesCache: vi.fn(),
     onRegistryUpdated: vi.fn(() => () => {}),
+    onStatusUpdated: vi.fn((listener) => {
+      statusUpdatedListener = listener;
+      return () => {};
+    }),
     onInstallProgress: vi.fn(() => () => {}),
     onUninstallProgress: vi.fn(() => () => {}),
     onAgentUnavailable: vi.fn((listener) => {
@@ -68,6 +74,7 @@ describe("useAcpAgentsStore", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     agentUnavailableListener = null;
+    statusUpdatedListener = null;
 
     vi.mocked(acpAgentsApi.getRegistry).mockResolvedValue({
       ok: true,
@@ -82,6 +89,10 @@ describe("useAcpAgentsStore", () => {
       data: { "claude-code": "data:image/png;base64,abc" },
     });
     vi.mocked(acpAgentsApi.detectStatus).mockResolvedValue({
+      ok: true,
+      data: mockStatuses,
+    });
+    vi.mocked(acpAgentsApi.detectStatusForced).mockResolvedValue({
       ok: true,
       data: mockStatuses,
     });
@@ -149,7 +160,8 @@ describe("useAcpAgentsStore", () => {
 
     expect(acpAgentsApi.refreshRegistry).toHaveBeenCalledTimes(1);
     expect(acpAgentsApi.getIcons).toHaveBeenCalledTimes(1);
-    expect(acpAgentsApi.detectStatus).toHaveBeenCalledTimes(1);
+    expect(acpAgentsApi.detectStatusForced).toHaveBeenCalledTimes(1);
+    expect(acpAgentsApi.detectStatus).not.toHaveBeenCalled();
     expect(store.registry).toEqual(mockRegistry);
     expect(store.statuses["claude-code"]).toEqual(mockStatuses[0]);
   });
@@ -171,7 +183,7 @@ describe("useAcpAgentsStore", () => {
     await store.installAgent("claude-code");
 
     expect(acpAgentsApi.install).toHaveBeenCalledWith("claude-code");
-    expect(acpAgentsApi.detectStatus).toHaveBeenCalled();
+    expect(acpAgentsApi.detectStatusForced).toHaveBeenCalled();
     expect(store.installProgress["claude-code"]).toEqual({
       agentId: "claude-code",
       status: "done",
@@ -184,7 +196,7 @@ describe("useAcpAgentsStore", () => {
     await store.uninstallAgent("claude-code");
 
     expect(acpAgentsApi.uninstall).toHaveBeenCalledWith("claude-code");
-    expect(acpAgentsApi.detectStatus).toHaveBeenCalled();
+    expect(acpAgentsApi.detectStatusForced).toHaveBeenCalled();
     expect(store.uninstallProgress["claude-code"]).toEqual({
       agentId: "claude-code",
       status: "done",
@@ -251,6 +263,37 @@ describe("useAcpAgentsStore", () => {
       audio: true,
       embeddedContext: false,
     });
+  });
+
+  it("uses stale-while-revalidate detectStatus during bootstrap", async () => {
+    const store = useAcpAgentsStore();
+
+    await store.ensureInitialized();
+
+    expect(acpAgentsApi.detectStatus).toHaveBeenCalledTimes(1);
+    expect(acpAgentsApi.detectStatusForced).not.toHaveBeenCalled();
+  });
+
+  it("forces live detection when refreshStatus is called with force=true", async () => {
+    const store = useAcpAgentsStore();
+
+    await store.refreshStatus(true);
+
+    expect(acpAgentsApi.detectStatusForced).toHaveBeenCalledTimes(1);
+    expect(acpAgentsApi.detectStatus).not.toHaveBeenCalled();
+    expect(store.statuses["claude-code"]).toEqual(mockStatuses[0]);
+  });
+
+  it("overwrites statuses when a statusUpdated broadcast arrives", async () => {
+    const store = useAcpAgentsStore();
+    store.ensureAgentListeners();
+
+    const pushed: AcpAgentStatus[] = [
+      { id: "claude-code", installed: false, managedBy: null, updateAvailable: false },
+    ];
+    statusUpdatedListener?.(pushed);
+
+    expect(store.statuses["claude-code"]).toEqual(pushed[0]);
   });
 
   it("clears in-memory prompt capabilities on agentUnavailable", async () => {

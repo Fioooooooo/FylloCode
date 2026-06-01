@@ -25,6 +25,10 @@ export const acpAgentsApi = {
     return window.api.acpAgents.detectStatus();
   },
 
+  detectStatusForced(): Promise<IpcResponse<AcpAgentStatus[]>> {
+    return window.api.acpAgents.detectStatusForced();
+  },
+
   install(agentId: string): Promise<IpcResponse<AcpInstalledRecord>> {
     return window.api.acpAgents.install(agentId);
   },
@@ -45,6 +49,10 @@ export const acpAgentsApi = {
 
   onRegistryUpdated(listener: (registry: AcpRegistry) => void): () => void {
     return window.api.acpAgents.onRegistryUpdated(listener);
+  },
+
+  onStatusUpdated(listener: (statuses: AcpAgentStatus[]) => void): () => void {
+    return window.api.acpAgents.onStatusUpdated(listener);
   },
 
   onInstallProgress(listener: (progress: AcpInstallProgress) => void): () => void {

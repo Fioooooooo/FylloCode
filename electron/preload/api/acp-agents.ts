@@ -38,6 +38,10 @@ export const acpAgentsApi = {
     return ipcRenderer.invoke(AcpAgentChannels.detectStatus);
   },
 
+  detectStatusForced(): Promise<IpcResponse<AcpAgentStatus[]>> {
+    return ipcRenderer.invoke(AcpAgentChannels.detectStatusForced);
+  },
+
   install(agentId: string): Promise<IpcResponse<AcpInstalledRecord>> {
     return ipcRenderer.invoke(AcpAgentChannels.install, agentId);
   },
@@ -58,6 +62,10 @@ export const acpAgentsApi = {
 
   onRegistryUpdated(listener: (registry: AcpRegistry) => void): () => void {
     return subscribeToChannel(AcpAgentChannels.registryUpdated, listener);
+  },
+
+  onStatusUpdated(listener: (statuses: AcpAgentStatus[]) => void): () => void {
+    return subscribeToChannel(AcpAgentChannels.statusUpdated, listener);
   },
 
   onInstallProgress(listener: (progress: AcpInstallProgress) => void): () => void {

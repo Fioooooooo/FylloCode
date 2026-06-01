@@ -54,6 +54,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
   });
 
   let stopRegistryUpdatedListener: (() => void) | null = null;
+  let stopStatusUpdatedListener: (() => void) | null = null;
   let stopInstallProgressListener: (() => void) | null = null;
   let stopUninstallProgressListener: (() => void) | null = null;
   let stopAgentUnavailableListener: (() => void) | null = null;
@@ -73,6 +74,12 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
         registryError.value = null;
         void loadIcons();
         void refreshStatus();
+      });
+    }
+
+    if (!stopStatusUpdatedListener) {
+      stopStatusUpdatedListener = acpAgentsApi.onStatusUpdated((nextStatuses) => {
+        statuses.value = mapStatuses(nextStatuses);
       });
     }
 
@@ -149,9 +156,11 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     };
   }
 
-  async function refreshStatus(): Promise<void> {
+  async function refreshStatus(force = false): Promise<void> {
     ensureAgentListeners();
-    const response = await acpAgentsApi.detectStatus();
+    const response = force
+      ? await acpAgentsApi.detectStatusForced()
+      : await acpAgentsApi.detectStatus();
     if (!response.ok) {
       return;
     }
@@ -248,7 +257,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
         registryError.value = response.error.message;
       }
 
-      await Promise.all([loadIcons(), refreshStatus()]);
+      await Promise.all([loadIcons(), refreshStatus(true)]);
       initialized.value = true;
     } catch (error) {
       initializationError.value = error instanceof Error ? error.message : String(error);
@@ -275,7 +284,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       return;
     }
 
-    await refreshStatus();
+    await refreshStatus(true);
     installProgress.value = {
       ...installProgress.value,
       [agentId]: {
@@ -301,7 +310,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       return;
     }
 
-    await refreshStatus();
+    await refreshStatus(true);
     uninstallProgress.value = {
       ...uninstallProgress.value,
       [agentId]: {
