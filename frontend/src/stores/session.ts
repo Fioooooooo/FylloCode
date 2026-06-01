@@ -102,6 +102,31 @@ export const useSessionStore = defineStore("session", () => {
     draftAgentId.value = acpAgentsStore.resolveInstalledAgent(preferredAgentId);
   }
 
+  // Schedule a debounced draft probe for the given agent. Shared by the agent
+  // switch watcher and beginDraftSession so entering the draft state always
+  // ensures a probe even when effectiveAgentId itself does not change.
+  function scheduleDraftProbe(agentId: string | null, projectId: string | null): void {
+    if (ensureDraftProbeTimer) {
+      clearTimeout(ensureDraftProbeTimer);
+      ensureDraftProbeTimer = null;
+    }
+
+    if (activeSessionId.value !== null || !agentId || !projectId) {
+      return;
+    }
+
+    if (draftProbeByAgent.value.has(agentId)) {
+      return;
+    }
+
+    ensureDraftProbeTimer = setTimeout(() => {
+      ensureDraftProbeTimer = null;
+      if (activeSessionId.value === null && draftAgentId.value === agentId) {
+        void ensureDraftProbe(agentId, projectId);
+      }
+    }, 200);
+  }
+
   function sortSessions(): void {
     sessions.value = sortByUpdatedAt(sessions.value);
   }
@@ -121,6 +146,10 @@ export const useSessionStore = defineStore("session", () => {
     const preferredAgentId = activeSession.value?.agentId ?? draftAgentId.value;
     activeSessionId.value = null;
     syncDraftAgentId(preferredAgentId);
+    // effectiveAgentId may not change when re-entering the draft state with the
+    // same agent, so the agent-switch watcher won't fire. Schedule the probe
+    // explicitly so the config options bar renders for the carried-over agent.
+    scheduleDraftProbe(draftAgentId.value, useProjectStore().currentProject?.id ?? null);
   }
 
   function setDraftAgent(agentId: string): void {
@@ -451,8 +480,6 @@ export const useSessionStore = defineStore("session", () => {
         });
       }
 
-      const isDraft = activeSessionId.value === null;
-
       if (previousAgentId && previousAgentId !== nextAgentId) {
         const wasDraft = draftProbeByAgent.value.has(previousAgentId);
         if (wasDraft) {
@@ -460,25 +487,7 @@ export const useSessionStore = defineStore("session", () => {
         }
       }
 
-      if (ensureDraftProbeTimer) {
-        clearTimeout(ensureDraftProbeTimer);
-        ensureDraftProbeTimer = null;
-      }
-
-      if (!isDraft || !nextAgentId || !projectId) {
-        return;
-      }
-
-      if (draftProbeByAgent.value.has(nextAgentId)) {
-        return;
-      }
-
-      ensureDraftProbeTimer = setTimeout(() => {
-        ensureDraftProbeTimer = null;
-        if (activeSessionId.value === null && draftAgentId.value === nextAgentId) {
-          void ensureDraftProbe(nextAgentId, projectId);
-        }
-      }, 200);
+      scheduleDraftProbe(nextAgentId, projectId);
     },
     { immediate: true }
   );

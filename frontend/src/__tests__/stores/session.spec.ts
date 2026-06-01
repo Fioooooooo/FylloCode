@@ -333,4 +333,41 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).not.toHaveBeenCalled();
     expect(mocks.probeClose).not.toHaveBeenCalled();
   });
+
+  it("beginDraftSession re-probes the carried-over agent without an agent change", async () => {
+    vi.useFakeTimers();
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.statuses = {
+      "claude-code": { id: "claude-code", installed: true },
+    } as never;
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    const store = useSessionStore();
+    // Simulate the post-send state: an established session for agent A whose
+    // draft probe entry was already cleared by applyProbeUpdate(agentId, null).
+    store.sessions = [session()];
+    store.activeSessionId = "session-1";
+    await vi.advanceTimersByTimeAsync(250);
+    expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
+
+    // Clicking the sidebar plus-icon re-enters the draft state with the same
+    // agent. effectiveAgentId stays "claude-code", so the watcher won't fire.
+    store.beginDraftSession();
+    expect(store.activeSessionId).toBe(null);
+    expect(store.draftAgentId).toBe("claude-code");
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      projectId: "project-1",
+    });
+  });
 });
