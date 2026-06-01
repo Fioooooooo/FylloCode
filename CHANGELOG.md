@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.11.3] - 2026-06-01
+
+This patch release focuses on consolidating the local JSON persistence model and introducing a proper migration path. The app now runs data migrations automatically at startup, bringing persisted field naming and time formats into a single consistent shape instead of letting historical formats diverge over time. It also fixes a case where the config options bar could stay empty when starting a new draft session with the same Agent as before.
+
+### Added
+
+- Local JSON data migration framework, running migrations in version order during app startup and providing a baseline mechanism so new installs do not replay historical migrations
+- Initial persistence migration scripts to rename the historical `config_options` field to `configOptions` and convert timestamp fields in several caches and install records to ISO 8601 strings
+
+### Changed
+
+- Unified field naming conventions across persisted JSON files around camelCase
+- Unified time field formats in the ACP registry cache, status cache, and installed records to ISO 8601 strings, reducing cross-module read/write inconsistencies
+- Reorganized migration script registration into a dedicated scripts directory with a static registry for easier future extension and maintenance
+- Corrected runtime dependency classification by moving `@nuxt/ui` into production dependencies so the component library is not treated as development-only
+
+### Fixed
+
+- Fixed a case where creating a new draft session with the same Agent as the previous draft would not re-trigger config option probing, leaving the config bar empty
+- Fixed migration runner tests to improve regression coverage stability for the migration flow
+- Fixed invalid warning output in the icon build script
+
 ## [0.11.2] - 2026-06-01
 
 This patch release focuses on ACP Agent management improvements. Installed Agents can now be uninstalled from inside the app, Agent lists show clearer kind information, and the Chat empty-state picker layout is more stable. Agent installation status detection is also much faster, reducing wait time in settings and selection surfaces.
