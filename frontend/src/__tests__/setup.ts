@@ -9,13 +9,25 @@ import { vi } from "vitest";
 const mockToast = { add: vi.fn() };
 const buttonStub = {
   template:
-    '<button :data-color="color || \'neutral\'" :data-icon="icon" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
-  props: ["loading", "icon", "color", "variant", "size", "disabled"],
+    '<a v-if="as === \'a\'" v-bind="$attrs" :href="href" :target="target" :rel="rel" :title="title" :data-color="color || \'neutral\'" :data-icon="icon" @click="$emit(\'click\', $event)"><slot /></a><button v-else v-bind="$attrs" :title="title" :data-color="color || \'neutral\'" :data-icon="icon" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
+  props: [
+    "as",
+    "href",
+    "target",
+    "rel",
+    "title",
+    "loading",
+    "icon",
+    "color",
+    "variant",
+    "size",
+    "disabled",
+  ],
   emits: ["click"],
 };
 const dropdownMenuStub = {
   template:
-    '<div><slot /><button v-for="item in items" :key="item.label" type="button" :data-test="`dropdown-item-${item.label}`" @click="item.onSelect?.()">{{ item.label }}</button></div>',
+    '<div><slot /><button v-for="item in items" :key="item.label" type="button" :disabled="item.disabled" :title="item.tooltip" :data-test="`dropdown-item-${item.label}`" @click="item.onSelect?.()">{{ item.label }}</button></div>',
   props: ["items"],
 };
 const tooltipStub = {

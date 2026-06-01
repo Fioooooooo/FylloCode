@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import AgentKindBadge from "@renderer/components/acp/AgentKindBadge.vue";
+import AgentCardBase from "@renderer/components/acp/AgentCardBase.vue";
 import type { AcpAgentEntry, AcpAgentStatus, AcpInstallProgress } from "@shared/types/acp-agent";
 
 const props = defineProps<{
@@ -40,44 +40,24 @@ function handleInstall(event: MouseEvent): void {
 </script>
 
 <template>
-  <div
-    class="group relative rounded-lg border bg-default p-3 transition-colors"
+  <AgentCardBase
+    class="group relative transition-colors"
     :class="[
       installed && selectable ? 'cursor-pointer hover:border-primary/40' : '',
-      selected
-        ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
-        : 'border-default hover:bg-elevated/40',
+      selected ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : '',
     ]"
+    :agent="agent"
+    :icon="icon"
     @click="handleClick"
   >
-    <div class="flex items-start gap-3">
-      <div
-        class="w-9 h-9 shrink-0 rounded-lg bg-white flex items-center justify-center overflow-hidden"
-      >
-        <img v-if="icon" :src="icon" :alt="agent.name" class="w-full h-full object-cover" />
-        <UIcon v-else name="i-lucide-terminal" class="w-4 h-4 text-muted" />
-      </div>
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5">
-          <div class="flex-1 flex items-center gap-1.5">
-            <span class="min-w-0 text-sm font-medium text-highlighted truncate">
-              {{ agent.name }}
-            </span>
-            <AgentKindBadge :kind="agent.__fyllo?.kind" />
-          </div>
-          <span class="text-xs text-muted/60 shrink-0">v{{ agent.version }}</span>
-        </div>
-        <p class="mt-0.5 text-xs text-muted line-clamp-2">{{ agent.description }}</p>
-      </div>
-      <div class="shrink-0 flex flex-col items-end gap-1.5">
-        <div v-if="selected" class="flex h-5 items-center">
-          <UIcon name="i-lucide-check-circle-2" class="w-4 h-4 text-primary" />
-        </div>
-        <template v-else-if="!installed">
+    <template #actions>
+      <div class="flex flex-col items-end gap-1.5">
+        <template v-if="!installed">
           <div v-if="isInstalling" class="flex items-center gap-1 text-xs text-muted">
-            <UIcon name="i-lucide-loader-circle" class="w-3.5 h-3.5 animate-spin" />
+            <UIcon name="i-lucide-loader-circle" class="h-3.5 w-3.5 animate-spin" />
             <span class="max-w-24 truncate">{{ progressMessage }}</span>
           </div>
+
           <UButton
             v-else
             size="xs"
@@ -91,6 +71,10 @@ function handleInstall(event: MouseEvent): void {
           </UButton>
         </template>
       </div>
-    </div>
-  </div>
+    </template>
+
+    <template v-if="selected" #corner>
+      <UIcon name="i-lucide-check-circle-2" class="h-4 w-4 text-primary" />
+    </template>
+  </AgentCardBase>
 </template>

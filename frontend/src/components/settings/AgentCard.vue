@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import AgentKindBadge from "@renderer/components/acp/AgentKindBadge.vue";
+import AgentCardBase from "@renderer/components/acp/AgentCardBase.vue";
 import {
   stripPackageVersion,
   type AcpAgentEntry,
@@ -25,6 +25,14 @@ const emit = defineEmits<{
   uninstall: [agentId: string];
 }>();
 
+type AgentMenuItem = {
+  label: string;
+  icon: string;
+  disabled?: boolean;
+  tooltip?: string;
+  onSelect: () => void;
+};
+
 const showTakeoverModal = ref(false);
 const showUninstallModal = ref(false);
 
@@ -35,7 +43,25 @@ const isUserManagedUpdate = computed(
 const hasError = computed(() => props.installProgress?.status === "error");
 const progressMessage = computed(() => props.installProgress?.message ?? "正在处理...");
 const detectedVersion = computed(() => props.agentStatus?.detectedVersion ?? props.agent.version);
-const versionLabel = computed(() => `v${props.agent.version}`);
+const externalUrl = computed(() => props.agent.website ?? props.agent.repository);
+const uninstallDisabledReason = computed(() =>
+  props.actionDisabled ? "其他 Agent 正在处理中" : undefined
+);
+const showUninstallMenu = computed(() => props.agentStatus?.installed === true);
+const menuItems = computed<AgentMenuItem[]>(() => [
+  {
+    label: "卸载",
+    icon: "i-lucide-trash-2",
+    disabled: props.actionDisabled || props.isInstalling,
+    tooltip: uninstallDisabledReason.value,
+    onSelect: () => {
+      if (props.actionDisabled || props.isInstalling) {
+        return;
+      }
+      requestUninstall();
+    },
+  },
+]);
 const resolvedInstallMethod = computed<AcpInstallMethod>(() => {
   if (props.agentStatus?.installMethod) {
     return props.agentStatus.installMethod;
@@ -109,109 +135,95 @@ function confirmUninstall(): void {
 </script>
 
 <template>
-  <UCard :ui="{ body: 'p-0!' }">
-    <div class="flex flex-col gap-3 p-4">
-      <div class="flex items-center gap-3">
-        <div class="relative shrink-0">
-          <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
-            <img v-if="icon" :src="icon" :alt="agent.name" class="w-full h-full object-cover" />
-            <UIcon v-else name="i-lucide-terminal" class="w-4 h-4 text-muted" />
-          </div>
+  <AgentCardBase :agent="agent" :icon="icon">
+    <template #meta>
+      <template v-if="externalUrl">
+        <span class="text-muted/40">·</span>
+        <UButton
+          data-test="agent-card-external-link"
+          as="a"
+          :href="externalUrl"
+          target="_blank"
+          rel="noreferrer"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          icon="i-lucide-external-link"
+          :title="`打开 ${agent.name} 主页`"
+          @click.stop
+        />
+      </template>
+    </template>
+
+    <template #actions>
+      <div class="flex flex-col items-center justify-center gap-1">
+        <div v-if="isInstalling" class="flex items-center gap-2 text-xs text-muted">
+          <UIcon name="i-lucide-loader-circle" class="h-4 w-4 animate-spin" />
+          <span class="max-w-24 truncate" :title="progressMessage">{{ progressMessage }}</span>
         </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-1.5">
-            <span class="min-w-0 text-sm font-medium text-highlighted truncate">
-              {{ agent.name }}
-            </span>
-            <AgentKindBadge :kind="agent.__fyllo?.kind" />
-          </div>
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs text-muted/60">{{ versionLabel }}</span>
-            <span class="text-xs text-muted/40">·</span>
-            <span class="text-xs text-muted/60 truncate">{{ agent.license }}</span>
-          </div>
-        </div>
-        <div class="flex flex-col items-end gap-2 shrink-0">
-          <div v-if="isInstalling" class="flex items-center gap-2 text-xs text-muted">
-            <UIcon name="i-lucide-loader-circle" class="w-4 h-4 animate-spin" />
-            <span>{{ progressMessage }}</span>
-          </div>
 
-          <div v-else-if="hasError" class="flex items-center gap-2 text-xs text-error">
-            <UIcon name="i-lucide-circle-x" class="w-4 h-4 shrink-0" />
-            <span class="max-w-28 truncate" :title="progressMessage">{{ progressMessage }}</span>
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="error"
-              :title="'重试'"
-              @click="requestInstall"
-            >
-              <UIcon name="i-lucide-rotate-ccw" class="w-3 h-3" />
-            </UButton>
-          </div>
-
-          <template v-else-if="canUpdate">
-            <div class="flex items-center gap-2">
-              <UButton
-                size="xs"
-                color="primary"
-                :disabled="actionDisabled"
-                :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
-                @click="requestInstall"
-              >
-                <UIcon name="i-lucide-refresh-cw" class="w-3 h-3 mr-1" />
-                更新
-              </UButton>
-              <UButton
-                size="xs"
-                variant="ghost"
-                color="neutral"
-                icon="i-lucide-trash-2"
-                :disabled="actionDisabled"
-                :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
-                @click="requestUninstall"
-              >
-                卸载
-              </UButton>
-            </div>
-            <span class="text-xs text-muted">v{{ detectedVersion }}</span>
-          </template>
-
-          <template v-else-if="agentStatus?.installed">
-            <UBadge color="success" variant="soft">已安装</UBadge>
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-trash-2"
-              :disabled="actionDisabled"
-              :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
-              @click="requestUninstall"
-            >
-              卸载
-            </UButton>
-          </template>
-
-          <UButton
-            v-else
-            size="xs"
-            variant="outline"
-            color="neutral"
-            :disabled="actionDisabled"
-            :title="actionDisabled ? '其他 Agent 正在处理中' : undefined"
-            class="shrink-0"
-            @click="requestInstall"
-          >
-            <UIcon name="i-lucide-download" class="w-3 h-3 mr-1" />
-            安装
+        <div v-else-if="hasError" class="flex items-center gap-2 text-xs text-error">
+          <UIcon name="i-lucide-circle-x" class="h-4 w-4 shrink-0" />
+          <span class="max-w-24 truncate" :title="progressMessage">{{ progressMessage }}</span>
+          <UButton size="xs" variant="ghost" color="error" :title="'重试'" @click="requestInstall">
+            <UIcon name="i-lucide-rotate-ccw" class="h-3 w-3" />
           </UButton>
         </div>
+
+        <template v-else-if="canUpdate">
+          <UButton
+            size="xs"
+            color="primary"
+            :disabled="actionDisabled"
+            :title="uninstallDisabledReason"
+            @click="requestInstall"
+          >
+            <UIcon name="i-lucide-refresh-cw" class="mr-1 h-3 w-3" />
+            更新
+          </UButton>
+          <span class="text-xs text-muted">v{{ detectedVersion }}</span>
+        </template>
+
+        <UButton
+          v-else-if="!agentStatus?.installed"
+          size="xs"
+          variant="outline"
+          color="neutral"
+          :disabled="actionDisabled"
+          :title="uninstallDisabledReason"
+          class="shrink-0"
+          @click="requestInstall"
+        >
+          <UIcon name="i-lucide-download" class="mr-1 h-3 w-3" />
+          安装
+        </UButton>
       </div>
-      <p class="text-xs text-muted line-clamp-2">{{ agent.description }}</p>
-      <span class="text-xs text-muted/60 truncate">{{ agent.authors.join(", ") }}</span>
-    </div>
-  </UCard>
+
+      <div v-if="showUninstallMenu" @click.stop>
+        <UDropdownMenu :items="menuItems">
+          <UButton
+            data-test="agent-card-uninstall-menu"
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            :disabled="isInstalling"
+            aria-label="打开 Agent 操作菜单"
+            @click.stop
+          >
+            <UIcon name="i-lucide-ellipsis" class="h-4 w-4" />
+          </UButton>
+        </UDropdownMenu>
+      </div>
+    </template>
+
+    <template v-if="agentStatus?.installed && !canUpdate" #corner>
+      <UIcon
+        name="i-lucide-circle-check"
+        class="h-4 w-4 text-success"
+        :title="`已安装 · v${detectedVersion}`"
+      />
+    </template>
+  </AgentCardBase>
 
   <UModal v-model:open="showTakeoverModal">
     <template #content>

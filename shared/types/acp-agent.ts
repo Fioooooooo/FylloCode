@@ -39,6 +39,7 @@ export interface AcpAgentEntry {
   license: string;
   icon?: string;
   repository?: string;
+  website?: string;
   distribution: AcpAgentDistribution;
   __fyllo?: AcpFylloMeta;
 }

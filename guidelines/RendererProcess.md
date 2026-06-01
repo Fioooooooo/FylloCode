@@ -44,6 +44,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - MUST: 在 `frontend/src/main.ts` 中先完成 `mount("#app")`，再触发 bootstrap 任务；启动预热不得阻塞首屏渲染。
 - MUST: 将启动时的全局预热任务注册到 `frontend/src/bootstrap/`，避免由多个页面重复承担同一份全局初始化职责。
 - MUST: 将跨进程共享类型放在 `@shared/types/*`，只在纯前端使用的类型才放在 `frontend/src/types/`。
+- MUST: 渲染进程打开外部链接时使用标准锚点语义（如 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"`）；链接会由主进程 `electron/main/bootstrap/window.ts` 中的 `setWindowOpenHandler` 统一转交给 `shell.openExternal` 并拒绝应用内导航，渲染进程不得直接引用 `shell`，也无需为此新增 IPC。
 - MUST: 将 UI 层职责保持清晰：`pages/` 负责路由单元和页面编排，`components/` 负责展示与交互，`layouts/` 负责骨架，`stores/` 负责状态和异步动作，`api/` 负责薄转发。
 - SHOULD: 将模板中的复杂逻辑下沉到 `stores/`、`composables/` 或 `utils/`，避免在 Vue template 内内联复杂表达式。
 - SHOULD: 使用现有业务域目录，例如 `components/chat/`、`components/proposal/`、`components/settings/`、`components/integration/`，保持 UI 代码按功能聚合。
@@ -54,7 +55,9 @@ keywords: [renderer, vue, pinia, routing, ui]
 - Good: `frontend/src/stores/integration.providers.ts` 作为 settings 与 `/integration` 页共享的 provider 状态入口。
 - Good: `frontend/src/api/project.ts` 仅返回 `window.api.project.*` 的类型化 Promise，而不承担缓存或 toast 逻辑。
 - Good: `frontend/src/bootstrap/tasks/projects.ts` 调用 store 的 `ensureInitialized()` 预热 persisted project 列表。
+- Good: 组件里用 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"` 打开外站，让 `setWindowOpenHandler` 统一走系统浏览器。
 - Bad: 在 Vue 组件内直接 `window.api.integration.projectSet(...)`。
+- Bad: 在 renderer 中直接导入 Electron `shell` 或为了外链再封一层专用 IPC。
 - Bad: 在页面里直接写 `fetch(...)`、`ipcRenderer.invoke(...)` 或用多个组件各自加载同一份全局配置数据。
 
 ## Chat Prompt Capabilities
