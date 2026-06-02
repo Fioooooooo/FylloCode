@@ -47,3 +47,16 @@ export type AppAboutInfo = Readonly<{
   repositoryUrl: string;
   feedbackUrl: string;
 }>;
+
+export type ReleaseCheckStatus = "update-available" | "up-to-date";
+
+export type ReleaseCheckSuccess = Readonly<{
+  status: ReleaseCheckStatus;
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  releaseName?: string;
+  publishedAt?: string;
+}>;
+
+export type ReleaseCheckResult = ReleaseCheckSuccess;

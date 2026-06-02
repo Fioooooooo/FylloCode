@@ -6,6 +6,7 @@ import { settingsApi } from "@renderer/api/settings";
 vi.mock("@renderer/api/settings", () => ({
   settingsApi: {
     getAppInfo: vi.fn(),
+    checkLatestRelease: vi.fn(),
     get: vi.fn(),
     update: vi.fn(),
   },
@@ -49,6 +50,59 @@ describe("useSettingsStore", () => {
 
     expect(store.aboutInfoLoading).toBe(false);
     expect(store.aboutInfoError).toBeNull();
+    expect(store.aboutInfo).toEqual({
+      version: "0.9.0-beta.1",
+      releaseChannel: "Preview",
+      copyright: "Copyright © 2026 Fio",
+      repositoryUrl: "https://github.com/Fioooooooo/FylloCode",
+      feedbackUrl: "https://github.com/Fioooooooo/FylloCode/issues",
+    });
+  });
+
+  it("loads latest release check results", async () => {
+    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+      ok: true,
+      data: {
+        status: "update-available",
+        currentVersion: "0.11.3",
+        latestVersion: "0.11.4",
+        releaseUrl: "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.11.4",
+        releaseName: "FylloCode 0.11.4",
+        publishedAt: "2026-06-02T00:00:00Z",
+      },
+    });
+
+    const store = useSettingsStore();
+    await store.checkLatestRelease();
+
+    expect(settingsApi.checkLatestRelease).toHaveBeenCalledTimes(1);
+    expect(store.releaseCheckLoading).toBe(false);
+    expect(store.releaseCheckError).toBeNull();
+    expect(store.releaseCheckResult?.status).toBe("update-available");
+  });
+
+  it("keeps about info when release check fails", async () => {
+    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+      ok: false,
+      error: {
+        code: "RELEASE_CHECK_FAILED",
+        message: "network unavailable",
+      },
+    });
+
+    const store = useSettingsStore();
+    store.aboutInfo = {
+      version: "0.9.0-beta.1",
+      releaseChannel: "Preview",
+      copyright: "Copyright © 2026 Fio",
+      repositoryUrl: "https://github.com/Fioooooooo/FylloCode",
+      feedbackUrl: "https://github.com/Fioooooooo/FylloCode/issues",
+    };
+
+    await store.checkLatestRelease();
+
+    expect(store.releaseCheckResult).toBeNull();
+    expect(store.releaseCheckError).toBe("network unavailable");
     expect(store.aboutInfo).toEqual({
       version: "0.9.0-beta.1",
       releaseChannel: "Preview",

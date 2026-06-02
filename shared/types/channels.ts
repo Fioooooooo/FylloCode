@@ -72,6 +72,7 @@ export const IntegrationChannels = {
 export const SettingsChannels = {
   get: "settings:get",
   getAppInfo: "settings:getAppInfo",
+  checkLatestRelease: "settings:checkLatestRelease",
   update: "settings:update",
 } as const;
 

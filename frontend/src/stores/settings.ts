@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { settingsApi } from "@renderer/api/settings";
-import type { AppAboutInfo, PreferencesConfig } from "@shared/types/settings";
+import type { AppAboutInfo, PreferencesConfig, ReleaseCheckResult } from "@shared/types/settings";
 
 const defaultPreferences: PreferencesConfig = {
   theme: "system",
@@ -19,6 +19,9 @@ export const useSettingsStore = defineStore("settings", () => {
   const aboutInfoLoading = ref(false);
   const aboutInfoError = ref<string | null>(null);
   const aboutInfoLoaded = ref(false);
+  const releaseCheckResult = ref<ReleaseCheckResult | null>(null);
+  const releaseCheckLoading = ref(false);
+  const releaseCheckError = ref<string | null>(null);
   let aboutInfoPromise: Promise<void> | null = null;
 
   function updatePreference<K extends keyof PreferencesConfig>(
@@ -68,13 +71,36 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
+  async function checkLatestRelease(): Promise<void> {
+    releaseCheckLoading.value = true;
+    releaseCheckError.value = null;
+
+    try {
+      const result = await settingsApi.checkLatestRelease();
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      releaseCheckResult.value = result.data;
+    } catch (error) {
+      releaseCheckResult.value = null;
+      releaseCheckError.value = error instanceof Error ? error.message : String(error);
+    } finally {
+      releaseCheckLoading.value = false;
+    }
+  }
+
   return {
     preferences,
     aboutInfo,
     aboutInfoLoading,
     aboutInfoError,
+    releaseCheckResult,
+    releaseCheckLoading,
+    releaseCheckError,
     updatePreference,
     clearAllHistory,
     ensureAboutInfoLoaded,
+    checkLatestRelease,
   };
 });

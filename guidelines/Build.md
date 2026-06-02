@@ -46,6 +46,8 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - MUST: release workflow 必须显式拆分 macOS x64 与 macOS arm64 产物，避免生成单个支持双架构的 macOS universal 安装包导致包体积增大；Windows 与 Linux 默认发布 x64 产物。
 - MUST: GitHub Release 发布必须通过 `electron-builder.yml` 顶层 `publish` 配置声明，provider 使用 `github`，release 类型默认使用 `draft`，由 GitHub Actions 提供 `GH_TOKEN` 和 `contents: write` 权限。
 - MUST: release workflow 在发布前校验 tag 去掉 `v` 前缀后的版本号等于 `package.json` 的 `version`；版本不一致时不得继续执行 electron-builder 发布步骤。
+- MUST: 当前新版本提示能力仅通过 GitHub 最新正式 Release 检测版本并引导用户打开 Release 页面；不得把它描述或实现为 `electron-updater` 自动更新，不得在该能力中下载、安装、退出或重启应用。
+- MUST: 在未引入 macOS/Windows 签名与完整自动更新设计前，不得调用 `autoUpdater.checkForUpdates()`、`autoUpdater.checkForUpdatesAndNotify()` 或 `autoUpdater.quitAndInstall()`。
 - SHOULD: 在修改构建脚本、打包资源或 alias 配置后，至少执行一次 `pnpm build` 验证主/预加载/渲染三端都能完成构建。
 - SHOULD: 新增包内容过滤时先做依赖入口审计。尤其不要直接排除 `node_modules/**/src/**`，除非已确认受影响依赖的 `package.json` `main`、`module`、`exports` 和运行时资源访问都不会解析到源码目录。
 - SHOULD: 保持 `electron-builder.yml` 与 `electron.vite.config.ts` 的入口和输出职责一致，避免一个文件新增入口而另一个文件没有对应打包规则。
@@ -58,11 +60,13 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - Good: `electron-builder.yml` 通过 `extraResources` 将构建好的 MCP servers 带入产物。
 - Good: `electron-builder.yml` 在顶层 `files` 中只包含 `out/**`、`resources/**` 与 `package.json`，并排除源码目录、`.github` / `.vscode` / `.cursor` / `.claude` 等工程元数据、`.map`、测试目录、示例目录、benchmark、`docs/` 文档目录和临时构建元数据，使规则对 macOS、Windows、Linux 同时生效。
 - Good: 推送与 `package.json.version` 一致的 `v*.*.*` tag 后，`.github/workflows/release.yml` 分别构建 macOS x64、macOS arm64、Windows x64、Linux x64，并通过 electron-builder 创建 GitHub draft release 和上传平台产物。
+- Good: About 页调用 Settings IPC 检测 GitHub 最新正式 Release，发现新版本时只展示“打开 Release”入口，让用户自行下载安装包。
 - Good: Windows NSIS 安装体验配置放在 `win` / `nsis` 范围内，并用 setup 大小、`Please wait while setup is loading` 耗时、实际安装耗时做取舍。
 - Bad: 手动修改 `out/mcp-servers/**/index.js` 修补运行时问题。
 - Bad: 在业务代码里假设生产环境直接从仓库源文件运行 `mcp-servers/**/src/index.ts`。
 - Bad: 把 `@fission-ai/openspec/bin/openspec.js` 单独移到 `app.asar.unpacked`，但让 `commander` 等依赖继续留在 `app.asar/node_modules`。
 - Bad: 未审计依赖入口就全局排除 `node_modules/**/src/**`。
+- Bad: 在没有签名与自动更新设计的情况下接入 `electron-updater` 并承诺“重启自动安装”。
 
 ## Verification
 

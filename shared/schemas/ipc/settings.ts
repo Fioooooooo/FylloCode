@@ -15,6 +15,8 @@ export const getSettingsInputSchema = z.object({}).strict();
 
 export const getAppInfoInputSchema = z.object({}).strict();
 
+export const checkLatestReleaseInputSchema = z.object({}).strict();
+
 export const updateSettingsInputSchema = z
   .object({
     theme: themeModeSchema.optional(),

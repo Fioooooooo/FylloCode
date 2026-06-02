@@ -9,6 +9,7 @@ import type { AppAboutInfo } from "@shared/types/settings";
 vi.mock("@renderer/api/settings", () => ({
   settingsApi: {
     getAppInfo: vi.fn(),
+    checkLatestRelease: vi.fn(),
     get: vi.fn(),
     update: vi.fn(),
   },
@@ -47,6 +48,7 @@ describe("SettingsAbout", () => {
       wrapper.findAll('[data-test^="about-row-"]').map((row) => row.attributes("data-test"))
     ).toEqual([
       "about-row-version",
+      "about-row-release-check",
       "about-row-copyright",
       "about-row-repository",
       "about-row-feedback",
@@ -66,6 +68,7 @@ describe("SettingsAbout", () => {
     expect(settingsApi.getAppInfo).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain("Preview");
     expect(wrapper.find('[data-test="about-version"]').text()).toBe("v0.9.0-beta.1");
+    expect(wrapper.find('[data-test="release-check-idle"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="about-copyright"]').text()).toBe("Copyright © 2026 Fio");
     expect(wrapper.find('[data-test="about-link-repository"]').attributes("href")).toBe(
       "https://github.com/Fioooooooo/FylloCode"
@@ -136,5 +139,135 @@ describe("SettingsAbout", () => {
     expect(repositoryLink.attributes("rel")).toContain("noreferrer");
     expect(feedbackLink.attributes("target")).toBe("_blank");
     expect(feedbackLink.attributes("rel")).toContain("noreferrer");
+  });
+
+  it("checks latest release and shows update available state", async () => {
+    vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
+      ok: true,
+      data: aboutInfoFixture,
+    });
+    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+      ok: true,
+      data: {
+        status: "update-available",
+        currentVersion: "0.9.0",
+        latestVersion: "0.9.1",
+        releaseUrl: "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.1",
+        releaseName: "FylloCode 0.9.1",
+        publishedAt: "2026-06-02T00:00:00Z",
+      },
+    });
+
+    const wrapper = mount(SettingsAbout);
+
+    await flushPromises();
+    await wrapper.find('[data-test="release-check-button"]').trigger("click");
+    await flushPromises();
+
+    expect(settingsApi.checkLatestRelease).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('[data-test="release-check-update-available"]').text()).toContain("v0.9.1");
+    expect(wrapper.find('[data-test="release-check-open-release"]').attributes("href")).toBe(
+      "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.1"
+    );
+    expect(wrapper.find('[data-test="release-check-open-release"]').text()).toBe("查看新版本");
+    expect(wrapper.find('[data-test="release-check-button"]').exists()).toBe(false);
+  });
+
+  it("shows the release check loading state without clearing app info", async () => {
+    let resolveRelease:
+      | ((value: Awaited<ReturnType<typeof settingsApi.checkLatestRelease>>) => void)
+      | undefined;
+    vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
+      ok: true,
+      data: aboutInfoFixture,
+    });
+    vi.mocked(settingsApi.checkLatestRelease).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRelease = resolve;
+        })
+    );
+
+    const wrapper = mount(SettingsAbout);
+
+    await flushPromises();
+    await wrapper.find('[data-test="release-check-button"]').trigger("click");
+    await nextTick();
+
+    expect(wrapper.find('[data-test="release-check-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="about-version"]').text()).toBe("v0.9.0-beta.1");
+
+    resolveRelease?.({
+      ok: true,
+      data: {
+        status: "up-to-date",
+        currentVersion: "0.9.0",
+        latestVersion: "0.9.0",
+        releaseUrl: "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.0",
+      },
+    });
+    await flushPromises();
+  });
+
+  it("shows up-to-date state", async () => {
+    vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
+      ok: true,
+      data: aboutInfoFixture,
+    });
+    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+      ok: true,
+      data: {
+        status: "up-to-date",
+        currentVersion: "0.9.0",
+        latestVersion: "0.9.0",
+        releaseUrl: "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.0",
+      },
+    });
+
+    const wrapper = mount(SettingsAbout);
+
+    await flushPromises();
+    await wrapper.find('[data-test="release-check-button"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="release-check-up-to-date"]').text()).toContain(
+      "当前已是最新版本"
+    );
+  });
+
+  it("shows release check errors and retries", async () => {
+    vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
+      ok: true,
+      data: aboutInfoFixture,
+    });
+    vi.mocked(settingsApi.checkLatestRelease)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "RELEASE_CHECK_FAILED", message: "network unavailable" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          status: "up-to-date",
+          currentVersion: "0.9.0",
+          latestVersion: "0.9.0",
+          releaseUrl: "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.0",
+        },
+      });
+
+    const wrapper = mount(SettingsAbout);
+
+    await flushPromises();
+    await wrapper.find('[data-test="release-check-button"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="release-check-error"]').text()).toBe("network unavailable");
+    expect(wrapper.find('[data-test="release-check-button"]').text()).toBe("重试");
+
+    await wrapper.find('[data-test="release-check-button"]').trigger("click");
+    await flushPromises();
+
+    expect(settingsApi.checkLatestRelease).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('[data-test="release-check-up-to-date"]').exists()).toBe(true);
   });
 });

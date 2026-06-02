@@ -1,10 +1,12 @@
 import { ipcMain } from "electron";
 import { SettingsChannels } from "@shared/types/channels";
 import {
+  checkLatestReleaseInputSchema,
   getAppInfoInputSchema,
   getSettingsInputSchema,
   updateSettingsInputSchema,
 } from "@shared/schemas/ipc/settings";
+import { checkLatestRelease } from "@main/services/release/release-version-service";
 import {
   getAppAboutInfo,
   getSettingsPreferences,
@@ -25,6 +27,13 @@ export function registerSettingsHandlers(): void {
     wrapHandler(async () => {
       validate(getAppInfoInputSchema, input);
       return getAppAboutInfo();
+    })
+  );
+
+  ipcMain.handle(SettingsChannels.checkLatestRelease, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      validate(checkLatestReleaseInputSchema, input);
+      return checkLatestRelease();
     })
   );
 
