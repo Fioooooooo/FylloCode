@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
@@ -33,6 +33,45 @@ export interface DraftProbeState {
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
   error?: { code: string; message: string };
+}
+
+export interface SessionStore {
+  sessions: Ref<Session[]>;
+  activeSessionId: Ref<string | null>;
+  activeSession: ComputedRef<Session | null>;
+  draftAgentId: Ref<string | null>;
+  draftProbeByAgent: Ref<Map<string, DraftProbeState>>;
+  activeDraftProbe: ComputedRef<DraftProbeState | null>;
+  isLoading: Ref<boolean>;
+  isLoadingMessages: Ref<boolean>;
+  loadSessions: (projectId: string) => Promise<void>;
+  createSession: (input: {
+    projectId: string;
+    agentId: string;
+    title?: string;
+    configOptions?: AcpSessionConfigOption[];
+    acpSessionId?: string;
+  }) => Promise<Session>;
+  beginDraftSession: () => void;
+  selectSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  setSessionAgent: (agentId: string) => Promise<void>;
+  setSessionAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
+  setSessionConfigOptions: (sessionId: string, options: AcpSessionConfigOption[]) => void;
+  ensureDraftProbe: (agentId: string, projectId: string) => Promise<void>;
+  closeDraftProbe: (agentId: string) => Promise<void>;
+  setDraftConfigOption: (input: {
+    agentId: string;
+    configId: string;
+    type: "select" | "boolean";
+    value: string | boolean;
+  }) => Promise<void>;
+  applyProbeUpdate: (agentId: string, snapshot: ProbeSnapshot | null) => void;
+  subscribeProbeUpdates: () => () => void;
+  setDraftAgent: (agentId: string) => void;
+  clearSessions: () => void;
+  sortSessions: () => void;
 }
 
 function toDate(value: SerializableDate): Date {
@@ -75,7 +114,7 @@ function sortByUpdatedAt<T extends Pick<Session, "updatedAt">>(items: T[]): T[] 
   return [...items].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 }
 
-export const useSessionStore = defineStore("session", () => {
+export const useSessionStore = defineStore("session", (): SessionStore => {
   const toast = useToast();
   const acpAgentsStore = useAcpAgentsStore();
   const sessions = ref<Session[]>([]);
@@ -83,6 +122,7 @@ export const useSessionStore = defineStore("session", () => {
   const draftAgentId = ref<string | null>(null);
   const draftProbeByAgent = ref<Map<string, DraftProbeState>>(new Map());
   const isLoading = ref(false);
+  const isLoadingMessages = ref(false);
   const activeSession = computed<Session | null>(
     () => sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   );
@@ -381,15 +421,20 @@ export const useSessionStore = defineStore("session", () => {
       return;
     }
 
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id ?? session.projectId;
-    const result = await chatApi.loadMessages(sessionId, projectId);
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
+    isLoadingMessages.value = true;
+    try {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProject?.id ?? session.projectId;
+      const result = await chatApi.loadMessages(sessionId, projectId);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
 
-    session.messages = result.data.map((message) => normalizeMessage(message));
-    loadedSessionIds.add(sessionId);
+      session.messages = result.data.map((message) => normalizeMessage(message));
+      loadedSessionIds.add(sessionId);
+    } finally {
+      isLoadingMessages.value = false;
+    }
   }
 
   async function renameSession(sessionId: string, title: string): Promise<void> {
@@ -500,6 +545,7 @@ export const useSessionStore = defineStore("session", () => {
     draftProbeByAgent,
     activeDraftProbe,
     isLoading,
+    isLoadingMessages,
     loadSessions,
     createSession,
     beginDraftSession,

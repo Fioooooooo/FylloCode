@@ -6,6 +6,8 @@ import ChatContainer from "@renderer/components/chat/ChatContainer.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
 
 const activeSessionRef = ref<Session | null>(null);
+const activeSessionIdRef = ref<string | null>(null);
+const isLoadingMessagesRef = ref(false);
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
 const streamErrorRef = ref<{ code: string; message: string } | null>(null);
 
@@ -19,6 +21,8 @@ vi.mock("@renderer/stores/chat", () => ({
 vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
+    activeSessionId: computed(() => activeSessionIdRef.value),
+    isLoadingMessages: computed(() => isLoadingMessagesRef.value),
   }),
 }));
 
@@ -32,6 +36,8 @@ vi.mock("pinia", async (importOriginal) => {
         chatStatus: computed(() => chatStatusRef.value),
         streamError: computed(() => streamErrorRef.value),
         activeSession: computed(() => activeSessionRef.value),
+        activeSessionId: computed(() => activeSessionIdRef.value),
+        isLoadingMessages: computed(() => isLoadingMessagesRef.value),
       };
     },
   };
@@ -82,6 +88,8 @@ describe("ChatContainer", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     activeSessionRef.value = null;
+    activeSessionIdRef.value = null;
+    isLoadingMessagesRef.value = false;
     chatStatusRef.value = "ready";
     streamErrorRef.value = null;
   });
@@ -96,6 +104,7 @@ describe("ChatContainer", () => {
     const session = makeSession([{ name: "review", description: "Review code" }]);
     session.messages = [{} as Session["messages"][number]];
     activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(false);
@@ -107,6 +116,7 @@ describe("ChatContainer", () => {
     const session = makeSession();
     session.messages = [{} as Session["messages"][number], {} as Session["messages"][number]];
     activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
     streamErrorRef.value = {
       code: "stream_failed",
       message: "The stream disconnected unexpectedly",
@@ -127,6 +137,7 @@ describe("ChatContainer", () => {
   it("hides the previous inline error when a new stream starts or completes", async () => {
     const session = makeSession();
     activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
     streamErrorRef.value = { code: "stream_failed", message: "old error" };
 
     const wrapper = mountContainer();
