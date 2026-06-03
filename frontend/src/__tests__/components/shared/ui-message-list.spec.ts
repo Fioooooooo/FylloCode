@@ -76,7 +76,7 @@ function mountList(
       plugins: [createPinia()],
       stubs: {
         MarkStream: {
-          props: ["content", "isStreaming"],
+          props: ["content", "isStreaming", "isDark"],
           template: '<div data-test="markdown">{{ content }}</div>',
         },
         UChatMessages: chatMessagesStub,

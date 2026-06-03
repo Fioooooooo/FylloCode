@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import MarkdownRender from "markstream-vue";
-import { useDark } from "@vueuse/core";
 
-defineProps<{
+const props = defineProps<{
   id: string;
   content: string;
   isStreaming: boolean;
+  isDark: boolean;
 }>();
-
-const isDark = useDark();
 </script>
 
 <template>
@@ -24,7 +22,7 @@ const isDark = useDark();
     :render-batch-size="16"
     :render-batch-delay="8"
     :render-batch-budget-ms="4"
-    :is-dark="isDark"
+    :is-dark="props.isDark"
   />
 </template>
 

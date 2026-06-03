@@ -11,6 +11,7 @@ export interface MarkdownTab {
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useDark } from "@vueuse/core";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 
 const props = defineProps<{
@@ -23,6 +24,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:modelValue": [value: MarkdownTabValue];
 }>();
+
+const isDark = useDark();
 
 const visibleTabs = computed(() =>
   props.tabs
@@ -83,6 +86,7 @@ function handleModelValueUpdate(value: unknown): void {
             :id="`proposal-${props.modelValue}`"
             :content="activeContent"
             :is-streaming="false"
+            :is-dark="isDark"
           />
         </div>
       </div>

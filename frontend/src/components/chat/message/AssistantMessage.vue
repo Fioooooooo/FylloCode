@@ -7,6 +7,7 @@ import { getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatT
 
 const props = defineProps<{
   message: UIMessage;
+  isDark: boolean;
 }>();
 </script>
 
@@ -25,6 +26,7 @@ const props = defineProps<{
         :id="`${message.id}-${part.type}-${index}`"
         :content="part.text"
         :is-streaming="isPartStreaming(part)"
+        :is-dark="props.isDark"
       />
     </UChatReasoning>
 
@@ -44,6 +46,7 @@ const props = defineProps<{
       :id="`${message.id}-${part.type}-${index}`"
       :content="part.text"
       :is-streaming="isPartStreaming(part)"
+      :is-dark="props.isDark"
     />
   </template>
 </template>
