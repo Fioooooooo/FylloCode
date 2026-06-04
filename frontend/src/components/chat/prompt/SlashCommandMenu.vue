@@ -77,7 +77,7 @@ function handleCommandSelect(item: unknown): void {
           variant="ghost"
           size="sm"
           color="neutral"
-          icon="i-lucide-command"
+          icon="i-lucide-square-terminal"
           @click="emit('button-trigger')"
         />
       </Transition>

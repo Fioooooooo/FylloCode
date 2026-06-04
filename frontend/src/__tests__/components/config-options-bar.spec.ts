@@ -68,7 +68,7 @@ describe("ConfigOptionsBar", () => {
     expect(wrapper.find('[data-test^="item-"]').exists()).toBe(false);
   });
 
-  it("renders sorted items by mode, model, thought_level, then agent order", () => {
+  it("hides mode options and sorts visible items by model, thought_level, then agent order", () => {
     const sessionStore = useSessionStore();
     sessionStore.sessions = [
       makeSession({
@@ -113,11 +113,33 @@ describe("ConfigOptionsBar", () => {
     const wrapper = mountBar();
     const items = wrapper.findAll('[data-test^="item-"]');
     expect(items.map((node) => node.attributes("data-test"))).toEqual([
-      "item-mode",
       "item-model",
       "item-thought",
       "item-extra",
     ]);
+  });
+
+  it("renders nothing when only mode options are available", () => {
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [
+      makeSession({
+        configOptions: [
+          {
+            type: "select",
+            id: "mode",
+            name: "Mode",
+            category: "mode",
+            currentValue: "plan",
+            options: [{ value: "plan", name: "Plan" }],
+          },
+        ],
+      }),
+    ];
+    sessionStore.activeSessionId = "session-1";
+
+    const wrapper = mountBar();
+
+    expect(wrapper.find('[data-test^="item-"]').exists()).toBe(false);
   });
 
   it("renders draft probe config options when ready", () => {

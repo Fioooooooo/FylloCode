@@ -24,8 +24,15 @@ const sourceOptions = computed<AcpSessionConfigOption[]>(() => {
   return activeDraftProbe?.value?.status === "ready" ? activeDraftProbe.value.configOptions : [];
 });
 
+const visibleOptions = computed<AcpSessionConfigOption[]>(() => {
+  // FylloCode does not yet have permission gating for mode options, so hide
+  // them in the renderer until those controls are safe to expose.
+  // FylloCode default set `allow_always`.
+  return sourceOptions.value.filter((option) => option.category !== "mode");
+});
+
 const sortedOptions = computed<AcpSessionConfigOption[]>(() => {
-  const options = sourceOptions.value;
+  const options = visibleOptions.value;
   if (options.length === 0) return [];
 
   const indexed = options.map((option, index) => ({ option, index }));

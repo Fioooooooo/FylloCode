@@ -31,7 +31,7 @@ function getFilePartExtension(part: UIMessage["parts"][number]): string {
     <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.type}-${index}`">
       <p
         v-if="isTextUIPart(part) && !isSystemReminderPart(part)"
-        class="whitespace-pre-wrap wrap-anywhere relative text-pretty px-4 py-3 rounded-lg min-h-12 bg-elevated/50 ring ring-default"
+        class="whitespace-pre-wrap wrap-anywhere relative text-pretty px-4 py-3 rounded-lg min-h-12 bg-elevated/50 border border-default"
       >
         {{ part.text }}
       </p>

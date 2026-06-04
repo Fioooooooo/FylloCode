@@ -133,7 +133,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_agent) => ({
       async requestPermission(params: RequestPermissionRequest) {
-        const allowOption = params.options.find((o) => o.kind === "allow_once");
+        const allowOption = params.options.find((o) => o.kind === "allow_always");
         if (allowOption) {
           return { outcome: { outcome: "selected" as const, optionId: allowOption.optionId } };
         }
