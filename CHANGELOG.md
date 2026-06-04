@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.12.0] - 2026-06-04
+
+This release focuses on tightening the Chat experience, exposing session execution progress, and improving version visibility. The Settings About panel can now check GitHub official releases for newer versions directly from inside the app. Chat also gains an inline ACP execution plan panel, a loading skeleton for session history, and lower Markdown rendering overhead. In addition, Agent available commands returned during the probe stage are now captured and preserved on the session, and interrupted streaming replies now keep partially generated assistant content instead of dropping it outright.
+
+### Added
+
+- GitHub official release version checking in the Settings About panel, with direct links to the matching release page when an update is available
+- Inline ACP execution plan display in Chat sessions, showing current plan progress, item status, and priority above the prompt while a session is active
+- Capture and persistence of Agent available command lists on chat sessions, providing a stable foundation for Slash Commands in both draft and regular sessions
+- A loading skeleton for chat history while session messages are being fetched, reducing blank waiting states
+- A shared confirmation dialog component and `useConfirmDialog()` composable to unify confirmation flows across the renderer
+
+### Changed
+
+- Reduced Markdown rendering overhead in chat messages, improving UI performance for long messages and streaming output
+- Unified confirmation dialog behavior across settings actions, task cards, Agent cards, and related flows to reduce interaction inconsistencies
+- Slash Command data is now maintained and restored per session, making command state more consistent when switching conversations
+
+### Fixed
+
+- Fixed a case where partially generated assistant content could be lost when a streaming reply was stopped by the user or interrupted by an error
+- Fixed cases where interrupted replies were not persisted correctly, causing partial assistant messages to disappear after re-entering the session
+- Fixed a case where `mode` category config options could still appear in Chat even though the corresponding permission gating is not yet ready to expose those controls safely
+
 ## [0.11.3] - 2026-06-01
 
 This patch release focuses on consolidating the local JSON persistence model and introducing a proper migration path. The app now runs data migrations automatically at startup, bringing persisted field naming and time formats into a single consistent shape instead of letting historical formats diverge over time. It also fixes a case where the config options bar could stay empty when starting a new draft session with the same Agent as before.
