@@ -41,6 +41,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 - MUST: 让主进程 handler 的入参通过 `shared/schemas/ipc/<domain>.ts` 中的 Zod schema 校验；渲染侧类型声明不能替代运行时校验。
 - MUST: 让 preload 通过 `contextBridge` 暴露 `window.api`，渲染层只能消费这些公开 API，不得直接触碰 `ipcRenderer`。
 - MUST: 让流式协议通过 `ipc/_kit/stream-channel.ts` 与 `MessagePort` 实现，chunk/done/error 消息结构遵循 `shared/types/ipc.ts`。
+- MUST: 让三个流式 handler（`chat:stream:message`、`proposal:stageStream`、`proposal:archive`）在 `done` / `error` / `runner.cancel` 三个终止出口都对称地落盘已组装的 assistant 消息——任何非 `done` 的停止（agent 报错、用户 stop / port close）也必须把当前 `MessageAssembler` 的内容持久化，否则重启后该轮部分回复丢失。去重依赖 `MessageAssembler.flush()` 的一次性所有权语义（首次取走 `currentMessage` 并置空、再次返回 `null`），不得引入额外布尔标志；落盘失败只记 `logger.error`，不阻断该出口既有的终止动作（`sendError` / `sendDone` / `unregister` / 状态机更新）。三处目前为就近对称实现，未来可抽取为通用底层能力。
 - MUST: 将新增错误码登记到 `shared/constants/error-codes.ts`；不得返回未声明的错误码字符串。
 - MUST: 在 `frontend/src/api/` 中为每个公开 bridge 方法提供对等薄封装，保持 renderer 对 IPC 的访问点可搜索、可替换、可测试。
 - SHOULD: 让 `electron/preload/index.d.ts` 与 `electron/preload/api/**` 同步更新，避免桥接实现与类型声明脱节。

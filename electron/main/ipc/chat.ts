@@ -268,6 +268,17 @@ export function registerChatHandlers(): void {
           ...(presetAcpSessionId ? { presetAcpSessionId } : {}),
         });
         const assembler = new MessageAssembler(sessionId);
+        const persistAssembledAssistantMessage = async (): Promise<void> => {
+          try {
+            const message = assembler.flush();
+            if (!message) {
+              return;
+            }
+            await appendMessage(projectPath, sessionId, message);
+          } catch (error: unknown) {
+            logger.error("[chat] failed to persist partial assistant message on stop", error);
+          }
+        };
         let sessionMetaPersist = Promise.resolve();
         const enqueueSessionMetaPersist = (
           update: Parameters<typeof patchSessionMeta>[2],
@@ -382,6 +393,7 @@ export function registerChatHandlers(): void {
               });
               break;
             case "error":
+              void persistAssembledAssistantMessage();
               sink.sendError(mapAcpErrorCode(ev.code), ev.message);
               sessionRegistry.unregister("chat", sessionId);
               break;
@@ -399,6 +411,7 @@ export function registerChatHandlers(): void {
           },
           cancel: () => {
             session.cancel();
+            void persistAssembledAssistantMessage();
             sessionRegistry.unregister("chat", sessionId);
           },
         };

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
+    sessionCancel: vi.fn(),
     assemblerApply: vi.fn(),
     assemblerFlush: vi.fn(),
     get eventHandler() {
@@ -119,7 +120,7 @@ vi.mock("@main/services/chat/acp-session", () => ({
         mocks.eventHandler = handler;
       }),
       start: vi.fn(),
-      cancel: vi.fn(),
+      cancel: mocks.sessionCancel,
     };
   }),
 }));
@@ -309,6 +310,142 @@ describe("registerChatHandlers", () => {
       "session-1",
       expect.objectContaining({ id: "assistant-message-1", role: "assistant" })
     );
+  });
+
+  it("persists assembled assistant message on error", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "assistant-message-err",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: {
+        sessionId: "session-1",
+        createdAt: new Date("2026-05-09T00:00:00.000Z"),
+      },
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+
+    await vi.waitFor(() => {
+      expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.appendMessage).toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.objectContaining({ id: "assistant-message-err", role: "assistant" })
+    );
+    expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "boom");
+    expect(mocks.unregister).toHaveBeenCalledWith("chat", "session-1");
+  });
+
+  it("persists assembled assistant message when the runner is cancelled", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "assistant-message-cancel",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: {
+        sessionId: "session-1",
+        createdAt: new Date("2026-05-09T00:00:00.000Z"),
+      },
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.appendMessage).toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.objectContaining({ id: "assistant-message-cancel", role: "assistant" })
+    );
+    expect(mocks.sessionCancel).toHaveBeenCalled();
+    expect(mocks.unregister).toHaveBeenCalledWith("chat", "session-1");
+  });
+
+  it("does not persist the assistant message twice across error then cancel", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "assistant-message-once",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: {
+        sessionId: "session-1",
+        createdAt: new Date("2026-05-09T00:00:00.000Z"),
+      },
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not persist an empty assistant message on error or cancel", async () => {
+    mocks.assemblerFlush.mockReturnValue(null);
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(sink.sendError).toHaveBeenCalled();
+    });
+    expect(mocks.appendMessage).not.toHaveBeenCalled();
   });
 
   it("forwards usage_update chunks and persists token usage", async () => {

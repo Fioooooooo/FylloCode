@@ -122,6 +122,17 @@ export function registerProposalApplyHandlers(): void {
         sink.sendChunk({ kind: "user_message", message: userMessage });
 
         const assembler = new MessageAssembler(fylloSessionId);
+        const persistAssembledStageMessage = async (): Promise<void> => {
+          try {
+            const message = assembler.flush();
+            if (!message) {
+              return;
+            }
+            await appendApplyRunMessage(projectPath, form.changeId, form.stageIndex, message);
+          } catch (error: unknown) {
+            logger.error("[proposal-apply] failed to persist partial stage message on stop", error);
+          }
+        };
         const sessionStore = new ApplyStageAcpSessionStore(
           projectPath,
           form.changeId,
@@ -205,6 +216,7 @@ export function registerProposalApplyHandlers(): void {
               });
               break;
             case "error":
+              void persistAssembledStageMessage();
               void updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => ({
                 ...meta,
                 status: "error",
@@ -241,6 +253,7 @@ export function registerProposalApplyHandlers(): void {
           },
           cancel: () => {
             session.cancel();
+            void persistAssembledStageMessage();
             sessionRegistry.unregister("apply", form.runId);
           },
         };
@@ -332,6 +345,20 @@ export function registerProposalApplyHandlers(): void {
 
         sink.sendChunk({ kind: "user_message", message: userMessage });
         const assembler = new MessageAssembler(fylloSessionId);
+        const persistAssembledArchiveMessage = async (): Promise<void> => {
+          try {
+            const message = assembler.flush();
+            if (!message) {
+              return;
+            }
+            await appendArchiveMessage(projectPath, form.changeId, message);
+          } catch (error: unknown) {
+            logger.error(
+              "[proposal-archive] failed to persist partial archive message on stop",
+              error
+            );
+          }
+        };
 
         const session = new AcpSession({
           fylloSessionId,
@@ -400,6 +427,7 @@ export function registerProposalApplyHandlers(): void {
               });
               break;
             case "error":
+              void persistAssembledArchiveMessage();
               void (async () => {
                 await persistArchiveStatus("error");
                 sink.sendError(mapAcpErrorCode(ev.code), ev.message);
@@ -427,6 +455,7 @@ export function registerProposalApplyHandlers(): void {
           },
           cancel: () => {
             session.cancel();
+            void persistAssembledArchiveMessage();
             sessionRegistry.unregister("archive", sessionKey);
           },
         };

@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => {
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
+    sessionCancel: vi.fn(),
     get eventHandler() {
       return eventHandler;
     },
@@ -104,7 +105,7 @@ vi.mock("@main/services/chat/acp-session", () => ({
         mocks.eventHandler = handler;
       }),
       start: vi.fn(),
-      cancel: vi.fn(),
+      cancel: mocks.sessionCancel,
     };
   }),
 }));
@@ -149,6 +150,7 @@ describe("registerProposalApplyHandlers", () => {
     mocks.updateApplyRunStageAcpSessionId.mockResolvedValue(undefined);
     mocks.updateArchiveRunAcpSessionId.mockResolvedValue(undefined);
     mocks.getCompletedApplyStageIndex.mockReturnValue(0);
+    mocks.updateRunMetaIfCurrent.mockResolvedValue(undefined);
     mocks.assemblerFlush.mockReturnValue(null);
     const { registerProposalApplyHandlers } = await import("@main/ipc/proposal-apply");
     registerProposalApplyHandlers();
@@ -220,6 +222,101 @@ describe("registerProposalApplyHandlers", () => {
     expect(mocks.register).not.toHaveBeenCalled();
   });
 
+  it("persists assembled stage message on error while still marking the run errored", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "stage-assistant-err",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+    // onReady already persisted the user message as the first append.
+    expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+
+    await vi.waitFor(() => {
+      expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
+      "/tmp/project",
+      "change-1",
+      0,
+      expect.objectContaining({ id: "stage-assistant-err", role: "assistant" })
+    );
+    expect(mocks.updateRunMetaIfCurrent).toHaveBeenCalled();
+    expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "boom");
+  });
+
+  it("persists assembled stage message when the runner is cancelled", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "stage-assistant-cancel",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+    expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
+      "/tmp/project",
+      "change-1",
+      0,
+      expect.objectContaining({ id: "stage-assistant-cancel", role: "assistant" })
+    );
+    expect(mocks.sessionCancel).toHaveBeenCalled();
+    expect(mocks.unregister).toHaveBeenCalledWith("apply", "run-1");
+  });
+
+  it("does not persist the stage message twice across error then cancel", async () => {
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "stage-assistant-once",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+    expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
+    });
+    // 1 user message + 1 assistant message; cancel's flush returns null, no third append.
+    expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
+  });
+
   it("persists archive meta, user message, assistant message, and done status", async () => {
     mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
     mocks.assemblerFlush.mockReturnValueOnce({
@@ -287,6 +384,107 @@ describe("registerProposalApplyHandlers", () => {
       );
       expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "failed");
     });
+  });
+
+  it("persists assembled archive message on error while still marking archive errored", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "archive-assistant-err",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.archive)(
+      { sender: { postMessage: vi.fn() } },
+      { projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+    // onReady already persisted the user message as the first append.
+    expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+
+    await vi.waitFor(() => {
+      expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
+      "/tmp/project",
+      "change-1",
+      expect.objectContaining({ id: "archive-assistant-err", role: "assistant" })
+    );
+    await vi.waitFor(() => {
+      expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
+        "/tmp/project",
+        expect.objectContaining({ status: "error" })
+      );
+      expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "boom");
+    });
+  });
+
+  it("persists assembled archive message when the runner is cancelled", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "archive-assistant-cancel",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.archive)(
+      { sender: { postMessage: vi.fn() } },
+      { projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+    expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
+      "/tmp/project",
+      "change-1",
+      expect.objectContaining({ id: "archive-assistant-cancel", role: "assistant" })
+    );
+    expect(mocks.sessionCancel).toHaveBeenCalled();
+    expect(mocks.unregister).toHaveBeenCalledWith("archive", "project-1:change-1");
+  });
+
+  it("does not persist the archive message twice across error then cancel", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
+    mocks.assemblerFlush.mockReturnValueOnce({
+      id: "archive-assistant-once",
+      role: "assistant",
+      parts: [{ type: "text", text: "partial" }],
+      metadata: { sessionId: "run-1-0", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    });
+
+    handler(ProposalChannels.archive)(
+      { sender: { postMessage: vi.fn() } },
+      { projectId: "project-1", changeId: "change-1" }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
+    expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
+
+    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    runner.cancel();
+
+    await vi.waitFor(() => {
+      expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
+    });
+    // 1 user message + 1 assistant message; cancel's flush returns null, no third append.
+    expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
   });
 
   it("loads archive meta and messages through handlers", async () => {
