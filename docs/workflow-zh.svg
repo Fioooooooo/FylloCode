@@ -1,0 +1,111 @@
+<svg width="100%" viewBox="0 0 680 440" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>FylloCode 工作流 — 项目知识飞轮</title>
+  <desc>Task → Proposal → Apply → Archive 四阶段工作流围绕中央项目知识库持续运转。Archive 沉淀为 Project knowledge，反哺下一次 Task，形成持续进化的飞轮。</desc>
+
+  <defs>
+    <marker id="arr-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#73726C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#D85A30" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="340" y="35" text-anchor="middle"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#141413">FylloCode 工作流 — 项目知识飞轮</text>
+
+  <!-- ── Task (top-left) x=40 y=66 w=166 h=58 ── -->
+  <rect x="40" y="66" width="166" height="58" rx="8"
+        fill="#FAEEDA" stroke="#854B0B" stroke-width="0.5"/>
+  <text x="123" y="86" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#633806">Task</text>
+  <text x="123" y="106" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#854B0B">意图确认 · 边界设定</text>
+
+  <!-- ── Proposal (top-right) x=474 y=66 w=166 h=58 ── -->
+  <rect x="474" y="66" width="166" height="58" rx="8"
+        fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="557" y="86" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#085041">Proposal</text>
+  <text x="557" y="106" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#0F6E56">方案 · 依据 · 弃置原因</text>
+
+  <!-- ── Apply (bottom-right) x=474 y=336 w=166 h=58 ── -->
+  <rect x="474" y="336" width="166" height="58" rx="8"
+        fill="#EEECFD" stroke="#5345B3" stroke-width="0.5"/>
+  <text x="557" y="356" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#3C3489">Apply</text>
+  <text x="557" y="376" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#5345B3">约束执行 · 规范生效</text>
+
+  <!-- ── Archive (bottom-left) x=40 y=336 w=166 h=58 ── -->
+  <rect x="40" y="336" width="166" height="58" rx="8"
+        fill="#FEF0E7" stroke="#993C1D" stroke-width="0.5"/>
+  <text x="123" y="356" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#712B13">Archive</text>
+  <text x="123" y="376" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#993C1D">变更记录 · 决策归档</text>
+
+  <!-- ── Project knowledge (center) x=218 y=183 w=244 h=100 ── -->
+  <rect x="218" y="183" width="244" height="100" rx="12"
+        fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="340" y="215" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="14" font-weight="500" fill="#444441">Project knowledge</text>
+  <text x="340" y="236" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#5F5E5A">fyllo-specs · fyllo-skills</text>
+  <text x="340" y="256" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="12" fill="#5F5E5A">guidelines · history · health score</text>
+
+  <!-- ── Main flow: Task → Proposal ── -->
+  <line x1="206" y1="95" x2="474" y2="95"
+        stroke="#73726C" stroke-width="1.5" marker-end="url(#arr-a)"/>
+
+  <!-- ── Main flow: Proposal → Apply ── -->
+  <line x1="557" y1="124" x2="557" y2="336"
+        stroke="#73726C" stroke-width="1.5" marker-end="url(#arr-a)"/>
+
+  <!-- ── Main flow: Apply → Archive ── -->
+  <line x1="474" y1="365" x2="206" y2="365"
+        stroke="#73726C" stroke-width="1.5" marker-end="url(#arr-a)"/>
+
+  <!-- ── Feedback loop: Archive → left side → Task ── -->
+  <path d="M 40,365 L 16,365 L 16,95 L 40,95" fill="none"
+        stroke="#D85A30" stroke-width="1.5" stroke-dasharray="6 3"
+        marker-end="url(#arr-b)"/>
+  <text x="8" y="230" text-anchor="middle" transform="rotate(-90, 8, 230)"
+        font-family="-apple-system,'Segoe UI',sans-serif"
+        font-size="11" fill="#5F5E5A">Feedback loop</text>
+
+  <!-- ── Archive → Knowledge (Accumulates) ── -->
+  <path d="M 187,336 L 252,283" fill="none"
+        stroke="#888780" stroke-width="1" stroke-dasharray="4 3"
+        marker-end="url(#arr-c)"/>
+  <text x="190" y="326" text-anchor="end"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="11" fill="#888780">Accumulates</text>
+
+  <!-- ── Knowledge → Task (Informs) ── -->
+  <path d="M 242,183 L 197,124" fill="none"
+        stroke="#888780" stroke-width="1" stroke-dasharray="4 3"
+        marker-end="url(#arr-c)"/>
+  <text x="228" y="156" text-anchor="start"
+        font-family="-apple-system,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif"
+        font-size="11" fill="#888780">Informs</text>
+
+</svg>

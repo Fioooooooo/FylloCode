@@ -5,9 +5,8 @@
 <h1 align="center">FylloCode</h1>
 
 <p align="center">
-  一个让 Coding Agent 在复杂项目里不再跑偏的桌面应用 —<br/>
-  把每次变更拆成 <strong>任务 → 提案 → 执行 → 归档</strong> 四个阶段，<br/>
-  你在提案环节审查把关，Agent 才开始写代码。
+  Coding Agent 的团队治理层<br/>
+  让全队的 Agent 遵守同一套持续进化的规则、全程可追溯。<br/>
 </p>
 
 <p align="center">
@@ -15,142 +14,178 @@
   <a href="https://github.com/Fioooooooo/FylloCode/releases">下载</a>
 </p>
 
-<!-- TODO: 替换为实际截图 -->
-<!-- ![FylloCode 截图](docs/images/screenshot.png) -->
+---
+
+## 背景
+
+每个 Agent 会话一结束，代码留下来了，决策却丢失了 ……
+
+- **三天后不知道这行代码为什么改。** Agent 帮你动了 100+ 个文件，`git blame` 只告诉你谁提交的，不告诉你当时的决策背景。
+- **两个月后没人知道方案的设计依据。** Agent 给出了一个架构方向，其他候选方案为什么被放弃——这些推理过程全消失在当时的聊天窗口里。
+- **每个新会话都要从头建立上下文。** 相同的问题，每个 Agent、每次对话都要重新解释一遍项目约束、历史决策和禁忌操作。
+- **全队的 Agent 各跑各的规则。** 没有统一的工程规范，没有跨 Agent、跨会话的一致性，靠个人习惯维系的代码风格在 Agent 时代加速崩解。
+
+这几个问题的根源相同：**Agent 缺少一个持久的、结构化的项目治理层。** FylloCode 就是这个治理层。
 
 ---
 
-## 为什么做 FylloCode
+## 核心机制
 
-在这个新时代，真正需要我们处理的不再是重复性的编码工作，而是更高层面的业务理解和架构设计。我设想的未来工作方式是：接触业务 → 想清楚架构 → 写 Proposal → 审查 Proposal → Agent 自动编码落地，然后接着搞下一个 Proposal。
-
-基于这些思考，我开发了 FylloCode——从 Vibe Coding 走向 Agentic Coding。
-
-## FylloCode 怎么解决
-
-FylloCode 用一套结构化的工作流，把 **思考** 和 **执行** 物理隔离：
+FylloCode 在你已有的代码库和研发工具链之上工作，不替代 IDE，不替代
+CI/CD，不替代项目管理系统——它在这些系统上面加一层，专门解决"团队里如何持续用好 Agent"的问题。
 
 ```
-┌──────────┐     ┌────────────────┐     ┌───────────┐     ┌───────────┐
-│   任务   │ ──→ │  对话 / 提案     │ ──→ │   执行     │ ──→ │   归档    │
-│          │     │                │     │           │     │           │
-│ 做什么    │     │ Agent 探索代码  │     │ Agent 按   │     │ 规格更新   │
-│          │     │ 库，写出方案     │     │ 方案逐条    │     │ 变更留档   │
-│          │     │                │     │ 实现       │     │           │
-│          │     │  ➜ 你来审查     │     │            │     │           │
-└──────────┘     └────────────────┘     └───────────┘     └───────────┘
+研发系统（GitHub / 云效 / Jira ...）
+        ↑ 回写任务结果
+┌──────────────────────────────┐
+│         FylloCode            │  ← 治理层
+│  fyllo-specs · fyllo-skills  │
+└──────────────────────────────┘
+        ↓ 约束 & 注入上下文
+   Coding Agent（任意）
+        ↓
+      代码库
 ```
 
-**任务** — 从本地任务列表或云效等平台同步过来的工作项中选一个，一键发起对话创建提案。
+| 能力             | 说明                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| **统一规范**     | `fyllo-specs` MCP 服务器向所有 Agent 暴露项目级规范，跨会话、跨 Agent 持续生效                     |
+| **决策留档**     | 每个方案的依据和弃置理由以结构化数据持久化，不消失在会话记录里                                     |
+| **全程可追溯**   | Task → Proposal → Apply → Archive 四阶段，变更从意图到执行都有记录                                 |
+| **规则自进化**   | `fyllo-skills` 目前提供 `guidelines` 工具，在每次任务后自动更新项目规范，让 Agent 始终遵循最新约定 |
+| **回写研发系统** | 任务结果同步回已有的项目管理工具，不在工具链里形成孤岛                                             |
 
-**对话 / 提案** — Agent 探索你的代码库，提出澄清问题，然后生成结构化的提案（改什么、改哪些文件、验收标准）。在这个阶段，Agent **被禁止写代码**。你审查、修改、确认提案后，流程才会继续。
+---
 
-**执行** — 一个全新的 Agent session 按提案逐条实现。它只读提案产物，看不到对话历史——所以所有决策必须写进提案，不能留在上下文窗口的记忆里，同时以这种方式将决策产物持久化留存。
+## 工作流
 
-**归档** — 规格文档更新，变更完整归档。你的项目知识库随着每次交付不断增长。
+![FylloCode 工作流](docs/workflow-zh.svg)
 
-### 为什么把思考和执行分开很重要
+FylloCode 把每个编码任务分成四个强制阶段，每个阶段有明确的输入、产物和约束。
 
-大多数 Coding Agent 在同一个 session 里理解任务并写代码。任何误解都会直接变成代码，而代码的审查成本很高。
-FylloCode 把理解和执行物理隔离了。误解只能变成提案文字——文字的审查成本极低。花 2 分钟审一遍提案，能拦住你在 diff 里要花 20 分钟才能发现的问题。
-
-## 功能特性
-
-### Agent 协议（ACP）
-
-FylloCode 通过 ACP（Agent Client Protocol）连接任意 Coding Agent。Claude Code、Codex 或任何 ACP 兼容的 Agent——一个协议，一个界面，不用再开一堆终端来回切换了。
-
-目前 ACP Registry 中已有 35 款 Agent 可用，同时支持多聊天并行和多 Proposal 的 Apply 并行。
-
-![FylloCode-ACP](docs/screenshot/acp-registry.png)
-
-### System Reminders
-
-每个工作流阶段会注入 system reminder，约束 Agent 能做和不能做的事。对话阶段，Agent 被指示去探索和提案，而不是写代码；执行阶段，它只按已批准的任务列表走。这不是建议——是在 session 启动时强制执行的硬边界。
-
-![FylloCode-Chat](docs/screenshot/chat.png)
-
-### 任务面板
-
-查看和管理本地任务，或展示从外部平台同步的工作项。任务是整个工作流的入口——选中任务，发起对话，Agent 带着完整上下文开始工作。
-
-![FylloCode-Task](docs/screenshot/task.png)
-
-### 开发平台集成
-
-以 Provider 为单位连接平台（如云效）——一次认证，任务管理、源码管理、CI/CD 等多个工具全部可用。更多平台集成（GitHub、TAPD、Jira 等）在路线图中。
-
-任务集成走的是 API 而不是 Agent Skill——这是有意为之。API 调用速度快而且不消耗 Token，好钢要用在刀刃上。
-
-![FylloCode-Integration](docs/screenshot/integration-provider.png)
-
-### 工作流编辑器
-
-定义和自定义多阶段工作流。内置模板开箱即用，也可以编辑 YAML 适配你的团队流程。
-
-![FylloCode-Workflow](docs/screenshot/workflow.png)
-
-### OpenSpec 驱动的提案
-
-提案是结构化的产物，不是聊天消息。每个提案包含设计文档、规格变更和具体的任务列表（文件路径、验收标准）。内置的 fyllo-specs MCP server 管理完整的生命周期：explore → create-proposal → apply-change → archive-change。
-
-![FylloCode-Proposal-list](docs/screenshot/proposal-list.png)
-
-![FylloCode-Proposal-detail](docs/screenshot/proposal-detail.png)
-
-### 流式渲染引擎
-
-FylloCode 采用 [markstream-vue](https://github.com/Simon-He95/markstream-vue) 作为流式渲染引擎，速度快、效果丝滑。内置集成了 Monaco Editor、KaTeX 和 Mermaid，在做 Proposal 时可以实时渲染出流程图和格式化的规格说明，架构流程、业务逻辑一目了然。
-
-### 工程规范保障
-
-FylloCode 提供两个层面的规范保障：
-
-- 软约束 — 把工程规范沉淀为 Guidelines，通过内置的 fyllo-skills MCP server 在工作流中自动持续维护，无需人工干预。
-- 硬约束 — Agent 不一定完全遵守 Guidelines，FylloCode 的健康检查会在工程层面建立硬约束（lint、test runner、git hooks、CI），从根上把质量卡住。
-
-## 快速开始
-
-### 下载安装
-
-macOS、Windows、Linux 预构建包可在 [Releases](https://github.com/Fioooooooo/FylloCode/releases) 页面下载。
-
-| 平台    | 格式                           |
-| ------- | ------------------------------ |
-| macOS   | `.dmg`                         |
-| Windows | `.exe`（NSIS 安装包）          |
-| Linux   | `.AppImage` / `.deb` / `.snap` |
-
-### 从源码构建
-
-需要 Node.js ≥ 22 和 pnpm。
-
-```bash
-git clone https://github.com/Fioooooooo/FylloCode.git
-cd FylloCode
-pnpm install
-pnpm dev
+```
+  Task ──────▶ Proposal ──────▶ Apply ──────▶ Archive
+  意图确认       方案评审         约束执行        结果归档
 ```
 
-### 开始使用
+### Task
 
-1. 打开 FylloCode，创建或打开一个项目（任何本地代码目录）。
-2. 进入 **设置 → Providers**，安装一个 ACP 兼容的 Agent（如 Claude Code）。
-3. 切换到 **任务** 面板，创建一个任务，点击发起对话。
-4. Agent 会探索你的代码库并生成提案。审查后，运行执行。
+在 Agent 动手之前，先结构化任务的完整上下文：约束条件、影响范围、前提假设，以及可量化的验收标准。`fyllo-specs`
+会自动注入项目当前的规范状态，确保 Agent 从一开始就在正确的约束边界内思考，而不是执行到一半才发现越界。
 
-## Todo
+### Proposal
 
-- [ ] More integration(TAPD, Jira, Linear, Github)
-- [ ] Auto-update
-- [ ] i18n (English UI)
-- [ ] Auto build guidelines
-- [x] Git linked workspace for task apply
-- [ ] More ACP Agent control
+Agent 生成候选方案，每个方案必须附设计依据和弃置理由。产物由 OpenSpec 规范驱动，可按项目需求定制，默认输出四份结构化文件：
 
-## 技术栈
+- proposal.md：背景说明、新增能力、变更能力、受影响的模块
+- design.md：Goals 与 Non-Goals、开放问题的最终决策及弃置原因、变更风险
+- specs：从本次变更中抽取的规范条目，回写到项目知识库
+- tasks.md：以文件和函数为维度的详细任务拆分，含验收标准，并触发 guidelines 自进化
 
-Electron · Vue 3 · TypeScript · ACP SDK · MCP SDK · Nuxt UI · Tailwind CSS
+这四份文件是 Proposal 评审的实体，也是两个月后追溯"当时为什么这么设计"的唯一依据。
+
+### Apply
+
+Agent 在 `fyllo-specs` 的约束下执行。规范覆盖架构禁区、命名约定、危险操作范围，在编码过程中实时生效，不依赖事后 code review
+发现越界。实际执行严格限定在 tasks.md 批准的范围内——超出边界的修改会被拦截，确保变更与评审记录一致。
+
+每个任务默认运行在独立的 Git worktree 中，Apply 阶段的所有代码修改都在 worktree
+里发生，主分支在任务完成前保持干净。多个任务可以并行推进，各自处于不同阶段，互不干扰。
+
+### Archive
+
+本次变更的完整记录自动归档：代码变更范围、决策上下文、specs 更新、guidelines 演化结果，以及项目健康度重新评分。其中一部分反哺
+`fyllo-specs` 和 `fyllo-skills`，成为下一次 Task 的背景知识；另一部分同步到已有的研发系统，不形成工具链孤岛。
+
+---
+
+## 模型选择
+
+FylloCode 支持任意接入 ACP 的 Agent，但不同阶段对模型能力的侧重不同。根据实际使用经验：
+
+- **Proposal 阶段**建议使用推理能力更强的模型，如 Claude Opus 或 GPT-4.5。这个阶段需要 Agent
+  深度理解项目背景、权衡多个方案的利弊、做出有依据的设计决策——模型的推理质量直接影响 proposal 的可信度和可审查性。
+
+- **Apply 阶段**可以使用更小、更快的模型。任务边界已由 `tasks.md` 明确约定，Agent 的工作更接近结构化执行而非开放式推理，对模型的要求相对较低，也更容易控制成本。
+
+一个典型的搭配：Proposal 用 Opus，Apply 用 Sonnet 或 Haiku。
+
+---
+
+## 当 Agent 开始改代码
+
+普通的 Agent 会话能拿到两样东西：当前代码 + 这次的 prompt。
+
+FylloCode 的 Agent 在 Apply 之前，能拿到：
+
+- **当前代码**（来自你的仓库）
+- **项目规范**（来自 `fyllo-specs`：架构约束、命名约定、禁止操作）
+- **历史决策上下文**（这个模块为什么这么设计，当时否决了哪些方向）
+- **变更原因记录**（上次动这里是为了解决什么问题）
+- **持续演进的 guidelines**（来自 `fyllo-skills`，在每次任务后自动更新）
+
+它知道这个项目**为什么**变成今天这样，不只是**是什么**。
+
+---
+
+## 团队知识沉淀
+
+在持续演进中，需要把团队在实际工程中积累的知识、踩过的坑、达成的约定、反复出现的场景转化为下次
+Apply 时 Agent 能直接使用的结构化上下文。
+
+目前通过 `fyllo-skills.guidelines` 工具实现这一点：每次 Proposal 设计过程中，Agent 会考虑是否需要更新 guidelines，
+Apply 时会根据任务细则自动更新项目规范，让 Agent 始终读取最新的工程约定，而不是手动维护、随版本漂移的静态文档。
+
+这套机制解决的核心问题是：**团队的工程智慧如何在 Agent 协作中持续沉淀，而不是每次会话结束就清零。**
+
+复杂工程能被持续维护，前提是每一次变更都不只是改了代码，而是留下了可被后续 Agent 和工程师理解的决策痕迹。FylloCode
+的架构就是围绕这一点设计的。
+
+我们正在从更多维度持续扩展知识积累的范围，guidelines只是起点。
+
+---
+
+## 集成
+
+FylloCode 的任务结果可以回写到已有的研发系统，保持工具链的连续性。
+
+| 研发系统      | 状态        |
+| ------------- | ----------- |
+| 云效          | ✅ 首批集成 |
+| TAPD          | 🔄 计划中   |
+| GitHub        | 🔄 计划中   |
+| GitLab        | 🔄 计划中   |
+| Linear        | 🔄 计划中   |
+| Jira          | 🔄 计划中   |
+| PingCode      | 🔄 计划中   |
+| Coding DevOps | 🔄 计划中   |
+
+---
+
+## 技术架构
+
+| 层         | 技术                                             |
+| ---------- | ------------------------------------------------ |
+| 客户端     | Electron · Vue 3 · TypeScript                    |
+| Agent 协议 | Agent Client Protocol (ACP)                      |
+| 规范服务   | `fyllo-specs`（基于 OpenSpec 增强的 MCP Server） |
+| 技能服务   | `fyllo-skills` MCP Server                        |
+
+---
+
+## 安装
+
+在 [Releases](https://github.com/Fioooooooo/FylloCode/releases) 页面下载对应平台的安装包。
+
+## 参与贡献
+
+FylloCode 使用 AGPL-3.0 许可证。欢迎提交 PR，贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.zh-CN.md)。
+
+## 致谢
+
+FylloCode 构建在这些开源项目和协议之上：
+
+[Electron](https://www.electronjs.org) · [Vue 3](https://vuejs.org) · [TypeScript](https://www.typescriptlang.org) · [Nuxt UI](https://ui.nuxt.com) · [Tailwind CSS](https://tailwindcss.com) · [ACP](https://agentclientprotocol.com) · [MCP](https://modelcontextprotocol.io) · [OpenSpec](https://github.com/Fission-AI/OpenSpec) · [markstream-vue](https://github.com/Simon-He95/markstream-vue)
 
 ## 许可证
 
