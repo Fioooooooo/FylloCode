@@ -25,8 +25,8 @@ const sharedBuildOptions = {
     ".md": "text",
   },
   alias: {
-    "@shared": join(repoRoot, "shared"),
-    "@main": join(repoRoot, "electron", "main"),
+    "@shared": join(repoRoot, "src", "shared"),
+    "@main": join(repoRoot, "src", "main"),
   },
   // Some ESM deps (e.g. fdir via tinyglobby) use `createRequire(import.meta.url)`.
   // esbuild rewrites `import.meta` to `{}` in CJS output, which breaks createRequire.
@@ -44,7 +44,7 @@ for (const server of bundledMcpServers) {
   await mkdir(outDir, { recursive: true });
 
   await build({
-    entryPoints: [join(repoRoot, "mcp-servers", server.name, "src", "index.ts")],
+    entryPoints: [join(repoRoot, "src", "mcp-servers", server.name, "src", "index.ts")],
     outfile: join(outDir, "index.js"),
     external: server.external,
     ...sharedBuildOptions,

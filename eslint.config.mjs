@@ -13,7 +13,7 @@ const typeCheckedSourceFiles = ["**/*.{ts,mts,tsx,vue}"];
 
 let autoImportGlobals = {};
 try {
-  autoImportGlobals = require("./frontend/.eslintrc-auto-import.json").globals;
+  autoImportGlobals = require("./src/renderer/.eslintrc-auto-import.json").globals;
 } catch {
   // file not yet generated, run dev once to generate it
 }
@@ -27,8 +27,8 @@ export default defineConfig(
       "**/data",
       "**/auto-imports.d.ts",
       "**/components.d.ts",
-      "frontend/.eslintrc-auto-import.json",
-      "frontend/src/typed-router.d.ts",
+      "src/renderer/.eslintrc-auto-import.json",
+      "src/renderer/src/typed-router.d.ts",
     ],
   },
   {
@@ -118,20 +118,17 @@ export default defineConfig(
   },
 
   // --- Main-process layering guard ----------------------------------------
-  // Enforces dependency direction inside electron/main/:
+  // Enforces dependency direction inside src/main/:
   //   ipc/      -> services/ only (plus shared + _kit)
   //   services/ -> domain/ + infra/
   //   domain/   -> shared only (no electron / services / infra)
   //   infra/    -> shared + npm (no services / domain / ipc)
   {
-    files: ["electron/main/domain/**/*.ts"],
+    files: ["src/main/domain/**/*.ts"],
     // These domain files predate the layering guard and pull fs / infra
     // helpers for now. They will be split further in a future change;
     // the rule remains enforced for all other domain modules.
-    ignores: [
-      "electron/main/domain/acp/detector.ts",
-      "electron/main/domain/integration/yunxiao/**/*.ts",
-    ],
+    ignores: ["src/main/domain/acp/detector.ts", "src/main/domain/integration/yunxiao/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -167,8 +164,8 @@ export default defineConfig(
     },
   },
   {
-    files: ["electron/main/ipc/**/*.ts"],
-    ignores: ["electron/main/ipc/_kit/**/*.ts"],
+    files: ["src/main/ipc/**/*.ts"],
+    ignores: ["src/main/ipc/_kit/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -200,7 +197,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["electron/main/infra/**/*.ts"],
+    files: ["src/main/infra/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -223,7 +220,14 @@ export default defineConfig(
   },
   {
     files: ["**/*.{ts,mts,tsx,vue}"],
-    ignores: ["electron/main/**/*.ts", "electron/main/**/*.mts", "electron/main/**/*.tsx"],
+    ignores: [
+      "src/main/**/*.ts",
+      "src/main/**/*.mts",
+      "src/main/**/*.tsx",
+      "test/main/**/*.ts",
+      "test/main/**/*.mts",
+      "test/main/**/*.tsx",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -231,7 +235,7 @@ export default defineConfig(
           patterns: [
             {
               group: ["@main/*", "@main/*/**"],
-              message: "Only electron/main/** may import @main/*",
+              message: "Only src/main/** and test/main/** may import @main/*",
             },
           ],
         },
@@ -239,7 +243,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["mcp-servers/**/*.ts"],
+    files: ["src/mcp-servers/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -247,11 +251,11 @@ export default defineConfig(
           patterns: [
             {
               group: ["electron", "electron/*"],
-              message: "mcp-servers/ must not depend on Electron APIs",
+              message: "src/mcp-servers/ must not depend on Electron APIs",
             },
             {
               group: ["@main/*", "@main/*/**"],
-              message: "mcp-servers/ must not depend on electron/main aliases",
+              message: "src/mcp-servers/ must not depend on src/main aliases",
             },
           ],
         },
@@ -259,7 +263,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["mcp-servers/fyllo-specs/src/tools/**/*.ts"],
+    files: ["src/mcp-servers/fyllo-specs/src/tools/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -280,7 +284,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["mcp-servers/fyllo-specs/src/openspec-runtime/**/*.ts"],
+    files: ["src/mcp-servers/fyllo-specs/src/runtime-openspec/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",

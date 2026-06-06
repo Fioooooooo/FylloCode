@@ -229,7 +229,7 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 { kind: "config_options_update"; options: AcpSessionConfigOption[] }
 ```
 
-`AcpSessionConfigOption` 类型由 `shared/types/acp-config.ts` 导出（脱 SDK 类型，不依赖 `@agentclientprotocol/sdk` 导入到 shared / preload / renderer）。
+`AcpSessionConfigOption` 类型由 `src/shared/types/acp-config.ts` 导出（脱 SDK 类型，不依赖 `@agentclientprotocol/sdk` 导入到 shared / preload / renderer）。
 
 `session-event-mapper.toMessageChunk` SHALL 处理 `SessionEvent { type: "config_options_update", options }`，返回 `{ kind: "config_options_update", options }`，让 `chat:stream:message` handler 可以通过 `sink.sendChunk` 透传给 renderer。
 
@@ -255,7 +255,7 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 
 #### Scenario: shared 层 AcpSessionConfigOption 不依赖 SDK
 
-- **WHEN** 审查 `shared/types/acp-config.ts` 的 import 列表
+- **WHEN** 审查 `src/shared/types/acp-config.ts` 的 import 列表
 - **THEN** 不存在 `from "@agentclientprotocol/sdk"` 的运行时或类型 import
 - **AND** 类型字段（`type` discriminator、`category` 开放枚举、`options` 平铺/分组 union）独立定义
 
@@ -350,7 +350,7 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 { kind: "plan_update"; entries: PlanEntry[] }
 ```
 
-`PlanEntry` 类型由 `shared/types/chat.ts` 导出（脱 SDK 类型，不依赖 `@agentclientprotocol/sdk` 导入到 shared / preload / renderer），字段为 `content: string`、`priority: "high" | "medium" | "low"`、`status: "pending" | "in_progress" | "completed"`。
+`PlanEntry` 类型由 `src/shared/types/chat.ts` 导出（脱 SDK 类型，不依赖 `@agentclientprotocol/sdk` 导入到 shared / preload / renderer），字段为 `content: string`、`priority: "high" | "medium" | "low"`、`status: "pending" | "in_progress" | "completed"`。
 
 `session-event-mapper.toMessageChunk` SHALL 处理 `SessionEvent { type: "plan_update", entries }`，返回 `{ kind: "plan_update", entries }`，让 `chat:stream:message` handler 可以通过 `sink.sendChunk` 透传给 renderer。
 

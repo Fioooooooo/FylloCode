@@ -24,11 +24,14 @@
 
 ```
 FylloCode/
-├── electron/           # Electron 进程代码
-│   ├── main/           # 主进程，处理 窗口创建、生命周期、IPC 监听
-│   └── preload/        # 预加载脚本，包含 contextBridge 暴露 API、接口类型声明
-├── frontend/           # 前端，vite + vue3
-├── mcp-servers/        # 内置 MCP server
+├── src/
+│   ├── main/           # Electron 主进程，处理窗口、生命周期、IPC 监听
+│   ├── preload/        # 预加载脚本，包含 contextBridge 暴露 API、接口类型声明
+│   ├── renderer/       # 前端，vite + vue3
+│   ├── shared/         # 跨进程共享类型、schema、常量与错误对象
+│   └── mcp-servers/    # 内置 MCP server
+├── test/               # 与 src/ 平级，内部按 src/ 镜像组织测试
+├── references/         # ACP、第三方集成等专题参考资料
 ├── build/              # 构建资源（图标、entitlements）
 ├── resources/          # 应用资源
 ├── vitest.config.mts   # Vitest 配置（ESM，.mts 后缀）
@@ -66,6 +69,6 @@ pnpm test:coverage    # 生成覆盖率报告
 - **构建与打包** - [Build](guidelines/Build.md)
 - **开发工作流** - [DeveloperWorkflow](guidelines/DeveloperWorkflow.md)
 
-`guidelines/reference/` 下存放 ACP、第三方集成等专题参考资料，仅在相关任务涉及对应领域时查阅。
+`references/` 下存放 ACP、第三方集成等专题参考资料，仅在相关任务涉及对应领域时查阅。
 
 若 Agent 准备开展分析、设计、实现、重构、测试或其他 action，必须先主动查阅与任务相关的现有文档，了解规范与约束后，再决定下一步。

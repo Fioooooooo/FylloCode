@@ -13,7 +13,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 ## Applicability
 
 - 适用于 `*.ts`、`*.mts`、`*.vue`、`*.json`、`*.md`、`*.html`、`*.css`。
-- 适用于 `frontend/`、`electron/`、`shared/`、`mcp-servers/`、`scripts/`。
+- 适用于 `src/main/`、`src/preload/`、`src/renderer/`、`src/shared/`、`src/mcp-servers/`、`test/`、`scripts/`。
 - 不覆盖主进程/渲染进程的架构职责划分；见 `MainProcess.md` 和 `RendererProcess.md`。
 
 ## Sources of Truth
@@ -22,12 +22,12 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - `.prettierrc`
 - `.editorconfig`
 - `eslint.config.mjs`
-- `frontend/.eslintrc-auto-import.json`（生成物，dev 后生成）
-- `frontend/src/typed-router.d.ts`
-- `frontend/auto-imports.d.ts`
-- `frontend/components.d.ts`
-- `frontend/src/main.ts`
-- `frontend/src/components/**`
+- `src/renderer/.eslintrc-auto-import.json`（生成物，dev 后生成）
+- `src/renderer/src/typed-router.d.ts`
+- `src/renderer/auto-imports.d.ts`
+- `src/renderer/components.d.ts`
+- `src/renderer/src/main.ts`
+- `src/renderer/src/components/**`
 
 ## Rules
 
@@ -40,7 +40,7 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 - MUST: 将类型、类、枚举命名为 PascalCase，将变量、函数、store action 命名为 camelCase。
 - MUST: 让 IPC channel 字符串遵循 `domain:action` 命名，并通过共享常量集中维护，而不是分散硬编码。
 - MUST: 启动外部进程时使用 `cross-spawn`，不得从 `child_process` / `node:child_process` 直接导入 `spawn` 或 `spawnSync`；需要 Node 子进程类型时使用 `import type`。
-- MUST: 对自动生成文件保持只读，不手动修改 `frontend/auto-imports.d.ts`、`frontend/components.d.ts`、`frontend/.eslintrc-auto-import.json`、`frontend/src/typed-router.d.ts`、`out/`、`dist/`。
+- MUST: 对自动生成文件保持只读，不手动修改 `src/renderer/auto-imports.d.ts`、`src/renderer/components.d.ts`、`src/renderer/.eslintrc-auto-import.json`、`src/renderer/src/typed-router.d.ts`、`out/`、`dist/`。
 - MUST: 在渲染层使用 Tailwind utility classes 和 `@nuxt/ui` 主题 token，避免散落的独立 CSS 文件和硬编码颜色值。
 - MUST: 让注释服务于非显然约束、边界和历史原因，不写重复代码字面意思的噪音注释。
 - MUST: FylloCode 主动声明的持久化字段 key（在 TypeScript 类型中显式定义、由 FylloCode 代码写入 JSON 文件的字段）SHALL 使用驼峰命名（camelCase）；ACP agent 返回值的内部结构（如 `available_commands` 数组内部字段）不受此约束，按原样存储。
@@ -50,10 +50,10 @@ keywords: [code-style, prettier, eslint, naming, tailwind]
 
 ## Examples
 
-- Good: `frontend/src/components/settings/SettingsAgents.vue` 使用 PascalCase 文件名，脚本块为 `<script setup lang="ts">`。
-- Good: `electron/main/services/chat/chat-service.ts` 这类非组件文件使用 kebab-case。
-- Good: 图标通过 `i-lucide-<name>` 和 `<UIcon />` 使用，图标集合在 `frontend/src/config/auto-icon.ts` 中统一注册。
-- Bad: 手动修改 `frontend/src/typed-router.d.ts` 解决冲突。
+- Good: `src/renderer/src/components/settings/SettingsAgents.vue` 使用 PascalCase 文件名，脚本块为 `<script setup lang="ts">`。
+- Good: `src/main/services/chat/chat-service.ts` 这类非组件文件使用 kebab-case。
+- Good: 图标通过 `i-lucide-<name>` 和 `<UIcon />` 使用，图标集合在 `src/renderer/src/config/auto-icon.ts` 中统一注册。
+- Bad: 手动修改 `src/renderer/src/typed-router.d.ts` 解决冲突。
 - Bad: 在 Vue 模板或组件脚本中硬编码 `#hex` 颜色，绕过 `@nuxt/ui`/Tailwind token。
 
 ## Verification

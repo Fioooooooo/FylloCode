@@ -40,8 +40,8 @@ TBD - created by archiving change optimize-desktop-packaging. Update Purpose aft
 #### Scenario: MCP server bundle 仍在 asar 外部
 
 - **WHEN** electron-builder 生成任一平台生产包或解包产物
-- **THEN** 产物中存在 asar 外部的 `mcp-servers/fyllo-specs/index.js`
-- **AND** 产物中存在 asar 外部的 `mcp-servers/fyllo-skills/index.js`
+- **THEN** 产物中存在 asar 外部的 `src/mcp-servers/fyllo-specs/index.js`
+- **AND** 产物中存在 asar 外部的 `src/mcp-servers/fyllo-skills/index.js`
 - **AND** 两个文件不位于 `app.asar` 内部
 
 ### Requirement: 打包体积基线与优化结果可对比

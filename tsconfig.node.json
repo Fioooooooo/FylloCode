@@ -2,19 +2,25 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
-    "electron/main/**/*",
-    "electron/preload/**/*",
-    "shared/**/*"
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*",
+    "src/mcp-servers/**/*",
+    "test/main/**/*",
+    "test/preload/**/*",
+    "test/shared/**/*",
+    "test/mcp-servers/**/*"
   ],
   "compilerOptions": {
     "composite": true,
     "noImplicitAny": true,
     "types": ["electron-vite/node"],
     "paths": {
-      "#build/ui": ["./frontend/node_modules/.nuxt-ui/ui"],
-      "@shared/*": ["./shared/*"],
-      "@main/*": ["./electron/main/*"],
-      "@preload/*": ["./electron/preload/*"]
+      "#build/ui": ["./src/renderer/node_modules/.nuxt-ui/ui"],
+      "@shared/*": ["./src/shared/*"],
+      "@main/*": ["./src/main/*"],
+      "@preload/*": ["./src/preload/*"],
+      "@test/*": ["./test/*"]
     }
   }
 }

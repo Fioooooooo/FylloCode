@@ -77,7 +77,7 @@ TBD - created by archiving change integrate-yunxiao-task-board. Update Purpose a
 
 ### Requirement: 云效任务适配层支持按单条工作项按需读取详情
 
-系统 SHALL 在主进程 `electron/main/services/task/adapters/yunxiao-task-adapter.ts` 中提供单条云效任务详情读取能力，用于任务详情弹窗在打开时按需获取完整描述。该能力 SHALL 接收任务命名空间 ID `yunxiao:<spaceId>:<workitemId>` 与当前 FylloCode `projectId`，并 SHALL 调用云效 `getworkitem` 接口读取工作项详情，而 SHALL NOT 通过重新执行 `list(projectId)` 后在结果中全量扫描来补详情。
+系统 SHALL 在主进程 `src/main/services/task/adapters/yunxiao-task-adapter.ts` 中提供单条云效任务详情读取能力，用于任务详情弹窗在打开时按需获取完整描述。该能力 SHALL 接收任务命名空间 ID `yunxiao:<spaceId>:<workitemId>` 与当前 FylloCode `projectId`，并 SHALL 调用云效 `getworkitem` 接口读取工作项详情，而 SHALL NOT 通过重新执行 `list(projectId)` 后在结果中全量扫描来补详情。
 
 #### Scenario: 通过命名空间任务 ID 读取详情
 
@@ -93,7 +93,7 @@ TBD - created by archiving change integrate-yunxiao-task-board. Update Purpose a
 
 ### Requirement: 云效详情读取使用固定 getworkitem API 与已持久化组织信息
 
-系统 SHALL 在 `electron/main/domain/integration/yunxiao/projex/index.ts` 中新增 `getWorkitem` 方法，使用固定请求语义 `GET /oapi/v1/projex/organizations/{organizationId}/workitems/{id}`。其中 `organizationId` SHALL 通过已持久化的 `getYunxiaoOrganizationId()` 读取，工作项 `id` SHALL 使用从命名空间 taskId 中解析出的 `workitemId`。实现 SHALL 复用现有 `YunxiaoClient` 和 token 获取方式，而 SHALL NOT 在 renderer 传入组织 ID、token 或其他云效鉴权参数。
+系统 SHALL 在 `src/main/domain/integration/yunxiao/projex/index.ts` 中新增 `getWorkitem` 方法，使用固定请求语义 `GET /oapi/v1/projex/organizations/{organizationId}/workitems/{id}`。其中 `organizationId` SHALL 通过已持久化的 `getYunxiaoOrganizationId()` 读取，工作项 `id` SHALL 使用从命名空间 taskId 中解析出的 `workitemId`。实现 SHALL 复用现有 `YunxiaoClient` 和 token 获取方式，而 SHALL NOT 在 renderer 传入组织 ID、token 或其他云效鉴权参数。
 
 #### Scenario: 使用已保存 organizationId 调用详情接口
 

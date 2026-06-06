@@ -8,9 +8,9 @@ TBD - created by archiving change add-acp-plan-display. Update Purpose after arc
 
 ### Requirement: ChatPlanPanel 展示会话执行计划
 
-渲染进程 SHALL 提供 `ChatPlanPanel.vue` 组件（位于 `frontend/src/components/chat/plan/`），展示当前会话的 ACP 执行计划。组件接收 `entries: PlanEntry[]` prop，固定渲染在 `ChatContainer.vue` 中消息列表与 `ChatPromptPanel` 之间（输入框上方）。
+渲染进程 SHALL 提供 `ChatPlanPanel.vue` 组件（位于 `src/renderer/src/components/chat/plan/`），展示当前会话的 ACP 执行计划。组件接收 `entries: PlanEntry[]` prop，固定渲染在 `ChatContainer.vue` 中消息列表与 `ChatPromptPanel` 之间（输入框上方）。
 
-`PlanEntry` 类型由 `shared/types/chat.ts` 导出，结构为：
+`PlanEntry` 类型由 `src/shared/types/chat.ts` 导出，结构为：
 
 ```typescript
 interface PlanEntry {

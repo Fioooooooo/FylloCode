@@ -11,7 +11,7 @@ coverage
 # 开发环境数据目录（生产环境使用系统 userData，不在项目内）
 data/
 
-# Auto-generated type declarations
+# Renderer auto-generated type declarations
 auto-imports.d.ts
 components.d.ts
 .eslintrc-auto-import.json

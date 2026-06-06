@@ -82,7 +82,7 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 
 组件内部 SHALL 使用 `ai` 包的 `isReasoningUIPart` / `isTextUIPart` / `isToolUIPart` 派发到对应子组件：`UChatMessages` 承载消息容器、`UChatTool` 承载工具调用；assistant text part 与 reasoning part 中的 markdown 文本 SHALL 统一交由项目内统一的 markdown 渲染组件渲染（输入语义为 `content: string` 与 `isStreaming: boolean`），保持与当前 chat 主区域一致的渲染通路。该 markdown 渲染组件的具体实现细节由代码层决定，spec 不绑定具体组件名或第三方库。
 
-`message.role === 'user'` 分支 SHALL 在 text part 之外，通过 `isUserImagePart(part)` 与 `isUserFilePart(part)`（`frontend/src/utils/chat-message-parts.ts` 提供）派发：
+`message.role === 'user'` 分支 SHALL 在 text part 之外，通过 `isUserImagePart(part)` 与 `isUserFilePart(part)`（`src/renderer/src/utils/chat-message-parts.ts` 提供）派发：
 
 - `isUserImagePart(part)` 命中 → 渲染图片缩略图卡片（`<img>` 的 `src` SHALL 从 `part.url` 解析；当 `part.url` 为 `file://` URI 时，组件 SHALL 通过 `chatApi.readAttachmentDataUrl(part.url, part.mediaType)` 获取 data URL，并使用返回的 `dataUrl` 作为 `src`；沿用 `AttachmentCard.vue` 图片分支样式）
 - `isUserFilePart(part)` 命中 → 渲染文件名片（图标 + `part.filename` + 扩展标签，沿用 `AttachmentCard.vue` 文件分支样式）
@@ -92,7 +92,7 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 
 渲染端 SHALL 使用 `UIMessage.id` 作为 `v-for :key`；该 id 在流式活跃期间为渲染进程生成的临时 id，在 resume 后为磁盘加载的 id，系统 SHALL NOT 做跨进程 id 匹配。
 
-在 `message.role === 'user'` 的 text part 渲染分支中，系统 SHALL 通过 `isSystemReminderPart(part)` 工具函数识别 system-reminder 内容并**跳过渲染**。识别规则：`part.type === "text"` 且 `part.text` 经过 trim 后以 `<system-reminder>` 开头、以 `</system-reminder>` 结尾。该工具函数位于 `frontend/src/utils/system-reminder.ts`，`UIMessageList.vue` 直接调用。类型 `system-reminder` 的 part 仅在磁盘与 `UIMessage.parts` 数据中保留，UI 不展示。
+在 `message.role === 'user'` 的 text part 渲染分支中，系统 SHALL 通过 `isSystemReminderPart(part)` 工具函数识别 system-reminder 内容并**跳过渲染**。识别规则：`part.type === "text"` 且 `part.text` 经过 trim 后以 `<system-reminder>` 开头、以 `</system-reminder>` 结尾。该工具函数位于 `src/renderer/src/utils/system-reminder.ts`，`UIMessageList.vue` 直接调用。类型 `system-reminder` 的 part 仅在磁盘与 `UIMessage.parts` 数据中保留，UI 不展示。
 
 #### Scenario: Chat 主区域使用共享组件渲染消息列表并显示 agent 头像
 
@@ -135,7 +135,7 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 
 ### Requirement: 渲染进程 UIMessage 组装逻辑抽为共享 composable
 
-系统 SHALL 在 `frontend/src/composables/useUIMessageAssembler.ts` 提供共享 composable，封装流式 chunk 到 `UIMessage<MessageMeta>[]` 的组装逻辑。`chat` store 与 `proposal-run` store SHALL 使用同一实现，`frontend/src/stores/chat.ts#streamSessionMessage` 与 `frontend/src/stores/proposal-run.ts#applyChunk` 中的重复组装代码 SHALL 被移除。
+系统 SHALL 在 `src/renderer/src/composables/useUIMessageAssembler.ts` 提供共享 composable，封装流式 chunk 到 `UIMessage<MessageMeta>[]` 的组装逻辑。`chat` store 与 `proposal-run` store SHALL 使用同一实现，`src/renderer/src/stores/chat.ts#streamSessionMessage` 与 `src/renderer/src/stores/proposal-run.ts#applyChunk` 中的重复组装代码 SHALL 被移除。
 
 composable 对外暴露至少以下能力：
 
@@ -160,7 +160,7 @@ composable 对外暴露至少以下能力：
 
 ### Requirement: Session 内存态保存 agent 可用命令列表
 
-系统 SHALL 在 `shared/types/chat.ts` 的 `Session` 接口上保留可选字段 `availableCommands?: AcpAvailableCommand[]`，用于存储 agent 通过 ACP `available_commands_update` 推送的 slash 命令列表，并支持从 session meta 持久化记录恢复。
+系统 SHALL 在 `src/shared/types/chat.ts` 的 `Session` 接口上保留可选字段 `availableCommands?: AcpAvailableCommand[]`，用于存储 agent 通过 ACP `available_commands_update` 推送的 slash 命令列表，并支持从 session meta 持久化记录恢复。
 
 该字段 SHALL 满足：
 
@@ -207,7 +207,7 @@ interface AcpAvailableCommand {
 
 ### Requirement: Session store 提供 setSessionAvailableCommands action
 
-系统 SHALL 在 `frontend/src/stores/session.ts` 的 `useSessionStore` 上提供 action `setSessionAvailableCommands(sessionId: string, commands: AcpAvailableCommand[]): void`，用于在收到 ACP `available_commands_update` chunk 后更新对应 session 的会话级字段。
+系统 SHALL 在 `src/renderer/src/stores/session.ts` 的 `useSessionStore` 上提供 action `setSessionAvailableCommands(sessionId: string, commands: AcpAvailableCommand[]): void`，用于在收到 ACP `available_commands_update` chunk 后更新对应 session 的会话级字段。
 
 具体行为：
 
@@ -216,7 +216,7 @@ interface AcpAvailableCommand {
 - 若未找到（例如 session 已被删除、或 sessionId 对应 draft 态不在 sessions 数组中），静默 no-op，不抛错；
 - 该 action 不修改 `activeSessionId`、不触发排序、不调用任何 IPC。
 
-该 action SHALL 被 `frontend/src/stores/chat.ts` 的 `streamSessionMessage.onChunk` 在收到 `available_commands_update` chunk 时调用。命令持久化由 main 进程负责，renderer 不额外发起持久化 IPC。
+该 action SHALL 被 `src/renderer/src/stores/chat.ts` 的 `streamSessionMessage.onChunk` 在收到 `available_commands_update` chunk 时调用。命令持久化由 main 进程负责，renderer 不额外发起持久化 IPC。
 
 #### Scenario: 更新存在的 session
 
@@ -238,7 +238,7 @@ interface AcpAvailableCommand {
 
 ### Requirement: Chat store 将 available_commands_update chunk 分派到 session store
 
-系统 SHALL 在 `frontend/src/stores/chat.ts` 的 `streamSessionMessage` 的 `onChunk` 回调中，新增对 `kind === "available_commands_update"` 的分支：
+系统 SHALL 在 `src/renderer/src/stores/chat.ts` 的 `streamSessionMessage` 的 `onChunk` 回调中，新增对 `kind === "available_commands_update"` 的分支：
 
 - 不经过 `useUIMessageAssembler`（不调用 `assembler.applyChunk`）；
 - 不修改 `activeSession.messages` / `turnCount` / `tokenUsage` / `title` 等任何消息相关字段；
@@ -255,7 +255,7 @@ chat store SHALL NOT 自身维护 commands 状态（职责严格限定在"一次
 
 ### Requirement: useUIMessageAssembler 支持 reasoning 轨道
 
-系统 SHALL 在 `frontend/src/composables/useUIMessageAssembler.ts` 中扩展 `applyChunk` 逻辑，使其支持 `reasoning_delta` chunk，并对 `available_commands_update` 显式 no-op。
+系统 SHALL 在 `src/renderer/src/composables/useUIMessageAssembler.ts` 中扩展 `applyChunk` 逻辑，使其支持 `reasoning_delta` chunk，并对 `available_commands_update` 显式 no-op。
 
 具体规则：
 
@@ -291,7 +291,7 @@ chat store SHALL NOT 自身维护 commands 状态（职责严格限定在"一次
 
 ### Requirement: ChatContainer 集成 slash 命令菜单
 
-系统 SHALL 在 chat prompt 输入区（当前实现位于 `frontend/src/components/chat/prompt/ChatPromptPanel.vue`，历史 spec 文本指向 `ChatContainer.vue`，以实际承载 `UChatPrompt#footer` 的组件为准）的 `UChatPrompt` 组件内集成 slash 命令菜单，并在 footer 左侧渲染一个 slash 触发按钮，用于发现与使用当前 agent 声明的可用命令。
+系统 SHALL 在 chat prompt 输入区（当前实现位于 `src/renderer/src/components/chat/prompt/ChatPromptPanel.vue`，历史 spec 文本指向 `ChatContainer.vue`，以实际承载 `UChatPrompt#footer` 的组件为准）的 `UChatPrompt` 组件内集成 slash 命令菜单，并在 footer 左侧渲染一个 slash 触发按钮，用于发现与使用当前 agent 声明的可用命令。
 
 slash 命令的数据源 SHALL 为「双源回退」计算属性，与 `ConfigOptionsBar.vue` 的 `sourceOptions` 模式一致：
 
@@ -395,7 +395,7 @@ chat 页面错误状态 SHALL 满足：
 
 ### Requirement: ChatPromptPanel 按 promptCapabilities 启用附件入口
 
-系统 SHALL 在 `frontend/src/components/chat/prompt/ChatPromptPanel.vue` 中 watch 当前 `agentId`（来自 `useSessionStore`），变化时触发 `acp:ensureAgent(agentId)`；返回的 `promptCapabilities` 写入 `useAcpAgentsStore.promptCapabilitiesByAgent`。
+系统 SHALL 在 `src/renderer/src/components/chat/prompt/ChatPromptPanel.vue` 中 watch 当前 `agentId`（来自 `useSessionStore`），变化时触发 `acp:ensureAgent(agentId)`；返回的 `promptCapabilities` 写入 `useAcpAgentsStore.promptCapabilitiesByAgent`。
 
 `PromptActionMenu` 的菜单项 SHALL 按 capability 控制 disabled：
 
@@ -420,7 +420,7 @@ chat 页面错误状态 SHALL 满足：
 
 ### Requirement: ChatPromptPanel 集成 audio 占位按钮
 
-系统 SHALL 在 `frontend/src/components/chat/prompt/ChatPromptPanel.vue` 的 `#footer slot` 内、`UChatPromptSubmit` 左侧渲染一个 audio icon button：
+系统 SHALL 在 `src/renderer/src/components/chat/prompt/ChatPromptPanel.vue` 的 `#footer slot` 内、`UChatPromptSubmit` 左侧渲染一个 audio icon button：
 
 - 组件：`<UButton variant="ghost" color="neutral" size="sm" icon="i-lucide-audio-lines" />`
 - `disabled` 由 `promptCapabilities.audio === true` 决定（`true` 启用、其他禁用）
@@ -487,7 +487,7 @@ chat 页面错误状态 SHALL 满足：
 
 ### Requirement: 附件用户消息渲染图片缩略图与文件名片
 
-系统 SHALL 在 `frontend/src/utils/chat-message-parts.ts` 暴露：
+系统 SHALL 在 `src/renderer/src/utils/chat-message-parts.ts` 暴露：
 
 ```ts
 isUserImagePart(part: UIMessage["parts"][number]): boolean
@@ -528,7 +528,7 @@ assistant 分支 SHALL NOT 调这两个 helper（assistant 当前不渲染 file 
 
 ### Requirement: useAcpAgentsStore 维护 promptCapabilitiesByAgent
 
-`frontend/src/stores/acp-agents.ts` 的 `useAcpAgentsStore` SHALL 暴露：
+`src/renderer/src/stores/acp-agents.ts` 的 `useAcpAgentsStore` SHALL 暴露：
 
 - 状态：`promptCapabilitiesByAgent: Map<string, AcpPromptCapabilities>`（响应式）
 - 启动期 action：`loadCapabilitiesCache()`，调 `acp:loadCapabilitiesCache` IPC，把结果写入 `promptCapabilitiesByAgent`
@@ -555,7 +555,7 @@ agent 进程崩溃时（`agentUnavailable` 事件）SHALL 从 `promptCapabilitie
 
 ### Requirement: ChatPromptPanel 在 footer 渲染 ConfigOptionsBar
 
-系统 SHALL 在 `frontend/src/components/chat/prompt/ChatPromptPanel.vue` 的 `UChatPrompt#footer` slot 左侧动作区中，紧随 `ChatAgentSelect` 之后渲染 `ConfigOptionsBar` 组件，用于呈现 ACP agent 暴露的 session 级配置选项（mode / model / thought_level 等）。
+系统 SHALL 在 `src/renderer/src/components/chat/prompt/ChatPromptPanel.vue` 的 `UChatPrompt#footer` slot 左侧动作区中，紧随 `ChatAgentSelect` 之后渲染 `ConfigOptionsBar` 组件，用于呈现 ACP agent 暴露的 session 级配置选项（mode / model / thought_level 等）。
 
 `ConfigOptionsBar` 的数据源 SHALL 按下述真值表选择：
 
@@ -696,7 +696,7 @@ agent 进程崩溃时（`agentUnavailable` 事件）SHALL 从 `promptCapabilitie
 
 ### Requirement: chat store 处理 config_options_update chunk
 
-`frontend/src/stores/chat.ts` 的 `streamSessionMessage.onChunk` SHALL 新增 `case "config_options_update"`，调用 `useSessionStore().setSessionConfigOptions(activeSession.id, data.options)` 把全集替换到 session 内存态字段 `Session.configOptions`。
+`src/renderer/src/stores/chat.ts` 的 `streamSessionMessage.onChunk` SHALL 新增 `case "config_options_update"`，调用 `useSessionStore().setSessionConfigOptions(activeSession.id, data.options)` 把全集替换到 session 内存态字段 `Session.configOptions`。
 
 `useSessionStore` SHALL 新增 `setSessionConfigOptions(sessionId: string, options: AcpSessionConfigOption[])` action，行为与 `setSessionAvailableCommands` 对称：找到对应 session 后赋值。
 
@@ -718,7 +718,7 @@ agent 进程崩溃时（`agentUnavailable` 事件）SHALL 从 `promptCapabilitie
 
 ### Requirement: chat store 提供 setConfigOption action 并支持乐观更新与回滚
 
-`frontend/src/stores/chat.ts` SHALL 新增 `setConfigOption({ sessionId, configId, type, value })` action：
+`src/renderer/src/stores/chat.ts` SHALL 新增 `setConfigOption({ sessionId, configId, type, value })` action：
 
 1. 找到目标 session（不强制要求是 `activeSession`，但若不存在则直接抛错）。
 2. 在 `Session.configOptions` 中找到 `configId` 对应项，记录旧值 `previousValue`。若找不到目标项，SHALL 抛错（前端 UI 不应允许该路径，仅作防御）。
@@ -764,7 +764,7 @@ agent 进程崩溃时（`agentUnavailable` 事件）SHALL 从 `promptCapabilitie
 
 ### Requirement: useSessionStore 维护 draftProbeByAgent 内存态
 
-`frontend/src/stores/session.ts` 的 `useSessionStore` SHALL 暴露：
+`src/renderer/src/stores/session.ts` 的 `useSessionStore` SHALL 暴露：
 
 - 状态：`draftProbeByAgent: Ref<Map<string, DraftProbeState>>`（响应式，pinia ref）
 - getter：`activeDraftProbe: ComputedRef<DraftProbeState | null>`，返回 `draftProbeByAgent.value.get(draftAgentId.value)` 或 `null`（当 `draftAgentId.value` 为 `null` 时）
@@ -880,7 +880,7 @@ watcher SHALL 仅在 `activeSessionId === null`（草稿态）时执行 close/en
 
 ### Requirement: chat store sendMessage 在草稿态首条消息携带 probe acpSessionId
 
-`frontend/src/stores/chat.ts` 的 `sendMessage(parts)` SHALL 在草稿态创建 fyllo session 后、调用 `streamSessionMessage` 之前，根据 `useSessionStore().activeDraftProbe` 决定是否携带 `acpSessionId`：
+`src/renderer/src/stores/chat.ts` 的 `sendMessage(parts)` SHALL 在草稿态创建 fyllo session 后、调用 `streamSessionMessage` 之前，根据 `useSessionStore().activeDraftProbe` 决定是否携带 `acpSessionId`：
 
 1. 拿到草稿态对应的 `draftAgentIdSnapshot`（与 `createSession` 入参一致）。
 2. 读取 `useSessionStore().draftProbeByAgent.get(draftAgentIdSnapshot)` 得到 `probeBeforeCreate`。
@@ -1055,7 +1055,7 @@ function streamSessionMessage(
 
 ### Requirement: SlashCommandMenu 触发按钮具备与 ConfigOptionsBar 一致的划入动画
 
-`frontend/src/components/chat/prompt/SlashCommandMenu.vue` 的触发按钮（`UPopover` 内 `#default` slot 中 `v-if="hasAvailableCommands"` 的 `UButton`）SHALL 在出现 / 消失时应用与 `ConfigOptionsBar.vue` 完全一致的 Vue `<Transition>` 过渡，使得命令从无到有（含草稿态 probe 异步抓到命令、或 agent 在会话中推送命令）时按钮以淡入+上移方式划入，而非瞬时出现。
+`src/renderer/src/components/chat/prompt/SlashCommandMenu.vue` 的触发按钮（`UPopover` 内 `#default` slot 中 `v-if="hasAvailableCommands"` 的 `UButton`）SHALL 在出现 / 消失时应用与 `ConfigOptionsBar.vue` 完全一致的 Vue `<Transition>` 过渡，使得命令从无到有（含草稿态 probe 异步抓到命令、或 agent 在会话中推送命令）时按钮以淡入+上移方式划入，而非瞬时出现。
 
 过渡 SHALL 使用与 `ConfigOptionsBar.vue` 相同的类名常量：
 

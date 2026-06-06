@@ -12,7 +12,7 @@
 
 `SystemReminderContext` 的字段 SHALL 为：`owner`（复用 `@main/services/chat/session-registry#SessionOwner`，即 `"chat" | "apply" | "archive"`）、`projectPath`、`cwd`、`fylloSessionId`、`agentId`、以及可选的 `changeId` / `stageIndex` / `runId`。
 
-reminder 相关代码（provider、模板、类型）SHALL 全部位于 `electron/main/services/chat/system-reminder/`，`frontend/` 与 `electron/preload/` SHALL NOT import 该目录下的任何模块。系统 SHALL NOT 新增任何 IPC 通道、preload 暴露、`shared/` 类型，用以让用户或渲染进程影响 reminder 内容或触发时机。
+reminder 相关代码（provider、模板、类型）SHALL 全部位于 `src/main/services/chat/system-reminder/`，`src/renderer/` 与 `src/preload/` SHALL NOT import 该目录下的任何模块。系统 SHALL NOT 新增任何 IPC 通道、preload 暴露、`src/shared/` 类型，用以让用户或渲染进程影响 reminder 内容或触发时机。
 
 #### Scenario: 已注册的 owner 返回 TextUIPart
 

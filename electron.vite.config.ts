@@ -9,14 +9,14 @@ export default defineConfig(({ command }) => ({
   main: {
     resolve: {
       alias: {
-        "@shared": resolve(__dirname, "shared"),
-        "@main": resolve(__dirname, "electron/main"),
+        "@shared": resolve(__dirname, "src/shared"),
+        "@main": resolve(__dirname, "src/main"),
       },
     },
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, "electron/main/index.ts"),
+          index: resolve(__dirname, "src/main/index.ts"),
         },
       },
     },
@@ -24,27 +24,27 @@ export default defineConfig(({ command }) => ({
   preload: {
     resolve: {
       alias: {
-        "@shared": resolve(__dirname, "shared"),
-        "@preload": resolve(__dirname, "electron/preload"),
+        "@shared": resolve(__dirname, "src/shared"),
+        "@preload": resolve(__dirname, "src/preload"),
       },
     },
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, "electron/preload/index.ts"),
+          index: resolve(__dirname, "src/preload/index.ts"),
         },
       },
     },
   },
   renderer: {
-    root: resolve(__dirname, "frontend"),
+    root: resolve(__dirname, "src/renderer"),
     worker: {
       format: "es",
     },
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, "frontend/index.html"),
+          index: resolve(__dirname, "src/renderer/index.html"),
         },
       },
     },
@@ -54,8 +54,8 @@ export default defineConfig(({ command }) => ({
     },
     resolve: {
       alias: {
-        "@renderer": resolve(__dirname, "frontend/src"),
-        "@shared": resolve(__dirname, "shared"),
+        "@renderer": resolve(__dirname, "src/renderer/src"),
+        "@shared": resolve(__dirname, "src/shared"),
       },
     },
     plugins: [
@@ -88,7 +88,7 @@ export default defineConfig(({ command }) => ({
         },
       }),
       vueRouter({
-        root: resolve(__dirname, "frontend"),
+        root: resolve(__dirname, "src/renderer"),
         dts: "src/typed-router.d.ts",
         watch: command === "serve",
       }),
@@ -97,7 +97,7 @@ export default defineConfig(({ command }) => ({
         autoImport: {
           eslintrc: {
             enabled: true,
-            filepath: "frontend/.eslintrc-auto-import.json",
+            filepath: "src/renderer/.eslintrc-auto-import.json",
           },
         },
         prose: true,

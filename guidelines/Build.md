@@ -14,7 +14,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 
 - 适用于 `package.json` 中的 build/dev/start 脚本。
 - 适用于 `electron.vite.config.ts`、`electron-builder.yml`、`scripts/build-mcp-servers.mjs`。
-- 适用于 `out/`、`dist/`、`resources/`、`build/`、`mcp-servers/` 的构建与打包边界。
+- 适用于 `out/`、`dist/`、`resources/`、`build/`、`src/mcp-servers/` 的构建与打包边界。
 
 ## Sources of Truth
 
@@ -26,7 +26,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - `scripts/electron-builder-before-pack.cjs`
 - `build/**`
 - `resources/**`
-- `mcp-servers/**`
+- `src/mcp-servers/**`
 - `openspec/specs/bundled-mcp-servers/spec.md`
 
 ## Rules
@@ -56,14 +56,14 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 ## Examples
 
 - Good: `pnpm dev` 先运行 `npm run build:mcp-servers`，再执行 `electron-vite dev`。
-- Good: `scripts/build-mcp-servers.mjs` 使用 esbuild 为 `mcp-servers/fyllo-specs` 与 `mcp-servers/fyllo-skills` 生成 `out/mcp-servers/<name>/index.js`。
+- Good: `scripts/build-mcp-servers.mjs` 使用 esbuild 为 `src/mcp-servers/fyllo-specs` 与 `src/mcp-servers/fyllo-skills` 生成 `out/mcp-servers/<name>/index.js`。
 - Good: `electron-builder.yml` 通过 `extraResources` 将构建好的 MCP servers 带入产物。
 - Good: `electron-builder.yml` 在顶层 `files` 中只包含 `out/**`、`resources/**` 与 `package.json`，并排除源码目录、`.github` / `.vscode` / `.cursor` / `.claude` 等工程元数据、`.map`、测试目录、示例目录、benchmark、`docs/` 文档目录和临时构建元数据，使规则对 macOS、Windows、Linux 同时生效。
 - Good: 推送与 `package.json.version` 一致的 `v*.*.*` tag 后，`.github/workflows/release.yml` 分别构建 macOS x64、macOS arm64、Windows x64、Linux x64，并通过 electron-builder 创建 GitHub draft release 和上传平台产物。
 - Good: About 页调用 Settings IPC 检测 GitHub 最新正式 Release，发现新版本时只展示“打开 Release”入口，让用户自行下载安装包。
 - Good: Windows NSIS 安装体验配置放在 `win` / `nsis` 范围内，并用 setup 大小、`Please wait while setup is loading` 耗时、实际安装耗时做取舍。
 - Bad: 手动修改 `out/mcp-servers/**/index.js` 修补运行时问题。
-- Bad: 在业务代码里假设生产环境直接从仓库源文件运行 `mcp-servers/**/src/index.ts`。
+- Bad: 在业务代码里假设生产环境直接从仓库源文件运行 `src/mcp-servers/**/src/index.ts`。
 - Bad: 把 `@fission-ai/openspec/bin/openspec.js` 单独移到 `app.asar.unpacked`，但让 `commander` 等依赖继续留在 `app.asar/node_modules`。
 - Bad: 未审计依赖入口就全局排除 `node_modules/**/src/**`。
 - Bad: 在没有签名与自动更新设计的情况下接入 `electron-updater` 并承诺“重启自动安装”。

@@ -8,7 +8,7 @@
 
 ### Requirement: 本地任务使用 UnifiedTask schema
 
-系统 SHALL 使用 `shared/types/task.ts` 中定义的 `UnifiedTask` schema 存储和传输本地任务。本地任务 SHALL 具有 `source: "local"`、`sourceMeta: { source: "local" }` 和一个本地生成的 `id`。本地任务的 `description` SHALL 为结构化对象 `{ format, content }`，且本地任务创建与更新后的 canonical 形式 SHALL 始终使用 `{ format: "plain_text", content: string }`，而不是裸字符串。
+系统 SHALL 使用 `src/shared/types/task.ts` 中定义的 `UnifiedTask` schema 存储和传输本地任务。本地任务 SHALL 具有 `source: "local"`、`sourceMeta: { source: "local" }` 和一个本地生成的 `id`。本地任务的 `description` SHALL 为结构化对象 `{ format, content }`，且本地任务创建与更新后的 canonical 形式 SHALL 始终使用 `{ format: "plain_text", content: string }`，而不是裸字符串。
 
 #### Scenario: 创建本地任务生成 UnifiedTask
 

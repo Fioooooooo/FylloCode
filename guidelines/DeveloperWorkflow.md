@@ -39,13 +39,13 @@ keywords: [workflow, openspec, commands, pre-commit, review]
 - SHOULD: 将 `pnpm lint` 视为类型感知静态检查入口；它会对 `**/*.{ts,mts,tsx,vue}` 源文件加载 TypeScript project service，因此 lint 失败可能来自 tsconfig 覆盖范围或类型信息解析问题。
 - SHOULD: 将 `pnpm test:coverage` 视为带 fail-under 阈值的覆盖率检查入口；当前 aggregate 阈值为 50/40/50/50，低于任一 statements、branches、functions、lines 指标时命令会失败。
 - SHOULD: 在修改 guideline 时同步检查 `AGENTS.md` 索引是否仍然准确。
-- MAY: 将 ACP、第三方集成协议、历史示例文档放在 `guidelines/reference/`，但这些文档不应替代项目级规则来源。
+- MAY: 将 ACP、第三方集成协议、历史示例文档放在 `references/`，但这些文档不应替代项目级规则来源。
 
 ## Examples
 
 - Good: 改 `project:*` IPC 返回结构前，先查看 `openspec/specs/ipc-*` 与 `openspec/specs/project-*`，必要时先创建 change。
 - Good: 补一个 renderer store 的单测时，直接修改测试与实现，不额外创建 OpenSpec proposal。
-- Good: 修改 guideline 体系时，同时更新 `AGENTS.md` 索引与 `guidelines/reference/` 目录布局。
+- Good: 修改 guideline 体系时，同时更新 `AGENTS.md` 索引与 `references/` 目录布局。
 - Bad: 不读现有 spec 就直接改变 settings 页的默认 tab、启动路由或 proposal/apply 行为。
 - Bad: 把 ACP 消息示例文档当成项目级硬规则，而不先核对真实代码与顶层 guideline。
 

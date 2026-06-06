@@ -1,10 +1,10 @@
 {
-  "extends": "../../node_modules/@electron-toolkit/tsconfig/tsconfig.node.json",
+  "extends": "../../../node_modules/@electron-toolkit/tsconfig/tsconfig.node.json",
   "compilerOptions": {
     "rootDir": ".",
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {}
   },
-  "include": ["src/**/*", "__tests__/**/*"]
+  "include": ["src/**/*", "../../../test/mcp-servers/fyllo-specs/**/*"]
 }

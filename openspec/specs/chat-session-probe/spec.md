@@ -8,7 +8,7 @@ TBD - created by archiving change add-draft-session-probe. Update Purpose after 
 
 ### Requirement: SessionProbeRegistry 在主进程维护按 agentId 索引的内存态
 
-系统 SHALL 在 `electron/main/services/chat/session-probe-registry.ts` 中导出单例 `SessionProbeRegistry`，维护一个进程级别的纯内存 `Map<string, ProbeEntry>`，键为 `agentId`，值为 `ProbeEntry`。
+系统 SHALL 在 `src/main/services/chat/session-probe-registry.ts` 中导出单例 `SessionProbeRegistry`，维护一个进程级别的纯内存 `Map<string, ProbeEntry>`，键为 `agentId`，值为 `ProbeEntry`。
 
 `ProbeEntry` 类型 SHALL 定义为：
 
@@ -69,7 +69,7 @@ interface ProbeEntry {
 
 ### Requirement: SessionProbeService 提供 ensureProbe 与 closeProbe 操作
 
-系统 SHALL 在 `electron/main/services/chat/session-probe-service.ts` 提供以下函数：
+系统 SHALL 在 `src/main/services/chat/session-probe-service.ts` 提供以下函数：
 
 - `ensureProbe(agentId: string, projectPath: string): Promise<ProbeSnapshot>`
 - `closeProbe(agentId: string): Promise<void>`
@@ -140,7 +140,7 @@ interface ProbeSnapshot {
 
 ### Requirement: chat:probe IPC 通道集
 
-`shared/types/channels.ts` SHALL 在新 namespace `ChatProbeChannels` 中暴露：
+`src/shared/types/channels.ts` SHALL 在新 namespace `ChatProbeChannels` 中暴露：
 
 ```ts
 export const ChatProbeChannels = {
@@ -151,13 +151,13 @@ export const ChatProbeChannels = {
 } as const;
 ```
 
-`shared/schemas/ipc/chat.ts` SHALL 暴露：
+`src/shared/schemas/ipc/chat.ts` SHALL 暴露：
 
 - `probeEnsureInputSchema`：`{ agentId: z.string().min(1), projectId: z.string().min(1) }`
 - `probeCloseInputSchema`：`{ agentId: z.string().min(1) }`
 - `probeSetConfigOptionInputSchema`：`{ agentId: z.string().min(1), configId: z.string().min(1), type: z.enum(["select", "boolean"]), value: z.union([z.string(), z.boolean()]) }` 等价于 `setConfigOptionInputSchema` 但去除 `projectId` 与 `sessionId`，新增 `agentId`
 
-`electron/main/ipc/chat.ts` SHALL 在 `registerChatHandlers` 中：
+`src/main/ipc/chat.ts` SHALL 在 `registerChatHandlers` 中：
 
 - `ipcMain.handle(ChatProbeChannels.ensure, ...)` 调用 `sessionProbeService.ensureProbe(...)`，返回 `IpcResponse<ProbeSnapshot>`。`projectPath` 由 `resolveProjectPath(input.projectId)` 解析。
 - `ipcMain.handle(ChatProbeChannels.close, ...)` 调用 `sessionProbeService.closeProbe(input.agentId)`。
@@ -165,7 +165,7 @@ export const ChatProbeChannels = {
 - 在主进程模块加载阶段或首次 `ensureProbe` 调用时，订阅 `SessionProbeBus.on("update", ...)`，通过 `mainWindow.webContents.send(ChatProbeChannels.update, payload)` 广播。
 - 该 update 事件 payload 类型为 `{ agentId: string; snapshot: ProbeSnapshot | null }`。
 
-`electron/preload/api/chat.ts` SHALL 在 `chatApi` 中新增：
+`src/preload/api/chat.ts` SHALL 在 `chatApi` 中新增：
 
 ```ts
 probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>>
@@ -211,7 +211,7 @@ onProbeUpdate(handler: (payload: { agentId: string; snapshot: ProbeSnapshot | nu
 
 ### Requirement: chat:stream:message handler 在 acpSessionId 入参存在时 consume Probe 并写入 SessionMeta
 
-`electron/main/ipc/chat.ts` 中 `chat:stream:message` 的 handler `onReady` 钩子 SHALL 满足：
+`src/main/ipc/chat.ts` 中 `chat:stream:message` 的 handler `onReady` 钩子 SHALL 满足：
 
 1. 解析入参 `{ sessionId, projectId, agentId, prompt, acpSessionId? }`。
 2. 当 `acpSessionId` 非空时：
@@ -289,9 +289,9 @@ handler SHALL NOT 在 `acpSessionId` 入参存在时再尝试调用 `connection.
 
 ### Requirement: chat:createSession 入参 SHALL 接受 probe 数据并写入 SessionMeta
 
-`chat:createSession` IPC 入参 SHALL 在原有 `{ projectId, title, agentId }` 基础上新增可选字段 `configOptions?: AcpSessionConfigOption[]`、`availableCommands?: AcpAvailableCommand[]` 与 `acpSessionId?: string`，入参 schema 在 `shared/schemas/ipc/chat.ts` 的 `createSessionInputSchema` 中以 `.optional()` 标注；preload `electron/preload/api/chat.ts` 中 `chatApi.createSession` 的入参类型同步扩展。
+`chat:createSession` IPC 入参 SHALL 在原有 `{ projectId, title, agentId }` 基础上新增可选字段 `configOptions?: AcpSessionConfigOption[]`、`availableCommands?: AcpAvailableCommand[]` 与 `acpSessionId?: string`，入参 schema 在 `src/shared/schemas/ipc/chat.ts` 的 `createSessionInputSchema` 中以 `.optional()` 标注；preload `src/preload/api/chat.ts` 中 `chatApi.createSession` 的入参类型同步扩展。
 
-主进程 `electron/main/services/chat/chat-service.ts#createSession` SHALL 在构造新 `SessionMeta` 时：
+主进程 `src/main/services/chat/chat-service.ts#createSession` SHALL 在构造新 `SessionMeta` 时：
 
 - 当入参 `configOptions` 为非 `undefined` 数组时，写入 `meta.config_options`；当为 `undefined` 时不设置该字段。
 - 当入参 `availableCommands` 为非 `undefined` 数组时，写入 `meta.available_commands`；当为 `undefined` 时不设置该字段。

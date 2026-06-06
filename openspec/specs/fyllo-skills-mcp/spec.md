@@ -8,7 +8,7 @@ TBD - created by archiving change add-fyllo-skills-mcp. Update Purpose after arc
 
 ### Requirement: fyllo-skills MCP server registers only the guidelines tool
 
-`fyllo-skills` MCP server SHALL be implemented as a bundled stdio MCP server under `mcp-servers/fyllo-skills/`. It SHALL register exactly one tool named `guidelines`.
+`fyllo-skills` MCP server SHALL be implemented as a bundled stdio MCP server under `src/mcp-servers/fyllo-skills/`. It SHALL register exactly one tool named `guidelines`.
 
 The `guidelines` tool SHALL be a no-argument tool. Its input schema SHALL NOT require or accept project-specific parameters such as `targetPath`, `mode`, `changeName`, or `includeInstruction`.
 
@@ -26,16 +26,16 @@ The `guidelines` tool SHALL be a no-argument tool. Its input schema SHALL NOT re
 
 ### Requirement: guidelines prompt is maintained as a markdown file
 
-The `guidelines` tool instruction body SHALL be maintained in `mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through a small loader so esbuild can inline it with the existing `.md` text loader.
+The `guidelines` tool instruction body SHALL be maintained in `src/mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through a small loader so esbuild can inline it with the existing `.md` text loader.
 
 #### Scenario: prompt file exists
 
-- **WHEN** checking `mcp-servers/fyllo-skills/src/tools/instructions/`
+- **WHEN** checking `src/mcp-servers/fyllo-skills/src/tools/instructions/`
 - **THEN** `guidelines.md` exists
 
 #### Scenario: instruction body is not embedded in tool code
 
-- **WHEN** searching TypeScript files under `mcp-servers/fyllo-skills/src/`
+- **WHEN** searching TypeScript files under `src/mcp-servers/fyllo-skills/src/`
 - **THEN** project guidelines instruction prose is not duplicated as long string literals in tool registration code
 - **AND** the `guidelines` tool uses the markdown prompt loader to produce its response
 
@@ -174,8 +174,8 @@ Entries SHALL be sorted by `path` in ascending lexicographic order.
 
 #### Scenario: read mode supports nested directories
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and the project contains `guidelines/frontend/Routing.md`
-- **THEN** the response contains an entry with `path === "guidelines/frontend/Routing.md"`
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and the project contains `guidelines/src/renderer/Routing.md`
+- **THEN** the response contains an entry with `path === "guidelines/src/renderer/Routing.md"`
 
 #### Scenario: read mode returns empty array when guidelines directory missing
 

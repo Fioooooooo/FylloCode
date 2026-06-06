@@ -8,24 +8,24 @@ keywords: [electron, main-process, ipc, services, infra]
 
 ## Purpose
 
-定义 `electron/main/` 的五层结构、依赖方向、资源生命周期和主进程内的实现约束。任何涉及主进程 handler、service、domain、infra、进程治理或持久化路径的工作，都必须先阅读本文档。
+定义 `src/main/` 的五层结构、依赖方向、资源生命周期和主进程内的实现约束。任何涉及主进程 handler、service、domain、infra、进程治理或持久化路径的工作，都必须先阅读本文档。
 
 ## Applicability
 
-- 适用于 `electron/main/**`。
+- 适用于 `src/main/**`。
 - 适用于主进程中的 `bootstrap/`、`ipc/`、`services/`、`domain/`、`infra/`、`types/`。
 - 适用于通过 `@main/*` 引用主进程实现的测试代码。
 - 不覆盖 preload bridge 暴露规则和 channel 语义细表；见 `guidelines/IPC.md`。
 
 ## Sources of Truth
 
-- `electron/main/**`
+- `src/main/**`
 - `eslint.config.mjs`
-- `electron/main/ipc/_kit/**`
-- `electron/main/infra/paths/index.ts`
-- `electron/main/infra/storage/project-paths.ts`
-- `electron/main/infra/process/acp-process-pool.ts`
-- `electron/main/services/chat/session-registry.ts`
+- `src/main/ipc/_kit/**`
+- `src/main/infra/paths/index.ts`
+- `src/main/infra/storage/project-paths.ts`
+- `src/main/infra/process/acp-process-pool.ts`
+- `src/main/services/chat/session-registry.ts`
 - `openspec/specs/main-process-layering/spec.md`
 - `openspec/specs/ipc-request-response/spec.md`
 - `openspec/specs/ipc-streaming/spec.md`
@@ -34,7 +34,7 @@ keywords: [electron, main-process, ipc, services, infra]
 
 ## Rules
 
-- MUST: 将 `electron/main/` 维持为 `bootstrap -> ipc -> services -> domain/infra` 的单向依赖结构，具体受 `eslint.config.mjs` 中的 `no-restricted-imports` 约束。
+- MUST: 将 `src/main/` 维持为 `bootstrap -> ipc -> services -> domain/infra` 的单向依赖结构，具体受 `eslint.config.mjs` 中的 `no-restricted-imports` 约束。
 - MUST: 让 `ipc/` handler 只做三件事：`validate` 入参、调用 `services/`、返回结果；不得在 handler 中直接触碰 `fs`、`child_process`、路径拼接或复杂业务逻辑。
 - MUST: 对请求响应型 handler 使用 `ipc/_kit/wrap-handler.ts`，对流式 handler 使用 `ipc/_kit/stream-channel.ts`；不得在业务 handler 中重复手写错误归一化或 MessagePort 生命周期守卫。
 - MUST: 将业务编排写在 `services/`，将纯逻辑和解析器写在 `domain/`，将文件系统、路径、进程、日志、ID 生成等能力写在 `infra/`。
@@ -50,9 +50,9 @@ keywords: [electron, main-process, ipc, services, infra]
 
 ## Examples
 
-- Good: `electron/main/ipc/chat.ts` 中先 `validate(streamMessageInputSchema, input)`，再调用 service/session 入口，而不是直接创建文件路径或子进程。
-- Good: `electron/main/services/proposal/**` 中编排 apply/archive 流程，`infra/storage/**` 只负责文件读写与序列化。
-- Good: `electron/main/infra/process/acp-process-pool.ts` 管理 ACP 子进程重试、give-up 状态和退出清理。
+- Good: `src/main/ipc/chat.ts` 中先 `validate(streamMessageInputSchema, input)`，再调用 service/session 入口，而不是直接创建文件路径或子进程。
+- Good: `src/main/services/proposal/**` 中编排 apply/archive 流程，`infra/storage/**` 只负责文件读写与序列化。
+- Good: `src/main/infra/process/acp-process-pool.ts` 管理 ACP 子进程重试、give-up 状态和退出清理。
 - Good: 使用 `cross-spawn` 启动 `npm`、`npx`、`uvx`、`git` 等外部命令，避免 Windows `.cmd` shim、PATHEXT 和参数转义差异泄漏到业务代码。
 - Bad: 在 `ipc/*.ts` 里直接 `spawn(...)`、`fs.writeFile(...)` 或导入 `@main/infra/storage/*`。
 - Bad: `import { spawn } from "child_process"` 后直接启动外部命令。
@@ -60,7 +60,7 @@ keywords: [electron, main-process, ipc, services, infra]
 
 ## Chat Session Probe
 
-- `electron/main/services/chat/session-probe-service.ts` 负责草稿态 ACP `newSession` 握手、`closeSession` 释放和草稿态 `session/set_config_option`；probe 是 `agentId` 维度的主进程纯内存资源，不写入 SessionMeta。
+- `src/main/services/chat/session-probe-service.ts` 负责草稿态 ACP `newSession` 握手、`closeSession` 释放和草稿态 `session/set_config_option`；probe 是 `agentId` 维度的主进程纯内存资源，不写入 SessionMeta。
 - `session-probe-registry.ts` 的 `takeFor(agentId, acpSessionId)` 是 promote 与 close 的唯一 consume 入口；`chat:stream:message` 只有在 `acpSessionId` 入参匹配 registry entry 时才把 probe 数据写入 SessionMeta，并构造 `AcpSession({ presetAcpSessionId })`。该写入与 `chat:createSession` 透传 probe 字段的写入互为幂等（值相同时只更新 `updatedAt`）：`createSession` 是首条消息阶段的优先写入路径，`takeFor` 是兜底。
 - `chat-service.createSession` 在入参带 `configOptions` / `acpSessionId` 时直接把它们写入新 SessionMeta（`config_options` 走 `normalizeAcpSessionConfigOptions`），缺失则保持旧路径；`takeFor` 不参与该写入，仅在 stream 阶段消费 registry entry。
 - `session-probe-bus.ts` 只广播 `{ agentId, snapshot }` 或 `{ agentId, snapshot: null }`；窗口发送逻辑留在 IPC 层的 `setupProbeBroadcast(mainWindow)`，service 层不得直接依赖 `BrowserWindow`。
@@ -70,12 +70,12 @@ keywords: [electron, main-process, ipc, services, infra]
 
 - `pnpm lint`
 - `pnpm typecheck`
-- `pnpm vitest run electron/main/__tests__/**/*.{test,spec}.ts`
-- `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
+- `pnpm vitest run test/main/**/*.{test,spec}.ts`
+- `pnpm vitest run test/shared/**/*.{test,spec}.ts`
 - 修改主进程 layering、path、process、ipc kit 相关代码时，重点检查 `eslint.config.mjs` 的限制是否仍与文档一致。
 
 ## Maintenance
 
-- 当 `electron/main/` 新增层、目录职责变化、ESLint layering 规则变化、session/process/path 基础设施重构时，必须更新本文档。
+- 当 `src/main/` 新增层、目录职责变化、ESLint layering 规则变化、session/process/path 基础设施重构时，必须更新本文档。
 - 当新的 handler 模式、错误处理模式或生命周期治理方式成为仓库默认做法时，必须更新本文档中的 Rules 与 Examples。
 - 如果主进程规则与 `IPC.md`、`Architecture.md` 出现边界重叠，应把 channel 契约保留在 `IPC.md`，把进程内部约束保留在本文档。

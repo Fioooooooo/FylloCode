@@ -8,17 +8,17 @@ TBD - created by archiving change refactor-main-process-layering. Update Purpose
 
 ### Requirement: 主进程采用五层分层架构
 
-`electron/main/` 目录 SHALL 采用五层分层结构：`bootstrap/`、`ipc/`、`services/`、`domain/`、`infra/`，每层职责边界明确，不得越层或混合职责。
+`src/main/` 目录 SHALL 采用五层分层结构：`bootstrap/`、`ipc/`、`services/`、`domain/`、`infra/`，每层职责边界明确，不得越层或混合职责。
 
 #### Scenario: 目录结构完整性
 
-- **WHEN** 检查 `electron/main/` 顶层目录
+- **WHEN** 检查 `src/main/` 顶层目录
 - **THEN** 存在且仅存在 `bootstrap/`、`ipc/`、`services/`、`domain/`、`infra/` 五个业务目录和 `index.ts` 入口文件
 - **AND** 不存在 `chat-agent/`、`cli/`、`utils/`、`workflows/` 等历史遗留顶层目录
 
 #### Scenario: 入口文件只做启动引导
 
-- **WHEN** 查看 `electron/main/index.ts`
+- **WHEN** 查看 `src/main/index.ts`
 - **THEN** 文件仅导入并调用 `bootstrap` 模块，不包含窗口创建、IPC 注册、子进程启动等具体逻辑
 
 ### Requirement: 分层依赖方向单向且可通过静态检查
@@ -27,12 +27,12 @@ TBD - created by archiving change refactor-main-process-layering. Update Purpose
 
 #### Scenario: domain 层不依赖 electron
 
-- **WHEN** 检查任意 `electron/main/domain/**/*.ts` 文件的 import 列表
+- **WHEN** 检查任意 `src/main/domain/**/*.ts` 文件的 import 列表
 - **THEN** 不存在 `from "electron"` 或 `from "@electron-toolkit/*"` 或 `from "@main/infra/*"` 或 `from "@main/services/*"` 的 import
 
 #### Scenario: ipc 层不直接使用 fs / child_process
 
-- **WHEN** 检查任意 `electron/main/ipc/**/*.ts` 文件的 import 列表（`_kit/` 除外）
+- **WHEN** 检查任意 `src/main/ipc/**/*.ts` 文件的 import 列表（`_kit/` 除外）
 - **THEN** 不存在 `from "fs"`、`from "node:fs"`、`from "child_process"`、`from "node:child_process"`、`from "path"` 的 import
 - **AND** 不直接实例化 `AcpSession`、`MessageChannelMain`、`spawn`
 
@@ -43,7 +43,7 @@ TBD - created by archiving change refactor-main-process-layering. Update Purpose
 
 ### Requirement: IPC handler 零业务逻辑
 
-`electron/main/ipc/**/*.ts`（`_kit/` 除外）中的每个 handler 函数体 SHALL 仅包含三类操作：参数校验（通过 `_kit/schema.ts`）、调用 service 方法、将结果通过 `wrapHandler` 或 `makeStreamChannel` 归一化为 IPC 响应。禁止在 handler 内部读写文件、拼接路径、实例化会话对象、构造 prompt、解析 YAML 等业务行为。
+`src/main/ipc/**/*.ts`（`_kit/` 除外）中的每个 handler 函数体 SHALL 仅包含三类操作：参数校验（通过 `_kit/schema.ts`）、调用 service 方法、将结果通过 `wrapHandler` 或 `makeStreamChannel` 归一化为 IPC 响应。禁止在 handler 内部读写文件、拼接路径、实例化会话对象、构造 prompt、解析 YAML 等业务行为。
 
 #### Scenario: handler 仅编排三步
 
@@ -58,11 +58,11 @@ TBD - created by archiving change refactor-main-process-layering. Update Purpose
 
 ### Requirement: 共享基础设施通过 `ipc/_kit/` 单点提供
 
-IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、流式协议封装）SHALL 集中在 `electron/main/ipc/_kit/` 下，包括 `wrap-handler.ts`、`stream-channel.ts`、`errors.ts`、`schema.ts`。其他 IPC 模块不得自行实现等价功能。
+IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、流式协议封装）SHALL 集中在 `src/main/ipc/_kit/` 下，包括 `wrap-handler.ts`、`stream-channel.ts`、`errors.ts`、`schema.ts`。其他 IPC 模块不得自行实现等价功能。
 
 #### Scenario: `_kit` 模块集合完整
 
-- **WHEN** 查看 `electron/main/ipc/_kit/` 目录
+- **WHEN** 查看 `src/main/ipc/_kit/` 目录
 - **THEN** 存在 `wrap-handler.ts`、`stream-channel.ts`、`errors.ts`、`schema.ts` 四个文件
 
 #### Scenario: 错误构造单一来源
@@ -161,9 +161,9 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 - **WHEN** proposal apply 需要新建一次 run
 - **THEN** 通过 `newRunId()` 获取 ID
 
-### Requirement: 默认值通过 shared/constants 集中声明
+### Requirement: 默认值通过 src/shared/constants 集中声明
 
-跨模块复用的默认值（默认 session 标题、UI 常量等）SHALL 集中定义在 `shared/constants/` 下对应的文件中，禁止在多处 handler / service 里硬编码相同字符串。
+跨模块复用的默认值（默认 session 标题、UI 常量等）SHALL 集中定义在 `src/shared/constants/` 下对应的文件中，禁止在多处 handler / service 里硬编码相同字符串。
 
 主进程 SHALL NOT 维护系统级 "默认 ACP agentId"。`agentId` 是会话/请求级别的必要参数，必须由调用方在请求边界显式提供。具体地：
 
@@ -171,13 +171,13 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 - `chat.streamMessage` handler 在 `inputAgentId` 与持久化 `meta.agentId` 都为空时 SHALL 抛 `VALIDATION_ERROR("agentId is required")`，不得回退到任何系统级默认值。
 - `proposal.stageStream` handler 在 `stage.agent` 为空时 SHALL 抛 `VALIDATION_ERROR("stage.agent is required for stage ${stageIndex}")`，不得回退到任何系统级默认值。
 
-代码库中 SHALL NOT 存在面向"未指定 agent 时的兜底 agentId"用途的共享常量；具体来说，`shared/constants/agents.ts` 与导出符号 `DEFAULT_ACP_AGENT_ID` SHALL 被移除。
+代码库中 SHALL NOT 存在面向"未指定 agent 时的兜底 agentId"用途的共享常量；具体来说，`src/shared/constants/agents.ts` 与导出符号 `DEFAULT_ACP_AGENT_ID` SHALL 被移除。
 
 #### Scenario: 不存在系统级默认 agentId 常量
 
 - **WHEN** 在代码库中搜索字符串字面量 `"claude-acp"` 或符号 `DEFAULT_ACP_AGENT_ID`
-- **THEN** 在 `shared/`、`electron/`、`frontend/` 的产品代码中均无该字面量或符号引用
-- **AND** 文件 `shared/constants/agents.ts` 不存在
+- **THEN** 在 `src/shared/`、`src/main/`、`src/preload/`、`src/renderer/` 的产品代码中均无该字面量或符号引用
+- **AND** 文件 `src/shared/constants/agents.ts` 不存在
 
 #### Scenario: createSession 缺 agentId 直接拒绝
 
@@ -214,26 +214,26 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 
 ### Requirement: cli/claude 目录移除
 
-`electron/main/cli/claude/` 目录 SHALL 被完全删除，其实现已被 ACP 方案取代，代码库中不得保留任何引用。
+`src/main/cli/claude/` 目录 SHALL 被完全删除，其实现已被 ACP 方案取代，代码库中不得保留任何引用。
 
 #### Scenario: 目录不存在
 
-- **WHEN** 检查 `electron/main/cli/` 目录
+- **WHEN** 检查 `src/main/cli/` 目录
 - **THEN** 该目录不存在
 
 #### Scenario: 无引用残留
 
 - **WHEN** 在代码库中搜索 `ClaudeSession`、`spawnClaude`、`cli/claude`
-- **THEN** 仅在 `openspec/changes/archive/` 的历史 change 中出现，`electron/` 与 `frontend/` 下无任何引用
+- **THEN** 仅在 `openspec/changes/archive/` 的历史 change 中出现，`src/main/`、`src/preload/` 与 `src/renderer/` 下无任何引用
 
 ### Requirement: 主进程核心模块具备单元测试
 
-`domain/`、`infra/` 下的纯函数模块，以及 `services/chat/session-registry.ts`、`ipc/_kit/stream-channel.ts` SHALL 具备 Vitest 单元测试。测试文件 SHALL 统一放置在 `electron/main/__tests__/` 下，并按源码目录镜像组织（例如 `electron/main/__tests__/ipc/_kit/stream-channel.spec.ts`）。`pnpm test` 需能在不启动 Electron 的情况下运行并通过。
+`domain/`、`infra/` 下的纯函数模块，以及 `services/chat/session-registry.ts`、`ipc/_kit/stream-channel.ts` SHALL 具备 Vitest 单元测试。测试文件 SHALL 统一放置在 `test/main/` 下，并按源码目录镜像组织（例如 `test/main/ipc/_kit/stream-channel.spec.ts`）。`pnpm test` 需能在不启动 Electron 的情况下运行并通过。
 
 #### Scenario: 测试文件位置
 
-- **WHEN** 查看 `electron/main/ipc/_kit/stream-channel.ts` 所在目录
-- **THEN** 存在 `electron/main/__tests__/ipc/_kit/stream-channel.spec.ts` 测试文件
+- **WHEN** 查看 `src/main/ipc/_kit/stream-channel.ts` 所在目录
+- **THEN** 存在 `test/main/ipc/_kit/stream-channel.spec.ts` 测试文件
 
 #### Scenario: 测试可脱离 Electron 运行
 
@@ -243,7 +243,7 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 
 ### Requirement: 应用随附资源路径通过 infra/paths 单点获取
 
-主进程读取随应用分发的根目录 `resources/` 内容时，SHALL 通过 `electron/main/infra/paths` 导出的资源目录函数获取 `resources/` 目录位置。`services/`、`ipc/`、`bootstrap/` 等层不得直接假设 `process.resourcesPath`、`app.getAppPath()` 或 `app.asar.unpacked` 的具体打包布局来定位 `resources/`。
+主进程读取随应用分发的根目录 `resources/` 内容时，SHALL 通过 `src/main/infra/paths` 导出的资源目录函数获取 `resources/` 目录位置。`services/`、`ipc/`、`bootstrap/` 等层不得直接假设 `process.resourcesPath`、`app.getAppPath()` 或 `app.asar.unpacked` 的具体打包布局来定位 `resources/`。
 
 #### Scenario: service 读取随附资源
 

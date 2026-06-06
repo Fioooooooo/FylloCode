@@ -387,7 +387,7 @@ archive 的持久化路径 SHALL 与 stage 完全解耦：不写入 `stage-*.mes
 
 `ApplyRunMeta` SHALL 增加可选字段 `worktreePath?: string`：
 
-- 类型定义位于 `shared/types/proposal.ts`，字段为 `worktreePath?: string`。
+- 类型定义位于 `src/shared/types/proposal.ts`，字段为 `worktreePath?: string`。
 - `proposal:apply` 创建新 run 时，从对应 `ProposalMeta.worktreePath` 透传该值；`ProposalMeta.worktreePath` 同期为可选字段，本能力（P1）阶段来源端始终写入 `undefined`，待 P3 启用 list 双源扫描后才会写入实际 worktree 绝对路径。
 - 字段值（如有）SHALL 为绝对路径，写入前 `path.resolve` 规范化。
 - 持久化到 `data/projects/<encoded>/apply-runs/<changeId>/run.json`。

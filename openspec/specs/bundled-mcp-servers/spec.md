@@ -8,34 +8,34 @@
 
 ### Requirement: 内置 MCP server 以顶级构建目标形式存在
 
-系统 SHALL 将随应用分发的 MCP server 源码组织在项目根目录 `mcp-servers/<server-name>/` 下，与 `electron/`、`frontend/` 同级。每个 MCP server 目录 SHALL 包含独立的 `src/`、`tsconfig.json`、`__tests__/` 结构，并 MAY 通过根 `package.json` 共享依赖与构建脚本。
+系统 SHALL 将随应用分发的 MCP server 源码组织在项目根目录 `src/mcp-servers/<server-name>/` 下，与 `src/main/`、`src/preload/`、`src/renderer/` 和 `src/shared/` 同属 `src/` 源码树。每个 MCP server 目录 SHALL 包含独立的 `src/` 与 `tsconfig.json`，对应测试 SHALL 位于 `test/mcp-servers/<server-name>/`，并 MAY 通过根 `package.json` 共享依赖与构建脚本。
 
 当前内置 MCP server 集合 SHALL 由显式 registry 控制，包含且仅包含：
 
 - `fyllo-specs`
 - `fyllo-skills`
 
-系统 SHALL NOT 通过自动扫描 `mcp-servers/*` 目录来决定需要构建或注入哪些 bundled MCP server。
+系统 SHALL NOT 通过自动扫描 `src/mcp-servers/*` 目录来决定需要构建或注入哪些 bundled MCP server。
 
 #### Scenario: fyllo-specs 源码位置
 
 - **WHEN** 检查项目根目录
-- **THEN** 存在 `mcp-servers/fyllo-specs/src/index.ts` 作为 stdio MCP server 的入口
-- **AND** 存在 `mcp-servers/fyllo-specs/src/tools/instructions/` 目录包含四个 markdown 文件
-- **AND** 不在 `electron/main/` 任何子目录下放置 MCP server 源码
+- **THEN** 存在 `src/mcp-servers/fyllo-specs/src/index.ts` 作为 stdio MCP server 的入口
+- **AND** 存在 `src/mcp-servers/fyllo-specs/src/tools/instructions/` 目录包含四个 markdown 文件
+- **AND** 不在 `src/main/` 任何子目录下放置 MCP server 源码
 
 #### Scenario: fyllo-skills 源码位置
 
 - **WHEN** 检查项目根目录
-- **THEN** 存在 `mcp-servers/fyllo-skills/src/index.ts` 作为 stdio MCP server 的入口
-- **AND** 存在 `mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`
-- **AND** 不在 `electron/main/` 任何子目录下放置 MCP server 源码
+- **THEN** 存在 `src/mcp-servers/fyllo-skills/src/index.ts` 作为 stdio MCP server 的入口
+- **AND** 存在 `src/mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`
+- **AND** 不在 `src/main/` 任何子目录下放置 MCP server 源码
 
 #### Scenario: bundled server 集合显式注册
 
 - **WHEN** 检查 bundled MCP 构建脚本与主进程 registry
 - **THEN** `fyllo-specs` 与 `fyllo-skills` 均在显式 registry 或等价显式列表中声明
-- **AND** registry 不通过目录扫描自动包含其他 `mcp-servers/*` 目录
+- **AND** registry 不通过目录扫描自动包含其他 `src/mcp-servers/*` 目录
 
 ### Requirement: 构建产物输出与分发位置
 
@@ -60,7 +60,7 @@
 
 ### Requirement: 启动描述符由统一 infra 模块提供
 
-系统 SHALL 在 `electron/main/infra/mcp/bundled-mcp-servers.ts` 导出 `getBundledMcpServers(opts: { projectPath: string }): McpServerSpec[]`，作为主进程侧获取内置 MCP server ACP 启动描述符的唯一入口。调用方 SHALL 不自行拼接 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 等打包布局细节。
+系统 SHALL 在 `src/main/infra/mcp/bundled-mcp-servers.ts` 导出 `getBundledMcpServers(opts: { projectPath: string }): McpServerSpec[]`，作为主进程侧获取内置 MCP server ACP 启动描述符的唯一入口。调用方 SHALL 不自行拼接 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 等打包布局细节。
 
 返回的每个 `McpServerSpec` SHALL 至少包含 `name`、`command`、`args`、`env` 四个字段，用于传递给 ACP 的 `connection.newSession`、`connection.resumeSession` 与 `connection.loadSession`。
 
@@ -134,6 +134,6 @@ Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-skil
 
 #### Scenario: 不创建主进程 disposable
 
-- **WHEN** 搜索 `electron/main/infra/mcp/` 下所有文件
+- **WHEN** 搜索 `src/main/infra/mcp/` 下所有文件
 - **THEN** 不存在对 `registerDisposable` 的调用
 - **AND** 不存在 `spawn`、`ChildProcess`、`fork` 的 import 或使用

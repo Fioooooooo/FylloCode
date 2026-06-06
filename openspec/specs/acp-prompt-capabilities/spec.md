@@ -8,7 +8,7 @@ TBD - created by archiving change add-multimodal-prompt-parts. Update Purpose af
 
 ### Requirement: AcpPromptCapabilities 类型与 IPC 契约
 
-系统 SHALL 在 `shared/types/acp-agent.ts` 暴露 `AcpPromptCapabilities` 类型，对应 ACP `InitializeResponse.agentCapabilities.promptCapabilities` 的稳定字段子集：
+系统 SHALL 在 `src/shared/types/acp-agent.ts` 暴露 `AcpPromptCapabilities` 类型，对应 ACP `InitializeResponse.agentCapabilities.promptCapabilities` 的稳定字段子集：
 
 ```ts
 interface AcpPromptCapabilities {
@@ -52,7 +52,7 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 - `capturedAgentVersion` 来自该 agent 当前 `installed.installedVersion`
 - `capturedAt` 为 ISO 时间戳
 
-读写 SHALL 经由 `electron/main/infra/storage/agent-capability-store.ts` 提供的统一 API，主进程其他模块 MUST NOT 自行 `load → merge → save` 整对象回写。
+读写 SHALL 经由 `src/main/infra/storage/agent-capability-store.ts` 提供的统一 API，主进程其他模块 MUST NOT 自行 `load → merge → save` 整对象回写。
 
 #### Scenario: initialize 成功后写入缓存
 

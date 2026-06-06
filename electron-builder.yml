@@ -13,10 +13,10 @@ files:
 
   - "!**/*.map"
 
-  - "!electron/**"
-  - "!frontend/**"
-  - "!mcp-servers/**"
+  - "!src/**"
+  - "!test/**"
   - "!guidelines/**"
+  - "!references/**"
   - "!openspec/**"
   - "!scripts/**"
   - "!build/**"

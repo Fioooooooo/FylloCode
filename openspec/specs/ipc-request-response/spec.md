@@ -90,7 +90,7 @@ Main 进程 SHALL 为每个业务域创建独立的 handler 模块（`main/ipc/<
 
 ### Requirement: Handler 入参通过共享 schema 校验
 
-每个 `ipcMain.handle` 注册的 handler SHALL 在执行业务逻辑之前调用 `ipc/_kit/schema.ts` 的 `validate(schema, input)` 校验 renderer 传入参数，schema 从 `shared/schemas/ipc/<domain>.ts` 按具名导入。校验失败由 `wrapHandler` 统一返回 `VALIDATION_ERROR`。
+每个 `ipcMain.handle` 注册的 handler SHALL 在执行业务逻辑之前调用 `ipc/_kit/schema.ts` 的 `validate(schema, input)` 校验 renderer 传入参数，schema 从 `src/shared/schemas/ipc/<domain>.ts` 按具名导入。校验失败由 `wrapHandler` 统一返回 `VALIDATION_ERROR`。
 
 #### Scenario: 校验不通过返回标准错误
 
@@ -105,9 +105,9 @@ Main 进程 SHALL 为每个业务域创建独立的 handler 模块（`main/ipc/<
 
 ### Requirement: chat:setConfigOption 提供 session 级配置项修改入口
 
-系统 SHALL 在 `electron/main/ipc/chat.ts` 注册 `chat:setConfigOption` handler，channel 名称由 `shared/types/channels.ts` 中 `ChatChannels.setConfigOption: "chat:setConfigOption"` 提供。该 handler SHALL 通过 `wrapHandler` 包装、通过 `validate(setConfigOptionInputSchema, input)` 校验入参，handler 函数体仅做 schema 校验与调用 `services/chat/config-option-service.setConfigOption`。
+系统 SHALL 在 `src/main/ipc/chat.ts` 注册 `chat:setConfigOption` handler，channel 名称由 `src/shared/types/channels.ts` 中 `ChatChannels.setConfigOption: "chat:setConfigOption"` 提供。该 handler SHALL 通过 `wrapHandler` 包装、通过 `validate(setConfigOptionInputSchema, input)` 校验入参，handler 函数体仅做 schema 校验与调用 `services/chat/config-option-service.setConfigOption`。
 
-入参 schema `setConfigOptionInputSchema` SHALL 由 `shared/schemas/ipc/chat.ts` 导出，校验：
+入参 schema `setConfigOptionInputSchema` SHALL 由 `src/shared/schemas/ipc/chat.ts` 导出，校验：
 
 - `projectId`: 非空字符串
 - `sessionId`: 非空字符串
@@ -117,14 +117,14 @@ Main 进程 SHALL 为每个业务域创建独立的 handler 模块（`main/ipc/<
 
 成功响应类型 SHALL 为 `IpcResponse<{ configOptions: AcpSessionConfigOption[] }>`。失败响应使用 `IpcErrorInfo`，错误码集合包括但不限于 `VALIDATION_ERROR`、`CHAT_SESSION_NOT_FOUND`、`PROJECT_NOT_FOUND`、`ACP_NOT_READY`、`CONFIG_OPTION_NOT_SUPPORTED`、`CONFIG_OPTION_INVALID_VALUE`、`ACP_ERROR`。
 
-`shared/constants/error-codes.ts` SHALL 新增以下错误码常量：
+`src/shared/constants/error-codes.ts` SHALL 新增以下错误码常量：
 
 - `CONFIG_OPTION_NOT_SUPPORTED = "CONFIG_OPTION_NOT_SUPPORTED"`
 - `CONFIG_OPTION_INVALID_VALUE = "CONFIG_OPTION_INVALID_VALUE"`
 
-Preload `electron/preload/api/chat.ts` SHALL 暴露 `setConfigOption(input): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>>`，签名遵循"按业务域暴露领域 API"约束。`electron/preload/index.d.ts` SHALL 同步声明该方法的类型签名。
+Preload `src/preload/api/chat.ts` SHALL 暴露 `setConfigOption(input): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>>`，签名遵循"按业务域暴露领域 API"约束。`src/preload/index.d.ts` SHALL 同步声明该方法的类型签名。
 
-`frontend/src/api/chat.ts` SHALL 新增对等薄封装 `chatApi.setConfigOption(input)`，仅负责类型化转发 `window.api.chat.setConfigOption(input)`，不在该层做 toast、缓存或错误归一化。
+`src/renderer/src/api/chat.ts` SHALL 新增对等薄封装 `chatApi.setConfigOption(input)`，仅负责类型化转发 `window.api.chat.setConfigOption(input)`，不在该层做 toast、缓存或错误归一化。
 
 #### Scenario: renderer 通过 window.api.chat.setConfigOption 修改 mode
 

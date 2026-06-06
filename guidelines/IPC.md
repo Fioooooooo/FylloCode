@@ -12,21 +12,21 @@ keywords: [ipc, electron, preload, channels, contracts]
 
 ## Applicability
 
-- 适用于 `electron/main/ipc/**`、`electron/preload/**`、`shared/types/channels.ts`、`shared/schemas/ipc/**`、`shared/types/ipc.ts`、`shared/constants/error-codes.ts`。
-- 适用于 `frontend/src/api/**` 中对 `window.api.*` 的消费。
+- 适用于 `src/main/ipc/**`、`src/preload/**`、`src/shared/types/channels.ts`、`src/shared/schemas/ipc/**`、`src/shared/types/ipc.ts`、`src/shared/constants/error-codes.ts`。
+- 适用于 `src/renderer/src/api/**` 中对 `window.api.*` 的消费。
 - 不覆盖主进程内部 service/domain/infra 分层；见 `guidelines/MainProcess.md`。
 
 ## Sources of Truth
 
-- `shared/types/channels.ts`
-- `shared/schemas/ipc/**`
-- `shared/types/ipc.ts`
-- `shared/constants/error-codes.ts`
-- `shared/errors/ipc-error.ts`
-- `electron/main/ipc/**`
-- `electron/preload/api/**`
-- `electron/preload/index.d.ts`
-- `frontend/src/api/**`
+- `src/shared/types/channels.ts`
+- `src/shared/schemas/ipc/**`
+- `src/shared/types/ipc.ts`
+- `src/shared/constants/error-codes.ts`
+- `src/shared/errors/ipc-error.ts`
+- `src/main/ipc/**`
+- `src/preload/api/**`
+- `src/preload/index.d.ts`
+- `src/renderer/src/api/**`
 - `openspec/specs/ipc-protocol/spec.md`
 - `openspec/specs/ipc-request-response/spec.md`
 - `openspec/specs/ipc-streaming/spec.md`
@@ -35,22 +35,22 @@ keywords: [ipc, electron, preload, channels, contracts]
 
 ## Rules
 
-- MUST: 将所有 channel 名称定义在 `shared/types/channels.ts`，禁止在主进程、preload 或 renderer 中散落字符串字面量。
+- MUST: 将所有 channel 名称定义在 `src/shared/types/channels.ts`，禁止在主进程、preload 或 renderer 中散落字符串字面量。
 - MUST: 使用 `domain:action` 作为 channel 命名格式，其中 domain 表示功能领域，而不是页面入口或 UI 路由。
 - MUST: 让每个 handle 型 channel 返回 `IpcResponse<T>`，错误分支返回 `IpcErrorInfo`，而不是抛出 renderer 侧难以消费的任意结构。
-- MUST: 让主进程 handler 的入参通过 `shared/schemas/ipc/<domain>.ts` 中的 Zod schema 校验；渲染侧类型声明不能替代运行时校验。
+- MUST: 让主进程 handler 的入参通过 `src/shared/schemas/ipc/<domain>.ts` 中的 Zod schema 校验；渲染侧类型声明不能替代运行时校验。
 - MUST: 让 preload 通过 `contextBridge` 暴露 `window.api`，渲染层只能消费这些公开 API，不得直接触碰 `ipcRenderer`。
-- MUST: 让流式协议通过 `ipc/_kit/stream-channel.ts` 与 `MessagePort` 实现，chunk/done/error 消息结构遵循 `shared/types/ipc.ts`。
+- MUST: 让流式协议通过 `ipc/_kit/stream-channel.ts` 与 `MessagePort` 实现，chunk/done/error 消息结构遵循 `src/shared/types/ipc.ts`。
 - MUST: 让三个流式 handler（`chat:stream:message`、`proposal:stageStream`、`proposal:archive`）在 `done` / `error` / `runner.cancel` 三个终止出口都对称地落盘已组装的 assistant 消息——任何非 `done` 的停止（agent 报错、用户 stop / port close）也必须把当前 `MessageAssembler` 的内容持久化，否则重启后该轮部分回复丢失。去重依赖 `MessageAssembler.flush()` 的一次性所有权语义（首次取走 `currentMessage` 并置空、再次返回 `null`），不得引入额外布尔标志；落盘失败只记 `logger.error`，不阻断该出口既有的终止动作（`sendError` / `sendDone` / `unregister` / 状态机更新）。三处目前为就近对称实现，未来可抽取为通用底层能力。
-- MUST: 将新增错误码登记到 `shared/constants/error-codes.ts`；不得返回未声明的错误码字符串。
-- MUST: 在 `frontend/src/api/` 中为每个公开 bridge 方法提供对等薄封装，保持 renderer 对 IPC 的访问点可搜索、可替换、可测试。
-- SHOULD: 让 `electron/preload/index.d.ts` 与 `electron/preload/api/**` 同步更新，避免桥接实现与类型声明脱节。
+- MUST: 将新增错误码登记到 `src/shared/constants/error-codes.ts`；不得返回未声明的错误码字符串。
+- MUST: 在 `src/renderer/src/api/` 中为每个公开 bridge 方法提供对等薄封装，保持 renderer 对 IPC 的访问点可搜索、可替换、可测试。
+- SHOULD: 让 `src/preload/index.d.ts` 与 `src/preload/api/**` 同步更新，避免桥接实现与类型声明脱节。
 - SHOULD: 按业务域组织 schema 和 channel，例如 `chat`、`proposal`、`workflow`、`integration`，避免把所有通信契约塞进单个大文件。
 - MAY: 为事件型 channel 在 preload 中提供 `onXxx` / `offXxx` 风格封装，但不要把订阅系统散落到业务组件层直接实现。
 
 ## Examples
 
-- Good: 在 `shared/schemas/ipc/proposal.ts` 增加入参 schema，在 `electron/main/ipc/proposal.ts` 里 `validate -> service -> return`，在 `electron/preload/api/proposal.ts` 暴露 bridge，再由 `frontend/src/api/proposal.ts` 封装调用。
+- Good: 在 `src/shared/schemas/ipc/proposal.ts` 增加入参 schema，在 `src/main/ipc/proposal.ts` 里 `validate -> service -> return`，在 `src/preload/api/proposal.ts` 暴露 bridge，再由 `src/renderer/src/api/proposal.ts` 封装调用。
 - Good: 使用 `IpcErrorCodes.PROJECT_NOT_FOUND` 这类集中登记的错误码，而不是字符串 `"PROJECT_NOT_FOUND"` 字面量。
 - Good: `chat:stream:*`、`proposal:*:port` 一类流式通道通过 `MessagePort` 传递分块事件。
 - Bad: 在 renderer 组件中直接 `ipcRenderer.invoke("proposal:list", input)`。
@@ -68,17 +68,17 @@ keywords: [ipc, electron, preload, channels, contracts]
 
 - `chat:setConfigOption`：入参 `{ projectId, sessionId, configId, type: "select" | "boolean", value: string | boolean }`，使用 zod discriminated union 校验 `value` 类型与 `type` 字面量匹配（`select` 仅接收非空 `string`，`boolean` 仅接收 `boolean`）。返回 `IpcResponse<{ configOptions: AcpSessionConfigOption[] }>`，主进程在调用 `connection.setSessionConfigOption` 成功后将全集 `configOptions` 写回 `SessionMeta.config_options`，再原样返回给 renderer。错误码集合：`VALIDATION_ERROR`（入参或 session 缺 `acpSessionId`）、`CONFIG_OPTION_INVALID_VALUE`（`value` 不在缓存的 select schema 中）、`CONFIG_OPTION_NOT_SUPPORTED`（agent 未实现 `session/set_config_option`，识别 ACP `-32601` 与语义等价错误）、`ACP_NOT_READY`、`ACP_ERROR`。
 - `MessageChunkData` 新增 `{ kind: "config_options_update"; options: AcpSessionConfigOption[] }` 分支，语义为「全集替换」：覆盖 `Session.configOptions` 而非 patch 单项；与 `available_commands_update` / `session_info_update` 同位治理（`acp-session-recovery#shouldSuppressDuringReplay` 白名单），`loadSession` replay 期间也不被抑制。
-- `AcpSessionConfigOption` 类型由 `shared/types/acp-config.ts` 导出，**不依赖** `@agentclientprotocol/sdk` 的 SDK 类型；主进程 `acp-mapper.normalizeAcpSessionConfigOptions` 负责剥除 `_meta`、把 `null` category/description 归一为 `undefined`，并保留 `select.options` 的平铺与分组两种形态。
+- `AcpSessionConfigOption` 类型由 `src/shared/types/acp-config.ts` 导出，**不依赖** `@agentclientprotocol/sdk` 的 SDK 类型；主进程 `acp-mapper.normalizeAcpSessionConfigOptions` 负责剥除 `_meta`、把 `null` category/description 归一为 `undefined`，并保留 `select.options` 的平铺与分组两种形态。
 - `proposal:stageStream` / `proposal:archive` 的 session-event switch 显式忽略 `config_options_update`：不调用 `MessageAssembler.apply`、不发送 sink chunk、不写磁盘。
 
 ## Verification
 
 - `pnpm typecheck`
 - `pnpm lint`
-- `pnpm vitest run electron/main/__tests__/ipc/**/*.spec.ts`
-- `pnpm vitest run electron/main/__tests__/preload/**/*.spec.ts`
-- `pnpm vitest run shared/__tests__/**/*.{test,spec}.ts`
-- 若改动包含新 channel，检查 `shared/types/channels.ts`、`shared/schemas/ipc/**`、`electron/preload/index.d.ts`、`frontend/src/api/**` 是否一并更新。
+- `pnpm vitest run test/main/ipc/**/*.spec.ts`
+- `pnpm vitest run test/preload/**/*.spec.ts`
+- `pnpm vitest run test/shared/**/*.{test,spec}.ts`
+- 若改动包含新 channel，检查 `src/shared/types/channels.ts`、`src/shared/schemas/ipc/**`、`src/preload/index.d.ts`、`src/renderer/src/api/**` 是否一并更新。
 
 ## Maintenance
 

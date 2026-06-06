@@ -8,7 +8,7 @@
 
 ### Requirement: 统一 logger 模块
 
-主进程 SHALL 通过 `electron/main/utils/logger.ts` 导出唯一的 `logger` 实例，所有主进程模块通过 `import logger from '../utils/logger'` 使用，不得直接使用 `console.log` 记录业务日志。
+主进程 SHALL 通过 `src/main/utils/logger.ts` 导出唯一的 `logger` 实例，所有主进程模块通过 `import logger from '../utils/logger'` 使用，不得直接使用 `console.log` 记录业务日志。
 
 #### Scenario: 主进程模块使用 logger
 
