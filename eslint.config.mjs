@@ -26,6 +26,7 @@ export default defineConfig(
       "**/out",
       "**/data",
       "**/.worktrees",
+      "docs/**",
       "**/auto-imports.d.ts",
       "**/components.d.ts",
       "src/renderer/.eslintrc-auto-import.json",

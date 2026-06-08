@@ -1,0 +1,22 @@
+# 对话与执行
+
+对话页面承载项目上下文中的 Agent 协作。它既可以用于澄清任务，也可以用于推动 Proposal、Apply 和 Archive 阶段。
+
+<figure class="fc-doc-image">
+  <img src="/assets/screenshots/chat.png" alt="对话页面截图" />
+</figure>
+
+## 主要能力
+
+- 管理项目内的会话列表
+- 选择已安装的 ACP Agent
+- 发送文本和附件上下文
+- 展示 Agent 的思考、工具调用和流式输出
+- 支持 Mermaid、Markdown 等结构化内容展示
+- 在任务上下文中推进 proposal 创建和后续阶段
+
+## 工作方式
+
+普通 Agent 会话通常只有当前代码和本次 prompt。FylloCode 会把项目规范、历史决策、任务上下文和 guidelines 组织成 Agent 可读取的背景，让 Agent 在更明确的边界内工作。
+
+对话页面的重点不是替代所有聊天工具，而是让聊天结果进入可治理流程：当问题收敛后，应该生成 Proposal；当 Proposal 通过后，应该进入 Apply；当变更完成后，应该 Archive。

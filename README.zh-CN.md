@@ -59,7 +59,7 @@ CI/CD，不替代项目管理系统——它在这些系统上面加一层，专
 
 ## 工作流
 
-![FylloCode 工作流](docs/workflow-zh.svg)
+![FylloCode 工作流](docs/assets/diagrams/workflow-zh.svg)
 
 FylloCode 把每个编码任务分成四个强制阶段，每个阶段有明确的输入、产物和约束。
 

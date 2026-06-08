@@ -1,0 +1,27 @@
+# 指南
+
+FylloCode 是面向团队使用 Coding Agent 的桌面应用。它不直接替代 IDE、CI/CD 或项目管理系统，而是在这些工具之上补一层持久、结构化、可追溯的治理层。
+
+这组指南先回答三个问题：
+
+- 为什么普通 Agent 会话很难支撑长期团队协作
+- 如何把一次编码任务拆成可评审、可执行、可归档的流程
+- 如何在本地开始使用 FylloCode
+
+## 推荐阅读顺序
+
+1. [为什么需要 FylloCode](/guide/why)
+2. [快速开始](/guide/getting-started)
+3. [四阶段工作流](/guide/workflow)
+4. [用 FylloCode 开发 FylloCode](/guide/develop-with-fyllocode)
+
+## 核心概念
+
+| 概念 | 说明 |
+| --- | --- |
+| Task | 任务入口，负责结构化意图、范围、约束、假设和验收标准 |
+| Proposal | 方案评审实体，通常包含 proposal、design、specs、tasks 四类产物 |
+| Apply | 在已确认任务边界内执行实现，尽量让实际 diff 与评审记录一致 |
+| Archive | 归档决策、实现结果、spec 更新和 guidelines 演进 |
+| fyllo-specs | 内置 MCP server，围绕 OpenSpec 暴露项目规范和变更工作流 |
+| fyllo-skills | 内置 MCP server，目前提供 guidelines 工具，用于沉淀项目工程约定 |

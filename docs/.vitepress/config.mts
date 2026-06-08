@@ -1,0 +1,95 @@
+import { defineConfig } from 'vitepress'
+
+const github = 'https://github.com/Fioooooooo/FylloCode'
+
+export default defineConfig({
+  lang: 'zh-CN',
+  title: 'FylloCode',
+  description: 'Coding Agent 的团队治理层',
+  cleanUrls: true,
+  lastUpdated: true,
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/icon.svg' }]],
+  themeConfig: {
+    logo: '/assets/icon.svg',
+
+    nav: [
+      { text: '首页', link: '/' },
+      { text: '指南', link: '/guide/' },
+      { text: '功能', link: '/features/' },
+      { text: '参考', link: '/reference/workflow-config' },
+      { text: '参与贡献', link: '/contributing' },
+      { text: '下载', link: `${github}/releases` }
+    ],
+
+    sidebar: {
+      '/guide/': [
+        {
+          text: '指南',
+          items: [
+            { text: '概览', link: '/guide/' },
+            { text: '为什么需要 FylloCode', link: '/guide/why' },
+            { text: '快速开始', link: '/guide/getting-started' },
+            { text: '四阶段工作流', link: '/guide/workflow' },
+            { text: '用 FylloCode 开发 FylloCode', link: '/guide/develop-with-fyllocode' }
+          ]
+        }
+      ],
+      '/features/': [
+        {
+          text: '功能',
+          items: [
+            { text: '功能总览', link: '/features/' },
+            { text: '任务看板', link: '/features/task' },
+            { text: '对话与执行', link: '/features/chat' },
+            { text: 'Proposal 评审', link: '/features/proposal' },
+            { text: 'Workflow 编排', link: '/features/workflow' },
+            { text: 'ACP Agents', link: '/features/agents' },
+            { text: '研发系统集成', link: '/features/integrations' }
+          ]
+        }
+      ],
+      '/reference/': [
+        {
+          text: '参考',
+          items: [
+            { text: 'Workflow 配置', link: '/reference/workflow-config' },
+            { text: 'fyllo-specs MCP', link: '/reference/fyllo-specs' },
+            { text: 'fyllo-skills MCP', link: '/reference/fyllo-skills' },
+            { text: 'ACP Agent 分类', link: '/reference/acp-agent-kind' }
+          ]
+        }
+      ],
+      '/contributing': [
+        {
+          text: '参与贡献',
+          items: [{ text: '贡献指南', link: '/contributing' }]
+        }
+      ]
+    },
+
+    socialLinks: [{ icon: 'github', link: github }],
+
+    search: {
+      provider: 'local'
+    },
+
+    outline: {
+      label: '本页目录',
+      level: [2, 3]
+    },
+
+    docFooter: {
+      prev: '上一页',
+      next: '下一页'
+    },
+
+    lastUpdated: {
+      text: '最后更新'
+    },
+
+    footer: {
+      message: '基于 AGPL-3.0 发布',
+      copyright: 'Copyright © 2026 FylloCode'
+    }
+  }
+})

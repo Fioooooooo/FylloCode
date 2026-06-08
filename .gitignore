@@ -17,3 +17,8 @@ components.d.ts
 .eslintrc-auto-import.json
 *.tsbuildinfo
 .worktrees/
+
+# docs
+docs/.vitepress/dist
+docs/.vitepress/cache
+

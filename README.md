@@ -63,7 +63,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 
 ## Workflow
 
-![FylloCode Workflow](docs/workflow.svg)
+![FylloCode Workflow](docs/assets/diagrams/workflow.svg)
 
 FylloCode structures every coding task into four mandatory phases, each with defined inputs, outputs, and constraints.
 

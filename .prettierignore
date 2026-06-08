@@ -8,5 +8,5 @@ auto-imports.d.ts
 components.d.ts
 .eslintrc-auto-import.json
 
-# 开发环境数据目录
 data/
+docs/

@@ -15,6 +15,7 @@ files:
 
   - "!src/**"
   - "!test/**"
+  - "!docs/**"
   - "!guidelines/**"
   - "!references/**"
   - "!openspec/**"
