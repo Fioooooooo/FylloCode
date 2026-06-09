@@ -34,12 +34,14 @@ import { resolveSystemReminder } from "@main/services/chat/system-reminder";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import { normalizePromptCapabilities } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
+import type { LineageTaskRef } from "@shared/types/lineage";
 
 interface ReminderContext {
   changeId?: string;
   stageIndex?: number;
   runId?: string;
   worktreePath?: string;
+  taskRef?: LineageTaskRef;
 }
 
 type PromptPart =

@@ -1,9 +1,10 @@
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { Session, Message } from "@shared/types/chat";
+import type { AcpAvailableCommand, Session, Message } from "@shared/types/chat";
 import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
+import type { LineageTaskRef } from "@shared/types/lineage";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 
@@ -39,7 +40,9 @@ export const chatApi = {
     title: string;
     agentId?: string;
     configOptions?: AcpSessionConfigOption[];
+    availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    taskRef?: LineageTaskRef;
   }): Promise<IpcResponse<Session>> {
     return window.api.chat.createSession(input);
   },

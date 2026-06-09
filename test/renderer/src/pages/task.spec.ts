@@ -38,6 +38,9 @@ const sendMessageMock = vi.fn();
 const pushMock = vi.fn();
 const beginDraftSessionMock = vi.fn();
 const toastAddMock = vi.fn();
+const { ensureTaskSubjectMock } = vi.hoisted(() => ({
+  ensureTaskSubjectMock: vi.fn(),
+}));
 
 const taskStore = reactive<TaskStoreStub>({
   tasks: [] as TaskItem[],
@@ -86,6 +89,12 @@ vi.mock("@renderer/stores/session", () => ({
   }),
 }));
 
+vi.mock("@renderer/api/lineage", () => ({
+  lineageApi: {
+    ensureTaskSubject: ensureTaskSubjectMock,
+  },
+}));
+
 vi.mock("vue-router", () => ({
   useRouter: () => ({
     push: pushMock,
@@ -122,6 +131,19 @@ const taskDetailModalStub = {
 describe("task page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    ensureTaskSubjectMock.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "subject-1",
+        origin: "task",
+        task: null,
+        links: [],
+        createdAt: "2026-06-09T00:00:00.000Z",
+        updatedAt: "2026-06-09T00:00:00.000Z",
+      },
+    });
+    sendMessageMock.mockResolvedValue(undefined);
+    pushMock.mockResolvedValue(undefined);
     projectStore.currentProject = { id: "project-1" };
     taskStore.loading = false;
     taskStore.error = null;
@@ -262,14 +284,71 @@ describe("task page", () => {
     const wrapper = mountPage();
     await flushPromises();
     await wrapper.get('[data-test="start-discussion"]').trigger("click");
+    await flushPromises();
 
     const promptText = sendMessageMock.mock.calls[0]?.[0]?.[0]?.text as string;
+    expect(ensureTaskSubjectMock).toHaveBeenCalledWith(
+      "project-1",
+      expect.objectContaining({
+        ref: "yunxiao:yunxiao:space-1:102",
+        snapshot: taskStore.filteredTasks[0],
+        capturedAt: expect.any(String),
+      })
+    );
+    expect(beginDraftSessionMock).toHaveBeenCalledTimes(1);
     expect(promptText).toContain(
       "**来源**: 云效 YX-102 (https://devops.aliyun.com/projex/project/space-1/task/102)\n**标题**: 云效任务"
     );
     expect(promptText).toContain("需求详细说明");
     expect(promptText).not.toContain("<table>");
     expect(promptText).not.toContain("()");
+    expect(sendMessageMock.mock.calls[0]?.[1]).toEqual({
+      taskRef: "yunxiao:yunxiao:space-1:102",
+    });
+    expect(pushMock).toHaveBeenCalledWith("/chat");
+  });
+
+  it("does not start chat when ensureTaskSubject fails", async () => {
+    const task = {
+      id: "task-1",
+      projectId: "project-1",
+      title: "本地任务",
+      description: { format: "plain_text", content: "详情" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    ensureTaskSubjectMock.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "UNKNOWN_ERROR", message: "lineage failed" },
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+    await wrapper.get('[data-test="start-discussion"]').trigger("click");
+    await flushPromises();
+
+    expect(ensureTaskSubjectMock).toHaveBeenCalledWith(
+      "project-1",
+      expect.objectContaining({
+        ref: "local:task-1",
+        snapshot: task,
+        capturedAt: expect.any(String),
+      })
+    );
+    expect(beginDraftSessionMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(toastAddMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "发起讨论失败",
+        color: "error",
+      })
+    );
   });
 
   it("loads yunxiao task detail after opening the modal", async () => {

@@ -9,6 +9,7 @@ import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";
 import ChatStreamError from "./ChatStreamError.vue";
 import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 import ChatPlanPanel from "./plan/ChatPlanPanel.vue";
+import OriginTaskBanner from "./OriginTaskBanner.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError } = storeToRefs(store);
@@ -21,6 +22,7 @@ const isDraft = computed(() => activeSessionId.value === null);
   <div class="flex-1 flex flex-col min-h-0">
     <div class="flex-1 overflow-y-auto py-4 px-2 relative">
       <div class="max-w-3xl mx-auto h-full">
+        <OriginTaskBanner v-if="!isDraft" />
         <template v-if="isLoadingMessages">
           <ChatMessageSkeleton />
         </template>

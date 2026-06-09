@@ -5,11 +5,13 @@ import { getFylloActionContract } from "@shared/constants/fyllo-action-contracts
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { FylloActionState, FylloActionStateStatus } from "@shared/types/fyllo-action";
+import type { LineageTaskRef } from "@shared/types/lineage";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
   sessionId: string;
   acpSessionId?: string;
+  originTaskRef?: LineageTaskRef;
   agentId: string;
   title: string;
   turnCount: number;
@@ -22,7 +24,7 @@ export interface SessionMeta {
 }
 
 export type SessionMetaPatch = Partial<
-  Omit<SessionMeta, "sessionId" | "createdAt" | "tokenUsage">
+  Omit<SessionMeta, "sessionId" | "originTaskRef" | "createdAt" | "tokenUsage">
 > & {
   tokenUsage?: Partial<TokenUsage>;
 };

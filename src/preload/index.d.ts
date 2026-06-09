@@ -7,6 +7,7 @@ import type { acpAgentsApi } from "./api/acp-agents";
 import type { settingsApi } from "./api/settings";
 import type { workflowApi } from "./api/workflow";
 import type { taskApi } from "./api/task";
+import type { lineageApi } from "./api/lineage";
 
 type SettingsApi = typeof settingsApi;
 type ChatApi = typeof chatApi;
@@ -21,6 +22,7 @@ export interface AppApi {
   settings: SettingsApi;
   workflow: typeof workflowApi;
   task: typeof taskApi;
+  lineage: typeof lineageApi;
 }
 
 declare global {

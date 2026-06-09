@@ -5,6 +5,7 @@ import { useToast } from "@nuxt/ui/composables";
 import type { ChatStatus, Message, ModeType, Session } from "@shared/types/chat";
 import type { MessageChunkData } from "@shared/types/ipc";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
+import type { LineageTaskRef } from "@shared/types/lineage";
 import { chatApi, type StreamError } from "@renderer/api/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
@@ -319,7 +320,10 @@ export const useChatStore = defineStore("chat", () => {
     );
   }
 
-  async function sendMessage(parts: ChatPromptPart[]): Promise<void> {
+  async function sendMessage(
+    parts: ChatPromptPart[],
+    options?: { taskRef?: LineageTaskRef }
+  ): Promise<void> {
     const hasPromptContent = parts.some((part) => part.type !== "text" || part.text.trim());
     if (!hasPromptContent) {
       return;
@@ -370,6 +374,7 @@ export const useChatStore = defineStore("chat", () => {
           projectId: projectIdSnapshot,
           agentId: draftAgentIdSnapshot,
           title: fallbackTitleSnapshot,
+          ...(options?.taskRef ? { taskRef: options.taskRef } : {}),
           ...(carryProbe ?? {}),
         });
         if (!isCurrentDraftRun(streamRunId)) {

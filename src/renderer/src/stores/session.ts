@@ -11,7 +11,10 @@ import type {
 } from "@shared/types/chat";
 import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
+import type { LineageTaskRef } from "@shared/types/lineage";
+import type { TaskSource } from "@shared/types/task";
 import { chatApi } from "@renderer/api/chat";
+import { lineageApi } from "@renderer/api/lineage";
 import { useAcpAgentsStore } from "./acp-agents";
 import { useChatStore } from "./chat";
 import { useProjectStore } from "./project";
@@ -43,10 +46,17 @@ export interface DraftProbeState {
   error?: { code: string; message: string };
 }
 
+export interface OriginTaskInfo {
+  source: TaskSource;
+  title: string;
+  ref: LineageTaskRef;
+}
+
 export interface SessionStore {
   sessions: Ref<Session[]>;
   activeSessionId: Ref<string | null>;
   activeSession: ComputedRef<Session | null>;
+  taskInfoBySessionId: Ref<Map<string, OriginTaskInfo>>;
   draftAgentId: Ref<string | null>;
   draftProbeByAgent: Ref<Map<string, DraftProbeState>>;
   activeDraftProbe: ComputedRef<DraftProbeState | null>;
@@ -60,6 +70,7 @@ export interface SessionStore {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    taskRef?: LineageTaskRef;
   }) => Promise<Session>;
   beginDraftSession: () => void;
   selectSession: (sessionId: string) => Promise<void>;
@@ -130,11 +141,16 @@ function sortByUpdatedAt<T extends Pick<Session, "updatedAt">>(items: T[]): T[] 
   return [...items].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 }
 
+function parseTaskSource(ref: LineageTaskRef): TaskSource {
+  return ref.split(":")[0] as TaskSource;
+}
+
 export const useSessionStore = defineStore("session", (): SessionStore => {
   const toast = useToast();
   const acpAgentsStore = useAcpAgentsStore();
   const sessions = ref<Session[]>([]);
   const activeSessionId = ref<string | null>(null);
+  const taskInfoBySessionId = ref<Map<string, OriginTaskInfo>>(new Map());
   const draftAgentId = ref<string | null>(null);
   const draftProbeByAgent = ref<Map<string, DraftProbeState>>(new Map());
   const isLoading = ref(false);
@@ -195,6 +211,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sessions.value = [];
     activeSessionId.value = null;
     loadedSessionIds.clear();
+    taskInfoBySessionId.value = new Map();
     syncDraftAgentId();
   }
 
@@ -233,7 +250,39 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     session.availableCommands = nextSession.availableCommands;
     session.configOptions = nextSession.configOptions;
     session.actionStates = nextSession.actionStates;
+    session.originTaskRef = nextSession.originTaskRef;
     return session;
+  }
+
+  function setOriginTaskInfo(sessionId: string, info: OriginTaskInfo): void {
+    taskInfoBySessionId.value = new Map(taskInfoBySessionId.value).set(sessionId, info);
+  }
+
+  async function ensureOriginTaskInfo(session: Session): Promise<void> {
+    const ref = session.originTaskRef;
+    if (!ref || taskInfoBySessionId.value.has(session.id)) {
+      return;
+    }
+
+    const source = parseTaskSource(ref);
+    const fallback: OriginTaskInfo = { source, title: ref, ref };
+    const projectId = useProjectStore().currentProject?.id ?? session.projectId;
+
+    try {
+      const result = await lineageApi.getByTask(projectId, ref);
+      if (!result.ok) {
+        setOriginTaskInfo(session.id, fallback);
+        return;
+      }
+
+      setOriginTaskInfo(session.id, {
+        source,
+        title: result.data?.task?.snapshot.title ?? ref,
+        ref,
+      });
+    } catch {
+      setOriginTaskInfo(session.id, fallback);
+    }
   }
 
   function setSessionAvailableCommands(sessionId: string, commands: AcpAvailableCommand[]): void {
@@ -463,6 +512,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    taskRef?: LineageTaskRef;
   }): Promise<Session> {
     const result = await chatApi.createSession({
       projectId: input.projectId,
@@ -473,6 +523,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         ? { availableCommands: input.availableCommands }
         : {}),
       ...(input.acpSessionId ? { acpSessionId: input.acpSessionId } : {}),
+      ...(input.taskRef ? { taskRef: input.taskRef } : {}),
     });
     if (!result.ok) {
       throw new Error(result.error.message);
@@ -492,6 +543,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     activeSessionId.value = sessionId;
+    await ensureOriginTaskInfo(session);
 
     if (session.messages.length > 0 || loadedSessionIds.has(sessionId)) {
       return;
@@ -617,6 +669,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sessions,
     activeSessionId,
     activeSession,
+    taskInfoBySessionId,
     draftAgentId,
     draftProbeByAgent,
     activeDraftProbe,

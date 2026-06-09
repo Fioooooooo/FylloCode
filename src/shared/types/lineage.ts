@@ -30,6 +30,13 @@ export type Subject = {
   updatedAt: string;
 };
 
+export type TaskDownstreamProjection = {
+  subjectId: string;
+  origin: LineageOrigin;
+  task: LineageTaskSnapshot | null;
+  links: LineageSessionLink[];
+};
+
 export type LineageIndex = {
   version: 1;
   tasks: Record<string, string>;

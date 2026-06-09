@@ -5,11 +5,13 @@ import { useToast } from "@nuxt/ui/composables";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
+import { lineageApi } from "@renderer/api/lineage";
 import { useChatStore } from "@renderer/stores/chat";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import { useTaskStore } from "@renderer/stores/task";
 import { buildSourceDisplay, getTaskDescriptionPlainText } from "@renderer/utils/task";
+import type { LineageTaskRef, LineageTaskSnapshot } from "@shared/types/lineage";
 import type {
   CreateLocalTaskInput,
   TaskItem,
@@ -141,8 +143,29 @@ async function startChatFromTask(task: TaskItem): Promise<void> {
     return;
   }
 
+  const taskRef = `${task.source}:${task.id}` as LineageTaskRef;
+  const snapshot: LineageTaskSnapshot = {
+    ref: taskRef,
+    snapshot: task,
+    capturedAt: new Date().toISOString(),
+  };
+
+  try {
+    const result = await lineageApi.ensureTaskSubject(projectId, snapshot);
+    if (!result.ok) {
+      throw new Error(result.error.message || result.error.code);
+    }
+  } catch (error: unknown) {
+    toast.add({
+      title: "发起讨论失败",
+      description: error instanceof Error ? error.message : String(error),
+      color: "error",
+    });
+    return;
+  }
+
   sessionStore.beginDraftSession();
-  await chatStore.sendMessage([{ type: "text", text: buildTaskPrompt(task) }]);
+  await chatStore.sendMessage([{ type: "text", text: buildTaskPrompt(task) }], { taskRef });
   await router.push("/chat");
 }
 

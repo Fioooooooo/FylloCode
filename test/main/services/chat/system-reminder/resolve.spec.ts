@@ -136,6 +136,61 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text).not.toContain("git worktree add");
   });
 
+  it("injects task context into chat reminders when taskRef is present", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+      taskRef: "local:task-1",
+    });
+
+    expect(reminder?.text).toContain("<task-context>");
+    expect(reminder?.text).toContain("existing task local:task-1");
+  });
+
+  it("omits task context from chat reminders when taskRef is absent", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+    });
+
+    expect(reminder?.text).not.toContain("<task-context>");
+    expect(reminder?.text).not.toContain("started from existing task");
+  });
+
+  it("returns null and logs a warning when taskRef contains angle brackets", async () => {
+    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
+
+    await expect(
+      resolveSystemReminder({
+        owner: "chat",
+        projectPath: "/tmp/project",
+        cwd: "/tmp/project",
+        fylloSessionId: "session-1",
+        agentId: "claude-acp",
+        taskRef: "local:<bad>",
+      })
+    ).resolves.toBeNull();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      "[system-reminder] rejected reminder variable",
+      expect.objectContaining({
+        owner: "chat",
+        field: "taskRef",
+        fylloSessionId: "session-1",
+      })
+    );
+  });
+
   it("injects the Fyllo action contract into chat reminders", async () => {
     const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
 

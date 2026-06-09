@@ -37,6 +37,7 @@ import {
   setSessionActionState,
   updateSession,
 } from "@main/services/chat/chat-service";
+import { linkTaskSession } from "@main/services/lineage/lineage-service";
 import { setConfigOption } from "@main/services/chat/config-option-service";
 import {
   closeProbe,
@@ -103,7 +104,31 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
-      return createSession(form);
+      const projectPath = await resolveProjectPath(form.projectId);
+      const session = await createSession(form);
+      if (!form.taskRef) {
+        return session;
+      }
+
+      try {
+        const linked = await linkTaskSession(projectPath, form.taskRef, session.id);
+        if (!linked) {
+          logger.error("[chat] failed to link task session: subject not found", {
+            projectId: form.projectId,
+            taskRef: form.taskRef,
+            sessionId: session.id,
+          });
+        }
+      } catch (error: unknown) {
+        logger.error("[chat] failed to link task session", {
+          projectId: form.projectId,
+          taskRef: form.taskRef,
+          sessionId: session.id,
+          error,
+        });
+      }
+
+      return session;
     })
   );
 
@@ -266,6 +291,9 @@ export function registerChatHandlers(): void {
           cwd: projectPath,
           owner: "chat",
           sessionStore,
+          reminderContext: {
+            taskRef: meta?.originTaskRef,
+          },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
               sessionMessagesPath(projectPath, sessionId),

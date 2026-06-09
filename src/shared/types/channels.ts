@@ -57,6 +57,12 @@ export const TaskChannels = {
   delete: "task:delete",
 } as const;
 
+export const LineageChannels = {
+  ensureTaskSubject: "lineage:ensureTaskSubject",
+  linkTaskSession: "lineage:linkTaskSession",
+  getByTask: "lineage:getByTask",
+} as const;
+
 export const IntegrationChannels = {
   getConnections: "integration:getConnections",
   connect: "integration:connect",

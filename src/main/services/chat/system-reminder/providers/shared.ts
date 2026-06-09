@@ -2,6 +2,7 @@ import logger from "@main/infra/logger";
 import type { SystemReminderContext } from "../types";
 
 const VARIABLE_PATTERN = /\{\{([a-zA-Z0-9_]+)\}\}/g;
+const CONDITIONAL_PATTERN = /\{\{#([a-zA-Z0-9_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
 const ALLOWED_VARIABLES = [
   "changeId",
   "stageIndex",
@@ -9,6 +10,7 @@ const ALLOWED_VARIABLES = [
   "projectPath",
   "worktreePath",
   "mainProjectPath",
+  "taskRef",
 ] as const;
 const ALLOWED_VARIABLE_SET = new Set<string>(ALLOWED_VARIABLES);
 type AllowedVariable = (typeof ALLOWED_VARIABLES)[number];
@@ -50,6 +52,8 @@ function getVariableValue(
       return ctx.worktreePath;
     case "mainProjectPath":
       return ctx.projectPath;
+    case "taskRef":
+      return ctx.taskRef;
     default:
       return undefined;
   }
@@ -69,7 +73,17 @@ export function renderSystemReminderTemplate(
     sanitizedValues[field] = sanitized;
   }
 
-  return template.replace(VARIABLE_PATTERN, (match, field: string) => {
+  const renderedConditionals = template.replace(
+    CONDITIONAL_PATTERN,
+    (match, field: string, content: string) => {
+      if (!ALLOWED_VARIABLE_SET.has(field)) {
+        return match;
+      }
+      return sanitizedValues[field as AllowedVariable] ? content : "";
+    }
+  );
+
+  return renderedConditionals.replace(VARIABLE_PATTERN, (match, field: string) => {
     if (!ALLOWED_VARIABLE_SET.has(field)) {
       return match;
     }

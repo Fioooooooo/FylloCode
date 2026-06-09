@@ -25,6 +25,7 @@ import {
   getBySession,
   getByTask,
   linkSession,
+  linkTaskSession,
   rebuildIndex,
   recordProposal,
 } from "@main/services/lineage/lineage-service";
@@ -190,6 +191,33 @@ describe("lineage-service", () => {
       task: { ref: "local:task-backfilled" },
       sessionId: "session-chat",
     });
+  });
+
+  it("links sessions by task ref idempotently", async () => {
+    const snapshot = taskSnapshot("github:42");
+    const subject = await ensureTaskSubject(projectPath, snapshot);
+
+    setNow("2026-06-09T00:01:00.000Z");
+    const linked = await linkTaskSession(projectPath, snapshot.ref, "session-from-task");
+    const repeated = await linkTaskSession(projectPath, snapshot.ref, "session-from-task");
+
+    expect(linked).toMatchObject({
+      id: subject.id,
+      task: snapshot,
+      links: [{ sessionId: "session-from-task" }],
+    });
+    expect(repeated?.id).toBe(subject.id);
+    expect(repeated?.links.filter((link) => link.sessionId === "session-from-task")).toHaveLength(
+      1
+    );
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      tasks: { [snapshot.ref]: subject.id },
+      sessions: { "session-from-task": subject.id },
+    });
+
+    await expect(
+      linkTaskSession(projectPath, "local:missing", "session-missing")
+    ).resolves.toBeNull();
   });
 
   it("self-heals a missing index during queries", async () => {

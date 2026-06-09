@@ -8,6 +8,7 @@ import { registerAcpAgentHandlers } from "./acp-agents";
 import { registerSettingsHandlers } from "./settings";
 import { registerWorkflowHandlers } from "./workflow";
 import { registerTaskHandlers } from "./task";
+import { registerLineageHandlers } from "./lineage";
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -17,6 +18,7 @@ export function registerAllHandlers(): void {
   registerProposalApplyHandlers();
   registerWorkflowHandlers();
   registerTaskHandlers();
+  registerLineageHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

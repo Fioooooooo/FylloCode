@@ -180,6 +180,21 @@ export async function linkSession(
   return nextSubject;
 }
 
+export async function linkTaskSession(
+  projectPath: string,
+  taskRef: LineageTaskRef,
+  sessionId: string
+): Promise<Subject | null> {
+  const now = nowIso();
+  const index = await readWritableIndex(projectPath, now);
+  const subjectId = index.tasks[taskRef];
+  if (!subjectId) {
+    return null;
+  }
+
+  return linkSession(projectPath, sessionId, subjectId);
+}
+
 export async function recordProposal(
   projectPath: string,
   sessionId: string,

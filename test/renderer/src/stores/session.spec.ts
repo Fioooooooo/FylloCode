@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   probeSetConfigOption: vi.fn(),
   setActionState: vi.fn(),
   onProbeUpdate: vi.fn(),
+  getByTask: vi.fn(),
 }));
 
 vi.mock("@renderer/api/chat", () => ({
@@ -32,6 +33,12 @@ vi.mock("@renderer/api/chat", () => ({
     probeClose: mocks.probeClose,
     probeSetConfigOption: mocks.probeSetConfigOption,
     onProbeUpdate: mocks.onProbeUpdate,
+  },
+}));
+
+vi.mock("@renderer/api/lineage", () => ({
+  lineageApi: {
+    getByTask: mocks.getByTask,
   },
 }));
 
@@ -97,6 +104,7 @@ describe("useSessionStore", () => {
       },
     });
     mocks.onProbeUpdate.mockReturnValue(vi.fn());
+    mocks.getByTask.mockResolvedValue({ ok: true, data: null });
   });
 
   it("overwrites availableCommands for an existing session", () => {
@@ -184,6 +192,59 @@ describe("useSessionStore", () => {
 
     await store.selectSession("session-b");
     expect(store.activeSession?.availableCommands).toEqual([]);
+  });
+
+  it("loads and caches origin task info when selecting linked sessions", async () => {
+    const store = useSessionStore();
+    store.sessions = [
+      session({
+        originTaskRef: "yunxiao:STORY-42",
+      }),
+    ];
+    mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
+    mocks.getByTask.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "task",
+        task: {
+          ref: "yunxiao:STORY-42",
+          snapshot: { title: "Story title" },
+          capturedAt: "2026-06-09T00:00:00.000Z",
+        },
+        links: [],
+      },
+    });
+
+    await store.selectSession("session-1");
+    await store.selectSession("session-1");
+
+    expect(mocks.getByTask).toHaveBeenCalledTimes(1);
+    expect(mocks.getByTask).toHaveBeenCalledWith("project-1", "yunxiao:STORY-42");
+    expect(store.taskInfoBySessionId.get("session-1")).toEqual({
+      source: "yunxiao",
+      title: "Story title",
+      ref: "yunxiao:STORY-42",
+    });
+  });
+
+  it("falls back to the origin task ref when lineage subject is missing", async () => {
+    const store = useSessionStore();
+    store.sessions = [
+      session({
+        originTaskRef: "github:42",
+      }),
+    ];
+    mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
+    mocks.getByTask.mockResolvedValue({ ok: true, data: null });
+
+    await store.selectSession("session-1");
+
+    expect(store.taskInfoBySessionId.get("session-1")).toEqual({
+      source: "github",
+      title: "github:42",
+      ref: "github:42",
+    });
   });
 
   it("setSessionConfigOptions overwrites configOptions for the session", () => {

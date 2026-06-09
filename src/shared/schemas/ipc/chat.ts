@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { chatPromptPartSchema } from "@shared/types/chat-prompt";
 import { fylloActionStateSchema } from "@shared/schemas/fyllo-action";
+import { lineageTaskRefSchema } from "@shared/schemas/ipc/lineage";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
@@ -52,6 +53,7 @@ export const createSessionInputSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
   agentId: z.string().min(1),
+  taskRef: lineageTaskRefSchema.optional(),
   configOptions: z.array(z.unknown()).optional(),
   availableCommands: z
     .array(

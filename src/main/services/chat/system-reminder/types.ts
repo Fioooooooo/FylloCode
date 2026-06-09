@@ -1,4 +1,5 @@
 import type { SessionOwner } from "@main/services/chat/session-registry";
+import type { LineageTaskRef } from "@shared/types/lineage";
 
 export interface SystemReminderContext {
   owner: SessionOwner;
@@ -10,4 +11,5 @@ export interface SystemReminderContext {
   stageIndex?: number;
   runId?: string;
   worktreePath?: string;
+  taskRef?: LineageTaskRef;
 }

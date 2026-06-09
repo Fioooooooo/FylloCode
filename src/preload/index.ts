@@ -9,6 +9,7 @@ import { acpAgentsApi } from "./api/acp-agents";
 import { settingsApi } from "./api/settings";
 import { workflowApi } from "./api/workflow";
 import { taskApi } from "./api/task";
+import { lineageApi } from "./api/lineage";
 
 const api = {
   app: appApi,
@@ -20,6 +21,7 @@ const api = {
   settings: settingsApi,
   workflow: workflowApi,
   task: taskApi,
+  lineage: lineageApi,
 };
 
 if (process.contextIsolated) {

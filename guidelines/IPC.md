@@ -65,6 +65,13 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `chat:readAttachmentDataUrl`：入参 `{ uri, mediaType }`，其中 `uri` 必须为 `file://`，`mediaType` 必须以 `image/` 开头；返回 `IpcResponse<{ dataUrl: string }>`，用于 renderer 将已持久化图片附件读取为 `<img src>` 可用的 data URL。本次读取接口不设置文件大小上限。
 - `chat:stream:message` 的 `prompt` 字段为 `ChatPromptPart[]`；当 prompt part 与 agent capability 不匹配时，主进程返回 `PROMPT_CAPABILITY_MISMATCH`。
 
+## Lineage Channels
+
+- `lineage:ensureTaskSubject`：入参 `{ projectId, snapshot }`，其中 `snapshot` 为 `LineageTaskSnapshot`；主进程解析 projectId 为 projectPath 后调用 `lineage-service.ensureTaskSubject`，返回 `Subject`。发起任务讨论前必须先调用该 channel 创建或复用 task subject。
+- `lineage:linkTaskSession`：入参 `{ projectId, taskRef, sessionId }`，调用 `lineage-service.linkTaskSession`，返回 `Subject | null`。该 channel 为尽力而为挂边能力；调用方必须能处理 `null`。
+- `lineage:getByTask`：入参 `{ projectId, ref }`，返回 `IpcResponse<TaskDownstreamProjection | null>`，用于 renderer 从 lineage subject 快照读取任务标题与下游 session links。
+- 三个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
+
 ## Session Config Options Channels
 
 - `chat:setConfigOption`：入参 `{ projectId, sessionId, configId, type: "select" | "boolean", value: string | boolean }`，使用 zod discriminated union 校验 `value` 类型与 `type` 字面量匹配（`select` 仅接收非空 `string`，`boolean` 仅接收 `boolean`）。返回 `IpcResponse<{ configOptions: AcpSessionConfigOption[] }>`，主进程在调用 `connection.setSessionConfigOption` 成功后将全集 `configOptions` 写回 `SessionMeta.config_options`，再原样返回给 renderer。错误码集合：`VALIDATION_ERROR`（入参或 session 缺 `acpSessionId`）、`CONFIG_OPTION_INVALID_VALUE`（`value` 不在缓存的 select schema 中）、`CONFIG_OPTION_NOT_SUPPORTED`（agent 未实现 `session/set_config_option`，识别 ACP `-32601` 与语义等价错误）、`ACP_NOT_READY`、`ACP_ERROR`。

@@ -4,6 +4,7 @@ import type { MessageMeta } from "@shared/types/chat";
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { FylloActionState } from "@shared/types/fyllo-action";
+import type { LineageTaskRef } from "@shared/types/lineage";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import {
@@ -43,6 +44,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     availableCommands: meta.available_commands,
     configOptions: meta.configOptions,
     actionStates: meta.actionStates,
+    originTaskRef: meta.originTaskRef,
   };
 }
 
@@ -61,6 +63,7 @@ export async function createSession(input: {
   configOptions?: AcpSessionConfigOption[] | unknown[];
   availableCommands?: AcpAvailableCommand[];
   acpSessionId?: string;
+  taskRef?: LineageTaskRef;
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
   const now = new Date();
@@ -75,6 +78,9 @@ export async function createSession(input: {
   };
   if (input.acpSessionId) {
     meta.acpSessionId = input.acpSessionId;
+  }
+  if (input.taskRef) {
+    meta.originTaskRef = input.taskRef;
   }
   if (input.configOptions !== undefined) {
     meta.configOptions = normalizeAcpSessionConfigOptions(

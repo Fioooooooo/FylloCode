@@ -6,6 +6,7 @@ import type { AcpAvailableCommand, Session, Message } from "@shared/types/chat";
 import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
+import type { LineageTaskRef } from "@shared/types/lineage";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 type ProbeConfigOptionInput = {
@@ -127,6 +128,7 @@ export const chatApi = {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    taskRef?: LineageTaskRef;
   }): Promise<IpcResponse<Session>> {
     return ipcRenderer.invoke(ChatChannels.createSession, input);
   },
