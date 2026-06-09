@@ -1,0 +1,84 @@
+import type { LineageOrigin, LineageTaskSnapshot, Subject } from "@shared/types/lineage";
+
+function defaultSubjectId(now: string): string {
+  const time = new Date(now).getTime();
+  return `subject-${Number.isNaN(time) ? 0 : time}`;
+}
+
+export function buildSubject(
+  origin: LineageOrigin,
+  task: LineageTaskSnapshot | null,
+  now: string,
+  subjectId = defaultSubjectId(now)
+): Subject {
+  return {
+    id: subjectId,
+    origin,
+    task,
+    links: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function upsertSessionLink(subject: Subject, sessionId: string, now: string): Subject {
+  if (subject.links.some((link) => link.sessionId === sessionId)) {
+    return subject;
+  }
+
+  return {
+    ...subject,
+    links: [
+      ...subject.links,
+      {
+        sessionId,
+        createdAt: now,
+        proposals: [],
+      },
+    ],
+    updatedAt: now,
+  };
+}
+
+export function appendProposal(
+  subject: Subject,
+  sessionId: string,
+  changeId: string,
+  now: string
+): Subject {
+  const targetLink = subject.links.find((link) => link.sessionId === sessionId);
+  if (!targetLink || targetLink.proposals.some((proposal) => proposal.changeId === changeId)) {
+    return subject;
+  }
+
+  return {
+    ...subject,
+    links: subject.links.map((link) =>
+      link.sessionId === sessionId
+        ? {
+            ...link,
+            proposals: [
+              ...link.proposals,
+              {
+                changeId,
+                createdAt: now,
+              },
+            ],
+          }
+        : link
+    ),
+    updatedAt: now,
+  };
+}
+
+export function attachTask(subject: Subject, taskSnapshot: LineageTaskSnapshot): Subject {
+  if (subject.task?.ref === taskSnapshot.ref) {
+    return subject;
+  }
+
+  return {
+    ...subject,
+    task: taskSnapshot,
+    updatedAt: taskSnapshot.capturedAt,
+  };
+}

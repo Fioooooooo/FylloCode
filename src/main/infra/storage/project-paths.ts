@@ -30,6 +30,14 @@ export function sessionsDir(projectPath: string): string {
   return join(projectDir(projectPath), "sessions");
 }
 
+export function lineageDir(projectPath: string): string {
+  return join(projectDir(projectPath), "lineage");
+}
+
+export function subjectsDir(projectPath: string): string {
+  return join(lineageDir(projectPath), "subjects");
+}
+
 export function applyRunsDir(projectPath: string): string {
   return join(projectDir(projectPath), "apply-runs");
 }

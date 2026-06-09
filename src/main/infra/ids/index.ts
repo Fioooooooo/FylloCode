@@ -11,6 +11,10 @@ export function newRunId(): string {
   return `run-${Date.now()}`;
 }
 
+export function newSubjectId(): string {
+  return `subject-${Date.now()}`;
+}
+
 export function newStageFylloSessionId(runId: string, stageIndex: number): string {
   return `${runId}-${stageIndex}`;
 }

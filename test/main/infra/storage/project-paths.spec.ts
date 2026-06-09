@@ -4,7 +4,14 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `/tmp/fyllocode-test/${subPath}`),
 }));
 
-import { encodeProjectPath, projectDir } from "@main/infra/storage/project-paths";
+import {
+  encodeProjectPath,
+  lineageDir,
+  projectDir,
+  subjectsDir,
+} from "@main/infra/storage/project-paths";
+
+const projectPath = "/tmp/project";
 
 describe("project path storage helpers", () => {
   it("keeps the existing POSIX path encoding stable", () => {
@@ -28,6 +35,13 @@ describe("project path storage helpers", () => {
   it("uses the safe encoded id under the projects data directory", () => {
     expect(projectDir("C:\\Users\\admin\\Desktop\\FylloCode")).toBe(
       "/tmp/fyllocode-test/projects/C-Users-admin-Desktop-FylloCode"
+    );
+  });
+
+  it("resolves lineage directories under the project data directory", () => {
+    expect(lineageDir(projectPath)).toBe("/tmp/fyllocode-test/projects/tmp-project/lineage");
+    expect(subjectsDir(projectPath)).toBe(
+      "/tmp/fyllocode-test/projects/tmp-project/lineage/subjects"
     );
   });
 });

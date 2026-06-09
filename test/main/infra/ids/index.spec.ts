@@ -4,6 +4,7 @@ import {
   newRunId,
   newSessionId,
   newStageFylloSessionId,
+  newSubjectId,
 } from "@main/infra/ids";
 
 describe("infra/ids", () => {
@@ -19,6 +20,11 @@ describe("infra/ids", () => {
   it("newRunId produces run-prefixed ids", async () => {
     const id = newRunId();
     expect(id).toMatch(/^run-\d+$/);
+  });
+
+  it("newSubjectId produces subject-prefixed ids", () => {
+    const id = newSubjectId();
+    expect(id).toMatch(/^subject-\d+$/);
   });
 
   it("newStageFylloSessionId composes from runId + stageIndex", () => {

@@ -30,6 +30,7 @@ keywords: [data-model, shared-types, persistence, serialization]
 - `openspec/specs/project-store-persistence/spec.md`
 - `openspec/specs/session-meta-storage/spec.md`
 - `openspec/specs/proposal-apply-run/spec.md`
+- `openspec/specs/project-lineage-model/spec.md`
 - `openspec/specs/integration-providers/spec.md`
 - `openspec/specs/global-preferences/spec.md`
 
@@ -70,6 +71,14 @@ keywords: [data-model, shared-types, persistence, serialization]
 - `<userData>/acp/status-cache.json`（`AcpStatusCache`，结构 `{ fetchedAt: string, statuses: AcpAgentStatus[] }`）是**检测输出的只读派生快照**：`statuses` 元素即前端契约 `AcpAgentStatus`，含 `installed:false` 的未安装 Agent，供面板读一个文件直接渲染。它镜像 `acp-registry-cache.ts` 的 `{ fetchedAt, data }` 形态，但**不设 TTL**。
 - 数据流单向：安装/卸载 → 写 `installed.json` → 作为检测输入并被检测回填修正 → 检测产出 `AcpAgentStatus[]` → 写 `status-cache.json`。`status-cache.json` 永不被手动编辑，无需与 `installed.json` 双向同步；重叠字段（`managedBy`/`installMethod`/版本）是检测时从账本拷贝而来。
 - 新鲜度模型：`acp:detectStatus` 走 stale-while-revalidate——有缓存立即返回并后台检测，完成后经 `acp:statusUpdated` 广播覆盖；`acp:detectStatusForced`（设置页 Refresh、安装/卸载后刷新）绕过缓存前台等真实结果。外部（终端 `npm i -g`）变更会在下次打开 App 后约 1 秒经后台刷新跟上，或手动 Refresh 立即反映。
+
+## Project Lineage
+
+- 项目级 lineage 数据写入 `<userData>/projects/<encoded(projectPath)>/lineage/`。其中 `subjects/<subjectId>.json` 是每条原始需求线索的权威源，`index.json` 是从 subjects 派生的反查索引。
+- `Subject.origin` 只能是 `"task"` 或 `"chat"`，创建后不得翻转。chat 起源后续补建本地 task 时仍保持 `origin: "chat"`，消费方可据此判断 task 是否为后补建。
+- `Subject.task` 是 `LineageTaskSnapshot | null`。快照保存 `<source>:<taskId>` 形式的 `ref`、全量 `TaskItem` 和 `capturedAt`，用于保留第三方任务在关闭或过滤后仍可回溯的源头信息；chat 起源在补建 task 前允许为 `null`。
+- `index.json` 含 `tasks`、`sessions`、`proposals` 三类 `key → subjectId` 反查表，可由 `subjects/*.json` 重建。读取 index 失败或缺失时，service 查询路径应触发重建；因此 index 格式变化无需迁移脚本。
+- `subjects/*.json` 是账本类权威数据。后续若 subject schema 发生不兼容变化（字段重命名、类型变更、字段删除、结构调整），必须按本文迁移规则新增迁移脚本。
 
 ## Verification
 
