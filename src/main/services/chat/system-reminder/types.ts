@@ -12,4 +12,5 @@ export interface SystemReminderContext {
   runId?: string;
   worktreePath?: string;
   taskRef?: LineageTaskRef;
+  taskTitle?: string;
 }

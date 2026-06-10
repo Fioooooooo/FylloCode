@@ -37,6 +37,12 @@ export type TaskDownstreamProjection = {
   links: LineageSessionLink[];
 };
 
+export interface CreateSessionTaskInput {
+  sessionId: string;
+  title: string;
+  description?: string;
+}
+
 export type LineageIndex = {
   version: 1;
   tasks: Record<string, string>;

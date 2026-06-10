@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => {
     setSessionActionState: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveProjectPath: vi.fn(),
+    getByTask: vi.fn(),
+    linkTaskSession: vi.fn(),
     loadSessionMeta: vi.fn(),
     patchSessionMeta: vi.fn(),
     upsertSessionMeta: vi.fn(),
@@ -76,6 +78,11 @@ vi.mock("@main/services/chat/chat-service", () => ({
 
 vi.mock("@main/services/lineage/mcp-event-consumer", () => ({
   ensureLineageEventConsumer: mocks.ensureLineageEventConsumer,
+}));
+
+vi.mock("@main/services/lineage/lineage-service", () => ({
+  getByTask: mocks.getByTask,
+  linkTaskSession: mocks.linkTaskSession,
 }));
 
 vi.mock("@main/services/chat/config-option-service", () => ({
@@ -164,6 +171,8 @@ describe("registerChatHandlers", () => {
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.getByTask.mockResolvedValue(null);
+    mocks.linkTaskSession.mockResolvedValue(null);
     mocks.listSessions.mockResolvedValue([]);
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
@@ -808,6 +817,66 @@ describe("registerChatHandlers", () => {
     expect(sink.sendChunk).not.toHaveBeenCalledWith(
       expect.objectContaining({ kind: "user_message" })
     );
+  });
+
+  it("passes taskRef and lineage task title into chat reminder context", async () => {
+    mocks.loadSessionMeta.mockResolvedValueOnce({
+      sessionId: "session-1",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      originTaskRef: "local:task-1",
+      createdAt: "2026-05-09T00:00:00.000Z",
+      updatedAt: "2026-05-09T00:00:00.000Z",
+    });
+    mocks.getByTask.mockResolvedValueOnce({
+      subjectId: "subject-1",
+      origin: "task",
+      task: {
+        ref: "local:task-1",
+        snapshot: {
+          id: "task-1",
+          projectId: "tmp-project",
+          title: "修复登录超时",
+          description: { format: "plain_text", content: "登录超时的完整复现步骤" },
+          status: "open",
+          source: "local",
+          sourceMeta: { source: "local" },
+          labels: [],
+          createdAt: new Date("2026-05-09T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-09T00:00:00.000Z"),
+        },
+        capturedAt: "2026-05-09T00:00:00.000Z",
+      },
+      links: [],
+    });
+
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        streamId: "stream-1",
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    expect(mocks.getByTask).toHaveBeenCalledWith("/tmp/project", "local:task-1");
+    const acpSessionMock = vi.mocked((await import("@main/services/chat/acp-session")).AcpSession);
+    const opts = acpSessionMock.mock.calls[0]?.[0] as AcpSessionOpts | undefined;
+    expect(opts?.reminderContext).toEqual({
+      taskRef: "local:task-1",
+      taskTitle: "修复登录超时",
+    });
   });
 
   it("forwards available_commands_update without assembler and persists session meta", async () => {

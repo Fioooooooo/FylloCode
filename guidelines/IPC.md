@@ -70,7 +70,8 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `lineage:ensureTaskSubject`：入参 `{ projectId, snapshot }`，其中 `snapshot` 为 `LineageTaskSnapshot`；主进程解析 projectId 为 projectPath 后调用 `lineage-service.ensureTaskSubject`，返回 `Subject`。发起任务讨论前必须先调用该 channel 创建或复用 task subject。
 - `lineage:linkTaskSession`：入参 `{ projectId, taskRef, sessionId }`，调用 `lineage-service.linkTaskSession`，返回 `Subject | null`。该 channel 为尽力而为挂边能力；调用方必须能处理 `null`。
 - `lineage:getByTask`：入参 `{ projectId, ref }`，返回 `IpcResponse<TaskDownstreamProjection | null>`，用于 renderer 从 lineage subject 快照读取任务标题与下游 session links。
-- 三个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
+- `lineage:createSessionTask`：入参 `{ projectId, sessionId, title, description? }`，返回 `IpcResponse<TaskItem>`。该 channel 由主进程一次性创建本地任务并回绑到当前会话 subject；创建任务失败必须返回错误，回绑失败只记录日志并返回已创建任务。
+- 四个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
 - `chat:listSessions` 在解析 `projectId → projectPath` 后必须调用 `ensureLineageEventConsumer(projectPath)`，作为 MCP proposal 事件目录 consumer 的项目级懒触发点；consumer 创建本身必须幂等，handler 不承担文件扫描或 lineage 写入细节。
 
 ## Bundled MCP Env

@@ -54,7 +54,8 @@ export interface TaskItem {
   sourceMeta: TaskSourceMeta;
   labels: TaskLabel[];
   assignee?: TaskUser;
-  proposalId?: string;
+  /** Write-once: set only by lineage:createSessionTask when a chat creates a local task. */
+  originSessionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,9 +63,8 @@ export interface TaskItem {
 export interface CreateLocalTaskInput {
   title: string;
   description?: TaskDescription;
-  proposalId?: string;
 }
 
 export type UpdateTaskInput = Partial<
-  Pick<TaskItem, "title" | "description" | "status" | "labels" | "assignee" | "proposalId">
+  Pick<TaskItem, "title" | "description" | "status" | "labels" | "assignee">
 >;

@@ -50,10 +50,14 @@ describe("FylloActionNode", () => {
     await buttonByText(wrapper, "确认").trigger("click");
     await flushPromises();
 
-    expect(dispatchMock).toHaveBeenCalledWith("task.create", {
-      title: "补齐错误处理",
-      description: "整理异常分支",
-    });
+    expect(dispatchMock).toHaveBeenCalledWith(
+      "task.create",
+      {
+        title: "补齐错误处理",
+        description: "整理异常分支",
+      },
+      { sessionId: undefined }
+    );
   });
 
   it("persists ready action state with deterministic transcript action id", async () => {
@@ -85,6 +89,13 @@ describe("FylloActionNode", () => {
     await buttonByText(wrapper, "确认").trigger("click");
     await flushPromises();
 
+    expect(dispatchMock).toHaveBeenCalledWith(
+      "task.create",
+      {
+        title: "补齐错误处理",
+      },
+      { sessionId: "session-1" }
+    );
     expect(persistActionState).toHaveBeenCalledWith("chat:session-1:3:0:0", {
       type: "task.create",
       status: "succeeded",

@@ -36,7 +36,6 @@ export const createTaskInputSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
   description: taskDescriptionSchema.optional(),
-  proposalId: z.string().optional(),
 });
 
 export const updateTaskInputSchema = z.object({
@@ -48,7 +47,6 @@ export const updateTaskInputSchema = z.object({
     status: taskStatusSchema.optional(),
     labels: z.array(taskLabelSchema).optional(),
     assignee: taskUserSchema.optional(),
-    proposalId: z.string().optional(),
   }),
 });
 

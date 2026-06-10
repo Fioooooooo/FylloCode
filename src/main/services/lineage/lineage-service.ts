@@ -21,12 +21,16 @@ import {
   writeIndex,
   writeSubject,
 } from "@main/infra/storage/lineage-store";
+import logger from "@main/infra/logger";
+import { createTask } from "@main/services/task/task-service";
 import type {
+  CreateSessionTaskInput,
   LineageIndex,
   LineageTaskRef,
   LineageTaskSnapshot,
   Subject,
 } from "@shared/types/lineage";
+import type { TaskItem } from "@shared/types/task";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -232,6 +236,47 @@ export async function backfillTask(
   const nextSubject = attachTask(subject, taskSnapshot);
   await writeSubjectWithIndex(projectPath, nextSubject, index);
   return nextSubject;
+}
+
+export async function createSessionTask(
+  projectPath: string,
+  input: CreateSessionTaskInput
+): Promise<TaskItem> {
+  const task = await createTask(
+    projectPath,
+    {
+      title: input.title,
+      description: {
+        format: "plain_text",
+        content: input.description ?? "",
+      },
+    },
+    { originSessionId: input.sessionId }
+  );
+  const taskSnapshot: LineageTaskSnapshot = {
+    ref: `local:${task.id}`,
+    snapshot: task,
+    capturedAt: nowIso(),
+  };
+
+  try {
+    const existingSubject = await getBySession(projectPath, input.sessionId);
+    const subjectId =
+      existingSubject?.subjectId ?? (await ensureChatSubject(projectPath, input.sessionId)).id;
+    const backfilled = await backfillTask(projectPath, subjectId, taskSnapshot);
+    if (!backfilled) {
+      logger.warn(
+        `[lineage] failed to backfill session task; subject missing project=${projectPath} session=${input.sessionId} task=${task.id}`
+      );
+    }
+  } catch (error: unknown) {
+    logger.warn(
+      `[lineage] failed to backfill session task project=${projectPath} session=${input.sessionId} task=${task.id}`,
+      error
+    );
+  }
+
+  return task;
 }
 
 export async function getByTask(

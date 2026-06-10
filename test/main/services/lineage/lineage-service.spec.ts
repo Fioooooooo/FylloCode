@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from "fs";
+import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LineageTaskRef, LineageTaskSnapshot } from "@shared/types/lineage";
 import type { TaskItem } from "@shared/types/task";
@@ -15,10 +16,19 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
+const logger = vi.hoisted(() => ({
+  warn: vi.fn(),
+}));
+
+vi.mock("@main/infra/logger", () => ({
+  default: logger,
+}));
+
 import { readIndex } from "@main/infra/storage/lineage-store";
 import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
 import {
   backfillTask,
+  createSessionTask,
   ensureChatSubject,
   ensureTaskSubject,
   getByProposal,
@@ -68,6 +78,7 @@ function indexFilePath(): string {
 
 beforeEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
+  logger.warn.mockClear();
   vi.useFakeTimers();
   setNow("2026-06-09T00:00:00.000Z");
 });
@@ -190,6 +201,76 @@ describe("lineage-service", () => {
       origin: "chat",
       task: { ref: "local:task-backfilled" },
       sessionId: "session-chat",
+    });
+  });
+
+  it("creates a local task and backfills an existing chat subject", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+
+    const created = await createSessionTask(projectPath, {
+      sessionId: "session-chat",
+      title: "补齐错误处理",
+      description: "整理异常分支",
+    });
+
+    expect(created).toMatchObject({
+      title: "补齐错误处理",
+      description: { format: "plain_text", content: "整理异常分支" },
+      originSessionId: "session-chat",
+    });
+    await expect(getBySession(projectPath, "session-chat")).resolves.toMatchObject({
+      subjectId: subject.id,
+      origin: "chat",
+      task: {
+        ref: `local:${created.id}`,
+        snapshot: expect.objectContaining({
+          id: created.id,
+          originSessionId: "session-chat",
+        }),
+      },
+    });
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      tasks: { [`local:${created.id}`]: subject.id },
+      sessions: { "session-chat": subject.id },
+    });
+  });
+
+  it("returns the created task when session task backfill fails", async () => {
+    mkdirSync(dirname(lineageDir(projectPath)), { recursive: true });
+    writeFileSync(lineageDir(projectPath), "not a directory", "utf8");
+
+    const created = await createSessionTask(projectPath, {
+      sessionId: "session-chat",
+      title: "Backfill later",
+    });
+
+    expect(created).toMatchObject({
+      title: "Backfill later",
+      description: { format: "plain_text", content: "" },
+      originSessionId: "session-chat",
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("[lineage] failed to backfill session task"),
+      expect.any(Error)
+    );
+  });
+
+  it("creates a chat subject before backfilling when the session has no subject", async () => {
+    const created = await createSessionTask(projectPath, {
+      sessionId: "session-new",
+      title: "Open discussion task",
+    });
+
+    await expect(getBySession(projectPath, "session-new")).resolves.toMatchObject({
+      origin: "chat",
+      session: { sessionId: "session-new" },
+      task: {
+        ref: `local:${created.id}`,
+      },
+    });
+    await expect(getByTask(projectPath, `local:${created.id}`)).resolves.toMatchObject({
+      origin: "chat",
+      links: [{ sessionId: "session-new" }],
     });
   });
 

@@ -11,6 +11,7 @@ const ALLOWED_VARIABLES = [
   "worktreePath",
   "mainProjectPath",
   "taskRef",
+  "taskTitle",
 ] as const;
 const ALLOWED_VARIABLE_SET = new Set<string>(ALLOWED_VARIABLES);
 type AllowedVariable = (typeof ALLOWED_VARIABLES)[number];
@@ -54,6 +55,8 @@ function getVariableValue(
       return ctx.projectPath;
     case "taskRef":
       return ctx.taskRef;
+    case "taskTitle":
+      return ctx.taskTitle;
     default:
       return undefined;
   }

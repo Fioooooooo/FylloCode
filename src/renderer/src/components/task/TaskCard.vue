@@ -113,17 +113,6 @@ function handleViewDetail(): void {
         >
           任务来源
         </UButton>
-
-        <UButton
-          v-if="task.proposalId"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          icon="i-lucide-link"
-          :title="`Proposal #${task.proposalId}`"
-        >
-          关联 Proposal
-        </UButton>
       </div>
 
       <UButton

@@ -187,9 +187,9 @@ function normalizeTaskItem(value: unknown): TaskItem | null {
     sourceMeta: normalizeSourceMeta(source, value.sourceMeta),
     labels: normalizeLabels(value.labels),
     assignee: normalizeAssignee(value.assignee),
-    proposalId:
-      typeof value.proposalId === "string" && value.proposalId.length > 0
-        ? value.proposalId
+    originSessionId:
+      typeof value.originSessionId === "string" && value.originSessionId.length > 0
+        ? value.originSessionId
         : undefined,
     createdAt,
     updatedAt,

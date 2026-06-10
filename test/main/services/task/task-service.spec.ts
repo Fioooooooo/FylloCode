@@ -74,6 +74,7 @@ describe("task-service", () => {
     });
     expect(created.createdAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
     expect(created.updatedAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
+    expect(created.originSessionId).toBeUndefined();
     expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [existing, created]);
   });
 
@@ -93,6 +94,19 @@ describe("task-service", () => {
       description: { format: "plain_text", content: "" },
     });
     expect(updated.updatedAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
+    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [updated]);
+  });
+
+  it("does not let task patches change originSessionId", async () => {
+    const existing = task({ originSessionId: "session-original" });
+    mocks.loadTasks.mockResolvedValue([existing]);
+
+    const updated = await updateTask("/tmp/project", "task-1", {
+      title: "Updated",
+      originSessionId: "session-next",
+    } as never);
+
+    expect(updated.originSessionId).toBe("session-original");
     expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [updated]);
   });
 

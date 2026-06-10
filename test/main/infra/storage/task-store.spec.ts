@@ -107,6 +107,41 @@ describe("task-store", () => {
     ]);
   });
 
+  it("ignores legacy proposalId and normalizes originSessionId", async () => {
+    mkdirSync(dirname(tasksPath(projectPath)), { recursive: true });
+    writeFileSync(
+      tasksPath(projectPath),
+      JSON.stringify({
+        version: 1,
+        tasks: [
+          {
+            id: "task-1",
+            projectId: "tmp-project",
+            title: "Stored task",
+            description: {
+              format: "plain_text",
+              content: "Details",
+            },
+            status: "open",
+            source: "local",
+            sourceMeta: { source: "local" },
+            labels: [],
+            proposalId: "change-legacy",
+            originSessionId: "session-1",
+            createdAt: "2026-05-10T00:00:00.000Z",
+            updatedAt: "2026-05-10T00:00:00.000Z",
+          },
+        ],
+      }),
+      "utf8"
+    );
+
+    const loaded = await loadTasks(projectPath);
+
+    expect(loaded).toEqual([task({ title: "Stored task", originSessionId: "session-1" })]);
+    expect(loaded[0]).not.toHaveProperty("proposalId");
+  });
+
   it("drops persisted tasks with legacy string descriptions", async () => {
     mkdirSync(dirname(tasksPath(projectPath)), { recursive: true });
     writeFileSync(

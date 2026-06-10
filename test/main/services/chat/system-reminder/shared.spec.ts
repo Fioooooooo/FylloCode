@@ -47,6 +47,12 @@ describe("renderSystemReminderTemplate", () => {
     expect(reminder).toBe("cwd=.");
   });
 
+  it("renders an empty string when taskTitle is undefined", () => {
+    const reminder = renderSystemReminderTemplate("title={{taskTitle}}.", createContext());
+
+    expect(reminder).toBe("title=.");
+  });
+
   it("renders mainProjectPath as an alias of projectPath", () => {
     const reminder = renderSystemReminderTemplate(
       "main={{mainProjectPath}} project={{projectPath}}",

@@ -178,8 +178,10 @@ function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | 
     sourceMeta: normalizeSourceMeta(source, item.sourceMeta),
     labels: normalizeLabels(item.labels),
     assignee: normalizeAssignee(item.assignee),
-    proposalId:
-      typeof item.proposalId === "string" && item.proposalId ? item.proposalId : undefined,
+    originSessionId:
+      typeof item.originSessionId === "string" && item.originSessionId
+        ? item.originSessionId
+        : undefined,
     createdAt: toDate(item.createdAt),
     updatedAt: toDate(item.updatedAt),
   };

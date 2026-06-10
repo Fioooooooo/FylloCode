@@ -42,6 +42,7 @@ interface ReminderContext {
   runId?: string;
   worktreePath?: string;
   taskRef?: LineageTaskRef;
+  taskTitle?: string;
 }
 
 type PromptPart =

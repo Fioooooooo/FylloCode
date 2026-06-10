@@ -1,10 +1,12 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
+  CreateSessionTaskInput,
   LineageTaskRef,
   LineageTaskSnapshot,
   Subject,
   TaskDownstreamProjection,
 } from "@shared/types/lineage";
+import type { TaskItem } from "@shared/types/task";
 
 export const lineageApi = {
   ensureTaskSubject(
@@ -27,5 +29,12 @@ export const lineageApi = {
     ref: LineageTaskRef
   ): Promise<IpcResponse<TaskDownstreamProjection | null>> {
     return window.api.lineage.getByTask(projectId, ref);
+  },
+
+  createSessionTask(
+    projectId: string,
+    input: CreateSessionTaskInput
+  ): Promise<IpcResponse<TaskItem>> {
+    return window.api.lineage.createSessionTask(projectId, input);
   },
 };

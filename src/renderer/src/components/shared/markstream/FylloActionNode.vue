@@ -58,7 +58,9 @@ function confirmReadyAction(): Promise<FylloActionHandlerResult> {
     });
   }
 
-  return dispatchFylloAction(parseResult.value.type, parseResult.value.payload);
+  return dispatchFylloAction(parseResult.value.type, parseResult.value.payload, {
+    sessionId: hostContext?.sessionId,
+  });
 }
 
 function persistActionState(state: FylloActionState): Promise<void> {

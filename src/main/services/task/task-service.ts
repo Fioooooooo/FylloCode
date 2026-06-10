@@ -19,6 +19,10 @@ const EMPTY_LOCAL_DESCRIPTION: TaskDescription = {
   content: "",
 };
 
+interface CreateTaskOptions {
+  originSessionId?: string;
+}
+
 export async function resolveTaskProjectPath(projectId: string): Promise<string> {
   const project = await loadProject(projectId);
   if (!project) {
@@ -44,7 +48,6 @@ function applyPatch(task: TaskItem, patch: UpdateTaskInput): TaskItem {
     status: patch.status ?? task.status,
     labels: patch.labels ?? task.labels,
     assignee: patch.assignee ?? task.assignee,
-    proposalId: patch.proposalId ?? task.proposalId,
     updatedAt: new Date(),
   };
 }
@@ -55,7 +58,8 @@ export async function listTasks(projectPath: string): Promise<TaskItem[]> {
 
 export async function createTask(
   projectPath: string,
-  input: CreateLocalTaskInput
+  input: CreateLocalTaskInput,
+  options: CreateTaskOptions = {}
 ): Promise<TaskItem> {
   const currentTasks = await loadTaskItems(projectPath);
   const now = new Date();
@@ -70,7 +74,7 @@ export async function createTask(
     sourceMeta: { source: "local" },
     labels: [],
     assignee: undefined,
-    proposalId: input.proposalId,
+    originSessionId: options.originSessionId,
     createdAt: now,
     updatedAt: now,
   };

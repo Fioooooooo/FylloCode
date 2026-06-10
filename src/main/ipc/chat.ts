@@ -37,7 +37,7 @@ import {
   setSessionActionState,
   updateSession,
 } from "@main/services/chat/chat-service";
-import { linkTaskSession } from "@main/services/lineage/lineage-service";
+import { getByTask, linkTaskSession } from "@main/services/lineage/lineage-service";
 import { ensureLineageEventConsumer } from "@main/services/lineage/mcp-event-consumer";
 import { setConfigOption } from "@main/services/chat/config-option-service";
 import {
@@ -263,6 +263,16 @@ export function registerChatHandlers(): void {
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
         }
+        let taskTitle: string | undefined;
+        if (meta?.originTaskRef) {
+          try {
+            const taskProjection = await getByTask(projectPath, meta.originTaskRef);
+            const snapshotTitle = taskProjection?.task?.snapshot.title;
+            taskTitle = snapshotTitle ? snapshotTitle : undefined;
+          } catch (error: unknown) {
+            logger.warn("[chat] failed to load task title for system reminder", error);
+          }
+        }
         let presetAcpSessionId: string | undefined;
         if (acpSessionId) {
           const probeEntry = sessionProbeRegistry.takeFor(agentId, acpSessionId);
@@ -296,6 +306,7 @@ export function registerChatHandlers(): void {
           sessionStore,
           reminderContext: {
             taskRef: meta?.originTaskRef,
+            taskTitle,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(

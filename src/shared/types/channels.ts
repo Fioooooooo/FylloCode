@@ -61,6 +61,7 @@ export const LineageChannels = {
   ensureTaskSubject: "lineage:ensureTaskSubject",
   linkTaskSession: "lineage:linkTaskSession",
   getByTask: "lineage:getByTask",
+  createSessionTask: "lineage:createSessionTask",
 } as const;
 
 export const IntegrationChannels = {

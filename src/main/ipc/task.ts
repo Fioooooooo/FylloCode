@@ -48,7 +48,6 @@ export function registerTaskHandlers(): void {
       return createLocalTask(projectPath, {
         title: form.title,
         description: form.description,
-        proposalId: form.proposalId,
       });
     })
   );
