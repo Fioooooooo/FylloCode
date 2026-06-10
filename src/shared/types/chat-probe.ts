@@ -6,6 +6,7 @@ export type ProbeStatus = "starting" | "ready" | "failed";
 export interface ProbeSnapshot {
   agentId: string;
   status: ProbeStatus;
+  fylloSessionId: string;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
   availableCommands: AcpAvailableCommand[];

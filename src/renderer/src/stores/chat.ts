@@ -357,7 +357,9 @@ export const useChatStore = defineStore("chat", () => {
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
       const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
       const carryProbe =
-        probeBeforeCreate?.status === "ready" && probeBeforeCreate.acpSessionId
+        probeBeforeCreate?.status === "ready" &&
+        probeBeforeCreate.acpSessionId &&
+        probeBeforeCreate.fylloSessionId
           ? {
               configOptions: JSON.parse(
                 JSON.stringify(probeBeforeCreate.configOptions)
@@ -366,6 +368,7 @@ export const useChatStore = defineStore("chat", () => {
                 JSON.stringify(probeBeforeCreate.availableCommands)
               ) as typeof probeBeforeCreate.availableCommands,
               acpSessionId: probeBeforeCreate.acpSessionId,
+              fylloSessionId: probeBeforeCreate.fylloSessionId,
             }
           : null;
 

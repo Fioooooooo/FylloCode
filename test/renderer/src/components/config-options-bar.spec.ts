@@ -149,6 +149,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       availableCommands: [],
       configOptions: [
@@ -174,6 +175,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "starting",
+      fylloSessionId: "session-probe",
       acpSessionId: null,
       availableCommands: [],
       configOptions: [
@@ -193,6 +195,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "failed",
+      fylloSessionId: "session-probe",
       acpSessionId: null,
       availableCommands: [],
       configOptions: [
@@ -217,6 +220,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       availableCommands: [],
       configOptions: [
@@ -249,6 +253,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       availableCommands: [],
       configOptions: [
@@ -322,6 +327,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       availableCommands: [],
       configOptions,

@@ -1,6 +1,7 @@
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
+import { mcpEventsDir } from "@main/infra/storage/project-paths";
 import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
 
 type BundledMcpServerName = "fyllo-specs" | "fyllo-skills";
@@ -37,7 +38,10 @@ function resolveOpenspecCliPath(): string {
   return join(appRoot, "node_modules", "@fission-ai", "openspec", "bin", "openspec.js");
 }
 
-export function getBundledMcpServers(opts: { projectPath: string }): McpServerSpec[] {
+export function getBundledMcpServers(opts: {
+  projectPath: string;
+  fylloSessionId?: string;
+}): McpServerSpec[] {
   if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
     return [];
   }
@@ -50,6 +54,8 @@ export function getBundledMcpServers(opts: { projectPath: string }): McpServerSp
       ELECTRON_RUN_AS_NODE: "1",
       FYLLO_PROJECT_PATH: opts.projectPath,
       FYLLO_MCP_TELEMETRY: "0",
+      FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.projectPath),
+      ...(opts.fylloSessionId ? { FYLLO_SESSION_ID: opts.fylloSessionId } : {}),
       ...(server.env?.() ?? {}),
     },
   }));

@@ -128,6 +128,7 @@ export const chatApi = {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    fylloSessionId?: string;
     taskRef?: LineageTaskRef;
   }): Promise<IpcResponse<Session>> {
     return ipcRenderer.invoke(ChatChannels.createSession, input);

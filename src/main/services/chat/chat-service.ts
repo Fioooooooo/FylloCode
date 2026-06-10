@@ -63,12 +63,13 @@ export async function createSession(input: {
   configOptions?: AcpSessionConfigOption[] | unknown[];
   availableCommands?: AcpAvailableCommand[];
   acpSessionId?: string;
+  fylloSessionId?: string;
   taskRef?: LineageTaskRef;
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
   const now = new Date();
   const meta: SessionMeta = {
-    sessionId: newSessionId(),
+    sessionId: input.fylloSessionId ? input.fylloSessionId : newSessionId(),
     agentId: input.agentId,
     title: input.title,
     turnCount: 0,

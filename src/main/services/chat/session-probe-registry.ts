@@ -5,6 +5,7 @@ import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 export interface ProbeEntry {
   agentId: string;
   status: ProbeStatus;
+  fylloSessionId: string;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
   availableCommands: AcpAvailableCommand[];
@@ -48,6 +49,7 @@ export function toProbeSnapshot(entry: ProbeEntry): ProbeSnapshot {
   return {
     agentId: entry.agentId,
     status: entry.status,
+    fylloSessionId: entry.fylloSessionId,
     acpSessionId: entry.acpSessionId,
     configOptions: entry.configOptions,
     availableCommands: entry.availableCommands,

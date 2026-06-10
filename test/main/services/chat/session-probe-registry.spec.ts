@@ -9,6 +9,7 @@ function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
   return {
     agentId: "claude-code",
     status: "ready",
+    fylloSessionId: "session-probe",
     acpSessionId: "acp-1",
     configOptions: [],
     availableCommands: [],
@@ -24,14 +25,16 @@ describe("session-probe-registry", () => {
     }
   });
 
-  it("toProbeSnapshot maps availableCommands", () => {
+  it("toProbeSnapshot maps availableCommands and fylloSessionId", () => {
     const entry = makeEntry({
+      fylloSessionId: "session-P",
       availableCommands: [{ name: "init", description: "Initialize" }],
     });
 
     const snapshot = toProbeSnapshot(entry);
 
     expect(snapshot.availableCommands).toEqual([{ name: "init", description: "Initialize" }]);
+    expect(snapshot.fylloSessionId).toBe("session-P");
   });
 
   it("set/get round-trips availableCommands", () => {
@@ -55,6 +58,7 @@ describe("session-probe-registry", () => {
     const taken = sessionProbeRegistry.takeFor("claude-code", "acp-x");
 
     expect(taken?.availableCommands).toEqual([{ name: "plan", description: "Plan" }]);
+    expect(taken?.fylloSessionId).toBe("session-probe");
     expect(sessionProbeRegistry.get("claude-code")).toBeUndefined();
   });
 });

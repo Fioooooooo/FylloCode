@@ -54,6 +54,7 @@ export const createSessionInputSchema = z.object({
   title: z.string().min(1),
   agentId: z.string().min(1),
   taskRef: lineageTaskRefSchema.optional(),
+  fylloSessionId: z.string().min(1).optional(),
   configOptions: z.array(z.unknown()).optional(),
   availableCommands: z
     .array(

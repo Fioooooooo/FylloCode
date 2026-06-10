@@ -40,6 +40,7 @@ export type DraftProbeStatus = ProbeStatus;
 export interface DraftProbeState {
   agentId: string;
   status: DraftProbeStatus;
+  fylloSessionId: string | null;
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
   availableCommands: AcpAvailableCommand[];
@@ -70,6 +71,7 @@ export interface SessionStore {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    fylloSessionId?: string;
     taskRef?: LineageTaskRef;
   }) => Promise<Session>;
   beginDraftSession: () => void;
@@ -358,6 +360,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
       agentId: snapshot.agentId,
       status: snapshot.status,
+      fylloSessionId: snapshot.fylloSessionId,
       acpSessionId: snapshot.acpSessionId,
       configOptions: snapshot.configOptions,
       availableCommands: snapshot.availableCommands,
@@ -370,6 +373,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     starting.set(agentId, {
       agentId,
       status: "starting",
+      fylloSessionId: null,
       acpSessionId: null,
       configOptions: [],
       availableCommands: [],
@@ -386,6 +390,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
         agentId,
         status: "failed",
+        fylloSessionId: null,
         acpSessionId: null,
         configOptions: [],
         availableCommands: [],
@@ -395,6 +400,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
         agentId,
         status: "failed",
+        fylloSessionId: null,
         acpSessionId: null,
         configOptions: [],
         availableCommands: [],
@@ -512,6 +518,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
+    fylloSessionId?: string;
     taskRef?: LineageTaskRef;
   }): Promise<Session> {
     const result = await chatApi.createSession({
@@ -523,6 +530,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         ? { availableCommands: input.availableCommands }
         : {}),
       ...(input.acpSessionId ? { acpSessionId: input.acpSessionId } : {}),
+      ...(input.fylloSessionId ? { fylloSessionId: input.fylloSessionId } : {}),
       ...(input.taskRef ? { taskRef: input.taskRef } : {}),
     });
     if (!result.ok) {

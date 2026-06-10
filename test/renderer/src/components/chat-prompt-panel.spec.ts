@@ -276,6 +276,7 @@ describe("ChatPromptPanel", () => {
     activeDraftProbeRef.value = {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       configOptions: [],
       availableCommands: [{ name: "init", description: "Initialize" }],
@@ -291,6 +292,7 @@ describe("ChatPromptPanel", () => {
     activeDraftProbeRef.value = {
       agentId: "claude-code",
       status: "starting",
+      fylloSessionId: null,
       acpSessionId: null,
       configOptions: [],
       availableCommands: [{ name: "init", description: "Initialize" }],

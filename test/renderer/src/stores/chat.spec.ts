@@ -332,6 +332,7 @@ describe("useChatStore", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
       configOptions: probeConfigOptions,
       availableCommands: [{ name: "init", description: "Initialize" }],
@@ -355,6 +356,7 @@ describe("useChatStore", () => {
       configOptions: probeConfigOptions,
       availableCommands: [{ name: "init", description: "Initialize" }],
       acpSessionId: "acp-probe",
+      fylloSessionId: "session-probe",
     });
     expect(chatApi.streamMessage).toHaveBeenCalledWith(
       "session-1",
@@ -372,6 +374,7 @@ describe("useChatStore", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "failed",
+      fylloSessionId: "session-probe",
       acpSessionId: null,
       configOptions: [],
       availableCommands: [],
@@ -412,6 +415,7 @@ describe("useChatStore", () => {
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
       configOptions: [],
       availableCommands: [],

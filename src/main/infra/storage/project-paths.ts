@@ -30,6 +30,10 @@ export function sessionsDir(projectPath: string): string {
   return join(projectDir(projectPath), "sessions");
 }
 
+export function mcpEventsDir(projectPath: string): string {
+  return join(projectDir(projectPath), "mcp-events");
+}
+
 export function lineageDir(projectPath: string): string {
   return join(projectDir(projectPath), "lineage");
 }

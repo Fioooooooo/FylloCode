@@ -8,6 +8,7 @@ export * from "./ipc";
 export * from "./lineage";
 export * from "./project";
 export * from "./mcp";
+export * from "./mcp-event";
 export * from "./proposal";
 export * from "./settings";
 export * from "./task";

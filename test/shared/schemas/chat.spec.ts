@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { setConfigOptionInputSchema } from "@shared/schemas/ipc/chat";
+import { createSessionInputSchema, setConfigOptionInputSchema } from "@shared/schemas/ipc/chat";
+
+describe("createSessionInputSchema", () => {
+  const base = {
+    projectId: "p1",
+    title: "Session",
+    agentId: "claude-code",
+  };
+
+  it("accepts payload without fylloSessionId", () => {
+    expect(createSessionInputSchema.parse(base)).toEqual(base);
+  });
+
+  it("accepts payload with fylloSessionId", () => {
+    expect(
+      createSessionInputSchema.parse({
+        ...base,
+        fylloSessionId: "session-probe",
+      })
+    ).toEqual({
+      ...base,
+      fylloSessionId: "session-probe",
+    });
+  });
+});
 
 describe("setConfigOptionInputSchema", () => {
   const baseSelect = {

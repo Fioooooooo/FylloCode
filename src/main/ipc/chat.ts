@@ -38,6 +38,7 @@ import {
   updateSession,
 } from "@main/services/chat/chat-service";
 import { linkTaskSession } from "@main/services/lineage/lineage-service";
+import { ensureLineageEventConsumer } from "@main/services/lineage/mcp-event-consumer";
 import { setConfigOption } from "@main/services/chat/config-option-service";
 import {
   closeProbe,
@@ -97,6 +98,8 @@ export function registerChatHandlers(): void {
   ipcMain.handle(ChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
       const query = validate(listSessionsInputSchema, input);
+      const projectPath = await resolveProjectPath(query.projectId);
+      ensureLineageEventConsumer(projectPath);
       return listSessions(query.projectId);
     })
   );

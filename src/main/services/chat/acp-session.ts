@@ -132,6 +132,7 @@ export class AcpSession extends EventEmitter {
 
     const mcpServers: AcpMcpServers = getBundledMcpServers({
       projectPath: this.opts.projectPath,
+      fylloSessionId: this.opts.fylloSessionId,
     }).map((spec) => ({
       ...spec,
       env: toAcpMcpServerEnv(spec.env),

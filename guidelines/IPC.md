@@ -71,6 +71,12 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `lineage:linkTaskSession`：入参 `{ projectId, taskRef, sessionId }`，调用 `lineage-service.linkTaskSession`，返回 `Subject | null`。该 channel 为尽力而为挂边能力；调用方必须能处理 `null`。
 - `lineage:getByTask`：入参 `{ projectId, ref }`，返回 `IpcResponse<TaskDownstreamProjection | null>`，用于 renderer 从 lineage subject 快照读取任务标题与下游 session links。
 - 三个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
+- `chat:listSessions` 在解析 `projectId → projectPath` 后必须调用 `ensureLineageEventConsumer(projectPath)`，作为 MCP proposal 事件目录 consumer 的项目级懒触发点；consumer 创建本身必须幂等，handler 不承担文件扫描或 lineage 写入细节。
+
+## Bundled MCP Env
+
+- 主进程向 bundled MCP server 启动描述符注入 `FYLLO_MCP_EVENT_DIR = mcpEventsDir(projectPath)`，供 `fyllo-specs` 的 `create-proposal` 写出 proposal 事件文件。该目录按主项目 `projectPath` 计算，不随 linked worktree 变化。
+- 当当前 ACP/chat session 已有 Fyllo session id 时，启动描述符必须额外注入 `FYLLO_SESSION_ID`；probe 起源 session 的 id 在 probe 阶段生成，转正时通过 `chat:createSession` 的可选 `fylloSessionId` 入参沿用。未提供 id 时不得注入 `FYLLO_SESSION_ID`。
 
 ## Session Config Options Channels
 

@@ -81,6 +81,8 @@ keywords: [data-model, shared-types, persistence, serialization]
 - `Subject.task` 是 `LineageTaskSnapshot | null`。快照保存 `<source>:<taskId>` 形式的 `ref`、全量 `TaskItem` 和 `capturedAt`，用于保留第三方任务在关闭或过滤后仍可回溯的源头信息；chat 起源在补建 task 前允许为 `null`。
 - `index.json` 含 `tasks`、`sessions`、`proposals` 三类 `key → subjectId` 反查表，可由 `subjects/*.json` 重建。读取 index 失败或缺失时，service 查询路径应触发重建；因此 index 格式变化无需迁移脚本。
 - `subjects/*.json` 是账本类权威数据。后续若 subject schema 发生不兼容变化（字段重命名、类型变更、字段删除、结构调整），必须按本文迁移规则新增迁移脚本。
+- MCP proposal 事件写入 `<userData>/projects/<encoded(projectPath)>/mcp-events/`，文件名为 `<timestamp>-<nanoid>.json`，内容类型为 `McpProposalEvent`：`{ server: "fyllo-specs", tool: "create-proposal", createdAt, sessionId, changeId }`。写出方必须先写临时文件再 rename，消费成功后由主进程删除事件文件；损坏事件文件跳过并记录日志，不阻断其他事件。
+- `mcp-events` 是 MCP server 到主进程 lineage 写入者之间的单向持久化队列。主进程 consumer 启动时全量扫描残留事件，随后以 `fs.watch` 触发重新全量扫描；消费时先 `recordProposal`，纯 chat 起源缺 subject 时先 `ensureChatSubject` 再重试，lineage 仍保持主进程单一写入。
 
 ## Verification
 

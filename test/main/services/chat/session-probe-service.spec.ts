@@ -111,6 +111,10 @@ describe("session-probe-service", () => {
     const snapshot = await ensureProbe("claude-code", "/tmp/project");
 
     expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
+    expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+      projectPath: "/tmp/project",
+      fylloSessionId: snapshot.fylloSessionId,
+    });
     expect(mocks.newSession).toHaveBeenCalledWith({
       cwd: "/tmp/project",
       mcpServers: [{ name: "fyllo", command: "node", args: ["server.js"], env: { A: "B" } }],
@@ -118,12 +122,17 @@ describe("session-probe-service", () => {
     expect(snapshot).toMatchObject({
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: expect.stringMatching(/^session-/),
       acpSessionId: "acp-1",
     });
     expect(updates).toEqual([
       expect.objectContaining({
         agentId: "claude-code",
-        snapshot: expect.objectContaining({ status: "ready", acpSessionId: "acp-1" }),
+        snapshot: expect.objectContaining({
+          status: "ready",
+          fylloSessionId: snapshot.fylloSessionId,
+          acpSessionId: "acp-1",
+        }),
       }),
     ]);
 
@@ -148,6 +157,37 @@ describe("session-probe-service", () => {
       expect.objectContaining({ acpSessionId: "acp-1" }),
     ]);
     expect(mocks.newSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a starting entry with fylloSessionId before newSession resolves", async () => {
+    const { ensureProbe } = await import("@main/services/chat/session-probe-service");
+    let resolveNewSession!: (value: { sessionId: string; configOptions: [] }) => void;
+    mocks.newSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveNewSession = resolve;
+      })
+    );
+
+    const promise = ensureProbe("claude-code", "/tmp/project");
+    const startingEntry = sessionProbeRegistry.get("claude-code");
+
+    expect(startingEntry).toMatchObject({
+      status: "starting",
+      fylloSessionId: expect.stringMatching(/^session-/),
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+        projectPath: "/tmp/project",
+        fylloSessionId: startingEntry?.fylloSessionId,
+      });
+    });
+
+    resolveNewSession({ sessionId: "acp-1", configOptions: [] });
+    await expect(promise).resolves.toMatchObject({
+      fylloSessionId: startingEntry?.fylloSessionId,
+      acpSessionId: "acp-1",
+    });
   });
 
   it("closes a ready probe and emits null", async () => {

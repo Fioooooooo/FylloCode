@@ -10,6 +10,7 @@ import {
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
 import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
+import { newSessionId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
 import { normalizeAcpSessionConfigOptions, normalizeAvailableCommands } from "./acp-mapper";
 import { buildPayload, isMethodNotFoundError, valueExistsInSchema } from "./acp-config-option-rpc";
@@ -41,10 +42,15 @@ function emitUpdate(agentId: string, snapshot: ProbeSnapshot | null): void {
   sessionProbeBus.emitUpdate({ agentId, snapshot });
 }
 
-function setFailedEntry(agentId: string, error: unknown): ProbeEntry {
+function setFailedEntry(
+  agentId: string,
+  error: unknown,
+  fylloSessionId = newSessionId()
+): ProbeEntry {
   const entry: ProbeEntry = {
     agentId,
     status: "failed",
+    fylloSessionId,
     acpSessionId: null,
     configOptions: [],
     availableCommands: [],
@@ -105,6 +111,7 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
   const startingEntry: ProbeEntry = {
     agentId,
     status: "starting",
+    fylloSessionId: newSessionId(),
     acpSessionId: null,
     configOptions: [],
     availableCommands: [],
@@ -115,7 +122,10 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
   const inflightEnsure = (async (): Promise<ProbeEntry> => {
     try {
       const connection = await getConnection(agentId);
-      const mcpServers = getBundledMcpServers({ projectPath }).map((spec) => ({
+      const mcpServers = getBundledMcpServers({
+        projectPath,
+        fylloSessionId: startingEntry.fylloSessionId,
+      }).map((spec) => ({
         ...spec,
         env: toAcpMcpServerEnv(spec.env),
       }));
@@ -128,6 +138,7 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
       const readyEntry: ProbeEntry = {
         agentId,
         status: "ready",
+        fylloSessionId: startingEntry.fylloSessionId,
         acpSessionId: response.sessionId,
         configOptions: normalizeAcpSessionConfigOptions(response.configOptions),
         // Carry whatever the probe handler has already accumulated. The commands
@@ -140,7 +151,7 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
       emitUpdate(agentId, toProbeSnapshot(readyEntry));
       return readyEntry;
     } catch (error: unknown) {
-      const failedEntry = setFailedEntry(agentId, error);
+      const failedEntry = setFailedEntry(agentId, error, startingEntry.fylloSessionId);
       throw ipcError(
         normalizeIpcErrorCode(failedEntry.error?.code),
         failedEntry.error?.message ?? "Failed to ensure probe"

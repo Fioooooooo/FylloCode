@@ -7,6 +7,7 @@ vi.mock("@main/infra/paths", () => ({
 import {
   encodeProjectPath,
   lineageDir,
+  mcpEventsDir,
   projectDir,
   subjectsDir,
 } from "@main/infra/storage/project-paths";
@@ -43,5 +44,9 @@ describe("project path storage helpers", () => {
     expect(subjectsDir(projectPath)).toBe(
       "/tmp/fyllocode-test/projects/tmp-project/lineage/subjects"
     );
+  });
+
+  it("resolves mcp event directory next to sessions and lineage directories", () => {
+    expect(mcpEventsDir(projectPath)).toBe("/tmp/fyllocode-test/projects/tmp-project/mcp-events");
   });
 });

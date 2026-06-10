@@ -160,6 +160,16 @@ describe("AcpSession", () => {
     });
   });
 
+  it("passes fylloSessionId when resolving bundled MCP servers", async () => {
+    const session = await createSession();
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+      projectPath: "/tmp/project",
+      fylloSessionId: "session-1",
+    });
+  });
+
   it("records cancellation before acpSessionId resolves and does not prompt after setup", async () => {
     const newSessionDeferred = deferred<{ sessionId: string }>();
     mocks.connection.newSession.mockReturnValueOnce(newSessionDeferred.promise);

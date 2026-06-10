@@ -6,7 +6,7 @@ import {
   ErrorCode,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import spawn from "cross-spawn";
@@ -218,6 +218,108 @@ describe("tools", () => {
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
       restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("create-proposal writes a proposal event when event env is present", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const eventDir = join(root, "events");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    const prevEventDir = process.env.FYLLO_MCP_EVENT_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    process.env.FYLLO_MCP_EVENT_DIR = eventDir;
+    process.env.FYLLO_SESSION_ID = "session-1";
+    try {
+      const text = await createProposalTool({
+        changeName: "event-change",
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      const files = readdirSync(eventDir);
+      expect(state.changeName).toBe("event-change");
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatch(/^\d+-[A-Za-z0-9_-]+\.json$/);
+      expect(JSON.parse(readFileSync(join(eventDir, files[0]!), "utf8"))).toMatchObject({
+        server: "fyllo-specs",
+        tool: "create-proposal",
+        sessionId: "session-1",
+        changeId: "event-change",
+        createdAt: expect.any(String),
+      });
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+      restoreEnv("FYLLO_MCP_EVENT_DIR", prevEventDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
+    }
+  });
+
+  it("create-proposal skips event write when FYLLO_SESSION_ID is missing", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const eventDir = join(root, "events");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    const prevEventDir = process.env.FYLLO_MCP_EVENT_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    process.env.FYLLO_MCP_EVENT_DIR = eventDir;
+    delete process.env.FYLLO_SESSION_ID;
+    try {
+      const text = await createProposalTool({
+        changeName: "missing-session-event",
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.changeName).toBe("missing-session-event");
+      expect(existsSync(eventDir)).toBe(false);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+      restoreEnv("FYLLO_MCP_EVENT_DIR", prevEventDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
+    }
+  });
+
+  it("create-proposal does not fail when event write fails", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const eventDir = join(root, "events-as-file");
+    writeFileSync(eventDir, "not a directory", "utf8");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    const prevEventDir = process.env.FYLLO_MCP_EVENT_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    process.env.FYLLO_MCP_EVENT_DIR = eventDir;
+    process.env.FYLLO_SESSION_ID = "session-1";
+    try {
+      const text = await createProposalTool({
+        changeName: "write-failure-event",
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.changeName).toBe("write-failure-event");
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+      restoreEnv("FYLLO_MCP_EVENT_DIR", prevEventDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
     }
   });
 

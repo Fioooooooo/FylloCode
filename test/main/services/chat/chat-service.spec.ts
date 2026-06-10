@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   loadSessionMeta: vi.fn(),
   patchSessionMeta: vi.fn(),
   createSessionMeta: vi.fn(),
+  newSessionId: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -21,6 +22,10 @@ vi.mock("@main/infra/storage/session-store", () => ({
   loadMessages: vi.fn(),
   loadSessionMeta: mocks.loadSessionMeta,
   patchSessionMeta: mocks.patchSessionMeta,
+}));
+
+vi.mock("@main/infra/ids", () => ({
+  newSessionId: mocks.newSessionId,
 }));
 
 import {
@@ -46,6 +51,7 @@ describe("chat-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadProject.mockResolvedValue({ id: "project-1", path: "/tmp/project" });
+    mocks.newSessionId.mockReturnValue("session-generated");
   });
 
   it("maps persisted available_commands when listing sessions", async () => {
@@ -218,6 +224,55 @@ describe("chat-service", () => {
     ]);
     expect(session.configOptions).toEqual(persistedMeta.configOptions);
     expect(session.availableCommands).toEqual(persistedMeta.available_commands);
+  });
+
+  it("createSession reuses provided fylloSessionId for probe-origin sessions", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const session = await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+      fylloSessionId: "session-probe",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.sessionId).toBe("session-probe");
+    expect(session.id).toBe("session-probe");
+    expect(mocks.newSessionId).not.toHaveBeenCalled();
+    expect(persistedMeta).not.toHaveProperty("fylloSessionId");
+  });
+
+  it("createSession generates a sessionId when fylloSessionId is omitted", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const session = await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(mocks.newSessionId).toHaveBeenCalledTimes(1);
+    expect(persistedMeta.sessionId).toBe("session-generated");
+    expect(session.id).toBe("session-generated");
+  });
+
+  it("createSession persists taskRef together with a probe-origin fylloSessionId", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    await createSession({
+      projectId: "project-1",
+      title: "draft",
+      agentId: "claude-acp",
+      fylloSessionId: "session-probe",
+      taskRef: "local:TASK-1",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.sessionId).toBe("session-probe");
+    expect(persistedMeta.originTaskRef).toBe("local:TASK-1");
+    expect(persistedMeta).not.toHaveProperty("fylloSessionId");
   });
 
   it("createSession persists available_commands empty array without folding to undefined", async () => {

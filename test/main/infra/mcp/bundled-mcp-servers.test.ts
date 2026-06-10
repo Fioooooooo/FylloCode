@@ -2,6 +2,7 @@ import { join } from "path";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { is } from "@electron-toolkit/utils";
 import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
+import { mcpEventsDir } from "@main/infra/storage/project-paths";
 
 describe("bundled mcp servers", () => {
   beforeEach(() => {
@@ -29,6 +30,7 @@ describe("bundled mcp servers", () => {
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: "/tmp/project",
         FYLLO_MCP_TELEMETRY: "0",
+        FYLLO_MCP_EVENT_DIR: mcpEventsDir("/tmp/project"),
       })
     );
     expect(specs[1]?.env).toEqual(
@@ -36,6 +38,7 @@ describe("bundled mcp servers", () => {
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: "/tmp/project",
         FYLLO_MCP_TELEMETRY: "0",
+        FYLLO_MCP_EVENT_DIR: mcpEventsDir("/tmp/project"),
       })
     );
     expect(specs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
@@ -89,6 +92,21 @@ describe("bundled mcp servers", () => {
   it("respects disable flag", () => {
     process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
     expect(getBundledMcpServers({ projectPath: "/tmp/project" })).toEqual([]);
+  });
+
+  it("injects FYLLO_SESSION_ID when fylloSessionId is provided", () => {
+    const specs = getBundledMcpServers({
+      projectPath: "/tmp/project",
+      fylloSessionId: "session-1",
+    });
+
+    expect(specs.every((spec) => spec.env.FYLLO_SESSION_ID === "session-1")).toBe(true);
+  });
+
+  it("does not inject FYLLO_SESSION_ID when fylloSessionId is omitted", () => {
+    const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
+
+    expect(specs.every((spec) => spec.env.FYLLO_SESSION_ID === undefined)).toBe(true);
   });
 
   it("converts env record to acp env list", () => {

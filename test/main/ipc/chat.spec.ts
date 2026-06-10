@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     readAttachmentDataUrl: vi.fn(),
     removeSessionAttachments: vi.fn(),
     saveAttachment: vi.fn(),
+    listSessions: vi.fn(),
     setSessionActionState: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveProjectPath: vi.fn(),
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => {
     ensureProbe: vi.fn(),
     closeProbe: vi.fn(),
     setProbeConfigOption: vi.fn(),
+    ensureLineageEventConsumer: vi.fn(),
     takeProbeFor: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
@@ -63,13 +65,17 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@main/services/chat/chat-service", () => ({
   createSession: vi.fn(),
-  listSessions: vi.fn(),
+  listSessions: mocks.listSessions,
   loadSessionMessages: vi.fn(),
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
   resolveProjectPath: mocks.resolveProjectPath,
   setSessionActionState: mocks.setSessionActionState,
   updateSession: vi.fn(),
+}));
+
+vi.mock("@main/services/lineage/mcp-event-consumer", () => ({
+  ensureLineageEventConsumer: mocks.ensureLineageEventConsumer,
 }));
 
 vi.mock("@main/services/chat/config-option-service", () => ({
@@ -158,6 +164,7 @@ describe("registerChatHandlers", () => {
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.listSessions.mockResolvedValue([]);
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
       agentId: "claude-acp",
@@ -186,15 +193,19 @@ describe("registerChatHandlers", () => {
     mocks.ensureProbe.mockResolvedValue({
       agentId: "claude-acp",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
       configOptions: [],
+      availableCommands: [],
     });
     mocks.closeProbe.mockResolvedValue(undefined);
     mocks.setProbeConfigOption.mockResolvedValue({
       agentId: "claude-acp",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
       configOptions: [],
+      availableCommands: [],
     });
     mocks.setSessionActionState.mockResolvedValue({
       actionStates: {
@@ -218,6 +229,23 @@ describe("registerChatHandlers", () => {
     expect(call).toBeTruthy();
     return call![1] as (event: unknown, input: unknown) => unknown;
   }
+
+  it("ensures the lineage event consumer when listing sessions", async () => {
+    const result = await handler(ChatChannels.listSessions)(
+      {},
+      {
+        projectId: "project-1",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: [],
+    });
+    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
+    expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("/tmp/project");
+    expect(mocks.listSessions).toHaveBeenCalledWith("project-1");
+  });
 
   it("rejects assistant messages in persistMessage", async () => {
     const result = await handler(ChatChannels.persistMessage)(
@@ -996,6 +1024,7 @@ describe("registerChatHandlers", () => {
     mocks.takeProbeFor.mockReturnValueOnce({
       agentId: "claude-acp",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
       configOptions,
       availableCommands: [{ name: "review", description: "Review code" }],

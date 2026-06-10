@@ -68,6 +68,7 @@ describe("useSessionStore", () => {
       data: {
         agentId: "claude-code",
         status: "ready",
+        fylloSessionId: "session-probe",
         acpSessionId: "acp-1",
         configOptions: [],
         availableCommands: [{ name: "init", description: "Initialize" }],
@@ -79,6 +80,7 @@ describe("useSessionStore", () => {
       data: {
         agentId: "claude-code",
         status: "ready",
+        fylloSessionId: "session-probe",
         acpSessionId: "acp-1",
         configOptions: [
           {
@@ -89,6 +91,7 @@ describe("useSessionStore", () => {
             options: [{ value: "sonnet", name: "Sonnet" }],
           },
         ],
+        availableCommands: [],
       },
     });
     mocks.setActionState.mockResolvedValue({
@@ -343,6 +346,7 @@ describe("useSessionStore", () => {
     });
     expect(store.draftProbeByAgent.get("claude-code")).toMatchObject({
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
     });
   });
@@ -362,6 +366,7 @@ describe("useSessionStore", () => {
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       configOptions: [],
       availableCommands: [{ name: "review", description: "Review code" }],
@@ -370,6 +375,7 @@ describe("useSessionStore", () => {
     expect(store.draftProbeByAgent.get("claude-code")?.availableCommands).toEqual([
       { name: "review", description: "Review code" },
     ]);
+    expect(store.draftProbeByAgent.get("claude-code")?.fylloSessionId).toBe("session-probe");
   });
 
   it("closeDraftProbe clears local state before awaiting IPC", async () => {
@@ -377,6 +383,7 @@ describe("useSessionStore", () => {
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       configOptions: [],
       availableCommands: [],
@@ -395,6 +402,7 @@ describe("useSessionStore", () => {
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       configOptions: [
         {
@@ -452,6 +460,7 @@ describe("useSessionStore", () => {
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
       status: "ready",
+      fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
       configOptions: [],
       availableCommands: [],

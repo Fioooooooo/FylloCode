@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { promises as fs } from "fs";
+import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
+import type { McpProposalEvent } from "@shared/types/mcp-event";
 import { runTool } from "../utils/state";
 import { createChange, computeStatus, getInstructions } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
@@ -28,6 +31,35 @@ const createProposalInputSchema = z.object({
       "Defaults to true; keep true on the first call. The instruction text encodes the artifact contract (required granularity, file paths / function & type names / reuse points / acceptance criteria, template structure) that cannot be reconstructed from prior knowledge — omitting it produces under-specified artifacts. Only pass false for follow-up state-polling calls within the same run, after the instruction has already been read and acted on."
     ),
 });
+
+async function writeProposalEvent(changeName: string): Promise<void> {
+  const eventDir = process.env.FYLLO_MCP_EVENT_DIR;
+  const sessionId = process.env.FYLLO_SESSION_ID;
+  if (!eventDir || !sessionId) {
+    return;
+  }
+
+  const createdAt = new Date().toISOString();
+  const fileName = `${Date.now()}-${nanoid()}.json`;
+  const filePath = path.join(eventDir, fileName);
+  const tempPath = path.join(eventDir, `${fileName}.${process.pid}.tmp`);
+  const event: McpProposalEvent = {
+    server: "fyllo-specs",
+    tool: "create-proposal",
+    createdAt,
+    sessionId,
+    changeId: changeName,
+  };
+
+  try {
+    await fs.mkdir(eventDir, { recursive: true });
+    await fs.writeFile(tempPath, JSON.stringify(event, null, 2), "utf8");
+    await fs.rename(tempPath, filePath);
+  } catch (error: unknown) {
+    await fs.unlink(tempPath).catch(() => undefined);
+    console.warn("[fyllo-specs] failed to write create-proposal event", error);
+  }
+}
 
 export async function createProposalTool(
   input: z.input<typeof createProposalInputSchema>
@@ -60,6 +92,7 @@ export async function createProposalTool(
     });
     const projectRoot = workspace.path;
     await createChange(projectRoot, input.changeName);
+    await writeProposalEvent(input.changeName);
 
     const status = await computeStatus(projectRoot, input.changeName);
     if (!status) {
