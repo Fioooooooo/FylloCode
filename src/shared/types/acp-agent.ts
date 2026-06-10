@@ -22,6 +22,8 @@ export interface AcpAgentUvxDistribution {
 export interface AcpAgentBinaryDistribution {
   archive: string;
   cmd: string;
+  args?: string[];
+  env?: Record<string, string>;
 }
 
 export interface AcpAgentDistribution {

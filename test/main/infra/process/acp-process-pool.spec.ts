@@ -4,9 +4,32 @@ import { PassThrough } from "stream";
 
 const mocks = vi.hoisted(() => {
   const initialize = vi.fn();
+  const resolveBinaryDistribution = vi.fn((binaryDistributions?: Record<string, unknown>) => {
+    if (!binaryDistributions) {
+      return null;
+    }
+
+    const archMap: Record<string, string> = { arm64: "aarch64", x64: "x86_64" };
+    const arch = archMap[process.arch] ?? process.arch;
+    const keys = [
+      `${process.platform}-${arch}`,
+      `${process.platform}_${arch}`,
+      `${process.platform}-${process.arch}`,
+      process.platform,
+    ];
+
+    for (const key of keys) {
+      if (binaryDistributions[key]) {
+        return binaryDistributions[key];
+      }
+    }
+
+    return null;
+  });
 
   return {
     initialize,
+    resolveBinaryDistribution,
     child: undefined as unknown,
     capturedClient: undefined as { sessionUpdate: (n: unknown) => unknown } | undefined,
     spawn: vi.fn(),
@@ -22,6 +45,7 @@ vi.mock("cross-spawn", () => ({
 
 vi.mock("@main/domain/acp/detector", () => ({
   readInstalledRecords: mocks.readInstalledRecords,
+  resolveBinaryDistribution: mocks.resolveBinaryDistribution,
 }));
 
 vi.mock("@main/infra/storage/acp-registry-cache", () => ({
@@ -85,12 +109,17 @@ function setPlatform(platform: NodeJS.Platform): void {
 }
 
 const ORIGINAL_PLATFORM = process.platform;
+const TEST_BASE_ENV = "FYLLO_TEST_ACP_BASE";
+const TEST_OVERRIDE_ENV = "FYLLO_TEST_ACP_OVERRIDE";
+const TEST_AGENT_ENV = "FYLLO_TEST_ACP_AGENT";
 
 describe("acp-process-pool", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     setPlatform(ORIGINAL_PLATFORM);
+    process.env[TEST_BASE_ENV] = "base";
+    process.env[TEST_OVERRIDE_ENV] = "process";
     const fake = createFakeChild();
     mocks.child = fake;
     mocks.spawn.mockReturnValue(fake);
@@ -113,6 +142,9 @@ describe("acp-process-pool", () => {
 
   afterEach(() => {
     setPlatform(ORIGINAL_PLATFORM);
+    delete process.env[TEST_BASE_ENV];
+    delete process.env[TEST_OVERRIDE_ENV];
+    delete process.env[TEST_AGENT_ENV];
   });
 
   it("retains initializeResponse on the returned live process entry", async () => {
@@ -206,6 +238,150 @@ describe("acp-process-pool", () => {
       ["--no-install", "@anthropic-ai/claude-code-acp", "--stdio"],
       expect.objectContaining({ detached: false })
     );
+  });
+
+  it("loads npx agent runtime args and env", async () => {
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-acp": { installMethod: "npx" },
+    });
+    mocks.getRegistry.mockResolvedValue({
+      agents: [
+        {
+          id: "claude-acp",
+          distribution: {
+            npx: {
+              package: "@anthropic-ai/claude-code-acp@1.2.3",
+              args: ["--stdio"],
+              env: {
+                [TEST_OVERRIDE_ENV]: "agent",
+                [TEST_AGENT_ENV]: "npx",
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    const [cmd, args, opts] = mocks.spawn.mock.calls[0];
+    expect(cmd).toBe("npx");
+    expect(args).toEqual(["--no-install", "@anthropic-ai/claude-code-acp", "--stdio"]);
+    expect(opts.env).not.toBe(process.env);
+    expect(opts.env).toMatchObject({
+      [TEST_BASE_ENV]: "base",
+      [TEST_OVERRIDE_ENV]: "agent",
+      [TEST_AGENT_ENV]: "npx",
+    });
+  });
+
+  it("loads uvx agent runtime args and env", async () => {
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-acp": { installMethod: "uvx" },
+    });
+    mocks.getRegistry.mockResolvedValue({
+      agents: [
+        {
+          id: "claude-acp",
+          distribution: {
+            uvx: {
+              package: "claude-acp",
+              args: ["--stdio"],
+              env: {
+                [TEST_OVERRIDE_ENV]: "agent",
+                [TEST_AGENT_ENV]: "uvx",
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    const [cmd, args, opts] = mocks.spawn.mock.calls[0];
+    expect(cmd).toBe("uvx");
+    expect(args).toEqual(["claude-acp", "--stdio"]);
+    expect(opts.env).not.toBe(process.env);
+    expect(opts.env).toMatchObject({
+      [TEST_BASE_ENV]: "base",
+      [TEST_OVERRIDE_ENV]: "agent",
+      [TEST_AGENT_ENV]: "uvx",
+    });
+  });
+
+  it("loads binary agent platform args and env while using installPath as command", async () => {
+    setPlatform("darwin");
+    mocks.getRegistry.mockResolvedValue({
+      agents: [
+        {
+          id: "claude-acp",
+          distribution: {
+            binary: {
+              darwin: {
+                archive: "https://example.com/claude.tar.gz",
+                cmd: "claude",
+                args: ["--stdio"],
+                env: {
+                  [TEST_OVERRIDE_ENV]: "agent",
+                  [TEST_AGENT_ENV]: "binary",
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    const [cmd, args, opts] = mocks.spawn.mock.calls[0];
+    expect(cmd).toBe("/bin/claude");
+    expect(args).toEqual(["--stdio"]);
+    expect(opts.env).not.toBe(process.env);
+    expect(opts.env).toMatchObject({
+      [TEST_BASE_ENV]: "base",
+      [TEST_OVERRIDE_ENV]: "agent",
+      [TEST_AGENT_ENV]: "binary",
+    });
+  });
+
+  it("keeps binary spawn compatible when platform args and env are unavailable", async () => {
+    setPlatform("darwin");
+    mocks.getRegistry.mockResolvedValue({
+      agents: [
+        {
+          id: "claude-acp",
+          distribution: {
+            binary: {
+              linux: {
+                archive: "https://example.com/claude.tar.gz",
+                cmd: "claude",
+                args: ["--linux-only"],
+                env: {
+                  [TEST_AGENT_ENV]: "linux",
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    const [cmd, args, opts] = mocks.spawn.mock.calls[0];
+    expect(cmd).toBe("/bin/claude");
+    expect(args).toEqual([]);
+    expect(opts.env).toBe(process.env);
   });
 
   it("dispose graceful close skips signal escalation", async () => {

@@ -6,7 +6,7 @@ import { app, BrowserWindow } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
-import { readInstalledRecords } from "@main/domain/acp/detector";
+import { readInstalledRecords, resolveBinaryDistribution } from "@main/domain/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
 import { normalizePromptCapabilities, type AcpAgentEntry } from "@shared/types/acp-agent";
 import { AcpAgentChannels } from "@shared/types/channels";
@@ -18,6 +18,12 @@ import logger from "@main/infra/logger";
 
 export type SessionUpdateHandler = (notification: SessionNotification) => void;
 type AgentUnavailableListener = (event: { agentId: string; reason: string }) => void;
+
+interface AgentSpawnSpec {
+  cmd: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+}
 
 interface AgentProcess {
   connection: ClientSideConnection;
@@ -66,29 +72,40 @@ export function onAgentUnavailable(listener: AgentUnavailableListener): () => vo
   };
 }
 
-function buildSpawnArgs(
+function mergeSpawnEnv(env?: Record<string, string>): NodeJS.ProcessEnv {
+  return env ? { ...process.env, ...env } : process.env;
+}
+
+function buildSpawnSpec(
   agent: AcpAgentEntry,
   installPath: string | undefined,
   installMethod: string
-): { cmd: string; args: string[] } {
+): AgentSpawnSpec {
   if (installMethod === "npx" && agent.distribution.npx) {
+    const distribution = agent.distribution.npx;
     // Strip version suffix so npx uses the already-installed version, not the registry version
-    const barePackage = agent.distribution.npx.package
-      .replace(/@[\d].*$/, "")
-      .replace(/(@[^@/]+)@.*$/, "$1");
+    const barePackage = distribution.package.replace(/@[\d].*$/, "").replace(/(@[^@/]+)@.*$/, "$1");
     return {
       cmd: "npx",
-      args: ["--no-install", barePackage, ...(agent.distribution.npx.args ?? [])],
+      args: ["--no-install", barePackage, ...(distribution.args ?? [])],
+      env: mergeSpawnEnv(distribution.env),
     };
   }
   if (installMethod === "uvx" && agent.distribution.uvx) {
+    const distribution = agent.distribution.uvx;
     return {
       cmd: "uvx",
-      args: [agent.distribution.uvx.package, ...(agent.distribution.uvx.args ?? [])],
+      args: [distribution.package, ...(distribution.args ?? [])],
+      env: mergeSpawnEnv(distribution.env),
     };
   }
   if (!installPath) throw new Error(`No installPath for binary agent ${agent.id}`);
-  return { cmd: installPath, args: [] };
+  const distribution = resolveBinaryDistribution(agent.distribution.binary);
+  return {
+    cmd: installPath,
+    args: distribution?.args ?? [],
+    env: mergeSpawnEnv(distribution?.env),
+  };
 }
 
 async function startProcess(agentId: string, priorFailures: number): Promise<AgentProcess> {
@@ -100,12 +117,12 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
   const agentEntry = registry.agents.find((a) => a.id === agentId);
   if (!agentEntry) throw new Error(`Agent ${agentId} not found in registry`);
 
-  const { cmd, args } = buildSpawnArgs(agentEntry, record.installPath, record.installMethod);
+  const { cmd, args, env } = buildSpawnSpec(agentEntry, record.installPath, record.installMethod);
   logger.info(`[infra.process.acp] spawning agent ${agentId}: ${cmd} ${args.join(" ")}`);
 
   const child = spawn(cmd, args, {
     stdio: ["pipe", "pipe", "pipe"],
-    env: process.env,
+    env,
     detached: !IS_WINDOWS,
   }) as ChildProcessWithoutNullStreams;
 
