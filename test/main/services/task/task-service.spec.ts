@@ -3,13 +3,13 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { TaskItem } from "@shared/types/task";
 
 const mocks = vi.hoisted(() => ({
-  generateId: vi.fn(() => "task-generated"),
+  newTaskId: vi.fn(() => "task-generated"),
   loadTasks: vi.fn(),
   saveTasks: vi.fn(),
 }));
 
-vi.mock("ai", () => ({
-  generateId: mocks.generateId,
+vi.mock("@main/infra/ids", () => ({
+  newTaskId: mocks.newTaskId,
 }));
 
 vi.mock("@main/infra/storage/task-store", () => ({

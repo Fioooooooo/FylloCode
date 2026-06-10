@@ -58,6 +58,7 @@
     "katex": "^0.17.0",
     "markstream-vue": "^1.0.0",
     "mermaid": "^11.15.0",
+    "nanoid": "^5.1.11",
     "pinia": "^3.0.4",
     "sortablejs": "^1.15.7",
     "stream-monaco": "^0.0.41",

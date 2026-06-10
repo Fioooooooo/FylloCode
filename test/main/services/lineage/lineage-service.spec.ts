@@ -83,7 +83,7 @@ describe("lineage-service", () => {
     const subject = await ensureTaskSubject(projectPath, snapshot);
     const repeated = await ensureTaskSubject(projectPath, snapshot);
 
-    expect(subject.id).toMatch(/^subject-\d+$/);
+    expect(subject.id).toMatch(/^subject-[A-Za-z0-9_-]{10}$/);
     expect(repeated.id).toBe(subject.id);
 
     setNow("2026-06-09T00:01:00.000Z");

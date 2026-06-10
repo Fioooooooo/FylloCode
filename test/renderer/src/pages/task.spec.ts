@@ -286,12 +286,13 @@ describe("task page", () => {
     await wrapper.get('[data-test="start-discussion"]').trigger("click");
     await flushPromises();
 
+    const serializedTask = JSON.parse(JSON.stringify(taskStore.filteredTasks[0])) as unknown;
     const promptText = sendMessageMock.mock.calls[0]?.[0]?.[0]?.text as string;
     expect(ensureTaskSubjectMock).toHaveBeenCalledWith(
       "project-1",
       expect.objectContaining({
         ref: "yunxiao:yunxiao:space-1:102",
-        snapshot: taskStore.filteredTasks[0],
+        snapshot: serializedTask,
         capturedAt: expect.any(String),
       })
     );
@@ -332,11 +333,12 @@ describe("task page", () => {
     await wrapper.get('[data-test="start-discussion"]').trigger("click");
     await flushPromises();
 
+    const serializedTask = JSON.parse(JSON.stringify(task)) as unknown;
     expect(ensureTaskSubjectMock).toHaveBeenCalledWith(
       "project-1",
       expect.objectContaining({
         ref: "local:task-1",
-        snapshot: task,
+        snapshot: serializedTask,
         capturedAt: expect.any(String),
       })
     );

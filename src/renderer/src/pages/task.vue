@@ -146,7 +146,7 @@ async function startChatFromTask(task: TaskItem): Promise<void> {
   const taskRef = `${task.source}:${task.id}` as LineageTaskRef;
   const snapshot: LineageTaskSnapshot = {
     ref: taskRef,
-    snapshot: task,
+    snapshot: JSON.parse(JSON.stringify(task)) as TaskItem,
     capturedAt: new Date().toISOString(),
   };
 

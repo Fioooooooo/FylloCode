@@ -1,4 +1,3 @@
-import { generateId } from "ai";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { encodeProjectPath } from "@main/infra/storage/project-paths";
 import { loadProject } from "@main/infra/storage/project-store";
@@ -13,6 +12,7 @@ import {
   loadTasks as loadTaskItems,
   saveTasks as saveTaskItems,
 } from "@main/infra/storage/task-store";
+import { newTaskId } from "@main/infra/ids";
 
 const EMPTY_LOCAL_DESCRIPTION: TaskDescription = {
   format: "plain_text",
@@ -61,7 +61,7 @@ export async function createTask(
   const now = new Date();
   const projectId = encodeProjectPath(projectPath);
   const task: TaskItem = {
-    id: generateId(),
+    id: newTaskId(),
     projectId,
     title: input.title,
     description: createLocalDescription(input.description),

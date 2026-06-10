@@ -5,26 +5,31 @@ import {
   newSessionId,
   newStageFylloSessionId,
   newSubjectId,
+  newTaskId,
 } from "@main/infra/ids";
 
 describe("infra/ids", () => {
-  it("newSessionId produces strictly-ordered unique values", async () => {
+  it("newTaskId produces task-prefixed nanoids", () => {
+    const id = newTaskId();
+    expect(id).toMatch(/^task-[A-Za-z0-9_-]{10}$/);
+  });
+
+  it("newSessionId produces session-prefixed unique nanoids", () => {
     const a = newSessionId();
-    await new Promise((resolve) => setTimeout(resolve, 2));
     const b = newSessionId();
-    expect(a).toMatch(/^session-\d+$/);
-    expect(b).toMatch(/^session-\d+$/);
+    expect(a).toMatch(/^session-[A-Za-z0-9_-]{10}$/);
+    expect(b).toMatch(/^session-[A-Za-z0-9_-]{10}$/);
     expect(a).not.toBe(b);
   });
 
-  it("newRunId produces run-prefixed ids", async () => {
+  it("newRunId produces run-prefixed nanoids", () => {
     const id = newRunId();
-    expect(id).toMatch(/^run-\d+$/);
+    expect(id).toMatch(/^run-[A-Za-z0-9_-]{10}$/);
   });
 
-  it("newSubjectId produces subject-prefixed ids", () => {
+  it("newSubjectId produces subject-prefixed nanoids", () => {
     const id = newSubjectId();
-    expect(id).toMatch(/^subject-\d+$/);
+    expect(id).toMatch(/^subject-[A-Za-z0-9_-]{10}$/);
   });
 
   it("newStageFylloSessionId composes from runId + stageIndex", () => {
