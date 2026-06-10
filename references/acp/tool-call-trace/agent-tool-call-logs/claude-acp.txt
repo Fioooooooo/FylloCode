@@ -1,0 +1,236 @@
+14:53:44.777 › [chat] persistMessage sessionId=session-miAttftCb2 role=user parts=1
+14:53:44.787 › [chat] persistMessage done
+14:53:44.851 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] start turn; persistedSession=yes; bundledMcpServers=2
+14:53:44.851 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] using preset ACP session
+14:53:44.856 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] persisted resolved session metadata
+14:53:44.859 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] resolved reminder parts; count=1
+14:53:44.860 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] preset prompt ready; reminderParts=1; promptParts=2
+14:53:44.861 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] sending prompt; promptParts=2; suppressReplay=false
+14:53:49.391 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45068,"sessionUpdate":"usage_update"}
+14:53:49.391 › [acp-mapper] → {"type":"usage_update","used":45068,"size":200000}
+14:53:49.392 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] observed first session event: usage_update
+14:53:49.393 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.394 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"好","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.395 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"的，我来","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.395 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"依","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.395 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"次调","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.396 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"用各","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.396 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"种类","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.396 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"型的工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.397 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具，","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.397 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"覆盖文","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.397 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"件读取","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.430 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"、写入、编辑、","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.431 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"搜索、","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.602 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"Bash","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.602 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.603 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"命","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.703 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"令、以","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.704 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"及 Agent","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.778 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 子","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.859 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"代","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.860 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"理","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.905 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"等","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:49.961 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"类","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:50.005 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"型。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:50.262 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Bash"}},"content":[],"kind":"execute","rawInput":{},"status":"pending","title":"Terminal","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","sessionUpdate":"tool_call"}
+14:53:50.262 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","title":"Bash","kind":"execute"}
+14:53:51.511 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Bash"}},"content":[{"content":{"text":"列出 tool-call-trace 目录内容",""text"},"type":"content"}],"kind":"execute","rawInput":{"command":"ls /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/","description":"列出 tool-call-trace 目录内title":"ls /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","sessionUpdate":"tool_call_update"}
+14:53:51.511 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","status":"in_progress","input":{"command":"ls /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/","description":"列出 tool-call-trace 目录内容"},"content":"列出 tool-call-trace 目录内容"}
+14:53:51.563 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Glob"}},"content":[],"kind":"search","locations":[],"rawInput":{},"status":"pending","title":"Find","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","sessionUpdate":"tool_call"}
+14:53:51.563 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","title":"Glob","kind":"search"}
+14:53:52.142 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Glob"}},"content":[],"kind":"search","locations":[{"path":"/Users/tao/Work/Fio/projects/FylloCode"}],"rawInput":{"pattern":"tool-call-trace/**/*","path":"/Users/tao/Work/Fio/projects/FylloCode"},"title":"Find `/Users/tao/Work/Fio/projects/FylloCode` `tool-call-trace/**/*`","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","sessionUpdate":"tool_call_update"}
+14:53:52.143 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","status":"in_progress","input":{"pattern":"tool-call-trace/**/*","path":"/Users/tao/Work/Fio/projects/FylloCode"}}
+14:53:52.144 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45205,"sessionUpdate":"usage_update"}
+14:53:52.144 › [acp-mapper] → {"type":"usage_update","used":45205,"size":200000}
+14:53:53.447 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"filenames":["tool-call-trace/do-not-modify/claude-acp.txt","tool-call-trace/do-not-modify/codex-acp.txt","tool-call-trace/do-not-modify/gemini.txt","tool-call-trace/do-not-modify/qodercli.txt"],"durationMs":1288,"numFiles":4,"truncated":false},"toolName":"Glob"}},"toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","sessionUpdate":"tool_call_update"}
+14:53:53.448 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","status":"in_progress"}
+14:53:53.456 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Glob"}},"content":[{"content":{"text":"tool-call-trace/do-not-modify/claude-acp.txt\ntool-call-trace/do-not-modify/codex-acp.txt\ntool-call-trace/do-not-modify/gemini.txt\ntool-call-trace/do-not-modify/qodercli.txt","type":"text"},"type":"content"}],"rawOutput":"tool-call-trace/do-not-modify/claude-acp.txt\ntool-call-trace/do-not-modify/codex-acp.txt\ntool-call-trace/do-not-modify/gemini.txt\ntool-call-trace/do-not-modify/qodercli.txt","status":"completed","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","sessionUpdate":"tool_call_update"}
+14:53:53.457 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_6maD14ffQGR36pHGnG5CWa","status":"completed","content":"tool-call-trace/do-not-modify/claude-acp.txt\ntool-call-trace/do-not-modify/codex-acp.txt\ntool-call-trace/do-not-modify/gemini.txt\ntool-call-trace/do-not-modify/qodercli.txt"}
+14:53:53.943 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"stdout":"do-not-modify","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"toolName":"Bash"}},"toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","sessionUpdate":"tool_call_update"}
+14:53:53.943 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","status":"in_progress"}
+14:53:53.946 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Bash"}},"content":[{"content":{"text":"```console\ndo-not-modify\n```","type":"text"},"type":"content"}],"rawOutput":"do-not-modify","status":"completed","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","sessionUpdate":"tool_call_update"}
+14:53:53.947 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_AYRgO4yuVZzFtZakzLAaUs","status":"completed","content":"```console\ndo-not-modify\n```"}
+14:53:57.226 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45446,"sessionUpdate":"usage_update"}
+14:53:57.226 › [acp-mapper] → {"type":"usage_update","used":45446,"size":200000}
+14:53:57.227 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.227 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"好，","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.228 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"现","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.228 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"在依","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.228 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"次调用各类","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.228 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"型工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.229 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.229 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"先","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.229 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"从","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.230 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"读","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.230 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"取文件开始。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:53:57.232 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Read"}},"content":[],"kind":"read","locations":[],"rawInput":{},"status":"pending","title":"Read File","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","sessionUpdate":"tool_call"}
+14:53:57.232 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","title":"Read","kind":"read"}
+14:53:57.754 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Read"}},"content":[],"kind":"read","locations":[{"line":1,"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/do-not-modify/claude-acp.txt"}],"rawInput":{"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/do-not-modify/claude-acp.txt"},"title":"Read tool-call-trace/do-not-modify/claude-acp.txt","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","sessionUpdate":"tool_call_update"}
+14:53:57.754 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","status":"in_progress","input":{"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/do-not-modify/claude-acp.txt"}}
+14:53:57.766 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"type":"text","file":{"filePath":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/do-not-modify/claude-acp.txt","content":"","numLines":1,"startLine":1,"totalLines":1}},"toolName":"Read"}},"toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","sessionUpdate":"tool_call_update"}
+14:53:57.767 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","status":"in_progress"}
+14:53:57.781 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45510,"sessionUpdate":"usage_update"}
+14:53:57.781 › [acp-mapper] → {"type":"usage_update","used":45510,"size":200000}
+14:53:57.784 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Read"}},"content":[{"content":{"text":"```\n<system-reminder>Warning: the file exists but is shorter than the provided offset (1). The file has 1 lines.</system-reminder>\n```","type":"text"},"type":"content"}],"rawOutput":"<system-reminder>Warning: the file exists but is shorter than the provided offset (1). The file has 1 lines.</system-reminder>","status":"completed","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","sessionUpdate":"tool_call_update"}
+14:53:57.785 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_loLsIa1C6TYeyQlSDC3OOI","status":"completed","content":"```\n<system-reminder>Warning: the file exists but is shorter than the provided offset (1). The file has 1 lines.</system-reminder>\n```"}
+14:54:00.431 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45601,"sessionUpdate":"usage_update"}
+14:54:00.431 › [acp-mapper] → {"type":"usage_update","used":45601,"size":200000}
+14:54:00.432 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.433 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"继","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.433 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"续调用写","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.433 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"入和","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.434 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"编辑工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.434 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:00.435 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Write"}},"content":[],"kind":"edit","locations":[],"rawInput":{},"status":"pending","title":"Write","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","sessionUpdate":"tool_call"}
+14:54:00.435 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","title":"Write","kind":"edit"}
+14:54:00.868 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Write"}},"content":[{"newText":"tool call trace test - write","oldText":null,"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","type":"diff"}],"kind":"edit","locations":[{"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt"}],"rawInput":{"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","content":"tool call trace test - write"},"title":"Write tool-call-trace/test-write.txt","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","sessionUpdate":"tool_call_update"}
+14:54:00.869 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","status":"in_progress","input":{"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","content":"tool call trace test - write"}}
+14:54:00.870 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45658,"sessionUpdate":"usage_update"}
+14:54:00.870 › [acp-mapper] → {"type":"usage_update","used":45658,"size":200000}
+14:54:00.889 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"type":"create","filePath":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","content":"tool call trace test - write","structuredPatch":[],"originalFile":null,"userModified":false},"toolName":"Write"}},"toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","sessionUpdate":"tool_call_update"}
+14:54:00.889 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","status":"in_progress"}
+14:54:00.893 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Write"}},"rawOutput":"File created successfully at: /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt (file state is current in your context — no need to Read it back)","status":"completed","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","sessionUpdate":"tool_call_update"}
+14:54:00.893 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_aT5ep01HRl5AQzVJEEOeHZ","status":"completed"}
+14:54:04.188 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45781,"sessionUpdate":"usage_update"}
+14:54:04.189 › [acp-mapper] → {"type":"usage_update","used":45781,"size":200000}
+14:54:04.190 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:04.190 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"继续调用 ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:04.190 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"Edit","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:04.191 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 工具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:04.192 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Edit"}},"content":[],"kind":"edit","locations":[],"rawInput":{},"status":"pending","title":"Edit","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","sessionUpdate":"tool_call"}
+14:54:04.193 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","title":"Edit","kind":"edit"}
+14:54:04.460 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Edit"}},"content":[{"newText":"tool call trace test - write + edit","oldText":"tool call trace test - write","path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","type":"diff"}],"kind":"edit","locations":[{"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt"}],"rawInput":{"replace_all":false,"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","old_string":"tool call trace test - write","new_string":"tool call trace test - write + edit"},"title":"Edit tool-call-trace/test-write.txt","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","sessionUpdate":"tool_call_update"}
+14:54:04.461 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","status":"in_progress","input":{"replace_all":false,"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","old_string":"tool call trace test - write","new_string":"tool call trace test - write + edit"}}
+14:54:04.469 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":45849,"sessionUpdate":"usage_update"}
+14:54:04.469 › [acp-mapper] → {"type":"usage_update","used":45849,"size":200000}
+14:54:04.557 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"filePath":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","oldString":"tool call trace test - write","newString":"tool call trace test - write + edit","originalFile":"tool call trace test - write","structuredPatch":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["-tool call trace test - write","\\ No newline at end of file","+tool call trace test - write + edit","\\ No newline at end of file"]}],"userModified":false,"replaceAll":false},"toolName":"Edit"}},"content":[{"newText":" No newline at end of file\ntool call trace test - write + edit\n No newline at end of file","oldText":"tool call trace test - write\n No newline at end of file\n No newline at end of file","path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","type":"diff"}],"locations":[{"line":1,"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt"}],"toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","sessionUpdate":"tool_call_update"}
+14:54:04.558 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","status":"in_progress"}
+14:54:04.566 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Edit"}},"rawOutput":"The file /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt has been updated successfully. (file state is current in your context — no need to Read it back)","status":"completed","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","sessionUpdate":"tool_call_update"}
+14:54:04.566 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_lwz4K4sGhb9byJYHJJ9gfB","status":"completed"}
+14:54:07.586 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46007,"sessionUpdate":"usage_update"}
+14:54:07.587 › [acp-mapper] → {"type":"usage_update","used":46007,"size":200000}
+14:54:07.587 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:07.587 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"继续调用 Grep","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:07.588 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:07.588 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"搜索工具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:07.588 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Grep"}},"content":[],"kind":"search","rawInput":{},"status":"pending","title":"grep","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","sessionUpdate":"tool_call"}
+14:54:07.595 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","title":"Grep","kind":"search"}
+14:54:07.953 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Grep"}},"content":[],"kind":"search","rawInput":{"pattern":"tool call trace","path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace","output_mode":"content"},"title":"grep \"tool call trace\" /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","sessionUpdate":"tool_call_update"}
+14:54:07.954 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","status":"in_progress","input":{"pattern":"tool call trace","path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace","output_mode":"content"}}
+14:54:07.956 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46063,"sessionUpdate":"usage_update"}
+14:54:07.956 › [acp-mapper] → {"type":"usage_update","used":46063,"size":200000}
+14:54:07.985 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"mode":"content","numFiles":0,"filenames":[],"content":"tool-call-trace/test-write.txt:1:tool call trace test - write + edit","numLines":1},"toolName":"Grep"}},"toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","sessionUpdate":"tool_call_update"}
+14:54:07.985 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","status":"in_progress"}
+14:54:07.988 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Grep"}},"content":[{"content":{"text":"tool-call-trace/test-write.txt:1:tool call trace test - write + edit","type":"text"},"type":"content"}],"rawOutput":"tool-call-trace/test-write.txt:1:tool call trace test - write + edit","status":"completed","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","sessionUpdate":"tool_call_update"}
+14:54:07.989 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_yUS2kXq4O3L4eoTlYkVWXE","status":"completed","content":"tool-call-trace/test-write.txt:1:tool call trace test - write + edit"}
+14:54:11.494 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46267,"sessionUpdate":"usage_update"}
+14:54:11.495 › [acp-mapper] → {"type":"usage_update","used":46267,"size":200000}
+14:54:11.496 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:11.497 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"继续调用 Task","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:11.498 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:11.498 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具和","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:11.498 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" Agent","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:11.499 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 子代理。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:12.147 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46321,"sessionUpdate":"usage_update"}
+14:54:12.147 › [acp-mapper] → {"type":"usage_update","used":46321,"size":200000}
+14:54:12.158 › [acp-mapper] ← sessionUpdate: plan {"entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"pending"}],"sessionUpdate":"plan"}
+14:54:12.158 › [acp-mapper] → {"type":"plan_update","entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"pending"}]}
+14:54:12.160 › [infra.process.acp] claude-acp stderr: No onPostToolUseHook found for tool use ID: tooluse_6InCCWm0f1wuR7iMtiNrg3
+14:54:12.307 › [acp-mapper] ← sessionUpdate: plan {"entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"pending"}],"sessionUpdate":"plan"}
+14:54:12.307 › [acp-mapper] → {"type":"plan_update","entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"pending"}]}
+14:54:15.311 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46406,"sessionUpdate":"usage_update"}
+14:54:15.312 › [acp-mapper] → {"type":"usage_update","used":46406,"size":200000}
+14:54:15.313 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:15.314 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"继续调用 Task","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:15.314 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"Update 和","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:15.314 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" Agent 工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:15.315 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:15.580 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46440,"sessionUpdate":"usage_update"}
+14:54:15.581 › [acp-mapper] → {"type":"usage_update","used":46440,"size":200000}
+14:54:15.585 › [acp-mapper] ← sessionUpdate: plan {"entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"completed"}],"sessionUpdate":"plan"}
+14:54:15.585 › [acp-mapper] → {"type":"plan_update","entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"completed"}]}
+14:54:15.587 › [infra.process.acp] claude-acp stderr: No onPostToolUseHook found for tool use ID: tooluse_3kqiAoRYANZQqcbUS92PEG
+14:54:15.612 › [acp-mapper] ← sessionUpdate: plan {"entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"completed"}],"sessionUpdate":"plan"}
+14:54:15.613 › [acp-mapper] → {"type":"plan_update","entries":[{"content":"tool-call-trace 测试任务","priority":"medium","status":"completed"}]}
+14:54:18.266 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46510,"sessionUpdate":"usage_update"}
+14:54:18.266 › [acp-mapper] → {"type":"usage_update","used":46510,"size":200000}
+14:54:18.267 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:18.267 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"最","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:18.268 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"后调","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:18.268 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"用 Agent 子代理工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:18.268 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:18.269 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Agent"}},"content":[],"kind":"think","rawInput":{},"status":"pending","title":"Task","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","sessionUpdate":"tool_call"}
+14:54:18.269 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","title":"Agent","kind":"think"}
+14:54:19.710 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Agent"}},"content":[{"content":{"text":"请读取 /Users/tao/Work/Fio/projs/FylloCode/tool-call-trace/test-write.txt 的内容并返回。只需要返回文件内容，不需要其他说明。","type":"text"},"type":"content"}],"kind":"think","rawInput":{"description"代理测试","subagent_type":"Explore","prompt":"请读取 /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt 的内容并返回。只需要返回文件内容，不需要其他说Agent 子代理测试","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","sessionUpdate":"tool_call_update"}
+14:54:19.710 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","status":"in_progress","input":{"description":"tool-call-trace Agent 子代理测试","subagent_type":"Explore","prompt":"请读取 /Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt 的内容并返回。只需要返回文件内容，不需要其/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt 的内容并返回。只需要返回文件内容，不需要其他说明。"}
+14:54:19.749 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46595,"sessionUpdate":"usage_update"}
+14:54:19.750 › [acp-mapper] → {"type":"usage_update","used":46595,"size":200000}
+14:54:22.591 › [acp-mapper] ← sessionUpdate: tool_call {"_meta":{"claudeCode":{"toolName":"Read","parentToolUseId":"tooluse_ZZh1LLv3jokPPukzlpcDYB"}},"content":[],"kind":"read","locations":[{"line":1,"path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt"}],"rawInput":{"file_path":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt"},"status":"pending","title":"Read tool-call-trace/test-write.txt","toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","sessionUpdate":"tool_call"}
+14:54:22.592 › [acp-mapper] → {"type":"tool_call_start","toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","title":"Read","kind":"read"}
+14:54:22.594 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"type":"text","file":{"filePath":"/Users/tao/Work/Fio/projects/FylloCode/tool-call-trace/test-write.txt","content":"tool call trace test - write + edit","numLines":1,"startLine":1,"totalLines":1}},"toolName":"Read"}},"toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","sessionUpdate":"tool_call_update"}
+14:54:22.595 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","status":"in_progress"}
+14:54:22.611 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Read","parentToolUseId":"tooluse_ZZh1LLv3jokPPukzlpcDYB"}},"content":[{"content":{"text":"```\n1\ttool call trace test - write + edit\n```","type":"text"},"type":"content"}],"rawOutput":"1\ttool call trace test - write + edit","status":"completed","toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","sessionUpdate":"tool_call_update"}
+14:54:22.612 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_NgKl7Hu74yofC7pyVcfNZt","status":"completed","content":"```\n1\ttool call trace test - write + edit\n```"}
+14:54:25.195 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolResponse":{"status":"completed","prompt":"请读取 /Users/tao/Work/Fio/projects/loCode/tool-call-trace/test-write.txt 的内容并返回。只需要返回文件内容，不需要其他说明。","agentId":"a3b816cf25f9bf069","agentType":"Explore","content":[{"text":"工具调用"}],"totalDurationMs":5475,"totalTokens":24537,"totalToolUseCount":1,"usage":{"input_tokens":2842,"cache_creation_input_tokens":0,"cache_read_input_tokens":21677,"output_tokens":18,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"toolStats":{"readCount":1,"searchCount":0,"bashCount":0,"editFileCount":0,"linesAdded":0,"linesRemoved":0,"otherToolCount":0}},"toolName":"Agent"}},"toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","sessionUpdate":"tool_call_update"}
+14:54:25.196 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","status":"in_progress"}
+14:54:25.200 › [acp-mapper] ← sessionUpdate: tool_call_update {"_meta":{"claudeCode":{"toolName":"Agent"}},"content":[{"content":{"text":"工具调用跟踪测试 - 写入 + 编辑"t"},"type":"content"}],"rawOutput":[{"text":"工具调用跟踪测试 - 写入 + 编辑","type":"text"}],"status":"completed","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","sessionU_call_update"}
+14:54:25.200 › [acp-mapper] → {"type":"tool_call_update","toolCallId":"tooluse_ZZh1LLv3jokPPukzlpcDYB","status":"completed","content":"工具调用跟踪测试 - 写入 + 编辑"}
+14:54:28.087 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46717,"sessionUpdate":"usage_update"}
+14:54:28.088 › [acp-mapper] → {"type":"usage_update","used":46717,"size":200000}
+14:54:28.089 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.089 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"所","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.090 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"有工具类","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.090 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"型已","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.090 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"覆盖完","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.091 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"毕：","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.091 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"\n\n|","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.092 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 工具类型 | ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.093 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"工","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.093 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"具名 ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.093 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"|","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.094 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"\n|---------|-----","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.094 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"---|\n| 文","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.095 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"件","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.095 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"搜索 | `","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.095 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"Glob` |\n| Shell","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.096 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" 命令 | `Bash","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.096 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"` |\n| 文","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.101 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"件读","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.159 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"取 | `Read` |","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.202 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"\n| 文件写入 |","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.266 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":" `Write` |\n| 文","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.289 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"件编辑 | `Edit","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.332 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"` |\n| 内","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.401 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"容","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.432 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"搜索 | `Grep","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.507 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"` |\n| 任","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.568 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"务创建 | `TaskCreate","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.573 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"` |\n| 任务更","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.629 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"新 | `TaskUpdate` |","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.671 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"\n| 子","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.729 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"代理 ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.764 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"| `Agent` |\n\n测","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.817 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"试文件 ","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.867 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"`","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.933 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"tool","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:28.979 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"-call-trace/test-write","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.188 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":".txt` 可","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.188 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"以删","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.189 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"除，","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.336 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"或","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.337 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"者保","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.337 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"留","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.338 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"用","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.388 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"于后","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.402 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"续对","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.437 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"比","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.530 › [acp-mapper] ← sessionUpdate: agent_message_chunk {"content":{"text":"。","type":"text"},"sessionUpdate":"agent_message_chunk"}
+14:54:29.562 › [acp-mapper] ← sessionUpdate: usage_update {"size":200000,"used":46863,"sessionUpdate":"usage_update"}
+14:54:29.562 › [acp-mapper] → {"type":"usage_update","used":46863,"size":200000}
+14:54:29.791 › [acp-mapper] ← sessionUpdate: usage_update {"cost":{"amount":0.2384293,"currency":"USD"},"size":200000,"used":46863,"sessionUpdate":"usage_update"}
+14:54:29.791 › [acp-mapper] → {"type":"usage_update","used":46863,"size":200000,"cost":{"amount":0.2384293,"currency":"USD"}}
+14:54:29.792 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] prompt completed; totalTokens=710
+14:54:29.792 › [acp-session][owner=chat][fyllo=session-miAttftCb2][agent=claude-acp][acp=8fbe3795-bd46-42c1-b161-6bb0eab4dbf9] cleaned session handler after turn
+
+
