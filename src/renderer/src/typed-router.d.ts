@@ -59,6 +59,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/overview': RouteRecordInfo<
+      '/overview',
+      '/overview',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/proposal': RouteRecordInfo<
       '/proposal',
       '/proposal',
@@ -142,6 +149,14 @@ declare module 'vue-router/auto-routes' {
     'src/pages/integration.vue': {
       routes:
         | '/integration'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/overview.vue': {
+      routes:
+        | '/overview'
       views:
         | never
       pathParamNames:

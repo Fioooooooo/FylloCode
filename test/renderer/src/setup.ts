@@ -157,6 +157,12 @@ config.global.stubs = {
     template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
   },
   UAlert: true,
+  USkeleton: {
+    template: '<div class="skeleton" />',
+  },
+  Skeleton: {
+    template: '<div class="skeleton" />',
+  },
   UEditor: {
     template:
       '<div :data-content-type="contentType" :data-editable="String(editable)">{{ modelValue }}</div>',
