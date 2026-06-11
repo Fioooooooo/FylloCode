@@ -16,13 +16,14 @@ const mocks = vi.hoisted(() => ({
   setActionState: vi.fn(),
   onProbeUpdate: vi.fn(),
   getByTask: vi.fn(),
+  createSession: vi.fn(),
 }));
 
 vi.mock("@renderer/api/chat", () => ({
   chatApi: {
     listSessions: mocks.listSessions,
     loadMessages: mocks.loadMessages,
-    createSession: vi.fn(),
+    createSession: mocks.createSession,
     updateSession: vi.fn(),
     removeSession: vi.fn(),
     persistMessage: vi.fn(),
@@ -248,6 +249,55 @@ describe("useSessionStore", () => {
       title: "github:42",
       ref: "github:42",
     });
+  });
+
+  it("populates origin task info immediately after creating a linked session", async () => {
+    const store = useSessionStore();
+    mocks.createSession.mockResolvedValue({
+      ok: true,
+      data: session({ id: "session-new", originTaskRef: "yunxiao:STORY-99" }),
+    });
+    mocks.getByTask.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "task",
+        task: {
+          ref: "yunxiao:STORY-99",
+          snapshot: { title: "Linked story" },
+          capturedAt: "2026-06-11T00:00:00.000Z",
+        },
+        links: [],
+      },
+    });
+
+    await store.createSession({
+      projectId: "project-1",
+      agentId: "claude-code",
+      taskRef: "yunxiao:STORY-99",
+    });
+    await nextTick();
+
+    expect(mocks.getByTask).toHaveBeenCalledWith("project-1", "yunxiao:STORY-99");
+    expect(store.taskInfoBySessionId.get("session-new")).toEqual({
+      source: "yunxiao",
+      title: "Linked story",
+      ref: "yunxiao:STORY-99",
+    });
+  });
+
+  it("does not query task info when creating a session without an origin task", async () => {
+    const store = useSessionStore();
+    mocks.createSession.mockResolvedValue({
+      ok: true,
+      data: session({ id: "session-new" }),
+    });
+
+    await store.createSession({ projectId: "project-1", agentId: "claude-code" });
+    await nextTick();
+
+    expect(mocks.getByTask).not.toHaveBeenCalled();
+    expect(store.taskInfoBySessionId.has("session-new")).toBe(false);
   });
 
   it("setSessionConfigOptions overwrites configOptions for the session", () => {

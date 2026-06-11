@@ -49,23 +49,13 @@ function buildTaskPrompt(task: TaskItem): string {
       ? ` (${task.sourceMeta.url})`
       : "";
 
-  const sections = [
-    "请帮我分析并实现这个任务：",
-    "",
-    `**来源**: ${sourceDisplay}${url}`,
-    `**标题**: ${task.title}`,
-  ];
+  const sections = [`**来源**: ${sourceDisplay}${url}`, `**标题**: ${task.title}`];
 
   if (descriptionText) {
     sections.push("", "**描述**:", descriptionText);
   }
 
-  sections.push(
-    "",
-    "请帮我：",
-    "1. 分析这个任务的技术实现方案",
-    "2. 如果合适，创建一个 OpenSpec proposal 来规划实现步骤"
-  );
+  sections.push("", "请帮我规划这个任务的方案");
 
   return sections.join("\n");
 }

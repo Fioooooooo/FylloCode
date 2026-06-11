@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useSessionStore } from "@renderer/stores/session";
+import type { TaskSource } from "@shared/types/task";
 
 const sessionStore = useSessionStore();
 const { activeSession, taskInfoBySessionId } = storeToRefs(sessionStore);
@@ -14,16 +15,31 @@ const taskInfo = computed(() => {
 
   return taskInfoBySessionId.value.get(session.id) ?? null;
 });
+
+const SOURCE_META: Record<TaskSource, { label: string; icon: string }> = {
+  local: { label: "本地", icon: "i-lucide-folder" },
+  yunxiao: { label: "云效", icon: "i-lucide-cloud" },
+  github: { label: "GitHub", icon: "i-lucide-github" },
+};
+
+const sourceMeta = computed(() => {
+  if (!taskInfo.value) return null;
+  return SOURCE_META[taskInfo.value.source];
+});
 </script>
 
 <template>
-  <div v-if="taskInfo" data-test="origin-task-banner" class="sticky top-0 z-10 px-2 pb-2">
+  <div v-if="taskInfo && sourceMeta" data-test="origin-task-banner" class="px-2 pt-2">
     <div
-      class="flex min-h-10 items-center gap-2 rounded-md border border-default bg-default/95 px-3 py-2 shadow-sm backdrop-blur"
+      class="inline-flex max-w-full items-center gap-2.5 rounded-lg backdrop-blur-xs py-1.5 pl-3 pr-16 bg-gradient-to-r from-primary/15 via-primary/10 to-transparent"
     >
-      <UBadge color="neutral" variant="subtle" size="sm">
-        {{ taskInfo.source }}
-      </UBadge>
+      <span class="shrink-0 text-xs text-muted">当前讨论</span>
+
+      <span class="inline-flex shrink-0 items-center gap-1 text-xs text-primary">
+        <UIcon :name="sourceMeta.icon" class="h-3.5 w-3.5" />
+        {{ sourceMeta.label }}
+      </span>
+
       <span class="min-w-0 truncate text-sm font-medium text-highlighted">
         {{ taskInfo.title }}
       </span>

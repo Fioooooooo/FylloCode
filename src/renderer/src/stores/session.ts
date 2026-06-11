@@ -541,6 +541,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sessions.value = [session, ...sessions.value.filter((item) => item.id !== session.id)];
     activeSessionId.value = session.id;
     loadedSessionIds.add(session.id);
+    // createSession 不经过 selectSession，需主动填充任务信息，否则首次发起讨论时
+    // OriginTaskBanner 拿不到 taskInfoBySessionId，要等重新加载 sessionList 才显示。
+    void ensureOriginTaskInfo(session);
     return findSession(session.id) ?? session;
   }
 
