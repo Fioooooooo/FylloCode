@@ -20,8 +20,8 @@ Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方
 
 - Proposal：说明为什么要做、改什么、影响哪些模块
 - Design：记录关键设计决策、非目标和弃置方案
-- Tasks：列出 Apply 阶段要执行的任务
-- 运行面板：展示 Apply 或 Archive 阶段的 Agent 输出
+- Tasks：列出 Apply & Archive 阶段要执行的任务
+- 运行面板：展示 Apply & Archive 阶段的 Agent 输出
 
 ## 评审重点
 
@@ -34,4 +34,4 @@ Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方
 - tasks 是否细到可以执行和验收
 - 影响范围是否和项目规范一致
 
-Proposal 通过后再进入 Apply，可以减少“实现中才发现方案不对”的返工成本。
+Proposal 通过后再进入 Apply & Archive，可以减少“实现中才发现方案不对”的返工成本。

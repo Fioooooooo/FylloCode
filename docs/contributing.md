@@ -28,8 +28,8 @@ FylloCode 自身也在用 FylloCode 开发。参与贡献时，推荐使用 Rele
 
 1. 下载最新 Release
 2. 打开 FylloCode 仓库作为项目
-3. 在 Task 中描述你要做的改动
-4. 走 Proposal → Apply → Archive
+3. （可选）在 Task 中描述你要做的改动
+4. 在对话里和 Agent 收敛方案，再走 Proposal → Apply & Archive
 5. 回到代码仓库检查 diff 和验证结果
 
 ## 提交流程

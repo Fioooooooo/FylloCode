@@ -1,6 +1,6 @@
 # 对话与执行
 
-对话页面承载项目上下文中的 Agent 协作。它既可以用于澄清任务，也可以用于推动 Proposal、Apply 和 Archive 阶段。
+对话页面承载项目上下文中的 Agent 协作，是主线上 Chat 阶段的落点。Agent 在这里分析需求、检索代码佐证、引导团队权衡取舍，与你一起收敛出决策，再继续推动 Proposal 和 Apply & Archive 阶段。
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/chat.png" alt="对话页面截图" />
@@ -19,4 +19,4 @@
 
 普通 Agent 会话通常只有当前代码和本次 prompt。FylloCode 会把项目规范、历史决策、任务上下文和 guidelines 组织成 Agent 可读取的背景，让 Agent 在更明确的边界内工作。
 
-对话页面的重点不是替代所有聊天工具，而是让聊天结果进入可治理流程：当问题收敛后，应该生成 Proposal；当 Proposal 通过后，应该进入 Apply；当变更完成后，应该 Archive。
+对话页面的重点不是替代所有聊天工具，而是让聊天结果进入可治理流程：当问题收敛、决策确定后，应该生成 Proposal；Proposal 通过后进入 Apply & Archive，把实现与变更记录沉淀下来。

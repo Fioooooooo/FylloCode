@@ -44,9 +44,13 @@ FylloCode 通过 Agent Client Protocol 接入不同 Agent。Agent 会按 `native
 - 可验证的验收标准
 - 已知风险或不确定点
 
+## 在对话中收敛方案
+
+在任务上下文中打开对话，让 Agent 分析需求、检索代码佐证、引导你权衡取舍，一起把方案和决策定下来，再进入 Proposal。被采纳与被放弃的思路都会随这条主线留存。
+
 ## 进入 Proposal
 
-当任务意图清晰后，让 Agent 进入 proposal 创建流程。Proposal 通常会生成四类产物：
+当方案在对话中确认后，让 Agent 进入 proposal 创建流程，把决策固化下来。Proposal 通常会生成四类产物：
 
 | 产物 | 作用 |
 | --- | --- |
@@ -57,6 +61,6 @@ FylloCode 通过 Agent Client Protocol 接入不同 Agent。Agent 会按 `native
 
 ## 执行 Apply 与 Archive
 
-Proposal 评审通过后，Apply 阶段按 `tasks.md` 执行实现。实现完成后进入 Archive，把代码变更范围、决策上下文、spec 更新和 guidelines 演进结果归档。
+Proposal 评审通过后，按 `tasks.md` 执行实现；实现完成后归档，把代码变更范围、决策上下文、spec 更新和 guidelines 演进结果沉淀下来，作为下一次任务的背景知识。
 
-建议第一次使用时选择小范围变更，完整走一遍 Task → Proposal → Apply → Archive。这样能更快理解 FylloCode 的价值，也能暴露团队现有规范中不够清晰的部分。
+建议第一次使用时选择小范围变更，完整走一遍 Task → Chat → Proposal → Apply & Archive。这样能更快理解 FylloCode 的价值，也能暴露团队现有规范中不够清晰的部分。

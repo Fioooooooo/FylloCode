@@ -2,14 +2,14 @@
 
 FylloCode 自身也在用 FylloCode 开发。对于参与贡献者，推荐使用 Releases 中的打包版本，而不是直接用开发模式启动 FylloCode 来修改 FylloCode。
 
-原因很直接：开发模式有热重载。Apply 阶段一旦修改源码，热重载可能会打断正在运行的工作流。打包版本不会被当前源码改动影响。
+原因是 `electron-vite` 的[热重载](https://electron-vite.org/guide/hmr-and-hot-reloading)只是自动重新构建并重启 Electron 应用，并不是真正意义上的热更新。执行阶段一旦修改源码，热重载可能会打断正在运行的工作流。打包版本不会被当前源码改动影响。
 
 ## 推荐流程
 
 1. 下载最新 Release 版本
 2. 打开 FylloCode 仓库作为项目
 3. 在 Task 中描述你要修复的问题或要做的改动
-4. 让 Agent 走 Proposal → Apply → Archive
+4. 在对话里和 Agent 收敛方案，再走 Proposal → Apply & Archive
 5. 回到代码仓库检查 diff、测试结果和归档内容
 
 ## 什么时候可以直接提交 PR
