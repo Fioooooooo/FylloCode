@@ -1,13 +1,37 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { overviewApi } from "@renderer/api/overview";
 import OverviewPage from "@renderer/pages/overview.vue";
+import { useProjectStore } from "@renderer/stores/project";
+import type { ProjectOverview } from "@shared/types/overview";
+import type { ProjectInfo } from "@shared/types/project";
 
-const loadMockDataMock = vi.fn();
-const clearMock = vi.fn();
-const pushMock = vi.fn();
+vi.mock("@renderer/api/overview", () => ({
+  overviewApi: {
+    getProjectOverview: vi.fn(),
+  },
+}));
 
-const overviewStore = {
-  data: {
+vi.mock("vue-router", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
+
+function project(): ProjectInfo {
+  return {
+    id: "project-1",
+    name: "Project 1",
+    path: "/tmp/project-1",
+    metaPath: "/tmp/project-1.json",
+    createdAt: new Date("2026-06-01T00:00:00.000Z"),
+    lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
+  };
+}
+
+function overview(): ProjectOverview {
+  return {
     stats: {
       specsCount: 74,
       specsThisMonth: 8,
@@ -20,24 +44,24 @@ const overviewStore = {
     },
     activeChanges: [
       {
-        changeName: "add-project-overview-static-mock",
+        changeName: "add-project-overview-page",
         createdAt: new Date().toISOString(),
-        taskTitle: "项目概览页前端预览",
-        taskRef: "LOCAL-128",
-        stage: "proposal",
+        taskTitle: "项目概览页真实数据",
+        taskRef: "local:task-1",
+        stage: "applying",
       },
     ],
     recentThreads: [
       {
         subjectId: "subject-1",
         origin: "task",
-        taskRef: "STORY-42",
-        taskTitle: "重构登录流程的提案链路",
+        taskRef: "local:task-1",
+        taskTitle: "项目概览页真实数据",
         sessionCount: 2,
         proposalCount: 3,
         mergeCommitSha: null,
         mergeCommitUrl: null,
-        mergeStatus: "pending",
+        mergeStatus: "applying",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -49,50 +73,64 @@ const overviewStore = {
       ],
       recentGuidelines: [
         {
-          fileName: "DataModel.md",
+          fileName: "IPC.md",
           lastCommitDate: new Date().toISOString(),
-          lastCommitMessage: "docs(data): document overview mock",
+          lastCommitMessage: "docs(ipc): document overview channel",
         },
       ],
     },
-  },
-  loading: false,
-  error: null,
-  hasActiveChanges: true,
-  hasGovernanceData: true,
-  loadMockData: loadMockDataMock,
-  clear: clearMock,
-};
+  };
+}
 
-const projectStore = {
-  currentProject: { id: "project-1" },
-};
-
-vi.mock("@renderer/stores/overview", () => ({
-  useOverviewStore: () => overviewStore,
-}));
-
-vi.mock("@renderer/stores/project", () => ({
-  useProjectStore: () => projectStore,
-}));
-
-vi.mock("vue-router", () => ({
-  useRouter: () => ({
-    push: pushMock,
-  }),
-}));
+function mountPage() {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  useProjectStore().currentProject = project();
+  return mount(OverviewPage, {
+    global: {
+      plugins: [pinia],
+    },
+  });
+}
 
 describe("overview page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders the static overview sections from mock data", () => {
-    const wrapper = mount(OverviewPage);
+  it("renders loading state while overview data is pending", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockReturnValue(new Promise(() => undefined));
 
-    expect(loadMockDataMock).toHaveBeenCalledTimes(1);
+    const wrapper = mountPage();
+    await wrapper.vm.$nextTick();
+
+    expect(overviewApi.getProjectOverview).toHaveBeenCalledWith("project-1");
+    expect(wrapper.find('[data-test="overview-loading-skeleton"]').exists()).toBe(true);
+  });
+
+  it("renders an error state when overview loading fails", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
+      ok: false,
+      error: { code: "UNKNOWN_ERROR", message: "overview failed" },
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("overview failed");
+  });
+
+  it("renders overview sections from IPC data", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
+      ok: true,
+      data: overview(),
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
     expect(wrapper.text()).toContain("项目概览");
-    expect(wrapper.text()).toContain("静态预览数据");
+    expect(wrapper.text()).toContain("实时项目数据");
     expect(wrapper.text()).toContain("74");
     expect(wrapper.text()).toContain("进行中");
     expect(wrapper.text()).toContain("最近线索");

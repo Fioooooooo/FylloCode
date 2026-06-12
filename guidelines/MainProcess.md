@@ -54,6 +54,7 @@ keywords: [electron, main-process, ipc, services, infra]
 - Good: `src/main/services/proposal/**` 中编排 apply/archive 流程，`infra/storage/**` 只负责文件读写与序列化。
 - Good: `src/main/infra/process/acp-process-pool.ts` 管理 ACP 子进程重试、give-up 状态和退出清理。
 - Good: 使用 `cross-spawn` 启动 `npm`、`npx`、`uvx`、`git` 等外部命令，避免 Windows `.cmd` shim、PATHEXT 和参数转义差异泄漏到业务代码。
+- Good: `src/main/services/overview/overview-service.ts` 作为页面级聚合 service 并行编排仓库扫描、git 查询与 lineage 投影；`src/main/ipc/overview.ts` 仍只做入参校验、项目路径解析和 service 调用。
 - Bad: 在 `ipc/*.ts` 里直接 `spawn(...)`、`fs.writeFile(...)` 或导入 `@main/infra/storage/*`。
 - Bad: `import { spawn } from "child_process"` 后直接启动外部命令。
 - Bad: 在 `services/` 中硬编码 `session-${Date.now()}`、`process.resourcesPath` 或项目数据目录字符串。

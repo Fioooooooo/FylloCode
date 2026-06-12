@@ -1,0 +1,195 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Subject } from "@shared/types/lineage";
+
+const mocks = vi.hoisted(() => ({
+  readProposalFiles: vi.fn(),
+  listSubjects: vi.fn(),
+  getByProposal: vi.fn(),
+  listRecentSubjects: vi.fn(),
+  countSpecs: vi.fn(),
+  countArchives: vi.fn(),
+  countGuidelines: vi.fn(),
+  getGitGovernance: vi.fn(),
+  loggerWarn: vi.fn(),
+}));
+
+vi.mock("@main/domain/proposal/openspec-reader", () => ({
+  readProposalFiles: mocks.readProposalFiles,
+}));
+
+vi.mock("@main/infra/storage/lineage-store", () => ({
+  listSubjects: mocks.listSubjects,
+}));
+
+vi.mock("@main/services/lineage/lineage-service", () => ({
+  getByProposal: mocks.getByProposal,
+  listRecentSubjects: mocks.listRecentSubjects,
+}));
+
+vi.mock("@main/services/overview/openspec-stats", () => ({
+  countSpecs: mocks.countSpecs,
+  countArchives: mocks.countArchives,
+  countGuidelines: mocks.countGuidelines,
+}));
+
+vi.mock("@main/services/overview/git-stats", () => ({
+  getGitGovernance: mocks.getGitGovernance,
+}));
+
+vi.mock("@main/infra/logger", () => ({
+  default: {
+    warn: mocks.loggerWarn,
+  },
+}));
+
+import { getProjectOverview } from "@main/services/overview/overview-service";
+
+function subject(overrides: Partial<Subject>): Subject {
+  return {
+    id: "subject-1",
+    origin: "task",
+    task: null,
+    links: [],
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-10T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("overview-service", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T08:00:00.000Z"));
+
+    mocks.countSpecs.mockResolvedValue(74);
+    mocks.countArchives.mockResolvedValue({ total: 110, thisMonth: 14 });
+    mocks.countGuidelines.mockResolvedValue(10);
+    mocks.getGitGovernance.mockResolvedValue({
+      specsGrowth: [
+        { weekStart: "2026-05-25T00:00:00.000Z", cumulativeCount: 70 },
+        { weekStart: "2026-06-01T00:00:00.000Z", cumulativeCount: 72 },
+        { weekStart: "2026-06-08T00:00:00.000Z", cumulativeCount: 74 },
+      ],
+      recentGuidelines: [
+        {
+          fileName: "IPC.md",
+          lastCommitDate: "2026-06-10T00:00:00.000Z",
+          lastCommitMessage: "docs(ipc): overview",
+        },
+      ],
+      guidelinesLastUpdated: "2026-06-10T00:00:00.000Z",
+    });
+  });
+
+  it("maps active changes, lineage task refs, task ratio, and recent thread merge status", async () => {
+    mocks.readProposalFiles.mockResolvedValue([
+      { id: "creating-change", status: "creating", date: "2026-06-01T00:00:00.000Z" },
+      { id: "draft-change", status: "draft", date: "2026-06-02T00:00:00.000Z" },
+      { id: "applying-change", status: "applying", date: "2026-06-03T00:00:00.000Z" },
+      { id: "unknown-change", status: "reviewing", date: "2026-06-04T00:00:00.000Z" },
+      { id: "archived-change", status: "archived", date: "2026-06-05T00:00:00.000Z" },
+    ]);
+    mocks.getByProposal.mockImplementation(async (_projectPath: string, changeId: string) => {
+      if (changeId === "creating-change") {
+        return {
+          task: {
+            ref: "yunxiao:ABC-1",
+            snapshot: { title: "Implement overview data" },
+          },
+        };
+      }
+      return null;
+    });
+    mocks.listSubjects.mockResolvedValue([
+      subject({ id: "task-subject", origin: "task" }),
+      subject({ id: "chat-subject", origin: "chat" }),
+    ]);
+    mocks.listRecentSubjects.mockResolvedValue([
+      subject({
+        id: "recent-applying",
+        origin: "task",
+        task: {
+          ref: "yunxiao:ABC-1",
+          snapshot: { title: "Implement overview data" },
+          capturedAt: "2026-06-01T00:00:00.000Z",
+        } as never,
+        links: [
+          {
+            sessionId: "session-1",
+            createdAt: "2026-06-01T00:00:00.000Z",
+            proposals: [{ changeId: "applying-change", createdAt: "2026-06-03T00:00:00.000Z" }],
+          },
+        ],
+      }),
+      subject({
+        id: "recent-pending",
+        origin: "chat",
+        links: [
+          {
+            sessionId: "session-2",
+            createdAt: "2026-06-02T00:00:00.000Z",
+            proposals: [{ changeId: "old-change", createdAt: "2026-06-02T00:00:00.000Z" }],
+          },
+        ],
+      }),
+    ]);
+
+    const overview = await getProjectOverview("/repo");
+
+    expect(overview.stats).toMatchObject({
+      specsCount: 74,
+      specsThisMonth: 4,
+      archiveCount: 110,
+      archiveThisMonth: 14,
+      guidelinesCount: 10,
+      guidelinesLastUpdated: "2026-06-10T00:00:00.000Z",
+      taskDrivenRatio: 0.5,
+      totalSubjects: 2,
+    });
+    expect(overview.activeChanges).toEqual([
+      expect.objectContaining({
+        changeName: "creating-change",
+        stage: "drafting",
+        taskRef: "yunxiao:ABC-1",
+        taskTitle: "Implement overview data",
+      }),
+      expect.objectContaining({ changeName: "draft-change", stage: "proposal" }),
+      expect.objectContaining({ changeName: "applying-change", stage: "applying" }),
+      expect.objectContaining({ changeName: "unknown-change", stage: "drafting" }),
+    ]);
+    expect(overview.activeChanges.map((change) => change.changeName)).not.toContain(
+      "archived-change"
+    );
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      "[overview] unknown proposal status reviewing; falling back to drafting"
+    );
+    expect(overview.recentThreads).toEqual([
+      expect.objectContaining({
+        subjectId: "recent-applying",
+        sessionCount: 1,
+        proposalCount: 1,
+        mergeStatus: "applying",
+        mergeCommitSha: null,
+        mergeCommitUrl: null,
+      }),
+      expect.objectContaining({
+        subjectId: "recent-pending",
+        mergeStatus: "pending",
+      }),
+    ]);
+  });
+
+  it("returns zero task ratio when lineage subjects are empty", async () => {
+    mocks.readProposalFiles.mockResolvedValue([]);
+    mocks.listSubjects.mockResolvedValue([]);
+    mocks.listRecentSubjects.mockResolvedValue([]);
+
+    const overview = await getProjectOverview("/repo");
+
+    expect(overview.stats.taskDrivenRatio).toBe(0);
+    expect(overview.stats.totalSubjects).toBe(0);
+    expect(overview.activeChanges).toEqual([]);
+    expect(overview.recentThreads).toEqual([]);
+  });
+});

@@ -14,7 +14,7 @@ watch(
   () => projectStore.currentProject?.id,
   (projectId) => {
     if (projectId) {
-      overviewStore.loadMockData();
+      void overviewStore.load();
     } else {
       overviewStore.clear();
     }
@@ -33,7 +33,7 @@ watch(
         </div>
         <div class="inline-flex items-center gap-2 text-xs text-muted">
           <span class="inline-flex size-2 rounded-full bg-success" />
-          静态预览数据
+          实时项目数据
         </div>
       </div>
 
@@ -69,7 +69,7 @@ watch(
         </div>
       </div>
 
-      <template v-else>
+      <template v-else-if="overviewStore.data">
         <OverviewStatsBar :stats="overviewStore.data.stats" />
 
         <OverviewActiveChanges

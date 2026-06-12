@@ -311,3 +311,10 @@ export async function getByProposal(
     (subject) => projectProposalOrigin(subject, changeId)
   );
 }
+
+export async function listRecentSubjects(projectPath: string, limit: number): Promise<Subject[]> {
+  const subjects = await listSubjects(projectPath);
+  return subjects
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    .slice(0, limit);
+}

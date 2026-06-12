@@ -64,6 +64,10 @@ export const LineageChannels = {
   createSessionTask: "lineage:createSessionTask",
 } as const;
 
+export const OverviewChannels = {
+  getProjectOverview: "overview:getProjectOverview",
+} as const;
+
 export const IntegrationChannels = {
   getConnections: "integration:getConnections",
   connect: "integration:connect",

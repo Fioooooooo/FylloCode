@@ -76,6 +76,12 @@ keywords: [ipc, electron, preload, channels, contracts]
 - 四个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
 - `chat:listSessions` 在解析 `projectId → projectPath` 后必须调用 `ensureLineageEventConsumer(projectPath)`，作为 MCP proposal 事件目录 consumer 的项目级懒触发点；consumer 创建本身必须幂等，handler 不承担文件扫描或 lineage 写入细节。
 
+## Overview Channels
+
+- `overview:getProjectOverview`：入参 `{ projectId }`，主进程解析 `projectId → projectPath` 后调用 `overview-service.getProjectOverview`，返回 `IpcResponse<ProjectOverview>`。该 channel 是概览页的单一聚合入口，返回 `stats`、`activeChanges`、`recentThreads`、`governance` 四块数据。
+- 入参 schema 位于 `src/shared/schemas/ipc/overview.ts`，要求 `projectId` 为非空字符串；DTO 类型位于 `src/shared/types/overview.ts`。handler 位于 `src/main/ipc/overview.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/overview.ts` 与 `src/renderer/src/api/overview.ts`。
+- 主进程内部允许 overview service 并行聚合仓库扫描、git 查询与 lineage 投影，但 IPC handler 仍只负责 `validate -> resolveProjectPath -> service`，不得把文件系统扫描、git 调用或 lineage 投影逻辑写在 handler 中。
+
 ## Bundled MCP Env
 
 - 主进程向 bundled MCP server 启动描述符注入 `FYLLO_MCP_EVENT_DIR = mcpEventsDir(projectPath)`，供 `fyllo-specs` 的 `create-proposal` 写出 proposal 事件文件。该目录按主项目 `projectPath` 计算，不随 linked worktree 变化。

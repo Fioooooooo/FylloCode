@@ -10,6 +10,7 @@ import { settingsApi } from "./api/settings";
 import { workflowApi } from "./api/workflow";
 import { taskApi } from "./api/task";
 import { lineageApi } from "./api/lineage";
+import { overviewApi } from "./api/overview";
 
 const api = {
   app: appApi,
@@ -22,6 +23,7 @@ const api = {
   workflow: workflowApi,
   task: taskApi,
   lineage: lineageApi,
+  overview: overviewApi,
 };
 
 if (process.contextIsolated) {

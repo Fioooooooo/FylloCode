@@ -9,6 +9,7 @@ import { registerSettingsHandlers } from "./settings";
 import { registerWorkflowHandlers } from "./workflow";
 import { registerTaskHandlers } from "./task";
 import { registerLineageHandlers } from "./lineage";
+import { registerOverviewHandlers } from "./overview";
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -19,6 +20,7 @@ export function registerAllHandlers(): void {
   registerWorkflowHandlers();
   registerTaskHandlers();
   registerLineageHandlers();
+  registerOverviewHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();
