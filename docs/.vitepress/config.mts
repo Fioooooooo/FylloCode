@@ -10,13 +10,14 @@ const docsSidebar = [
       { text: "为什么需要 FylloCode", link: "/guide/why" },
       { text: "快速开始", link: "/guide/getting-started" },
       { text: "四阶段工作流", link: "/guide/workflow" },
-      { text: "用 FylloCode 开发 FylloCode", link: "/guide/develop-with-fyllocode" },
+      { text: "Lineage 追溯链路", link: "/guide/lineage" },
     ],
   },
   {
     text: "产品功能",
     items: [
       { text: "功能总览", link: "/features/" },
+      { text: "项目概览", link: "/features/overview" },
       { text: "任务看板", link: "/features/task" },
       { text: "对话与执行", link: "/features/chat" },
       { text: "Proposal 评审", link: "/features/proposal" },
@@ -36,7 +37,10 @@ const docsSidebar = [
   },
   {
     text: "参与贡献",
-    items: [{ text: "贡献指南", link: "/contributing" }],
+    items: [
+      { text: "贡献指南", link: "/contributing" },
+      { text: "用 FylloCode 开发 FylloCode", link: "/guide/develop-with-fyllocode" },
+    ],
   },
 ];
 

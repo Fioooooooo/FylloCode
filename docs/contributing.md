@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你对 FylloCode 的兴趣。这个页面说明如何在本地搭建开发环境、如何提交代码，以及参与贡献时需要注意的基本约定。
+感谢你对 FylloCode 的兴趣。这个页面说明如何在本地搭建开发环境、如何提交代码，以及参与贡献时需要注意的基本约定。FylloCode 自身就是用 FylloCode 开发的，完整的实践方式见[用 FylloCode 开发 FylloCode](/guide/develop-with-fyllocode)。
 
 ## 开发环境
 
@@ -89,7 +89,7 @@ type(scope): summary
 - `perf`
 - `test`
 
-scope 对应模块或功能区域，例如 `proposal`、`specs`、`archive`、`worktree`、`chat`、`acp`。
+scope 对应模块或功能区域，例如 `overview`、`chat`、`proposal`、`specs`、`acp`、`lineage` 等。
 
 ## 许可证
 

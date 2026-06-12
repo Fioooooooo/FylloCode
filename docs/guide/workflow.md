@@ -1,6 +1,6 @@
 # 四阶段工作流
 
-FylloCode 把每个编码任务沿一条主线拆成 Task、Chat、Proposal、Apply & Archive 四个阶段。每个阶段都有明确输入、产物和约束，每一步的输入、决策和产物都会被记录成一条 lineage，固化下来的结果直接成为下一次任务的起点。
+FylloCode 把每个编码任务沿一条主线拆成 Task、Chat、Proposal、Apply & Archive 四个阶段。每个阶段都有明确输入、产物和约束，每一步的输入、决策和产物都会被记录成一条 [lineage](/guide/lineage)，固化下来的结果直接成为下一次任务的起点。
 
 <figure class="fc-doc-image">
   <img src="/assets/diagrams/workflow-zh.svg" alt="FylloCode 四阶段工作流图" />

@@ -96,6 +96,7 @@ hero:
           推进执行，Workflow 编辑器负责把流程固化下来。
         </p>
         <div class="fc-links">
+          <a class="fc-link" href="/features/overview">项目概览</a>
           <a class="fc-link" href="/features/task">任务看板</a>
           <a class="fc-link" href="/features/proposal">Proposal 评审</a>
           <a class="fc-link" href="/features/workflow">Workflow 编排</a>
