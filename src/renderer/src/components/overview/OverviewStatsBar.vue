@@ -7,28 +7,28 @@ const props = defineProps<{
   stats: OverviewStats;
 }>();
 
-const taskDrivenValue = computed(() =>
-  props.stats.totalSubjects === 0 ? "-" : `${Math.round(props.stats.taskDrivenRatio * 100)}%`
+const taskLinkedValue = computed(() =>
+  props.stats.totalSubjects === 0 ? "-" : `${Math.round(props.stats.taskLinkedRatio * 100)}%`
 );
 
 const cards = computed(() => [
   {
     key: "specs",
-    label: "规范",
+    label: "能力规约",
     value: String(props.stats.specsCount),
     meta: `本月 +${props.stats.specsThisMonth}`,
     icon: "i-lucide-scroll-text",
   },
   {
     key: "archives",
-    label: "归档变更",
+    label: "归档提案",
     value: String(props.stats.archiveCount),
     meta: `本月 +${props.stats.archiveThisMonth}`,
     icon: "i-lucide-archive",
   },
   {
     key: "guidelines",
-    label: "Guidelines",
+    label: "项目准则",
     value: String(props.stats.guidelinesCount),
     meta: props.stats.guidelinesLastUpdated
       ? `最近更新 ${timeAgo(new Date(props.stats.guidelinesLastUpdated))}`
@@ -36,10 +36,10 @@ const cards = computed(() => [
     icon: "i-lucide-book-open-check",
   },
   {
-    key: "task-driven",
-    label: "任务驱动",
-    value: taskDrivenValue.value,
-    meta: props.stats.totalSubjects === 0 ? "暂无线索数据" : `${props.stats.totalSubjects} 条线索`,
+    key: "lineages",
+    label: "溯源覆盖",
+    value: taskLinkedValue.value,
+    meta: props.stats.totalSubjects === 0 ? "暂无脉络" : `${props.stats.totalSubjects} 条演进脉络`,
     icon: "i-lucide-git-merge",
   },
 ]);

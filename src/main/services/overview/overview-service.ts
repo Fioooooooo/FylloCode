@@ -13,7 +13,7 @@ import type { ProposalMeta } from "@shared/types/proposal";
 import { getGitGovernance } from "./git-stats";
 import { countArchives, countGuidelines, countSpecs } from "./openspec-stats";
 
-type TaskDrivenStats = {
+type TaskLinkedStats = {
   ratio: number;
   total: number;
 };
@@ -57,7 +57,7 @@ async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]
   );
 }
 
-async function computeTaskDrivenRatio(projectPath: string): Promise<TaskDrivenStats> {
+async function computeTaskLinkedRatio(projectPath: string): Promise<TaskLinkedStats> {
   const subjects = await listSubjects(projectPath);
   const total = subjects.length;
   if (total === 0) {
@@ -65,7 +65,8 @@ async function computeTaskDrivenRatio(projectPath: string): Promise<TaskDrivenSt
   }
 
   return {
-    ratio: subjects.filter((subject) => subject.origin === "task").length / total,
+    // 关联率按"已关联任务"统计而非起源：chat 起源补建任务后应计入，起源不可改写
+    ratio: subjects.filter((subject) => subject.task !== null).length / total,
     total,
   };
 }
@@ -127,12 +128,12 @@ export async function getProjectOverview(projectPath: string): Promise<ProjectOv
     countArchives(projectPath),
     countGuidelines(projectPath),
   ]);
-  const taskDrivenPromise = computeTaskDrivenRatio(projectPath);
+  const taskLinkedPromise = computeTaskLinkedRatio(projectPath);
   const activeChangesPromise = computeActiveChanges(projectPath);
   const governancePromise = getGitGovernance(projectPath);
 
-  const [[specsCount, archiveCounts, guidelinesCount], taskDriven, activeChanges, governance] =
-    await Promise.all([countsPromise, taskDrivenPromise, activeChangesPromise, governancePromise]);
+  const [[specsCount, archiveCounts, guidelinesCount], taskLinked, activeChanges, governance] =
+    await Promise.all([countsPromise, taskLinkedPromise, activeChangesPromise, governancePromise]);
   const recentThreads = await computeRecentThreads(projectPath, activeChanges);
 
   return {
@@ -143,8 +144,8 @@ export async function getProjectOverview(projectPath: string): Promise<ProjectOv
       archiveThisMonth: archiveCounts.thisMonth,
       guidelinesCount,
       guidelinesLastUpdated: governance.guidelinesLastUpdated,
-      taskDrivenRatio: taskDriven.ratio,
-      totalSubjects: taskDriven.total,
+      taskLinkedRatio: taskLinked.ratio,
+      totalSubjects: taskLinked.total,
     },
     activeChanges,
     recentThreads,

@@ -53,8 +53,8 @@ function shortSha(thread: RecentThread): string {
 <template>
   <section class="space-y-3" data-test="overview-recent-threads">
     <div class="flex items-center justify-between gap-3">
-      <h2 class="text-sm font-semibold text-highlighted">最近线索</h2>
-      <span class="text-xs text-muted">{{ threads.length }} 条</span>
+      <h2 class="text-sm font-semibold text-highlighted">最近脉络</h2>
+      <span class="text-xs text-muted">{{ threads.length }} 条脉络</span>
     </div>
 
     <div
@@ -62,7 +62,7 @@ function shortSha(thread: RecentThread): string {
       class="rounded-lg border border-dashed border-default bg-elevated/60 px-4 py-8 text-center"
     >
       <UIcon name="i-lucide-git-merge" class="mx-auto size-8 text-muted" />
-      <p class="mt-3 text-sm text-muted">还没有线索记录</p>
+      <p class="mt-3 text-sm text-muted">还没有脉络记录</p>
     </div>
 
     <div v-else class="space-y-2.5">
@@ -97,7 +97,7 @@ function shortSha(thread: RecentThread): string {
         </div>
 
         <div class="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-          <span class="truncate font-mono bg-muted/40 px-1 rounded">{{ threadStart(thread) }}</span>
+          <span class="truncate font-mono px-1 rounded">{{ threadStart(thread) }}</span>
           <span aria-hidden="true">&middot;</span>
           <span>{{ thread.sessionCount }} sessions</span>
           <span aria-hidden="true">&middot;</span>

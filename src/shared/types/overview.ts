@@ -7,7 +7,7 @@ export type OverviewStats = {
   archiveThisMonth: number;
   guidelinesCount: number;
   guidelinesLastUpdated: string | null;
-  taskDrivenRatio: number;
+  taskLinkedRatio: number;
   totalSubjects: number;
 };
 

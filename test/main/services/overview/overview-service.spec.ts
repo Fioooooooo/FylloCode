@@ -82,7 +82,7 @@ describe("overview-service", () => {
     });
   });
 
-  it("maps active changes, lineage task refs, task ratio, and recent thread merge status", async () => {
+  it("maps active changes, lineage task refs, task linked ratio, and recent thread merge status", async () => {
     mocks.readProposalFiles.mockResolvedValue([
       { id: "creating-change", status: "creating", date: "2026-06-01T00:00:00.000Z" },
       { id: "draft-change", status: "draft", date: "2026-06-02T00:00:00.000Z" },
@@ -102,7 +102,15 @@ describe("overview-service", () => {
       return null;
     });
     mocks.listSubjects.mockResolvedValue([
-      subject({ id: "task-subject", origin: "task" }),
+      subject({
+        id: "task-subject",
+        origin: "task",
+        task: {
+          ref: "yunxiao:ABC-1",
+          snapshot: { title: "Implement overview data" },
+          capturedAt: "2026-06-01T00:00:00.000Z",
+        } as never,
+      }),
       subject({ id: "chat-subject", origin: "chat" }),
     ]);
     mocks.listRecentSubjects.mockResolvedValue([
@@ -144,7 +152,7 @@ describe("overview-service", () => {
       archiveThisMonth: 14,
       guidelinesCount: 10,
       guidelinesLastUpdated: "2026-06-10T00:00:00.000Z",
-      taskDrivenRatio: 0.5,
+      taskLinkedRatio: 0.5,
       totalSubjects: 2,
     });
     expect(overview.activeChanges).toEqual([
@@ -180,14 +188,14 @@ describe("overview-service", () => {
     ]);
   });
 
-  it("returns zero task ratio when lineage subjects are empty", async () => {
+  it("returns zero task linked ratio when lineage subjects are empty", async () => {
     mocks.readProposalFiles.mockResolvedValue([]);
     mocks.listSubjects.mockResolvedValue([]);
     mocks.listRecentSubjects.mockResolvedValue([]);
 
     const overview = await getProjectOverview("/repo");
 
-    expect(overview.stats.taskDrivenRatio).toBe(0);
+    expect(overview.stats.taskLinkedRatio).toBe(0);
     expect(overview.stats.totalSubjects).toBe(0);
     expect(overview.activeChanges).toEqual([]);
     expect(overview.recentThreads).toEqual([]);

@@ -43,10 +43,18 @@ function openChange(changeName: string): void {
   <section class="space-y-3" data-test="overview-active-changes">
     <div class="flex items-center justify-between gap-3">
       <h2 class="text-sm font-semibold text-highlighted">进行中</h2>
-      <span class="text-xs text-muted">{{ changes.length }} 个变更</span>
+      <span class="text-xs text-muted">{{ changes.length }} 个提案</span>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+    <div
+      v-if="changes.length === 0"
+      class="rounded-lg border border-dashed border-default bg-elevated/60 px-4 py-8 text-center"
+    >
+      <UIcon name="i-lucide-file-pen" class="mx-auto size-6 text-muted" />
+      <p class="mt-3 text-sm text-muted">暂无进行中的提案</p>
+    </div>
+
+    <div v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <button
         v-for="change in changes"
         :key="change.changeName"

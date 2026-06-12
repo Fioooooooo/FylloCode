@@ -34,6 +34,13 @@ function formatMonth(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { month: "short" }).format(new Date(value));
 }
 
+function formatWeekStart(value: string): string {
+  const formatted = new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(
+    new Date(value)
+  );
+  return `${formatted}当周`;
+}
+
 function formatCount(value: number): string {
   return `${value} 个`;
 }
@@ -50,7 +57,7 @@ function formatCount(value: number): string {
       <div class="rounded-lg border border-default bg-elevated px-4 py-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-sm font-medium text-highlighted">规范增长</h3>
+            <h3 class="text-sm font-medium text-highlighted">规约增长</h3>
             <p class="mt-1 text-xs text-muted">累计 specs 趋势</p>
           </div>
           <UIcon name="i-lucide-chart-column" class="size-4 text-muted" />
@@ -59,13 +66,13 @@ function formatCount(value: number): string {
         <div
           v-if="governance.specsGrowth.length > 0"
           class="mt-5 flex h-32 items-end gap-1.5"
-          aria-label="规范增长柱状图"
+          aria-label="规约增长柱状图"
         >
           <div
             v-for="bucket in governance.specsGrowth"
             :key="bucket.weekStart"
             class="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-            :title="`${bucket.weekStart}: ${formatCount(bucket.cumulativeCount)}`"
+            :title="`${formatWeekStart(bucket.weekStart)}: ${formatCount(bucket.cumulativeCount)}`"
           >
             <span
               class="text-[10px] leading-none text-muted opacity-0 transition-opacity group-hover:opacity-100"
@@ -83,7 +90,7 @@ function formatCount(value: number): string {
 
         <div v-else class="mt-5 rounded-md bg-muted/30 px-3 py-8 text-center">
           <UIcon name="i-lucide-chart-column" class="mx-auto size-8 text-muted" />
-          <p class="mt-3 text-sm text-muted">暂无规范趋势</p>
+          <p class="mt-3 text-sm text-muted">暂无规约趋势</p>
         </div>
 
         <div class="mt-4 flex items-center justify-between text-xs text-muted">
@@ -98,8 +105,8 @@ function formatCount(value: number): string {
       <div class="rounded-lg border border-default bg-elevated px-4 py-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-sm font-medium text-highlighted">Guidelines 演化</h3>
-            <p class="mt-1 text-xs text-muted">最近更新的项目规范</p>
+            <h3 class="text-sm font-medium text-highlighted">准则演化</h3>
+            <p class="mt-1 text-xs text-muted">最近更新的项目 Guidelines 规范</p>
           </div>
           <UIcon name="i-lucide-book-marked" class="size-4 text-muted" />
         </div>

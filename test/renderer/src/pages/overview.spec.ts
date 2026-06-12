@@ -39,7 +39,7 @@ function overview(): ProjectOverview {
       archiveThisMonth: 14,
       guidelinesCount: 10,
       guidelinesLastUpdated: new Date().toISOString(),
-      taskDrivenRatio: 0.68,
+      taskLinkedRatio: 0.68,
       totalSubjects: 38,
     },
     activeChanges: [
@@ -133,7 +133,7 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("实时项目数据");
     expect(wrapper.text()).toContain("74");
     expect(wrapper.text()).toContain("进行中");
-    expect(wrapper.text()).toContain("最近线索");
+    expect(wrapper.text()).toContain("最近脉络");
     expect(wrapper.text()).toContain("治理演化");
   });
 });

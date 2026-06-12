@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { defineStore } from "pinia";
 import { overviewApi } from "@renderer/api/overview";
 import { useProjectStore } from "@renderer/stores/project";
@@ -29,13 +29,6 @@ export const useOverviewStore = defineStore("overview", () => {
   const data = ref<ProjectOverview | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
-
-  const hasActiveChanges = computed(() => (data.value?.activeChanges.length ?? 0) > 0);
-  const hasGovernanceData = computed(
-    () =>
-      (data.value?.governance.specsGrowth.length ?? 0) > 0 ||
-      (data.value?.governance.recentGuidelines.length ?? 0) > 0
-  );
 
   async function load(): Promise<void> {
     const project = projectStore.currentProject;
@@ -81,8 +74,6 @@ export const useOverviewStore = defineStore("overview", () => {
     data,
     loading,
     error,
-    hasActiveChanges,
-    hasGovernanceData,
     load,
     clear,
   };

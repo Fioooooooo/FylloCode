@@ -29,7 +29,7 @@ watch(
       <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div class="space-y-1">
           <h1 class="text-2xl font-bold text-highlighted">项目概览</h1>
-          <p class="text-sm text-muted">治理状态、活跃工作和最近线索。</p>
+          <p class="text-sm text-muted">治理状态、活跃工作和最近脉络。</p>
         </div>
         <div class="inline-flex items-center gap-2 text-xs text-muted">
           <span class="inline-flex size-2 rounded-full bg-success" />
@@ -72,17 +72,11 @@ watch(
       <template v-else-if="overviewStore.data">
         <OverviewStatsBar :stats="overviewStore.data.stats" />
 
-        <OverviewActiveChanges
-          v-if="overviewStore.hasActiveChanges"
-          :changes="overviewStore.data.activeChanges"
-        />
+        <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
 
         <OverviewRecentThreads :threads="overviewStore.data.recentThreads" />
 
-        <OverviewGovernance
-          v-if="overviewStore.hasGovernanceData"
-          :governance="overviewStore.data.governance"
-        />
+        <OverviewGovernance :governance="overviewStore.data.governance" />
       </template>
     </div>
   </div>

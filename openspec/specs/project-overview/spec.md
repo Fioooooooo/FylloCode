@@ -64,16 +64,16 @@ TBD - created by archiving change add-project-overview-page. Update Purpose afte
 - **WHEN** 项目无非归档的活跃变更
 - **THEN** `activeChanges` 返回空数组
 
-### Requirement: 最近线索投影
+### Requirement: 最近脉络投影
 
 系统 SHALL 通过 lineage `listRecentSubjects(projectPath, 10)` 取按 `updatedAt` 倒序的前 10 个 subject，投影为 `recentThreads`。每条 `RecentThread` 的 `sessionCount` 为 `links` 数，`proposalCount` 为所有 link 的 proposals 总数。`mergeStatus` 在本期 SHALL 仅判定 `applying`（任一 proposal 的 changeId 命中 `activeChanges`）与 `pending`（其余），`mergeCommitSha` 与 `mergeCommitUrl` 恒为 `null`。
 
-#### Scenario: 线索命中活跃变更
+#### Scenario: 脉络命中活跃变更
 
 - **WHEN** 某 subject 的任一 proposal changeId 出现在 `activeChanges` 中
 - **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"applying"`
 
-#### Scenario: 线索未命中活跃变更
+#### Scenario: 脉络未命中活跃变更
 
 - **WHEN** 某 subject 的所有 proposal changeId 都不在 `activeChanges` 中
 - **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"pending"`
@@ -81,16 +81,16 @@ TBD - created by archiving change add-project-overview-page. Update Purpose afte
 #### Scenario: lineage 数据为空
 
 - **WHEN** lineage subjects 目录不存在或为空
-- **THEN** `recentThreads` 返回空数组，`stats.totalSubjects` 为 `0`，`stats.taskDrivenRatio` 为 `0`
+- **THEN** `recentThreads` 返回空数组，`stats.totalSubjects` 为 `0`，`stats.taskLinkedRatio` 为 `0`
 
-### Requirement: 任务驱动占比
+### Requirement: 任务关联率
 
-系统 SHALL 计算 `stats.taskDrivenRatio` 为全部 subject 中 `origin === "task"` 的占比（0-1），`stats.totalSubjects` 为 subject 总数。当 `totalSubjects` 为 `0` 时 `taskDrivenRatio` SHALL 为 `0`。
+系统 SHALL 计算 `stats.taskLinkedRatio` 为全部 subject 中 `task !== null` 的占比（0-1），`stats.totalSubjects` 为 subject 总数。当 `totalSubjects` 为 `0` 时 `taskLinkedRatio` SHALL 为 `0`。该口径按"是否已关联任务"而非起源统计：chat 起源的 subject 在补建任务后 SHALL 计入分子。
 
-#### Scenario: 存在任务与对话线索
+#### Scenario: 存在已关联与未关联任务的脉络
 
-- **WHEN** 共有 N 个 subject，其中 M 个 `origin === "task"`
-- **THEN** `taskDrivenRatio` 为 `M / N`，`totalSubjects` 为 `N`
+- **WHEN** 共有 N 个 subject，其中 M 个 `task !== null`
+- **THEN** `taskLinkedRatio` 为 `M / N`，`totalSubjects` 为 `N`
 
 ### Requirement: 治理演化取数口径
 
