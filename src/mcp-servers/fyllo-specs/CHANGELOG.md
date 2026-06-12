@@ -4,6 +4,20 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.5.2] - 2026-06-12
+
+### Added
+
+- `create-proposal`: writes a proposal-created sidecar event when `FYLLO_SESSION_ID` and `FYLLO_MCP_EVENT_DIR` are available, allowing FylloCode to link created proposals back to the originating chat session and lineage subject.
+
+### Changed
+
+- Source, tests, and documentation now follow the repository `src/mcp-servers` and `test/mcp-servers` layout used by the bundled MCP build.
+
+### Fixed
+
+- Fixed shared-type dependency resolution in the server TypeScript config after the source-layout migration, restoring lint and type-aware checks for imports from `@shared`.
+
 ## [0.5.1] - 2026-05-27
 
 ### Changed

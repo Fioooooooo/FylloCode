@@ -1,19 +1,19 @@
-# Contributing
+# 贡献指南
 
-[中文版](./CONTRIBUTING.zh-CN.md)
+[英文版](CONTRIBUTING.en.md)
 
-Thanks for your interest in FylloCode. This document covers how to set up a local development environment, how to submit code, and a few basic conventions.
+感谢你对 FylloCode 的兴趣。这份文档说明如何在本地搭建开发环境、如何提交代码，以及一些基本约定。
 
 ---
 
-## Development Setup
+## 开发环境
 
-**Requirements**
+**依赖要求**
 
 - Node.js 22+
 - pnpm 10+
 
-**Local setup**
+**本地启动**
 
 ```bash
 git clone https://github.com/Fioooooooo/FylloCode.git
@@ -24,63 +24,66 @@ pnpm run dev
 
 ---
 
-## Developing FylloCode with FylloCode
+## 用 FylloCode 开发 FylloCode
 
-FylloCode is built using FylloCode itself. We recommend using the packaged version from [Releases](https://github.com/Fioooooooo/FylloCode/releases) rather than `pnpm run dev` — the reason is straightforward: dev mode uses hot reload, and when Apply starts modifying source files, hot reload will interrupt the active workflow. The packaged version doesn't have this problem.
+FylloCode 自身就在用 FylloCode 开发。推荐用 `Releases` 里的打包版本来参与贡献，而不是用 npm run dev 启动的版。原因很直接：dev
+模式有热重载，Apply 阶段一旦开始修改源码，热重载会打断正在进行的工作流。打包版本没有这个问题。
 
-The workflow: download the latest release, open the FylloCode repository as a project, describe what you want to do in a Task, and walk through Proposal → Apply → Archive rather than writing code directly.
+具体做法：下载当前最新版本，把 FylloCode 仓库作为项目打开，在 Task 里描述你要做的事，走一遍 Proposal → Apply →
+Archive，而不是直接对着代码开写。
 
-This isn't required, but it has two benefits: you'll understand the project's design intent much faster, and if anything in the workflow blocks you, that's itself a bug worth fixing.
-
----
-
-## Submitting Changes
-
-**Small changes** (typos, docs, minor bugs): open a PR directly — no need to discuss first.
-
-**Large changes** (new features, architectural shifts, behavior changes): open an Issue first to describe what you have in mind. Wait for rough consensus before starting. This avoids finishing a large PR only to find it's going in the wrong direction.
-
-**PR expectations:**
-
-- Title should clearly describe what changed — no need for an essay
-- If the change affects user-visible behavior, describe the scope of impact in the PR description
-- Keep each PR focused on one thing
+这不是强制要求，但这样做有两个好处：一是你会更快理解这个项目的设计意图，二是如果工作流里有什么卡住你的地方，那本身就是值得修的
+bug。
 
 ---
 
-## Issues
+## 提交流程
 
-**Bug reports**: describe the steps to reproduce, the actual behavior, and the expected behavior. Include system info (OS, version) where possible.
+**小改动**（typo、文档、小 bug）：直接开 PR，不需要提前沟通。
 
-**Feature requests**: describe the problem you're running into in a specific scenario — you don't need to propose a solution.
+**大改动**（新功能、架构调整、行为变更）：先开一个 Issue 描述你的想法，等有了基本共识再动手。这能避免你写完之后发现方向对不上。
 
-Search before opening — avoid duplicates.
+**PR 的基本要求：**
+
+- 标题说清楚做了什么，不需要长篇大论
+- 如果改了用户可感知的行为，在 PR 描述里说一下影响范围
+- 保持每个 PR 聚焦在一件事上
 
 ---
 
-## Code Style
+## Issue 规范
 
-The project uses ESLint + Prettier. Run before committing:
+**报 bug**：描述复现步骤、实际行为、期望行为。系统信息（OS、版本号）能附上尽量附上。
+
+**提需求**：说你在什么场景下遇到了什么问题，不需要直接给解决方案。
+
+提 Issue 之前先搜一下，避免重复。
+
+---
+
+## 代码风格
+
+项目使用 ESLint + Prettier，提交前跑一下：
 
 ```bash
 pnpm run lint
 pnpm run typecheck
 ```
 
-Commit message format:
+commit message 格式：
 
-```
+```text
 type(scope): summary
 
-- Optional details, using bullets for key changes
+- 可选的补充说明，用 bullet 列出关键变更点
 ```
 
-Common types: `feat` · `fix` · `refactor` · `docs` · `chore` · `perf` · `test`
+常用 type：`feat` · `fix` · `refactor` · `docs` · `chore` · `perf` · `test`
 
-Scope corresponds to the module or feature area — for example: `proposal`, `specs`, `archive`, `worktree`, `chat`, `acp`. Summary should start with a verb and describe what changed in one sentence.
+scope 对应模块或功能区域，比如 `proposal`、`specs`、`archive`、`worktree`、`chat`、`acp`。summary 动词开头，一句话说清楚做了什么。
 
 ---
 
-## License
+## 许可证
 
-Contributions are licensed under the repository's [AGPL-3.0](LICENSE).
+贡献的代码遵循仓库的 [AGPL-3.0](LICENSE) 许可证。

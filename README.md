@@ -5,219 +5,196 @@
 <h1 align="center">FylloCode</h1>
 
 <p align="center">
-  The governance layer for Coding Agents<br/>
-  One evolving ruleset for every agent on your team, end to end traceable.<br/>
+  Coding Agent 的团队治理层<br/>
+  让全队的 Agent 遵守同一套持续进化的规则、全程可追溯。<br/>
 </p>
 
 <p align="center">
-  <a href="./README.zh-CN.md">中文</a> ·
-  <a href="https://github.com/Fioooooooo/FylloCode/releases">Download</a>
+  <a href="./README.en.md">English</a> ·
+  <a href="https://fyllocode.cc">文档</a> ·
+  <a href="https://github.com/Fioooooooo/FylloCode/releases">下载</a>
 </p>
 
 ---
 
-## Background
+## 背景
 
-When each Agent session ends, the code stays. The decisions don't.
+每个 Agent 会话一结束，代码留下来了，决策却丢失了 ……
 
-- **Three days later, you don't know why this line changed.** The Agent touched 100+ files, and `git blame` only tells
-  you who committed — not the reasoning behind it.
-- **Two months later, no one knows the design rationale.** The Agent picked an architecture direction, and why the
-  alternatives were rejected vanished with the chat window.
-- **Every new session starts from scratch.** Same questions, same constraints, same history — re-explained to a new
-  Agent instance every single time.
-- **Every team member's Agent runs on its own rules.** No shared engineering standards, no consistency across agents or
-  sessions. The conventions held together by personal habits are accelerating toward collapse.
+- **三天后不知道这行代码为什么改。** Agent 帮你动了 100+ 个文件，`git blame` 只告诉你谁提交的，不告诉你当时的决策背景。
+- **两个月后没人知道方案的设计依据。** Agent 给出了一个架构方向，其他候选方案为什么被放弃——这些推理过程全消失在当时的聊天窗口里。
+- **每个新会话都要从头建立上下文。** 相同的问题，每个 Agent、每次对话都要重新解释一遍项目约束、历史决策和禁忌操作。
+- **全队的 Agent 各跑各的规则。** 没有统一的工程规范，没有跨 Agent、跨会话的一致性，靠个人习惯维系的代码风格在 Agent 时代加速崩解。
 
-These problems share one root cause: **Agents lack a persistent, structured governance layer.** FylloCode is that layer.
+这几个问题的根源相同：**Agent 缺少一个持久的、结构化的项目治理层。** FylloCode 就是这个治理层。
 
 ---
 
-## Core Mechanism
+## 核心机制
 
-FylloCode sits on top of your existing codebase and toolchain — not replacing your IDE, CI/CD, or project management
-system, but adding a layer above them dedicated to the problem of sustainably using Agents as a team.
+FylloCode 在你已有的代码库和研发工具链之上工作，不替代 IDE，不替代
+CI/CD，不替代项目管理系统——它在这些系统上面加一层，专门解决"团队里如何持续用好 Agent"的问题。
 
 ```
-Dev Systems (GitHub / Yunxiao / Jira ...)
-        ↑ writes back results
+研发系统（GitHub / 云效 / Jira ...）
+        ↑ 回写任务结果
 ┌──────────────────────────────┐
-│         FylloCode            │  ← governance layer
+│         FylloCode            │  ← 治理层
 │  fyllo-specs · fyllo-skills  │
 └──────────────────────────────┘
-        ↓ constraints & context injection
-   Coding Agent (any)
+        ↓ 约束 & 注入上下文
+   Coding Agent（任意）
         ↓
-   your codebase
+      代码库
 ```
 
-| Capability                     | Description                                                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unified standards**          | The `fyllo-specs` MCP server exposes project-level specs to all agents, persisting across sessions and agent instances                                |
-| **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                       |
-| **Full traceability**          | Task → Chat → Proposal → Apply & Archive — every step recorded as one lineage, from intent to execution                                               |
-| **Self-evolving rules**        | `fyllo-skills` currently ships the `guidelines` tool, which auto-updates project conventions after each task so agents always work from current rules |
-| **Writes back to dev systems** | Task results sync back to your existing project management tools — no new silos                                                                       |
+| 能力             | 说明                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| **统一规范**     | `fyllo-specs` MCP 服务器向所有 Agent 暴露项目级规范，跨会话、跨 Agent 持续生效                     |
+| **决策留档**     | 每个方案的依据和弃置理由以结构化数据持久化，不消失在会话记录里                                     |
+| **全程可追溯**   | Task → Chat → Proposal → Apply & Archive，每一步串成一条 lineage，变更从意图到执行都有记录         |
+| **项目概览**     | 进入项目的默认首屏，聚合治理状态、进行中变更、最近 lineage 脉络与规范演化趋势                      |
+| **规则自进化**   | `fyllo-skills` 目前提供 `guidelines` 工具，在每次任务后自动更新项目规范，让 Agent 始终遵循最新约定 |
+| **回写研发系统** | 任务结果同步回已有的项目管理工具，不在工具链里形成孤岛                                             |
 
 ---
 
-## Workflow
+## 工作流
 
-![FylloCode Workflow](docs/assets/diagrams/workflow.svg)
+![FylloCode 工作流](docs/assets/diagrams/workflow-zh.svg)
 
-FylloCode structures every coding task into four phases along a single line, each with defined inputs, outputs, and
-constraints. Every step — its input, decisions, and artifacts — is recorded as one **lineage**, and what gets settled
-feeds straight into the next task.
+FylloCode 把每个编码任务沿一条主线分成四个阶段，每个阶段有明确的输入、产物和约束。每一步的输入、决策和产物都会被记录成一条
+**lineage**，固化下来的结果直接成为下一次任务的起点。
 
 ```
   Task ──────▶ Chat ──────▶ Proposal ──────▶ Apply & Archive
-  Intent       Refine &      Plan review      Constrained
-  entry        decide                         execution & archive
+  任务入口      细化决策       方案评审          约束执行 & 归档
 ```
 
 ### Task
 
-The entry point of the line. A task can be created directly by a team member or synced in from a connected dev system
-(GitHub / Yunxiao / Jira ...). FylloCode imposes nothing here — it is simply where a unit of work enters the governed
-flow and becomes the shared anchor for everything that follows.
+主线的起点。一个任务可以由团队成员直接创建，也可以从已接入的研发系统（GitHub / 云效 / Jira ...）同步进来。FylloCode
+在这里不施加任何约束，它只是一个工作单元进入治理流程的入口，并成为后续所有环节共同锚定的对象。
 
 ### Chat
 
-This is where the approach takes shape. Facing a concrete task, the Agent analyzes the requirement, gathers evidence
-from the codebase, and guides the team through the tradeoffs until you converge on a decision together — rather than
-producing a plan out of thin air. `fyllo-specs` injects the current project spec state so the discussion stays within
-the right boundaries from the start. The reasoning, including the options that were ruled out, is captured as part of
-the lineage instead of vanishing in a chat window.
+方案在这里成形。面对具体任务，Agent 会分析需求、从代码库中检索佐证、引导团队权衡取舍，最终与你一起收敛出决策，而不是凭空给出方案。`fyllo-specs`
+会注入项目当前的规范状态，让讨论从一开始就在正确的边界内进行。包括被否决的思路在内的推理过程，都会作为 lineage 的一部分留存，而不是消失在聊天窗口里。
 
 ### Proposal
 
-Once a decision is reached, the Agent turns it into reviewable, structured artifacts. Output is driven by OpenSpec and
-customizable per project. The default is four structured artifacts:
+决策确定后，Agent 把它固化为可评审的结构化产物。产物由 OpenSpec 规范驱动，可按项目需求定制，默认输出四份结构化文件：
 
-- `proposal.md` — background, new capabilities, changed capabilities, affected modules
-- `design.md` — Goals and Non-Goals, final decisions on open questions with justifications for rejected alternatives,
-  change risks
-- `specs` — spec entries extracted from this change, written back to the project knowledge base
-- `tasks.md` — detailed task breakdown by file and function, with acceptance criteria, triggering guidelines
-  auto-evolution
+- proposal.md：背景说明、新增能力、变更能力、受影响的模块
+- design.md：Goals 与 Non-Goals、开放问题的最终决策及弃置原因、变更风险
+- specs：从本次变更中抽取的规范条目，回写到项目知识库
+- tasks.md：以文件和函数为维度的详细任务拆分，含验收标准，并触发 guidelines 自进化
 
-These four artifacts are the substance of the Proposal review — and the record that remains two months later when
-someone asks why the system was designed this way.
+这四份文件是 Proposal 评审的实体，也是两个月后追溯"当时为什么这么设计"的唯一依据。
 
 ### Apply & Archive
 
-The Agent executes under `fyllo-specs` constraints. Architecture boundaries, naming conventions, restricted operations —
-all enforced in real time during coding, not caught later in code review. Execution is strictly scoped to what
-`tasks.md` approved: changes outside that boundary are blocked, ensuring the actual diff matches the reviewed plan. Each
-task runs in an isolated Git worktree by default, keeping the main branch clean until the task is reviewed and merged,
-and multiple tasks can run in parallel at different stages without blocking each other.
+Agent 在 `fyllo-specs` 的约束下执行。规范覆盖架构禁区、命名约定、危险操作范围，在编码过程中实时生效，不依赖事后 code review
+发现越界。实际执行严格限定在 tasks.md 批准的范围内——超出边界的修改会被拦截，确保变更与评审记录一致。每个任务默认运行在独立的 Git
+worktree 中，主分支在任务完成前保持干净，多个任务可以并行推进、各自处于不同阶段，互不干扰。
 
-Once the change lands, the complete record is automatically archived: code change scope, decision context, spec
-updates, guidelines evolution, and a refreshed project health score. Part of this feeds back into `fyllo-specs` and
-`fyllo-skills` as background knowledge for the next task — closing the lineage so the next Task no longer starts from
-scratch. The rest syncs to your existing dev systems — no new tool silos.
+变更落地后，完整记录自动归档：代码变更范围、决策上下文、specs 更新、guidelines 演化结果，以及项目健康度重新评分。其中一部分反哺
+`fyllo-specs` 和 `fyllo-skills`，成为下一次任务的背景知识——让 lineage 闭环，下一个 Task 不再从零开始；另一部分同步到已有的研发系统，不形成工具链孤岛。
 
 ---
 
-## Model Selection
+## 模型选择
 
-FylloCode works with any API-compatible model. Different phases make different demands on model capability. From
-practical experience:
+FylloCode 支持任意接入 ACP 的 Agent，但不同阶段对模型能力的侧重不同。根据实际使用经验：
 
-- **Chat and Proposal** benefit from stronger reasoning models — Claude Opus or GPT-4.5 are good choices. The Agent
-  needs to deeply understand the project context, weigh tradeoffs across multiple approaches, and make defensible
-  design decisions. Model reasoning quality directly affects how credible and reviewable the output is.
+- **Chat 与 Proposal 阶段**建议使用推理能力更强的模型，如 Claude Opus 或 GPT-4.5。这两个阶段需要 Agent
+  深度理解项目背景、权衡多个方案的利弊、做出有依据的设计决策——模型的推理质量直接影响方案的可信度和可审查性。
 
-- **Apply** can run on smaller, faster models. By this point, task boundaries are precisely defined by `tasks.md`, and
-  the Agent's job is closer to structured execution than open-ended reasoning — smaller models work well here, with the
-  added benefit of lower cost.
+- **Apply 阶段**可以使用更小、更快的模型。任务边界已由 `tasks.md` 明确约定，Agent 的工作更接近结构化执行而非开放式推理，对模型的要求相对较低，也更容易控制成本。
 
-A common pairing: Opus for Chat and Proposal, Sonnet or Haiku for Apply.
+一个典型的搭配：Chat 与 Proposal 用 Opus，Apply 用 Sonnet 或 Haiku。
 
 ---
 
-## What an Agent Knows Before It Changes Your Code
+## 当 Agent 开始改代码
 
-A typical Agent session has two inputs: the current code and this session's prompt.
+普通的 Agent 会话能拿到两样东西：当前代码 + 这次的 prompt。
 
-Before it writes any code, a FylloCode Agent has access to:
+FylloCode 的 Agent 在动手改代码之前，能拿到：
 
-- **The current code** (from your repository)
-- **Project specs** (from `fyllo-specs`: architecture constraints, naming conventions, restricted operations)
-- **Historical decision context** (why this module was designed this way, which directions were ruled out)
-- **Change history** (what problem was being solved the last time this area was touched)
-- **Evolving guidelines** (from `fyllo-skills`, auto-updated after each task)
+- **当前代码**（来自你的仓库）
+- **项目规范**（来自 `fyllo-specs`：架构约束、命名约定、禁止操作）
+- **历史决策上下文**（这个模块为什么这么设计，当时否决了哪些方向）
+- **变更原因记录**（上次动这里是为了解决什么问题）
+- **持续演进的 guidelines**（来自 `fyllo-skills`，在每次任务后自动更新）
 
-It knows **why** the project became what it is today — not just **what** it is.
-
----
-
-## Team Knowledge Accumulation
-
-Sustaining a project over time means turning what the team learns in practice — mistakes made, conventions reached,
-recurring patterns — into structured context that agents can use directly in the next task.
-
-This is currently implemented through the `fyllo-skills.guidelines` tool: during Chat and Proposal, the Agent considers
-whether the guidelines need updating; while applying, project conventions are automatically updated based on the task
-details — so agents always work from current rules, not a manually maintained document that drifts over time.
-
-This mechanism addresses one core problem: **how team engineering knowledge accumulates through Agent collaboration
-instead of being reset at the end of every session.**
-
-Sustained maintenance of complex projects requires that every change leaves behind not just modified code, but decision
-traces that future Agents and engineers can understand. FylloCode's architecture is built around this.
-
-We're actively expanding knowledge accumulation across more dimensions — guidelines are just the starting point.
+它知道这个项目**为什么**变成今天这样，不只是**是什么**。
 
 ---
 
-## Integrations
+## 团队知识沉淀
 
-Task results can be written back to existing dev systems to maintain toolchain continuity.
+在持续演进中，需要把团队在实际工程中积累的知识、踩过的坑、达成的约定、反复出现的场景转化为下次任务时
+Agent 能直接使用的结构化上下文。
 
-| System        | Status               |
-| ------------- | -------------------- |
-| Yunxiao       | ✅ First integration |
-| TAPD          | 🔄 Planned           |
-| GitHub        | 🔄 Planned           |
-| GitLab        | 🔄 Planned           |
-| Linear        | 🔄 Planned           |
-| Jira          | 🔄 Planned           |
-| PingCode      | 🔄 Planned           |
-| Coding DevOps | 🔄 Planned           |
+目前通过 `fyllo-skills.guidelines` 工具实现这一点：在 Chat 与 Proposal 过程中，Agent 会考虑是否需要更新 guidelines，
+执行时会根据任务细则自动更新项目规范，让 Agent 始终读取最新的工程约定，而不是手动维护、随版本漂移的静态文档。
 
----
+这套机制解决的核心问题是：**团队的工程智慧如何在 Agent 协作中持续沉淀，而不是每次会话结束就清零。**
 
-## Architecture
+复杂工程能被持续维护，前提是每一次变更都不只是改了代码，而是留下了可被后续 Agent 和工程师理解的决策痕迹。FylloCode
+的架构就是围绕这一点设计的。
 
-| Layer          | Technology                                             |
-| -------------- | ------------------------------------------------------ |
-| Client         | Electron · Vue 3 · TypeScript                          |
-| Agent protocol | Agent Client Protocol (ACP)                            |
-| Spec server    | `fyllo-specs` (MCP Server enhanced on top of OpenSpec) |
-| Skills server  | `fyllo-skills` MCP Server                              |
+我们正在从更多维度持续扩展知识积累的范围，guidelines只是起点。
 
 ---
 
-## Installation
+## 集成
 
-Download the installer for your platform from the [Releases](https://github.com/Fioooooooo/FylloCode/releases) page.
+FylloCode 的任务结果可以回写到已有的研发系统，保持工具链的连续性。
 
-## Contributing
+| 研发系统      | 状态        |
+| ------------- | ----------- |
+| 云效          | ✅ 首批集成 |
+| TAPD          | 🔄 计划中   |
+| GitHub        | 🔄 计划中   |
+| GitLab        | 🔄 计划中   |
+| Linear        | 🔄 计划中   |
+| Jira          | 🔄 计划中   |
+| PingCode      | 🔄 计划中   |
+| Coding DevOps | 🔄 计划中   |
 
-FylloCode is licensed under AGPL-3.0. PRs are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) before
-submitting.
+---
 
-## Acknowledgements
+## 技术架构
 
-FylloCode is built on top of these open source projects and protocols:
+| 层         | 技术                                             |
+| ---------- | ------------------------------------------------ |
+| 客户端     | Electron · Vue 3 · TypeScript                    |
+| Agent 协议 | Agent Client Protocol (ACP)                      |
+| 规范服务   | `fyllo-specs`（基于 OpenSpec 增强的 MCP Server） |
+| 技能服务   | `fyllo-skills` MCP Server                        |
+
+---
+
+## 安装
+
+在 [Releases](https://github.com/Fioooooooo/FylloCode/releases) 页面下载对应平台的安装包。
+
+## 参与贡献
+
+FylloCode 使用 AGPL-3.0 许可证。欢迎提交 PR，贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 致谢
+
+FylloCode 构建在这些开源项目和协议之上：
 
 [Electron](https://www.electronjs.org) · [Vue 3](https://vuejs.org) · [TypeScript](https://www.typescriptlang.org) · [Nuxt UI](https://ui.nuxt.com) · [Tailwind CSS](https://tailwindcss.com) · [ACP](https://agentclientprotocol.com) · [MCP](https://modelcontextprotocol.io) · [OpenSpec](https://github.com/Fission-AI/OpenSpec) · [markstream-vue](https://github.com/Simon-He95/markstream-vue)
 
-## License
+## 许可证
 
 [AGPL-3.0](LICENSE)
 
-## Community
+## 技术社区
 
-[LinuxDO](https://linux.do/) — Sincere · Friendly · United · Professional
+[LinuxDO](https://linux.do/)：真诚、友善、团结、专业

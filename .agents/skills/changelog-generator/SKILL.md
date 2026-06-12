@@ -1,11 +1,11 @@
 ---
 name: changelog-generator
-description: Generate or update durable versioned changelog entries from git history, tags, specs, and shipped code changes. Use when the user asks to create, refine, translate, or synchronize entries in CHANGELOG.md or CHANGELOG.zh-CN.md, especially for Added/Changed/Fixed style release history and bilingual changelog maintenance.
+description: Generate or update durable versioned changelog entries from git history, tags, specs, and shipped code changes. Use when the user asks to create, refine, translate, or synchronize entries in CHANGELOG.md (Chinese, default) or CHANGELOG.en.md (English), especially for Added/Changed/Fixed style release history and bilingual changelog maintenance.
 ---
 
 # Changelog Generator
 
-Use this skill for repository changelog work. Prefer it when the target artifact is a durable version history file such as `CHANGELOG.md` or `CHANGELOG.zh-CN.md`, not a GitHub release page summary.
+Use this skill for repository changelog work. Prefer it when the target artifact is a durable version history file such as `CHANGELOG.md` (Chinese, default) or `CHANGELOG.en.md` (English), not a GitHub release page summary.
 
 ## Bilingual Mode
 
