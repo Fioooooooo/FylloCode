@@ -53,15 +53,13 @@ describe("ActivityBar", () => {
     expect(wrapper.findAll('button[data-color="primary"]')).toHaveLength(0);
   });
 
-  it("uses longest-prefix match for nested paths", async () => {
+  it("does not render or highlight the proposal entry", async () => {
     mockPath.value = "/proposal/some-id";
     const wrapper = mount(ActivityBar);
     await wrapper.vm.$nextTick();
 
-    const activeButtons = wrapper.findAll('button[data-color="primary"]');
-
-    expect(activeButtons).toHaveLength(1);
-    expect(activeButtons[0].attributes("to")).toBe("/proposal");
+    expect(wrapper.find('[data-test="activity-bar-item-proposal"]').exists()).toBe(false);
+    expect(wrapper.findAll('button[data-color="primary"]')).toHaveLength(0);
   });
 
   it("renders three sections with settings separated at the bottom", () => {

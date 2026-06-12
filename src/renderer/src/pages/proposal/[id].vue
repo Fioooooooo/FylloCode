@@ -176,7 +176,12 @@ async function viewRunHistory(): Promise<void> {
 }
 
 function backToList(): void {
-  void router.push("/proposal");
+  if (router.options.history.state.back == null) {
+    void router.replace("/overview");
+    return;
+  }
+
+  router.back();
 }
 
 onMounted(() => {

@@ -7,6 +7,10 @@ import { useProjectStore } from "@renderer/stores/project";
 import type { ProjectOverview } from "@shared/types/overview";
 import type { ProjectInfo } from "@shared/types/project";
 
+const routerMock = vi.hoisted(() => ({
+  push: vi.fn(),
+}));
+
 vi.mock("@renderer/api/overview", () => ({
   overviewApi: {
     getProjectOverview: vi.fn(),
@@ -14,9 +18,7 @@ vi.mock("@renderer/api/overview", () => ({
 }));
 
 vi.mock("vue-router", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-  }),
+  useRouter: () => routerMock,
 }));
 
 function project(): ProjectInfo {
@@ -135,5 +137,29 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("进行中");
     expect(wrapper.text()).toContain("最近脉络");
     expect(wrapper.text()).toContain("治理演化");
+  });
+
+  it("navigates to proposal list from the archives stat card only", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
+      ok: true,
+      data: overview(),
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const archivesCard = wrapper.get('[data-test="overview-archives-card"]');
+    expect(archivesCard.element.tagName).toBe("BUTTON");
+
+    await archivesCard.trigger("click");
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    expect(routerMock.push).toHaveBeenCalledWith("/proposal");
+
+    routerMock.push.mockClear();
+    for (const key of ["specs", "guidelines", "lineages"]) {
+      await wrapper.get(`[data-test="overview-stat-card-${key}"]`).trigger("click");
+    }
+
+    expect(routerMock.push).not.toHaveBeenCalled();
   });
 });

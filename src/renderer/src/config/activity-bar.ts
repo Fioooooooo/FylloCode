@@ -27,14 +27,6 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     requiresProject: true,
   },
   {
-    id: "proposal",
-    icon: "i-lucide-file-pen",
-    label: "提案",
-    path: "/proposal",
-    group: "top",
-    requiresProject: true,
-  },
-  {
     id: "task",
     icon: "i-lucide-list-checks",
     label: "任务",

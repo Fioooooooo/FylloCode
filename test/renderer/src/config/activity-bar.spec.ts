@@ -30,4 +30,8 @@ describe("activity-bar registry", () => {
   it("default item path is /overview", () => {
     expect(defaultActivityBarItem.path).toBe("/overview");
   });
+
+  it("does not include proposal as a main navigation item", () => {
+    expect(activityBarItems.some((i) => i.path === "/proposal")).toBe(false);
+  });
 });
