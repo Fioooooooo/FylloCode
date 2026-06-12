@@ -47,12 +47,13 @@ TBD - created by archiving change add-project-overview-page. Update Purpose afte
 
 ### Requirement: 进行中变更投影
 
-系统 SHALL 基于既有 `domain/proposal/openspec-reader.ts` 的 `readProposalFiles` 计算 `activeChanges`，过滤掉 `status === "archived"` 的条目，并将 `ProposalStatus` 映射为前端 `stage`：`creating → drafting`、`draft → proposal`、`applying → applying`。每个变更 SHALL 通过 lineage `getByProposal` 反查任务信息填充 `taskTitle` 与 `taskRef`，`taskRef` 保留 `source:` 前缀原样返回。
+系统 SHALL 基于既有 `domain/proposal/openspec-reader.ts` 的 `readProposalFiles` 计算 `activeChanges`，过滤掉 `status === "archived"` 的条目，并将 `ProposalStatus` 映射为前端 `stage`：`creating → drafting`、`draft → proposal`、`applying → applying`。每个 `ActiveChange` SHALL 返回 `id` 与 `title`：`id` 为原始 changeId，用于提案详情路由参数；`title` 为 `readProposalFiles` 产出的展示标题（由 `toTitleCase(stripArchivePrefix(changeId))` 规则生成）。每个变更 SHALL 通过 lineage `getByProposal` 反查任务信息填充 `taskTitle` 与 `taskRef`，`taskRef` 保留 `source:` 前缀原样返回。
 
 #### Scenario: 活跃变更关联到任务
 
 - **WHEN** 某活跃变更的 changeId 在 lineage index 中能反查到 subject 且该 subject 有 task
-- **THEN** 该 `ActiveChange` 的 `taskTitle` 为 task snapshot 标题，`taskRef` 为含前缀的 task ref，`stage` 由其 `ProposalStatus` 映射得到
+- **THEN** 该 `ActiveChange` 的 `id` 为原始 changeId，`title` 为格式化展示标题
+- **AND** `taskTitle` 为 task snapshot 标题，`taskRef` 为含前缀的 task ref，`stage` 由其 `ProposalStatus` 映射得到
 
 #### Scenario: 活跃变更无关联任务
 
@@ -66,16 +67,16 @@ TBD - created by archiving change add-project-overview-page. Update Purpose afte
 
 ### Requirement: 最近脉络投影
 
-系统 SHALL 通过 lineage `listRecentSubjects(projectPath, 10)` 取按 `updatedAt` 倒序的前 10 个 subject，投影为 `recentThreads`。每条 `RecentThread` 的 `sessionCount` 为 `links` 数，`proposalCount` 为所有 link 的 proposals 总数。`mergeStatus` 在本期 SHALL 仅判定 `applying`（任一 proposal 的 changeId 命中 `activeChanges`）与 `pending`（其余），`mergeCommitSha` 与 `mergeCommitUrl` 恒为 `null`。
+系统 SHALL 通过 lineage `listRecentSubjects(projectPath, 10)` 取按 `updatedAt` 倒序的前 10 个 subject，投影为 `recentThreads`。每条 `RecentThread` 的 `sessionCount` 为 `links` 数，`proposalCount` 为所有 link 的 proposals 总数。`mergeStatus` 在本期 SHALL 仅判定 `applying`（任一 proposal 的 changeId 命中 `activeChanges[].id`）与 `pending`（其余），`mergeCommitSha` 与 `mergeCommitUrl` 恒为 `null`。
 
 #### Scenario: 脉络命中活跃变更
 
-- **WHEN** 某 subject 的任一 proposal changeId 出现在 `activeChanges` 中
+- **WHEN** 某 subject 的任一 proposal changeId 出现在 `activeChanges[].id` 中
 - **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"applying"`
 
 #### Scenario: 脉络未命中活跃变更
 
-- **WHEN** 某 subject 的所有 proposal changeId 都不在 `activeChanges` 中
+- **WHEN** 某 subject 的所有 proposal changeId 都不在 `activeChanges[].id` 中
 - **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"pending"`
 
 #### Scenario: lineage 数据为空

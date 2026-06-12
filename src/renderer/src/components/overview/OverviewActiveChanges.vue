@@ -34,8 +34,8 @@ function createdLabel(change: ActiveChange): string {
   return change.createdAt ? timeAgo(new Date(change.createdAt)) : "未知时间";
 }
 
-function openChange(changeName: string): void {
-  void router.push(`/proposal/${changeName}`);
+function openChange(changeId: string): void {
+  void router.push(`/proposal/${changeId}`);
 }
 </script>
 
@@ -57,15 +57,15 @@ function openChange(changeName: string): void {
     <div v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <button
         v-for="change in changes"
-        :key="change.changeName"
+        :key="change.id"
         type="button"
         class="group rounded-lg border border-default bg-elevated px-4 py-3 text-left transition-colors hover:bg-accented"
-        @click="openChange(change.changeName)"
+        @click="openChange(change.id)"
       >
         <div class="flex min-w-0 items-start justify-between gap-3">
           <div class="min-w-0 space-y-2">
             <p class="truncate text-sm font-semibold text-highlighted">
-              {{ change.changeName }}
+              {{ change.title }}
             </p>
             <p class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <UIcon name="i-lucide-list-checks" class="size-3.5 shrink-0" />

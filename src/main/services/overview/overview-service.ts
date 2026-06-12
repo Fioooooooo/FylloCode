@@ -47,7 +47,8 @@ async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]
       });
 
       return {
-        changeName: proposal.id,
+        id: proposal.id,
+        title: proposal.title,
         createdAt: proposal.date || null,
         taskTitle: projection?.task?.snapshot.title ?? null,
         taskRef: projection?.task?.ref ?? null,
@@ -75,7 +76,7 @@ async function computeRecentThreads(
   projectPath: string,
   activeChanges: ActiveChange[]
 ): Promise<RecentThread[]> {
-  const activeChangeIds = new Set(activeChanges.map((change) => change.changeName));
+  const activeChangeIds = new Set(activeChanges.map((change) => change.id));
   const subjects = await listRecentSubjects(projectPath, 10);
 
   return subjects.map((subject) => {

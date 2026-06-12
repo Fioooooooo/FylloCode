@@ -46,7 +46,8 @@ function overview(): ProjectOverview {
     },
     activeChanges: [
       {
-        changeName: "add-project-overview-page",
+        id: "add-project-overview-page",
+        title: "Add Project Overview Page",
         createdAt: new Date().toISOString(),
         taskTitle: "项目概览页真实数据",
         taskRef: "local:task-1",
@@ -135,8 +136,26 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("实时项目数据");
     expect(wrapper.text()).toContain("74");
     expect(wrapper.text()).toContain("进行中");
+    expect(wrapper.text()).toContain("Add Project Overview Page");
     expect(wrapper.text()).toContain("最近脉络");
     expect(wrapper.text()).toContain("治理演化");
+  });
+
+  it("uses the active change title for display and id for navigation", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
+      ok: true,
+      data: overview(),
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Add Project Overview Page");
+    expect(wrapper.text()).not.toContain("add-project-overview-page");
+
+    await wrapper.get('[data-test="overview-active-changes"] button').trigger("click");
+
+    expect(routerMock.push).toHaveBeenCalledWith("/proposal/add-project-overview-page");
   });
 
   it("navigates to proposal list from the archives stat card only", async () => {

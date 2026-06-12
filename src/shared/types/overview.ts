@@ -12,7 +12,8 @@ export type OverviewStats = {
 };
 
 export type ActiveChange = {
-  changeName: string;
+  id: string;
+  title: string;
   createdAt: string | null;
   taskTitle: string | null;
   taskRef: string | null;

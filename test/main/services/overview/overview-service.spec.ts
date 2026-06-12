@@ -84,11 +84,36 @@ describe("overview-service", () => {
 
   it("maps active changes, lineage task refs, task linked ratio, and recent thread merge status", async () => {
     mocks.readProposalFiles.mockResolvedValue([
-      { id: "creating-change", status: "creating", date: "2026-06-01T00:00:00.000Z" },
-      { id: "draft-change", status: "draft", date: "2026-06-02T00:00:00.000Z" },
-      { id: "applying-change", status: "applying", date: "2026-06-03T00:00:00.000Z" },
-      { id: "unknown-change", status: "reviewing", date: "2026-06-04T00:00:00.000Z" },
-      { id: "archived-change", status: "archived", date: "2026-06-05T00:00:00.000Z" },
+      {
+        id: "creating-change",
+        title: "Creating Change",
+        status: "creating",
+        date: "2026-06-01T00:00:00.000Z",
+      },
+      {
+        id: "draft-change",
+        title: "Draft Change",
+        status: "draft",
+        date: "2026-06-02T00:00:00.000Z",
+      },
+      {
+        id: "applying-change",
+        title: "Applying Change",
+        status: "applying",
+        date: "2026-06-03T00:00:00.000Z",
+      },
+      {
+        id: "unknown-change",
+        title: "Unknown Change",
+        status: "reviewing",
+        date: "2026-06-04T00:00:00.000Z",
+      },
+      {
+        id: "archived-change",
+        title: "Archived Change",
+        status: "archived",
+        date: "2026-06-05T00:00:00.000Z",
+      },
     ]);
     mocks.getByProposal.mockImplementation(async (_projectPath: string, changeId: string) => {
       if (changeId === "creating-change") {
@@ -157,18 +182,25 @@ describe("overview-service", () => {
     });
     expect(overview.activeChanges).toEqual([
       expect.objectContaining({
-        changeName: "creating-change",
+        id: "creating-change",
+        title: "Creating Change",
         stage: "drafting",
         taskRef: "yunxiao:ABC-1",
         taskTitle: "Implement overview data",
       }),
-      expect.objectContaining({ changeName: "draft-change", stage: "proposal" }),
-      expect.objectContaining({ changeName: "applying-change", stage: "applying" }),
-      expect.objectContaining({ changeName: "unknown-change", stage: "drafting" }),
+      expect.objectContaining({ id: "draft-change", title: "Draft Change", stage: "proposal" }),
+      expect.objectContaining({
+        id: "applying-change",
+        title: "Applying Change",
+        stage: "applying",
+      }),
+      expect.objectContaining({
+        id: "unknown-change",
+        title: "Unknown Change",
+        stage: "drafting",
+      }),
     ]);
-    expect(overview.activeChanges.map((change) => change.changeName)).not.toContain(
-      "archived-change"
-    );
+    expect(overview.activeChanges.map((change) => change.id)).not.toContain("archived-change");
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       "[overview] unknown proposal status reviewing; falling back to drafting"
     );
