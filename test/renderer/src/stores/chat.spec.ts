@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { watch } from "vue";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
@@ -69,6 +69,14 @@ const mockStatuses: Record<string, AcpAgentStatus> = {
   },
 };
 
+let expectedConsoleErrorSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+function spyOnExpectedConsoleError(): ReturnType<typeof vi.spyOn> {
+  const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  expectedConsoleErrorSpy = spy;
+  return spy;
+}
+
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -122,6 +130,11 @@ function prepareDraftConversation(): void {
 }
 
 describe("useChatStore", () => {
+  afterEach(() => {
+    expectedConsoleErrorSpy?.mockRestore();
+    expectedConsoleErrorSpy = null;
+  });
+
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
@@ -815,6 +828,7 @@ describe("useChatStore", () => {
   });
 
   it("stores stream errors in chat state and clears active stream control", async () => {
+    const consoleError = spyOnExpectedConsoleError();
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
@@ -858,6 +872,11 @@ describe("useChatStore", () => {
     expect(chatStore.chatStatus).toBe("error");
     expect(chatStore.cancelFn).toBeNull();
     expect(sessionStore.activeSession?.status).toBe("ended");
+    expect(consoleError).toHaveBeenCalledWith(
+      "Stream error:",
+      "stream_failed",
+      "The stream disconnected unexpectedly"
+    );
   });
 
   it("keeps receiving background session chunks after switching sessions", async () => {
@@ -1043,6 +1062,7 @@ describe("useChatStore", () => {
   });
 
   it("resetChatState only resets chat transient state", async () => {
+    const consoleError = spyOnExpectedConsoleError();
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
@@ -1088,9 +1108,11 @@ describe("useChatStore", () => {
         activeSessionId: sessionStore.activeSessionId,
       })
     ).toBe(sessionSnapshot);
+    expect(consoleError).toHaveBeenCalledWith("Stream error:", "stream_failed", "bad network");
   });
 
   it("clears the previous error before starting a new send after failure", async () => {
+    const consoleError = spyOnExpectedConsoleError();
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
@@ -1129,9 +1151,11 @@ describe("useChatStore", () => {
     expect(chatStore.chatStatus).toBe("submitted");
     expect(sessionStore.activeSession?.messages.at(-1)?.role).toBe("user");
     expect(sessionStore.activeSession?.turnCount).toBe(2);
+    expect(consoleError).toHaveBeenCalledWith("Stream error:", "stream_failed", "bad network");
   });
 
   it("returns from error to ready when a later stream run completes", async () => {
+    const consoleError = spyOnExpectedConsoleError();
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
@@ -1169,6 +1193,7 @@ describe("useChatStore", () => {
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.cancelFn).toBeNull();
     expect(sessionStore.activeSession?.messages.at(-1)?.role).toBe("assistant");
+    expect(consoleError).toHaveBeenCalledWith("Stream error:", "stream_failed", "bad network");
   });
 
   describe("config options", () => {

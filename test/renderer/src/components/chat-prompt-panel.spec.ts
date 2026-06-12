@@ -162,7 +162,7 @@ function mountPanel(): VueWrapper {
         ChatPrompt: chatPromptStub,
         UChatPromptSubmit: promptSubmitStub,
         ChatPromptSubmit: promptSubmitStub,
-        SlashCommand: slashCommandStub,
+        SlashCommandMenu: slashCommandStub,
         AttachmentList: {
           props: ["attachments"],
           emits: ["remove"],
