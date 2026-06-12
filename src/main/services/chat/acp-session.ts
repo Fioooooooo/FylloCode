@@ -171,7 +171,7 @@ export class AcpSession extends EventEmitter {
       const e = err as Error & { code?: string };
       logger.error(`${this.logPrefix()} failed to acquire ACP process`, err);
       this.emit("event", {
-        type: "error",
+        kind: "error",
         code: e.code ?? "ACP_ERROR",
         message: e.message,
       } satisfies SessionEvent);
@@ -358,7 +358,7 @@ export class AcpSession extends EventEmitter {
     await this.opts.sessionStore.persistAcpSessionId(acpSessionId);
     logger.info(`${this.logPrefix(acpSessionId)} persisted resolved session metadata`);
     this.emit("event", {
-      type: "session_id_resolved",
+      kind: "session_id_resolved",
       acpSessionId,
     } satisfies SessionEvent);
   }
@@ -366,7 +366,7 @@ export class AcpSession extends EventEmitter {
   private emitConfigOptions(raw: SessionConfigOption[] | null | undefined): void {
     const options = normalizeAcpSessionConfigOptions(raw);
     this.emit("event", {
-      type: "config_options_update",
+      kind: "config_options_update",
       options,
     } satisfies SessionEvent);
   }
@@ -381,7 +381,7 @@ export class AcpSession extends EventEmitter {
     }
     const e = err as Error & { code?: string };
     this.emit("event", {
-      type: "error",
+      kind: "error",
       code: typeof e.code === "string" ? e.code : "ACP_ERROR",
       message: promptErrorMessage(err),
     } satisfies SessionEvent);
@@ -656,9 +656,9 @@ export class AcpSession extends EventEmitter {
       const event = mapSessionUpdate(notification.update);
       if (!event) return;
       if (args.runtimeState.firstObservedEventType === null) {
-        args.runtimeState.firstObservedEventType = event.type;
+        args.runtimeState.firstObservedEventType = event.kind;
         logger.info(
-          `${this.logPrefix(args.sessionId)} observed first session event: ${event.type}`
+          `${this.logPrefix(args.sessionId)} observed first session event: ${event.kind}`
         );
       }
       if (args.runtimeState.suppressReplay && shouldSuppressDuringReplay(event)) {
@@ -745,6 +745,6 @@ export class AcpSession extends EventEmitter {
     logger.info(
       `${this.logPrefix(this.acpSessionId)} prompt completed; totalTokens=${totalTokens}`
     );
-    this.emit("event", { type: "done", totalTokens } satisfies SessionEvent);
+    this.emit("event", { kind: "done", totalTokens } satisfies SessionEvent);
   }
 }

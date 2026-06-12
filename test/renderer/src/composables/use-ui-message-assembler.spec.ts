@@ -136,4 +136,33 @@ describe("useUIMessageAssembler", () => {
 
     expect(messages.value).toHaveLength(0);
   });
+
+  it("孤儿 tool_call_update（无 start）惰性建卡", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });
+
+    // gemini replace：直接 completed，无 tool_call start
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "replace__1",
+      status: "completed",
+      title: "test.txt",
+      toolKind: "edit",
+      content: "edited",
+    });
+
+    expect(messages.value).toHaveLength(1);
+    const part = messages.value[0]?.parts[0] as {
+      type: string;
+      toolCallId: string;
+      toolName: string;
+      state: string;
+      output?: unknown;
+    };
+    expect(part.type).toBe("dynamic-tool");
+    expect(part.toolCallId).toBe("replace__1");
+    expect(part.toolName).toBe("test.txt");
+    expect(part.state).toBe("output-available");
+    expect(part.output).toBe("edited");
+  });
 });

@@ -240,8 +240,8 @@ describe("registerProposalApplyHandlers", () => {
     // onReady already persisted the user message as the first append.
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
 
     await vi.waitFor(() => {
       expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
@@ -273,7 +273,7 @@ describe("registerProposalApplyHandlers", () => {
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -306,8 +306,8 @@ describe("registerProposalApplyHandlers", () => {
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -347,8 +347,8 @@ describe("registerProposalApplyHandlers", () => {
       expect.objectContaining({ role: "user" })
     );
 
-    mocks.eventHandler!({ type: "text_delta", text: "archive result" });
-    mocks.eventHandler!({ type: "done", totalTokens: 2 });
+    mocks.eventHandler!({ kind: "text_delta", text: "archive result" });
+    mocks.eventHandler!({ kind: "done", totalTokens: 2 });
 
     await vi.waitFor(() => {
       expect(sink.sendDone).toHaveBeenCalledWith(2);
@@ -375,7 +375,7 @@ describe("registerProposalApplyHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "failed" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "failed" });
 
     await vi.waitFor(() => {
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
@@ -405,8 +405,8 @@ describe("registerProposalApplyHandlers", () => {
     // onReady already persisted the user message as the first append.
     expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
 
     await vi.waitFor(() => {
       expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
@@ -443,7 +443,7 @@ describe("registerProposalApplyHandlers", () => {
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
     expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -476,8 +476,8 @@ describe("registerProposalApplyHandlers", () => {
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
     expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(1);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -564,7 +564,7 @@ describe("registerProposalApplyHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "session_id_resolved", acpSessionId: "acp-stage-3" });
+    mocks.eventHandler!({ kind: "session_id_resolved", acpSessionId: "acp-stage-3" });
 
     expect(mocks.updateRunMetaIfCurrent).not.toHaveBeenCalled();
   });
@@ -606,7 +606,7 @@ describe("registerProposalApplyHandlers", () => {
     await mocks.onReady!(sink);
     sink.sendChunk.mockClear();
 
-    const event: SessionEvent = { type: "reasoning_delta", text: "thinking" };
+    const event: SessionEvent = { kind: "reasoning_delta", text: "thinking" };
     mocks.eventHandler!(event);
 
     expect(mocks.assemblerApply).toHaveBeenCalledWith(event);
@@ -627,7 +627,7 @@ describe("registerProposalApplyHandlers", () => {
     sink.sendChunk.mockClear();
 
     mocks.eventHandler!({
-      type: "available_commands_update",
+      kind: "available_commands_update",
       commands: [{ name: "review", description: "Review code" }],
     });
 
@@ -773,7 +773,7 @@ describe("registerProposalApplyHandlers", () => {
     await mocks.onReady!(sink);
     sink.sendChunk.mockClear();
 
-    const event: SessionEvent = { type: "reasoning_delta", text: "archive thought" };
+    const event: SessionEvent = { kind: "reasoning_delta", text: "archive thought" };
     mocks.eventHandler!(event);
 
     expect(mocks.assemblerApply).toHaveBeenCalledWith(event);
@@ -796,7 +796,7 @@ describe("registerProposalApplyHandlers", () => {
     sink.sendChunk.mockClear();
 
     mocks.eventHandler!({
-      type: "available_commands_update",
+      kind: "available_commands_update",
       commands: [{ name: "review", description: "Review code" }],
     });
 
@@ -825,7 +825,7 @@ describe("registerProposalApplyHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "done", totalTokens: 2 });
+    mocks.eventHandler!({ kind: "done", totalTokens: 2 });
 
     await vi.waitFor(() => {
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(

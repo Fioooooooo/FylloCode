@@ -15,6 +15,7 @@ keywords: [domain, acp, agent-kind]
 - 适用于 `src/main/domain/acp/agent-kind-map.ts` 中维护的 ACP agent 归类映射。
 - 适用于 `src/shared/types/acp-agent.ts` 中的 `AcpAgentKind` 与 `AcpAgentEntry.__fyllo` 命名空间。
 - 适用于 `src/main/infra/storage/acp-registry-cache.ts` 对 registry 返回值注入 `__fyllo.kind` 的逻辑。
+- 适用于 `src/main/services/chat/acp-mapper.ts` 把 ACP `sessionUpdate` 归一映射为 `SessionEvent` 的逻辑。
 - 不覆盖 detector 的安装检测实现、安装/卸载流程或 ACP 协议本身的上游 schema。
 
 ## Sources of Truth
@@ -22,6 +23,8 @@ keywords: [domain, acp, agent-kind]
 - `src/main/domain/acp/agent-kind-map.ts`
 - `src/shared/types/acp-agent.ts`
 - `src/main/infra/storage/acp-registry-cache.ts`
+- `src/main/services/chat/acp-mapper.ts`
+- `references/acp/tool-call-trace/`
 
 ## Rules
 
@@ -41,6 +44,15 @@ keywords: [domain, acp, agent-kind]
 - `bridge`: `pi-acp`（运行时 `spawn` 本地 `pi` CLI）
 - `native`: `glm-acp-agent`（GLM 无官方 CLI 产品，纯 HTTP 实现）
 - `native`: `agoragentic-acp`（marketplace SaaS，无对应 CLI 产品）
+
+## ACP sessionUpdate → SessionEvent 映射约定
+
+ACP 协议规定 tool call 字段除 `toolCallId`/`title` 外全部可选、且不规定字段出现时机（见 `references/acp/tool-call-trace/`）。`acp-mapper.ts` 据此遵循以下约定：
+
+- MUST: `acp-mapper` 保持为无状态纯函数，不跨事件追踪 `toolCallId` 状态。需要跨事件的补偿（如 gemini 跳过 `tool_call` start 的孤儿 `tool_call_update`）由下游两个 assembler（`message-assembler.ts`、`useUIMessageAssembler.ts`）以 lazy-upsert 方式建卡，不在 mapper 引入状态。
+- MUST: 对 `tool_call` 与 `tool_call_update` 使用同一套字段位置无关的提取逻辑（`extractToolInput`/`extractTextContent`/`extractDiffs`/`extractLocations`）——`input`/`content`/`diff`/`locations` 无论出现在 start 还是 update 都按相同规则提取，使未观测过的 agent 也能正确兼容。
+- MUST: 把针对特定 agent 怪癖的纠偏隔离为独立、带注释标注的小函数，不混入通用提取逻辑。当前两处：`resolveStatus`（qodercli `completed + rawOutput.error` 降级为 `failed`）、`normalizeMcpTool`（仅依据 codex 形态 `rawInput.{server,tool}` 归一 MCP 标识，其他形态 fallback 原 title）。新增此类补丁必须在函数上方注释标注「agent 怪癖补丁」及其适用范围与 fallback 行为。
+- SHOULD: `references/acp/tool-call-trace/` 是各 agent 真实 trace 与差异矩阵的权威参考；新增 agent 兼容前先核对 trace 事实，修正差异矩阵中过时条目后再实现。
 
 ## Verification
 

@@ -4,45 +4,17 @@ import type { MessageChunkData } from "@shared/types/ipc";
 /**
  * Map an ACP session event to the renderer-facing stream chunk representation.
  *
- * Returns `null` for events that should not be forwarded as chunks (e.g.
- * terminal `done`/`error`, internal `session_id_resolved`).
+ * `SessionEvent` 与 `MessageChunkData` 共享 `StreamContentEvent` 子集，因此同构成员
+ * 直接结构化透传（深拷贝一次以适配跨 MessagePort 序列化）；仅主进程独有的控制流事件
+ * （`done`/`error`/`session_id_resolved`）返回 `null`，不进入 chunk 通路。
  */
 export function toMessageChunk(ev: SessionEvent): MessageChunkData | null {
-  switch (ev.type) {
-    case "text_delta":
-      return { kind: "text_delta", text: ev.text };
-    case "reasoning_delta":
-      return { kind: "reasoning_delta", text: ev.text };
-    case "tool_call_start":
-      return {
-        kind: "tool_call_start",
-        toolCallId: ev.toolCallId,
-        title: ev.title,
-        toolKind: ev.kind,
-      };
-    case "tool_call_update":
-      return {
-        kind: "tool_call_update",
-        toolCallId: ev.toolCallId,
-        status: ev.status,
-        input: ev.input
-          ? (JSON.parse(JSON.stringify(ev.input)) as Record<string, unknown>)
-          : undefined,
-        content: ev.content,
-      };
-    case "usage_update":
-      return { kind: "usage_update", used: ev.used, size: ev.size, cost: ev.cost };
-    case "session_info_update":
-      return { kind: "session_info_update", title: ev.title };
-    case "available_commands_update":
-      return { kind: "available_commands_update", commands: ev.commands };
-    case "plan_update":
-      return { kind: "plan_update", entries: ev.entries };
-    case "config_options_update":
-      return { kind: "config_options_update", options: ev.options };
-    case "session_id_resolved":
+  switch (ev.kind) {
     case "done":
     case "error":
+    case "session_id_resolved":
       return null;
+    default:
+      return JSON.parse(JSON.stringify(ev)) as MessageChunkData;
   }
 }

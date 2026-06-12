@@ -253,7 +253,7 @@ describe("AcpSession", () => {
 
     await session.start([{ type: "text", text: "hello" }]);
 
-    expect(events.some((event) => event.type === "config_options_update")).toBe(false);
+    expect(events.some((event) => event.kind === "config_options_update")).toBe(false);
   });
 
   it("preset branch prompt failure does not enter recovery", async () => {
@@ -273,7 +273,7 @@ describe("AcpSession", () => {
     expect(mocks.connection.newSession).not.toHaveBeenCalled();
     expect(events).toContainEqual(
       expect.objectContaining({
-        type: "error",
+        kind: "error",
         code: "ACP_ERROR",
       })
     );
@@ -344,7 +344,7 @@ describe("AcpSession", () => {
       const handler = mocks.sessionHandlers.get("acp-existing");
       handler?.({
         sessionId: "acp-existing",
-        update: { type: "text_delta", text: "partial" } as unknown as SessionNotification["update"],
+        update: { kind: "text_delta", text: "partial" } as unknown as SessionNotification["update"],
       } as SessionNotification);
       throw { code: -32603, message: "Internal error", data: { details: "Session not found" } };
     });
@@ -356,9 +356,9 @@ describe("AcpSession", () => {
 
     expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
     expect(mocks.connection.loadSession).not.toHaveBeenCalled();
-    expect(seen).toContainEqual({ type: "text_delta", text: "partial" });
+    expect(seen).toContainEqual({ kind: "text_delta", text: "partial" });
     expect(seen).toContainEqual({
-      type: "error",
+      kind: "error",
       code: "ACP_ERROR",
       message: "Internal error",
     });
@@ -384,14 +384,14 @@ describe("AcpSession", () => {
       handler?.({
         sessionId: "acp-existing",
         update: {
-          type: "text_delta",
+          kind: "text_delta",
           text: "replayed",
         } as unknown as SessionNotification["update"],
       } as SessionNotification);
       handler?.({
         sessionId: "acp-existing",
         update: {
-          type: "session_info_update",
+          kind: "session_info_update",
           title: "Recovered title",
         } as unknown as SessionNotification["update"],
       } as SessionNotification);
@@ -408,10 +408,10 @@ describe("AcpSession", () => {
     session.on("event", (event) => seen.push(event));
     await session.start([{ type: "text", text: "hello" }]);
 
-    expect(seen).not.toContainEqual({ type: "text_delta", text: "replayed" });
+    expect(seen).not.toContainEqual({ kind: "text_delta", text: "replayed" });
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-existing");
     expect(seen).toContainEqual({
-      type: "session_info_update",
+      kind: "session_info_update",
       title: "Recovered title",
     });
   });
@@ -558,7 +558,7 @@ describe("AcpSession", () => {
     expect(mocks.connection.prompt).not.toHaveBeenCalled();
     expect(seen).toContainEqual(
       expect.objectContaining({
-        type: "error",
+        kind: "error",
         code: IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
       })
     );
@@ -586,7 +586,7 @@ describe("AcpSession", () => {
       session.on("event", (event) => seen.push(event));
       await session.start([{ type: "text", text: "hello" }]);
 
-      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+      expect(seen).toContainEqual({ kind: "config_options_update", options: sampleOptions });
     });
 
     it("emits empty config_options_update when newSession returns null configOptions", async () => {
@@ -600,7 +600,7 @@ describe("AcpSession", () => {
       session.on("event", (event) => seen.push(event));
       await session.start([{ type: "text", text: "hello" }]);
 
-      expect(seen).toContainEqual({ type: "config_options_update", options: [] });
+      expect(seen).toContainEqual({ kind: "config_options_update", options: [] });
     });
 
     it("emits config_options_update from resumeSession response", async () => {
@@ -619,7 +619,7 @@ describe("AcpSession", () => {
       session.on("event", (event) => seen.push(event));
       await session.start([{ type: "text", text: "hello" }]);
 
-      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+      expect(seen).toContainEqual({ kind: "config_options_update", options: sampleOptions });
     });
 
     it("emits config_options_update from loadSession response even with suppressReplay", async () => {
@@ -649,7 +649,7 @@ describe("AcpSession", () => {
       session.on("event", (event) => seen.push(event));
       await session.start([{ type: "text", text: "hello" }]);
 
-      expect(seen).toContainEqual({ type: "config_options_update", options: sampleOptions });
+      expect(seen).toContainEqual({ kind: "config_options_update", options: sampleOptions });
     });
 
     it("does not emit config_options_update from direct prompt success", async () => {
@@ -660,7 +660,7 @@ describe("AcpSession", () => {
       session.on("event", (event) => seen.push(event));
       await session.start([{ type: "text", text: "hello" }]);
 
-      expect(seen).not.toContainEqual(expect.objectContaining({ type: "config_options_update" }));
+      expect(seen).not.toContainEqual(expect.objectContaining({ kind: "config_options_update" }));
     });
   });
 });

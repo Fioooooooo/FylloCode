@@ -61,20 +61,23 @@ export function useUIMessageAssembler(
   }
 
   function applyToolUpdate(chunk: Extract<MessageChunkData, { kind: "tool_call_update" }>): void {
-    if (!activeAssistantId) {
-      return;
-    }
+    const message = ensureAssistantMessage();
 
-    const message = messages.value.find((item) => item.id === activeAssistantId);
-    if (!message) {
-      return;
-    }
-
-    const idx = message.parts.findIndex(
+    let idx = message.parts.findIndex(
       (part) => part.type === "dynamic-tool" && part.toolCallId === chunk.toolCallId
     );
     if (idx === -1) {
-      return;
+      // 孤儿 update（gemini 跳过 tool_call start）：用 chunk 自带 title/toolKind 惰性建卡。
+      message.parts.push({
+        type: "dynamic-tool",
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.title ?? chunk.toolCallId,
+        state: "input-available",
+        input: chunk.input ?? {},
+      } as DynamicToolUIPart);
+      idx = message.parts.length - 1;
+      activeTextPartIdx = -1;
+      activeReasoningPartIdx = -1;
     }
 
     const prev = message.parts[idx] as DynamicToolUIPart;

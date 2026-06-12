@@ -438,8 +438,8 @@ describe("registerChatHandlers", () => {
     };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "text_delta", text: "assistant" });
-    mocks.eventHandler!({ type: "done", totalTokens: 4 });
+    mocks.eventHandler!({ kind: "text_delta", text: "assistant" });
+    mocks.eventHandler!({ kind: "done", totalTokens: 4 });
 
     await vi.waitFor(() => {
       expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
@@ -497,8 +497,8 @@ describe("registerChatHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
 
     await vi.waitFor(() => {
       expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
@@ -537,7 +537,7 @@ describe("registerChatHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -577,8 +577,8 @@ describe("registerChatHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
 
-    mocks.eventHandler!({ type: "text_delta", text: "partial" });
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "text_delta", text: "partial" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -603,7 +603,7 @@ describe("registerChatHandlers", () => {
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     const runner = (await mocks.onReady!(sink)) as { cancel: () => void };
 
-    mocks.eventHandler!({ type: "error", code: "ACP_ERROR", message: "boom" });
+    mocks.eventHandler!({ kind: "error", code: "ACP_ERROR", message: "boom" });
     runner.cancel();
 
     await vi.waitFor(() => {
@@ -632,7 +632,7 @@ describe("registerChatHandlers", () => {
     await mocks.onReady!(sink);
 
     mocks.eventHandler!({
-      type: "usage_update",
+      kind: "usage_update",
       used: 29017,
       size: 1000000,
       cost: { amount: 0.145305, currency: "USD" },
@@ -694,7 +694,7 @@ describe("registerChatHandlers", () => {
     };
     await mocks.onReady!(sink);
 
-    mocks.eventHandler!({ type: "done", totalTokens: 4 });
+    mocks.eventHandler!({ kind: "done", totalTokens: 4 });
 
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
@@ -760,7 +760,7 @@ describe("registerChatHandlers", () => {
     };
     await mocks.onReady!(sink);
 
-    const event: SessionEvent = { type: "reasoning_delta", text: "thinking" };
+    const event: SessionEvent = { kind: "reasoning_delta", text: "thinking" };
     mocks.eventHandler!(event);
 
     expect(mocks.assemblerApply).toHaveBeenCalledWith(event);
@@ -899,7 +899,7 @@ describe("registerChatHandlers", () => {
     await mocks.onReady!(sink);
 
     const event: SessionEvent = {
-      type: "available_commands_update",
+      kind: "available_commands_update",
       commands: [{ name: "review", description: "Review code" }],
     };
     mocks.eventHandler!(event);
@@ -940,7 +940,7 @@ describe("registerChatHandlers", () => {
     await mocks.onReady!(sink);
 
     mocks.eventHandler!({
-      type: "available_commands_update",
+      kind: "available_commands_update",
       commands: [],
     });
 
@@ -987,7 +987,7 @@ describe("registerChatHandlers", () => {
         options: [{ value: "sonnet", name: "Sonnet" }],
       },
     ];
-    mocks.eventHandler!({ type: "config_options_update", options });
+    mocks.eventHandler!({ kind: "config_options_update", options });
 
     expect(mocks.assemblerApply).not.toHaveBeenCalled();
     expect(sink.sendChunk).toHaveBeenCalledWith({

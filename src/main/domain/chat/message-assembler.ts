@@ -26,7 +26,7 @@ export class MessageAssembler {
   }
 
   apply(ev: SessionEvent): void {
-    if (ev.type === "text_delta") {
+    if (ev.kind === "text_delta") {
       const message = this.ensureMessage();
       const part = this.activeTextPartIdx >= 0 ? message.parts[this.activeTextPartIdx] : null;
 
@@ -40,7 +40,7 @@ export class MessageAssembler {
       return;
     }
 
-    if (ev.type === "reasoning_delta") {
+    if (ev.kind === "reasoning_delta") {
       const message = this.ensureMessage();
       const part =
         this.activeReasoningPartIdx >= 0 ? message.parts[this.activeReasoningPartIdx] : null;
@@ -55,7 +55,7 @@ export class MessageAssembler {
       return;
     }
 
-    if (ev.type === "tool_call_start") {
+    if (ev.kind === "tool_call_start") {
       const message = this.ensureMessage();
       const part: DynamicToolUIPart = {
         type: "dynamic-tool",
@@ -70,26 +70,34 @@ export class MessageAssembler {
       return;
     }
 
-    if (ev.type === "tool_call_update") {
-      if (!this.currentMessage) {
-        return;
-      }
+    if (ev.kind === "tool_call_update") {
+      const message = this.ensureMessage();
 
-      const idx = this.currentMessage.parts.findIndex(
+      let idx = message.parts.findIndex(
         (part) => part.type === "dynamic-tool" && part.toolCallId === ev.toolCallId
       );
       if (idx === -1) {
-        return;
+        // 孤儿 update（gemini 跳过 tool_call start）：用 update 自带 title/toolKind 惰性建卡。
+        message.parts.push({
+          type: "dynamic-tool",
+          toolCallId: ev.toolCallId,
+          toolName: ev.title ?? ev.toolCallId,
+          state: "input-available",
+          input: ev.input ?? {},
+        } as DynamicToolUIPart);
+        idx = message.parts.length - 1;
+        this.activeTextPartIdx = -1;
+        this.activeReasoningPartIdx = -1;
       }
 
-      const prev = this.currentMessage.parts[idx] as DynamicToolUIPart;
+      const prev = message.parts[idx] as DynamicToolUIPart;
       const description =
         typeof ev.input?.description === "string" ? ev.input.description : undefined;
 
       if (ev.status === "in_progress") {
         const needsUpdate = ev.input || ev.content;
         if (needsUpdate) {
-          this.currentMessage.parts.splice(idx, 1, {
+          message.parts.splice(idx, 1, {
             type: "dynamic-tool",
             toolCallId: prev.toolCallId,
             toolName: prev.toolName,
@@ -99,7 +107,7 @@ export class MessageAssembler {
           } as DynamicToolUIPart);
         }
       } else if (ev.status === "completed" || ev.status === "failed") {
-        this.currentMessage.parts.splice(idx, 1, {
+        message.parts.splice(idx, 1, {
           type: "dynamic-tool",
           toolCallId: prev.toolCallId,
           toolName: prev.toolName,

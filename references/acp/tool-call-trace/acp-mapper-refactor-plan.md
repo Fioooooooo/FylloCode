@@ -14,17 +14,17 @@ ACP 协议对 tool_call 字段的定义几乎全部是可选的——除 `toolCa
 
 ## 跨 agent 差异矩阵
 
-| 差异点            | claude-acp                         | codex-acp                   | gemini              | qodercli                                   | opencode                    |
-| ----------------- | ---------------------------------- | --------------------------- | ------------------- | ------------------------------------------ | --------------------------- |
-| start 时的 status | `pending`                          | `in_progress`               | 有时**缺失 start**  | `in_progress`                              | `pending`                   |
-| rawInput 揭示时机 | 第一次 in_progress update          | **start 时已有**            | 第一次 update       | **start 时已有**                           | 第一次 in_progress update   |
-| diff 内容位置     | completed update 的 content        | **start 时就在 content**    | 无 diff             | completed update 的 content                | completed update 的 content |
-| toolCallId 格式   | uuid                               | `call_<uuid>`               | uuid                | `call_function_<id>_<seq>`                 | `call_<seq>_<random>`       |
-| MCP tool title    | `_meta.claudeCode.toolName`        | `"Tool: server/tool"`       | `"server/tool"`     | 无特殊                                     | `"server_tool"`（下划线）   |
-| MCP tool rawInput | `_meta.claudeCode` 内              | `{server, tool, arguments}` | 无 rawInput         | 无 rawInput                                | 直接为参数                  |
-| sub-agent 信号    | `_meta.claudeCode.parentToolUseId` | bash 命令含 `codex exec`    | `invoke_agent` tool | toolCallId 含 `call_function_`             | `kind:"think"` + task XML   |
-| error 表达        | `status:"failed"`                  | `status:"failed"`           | `status:"failed"`   | **`status:"completed"` + rawOutput.error** | `status:"failed"`           |
-| 重复 update       | 否                                 | 否                          | 否                  | **completed 重复推送**                     | in_progress 多次            |
+| 差异点            | claude-acp                         | codex-acp                   | gemini                           | qodercli                                                   | opencode                    |
+| ----------------- | ---------------------------------- | --------------------------- | -------------------------------- | ---------------------------------------------------------- | --------------------------- |
+| start 时的 status | `pending`                          | `in_progress`               | 有时**缺失 start**               | `in_progress`                                              | `pending`                   |
+| rawInput 揭示时机 | 第一次 in_progress update          | **start 时已有**            | 第一次 update                    | **start 时已有**                                           | 第一次 in_progress update   |
+| diff 内容位置     | completed update 的 content        | **start 时就在 content**    | 无 diff                          | completed update 的 content                                | completed update 的 content |
+| toolCallId 格式   | `tooluse_<id>`                     | `call_<uuid>`               | `<tool>__<id>`                   | `toolu_bdrk_<id>`（子代理内为 `call_function_<id>_<seq>`） | `call_<seq>_<random>`       |
+| MCP tool title    | `_meta.claudeCode.toolName`        | `"Tool: server/tool"`       | `"<tool> (<server> MCP Server)"` | 无特殊                                                     | `"server_tool"`（下划线）   |
+| MCP tool rawInput | `_meta.claudeCode` 内              | `{server, tool, arguments}` | 无 rawInput                      | 无 rawInput                                                | 直接为参数                  |
+| sub-agent 信号    | `_meta.claudeCode.parentToolUseId` | bash 命令含 `codex exec`    | `invoke_agent` tool              | toolCallId 含 `call_function_`                             | `kind:"think"` + task XML   |
+| error 表达        | `status:"failed"`                  | `status:"failed"`           | `status:"failed"`                | **`status:"completed"` + rawOutput.error**                 | `status:"failed"`           |
+| 重复 update       | 否                                 | 否                          | 否                               | **completed 重复推送**                                     | in_progress 多次            |
 
 ---
 

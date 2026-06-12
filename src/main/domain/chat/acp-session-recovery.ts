@@ -19,7 +19,7 @@ export interface PromptErrorLike {
 
 export interface SessionRuntimeState {
   observedSessionUpdate: boolean;
-  firstObservedEventType: SessionEvent["type"] | null;
+  firstObservedEventType: SessionEvent["kind"] | null;
   suppressReplay: boolean;
   suppressedReplayEvents: number;
 }
@@ -127,7 +127,7 @@ export function buildHistoryReminder(
 }
 
 export function shouldSuppressDuringReplay(event: SessionEvent): boolean {
-  switch (event.type) {
+  switch (event.kind) {
     case "available_commands_update":
     case "session_info_update":
     case "config_options_update":

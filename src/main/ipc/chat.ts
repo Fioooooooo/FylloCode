@@ -353,7 +353,7 @@ export function registerChatHandlers(): void {
         sessionRegistry.register("chat", sessionId, session);
 
         session.on("event", (ev: SessionEvent) => {
-          switch (ev.type) {
+          switch (ev.kind) {
             case "session_id_resolved":
               // Already persisted inside AcpSession.
               break;
@@ -459,7 +459,7 @@ export function registerChatHandlers(): void {
             default: {
               const _exhaustive: never = ev;
               void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).type}`);
+              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
             }
           }
         });

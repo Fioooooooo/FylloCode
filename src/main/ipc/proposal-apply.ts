@@ -168,7 +168,7 @@ export function registerProposalApplyHandlers(): void {
         sessionRegistry.register("apply", form.runId, session);
 
         session.on("event", (ev: SessionEvent) => {
-          switch (ev.type) {
+          switch (ev.kind) {
             case "session_id_resolved":
               break;
             case "text_delta":
@@ -233,7 +233,7 @@ export function registerProposalApplyHandlers(): void {
             default: {
               const _exhaustive: never = ev;
               void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).type}`);
+              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
             }
           }
         });
@@ -389,7 +389,7 @@ export function registerProposalApplyHandlers(): void {
         sessionRegistry.register("archive", sessionKey, session);
 
         session.on("event", (ev: SessionEvent) => {
-          switch (ev.type) {
+          switch (ev.kind) {
             case "text_delta":
             case "reasoning_delta":
             case "tool_call_start":
@@ -450,7 +450,7 @@ export function registerProposalApplyHandlers(): void {
             default: {
               const _exhaustive: never = ev;
               void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).type}`);
+              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
             }
           }
         });

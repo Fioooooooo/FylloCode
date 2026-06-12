@@ -14,7 +14,7 @@ describe("mapSessionUpdate", () => {
       } as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "reasoning_delta",
+        kind: "reasoning_delta",
         text: "thinking",
       });
     });
@@ -49,7 +49,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "available_commands_update",
+        kind: "available_commands_update",
         commands: [
           {
             name: "review",
@@ -77,7 +77,7 @@ describe("mapSessionUpdate", () => {
       } as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "available_commands_update",
+        kind: "available_commands_update",
         commands: [
           {
             name: "review",
@@ -100,7 +100,7 @@ describe("mapSessionUpdate", () => {
       } as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "available_commands_update",
+        kind: "available_commands_update",
         commands: [],
       });
     });
@@ -123,7 +123,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "plan_update",
+        kind: "plan_update",
         entries: [
           { content: "分析现有代码结构", priority: "high", status: "completed" },
           { content: "编写单元测试", priority: "medium", status: "in_progress" },
@@ -139,7 +139,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "plan_update",
+        kind: "plan_update",
         entries: [],
       });
     });
@@ -151,7 +151,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "plan_update",
+        kind: "plan_update",
         entries: [{ content: "未知字段", priority: "medium", status: "pending" }],
       });
     });
@@ -166,7 +166,7 @@ describe("mapSessionUpdate", () => {
     } as SessionUpdate;
 
     expect(mapSessionUpdate(update)).toEqual({
-      type: "usage_update",
+      kind: "usage_update",
       used: 29017,
       size: 1000000,
       cost: { amount: 0.145305, currency: "USD" },
@@ -181,7 +181,7 @@ describe("mapSessionUpdate", () => {
     } as SessionUpdate;
 
     expect(mapSessionUpdate(update)).toEqual({
-      type: "usage_update",
+      kind: "usage_update",
       used: 29017,
       size: 1000000,
       cost: undefined,
@@ -210,7 +210,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "config_options_update",
+        kind: "config_options_update",
         options: [
           {
             type: "select",
@@ -260,7 +260,7 @@ describe("mapSessionUpdate", () => {
 
       const event = mapSessionUpdate(update);
       expect(event).toEqual({
-        type: "config_options_update",
+        kind: "config_options_update",
         options: [
           {
             type: "select",
@@ -305,7 +305,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        type: "config_options_update",
+        kind: "config_options_update",
         options: [
           {
             type: "boolean",
@@ -316,6 +316,151 @@ describe("mapSessionUpdate", () => {
             currentValue: true,
           },
         ],
+      });
+    });
+  });
+
+  describe("tool_call 字段位置无关提取", () => {
+    it("codex Edit：start 时从 content 提取 diff、从 rawInput 提取 input", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_codex_1",
+        title: "Edit foo.txt",
+        kind: "edit",
+        status: "in_progress",
+        rawInput: { changes: { "foo.txt": { type: "add" } } },
+        content: [{ type: "diff", path: "/foo.txt", newText: "created\n" }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toEqual({
+        kind: "tool_call_start",
+        toolCallId: "call_codex_1",
+        title: "Edit foo.txt",
+        toolKind: "edit",
+        input: { changes: { "foo.txt": { type: "add" } } },
+        diff: [{ path: "/foo.txt", newText: "created\n", oldText: undefined }],
+        locations: undefined,
+      });
+    });
+
+    it("qodercli：start 时已携带 rawInput", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "toolu_bdrk_1",
+        title: "Read",
+        kind: "read",
+        status: "in_progress",
+        rawInput: { file_path: "/a.txt" },
+        content: [],
+      } as unknown as SessionUpdate;
+
+      const result = mapSessionUpdate(update);
+      expect(result).toMatchObject({
+        kind: "tool_call_start",
+        toolCallId: "toolu_bdrk_1",
+        input: { file_path: "/a.txt" },
+      });
+    });
+
+    it("gemini replace：tool_call_update 携带 diff", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "replace__1",
+        status: "completed",
+        content: [{ type: "diff", path: "/test.txt", newText: "new", oldText: "old" }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_update",
+        toolCallId: "replace__1",
+        status: "completed",
+        diff: [{ path: "/test.txt", newText: "new", oldText: "old" }],
+      });
+    });
+
+    it("孤儿 update：透传 title/toolKind 供建卡", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "list_directory__1",
+        title: "tool-call-trace",
+        kind: "search",
+        status: "completed",
+        content: [],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_update",
+        toolCallId: "list_directory__1",
+        title: "tool-call-trace",
+        toolKind: "search",
+      });
+    });
+  });
+
+  describe("agent 怪癖补丁", () => {
+    it("qodercli completed + rawOutput.error → 降级 failed，content 取 error 文本", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "toolu_bdrk_grep",
+        status: "completed",
+        rawOutput: { error: "spawn rg ENOENT" },
+        content: [{ type: "content", content: { type: "text", text: "spawn rg ENOENT" } }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_update",
+        status: "failed",
+        content: "spawn rg ENOENT",
+      });
+    });
+
+    it("completed 无 rawOutput.error → 保持 completed", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "toolu_bdrk_ok",
+        status: "completed",
+        rawOutput: "ok",
+        content: [{ type: "content", content: { type: "text", text: "done" } }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_update",
+        status: "completed",
+        content: "done",
+      });
+    });
+
+    it("codex MCP {server,tool} → title 归一为 server/tool", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_mcp_1",
+        title: "Tool: fyllo-skills/guidelines",
+        kind: "other",
+        status: "in_progress",
+        rawInput: { server: "fyllo-skills", tool: "guidelines", arguments: { mode: "read" } },
+        content: [],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_start",
+        title: "fyllo-skills/guidelines",
+      });
+    });
+
+    it("非 codex 形态 MCP → fallback 原 title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_mcp_2",
+        title: "fyllo-specs_explore",
+        kind: "other",
+        status: "in_progress",
+        rawInput: { targetPath: "/x" },
+        content: [],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update)).toMatchObject({
+        kind: "tool_call_start",
+        title: "fyllo-specs_explore",
       });
     });
   });

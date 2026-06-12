@@ -21,6 +21,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 - `src/shared/types/channels.ts`
 - `src/shared/schemas/ipc/**`
 - `src/shared/types/ipc.ts`
+- `src/shared/types/stream-event.ts`
 - `src/shared/constants/error-codes.ts`
 - `src/shared/errors/ipc-error.ts`
 - `src/main/ipc/**`
@@ -41,6 +42,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 - MUST: 让主进程 handler 的入参通过 `src/shared/schemas/ipc/<domain>.ts` 中的 Zod schema 校验；渲染侧类型声明不能替代运行时校验。
 - MUST: 让 preload 通过 `contextBridge` 暴露 `window.api`，渲染层只能消费这些公开 API，不得直接触碰 `ipcRenderer`。
 - MUST: 让流式协议通过 `ipc/_kit/stream-channel.ts` 与 `MessagePort` 实现，chunk/done/error 消息结构遵循 `src/shared/types/ipc.ts`。
+- MUST: 主进程 `SessionEvent`（`src/main/domain/chat/session-events.ts`）与跨进程 `MessageChunkData`（`src/shared/types/ipc.ts`）共享 `src/shared/types/stream-event.ts` 的 `StreamContentEvent` 子集——9 个跨进程同构成员只在此处单点定义；判别字段统一为 `kind`，工具类别字段统一为 `toolKind`（不得复用 `kind` 作工具类别）。`SessionEvent` 仅额外外挂主进程控制流变体（`done`/`error`/`session_id_resolved`），`MessageChunkData` 仅额外外挂渲染态变体（`user_message`/`status`）。`session-event-mapper.toMessageChunk` 只负责过滤控制流（对 `done`/`error`/`session_id_resolved` 返回 `null`）并对子集成员深拷贝透传一次，不得逐字段重建——新增流式字段时只改 `stream-event.ts` 一处。`stream-event.ts` 不得 import `@agentclientprotocol/sdk`。
 - MUST: 让 `chat:stream:message` 的 MessagePort handoff 使用 preload 生成的 renderer-local `streamId` 关联每次调用；main 必须在 `chat:stream:port` payload 中回传同一个 `{ streamId }`，preload 必须用共享 dispatcher 和 pending registry 按 `streamId` 绑定 port。不得为每次 chat stream 注册无条件消费下一个 port 事件的 `ipcRenderer.once(...)`；未匹配 streamId 的 port 必须关闭。
 - MUST: 让三个流式 handler（`chat:stream:message`、`proposal:stageStream`、`proposal:archive`）在 `done` / `error` / `runner.cancel` 三个终止出口都对称地落盘已组装的 assistant 消息——任何非 `done` 的停止（agent 报错、用户 stop / port close）也必须把当前 `MessageAssembler` 的内容持久化，否则重启后该轮部分回复丢失。去重依赖 `MessageAssembler.flush()` 的一次性所有权语义（首次取走 `currentMessage` 并置空、再次返回 `null`），不得引入额外布尔标志；落盘失败只记 `logger.error`，不阻断该出口既有的终止动作（`sendError` / `sendDone` / `unregister` / 状态机更新）。三处目前为就近对称实现，未来可抽取为通用底层能力。
 - MUST: 将新增错误码登记到 `src/shared/constants/error-codes.ts`；不得返回未声明的错误码字符串。
