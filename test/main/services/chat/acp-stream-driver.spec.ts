@@ -13,9 +13,9 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 /** Minimal AcpSession stand-in: an EventEmitter with a cancel spy. */
 function createFakeSession(): AcpSession & { cancel: ReturnType<typeof vi.fn> } {
-  const emitter = new EventEmitter() as AcpSession & { cancel: ReturnType<typeof vi.fn> };
-  emitter.cancel = vi.fn();
-  return emitter;
+  const emitter = new EventEmitter();
+  (emitter as unknown as { cancel: ReturnType<typeof vi.fn> }).cancel = vi.fn();
+  return emitter as unknown as AcpSession & { cancel: ReturnType<typeof vi.fn> };
 }
 
 function createOutput(): StreamOutput & {

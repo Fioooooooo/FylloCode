@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   captureMainWindowState,
   DEFAULT_MAIN_WINDOW_SIZE,
+  isSafeExternalUrl,
   MIN_MAIN_WINDOW_SIZE,
   resolveMainWindowState,
 } from "@main/bootstrap/window";
@@ -84,5 +85,24 @@ describe("window helpers", () => {
 
   it("exports the minimum size constants used by the main window", () => {
     expect(MIN_MAIN_WINDOW_SIZE).toEqual({ width: 960, height: 640 });
+  });
+
+  describe("isSafeExternalUrl", () => {
+    it("allows http and https", () => {
+      expect(isSafeExternalUrl("https://example.com/path?q=1")).toBe(true);
+      expect(isSafeExternalUrl("http://localhost:3000")).toBe(true);
+    });
+
+    it("rejects file and custom schemes that could launch local handlers", () => {
+      expect(isSafeExternalUrl("file:///etc/passwd")).toBe(false);
+      expect(isSafeExternalUrl("vscode://open")).toBe(false);
+      expect(isSafeExternalUrl("smb://host/share")).toBe(false);
+      expect(isSafeExternalUrl("javascript:alert(1)")).toBe(false);
+    });
+
+    it("rejects malformed input", () => {
+      expect(isSafeExternalUrl("not a url")).toBe(false);
+      expect(isSafeExternalUrl("")).toBe(false);
+    });
   });
 });

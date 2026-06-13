@@ -28,6 +28,20 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Only http/https URLs are safe to hand to `shell.openExternal`. Restricting by
+ * scheme (not host) keeps arbitrary agent-supplied web links working while
+ * blocking file:// and custom-scheme URLs that could launch local handlers.
+ */
+export function isSafeExternalUrl(rawUrl: string): boolean {
+  try {
+    const { protocol } = new URL(rawUrl);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
@@ -159,9 +173,29 @@ export function createMainWindow(): BrowserWindow {
     saveMainWindowState(captureMainWindowState(mainWindow));
   });
 
+  // Open external links in the system browser, but only for http/https. The
+  // app never opens its own windows, so every requested window is an outbound
+  // link (e.g. a source URL surfaced by an agent). Restricting the scheme — not
+  // the host — keeps arbitrary web links working while blocking file:// and
+  // custom-scheme URLs that could launch local handlers.
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    if (isSafeExternalUrl(details.url)) {
+      void shell.openExternal(details.url);
+    }
     return { action: "deny" };
+  });
+
+  // The renderer should never navigate away from the app shell. Block any
+  // top-level navigation to a different document; route safe external URLs to
+  // the system browser instead.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url === mainWindow.webContents.getURL()) {
+      return;
+    }
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
   });
 
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
