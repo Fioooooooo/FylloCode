@@ -25,7 +25,7 @@ import { validate } from "./_kit/schema";
 import { makeStreamChannel } from "./_kit/stream-channel";
 import { ipcError } from "./_kit/errors";
 import { AcpSession } from "@main/services/chat/acp-session";
-import { MessageAssembler } from "@main/services/chat/message-assembler";
+import { driveAcpStream } from "@main/services/chat/acp-stream-driver";
 import {
   createSession,
   listSessions,
@@ -60,8 +60,7 @@ import {
   removeSessionAttachments,
   saveAttachment,
 } from "@main/infra/storage/attachment-store";
-import { toMessageChunk, mapAcpErrorCode } from "@main/services/chat/session-event-mapper";
-import type { SessionEvent } from "@main/domain/chat/session-events";
+import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import logger from "@main/infra/logger";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
 
@@ -309,18 +308,6 @@ export function registerChatHandlers(): void {
           },
           ...(presetAcpSessionId ? { presetAcpSessionId } : {}),
         });
-        const assembler = new MessageAssembler(sessionId);
-        const persistAssembledAssistantMessage = async (): Promise<void> => {
-          try {
-            const message = assembler.flush();
-            if (!message) {
-              return;
-            }
-            await appendMessage(projectPath, sessionId, message);
-          } catch (error: unknown) {
-            logger.error("[chat] failed to persist partial assistant message on stop", error);
-          }
-        };
         let sessionMetaPersist = Promise.resolve();
         const enqueueSessionMetaPersist = (
           update: Parameters<typeof patchSessionMeta>[2],
@@ -339,130 +326,85 @@ export function registerChatHandlers(): void {
               logger.error(failureMessage, error);
             });
         };
-        sessionRegistry.register("chat", sessionId, session);
-
-        session.on("event", (ev: SessionEvent) => {
-          switch (ev.kind) {
-            case "session_id_resolved":
-              // Already persisted inside AcpSession.
-              break;
-            case "text_delta":
-            case "reasoning_delta":
-            case "tool_call_start":
-            case "tool_call_update": {
-              assembler.apply(ev);
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              break;
-            }
-            case "usage_update": {
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              enqueueSessionMetaPersist(
-                {
-                  tokenUsage: {
-                    used: ev.used,
-                    size: ev.size,
-                    cost: ev.cost,
-                  },
-                  updatedAt: new Date().toISOString(),
-                },
-                "[chat] failed to persist session usage update"
-              );
-              break;
-            }
-            case "available_commands_update": {
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              enqueueSessionMetaPersist(
-                {
-                  available_commands: ev.commands,
-                  updatedAt: new Date().toISOString(),
-                },
-                "[chat] failed to persist session available commands update"
-              );
-              break;
-            }
-            case "config_options_update": {
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              enqueueSessionMetaPersist(
-                {
-                  configOptions: ev.options,
-                  updatedAt: new Date().toISOString(),
-                },
-                "[chat] failed to persist session config options update"
-              );
-              break;
-            }
-            case "plan_update": {
-              // plan 为运行时态，仅透传给 renderer，不持久化到 session meta。
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              break;
-            }
-            case "session_info_update":
-              enqueueSessionMetaPersist(
-                {
-                  title: ev.title,
-                  updatedAt: new Date().toISOString(),
-                },
-                "[chat] failed to persist session title update"
-              );
-              {
-                const chunk = toMessageChunk(ev);
-                if (chunk) sink.sendChunk(chunk);
-              }
-              break;
-            case "done":
-              void (async () => {
-                const message = assembler.flush();
-                if (message) {
-                  await appendMessage(projectPath, sessionId, message);
+        return driveAcpStream({
+          session,
+          owner: "chat",
+          registryKey: sessionId,
+          output: sink,
+          logTag: "chat",
+          start: () => session.start(prompt),
+          hooks: {
+            persistMessage: (message) => appendMessage(projectPath, sessionId, message),
+            onControlEvent: (ev, output) => {
+              switch (ev.kind) {
+                case "usage_update": {
+                  const chunk = toMessageChunk(ev);
+                  if (chunk) output.sendChunk(chunk);
+                  enqueueSessionMetaPersist(
+                    {
+                      tokenUsage: { used: ev.used, size: ev.size, cost: ev.cost },
+                      updatedAt: new Date().toISOString(),
+                    },
+                    "[chat] failed to persist session usage update"
+                  );
+                  break;
                 }
-                await sessionMetaPersist;
-                await patchSessionMeta(projectPath, sessionId, (currentMeta) => ({
-                  tokenUsage: {
-                    used: currentMeta.tokenUsage.used + ev.totalTokens,
-                    size: currentMeta.tokenUsage.size,
-                    cost: currentMeta.tokenUsage.cost,
-                  },
-                  updatedAt: new Date().toISOString(),
-                }));
-                sink.sendDone(ev.totalTokens);
-                sessionRegistry.unregister("chat", sessionId);
-              })().catch((error: unknown) => {
-                logger.error("[chat] failed to persist completed assistant message", error);
-                sink.sendError(
-                  IpcErrorCodes.ACP_ERROR,
-                  error instanceof Error ? error.message : String(error)
-                );
-                sessionRegistry.unregister("chat", sessionId);
-              });
-              break;
-            case "error":
-              void persistAssembledAssistantMessage();
-              sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-              sessionRegistry.unregister("chat", sessionId);
-              break;
-            default: {
-              const _exhaustive: never = ev;
-              void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
-            }
-          }
+                case "available_commands_update": {
+                  const chunk = toMessageChunk(ev);
+                  if (chunk) output.sendChunk(chunk);
+                  enqueueSessionMetaPersist(
+                    {
+                      available_commands: ev.commands,
+                      updatedAt: new Date().toISOString(),
+                    },
+                    "[chat] failed to persist session available commands update"
+                  );
+                  break;
+                }
+                case "config_options_update": {
+                  const chunk = toMessageChunk(ev);
+                  if (chunk) output.sendChunk(chunk);
+                  enqueueSessionMetaPersist(
+                    {
+                      configOptions: ev.options,
+                      updatedAt: new Date().toISOString(),
+                    },
+                    "[chat] failed to persist session config options update"
+                  );
+                  break;
+                }
+                case "plan_update": {
+                  // plan 为运行时态，仅透传给 renderer，不持久化到 session meta。
+                  const chunk = toMessageChunk(ev);
+                  if (chunk) output.sendChunk(chunk);
+                  break;
+                }
+                case "session_info_update": {
+                  enqueueSessionMetaPersist(
+                    { title: ev.title, updatedAt: new Date().toISOString() },
+                    "[chat] failed to persist session title update"
+                  );
+                  const chunk = toMessageChunk(ev);
+                  if (chunk) output.sendChunk(chunk);
+                  break;
+                }
+                default:
+                  break;
+              }
+            },
+            onDone: async ({ totalTokens }) => {
+              await sessionMetaPersist;
+              await patchSessionMeta(projectPath, sessionId, (currentMeta) => ({
+                tokenUsage: {
+                  used: currentMeta.tokenUsage.used + totalTokens,
+                  size: currentMeta.tokenUsage.size,
+                  cost: currentMeta.tokenUsage.cost,
+                },
+                updatedAt: new Date().toISOString(),
+              }));
+            },
+          },
         });
-
-        return {
-          start: async () => {
-            await session.start(prompt);
-          },
-          cancel: () => {
-            session.cancel();
-            void persistAssembledAssistantMessage();
-            sessionRegistry.unregister("chat", sessionId);
-          },
-        };
       },
     });
   });

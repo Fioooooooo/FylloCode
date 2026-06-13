@@ -15,11 +15,9 @@ import {
 } from "@shared/schemas/ipc/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ArchiveRunMeta } from "@shared/types/proposal";
-import type { SessionEvent } from "@main/domain/chat/session-events";
 import { AcpSession } from "@main/services/chat/acp-session";
 import { sessionRegistry } from "@main/services/chat/session-registry";
-import { MessageAssembler } from "@main/services/chat/message-assembler";
-import { toMessageChunk, mapAcpErrorCode } from "@main/services/chat/session-event-mapper";
+import { driveAcpStream } from "@main/services/chat/acp-stream-driver";
 import {
   appendArchiveMessage,
   appendApplyRunMessage,
@@ -110,18 +108,6 @@ export function registerProposalApplyHandlers(): void {
         }
         sink.sendChunk({ kind: "user_message", message: userMessage });
 
-        const assembler = new MessageAssembler(fylloSessionId);
-        const persistAssembledStageMessage = async (): Promise<void> => {
-          try {
-            const message = assembler.flush();
-            if (!message) {
-              return;
-            }
-            await appendApplyRunMessage(projectPath, form.changeId, form.stageIndex, message);
-          } catch (error: unknown) {
-            logger.error("[proposal-apply] failed to persist partial stage message on stop", error);
-          }
-        };
         const sessionStore = new ApplyStageAcpSessionStore(
           projectPath,
           form.changeId,
@@ -154,80 +140,12 @@ export function registerProposalApplyHandlers(): void {
           },
         });
 
-        sessionRegistry.register("apply", form.runId, session);
-
-        session.on("event", (ev: SessionEvent) => {
-          switch (ev.kind) {
-            case "session_id_resolved":
-              break;
-            case "text_delta":
-            case "reasoning_delta":
-            case "tool_call_start":
-            case "tool_call_update": {
-              assembler.apply(ev);
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              break;
-            }
-            case "available_commands_update":
-              break;
-            case "config_options_update":
-              break;
-            case "plan_update":
-              // proposal/archive 流不展示 plan，显式忽略。
-              break;
-            case "session_info_update":
-            case "usage_update":
-              break;
-            case "done":
-              void (async () => {
-                const message = assembler.flush();
-                if (message) {
-                  await appendApplyRunMessage(projectPath, form.changeId, form.stageIndex, message);
-                }
-
-                await updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => {
-                  const nextIndex = form.stageIndex + 1;
-                  return {
-                    ...meta,
-                    currentStageIndex: nextIndex,
-                    status: nextIndex >= meta.stages.length ? "done" : "running",
-                    updatedAt: new Date().toISOString(),
-                  };
-                });
-
-                sink.sendDone(ev.totalTokens);
-                sessionRegistry.unregister("apply", form.runId);
-              })().catch((error: unknown) => {
-                logger.error("[proposal-apply] failed to persist completed message", error);
-                sink.sendError(
-                  IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
-                  error instanceof Error ? error.message : String(error)
-                );
-                sessionRegistry.unregister("apply", form.runId);
-              });
-              break;
-            case "error":
-              void persistAssembledStageMessage();
-              void updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => ({
-                ...meta,
-                status: "error",
-                updatedAt: new Date().toISOString(),
-              })).catch((error: unknown) => {
-                logger.error("[proposal-apply] failed to persist run error status", error);
-              });
-              sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-              sessionRegistry.unregister("apply", form.runId);
-              break;
-            default: {
-              const _exhaustive: never = ev;
-              void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
-            }
-          }
-        });
-
-        return {
+        return driveAcpStream({
+          session,
+          owner: "apply",
+          registryKey: form.runId,
+          output: sink,
+          logTag: "proposal-apply",
           start: async () => {
             try {
               await session.start([{ type: "text", text: prompt }]);
@@ -243,12 +161,31 @@ export function registerProposalApplyHandlers(): void {
               throw ipcError(IpcErrorCodes.ACP_ERROR, message);
             }
           },
-          cancel: () => {
-            session.cancel();
-            void persistAssembledStageMessage();
-            sessionRegistry.unregister("apply", form.runId);
+          hooks: {
+            persistMessage: (message) =>
+              appendApplyRunMessage(projectPath, form.changeId, form.stageIndex, message),
+            // apply forwards no control events.
+            doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
+            onDone: async () => {
+              await updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => {
+                const nextIndex = form.stageIndex + 1;
+                return {
+                  ...meta,
+                  currentStageIndex: nextIndex,
+                  status: nextIndex >= meta.stages.length ? "done" : "running",
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+            },
+            onError: async () => {
+              await updateRunMetaIfCurrent(projectPath, form.changeId, form.runId, (meta) => ({
+                ...meta,
+                status: "error",
+                updatedAt: new Date().toISOString(),
+              }));
+            },
           },
-        };
+        });
       },
     });
   });
@@ -336,21 +273,6 @@ export function registerProposalApplyHandlers(): void {
         }
 
         sink.sendChunk({ kind: "user_message", message: userMessage });
-        const assembler = new MessageAssembler(fylloSessionId);
-        const persistAssembledArchiveMessage = async (): Promise<void> => {
-          try {
-            const message = assembler.flush();
-            if (!message) {
-              return;
-            }
-            await appendArchiveMessage(projectPath, form.changeId, message);
-          } catch (error: unknown) {
-            logger.error(
-              "[proposal-archive] failed to persist partial archive message on stop",
-              error
-            );
-          }
-        };
 
         const session = new AcpSession({
           fylloSessionId,
@@ -375,85 +297,22 @@ export function registerProposalApplyHandlers(): void {
             loadPersistedHistory: async () => loadArchiveMessages(projectPath, form.changeId),
           },
         });
-        sessionRegistry.register("archive", sessionKey, session);
 
-        session.on("event", (ev: SessionEvent) => {
-          switch (ev.kind) {
-            case "text_delta":
-            case "reasoning_delta":
-            case "tool_call_start":
-            case "tool_call_update": {
-              assembler.apply(ev);
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              break;
-            }
-            case "available_commands_update":
-              break;
-            case "config_options_update":
-              break;
-            case "plan_update":
-              // proposal/archive 流不展示 plan，显式忽略。
-              break;
-            case "session_info_update": {
-              const chunk = toMessageChunk(ev);
-              if (chunk) sink.sendChunk(chunk);
-              break;
-            }
-            case "done":
-              void (async () => {
-                const message = assembler.flush();
-                if (message) {
-                  await appendArchiveMessage(projectPath, form.changeId, message);
-                }
-                await persistArchiveStatus("done");
-                sink.sendDone(ev.totalTokens);
-                sessionRegistry.unregister("archive", sessionKey);
-              })().catch((error: unknown) => {
-                logger.error(
-                  "[proposal-archive] failed to persist completed archive message",
-                  error
-                );
-                sink.sendError(
-                  IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
-                  error instanceof Error ? error.message : String(error)
-                );
-                sessionRegistry.unregister("archive", sessionKey);
-              });
-              break;
-            case "error":
-              void persistAssembledArchiveMessage();
-              void (async () => {
-                await persistArchiveStatus("error");
-                sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-                sessionRegistry.unregister("archive", sessionKey);
-              })().catch((error: unknown) => {
-                logger.error("[proposal-archive] failed to persist archive error status", error);
-                sink.sendError(mapAcpErrorCode(ev.code), ev.message);
-                sessionRegistry.unregister("archive", sessionKey);
-              });
-              break;
-            case "session_id_resolved":
-            case "usage_update":
-              break;
-            default: {
-              const _exhaustive: never = ev;
-              void _exhaustive;
-              throw new Error(`unhandled session event: ${(ev as SessionEvent).kind}`);
-            }
-          }
+        return driveAcpStream({
+          session,
+          owner: "archive",
+          registryKey: sessionKey,
+          output: sink,
+          logTag: "proposal-archive",
+          start: () => session.start([{ type: "text", text: prompt }]),
+          hooks: {
+            persistMessage: (message) => appendArchiveMessage(projectPath, form.changeId, message),
+            // archive forwards no control events (parity with apply).
+            doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
+            onDone: () => persistArchiveStatus("done"),
+            onError: () => persistArchiveStatus("error"),
+          },
         });
-
-        return {
-          start: async () => {
-            await session.start([{ type: "text", text: prompt }]);
-          },
-          cancel: () => {
-            session.cancel();
-            void persistAssembledArchiveMessage();
-            sessionRegistry.unregister("archive", sessionKey);
-          },
-        };
       },
     });
   });
