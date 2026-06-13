@@ -22,3 +22,4 @@ components.d.ts
 docs/.vitepress/dist
 docs/.vitepress/cache
 
+optimize-main-process.md
