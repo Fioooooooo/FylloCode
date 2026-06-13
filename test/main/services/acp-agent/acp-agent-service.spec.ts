@@ -14,11 +14,6 @@ const mocks = vi.hoisted(() => ({
   getAgentIcons: vi.fn(),
   readStatusCache: vi.fn(),
   writeStatusCache: vi.fn(),
-  getAllWindows: vi.fn(() => []),
-}));
-
-vi.mock("electron", () => ({
-  BrowserWindow: { getAllWindows: mocks.getAllWindows },
 }));
 
 vi.mock("@main/infra/storage/acp-registry-cache", () => ({
@@ -129,7 +124,6 @@ describe("acp-agent-service status detection", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAllWindows.mockReturnValue([]);
     mocks.getRegistry.mockResolvedValue({ agents: [] });
     mocks.detectAgentStatuses.mockResolvedValue(freshStatuses);
     mocks.writeStatusCache.mockResolvedValue(undefined);
@@ -140,7 +134,11 @@ describe("acp-agent-service status detection", () => {
       fetchedAt: new Date().toISOString(),
       statuses: cachedStatuses,
     });
-    const { listAgentStatuses } = await import("@main/services/acp-agent/acp-agent-service");
+    const { listAgentStatuses, onAgentServiceEvent } =
+      await import("@main/services/acp-agent/acp-agent-service");
+
+    const statusUpdates: unknown[] = [];
+    const off = onAgentServiceEvent("statusUpdated", (payload) => statusUpdates.push(payload));
 
     const result = await listAgentStatuses();
     expect(result).toEqual(cachedStatuses);
@@ -150,6 +148,11 @@ describe("acp-agent-service status detection", () => {
       expect(mocks.detectAgentStatuses).toHaveBeenCalledTimes(1);
     });
     expect(mocks.writeStatusCache).toHaveBeenCalledWith(freshStatuses);
+    // 后台刷新结果通过 service 事件总线发射，由 ipc 层转发到渲染进程
+    await vi.waitFor(() => {
+      expect(statusUpdates).toEqual([freshStatuses]);
+    });
+    off();
   });
 
   it("detects in the foreground and writes cache when no cache exists", async () => {

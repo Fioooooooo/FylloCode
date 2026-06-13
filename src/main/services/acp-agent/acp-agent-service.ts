@@ -1,5 +1,4 @@
-import { BrowserWindow } from "electron";
-import { AcpAgentChannels } from "@shared/types/channels";
+import { EventEmitter } from "events";
 import {
   normalizePromptCapabilities,
   type AcpAgentStatus,
@@ -26,36 +25,53 @@ import {
 import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
 
-export function broadcastRegistryUpdated(registry: AcpRegistry): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(AcpAgentChannels.registryUpdated, registry);
-  }
+/**
+ * Service-layer event bus for agent registry/status/install updates. The
+ * service emits; the ipc layer (acp-agents.ts) owns the BrowserWindow and
+ * forwards these to the renderer. Keeps services free of Electron window
+ * APIs — same pattern as the process pool's agentUnavailable event.
+ */
+const agentServiceEvents = new EventEmitter();
+
+interface AgentServiceEventMap {
+  registryUpdated: AcpRegistry;
+  statusUpdated: AcpAgentStatus[];
+  installProgress: AcpInstallProgress;
+  uninstallProgress: AcpUninstallProgress;
 }
 
-export function broadcastStatusUpdated(statuses: AcpAgentStatus[]): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(AcpAgentChannels.statusUpdated, statuses);
-  }
+export function onAgentServiceEvent<K extends keyof AgentServiceEventMap>(
+  event: K,
+  listener: (payload: AgentServiceEventMap[K]) => void
+): () => void {
+  agentServiceEvents.on(event, listener);
+  return () => {
+    agentServiceEvents.off(event, listener);
+  };
 }
 
-export function broadcastInstallProgress(progress: AcpInstallProgress): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(AcpAgentChannels.installProgress, progress);
-  }
+function emitRegistryUpdated(registry: AcpRegistry): void {
+  agentServiceEvents.emit("registryUpdated", registry);
 }
 
-export function broadcastUninstallProgress(progress: AcpUninstallProgress): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(AcpAgentChannels.uninstallProgress, progress);
-  }
+function emitStatusUpdated(statuses: AcpAgentStatus[]): void {
+  agentServiceEvents.emit("statusUpdated", statuses);
+}
+
+function emitInstallProgress(progress: AcpInstallProgress): void {
+  agentServiceEvents.emit("installProgress", progress);
+}
+
+function emitUninstallProgress(progress: AcpUninstallProgress): void {
+  agentServiceEvents.emit("uninstallProgress", progress);
 }
 
 export function loadAgentRegistry(): Promise<AcpRegistry> {
-  return getRegistry({ onUpdated: broadcastRegistryUpdated });
+  return getRegistry({ onUpdated: emitRegistryUpdated });
 }
 
 export function reloadAgentRegistry(): Promise<AcpRegistry> {
-  return refreshRegistry({ onUpdated: broadcastRegistryUpdated });
+  return refreshRegistry({ onUpdated: emitRegistryUpdated });
 }
 
 export async function listAgentIcons(): Promise<Record<string, string>> {
@@ -70,7 +86,7 @@ async function refreshStatusesInBackground(): Promise<AcpAgentStatus[]> {
   const registry = await loadAgentRegistry();
   const statuses = await detectAgentStatuses(registry);
   await writeStatusCache(statuses);
-  broadcastStatusUpdated(statuses);
+  emitStatusUpdated(statuses);
   return statuses;
 }
 
@@ -122,7 +138,7 @@ export async function installAgentById(agentId: string): Promise<void> {
   if (!agent) {
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `未知 Agent: ${agentId}`);
   }
-  await installAgent(agent, broadcastInstallProgress);
+  await installAgent(agent, emitInstallProgress);
 }
 
 export async function uninstallAgentById(agentId: string): Promise<void> {
@@ -138,7 +154,7 @@ export async function uninstallAgentById(agentId: string): Promise<void> {
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not installed`);
   }
 
-  await uninstallAgent(agent, record.installMethod, broadcastUninstallProgress);
+  await uninstallAgent(agent, record.installMethod, emitUninstallProgress);
   await removeInstalledRecord(agentId);
   await removeAgentCapabilities(agentId);
 }
