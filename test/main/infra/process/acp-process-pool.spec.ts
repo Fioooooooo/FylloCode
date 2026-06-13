@@ -406,6 +406,35 @@ describe("acp-process-pool", () => {
     killSpy.mockRestore();
   });
 
+  it("dispose cancels pending backoff restart timers (no orphan respawn)", async () => {
+    setPlatform("darwin");
+    vi.useFakeTimers();
+    const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
+    try {
+      const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+      expect(mocks.spawn).toHaveBeenCalledTimes(1);
+
+      // Child exits unexpectedly → a backoff restart timer is scheduled.
+      const fake = mocks.child as FakeChild;
+      fake.exitCode = 1;
+      fake.emit("exit", 1, null);
+
+      // Dispose during the backoff window must clear the scheduled timer.
+      const { dispose } = mocks.registerDisposable.mock.calls[0][0];
+      const disposePromise = dispose();
+      queueMicrotask(() => fake.triggerClose());
+      await disposePromise;
+
+      // Advance past every backoff interval; no second spawn should occur.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("POSIX dispose escalates SIGTERM then SIGKILL when child does not exit", async () => {
     setPlatform("darwin");
     vi.useFakeTimers();

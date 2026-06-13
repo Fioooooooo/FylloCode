@@ -2,14 +2,13 @@ import type { ChildProcessWithoutNullStreams } from "child_process";
 import { EventEmitter } from "events";
 import { Writable, Readable } from "stream";
 import spawn from "cross-spawn";
-import { app, BrowserWindow } from "electron";
+import { app } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords, resolveBinaryDistribution } from "@main/domain/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
 import { normalizePromptCapabilities, type AcpAgentEntry } from "@shared/types/acp-agent";
-import { AcpAgentChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
@@ -44,6 +43,9 @@ const pool = new Map<string, AgentProcess>();
 const restarting = new Map<string, Promise<AgentProcess>>();
 const pendingStarts = new Map<string, Promise<AgentProcess>>();
 const giveUp = new Set<string>();
+// 已排程但尚未触发的 backoff 重启定时器；dispose 时统一 clearTimeout，
+// 避免退出窗口期 timer 触发后又 spawn 出不受 dispose 管理的孤儿进程。
+const restartTimers = new Set<NodeJS.Timeout>();
 let shuttingDown = false;
 const processPoolEvents = new EventEmitter();
 
@@ -59,10 +61,9 @@ const CLOSE_SESSION_TIMEOUT_MS = 300;
 const IS_WINDOWS = process.platform === "win32";
 
 function broadcastAgentUnavailable(agentId: string, reason: string): void {
+  // infra 层只发事件，不直接持有 BrowserWindow。窗口转发由 ipc 层订阅
+  // onAgentUnavailable 完成（见 ipc/acp-agents.ts 的 setupAgentEventBroadcast）。
   processPoolEvents.emit("agentUnavailable", { agentId, reason });
-  for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(AcpAgentChannels.agentUnavailable, { agentId, reason });
-  }
 }
 
 export function onAgentUnavailable(listener: AgentUnavailableListener): () => void {
@@ -228,9 +229,16 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     );
 
     const restart = new Promise<AgentProcess>((resolve, reject) => {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        restartTimers.delete(timer);
+        // 退出窗口期内不再重启，避免 spawn 出 dispose 已无法清理的孤儿进程。
+        if (shuttingDown) {
+          reject(new Error(`[infra.process.acp] aborted restart of ${agentId} during shutdown`));
+          return;
+        }
         startProcess(agentId, nextFailures).then(resolve, reject);
       }, delayMs);
+      restartTimers.add(timer);
     });
     restarting.set(agentId, restart);
     restart
@@ -353,6 +361,11 @@ async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<v
 
 async function dispose(): Promise<void> {
   shuttingDown = true;
+  // 取消所有已排程但未触发的 backoff 重启，防止退出期 spawn 孤儿进程。
+  for (const timer of restartTimers) {
+    clearTimeout(timer);
+  }
+  restartTimers.clear();
   const entries = Array.from(pool.values());
   pool.clear();
   restarting.clear();
