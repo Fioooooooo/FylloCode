@@ -35,9 +35,9 @@ vi.mock("@main/infra/ids", () => ({
   newRunId: mocks.newRunId,
 }));
 
-vi.mock("@main/domain/proposal/openspec-reader", async () => {
-  const actual = await vi.importActual<typeof import("@main/domain/proposal/openspec-reader")>(
-    "@main/domain/proposal/openspec-reader"
+vi.mock("@main/infra/proposal/openspec-reader", async () => {
+  const actual = await vi.importActual<typeof import("@main/infra/proposal/openspec-reader")>(
+    "@main/infra/proposal/openspec-reader"
   );
   return {
     ...actual,

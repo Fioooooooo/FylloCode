@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectIntegrationConfig } from "@shared/types/integration";
-import type { Workitem } from "@main/domain/integration/yunxiao/projex";
+import type { Workitem } from "@main/infra/integration/yunxiao/projex";
 
 const mocks = vi.hoisted(() => ({
   loadProjectIntegrationConfig: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("@main/infra/storage/yunxiao-credentials", () => ({
   getYunxiaoUserId: mocks.getYunxiaoUserId,
 }));
 
-vi.mock("@main/domain/integration/yunxiao/projex", () => ({
+vi.mock("@main/infra/integration/yunxiao/projex", () => ({
   searchWorkitems: mocks.searchWorkitems,
   getWorkitem: mocks.getWorkitem,
 }));

@@ -6,7 +6,7 @@ import { app } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
-import { readInstalledRecords, resolveBinaryDistribution } from "@main/domain/acp/detector";
+import { readInstalledRecords, resolveBinaryDistribution } from "@main/infra/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
 import { normalizePromptCapabilities, type AcpAgentEntry } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";

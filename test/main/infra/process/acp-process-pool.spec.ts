@@ -43,7 +43,7 @@ vi.mock("cross-spawn", () => ({
   default: mocks.spawn,
 }));
 
-vi.mock("@main/domain/acp/detector", () => ({
+vi.mock("@main/infra/acp/detector", () => ({
   readInstalledRecords: mocks.readInstalledRecords,
   resolveBinaryDistribution: mocks.resolveBinaryDistribution,
 }));

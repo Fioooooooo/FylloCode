@@ -11,7 +11,7 @@ import {
   resolveChangeDir,
   stripArchivePrefix,
   toTitleCase,
-} from "@main/domain/proposal/openspec-reader";
+} from "@main/infra/proposal/openspec-reader";
 
 vi.mock("fs", async () => {
   const actual = await vi.importActual<typeof import("fs")>("fs");

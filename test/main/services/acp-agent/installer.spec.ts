@@ -25,7 +25,7 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: mocks.getDataSubPath,
 }));
 
-vi.mock("@main/domain/acp/detector", () => ({
+vi.mock("@main/infra/acp/detector", () => ({
   createAgentError: mocks.createAgentError,
   detectAgentInstallation: mocks.detectAgentInstallation,
   findCommandPath: mocks.findCommandPath,

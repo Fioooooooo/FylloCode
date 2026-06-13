@@ -10,7 +10,7 @@ import {
   findProposalMetaById,
   resolveApplyRunChangeId,
   resolveChangeDir,
-} from "@main/domain/proposal/openspec-reader";
+} from "@main/infra/proposal/openspec-reader";
 import { loadAllWorkflowTemplates } from "@main/services/workflow/workflow-service";
 import { newRunId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";

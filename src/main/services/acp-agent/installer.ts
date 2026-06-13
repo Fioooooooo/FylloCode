@@ -19,7 +19,7 @@ import {
   resolveBinaryDistribution,
   runCommand,
   writeInstalledRecords,
-} from "@main/domain/acp/detector";
+} from "@main/infra/acp/detector";
 import { ipcError } from "@shared/errors/ipc-error";
 
 type InstallProgressHandler = (progress: AcpInstallProgress) => void;

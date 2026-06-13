@@ -25,8 +25,8 @@ import {
 import {
   getUser as getYunxiaoUser,
   listOrganizations,
-} from "@main/domain/integration/yunxiao/organization";
-import { YunxiaoApiError } from "@main/domain/integration/yunxiao/client";
+} from "@main/infra/integration/yunxiao/organization";
+import { YunxiaoApiError } from "@main/infra/integration/yunxiao/client";
 import {
   loadProjectIntegrationConfig,
   setStageResources,

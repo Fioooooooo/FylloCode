@@ -9,7 +9,7 @@ import {
   searchWorkitems,
   type SearchWorkitemsParams,
   type Workitem,
-} from "@main/domain/integration/yunxiao/projex";
+} from "@main/infra/integration/yunxiao/projex";
 import type { TaskDescription, TaskItem, TaskLabel, YunxiaoTaskMeta } from "@shared/types/task";
 import type { ProjectIntegrationEntry } from "@shared/types/integration";
 import type { TaskAdapter } from "./task-adapter";

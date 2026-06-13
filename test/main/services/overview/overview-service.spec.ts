@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
-vi.mock("@main/domain/proposal/openspec-reader", () => ({
+vi.mock("@main/infra/proposal/openspec-reader", () => ({
   readProposalFiles: mocks.readProposalFiles,
 }));
 

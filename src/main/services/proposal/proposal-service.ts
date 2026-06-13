@@ -2,7 +2,7 @@ import type { ProposalMeta } from "@shared/types/proposal";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { loadProject } from "@main/infra/storage/project-store";
 import { ipcError } from "@main/ipc/_kit/errors";
-import { readProposalFiles, readChangeFile } from "@main/domain/proposal/openspec-reader";
+import { readProposalFiles, readChangeFile } from "@main/infra/proposal/openspec-reader";
 
 export async function listProposals(projectId: string): Promise<ProposalMeta[]> {
   const project = await loadProject(projectId);

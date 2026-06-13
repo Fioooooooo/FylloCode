@@ -22,12 +22,12 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
-vi.mock("@main/domain/integration/yunxiao/organization", () => ({
+vi.mock("@main/infra/integration/yunxiao/organization", () => ({
   getUser: mocks.getYunxiaoUser,
   listOrganizations: mocks.listOrganizations,
 }));
 
-vi.mock("@main/domain/integration/yunxiao/projex", () => ({
+vi.mock("@main/infra/integration/yunxiao/projex", () => ({
   searchProjects: mocks.searchProjects,
 }));
 

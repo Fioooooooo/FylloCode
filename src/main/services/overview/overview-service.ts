@@ -1,4 +1,4 @@
-import { readProposalFiles } from "@main/domain/proposal/openspec-reader";
+import { readProposalFiles } from "@main/infra/proposal/openspec-reader";
 import logger from "@main/infra/logger";
 import { listSubjects } from "@main/infra/storage/lineage-store";
 import { getByProposal, listRecentSubjects } from "@main/services/lineage/lineage-service";

@@ -2,7 +2,7 @@ import {
   saveYunxiaoCredentials,
   getYunxiaoToken,
   listOrganizations,
-} from "@main/domain/integration/yunxiao";
+} from "@main/infra/integration/yunxiao";
 import { connectProvider, disconnectProvider } from "@main/services/integration/provider-service";
 import type { YunxiaoOrganization } from "@shared/types/integration";
 

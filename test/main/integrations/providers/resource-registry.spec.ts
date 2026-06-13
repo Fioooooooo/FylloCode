@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { YunxiaoApiError } from "@main/domain/integration/yunxiao/client";
+import { YunxiaoApiError } from "@main/infra/integration/yunxiao/client";
 import type { ProviderConnection } from "@shared/types/integration";
 
 const mocks = vi.hoisted(() => ({
@@ -18,15 +18,15 @@ vi.mock("@main/infra/storage/provider-connection-store", () => ({
   saveConnection: mocks.saveConnection,
 }));
 
-vi.mock("@main/domain/integration/yunxiao/projex", () => ({
+vi.mock("@main/infra/integration/yunxiao/projex", () => ({
   searchProjects: mocks.searchProjects,
 }));
 
-vi.mock("@main/domain/integration/yunxiao/codeup", () => ({
+vi.mock("@main/infra/integration/yunxiao/codeup", () => ({
   listRepositories: mocks.listRepositories,
 }));
 
-vi.mock("@main/domain/integration/yunxiao/flow", () => ({
+vi.mock("@main/infra/integration/yunxiao/flow", () => ({
   listPipelines: mocks.listPipelines,
 }));
 

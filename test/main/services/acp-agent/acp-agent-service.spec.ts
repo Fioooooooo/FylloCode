@@ -31,7 +31,7 @@ vi.mock("@main/infra/storage/acp-status-cache", () => ({
   writeStatusCache: mocks.writeStatusCache,
 }));
 
-vi.mock("@main/domain/acp/detector", () => ({
+vi.mock("@main/infra/acp/detector", () => ({
   detectAgentStatuses: mocks.detectAgentStatuses,
   readInstalledRecords: mocks.readInstalledRecords,
   removeInstalledRecord: mocks.removeInstalledRecord,

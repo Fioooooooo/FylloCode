@@ -127,10 +127,6 @@ export default defineConfig(
   //   infra/    -> shared + npm (no services / domain / ipc)
   {
     files: ["src/main/domain/**/*.ts"],
-    // These domain files predate the layering guard and pull fs / infra
-    // helpers for now. They will be split further in a future change;
-    // the rule remains enforced for all other domain modules.
-    ignores: ["src/main/domain/acp/detector.ts", "src/main/domain/integration/yunxiao/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -159,6 +155,22 @@ export default defineConfig(
             {
               group: ["@main/bootstrap/*"],
               message: "domain/ must not depend on bootstrap/",
+            },
+            {
+              group: ["fs", "fs/*", "node:fs", "node:fs/*"],
+              message: "domain/ is pure knowledge; do fs IO in infra/ and pass data in",
+            },
+            {
+              group: ["path", "node:path"],
+              message: "domain/ must not build paths; resolve them in infra/ and pass data in",
+            },
+            {
+              group: ["child_process", "node:child_process", "cross-spawn"],
+              message: "domain/ must not spawn processes; that is an infra/ capability",
+            },
+            {
+              group: ["os", "node:os"],
+              message: "domain/ must not read OS/env; pass the values in from infra/ or services/",
             },
           ],
         },

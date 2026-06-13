@@ -13,7 +13,7 @@ import {
   detectAgentStatuses,
   readInstalledRecords,
   removeInstalledRecord,
-} from "@main/domain/acp/detector";
+} from "@main/infra/acp/detector";
 import { getAgentIcons } from "@main/infra/storage/acp-icon-cache";
 import { installAgent, uninstallAgent } from "@main/services/acp-agent/installer";
 import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-cache";

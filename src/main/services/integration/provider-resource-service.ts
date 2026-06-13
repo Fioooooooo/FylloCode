@@ -9,10 +9,10 @@ import type {
   ProviderResourceListQuery,
   ProviderResourceType,
 } from "@shared/types/integration";
-import { YunxiaoApiError } from "@main/domain/integration/yunxiao/client";
-import { listPipelines } from "@main/domain/integration/yunxiao/flow";
-import { listRepositories } from "@main/domain/integration/yunxiao/codeup";
-import { searchProjects } from "@main/domain/integration/yunxiao/projex";
+import { YunxiaoApiError } from "@main/infra/integration/yunxiao/client";
+import { listPipelines } from "@main/infra/integration/yunxiao/flow";
+import { listRepositories } from "@main/infra/integration/yunxiao/codeup";
+import { searchProjects } from "@main/infra/integration/yunxiao/projex";
 
 type ResourceLoader = (query?: ProviderResourceListQuery) => Promise<ProviderResource[]>;
 

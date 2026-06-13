@@ -69,7 +69,7 @@ describe("acp detector command lookup", () => {
     setPlatform("win32");
     mockSpawnOutput("C:\\Program Files\\nodejs\\npm\r\nC:\\Program Files\\nodejs\\npm.cmd\r\n");
 
-    const { findCommandPath } = await import("@main/domain/acp/detector");
+    const { findCommandPath } = await import("@main/infra/acp/detector");
 
     await expect(findCommandPath("npm")).resolves.toBe("C:\\Program Files\\nodejs\\npm");
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -83,7 +83,7 @@ describe("acp detector command lookup", () => {
     setPlatform("darwin");
     mockSpawnOutput("/opt/homebrew/bin/npm\n/usr/bin/npm\n");
 
-    const { findCommandPath } = await import("@main/domain/acp/detector");
+    const { findCommandPath } = await import("@main/infra/acp/detector");
 
     await expect(findCommandPath("npm")).resolves.toBe("/opt/homebrew/bin/npm");
   });
@@ -157,7 +157,7 @@ describe("acp detector batched detection", () => {
       return { stdout: "" };
     });
 
-    const { detectAgentStatuses } = await import("@main/domain/acp/detector");
+    const { detectAgentStatuses } = await import("@main/infra/acp/detector");
 
     const statuses = await detectAgentStatuses({
       agents: [

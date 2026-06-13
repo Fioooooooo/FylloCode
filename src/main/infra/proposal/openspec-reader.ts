@@ -3,8 +3,10 @@ import { basename, join, resolve } from "path";
 import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
 
 /**
- * Pure OpenSpec change-directory reader. No Electron dependencies, only
- * fs + path + string parsing. Safe to call from services; unit-testable.
+ * OpenSpec change-directory reader. Combines fs/path IO over the openspec
+ * change tree with pure string parsing of proposal/tasks/yaml content. Lives
+ * in infra/ because reading the project's openspec directory is a capability,
+ * not domain knowledge; the parsing helpers stay co-located and unit-testable.
  */
 
 export type ProposalFileLocation = {
