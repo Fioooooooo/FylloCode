@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, existsSync } from "fs";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { net } from "electron";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 
 const mocks = vi.hoisted(() => ({
@@ -13,11 +14,6 @@ const mocks = vi.hoisted(() => ({
   writeInstalledRecords: vi.fn(async () => undefined),
   resolveBinaryDistribution: vi.fn(),
   runCommand: vi.fn(),
-  createAgentError: vi.fn((code: string, message: string) => {
-    const error = new Error(message) as Error & { code: string };
-    error.code = code;
-    return error;
-  }),
   spawn: vi.fn(),
 }));
 
@@ -26,7 +22,6 @@ vi.mock("@main/infra/paths", () => ({
 }));
 
 vi.mock("@main/infra/acp/detector", () => ({
-  createAgentError: mocks.createAgentError,
   detectAgentInstallation: mocks.detectAgentInstallation,
   findCommandPath: mocks.findCommandPath,
   readInstalledRecords: mocks.readInstalledRecords,
@@ -226,6 +221,54 @@ describe("acp-agent installer uninstall", () => {
       )
     ).rejects.toMatchObject({ code: "INVALID_AGENT_ID" });
     expect(existsSync(join(dataRoot, "bin", "../etc"))).toBe(false);
+  });
+
+  it("accepts a binary archive whose contents stay inside the extraction dir", async () => {
+    vi.spyOn(net, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]).buffer) as unknown as Response
+    );
+    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
+    // Emulate extraction: write a normal executable inside the target dir.
+    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+      const dir = args[args.indexOf("-C") + 1];
+      await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
+      return { stdout: "", stderr: "", code: 0 };
+    });
+
+    const { installAgent } = await import("@main/services/acp-agent/installer");
+    await expect(
+      installAgent(
+        createAgent({
+          distribution: { binary: { darwin: { archive: "https://x/a.tar.gz", cmd: "claude" } } },
+        }),
+        vi.fn()
+      )
+    ).resolves.toMatchObject({ installMethod: "binary" });
+  });
+
+  it("rejects a binary archive that extracts a path escaping the extraction dir", async () => {
+    vi.spyOn(net, "fetch").mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]).buffer) as unknown as Response
+    );
+    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
+    // Emulate a malicious archive: a symlink pointing outside the extraction dir.
+    const escapeTarget = join(dataRoot, "escape-target.txt");
+    await fs.writeFile(escapeTarget, "secret", "utf8");
+    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+      const dir = args[args.indexOf("-C") + 1];
+      await fs.symlink(escapeTarget, join(dir, "claude"));
+      return { stdout: "", stderr: "", code: 0 };
+    });
+
+    const { installAgent } = await import("@main/services/acp-agent/installer");
+    await expect(
+      installAgent(
+        createAgent({
+          distribution: { binary: { darwin: { archive: "https://x/a.tar.gz", cmd: "claude" } } },
+        }),
+        vi.fn()
+      )
+    ).rejects.toMatchObject({ code: "INSTALL_FAILED" });
   });
 
   it("uses the shared mutation lock across install and uninstall", async () => {

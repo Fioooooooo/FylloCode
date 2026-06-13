@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { basename, dirname, extname, join, relative } from "path";
+import { basename, dirname, extname, join, relative, sep } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
 import spawn from "cross-spawn";
@@ -295,6 +295,40 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
   await fs.copyFile(archivePath, join(targetDirectory, basename(archivePath)));
 }
 
+/**
+ * Zip Slip guard. After extraction, walk the tree and assert every real path
+ * (symlinks resolved) stays inside `rootDirectory`. A malicious archive with
+ * `../` entries or absolute/symlink targets would land outside the extraction
+ * dir; reject the install rather than write outside it. Archive sources are
+ * trusted registry URLs, so this is defence-in-depth, not the primary control.
+ */
+async function assertNoPathEscape(rootDirectory: string): Promise<void> {
+  const root = await fs.realpath(rootDirectory);
+  const rootPrefix = root.endsWith(sep) ? root : `${root}${sep}`;
+
+  const walk = async (dir: string): Promise<void> => {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryPath = join(dir, entry.name);
+      let real: string;
+      try {
+        real = await fs.realpath(entryPath);
+      } catch {
+        // Dangling symlink or unreadable entry — treat as unsafe.
+        throw ipcError("INSTALL_FAILED", "归档包含非法路径，已中止安装");
+      }
+      if (real !== root && !real.startsWith(rootPrefix)) {
+        throw ipcError("INSTALL_FAILED", "归档包含越界路径，已中止安装");
+      }
+      if (entry.isDirectory()) {
+        await walk(entryPath);
+      }
+    }
+  };
+
+  await walk(root);
+}
+
 async function findFileByBasename(
   rootDirectory: string,
   expectedBaseName: string
@@ -359,6 +393,7 @@ async function installBinary(
 
     onProgress({ agentId: agent.id, status: "installing", message: "正在安装..." });
     await extractArchive(archivePath, extractedDirectory);
+    await assertNoPathEscape(extractedDirectory);
 
     const executablePath = await resolveBinaryExecutablePath(extractedDirectory, binary.cmd);
     const executableRelativePath = relative(extractedDirectory, executablePath);
