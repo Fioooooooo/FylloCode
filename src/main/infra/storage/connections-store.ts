@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import type { ToolConnection } from "@shared/types/integration";
 
 const CONNECTIONS_FILE = "connections.json";
@@ -19,9 +20,7 @@ function readConnections(): ToolConnection[] {
 }
 
 function writeConnections(connections: ToolConnection[]): void {
-  const filePath = getConnectionsPath();
-  mkdirSync(join(filePath, ".."), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(connections, null, 2), "utf-8");
+  writeFileAtomicSync(getConnectionsPath(), JSON.stringify(connections, null, 2));
 }
 
 export function getConnections(): ToolConnection[] {

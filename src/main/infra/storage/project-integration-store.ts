@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import {
   integrationCategoryIds,
   type IntegrationStageId,
@@ -47,9 +48,7 @@ export function saveProjectIntegrationConfig(
   config: ProjectIntegrationConfig
 ): ProjectIntegrationConfig {
   const normalized = normalizeConfig(config);
-  const filePath = projectIntegrationPath(projectId);
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+  writeFileAtomicSync(projectIntegrationPath(projectId), JSON.stringify(normalized, null, 2));
   return normalized;
 }
 

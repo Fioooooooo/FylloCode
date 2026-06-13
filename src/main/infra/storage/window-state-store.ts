@@ -1,7 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import type { Rectangle } from "electron";
 import { getDataSubPath } from "@main/infra/paths";
+import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 
 export interface MainWindowState {
   bounds: Rectangle;
@@ -53,6 +54,5 @@ export function loadMainWindowState(): MainWindowState | null {
 }
 
 export function saveMainWindowState(state: MainWindowState): void {
-  mkdirSync(mainWindowStateDir(), { recursive: true });
-  writeFileSync(mainWindowStatePath(), JSON.stringify(state, null, 2), "utf8");
+  writeFileAtomicSync(mainWindowStatePath(), JSON.stringify(state, null, 2));
 }

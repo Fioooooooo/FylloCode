@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { readFileSync, rmSync } from "fs";
+import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import type { ProviderId } from "@shared/types/integration";
 
 export type ProviderCredentials = Record<string, string>;
@@ -25,9 +26,7 @@ export function saveCredentials(
   providerId: ProviderId,
   credentials: ProviderCredentials
 ): ProviderCredentials {
-  const filePath = credentialPath(providerId);
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(credentials, null, 2), "utf8");
+  writeFileAtomicSync(credentialPath(providerId), JSON.stringify(credentials, null, 2));
   return credentials;
 }
 

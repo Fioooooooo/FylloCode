@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import type { ProviderConnection, ProviderId } from "@shared/types/integration";
 
 type ConnectionDocument = Partial<Record<ProviderId, ProviderConnection>>;
@@ -18,9 +19,7 @@ function readDocument(): ConnectionDocument {
 }
 
 function writeDocument(document: ConnectionDocument): void {
-  const filePath = connectionsPath();
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(document, null, 2), "utf8");
+  writeFileAtomicSync(connectionsPath(), JSON.stringify(document, null, 2));
 }
 
 export function listConnections(): ProviderConnection[] {
