@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
+import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import { getFylloActionContract } from "@shared/constants/fyllo-action-contracts";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
@@ -422,10 +423,7 @@ export async function loadMessages(
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
     const content = await fs.readFile(sessionMessagesPath(projectPath, sessionId), "utf8");
-    return content
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as UIMessage<MessageMeta>);
+    return parseJsonlLines<UIMessage<MessageMeta>>(content, "session-store");
   } catch {
     return [];
   }

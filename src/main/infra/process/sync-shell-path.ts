@@ -10,6 +10,10 @@ import { platform } from "@electron-toolkit/utils";
  *
  * 此函数通过启动一个登录 shell 来获取完整的 PATH，并合并到 process.env.PATH 中。
  */
+/** 登录 shell 探测 PATH 的超时上限。shell rc（nvm/conda 等）慢启动或卡死时，
+ *  超时后放弃同步而非永久阻塞 app 启动（本函数在 whenReady 中被 await）。 */
+const SHELL_PATH_TIMEOUT_MS = 5_000;
+
 export async function syncShellPath(): Promise<void> {
   const currentPath = process.env.PATH || "";
   const isWindows = platform.isWindows;
@@ -30,6 +34,14 @@ export async function syncShellPath(): Promise<void> {
 
       let stdout = "";
       let stderr = "";
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill();
+        reject(new Error(`shell PATH probe timed out after ${SHELL_PATH_TIMEOUT_MS}ms`));
+      }, SHELL_PATH_TIMEOUT_MS);
 
       child.stdout?.on("data", (chunk: Buffer | string) => {
         stdout += chunk.toString();
@@ -39,8 +51,16 @@ export async function syncShellPath(): Promise<void> {
         stderr += chunk.toString();
       });
 
-      child.on("error", reject);
+      child.on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      });
       child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         if (code !== 0) {
           reject(new Error(`shell exited with code ${code}: ${stderr}`));
           return;

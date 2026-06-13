@@ -59,7 +59,14 @@ export function parseWorkflowYaml(
   yaml: string,
   fallbackName: string
 ): Omit<WorkflowTemplate, "source"> {
-  const document = load(yaml) as RawWorkflow | null;
+  let document: RawWorkflow | null;
+  try {
+    document = load(yaml) as RawWorkflow | null;
+  } catch {
+    // 畸形 YAML（语法错误、深度递归等）不应让调用方崩溃；
+    // 降级为空文档，按 fallback 产出最小可用模板。
+    document = null;
+  }
   const rawWorkflow = document && typeof document === "object" ? document : {};
   const rawStages = Array.isArray(rawWorkflow.stages) ? rawWorkflow.stages : [];
   const stages: WorkflowStage[] = rawStages

@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import logger from "@main/infra/logger";
 import { applyRunsDir } from "@main/infra/storage/project-paths";
+import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -104,10 +105,7 @@ export async function loadApplyRunMessages(
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
     const content = await fs.readFile(stageMessagesPath(projectPath, changeId, stageIndex), "utf8");
-    return content
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as UIMessage<MessageMeta>);
+    return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
     return [];
   }
@@ -173,10 +171,7 @@ export async function loadArchiveMessages(
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
     const content = await fs.readFile(archiveMessagesPath(projectPath, changeId), "utf8");
-    return content
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as UIMessage<MessageMeta>);
+    return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
     return [];
   }

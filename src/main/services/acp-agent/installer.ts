@@ -232,14 +232,24 @@ function getArchiveExtension(filePath: string): string {
   return extname(lower);
 }
 
-async function downloadFile(url: string, outputPath: string): Promise<void> {
-  const response = await net.fetch(url);
-  if (!response.ok) {
-    throw createAgentError("DOWNLOAD_FAILED", "下载失败，请重试");
-  }
+/** 二进制下载超时上限。避免 net.fetch 在网络挂起时永久阻塞，
+ *  进而让 activeMutationAgentId 互斥锁无法释放、后续安装全部 INSTALL_BUSY。 */
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  await fs.writeFile(outputPath, buffer);
+async function downloadFile(url: string, outputPath: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+  try {
+    const response = await net.fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw createAgentError("DOWNLOAD_FAILED", "下载失败，请重试");
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fs.writeFile(outputPath, buffer);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function extractArchive(archivePath: string, targetDirectory: string): Promise<void> {

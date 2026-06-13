@@ -9,6 +9,24 @@ import logger from "@main/infra/logger";
 
 export const YUNXIAO_DOMAIN = "openapi-rdc.aliyuncs.com";
 
+/** Query 参数中可能携带凭证的字段，写日志前需脱敏，避免 token 落盘。 */
+const SENSITIVE_QUERY_KEYS = new Set(["accessToken", "access_token", "token"]);
+
+/** 将 URL 中的敏感 query 值替换为 ***，仅用于日志输出，不影响实际请求。 */
+function redactUrlForLog(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (SENSITIVE_QUERY_KEYS.has(key)) {
+        url.searchParams.set(key, "***");
+      }
+    }
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 export interface YunxiaoRequestOptions {
@@ -72,7 +90,7 @@ export class YunxiaoClient {
       headers["Content-Type"] = "application/json";
     }
 
-    logger.debug(`[YunxiaoClient] ${method} ${url}`);
+    logger.debug(`[YunxiaoClient] ${method} ${redactUrlForLog(url)}`);
 
     const response = await fetch(url, {
       method,
