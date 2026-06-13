@@ -53,7 +53,7 @@ function openArchives(): void {
 </script>
 
 <template>
-  <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" data-test="overview-stats">
+  <section class="grid grid-cols-4 gap-4" data-test="overview-stats">
     <template v-for="card in cards" :key="card.key">
       <button
         v-if="card.key === 'archives'"
