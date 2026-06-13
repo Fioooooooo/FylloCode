@@ -47,7 +47,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - MUST: 保持 `src/renderer/src/App.vue` 使用 `<UApp>` 包裹渲染树；`useOverlay()` 与基于 overlay 的全局确认弹窗依赖 `UApp` 内部 provider，缺失时 overlay 不会渲染。
 - MUST: 将启动时的全局预热任务注册到 `src/renderer/src/bootstrap/`，避免由多个页面重复承担同一份全局初始化职责。
 - MUST: 将跨进程共享类型放在 `@shared/types/*`，只在纯前端使用的类型才放在 `src/renderer/src/types/`。
-- MUST: 渲染进程打开外部链接时使用标准锚点语义（如 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"`）；链接会由主进程 `src/main/bootstrap/window.ts` 中的 `setWindowOpenHandler` 统一转交给 `shell.openExternal` 并拒绝应用内导航，渲染进程不得直接引用 `shell`，也无需为此新增 IPC。
+- MUST: 渲染进程打开外部链接时使用标准锚点语义（如 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"`）；链接会由主进程 `src/main/bootstrap/window.ts` 中的 `setWindowOpenHandler` 与 `will-navigate` 守卫统一处理：仅 `http`/`https`（经 `isSafeExternalUrl` 判定）转交 `shell.openExternal`，`file:` 和自定义 scheme 一律丢弃，且任何离开 app shell 的顶层导航都被阻止。渲染进程不得直接引用 `shell`，也无需为此新增 IPC。
 - MUST: 将 UI 层职责保持清晰：`pages/` 负责路由单元和页面编排，`components/` 负责展示与交互，`layouts/` 负责骨架，`stores/` 负责状态和异步动作，`api/` 负责薄转发。
 - MUST: 将 `UModal` 视为结构组件而非业务状态容器。标题和描述优先使用 `title` / `description` props；正文使用 `#body`；按钮区使用 `#footer`；不要在局部弹窗里重复实现全局已在 `electron.vite.config.ts` 中声明的 footer 对齐和间距规则。
 - MUST: 让 `#body` 复用 `UModal` 默认内边距，不要再用一层 `p-4`/`p-5`/`p-6` 包裹整个 body；只在内部内容块上定义必要的 `gap-*`、`space-y-*` 或局部 padding。

@@ -37,14 +37,14 @@ keywords: [electron, main-process, ipc, services, infra]
 - MUST: 将 `src/main/` 维持为 `bootstrap -> ipc -> services -> domain/infra` 的单向依赖结构，具体受 `eslint.config.mjs` 中的 `no-restricted-imports` 约束。
 - MUST: 让 `ipc/` handler 只做三件事：`validate` 入参、调用 `services/`、返回结果；不得在 handler 中直接触碰 `fs`、`child_process`、路径拼接或复杂业务逻辑。
 - MUST: 对请求响应型 handler 使用 `ipc/_kit/wrap-handler.ts`，对流式 handler 使用 `ipc/_kit/stream-channel.ts`；不得在业务 handler 中重复手写错误归一化或 MessagePort 生命周期守卫。
-- MUST: 将业务编排写在 `services/`，将纯逻辑和解析器写在 `domain/`，将文件系统、路径、进程、日志、ID 生成等能力写在 `infra/`。
+- MUST: 将业务编排写在 `services/`，将**纯**逻辑与解析器（无 IO、无副作用、输入即数据）写在 `domain/`，将文件系统、路径、进程、网络、日志、ID 生成等能力写在 `infra/`。解析器一旦需要读文件、探测命令或发请求（如 ACP 安装探测、云效 HTTP client、openspec 变更目录读取），即属 `infra/` 能力而非 `domain/` 知识，应放在 `infra/` 下并把纯解析片段作为同文件 helper 共存。
 - MUST: 将持久化路径通过 `infra/paths` 与 `infra/storage/project-paths.ts` 提供的函数统一生成，不得在 service 或 handler 层手写 `join(...)` 拼装项目作用域目录。
 - MUST: 将长期存活的子进程、定时器、watcher、registry 和其他资源注册到主进程 lifecycle/disposable 体系中，确保退出时能清理。
 - MUST: 主进程中创建子进程时使用 `cross-spawn`，不得从 `child_process` / `node:child_process` 直接导入 `spawn` 或 `spawnSync`；该约束由 `eslint.config.mjs` 拦截。仅类型导入（如 `ChildProcessWithoutNullStreams`）可继续来自 `child_process`。
 - MUST: 对会派生孙进程的子进程（典型如 ACP agent）启用进程组隔离，并在 dispose 阶段按整棵树清理：POSIX 平台 `spawn(..., { detached: true })` 让 child 成为 process group leader，dispose 时用 `process.kill(-pid, signal)` 对组发信号；Windows 平台不设置 `detached`，dispose 时改用 `taskkill /T /F` 递归杀树。直接对单个 child 调 `kill()` 不会传递到孙进程，会留下孤儿。
 - MUST: 通过 `sessionRegistry` 管理活跃 ACP session，不得在各业务模块各自维护 `Map<string, AcpSession>`。
 - MUST: 通过 `@main/infra/logger` 或渲染侧对应转发 logger 记录日志，不得在主进程内使用散落的 `console.log`。
-- SHOULD: 让 `domain/` 保持可离线单测，不依赖 Electron、`@electron-toolkit/*`、`services/`、`ipc/` 或绝大多数 `infra/`。
+- MUST: 让 `domain/` 保持纯净、可离线单测：不依赖 Electron、`@electron-toolkit/*`、`services/`、`ipc/`、`infra/`，也不直接导入 `fs`、`path`、`child_process`、`cross-spawn`、`os`。这些约束由 `eslint.config.mjs` 的 domain layering guard 强制，`domain/` 当前无任何豁免目录。需要 IO 时把数据在 `infra/` 或 `services/` 侧取好再传入 `domain/` 纯函数。
 - SHOULD: 让 `infra/` 只提供能力，不反向依赖 `services/` 或 `ipc/`。
 - MAY: 在被 ESLint 白名单允许的历史目录中保留过渡实现，但若修改这些文件，应优先推动其回归分层规范。
 
