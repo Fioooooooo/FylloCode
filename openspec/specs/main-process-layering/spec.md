@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change refactor-main-process-layering. Update Purpose after archive.
+定义 `src/main/` 的五层结构（`bootstrap → ipc → services → {domain, infra}`）、单向依赖方向、资源生命周期与进程内实现约束，使主进程在功能增长时仍保持可维护、可测试、可安全退出。本 spec 由 ESLint layering guard（`eslint.config.mjs`）与 `test/main/**` 共同守护；当依赖方向、目录职责或基础设施约束变化时同步更新。
 
 ## Requirements
 
@@ -49,7 +49,9 @@ TBD - created by archiving change refactor-main-process-layering. Update Purpose
 
 - **WHEN** 审查任意 IPC handler 的函数体
 - **THEN** 可以清晰看到 "validate → call service → return wrapped response" 三个步骤
-- **AND** handler 函数体行数不超过 20 行（不含类型注解）
+- **AND** handler 函数体不包含业务编排、状态机、循环或持久化逻辑——这些 SHALL 下沉到 `services/`；流式 handler 的 `onReady` 仅做依赖装配并返回 `StreamRunner`，不内联事件处理逻辑
+
+> 说明：早期 spec 设有「handler ≤ 20 行」的硬指标，但对 MessagePort 流式握手场景不现实（`onReady` 需装配 session/assembler/sink），导致该指标长期被违反而失效。现改为定性约束「零业务编排」，更贴合可执行的真实边界；流式 handler 的去重（抽取 `buildAcpStreamRunner`）作为落实手段单独推进。
 
 #### Scenario: 业务样板不重复
 
@@ -197,20 +199,22 @@ IPC 层共享基础设施（错误构造、请求校验、请求-响应包装、
 - **THEN** handler 抛 `VALIDATION_ERROR("stage.agent is required for stage ${stageIndex}")`
 - **AND** 不创建 `AcpSession` 实例
 
-### Requirement: 日志统一使用 tag 工厂
+### Requirement: 日志统一通过 infra/logger
 
-所有主进程模块 SHALL 通过 `infra/logger/create-logger.ts` 导出的 `createLogger(tag)` 获取带 tag 的 logger 实例，tag 采用点号分隔的小写格式（例如 `chat.session`、`infra.process.acp`、`services.proposal.apply`）。禁止手写 `[xxx]` 字符串前缀拼接日志消息。
+所有主进程模块 SHALL 通过 `@main/infra/logger` 默认导出的 logger 记录日志（该 logger 基于 `electron-log` 封装，统一处理 dev/prod 路径、级别与渲染进程转发），不得使用散落的 `console.log`。日志消息 SHOULD 以 `[模块]` 形式的前缀标注来源（例如 `[chat]`、`[infra.process.acp]`、`[proposal-apply]`），便于过滤。
 
-#### Scenario: logger 使用 tag 工厂
+> 历史说明：早期 spec 曾设想 `infra/logger/create-logger.ts` 的 `createLogger(tag)` 工厂，但该接口从未落地；当前实现为单一默认 logger + 手写 `[模块]` 前缀，本条已据实校准。若未来引入 tag 工厂，应同步更新本条与调用点。
+
+#### Scenario: 统一 logger 来源
 
 - **WHEN** 主进程任意模块需要记录日志
-- **THEN** 通过 `const log = createLogger("domain.subdomain")` 获取实例并调用 `log.info(...)` 等方法
-- **AND** 日志输出中 tag 格式一致，便于过滤
+- **THEN** 通过 `import logger from "@main/infra/logger"` 获取实例并调用 `logger.info(...)` 等方法
+- **AND** 代码库中不存在主进程业务代码直接调用 `console.log`
 
-#### Scenario: tag 命名规范
+#### Scenario: 日志前缀一致
 
-- **WHEN** 审查代码库中所有 `createLogger(...)` 调用
-- **THEN** 所有 tag 均为小写、以点号分隔、与模块物理层级一致（如 `services.chat.stream`）
+- **WHEN** 审查主进程模块的日志调用
+- **THEN** 消息以 `[模块]` 前缀标注来源，前缀与模块物理层级大致对应（如 `[services.chat.stream]` 或 `[chat]`）
 
 ### Requirement: cli/claude 目录移除
 

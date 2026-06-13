@@ -41,7 +41,7 @@ import {
   resolveProjectPath,
   updateRunMetaIfCurrent,
 } from "@main/services/proposal/apply-run-service";
-import { newArchiveFylloSessionId, newStageFylloSessionId } from "@main/infra/ids";
+import { newArchiveFylloSessionId, newArchiveRunId, newStageFylloSessionId } from "@main/infra/ids";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
@@ -319,7 +319,7 @@ export function registerProposalApplyHandlers(): void {
           projectPath,
           stage,
         });
-        const archiveRunId = `archive-${Date.now()}`;
+        const archiveRunId = newArchiveRunId();
         const startedAt = new Date().toISOString();
         const archiveMeta: ArchiveRunMeta = {
           runId: archiveRunId,

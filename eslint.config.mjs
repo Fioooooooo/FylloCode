@@ -176,6 +176,12 @@ export default defineConfig(
             {
               // infra/logger is cross-cutting and exempt; everything else in infra
               // must be accessed through a service.
+              // NOTE: the `!(logger)` extglob is NOT honoured by no-restricted-imports
+              // (it silently matches nothing), so this guard is currently inert. It can
+              // only be switched to an effective pattern once ipc/ handlers stop value-
+              // importing infra/storage directly (tracked under the stream-handler /
+              // pseudo-domain refactors). Until then, tightening it would red-line the
+              // existing chat.ts / proposal-apply.ts / acp-agents.ts / integration.ts.
               group: ["@main/infra/!(logger)", "@main/infra/!(logger)/**"],
               message: "ipc/ handlers must go through services/ (logger is the only exception)",
               allowTypeImports: true,
@@ -188,6 +194,10 @@ export default defineConfig(
             {
               group: ["fs", "fs/*", "node:fs", "node:fs/*"],
               message: "ipc/ must not touch fs directly",
+            },
+            {
+              group: ["path", "node:path"],
+              message: "ipc/ must not build paths directly; go through services/",
             },
             {
               group: ["child_process", "node:child_process"],

@@ -20,6 +20,10 @@ export function newRunId(): string {
   return `run-${baseId()}`;
 }
 
+export function newArchiveRunId(): string {
+  return `archive-${baseId()}`;
+}
+
 export function newSubjectId(): string {
   return `subject-${baseId()}`;
 }
