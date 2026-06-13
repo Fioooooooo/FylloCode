@@ -3,7 +3,6 @@ import { ipcMain } from "electron";
 import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { Message } from "@shared/types/chat";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   createSessionInputSchema,
   listSessionsInputSchema,
@@ -61,20 +60,10 @@ import {
   removeSessionAttachments,
   saveAttachment,
 } from "@main/infra/storage/attachment-store";
-import { toMessageChunk } from "@main/services/chat/session-event-mapper";
+import { toMessageChunk, mapAcpErrorCode } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import logger from "@main/infra/logger";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
-
-function mapAcpErrorCode(raw: string): IpcErrorCode {
-  if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
-  if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
-  if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
-  if (raw === IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH) {
-    return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
-  }
-  return IpcErrorCodes.ACP_ERROR;
-}
 
 let probeBroadcastWindow: BrowserWindow | null = null;
 let probeBroadcastSubscribed = false;

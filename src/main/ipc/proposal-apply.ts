@@ -2,7 +2,6 @@ import { ipcMain } from "electron";
 import { generateId, type UIMessage } from "ai";
 import { ProposalChannels } from "@shared/types/channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import type { IpcErrorCode } from "@shared/constants/error-codes";
 import {
   applyInputSchema,
   archiveCancelInputSchema,
@@ -20,7 +19,7 @@ import type { SessionEvent } from "@main/domain/chat/session-events";
 import { AcpSession } from "@main/services/chat/acp-session";
 import { sessionRegistry } from "@main/services/chat/session-registry";
 import { MessageAssembler } from "@main/services/chat/message-assembler";
-import { toMessageChunk } from "@main/services/chat/session-event-mapper";
+import { toMessageChunk, mapAcpErrorCode } from "@main/services/chat/session-event-mapper";
 import {
   appendArchiveMessage,
   appendApplyRunMessage,
@@ -50,16 +49,6 @@ import logger from "@main/infra/logger";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
 import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-session-store";
 import { ArchiveAcpSessionStore } from "@main/infra/storage/archive-acp-session-store";
-
-function mapAcpErrorCode(raw: string): IpcErrorCode {
-  if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
-  if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
-  if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
-  if (raw === IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH) {
-    return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
-  }
-  return IpcErrorCodes.ACP_ERROR;
-}
 
 function buildUserMessage(sessionId: string, text: string): UIMessage<MessageMeta> {
   return {

@@ -1,5 +1,6 @@
 import type { SessionEvent } from "@main/domain/chat/session-events";
 import type { MessageChunkData } from "@shared/types/ipc";
+import { IpcErrorCodes, type IpcErrorCode } from "@shared/constants/error-codes";
 
 /**
  * Map an ACP session event to the renderer-facing stream chunk representation.
@@ -17,4 +18,20 @@ export function toMessageChunk(ev: SessionEvent): MessageChunkData | null {
     default:
       return JSON.parse(JSON.stringify(ev)) as MessageChunkData;
   }
+}
+
+/**
+ * Map the raw `code` carried on an ACP `error` session event to a known
+ * `IpcErrorCode`. Recognised transport/lifecycle codes pass through verbatim;
+ * everything else collapses to the generic `ACP_ERROR`. Shared by every ACP
+ * stream handler (chat / apply / archive) so the mapping stays single-sourced.
+ */
+export function mapAcpErrorCode(raw: string): IpcErrorCode {
+  if (raw === IpcErrorCodes.ACP_NOT_READY) return IpcErrorCodes.ACP_NOT_READY;
+  if (raw === IpcErrorCodes.ACP_EXIT_GIVEUP) return IpcErrorCodes.ACP_EXIT_GIVEUP;
+  if (raw === IpcErrorCodes.SPAWN_ERROR) return IpcErrorCodes.SPAWN_ERROR;
+  if (raw === IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH) {
+    return IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH;
+  }
+  return IpcErrorCodes.ACP_ERROR;
 }

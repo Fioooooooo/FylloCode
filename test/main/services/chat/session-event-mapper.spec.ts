@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 // session-event-mapper 的 SessionEvent 类型定义依赖仅 types，这里为测试目的构造输入。
-import { toMessageChunk } from "@main/services/chat/session-event-mapper";
+import { toMessageChunk, mapAcpErrorCode } from "@main/services/chat/session-event-mapper";
 import type { SessionEvent } from "@main/domain/chat/session-events";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 describe("toMessageChunk", () => {
   it("maps text_delta", () => {
@@ -138,5 +139,22 @@ describe("toMessageChunk", () => {
     spy(toMessageChunk({ kind: "text_delta", text: "a" }));
     spy(toMessageChunk({ kind: "text_delta", text: "a" }));
     expect(spy.mock.calls[0][0]).toEqual(spy.mock.calls[1][0]);
+  });
+});
+
+describe("mapAcpErrorCode", () => {
+  it("passes recognised transport/lifecycle codes through verbatim", () => {
+    expect(mapAcpErrorCode(IpcErrorCodes.ACP_NOT_READY)).toBe(IpcErrorCodes.ACP_NOT_READY);
+    expect(mapAcpErrorCode(IpcErrorCodes.ACP_EXIT_GIVEUP)).toBe(IpcErrorCodes.ACP_EXIT_GIVEUP);
+    expect(mapAcpErrorCode(IpcErrorCodes.SPAWN_ERROR)).toBe(IpcErrorCodes.SPAWN_ERROR);
+    expect(mapAcpErrorCode(IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH)).toBe(
+      IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH
+    );
+  });
+
+  it("collapses unknown codes to the generic ACP_ERROR", () => {
+    expect(mapAcpErrorCode("SOMETHING_ELSE")).toBe(IpcErrorCodes.ACP_ERROR);
+    expect(mapAcpErrorCode("")).toBe(IpcErrorCodes.ACP_ERROR);
+    expect(mapAcpErrorCode(IpcErrorCodes.VALIDATION_ERROR)).toBe(IpcErrorCodes.ACP_ERROR);
   });
 });
