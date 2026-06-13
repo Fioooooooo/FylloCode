@@ -34,6 +34,7 @@ import { resolveSystemReminder } from "@main/services/chat/system-reminder";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import { normalizePromptCapabilities } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError } from "@shared/errors/ipc-error";
 import type { LineageTaskRef } from "@shared/types/lineage";
 
 interface ReminderContext {
@@ -686,16 +687,10 @@ export class AcpSession extends EventEmitter {
       initializeResponse.agentCapabilities?.promptCapabilities
     );
     if (parts.some((part) => part.type === "image") && !capabilities.image) {
-      throw this.createAcpError(
-        IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
-        "当前 agent 不支持图片输入"
-      );
+      throw ipcError(IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH, "当前 agent 不支持图片输入");
     }
     if (parts.some((part) => part.type === "resource_link") && !capabilities.embeddedContext) {
-      throw this.createAcpError(
-        IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
-        "当前 agent 不支持文件输入"
-      );
+      throw ipcError(IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH, "当前 agent 不支持文件输入");
     }
   }
 
@@ -724,7 +719,7 @@ export class AcpSession extends EventEmitter {
           data: data.toString("base64"),
         });
       } catch {
-        throw this.createAcpError(IpcErrorCodes.ACP_ERROR, "无法读取附件文件");
+        throw ipcError(IpcErrorCodes.ACP_ERROR, "无法读取附件文件");
       }
     }
     return promptParts;
@@ -732,12 +727,6 @@ export class AcpSession extends EventEmitter {
 
   private getPrimaryTextPrompt(parts: ChatPromptPart[]): string {
     return parts.find((part) => part.type === "text")?.text ?? "";
-  }
-
-  private createAcpError(code: string, message: string): Error & { code: string } {
-    const error = new Error(message) as Error & { code: string };
-    error.code = code;
-    return error;
   }
 
   private emitDone(result: unknown): void {

@@ -13,7 +13,6 @@ import {
 } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
 import {
-  createAgentError,
   detectAgentInstallation,
   findCommandPath,
   readInstalledRecords,
@@ -21,6 +20,7 @@ import {
   runCommand,
   writeInstalledRecords,
 } from "@main/domain/acp/detector";
+import { ipcError } from "@shared/errors/ipc-error";
 
 type InstallProgressHandler = (progress: AcpInstallProgress) => void;
 type UninstallProgressHandler = (progress: AcpUninstallProgress) => void;
@@ -114,12 +114,12 @@ async function installNpx(
 ): Promise<AcpInstalledRecord> {
   const distribution = agent.distribution.npx;
   if (!distribution) {
-    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 npx 安装信息");
+    throw ipcError("INVALID_DISTRIBUTION", "Agent 缺少 npx 安装信息");
   }
 
   const npmPath = await findCommandPath("npm");
   if (!npmPath) {
-    throw createAgentError("ENV_MISSING", "需要先安装 Node.js");
+    throw ipcError("ENV_MISSING", "需要先安装 Node.js");
   }
 
   onProgress({ agentId: agent.id, status: "installing", message: "正在安装..." });
@@ -129,7 +129,7 @@ async function installNpx(
     distribution.env
   );
   if (result.code !== 0) {
-    throw createAgentError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
+    throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
   }
 
   return finalizeInstallRecord(agent, "npx");
@@ -141,12 +141,12 @@ async function installUvx(
 ): Promise<AcpInstalledRecord> {
   const distribution = agent.distribution.uvx;
   if (!distribution) {
-    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 uvx 安装信息");
+    throw ipcError("INVALID_DISTRIBUTION", "Agent 缺少 uvx 安装信息");
   }
 
   const uvPath = await findCommandPath("uv");
   if (!uvPath) {
-    throw createAgentError("ENV_MISSING", "需要先安装 uv");
+    throw ipcError("ENV_MISSING", "需要先安装 uv");
   }
 
   onProgress({ agentId: agent.id, status: "installing", message: "正在安装..." });
@@ -156,7 +156,7 @@ async function installUvx(
     distribution.env
   );
   if (result.code !== 0) {
-    throw createAgentError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
+    throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
   }
 
   return finalizeInstallRecord(agent, "uvx");
@@ -168,12 +168,12 @@ async function uninstallNpx(
 ): Promise<void> {
   const distribution = agent.distribution.npx;
   if (!distribution) {
-    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 npx 安装信息");
+    throw ipcError("INVALID_DISTRIBUTION", "Agent 缺少 npx 安装信息");
   }
 
   const npmPath = await findCommandPath("npm");
   if (!npmPath) {
-    throw createAgentError("ENV_MISSING", "需要先安装 Node.js");
+    throw ipcError("ENV_MISSING", "需要先安装 Node.js");
   }
 
   onProgress({ agentId: agent.id, status: "uninstalling", message: "正在卸载..." });
@@ -183,7 +183,7 @@ async function uninstallNpx(
     distribution.env
   );
   if (result.code !== 0) {
-    throw createAgentError(
+    throw ipcError(
       "UNINSTALL_FAILED",
       summarizeCommandOutput(result.stdout, result.stderr, "卸载失败，请重试")
     );
@@ -196,12 +196,12 @@ async function uninstallUvx(
 ): Promise<void> {
   const distribution = agent.distribution.uvx;
   if (!distribution) {
-    throw createAgentError("INVALID_DISTRIBUTION", "Agent 缺少 uvx 安装信息");
+    throw ipcError("INVALID_DISTRIBUTION", "Agent 缺少 uvx 安装信息");
   }
 
   const uvPath = await findCommandPath("uv");
   if (!uvPath) {
-    throw createAgentError("ENV_MISSING", "需要先安装 uv");
+    throw ipcError("ENV_MISSING", "需要先安装 uv");
   }
 
   onProgress({ agentId: agent.id, status: "uninstalling", message: "正在卸载..." });
@@ -211,7 +211,7 @@ async function uninstallUvx(
     distribution.env
   );
   if (result.code !== 0) {
-    throw createAgentError(
+    throw ipcError(
       "UNINSTALL_FAILED",
       summarizeCommandOutput(result.stdout, result.stderr, "卸载失败，请重试")
     );
@@ -242,7 +242,7 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
   try {
     const response = await net.fetch(url, { signal: controller.signal });
     if (!response.ok) {
-      throw createAgentError("DOWNLOAD_FAILED", "下载失败，请重试");
+      throw ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
@@ -258,15 +258,12 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
   if (extension === ".zip") {
     const unzipPath = await findCommandPath("unzip");
     if (!unzipPath) {
-      throw createAgentError("ENV_MISSING", "当前系统缺少 unzip，无法安装二进制 Agent");
+      throw ipcError("ENV_MISSING", "当前系统缺少 unzip，无法安装二进制 Agent");
     }
 
     const result = await runCommand(unzipPath, ["-o", archivePath, "-d", targetDirectory]);
     if (result.code !== 0) {
-      throw createAgentError(
-        "INSTALL_FAILED",
-        summarizeCommandOutput(result.stdout, result.stderr)
-      );
+      throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
     }
     return;
   }
@@ -279,7 +276,7 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
   ) {
     const tarPath = await findCommandPath("tar");
     if (!tarPath) {
-      throw createAgentError("ENV_MISSING", "当前系统缺少 tar，无法安装二进制 Agent");
+      throw ipcError("ENV_MISSING", "当前系统缺少 tar，无法安装二进制 Agent");
     }
 
     const args =
@@ -290,10 +287,7 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
           : ["-xf", archivePath, "-C", targetDirectory];
     const result = await runCommand(tarPath, args);
     if (result.code !== 0) {
-      throw createAgentError(
-        "INSTALL_FAILED",
-        summarizeCommandOutput(result.stdout, result.stderr)
-      );
+      throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
     }
     return;
   }
@@ -340,7 +334,7 @@ async function resolveBinaryExecutablePath(
     }
   }
 
-  throw createAgentError("INSTALL_FAILED", "未找到已安装的可执行文件");
+  throw ipcError("INSTALL_FAILED", "未找到已安装的可执行文件");
 }
 
 async function installBinary(
@@ -349,7 +343,7 @@ async function installBinary(
 ): Promise<AcpInstalledRecord> {
   const binary = resolveBinaryDistribution(agent.distribution.binary);
   if (!binary) {
-    throw createAgentError("PLATFORM_UNSUPPORTED", "当前平台不支持此安装方式");
+    throw ipcError("PLATFORM_UNSUPPORTED", "当前平台不支持此安装方式");
   }
 
   const tempRoot = await fs.mkdtemp(join(tmpdir(), "fyllocode-agent-"));
@@ -381,7 +375,7 @@ async function installBinary(
     await fs.rm(finalDirectory, { recursive: true, force: true }).catch(() => undefined);
     throw error instanceof Error && "code" in error
       ? error
-      : createAgentError("DOWNLOAD_FAILED", "下载失败，请重试");
+      : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
   }
@@ -392,7 +386,7 @@ async function uninstallBinary(
   onProgress: UninstallProgressHandler
 ): Promise<void> {
   if (!/^[A-Za-z0-9_-]+$/.test(agent.id)) {
-    throw createAgentError("INVALID_AGENT_ID", "非法 Agent ID");
+    throw ipcError("INVALID_AGENT_ID", "非法 Agent ID");
   }
 
   const targetDir = join(getDataSubPath("acp"), "bin", agent.id);
@@ -403,7 +397,7 @@ async function uninstallBinary(
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       const message = error instanceof Error ? error.message : "卸载失败，请重试";
-      throw createAgentError("UNINSTALL_FAILED", message);
+      throw ipcError("UNINSTALL_FAILED", message);
     }
   }
 }
@@ -413,7 +407,7 @@ export async function installAgent(
   onProgress: InstallProgressHandler
 ): Promise<AcpInstalledRecord> {
   if (activeMutationAgentId) {
-    throw createAgentError("INSTALL_BUSY", "请等待当前操作完成");
+    throw ipcError("INSTALL_BUSY", "请等待当前操作完成");
   }
 
   activeMutationAgentId = agent.id;
@@ -442,7 +436,7 @@ export async function uninstallAgent(
   onProgress: UninstallProgressHandler
 ): Promise<void> {
   if (activeMutationAgentId) {
-    throw createAgentError("INSTALL_BUSY", "请等待当前操作完成");
+    throw ipcError("INSTALL_BUSY", "请等待当前操作完成");
   }
 
   activeMutationAgentId = agent.id;
@@ -458,10 +452,7 @@ export async function uninstallAgent(
 
     const verification = await detectAgentInstallation(agent);
     if (verification.installed) {
-      throw createAgentError(
-        "UNINSTALL_FAILED",
-        "卸载命令已执行但 Agent 仍可检测到，请手动检查环境"
-      );
+      throw ipcError("UNINSTALL_FAILED", "卸载命令已执行但 Agent 仍可检测到，请手动检查环境");
     }
 
     onProgress({ agentId: agent.id, status: "done" });

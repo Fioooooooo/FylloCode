@@ -44,12 +44,6 @@ interface DetectionContext {
   uvToolList: string | null;
 }
 
-export function createAgentError(code: string, message: string): Error & { code: string } {
-  const error = new Error(message) as Error & { code: string };
-  error.code = code;
-  return error;
-}
-
 function getInstalledRecordsPath(): string {
   return join(getDataSubPath("acp"), "installed.json");
 }
