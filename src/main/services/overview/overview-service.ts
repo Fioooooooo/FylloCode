@@ -6,10 +6,11 @@ import type {
   ActiveChange,
   OverviewChangeStage,
   ProjectOverview,
-  RecentThread,
+  RecentLineage,
   SpecsGrowthBucket,
 } from "@shared/types/overview";
 import type { ProposalMeta } from "@shared/types/proposal";
+import { buildArchiveCommitIndex } from "./archive-commit-index";
 import { getGitGovernance } from "./git-stats";
 import { countArchives, countGuidelines, countSpecs } from "./openspec-stats";
 
@@ -72,18 +73,28 @@ async function computeTaskLinkedRatio(projectPath: string): Promise<TaskLinkedSt
   };
 }
 
-async function computeRecentThreads(
+async function computeRecentLineages(
   projectPath: string,
   activeChanges: ActiveChange[]
-): Promise<RecentThread[]> {
+): Promise<RecentLineage[]> {
   const activeChangeIds = new Set(activeChanges.map((change) => change.id));
   const subjects = await listRecentSubjects(projectPath, 10);
+  const proposalChangeIds = subjects.flatMap((subject) =>
+    subject.links.flatMap((link) => link.proposals.map((proposal) => proposal.changeId))
+  );
+  const archiveCommitIndex = await buildArchiveCommitIndex(projectPath, proposalChangeIds);
 
   return subjects.map((subject) => {
     const proposalCount = subject.links.reduce((total, link) => total + link.proposals.length, 0);
     const hasApplyingChange = subject.links.some((link) =>
       link.proposals.some((proposal) => activeChangeIds.has(proposal.changeId))
     );
+    const archiveCommit = hasApplyingChange
+      ? null
+      : (subject.links
+          .flatMap((link) => link.proposals)
+          .map((proposal) => archiveCommitIndex.get(proposal.changeId))
+          .find(Boolean) ?? null);
 
     return {
       subjectId: subject.id,
@@ -92,9 +103,8 @@ async function computeRecentThreads(
       taskTitle: subject.task?.snapshot.title ?? null,
       sessionCount: subject.links.length,
       proposalCount,
-      mergeCommitSha: null,
-      mergeCommitUrl: null,
-      mergeStatus: hasApplyingChange ? "applying" : "pending",
+      mergeCommitSha: archiveCommit?.hash ?? null,
+      mergeStatus: hasApplyingChange ? "applying" : archiveCommit ? "merged" : "pending",
       createdAt: subject.createdAt,
       updatedAt: subject.updatedAt,
     };
@@ -135,7 +145,7 @@ export async function getProjectOverview(projectPath: string): Promise<ProjectOv
 
   const [[specsCount, archiveCounts, guidelinesCount], taskLinked, activeChanges, governance] =
     await Promise.all([countsPromise, taskLinkedPromise, activeChangesPromise, governancePromise]);
-  const recentThreads = await computeRecentThreads(projectPath, activeChanges);
+  const recentLineages = await computeRecentLineages(projectPath, activeChanges);
 
   return {
     stats: {
@@ -149,7 +159,7 @@ export async function getProjectOverview(projectPath: string): Promise<ProjectOv
       totalSubjects: taskLinked.total,
     },
     activeChanges,
-    recentThreads,
+    recentLineages,
     governance: {
       specsGrowth: governance.specsGrowth,
       recentGuidelines: governance.recentGuidelines,

@@ -9,7 +9,7 @@ import type {
   OverviewChangeStage,
   OverviewStats,
   ProjectOverview,
-  RecentThread,
+  RecentLineage,
   SpecsGrowthBucket,
 } from "@shared/types/overview";
 
@@ -20,7 +20,7 @@ export type {
   OverviewChangeStage,
   OverviewStats,
   ProjectOverview,
-  RecentThread,
+  RecentLineage,
   SpecsGrowthBucket,
 };
 

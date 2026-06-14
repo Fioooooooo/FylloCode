@@ -2,7 +2,7 @@
 import { watch } from "vue";
 import OverviewActiveChanges from "@renderer/components/overview/OverviewActiveChanges.vue";
 import OverviewGovernance from "@renderer/components/overview/OverviewGovernance.vue";
-import OverviewRecentThreads from "@renderer/components/overview/OverviewRecentThreads.vue";
+import OverviewRecentLineages from "@renderer/components/overview/OverviewRecentLineages.vue";
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
 import { useOverviewStore } from "@renderer/stores/overview";
 import { useProjectStore } from "@renderer/stores/project";
@@ -55,7 +55,7 @@ watch(
         </div>
 
         <div class="space-y-2.5">
-          <USkeleton v-for="item in 3" :key="`thread-${item}`" class="h-24 rounded-lg" />
+          <USkeleton v-for="item in 3" :key="`lineage-${item}`" class="h-24 rounded-lg" />
         </div>
       </div>
 
@@ -74,7 +74,7 @@ watch(
 
         <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
 
-        <OverviewRecentThreads :threads="overviewStore.data.recentThreads" />
+        <OverviewRecentLineages :lineages="overviewStore.data.recentLineages" />
 
         <OverviewGovernance :governance="overviewStore.data.governance" />
       </template>

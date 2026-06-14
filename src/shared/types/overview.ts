@@ -20,15 +20,15 @@ export type ActiveChange = {
   stage: OverviewChangeStage;
 };
 
-export type RecentThread = {
+export type RecentLineage = {
   subjectId: string;
   origin: "task" | "chat";
   taskRef: string | null;
   taskTitle: string | null;
   sessionCount: number;
   proposalCount: number;
+  // Derived from current Git history; not persisted in lineage.
   mergeCommitSha: string | null;
-  mergeCommitUrl: string | null;
   mergeStatus: "merged" | "applying" | "pending";
   createdAt: string;
   updatedAt: string;
@@ -53,6 +53,6 @@ export type GovernanceEvolution = {
 export type ProjectOverview = {
   stats: OverviewStats;
   activeChanges: ActiveChange[];
-  recentThreads: RecentThread[];
+  recentLineages: RecentLineage[];
   governance: GovernanceEvolution;
 };

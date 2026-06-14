@@ -54,7 +54,7 @@ function overview(): ProjectOverview {
         stage: "applying",
       },
     ],
-    recentThreads: [
+    recentLineages: [
       {
         subjectId: "subject-1",
         origin: "task",
@@ -63,8 +63,19 @@ function overview(): ProjectOverview {
         sessionCount: 2,
         proposalCount: 3,
         mergeCommitSha: null,
-        mergeCommitUrl: null,
         mergeStatus: "applying",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        subjectId: "subject-2",
+        origin: "chat",
+        taskRef: null,
+        taskTitle: null,
+        sessionCount: 1,
+        proposalCount: 1,
+        mergeCommitSha: "abc123archive",
+        mergeStatus: "merged",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -138,6 +149,7 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("进行中");
     expect(wrapper.text()).toContain("Add Project Overview Page");
     expect(wrapper.text()).toContain("最近脉络");
+    expect(wrapper.text()).toContain("abc123a");
     expect(wrapper.text()).toContain("治理演化");
   });
 

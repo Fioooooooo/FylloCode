@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   countArchives: vi.fn(),
   countGuidelines: vi.fn(),
   getGitGovernance: vi.fn(),
+  buildArchiveCommitIndex: vi.fn(),
   loggerWarn: vi.fn(),
 }));
 
@@ -34,6 +35,10 @@ vi.mock("@main/services/overview/openspec-stats", () => ({
 
 vi.mock("@main/services/overview/git-stats", () => ({
   getGitGovernance: mocks.getGitGovernance,
+}));
+
+vi.mock("@main/services/overview/archive-commit-index", () => ({
+  buildArchiveCommitIndex: mocks.buildArchiveCommitIndex,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -80,9 +85,10 @@ describe("overview-service", () => {
       ],
       guidelinesLastUpdated: "2026-06-10T00:00:00.000Z",
     });
+    mocks.buildArchiveCommitIndex.mockResolvedValue(new Map());
   });
 
-  it("maps active changes, lineage task refs, task linked ratio, and recent thread merge status", async () => {
+  it("maps active changes, lineage task refs, task linked ratio, and recent lineage merge status", async () => {
     mocks.readProposalFiles.mockResolvedValue([
       {
         id: "creating-change",
@@ -156,7 +162,7 @@ describe("overview-service", () => {
         ],
       }),
       subject({
-        id: "recent-pending",
+        id: "recent-merged",
         origin: "chat",
         links: [
           {
@@ -166,7 +172,40 @@ describe("overview-service", () => {
           },
         ],
       }),
+      subject({
+        id: "recent-pending",
+        origin: "chat",
+        links: [
+          {
+            sessionId: "session-3",
+            createdAt: "2026-06-04T00:00:00.000Z",
+            proposals: [{ changeId: "no-commit", createdAt: "2026-06-04T00:00:00.000Z" }],
+          },
+        ],
+      }),
     ]);
+    mocks.buildArchiveCommitIndex.mockResolvedValue(
+      new Map([
+        [
+          "applying-change",
+          {
+            changeId: "applying-change",
+            archivedChangeId: "2026-06-03-applying-change",
+            hash: "applying-hash-should-not-win",
+            committedAt: "2026-06-03T12:00:00.000Z",
+          },
+        ],
+        [
+          "old-change",
+          {
+            changeId: "old-change",
+            archivedChangeId: "2026-06-02-old-change",
+            hash: "abc123archive",
+            committedAt: "2026-06-02T12:00:00.000Z",
+          },
+        ],
+      ])
+    );
 
     const overview = await getProjectOverview("/repo");
 
@@ -204,18 +243,28 @@ describe("overview-service", () => {
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       "[overview] unknown proposal status reviewing; falling back to drafting"
     );
-    expect(overview.recentThreads).toEqual([
+    expect(mocks.buildArchiveCommitIndex).toHaveBeenCalledWith("/repo", [
+      "applying-change",
+      "old-change",
+      "no-commit",
+    ]);
+    expect(overview.recentLineages).toEqual([
       expect.objectContaining({
         subjectId: "recent-applying",
         sessionCount: 1,
         proposalCount: 1,
         mergeStatus: "applying",
         mergeCommitSha: null,
-        mergeCommitUrl: null,
+      }),
+      expect.objectContaining({
+        subjectId: "recent-merged",
+        mergeStatus: "merged",
+        mergeCommitSha: "abc123archive",
       }),
       expect.objectContaining({
         subjectId: "recent-pending",
         mergeStatus: "pending",
+        mergeCommitSha: null,
       }),
     ]);
   });
@@ -230,6 +279,6 @@ describe("overview-service", () => {
     expect(overview.stats.taskLinkedRatio).toBe(0);
     expect(overview.stats.totalSubjects).toBe(0);
     expect(overview.activeChanges).toEqual([]);
-    expect(overview.recentThreads).toEqual([]);
+    expect(overview.recentLineages).toEqual([]);
   });
 });
