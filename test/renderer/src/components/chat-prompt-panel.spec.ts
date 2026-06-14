@@ -405,7 +405,7 @@ describe("ChatPromptPanel", () => {
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
   });
 
-  it("blocks unsupported image attachments and keeps the prompt content", async () => {
+  it("filters unsupported image attachments and sends the supported prompt parts", async () => {
     promptCapabilitiesRef.value = {
       image: false,
       audio: false,
@@ -419,9 +419,12 @@ describe("ChatPromptPanel", () => {
     });
     await wrapper.get("textarea").setValue("see image");
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    await wrapper.vm.$nextTick();
 
-    expect(sendMessage).not.toHaveBeenCalled();
-    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("see image");
+    expect(sendMessage).toHaveBeenCalledWith([{ type: "text", text: "see image" }]);
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("");
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
   });
 
   it("assembles text first and then attachment parts", async () => {

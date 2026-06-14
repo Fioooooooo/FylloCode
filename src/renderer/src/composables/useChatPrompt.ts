@@ -1,5 +1,7 @@
 import { nextTick, ref, watch, type ComponentPublicInstance, type Ref } from "vue";
+import { useChatStore } from "@renderer/stores/chat";
 import type { AcpAvailableCommand } from "@shared/types/chat";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import {
   applyCommandSelection,
   isCursorAtLineStart,
@@ -8,8 +10,9 @@ import {
 
 export function useChatPrompt(options: {
   hasAvailableCommands: Ref<boolean>;
-  onSubmit: (text: string) => Promise<boolean | void> | boolean | void;
-  canSubmit?: () => boolean;
+  attachmentParts?: Readonly<Ref<ChatPromptPart[]>>;
+  submitDisabled?: Readonly<Ref<boolean>>;
+  afterSubmit?: () => void;
 }): {
   input: Ref<string>;
   setPromptShellRef: (element: Element | ComponentPublicInstance | null) => void;
@@ -22,7 +25,8 @@ export function useChatPrompt(options: {
   handleSlashButtonClick: () => void;
   handleCommandSelect: (command: AcpAvailableCommand) => void;
 } {
-  const { hasAvailableCommands, onSubmit } = options;
+  const chatStore = useChatStore();
+  const { hasAvailableCommands } = options;
 
   const input = ref("");
   const promptShellRef = ref<HTMLElement | null>(null);
@@ -144,16 +148,18 @@ export function useChatPrompt(options: {
   }
 
   async function handleSubmit(): Promise<void> {
+    if (options.submitDisabled?.value) {
+      return;
+    }
+
     const text = input.value.trim();
-    if (!text && options.canSubmit?.() !== true) {
+    const attachmentParts = options.attachmentParts?.value ?? [];
+    if (!text && attachmentParts.length === 0) {
       return;
     }
 
-    const submitted = await onSubmit(input.value);
-    if (submitted === false) {
-      return;
-    }
-
+    await chatStore.sendMessage([{ type: "text", text: input.value }, ...attachmentParts]);
+    options.afterSubmit?.();
     input.value = "";
     clearTemporaryPlaceholder();
   }

@@ -481,20 +481,19 @@ chat 页面错误状态 SHALL 满足：
 
 ### Requirement: handleSubmit 组装 ChatPromptPart 数组
 
-`ChatPromptPanel` 的 `handleSubmit` SHALL 把 `input.value` 与 `attachments` 组装为 `ChatPromptPart[]`，调 `chatStore.sendMessage(parts)`：
+`ChatPromptPanel` 的提交流程 SHALL 通过 `useChatPrompt` 把 `input.value` 与 `useChatAttachment(promptCapabilities)` 产出的 `attachmentParts` 组装为 `ChatPromptPart[]`，再调 `chatStore.sendMessage(parts)`：
 
-1. 始终先 push 一个 `text` part（text 字段为 `input.value`，即使为空字符串）
-2. 按 `attachments` 数组顺序依次 push 附件 part
-3. 附件 part 类型由文件 mimeType 决定：`mediaType.startsWith("image/")` → `{ type: "image", mediaType, uri, filename }`；否则 → `{ type: "resource_link", mediaType, uri, filename }`
-4. 附件 `uri` 由 `chat:saveAttachment` 落盘后返回的 `file://` URI 取得；UI 在用户选择文件时立即调用 `saveAttachment` 并把 `uri` / `filename` / `mediaType` 缓存到 `attachments` 元素上
+1. 当存在非空文本或至少一个 `attachmentParts` 元素时，始终先 push 一个 `text` part（text 字段为 `input.value`，即使为空字符串）
+2. `useChatAttachment(promptCapabilities)` SHALL 按 `attachments` 数组顺序产出 `attachmentParts`
+3. 只有已经由 `chat:saveAttachment` 落盘并拥有 `uri` 的附件 MAY 进入 `attachmentParts`
+4. 图片附件仅在 `mediaType.startsWith("image/")` 且 `promptCapabilities.image === true` 时进入 `attachmentParts`，part 形如 `{ type: "image", mediaType, uri, filename }`
+5. 非图片文件附件仅在 `promptCapabilities.embeddedContext === true` 时进入 `attachmentParts`，part 形如 `{ type: "resource_link", mediaType, uri, filename }`
+6. 不被当前 agent capability 支持的附件 SHALL 被过滤，不进入 `chatStore.sendMessage(parts)`，不触发额外 toast
+7. 附件 `uri` 由 `chat:saveAttachment` 落盘后返回的 `file://` URI 取得；UI 在用户选择文件时立即调用 `saveAttachment` 并把 `uri` / `filename` / `mediaType` 缓存到 `attachments` 元素上
 
-发送前 SHALL 做能力 gating：
+如果 `input.value.trim()` 为空且 `attachmentParts` 为空，`useChatPrompt.handleSubmit` SHALL 不调用 `chatStore.sendMessage`，不清空 `input` 或 `attachments`。
 
-- 含 image part 时 `promptCapabilities.image` 必须为 `true`
-- 含 resource_link part 时 `promptCapabilities.embeddedContext` 必须为 `true`
-- 不满足时 SHALL 阻止发送，调用 `useToast().add({ title: "当前 agent 不支持 X 附件，请移除后再发送", color: "warning" })`，不修改 attachments、不清空 input
-
-`useChatPrompt.handleSubmit` 接受 `parts: ChatPromptPart[]` 而非 string；submit 成功后清空 `input` 与 `attachments`，并调用 `revokeChatPromptAttachmentPreview`。
+submit 成功后 SHALL 清空 `input` 与 `attachments`，并调用 `revokeChatPromptAttachmentPreview`。
 
 #### Scenario: 发送只含文本的消息
 
@@ -511,16 +510,26 @@ chat 页面错误状态 SHALL 满足：
 #### Scenario: 文本为空但有附件时仍发送 empty text part
 
 - **WHEN** `input.value` 为空字符串，attachments 含一张图片
+- **AND** 当前 agent 支持 image
 - **THEN** parts 形如 `[{ type: "text", text: "" }, { type: "image", ... }]`
 - **AND** 至少包含一个 part，IPC schema 校验通过
 
-#### Scenario: 切换 agent 后已选附件不被支持时阻止发送
+#### Scenario: 切换 agent 后已选附件不被支持时过滤附件
 
 - **WHEN** 用户在支持 image 的 agent 下选了一张图片
 - **AND** 切换到 `promptCapabilities.image === false` 的 agent
+- **AND** `input.value` 为 `"see image"`
+- **AND** 点击发送
+- **THEN** `chatStore.sendMessage([{ type: "text", text: "see image" }])` 被调用
+- **AND** 图片附件不进入发送 parts
+- **AND** 发送成功后 `input` 与 `attachments` 清空，图片 `previewUrl` 被 `URL.revokeObjectURL` 释放
+
+#### Scenario: 文本为空且附件全部不被支持时不发送
+
+- **WHEN** `input.value` 为空字符串，attachments 含一张图片
+- **AND** 当前 agent 的 `promptCapabilities.image === false`
 - **AND** 点击发送
 - **THEN** `chatStore.sendMessage` 不被调用
-- **AND** 弹出 toast `"当前 agent 不支持图片附件，请移除后再发送"`
 - **AND** input 与 attachments 不变
 
 ### Requirement: 附件用户消息渲染图片缩略图与文件名片
