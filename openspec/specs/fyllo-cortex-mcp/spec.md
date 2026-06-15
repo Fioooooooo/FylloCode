@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change rename-fyllo-skills-to-fyllo-cortex. Update Purpose after archive.
+Define the bundled `fyllo-cortex` MCP server contract. This server owns the project-guidelines tool surface and is the extension point for future FylloCode core tools.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ TBD - created by archiving change rename-fyllo-skills-to-fyllo-cortex. Update Pu
 
 - **WHEN** MCP client calls `tools/list` on `fyllo-cortex`
 - **THEN** the returned tool list contains a tool named `guidelines`
-- **AND** no returned tool is namespaced under `fyllo-skills`
+- **AND** no returned tool is namespaced under a legacy guidelines server name
 
 #### Scenario: guidelines accepts only mode input
 

@@ -197,7 +197,7 @@ reminder SHALL说明:
 - **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to consider local guideline creation or updates before creating proposals for code, behavior, architecture, testing, workflow, or convention changes
 - **AND** 文本 does not include full guideline document templates
-- **AND** 文本不包含 `fyllo-skills`
+- **AND** 文本不包含 legacy guidelines server name
 
 ### Requirement: apply reminder 暴露 worktreePath
 
@@ -241,7 +241,7 @@ reminder SHALL说明:
 - **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to read applicable local repository guidelines before editing code
 - **AND** 文本 tells the agent to update missing, stale, or inconsistent guidelines as part of the same change when implementation reveals that need
-- **AND** 文本不包含 `fyllo-skills`
+- **AND** 文本不包含 legacy guidelines server name
 
 ### Requirement: archive reminder 编排 worktree 4 步收尾
 
@@ -287,7 +287,7 @@ reminder SHALL说明:
 - **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to check whether the completed change should have updated local guidelines
 - **AND** 文本 keeps detailed guideline document templates out of the reminder
-- **AND** 文本不包含 `fyllo-skills`
+- **AND** 文本不包含 legacy guidelines server name
 
 ### Requirement: reminders route agents to the guidelines skill without embedding guideline content
 
@@ -301,8 +301,8 @@ System-reminder templates SHALL NOT embed the full project guidelines document c
 - **THEN** the rendered reminder mentions `fyllo-cortex.guidelines`
 - **AND** the rendered reminder mentions `mcp__fyllo_cortex__guidelines`
 - **AND** the rendered reminder describes it as the source for project guidelines file contract and maintenance rules
-- **AND** the rendered reminder does not mention `fyllo-skills.guidelines`
-- **AND** the rendered reminder does not mention `mcp__fyllo_skills__guidelines`
+- **AND** the rendered reminder does not mention a legacy guidelines server route
+- **AND** the rendered reminder does not mention a legacy Codex-style guidelines function name
 
 #### Scenario: reminders do not duplicate guidelines instruction
 
