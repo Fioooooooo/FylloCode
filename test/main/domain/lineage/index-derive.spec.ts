@@ -60,6 +60,34 @@ describe("lineage index derivation", () => {
         "change-1": "subject-1",
         "change-2": "subject-1",
       },
+      commitHashes: {},
+    });
+  });
+
+  it("derives proposal commit hash entries for a subject", () => {
+    expect(
+      deriveIndexEntries(
+        subject({
+          links: [
+            {
+              sessionId: "session-1",
+              createdAt: "2026-06-09T00:01:00.000Z",
+              proposals: [
+                {
+                  changeId: "change-1",
+                  commitHash: "abc123",
+                  createdAt: "2026-06-09T00:02:00.000Z",
+                },
+              ],
+            },
+          ],
+        })
+      )
+    ).toEqual({
+      tasks: { "local:task-1": "subject-1" },
+      sessions: { "session-1": "subject-1" },
+      proposals: { "change-1": "subject-1" },
+      commitHashes: { abc123: "subject-1" },
     });
   });
 
@@ -91,6 +119,7 @@ describe("lineage index derivation", () => {
         "change-2": "subject-1",
         "change-3": "subject-2",
       },
+      commitHashes: {},
       updatedAt: "2026-06-09T00:07:00.000Z",
     });
   });

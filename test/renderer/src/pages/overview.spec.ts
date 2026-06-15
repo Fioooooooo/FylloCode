@@ -75,7 +75,7 @@ function overview(): ProjectOverview {
         sessionCount: 1,
         proposalCount: 1,
         archiveCommitHash: "abc123archive",
-        proposalStatus: "merged",
+        proposalStatus: "completed",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },

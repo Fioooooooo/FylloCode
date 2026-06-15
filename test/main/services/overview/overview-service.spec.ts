@@ -274,12 +274,12 @@ describe("overview-service", () => {
       }),
       expect.objectContaining({
         subjectId: "recent-merged",
-        proposalStatus: "merged",
+        proposalStatus: "completed",
         archiveCommitHash: "abc123archive",
       }),
       expect.objectContaining({
         subjectId: "recent-persisted",
-        proposalStatus: "merged",
+        proposalStatus: "completed",
         archiveCommitHash: "stored123",
       }),
       expect.objectContaining({
@@ -341,7 +341,7 @@ describe("overview-service", () => {
     expect(overview.recentLineages).toEqual([
       expect.objectContaining({
         subjectId: "recent-missing",
-        proposalStatus: "merged",
+        proposalStatus: "completed",
         archiveCommitHash: "git123",
       }),
     ]);
