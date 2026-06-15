@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the `fyllo-skills` MCP server will be documented in this file.
+All notable changes to the `fyllo-cortex` MCP server will be documented in this file.
 
 The format is based on Keep a Changelog.
 
@@ -19,7 +19,7 @@ The format is based on Keep a Changelog.
 
 ## [0.1.0] - 2026-05-21
 
-Initial bundled release of the `fyllo-skills` MCP server.
+Initial bundled release of the `fyllo-cortex` MCP server.
 
 ### Added
 

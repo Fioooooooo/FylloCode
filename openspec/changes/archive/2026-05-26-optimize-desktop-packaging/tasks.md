@@ -35,8 +35,8 @@
 
 ## 4. 验证与文档
 
-- [x] 4.1 运行 `pnpm build:unpack`，确认当前平台解包产物可生成，并检查 asar 外部存在 `mcp-servers/fyllo-specs/index.js` 与 `mcp-servers/fyllo-skills/index.js`。
-  - `pnpm build:unpack` passed on macOS x64 after the final `files` rule update. Verified `app.asar.unpacked/mcp-servers/fyllo-specs/index.js` and `app.asar.unpacked/mcp-servers/fyllo-skills/index.js` exist. Verified `app.asar` still contains `/node_modules/@fission-ai/openspec/bin/openspec.js`, `yaml/dist/doc/directives.js`, and core app files under `out/**`.
+- [x] 4.1 运行 `pnpm build:unpack`，确认当前平台解包产物可生成，并检查 asar 外部存在 `mcp-servers/fyllo-specs/index.js` 与 `mcp-servers/fyllo-cortex/index.js`。
+  - `pnpm build:unpack` passed on macOS x64 after the final `files` rule update. Verified `app.asar.unpacked/mcp-servers/fyllo-specs/index.js` and `app.asar.unpacked/mcp-servers/fyllo-cortex/index.js` exist. Verified `app.asar` still contains `/node_modules/@fission-ai/openspec/bin/openspec.js`, `yaml/dist/doc/directives.js`, and core app files under `out/**`.
   - Verified `app.asar` does not include excluded project source folders, `.claude` / `.github` / `.cursor` / `.vscode` metadata, `electron-builder.yml`, test/spec files, benchmark folders, or security/code-of-conduct markdown from the sampled exclusion patterns.
 - [ ] 4.2 运行 `pnpm build:win:x64`，确认 Windows setup、blockmap、`latest.yml` 与 `win-unpacked` 正常生成；如当前环境不能完整验证 Windows 安装耗时，在任务结果中明确记录未验证原因和需在 Windows 机器补测的命令。
   - `pnpm package:win:x64` completed after rerunning outside the sandbox for wine/rcedit. Generated Windows setup, `.blockmap`, and `win-unpacked`.

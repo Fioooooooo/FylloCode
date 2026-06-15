@@ -282,11 +282,11 @@ ACP Session: `80df0ad6-ea4a-4916-925d-f323c4ff3230`
 
 ---
 
-## MCP Tool（fyllo-skills / fyllo-specs）
+## MCP Tool（fyllo-cortex / fyllo-specs）
 
 > Gemini 的 MCP 工具调用没有独立的 tool_call_start，直接出现在 tool_call_update 中（completed）。
 
-### tool_call_update（fyllo-skills/guidelines，completed）
+### tool_call_update（fyllo-cortex/guidelines，completed）
 
 ```json
 {
@@ -296,8 +296,8 @@ ACP Session: `80df0ad6-ea4a-4916-925d-f323c4ff3230`
   "kind": "other",
   "locations": [],
   "status": "completed",
-  "title": "guidelines (fyllo-skills MCP Server)",
-  "toolCallId": "mcp_fyllo-skills_guidelines__20jmm9fz",
+  "title": "guidelines (fyllo-cortex MCP Server)",
+  "toolCallId": "mcp_fyllo-cortex_guidelines__20jmm9fz",
   "sessionUpdate": "tool_call_update"
 }
 ```
@@ -307,7 +307,7 @@ ACP Session: `80df0ad6-ea4a-4916-925d-f323c4ff3230`
 ```json
 {
   "type": "tool_call_update",
-  "toolCallId": "mcp_fyllo-skills_guidelines__20jmm9fz",
+  "toolCallId": "mcp_fyllo-cortex_guidelines__20jmm9fz",
   "status": "completed",
   "content": "{\"guidelines\": [...]}"
 }

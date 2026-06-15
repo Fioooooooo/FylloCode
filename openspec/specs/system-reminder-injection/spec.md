@@ -159,7 +159,7 @@ reminder 相关代码（provider、模板、类型）SHALL 全部位于 `src/mai
 
 reminder SHALL also lightly route project-guidelines behavior:
 
-- It SHALL mention `fyllo-skills.guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
+- It SHALL mention `fyllo-cortex.guidelines` and `mcp__fyllo_cortex__guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
 - Before creating a proposal for a code, behavior, architecture, testing, workflow, or convention change, it SHALL instruct the agent to consider whether local repository guidelines should be created or updated.
 - It SHALL keep detailed guidelines authoring rules out of the reminder.
 
@@ -190,12 +190,14 @@ reminder SHALL说明:
 - **AND** `<critical>` 段中 "MUST obtain explicit user consent before calling create-proposal" 约束仍存在
 - **AND** 文本指示 agent 不得在用户进入 Apply 或 Archive stage 前调用 `apply-change` 或 `archive-change`
 
-#### Scenario: chat reminder routes proposal planning to guidelines skill
+#### Scenario: chat reminder routes proposal planning to guidelines tool
 
 - **WHEN** 主进程为 chat owner 渲染 system-reminder 文本
-- **THEN** 文本包含 `fyllo-skills.guidelines`
+- **THEN** 文本包含 `mcp__fyllo_cortex__guidelines`
+- **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to consider local guideline creation or updates before creating proposals for code, behavior, architecture, testing, workflow, or convention changes
 - **AND** 文本 does not include full guideline document templates
+- **AND** 文本不包含 `fyllo-skills`
 
 ### Requirement: apply reminder 暴露 worktreePath
 
@@ -203,7 +205,7 @@ reminder SHALL说明:
 
 reminder SHALL also lightly route project-guidelines behavior:
 
-- It SHALL mention `fyllo-skills.guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
+- It SHALL mention `fyllo-cortex.guidelines` and `mcp__fyllo_cortex__guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
 - Before editing code, it SHALL instruct the agent to read applicable local repository guidelines.
 - If implementation reveals guidelines are missing, stale, or inconsistent with repository facts, it SHALL instruct the agent to update the relevant guidelines as part of the same change.
 - It SHALL keep detailed guidelines authoring rules out of the reminder.
@@ -235,9 +237,11 @@ reminder SHALL说明:
 #### Scenario: apply reminder routes implementation to local guidelines
 
 - **WHEN** 主进程为 apply owner 渲染 system-reminder 文本
-- **THEN** 文本包含 `fyllo-skills.guidelines`
+- **THEN** 文本包含 `mcp__fyllo_cortex__guidelines`
+- **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to read applicable local repository guidelines before editing code
 - **AND** 文本 tells the agent to update missing, stale, or inconsistent guidelines as part of the same change when implementation reveals that need
+- **AND** 文本不包含 `fyllo-skills`
 
 ### Requirement: archive reminder 编排 worktree 4 步收尾
 
@@ -245,7 +249,7 @@ reminder SHALL说明:
 
 reminder SHALL also lightly route project-guidelines behavior:
 
-- It SHALL mention `fyllo-skills.guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
+- It SHALL mention `fyllo-cortex.guidelines` and `mcp__fyllo_cortex__guidelines` as the bundled tool for project guidelines file contract and maintenance rules.
 - Before final archive, it SHALL instruct the agent to check whether the completed change altered commands, architecture, tests, workflow, data contracts, or project conventions that should have updated local guidelines.
 - It SHALL keep detailed guidelines authoring rules out of the reminder.
 
@@ -279,21 +283,26 @@ reminder SHALL说明:
 #### Scenario: archive reminder routes final guideline check
 
 - **WHEN** 主进程为 archive owner 渲染 system-reminder 文本
-- **THEN** 文本包含 `fyllo-skills.guidelines`
+- **THEN** 文本包含 `mcp__fyllo_cortex__guidelines`
+- **AND** 文本包含 `fyllo-cortex.guidelines`
 - **AND** 文本 tells the agent to check whether the completed change should have updated local guidelines
 - **AND** 文本 keeps detailed guideline document templates out of the reminder
+- **AND** 文本不包含 `fyllo-skills`
 
 ### Requirement: reminders route agents to the guidelines skill without embedding guideline content
 
-System-reminder templates SHALL mention that a bundled MCP tool named `fyllo-skills.guidelines` is available for the project guidelines file contract and maintenance rules.
+System-reminder templates SHALL mention that a bundled MCP tool named `fyllo-cortex.guidelines` is available for the project guidelines file contract and maintenance rules, and SHALL use `mcp__fyllo_cortex__guidelines` when referring to the Codex-style tool function name.
 
-System-reminder templates SHALL NOT embed the full project guidelines document contract, guideline templates, or detailed authoring rules. Detailed guidelines content SHALL live in the `fyllo-skills.guidelines` tool instruction.
+System-reminder templates SHALL NOT embed the full project guidelines document contract, guideline templates, or detailed authoring rules. Detailed guidelines content SHALL live in the `fyllo-cortex.guidelines` tool instruction.
 
 #### Scenario: reminders mention guidelines tool
 
 - **WHEN** main process renders any owner system-reminder template
-- **THEN** the rendered reminder mentions `fyllo-skills.guidelines`
+- **THEN** the rendered reminder mentions `fyllo-cortex.guidelines`
+- **AND** the rendered reminder mentions `mcp__fyllo_cortex__guidelines`
 - **AND** the rendered reminder describes it as the source for project guidelines file contract and maintenance rules
+- **AND** the rendered reminder does not mention `fyllo-skills.guidelines`
+- **AND** the rendered reminder does not mention `mcp__fyllo_skills__guidelines`
 
 #### Scenario: reminders do not duplicate guidelines instruction
 

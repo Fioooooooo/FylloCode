@@ -6,19 +6,19 @@
 
 返回的每个 `McpServerSpec` SHALL 至少包含 `name`、`command`、`args`、`env` 四个字段，用于传递给 ACP 的 `connection.newSession`、`connection.resumeSession` 与 `connection.loadSession`。
 
-When bundled MCP is enabled, `getBundledMcpServers` SHALL return specs for both `fyllo-specs` and `fyllo-skills`. The returned order SHALL be stable with `fyllo-specs` before `fyllo-skills`.
+When bundled MCP is enabled, `getBundledMcpServers` SHALL return specs for both `fyllo-specs` and `fyllo-cortex`. The returned order SHALL be stable with `fyllo-specs` before `fyllo-cortex`.
 
 #### Scenario: 开发环境 specs 指向 out 目录
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 在 `is.dev === true` 时被调用
 - **THEN** 返回一个 `name === "fyllo-specs"` 的 spec，其 `args[0]` 指向项目根下的 `out/mcp-servers/fyllo-specs/index.js`
-- **AND** 返回一个 `name === "fyllo-skills"` 的 spec，其 `args[0]` 指向项目根下的 `out/mcp-servers/fyllo-skills/index.js`
+- **AND** 返回一个 `name === "fyllo-cortex"` 的 spec，其 `args[0]` 指向项目根下的 `out/mcp-servers/fyllo-cortex/index.js`
 
 #### Scenario: 生产环境 specs 指向 unpacked resources 目录
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 在生产环境调用
 - **THEN** `fyllo-specs` spec 的 `args[0]` 通过 `@main/infra/paths#getAppUnpackedPath()` 拼接 `mcp-servers/fyllo-specs/index.js` 得到
-- **AND** `fyllo-skills` spec 的 `args[0]` 通过 `@main/infra/paths#getAppUnpackedPath()` 拼接 `mcp-servers/fyllo-skills/index.js` 得到
+- **AND** `fyllo-cortex` spec 的 `args[0]` 通过 `@main/infra/paths#getAppUnpackedPath()` 拼接 `mcp-servers/fyllo-cortex/index.js` 得到
 - **AND** 不包含对 `process.resourcesPath`、`app.getAppPath()`、`app.asar.unpacked` 的直接引用
 
 #### Scenario: 启动命令统一使用 Electron binary 作 Node
@@ -44,7 +44,7 @@ When bundled MCP is enabled, `getBundledMcpServers` SHALL return specs for both 
 
 MCP server 实现 SHALL 优先读取 `FYLLO_PROJECT_PATH` 而非 `process.cwd()` 来解析项目路径。
 
-Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-skills` SHALL NOT receive that OpenSpec-specific environment variable.
+Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-cortex` SHALL NOT receive that OpenSpec-specific environment variable.
 
 #### Scenario: env 覆盖完整
 
@@ -67,7 +67,7 @@ Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-skil
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 返回 specs
 - **THEN** the `name === "fyllo-specs"` spec env contains `FYLLO_OPENSPEC_CLI_PATH`
-- **AND** the `name === "fyllo-skills"` spec env does not contain `FYLLO_OPENSPEC_CLI_PATH`
+- **AND** the `name === "fyllo-cortex"` spec env does not contain `FYLLO_OPENSPEC_CLI_PATH`
 
 #### Scenario: MCP server 优先使用 FYLLO_PROJECT_PATH
 

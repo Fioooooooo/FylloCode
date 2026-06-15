@@ -50,7 +50,7 @@ keywords: [architecture, electron, vue, layering, boundaries]
 
 - Good: `src/renderer/src/api/project.ts` 作为渲染层调用 `window.api.project.*` 的薄封装，避免组件直接接触 preload bridge。
 - Good: `src/shared/schemas/ipc/` 中集中维护 Zod 入参校验 schema，由主进程 handler 消费。
-- Good: `src/mcp-servers/fyllo-specs/` 和 `src/mcp-servers/fyllo-skills/` 作为独立 Node 目标，通过 `scripts/build-mcp-servers.mjs` 构建到 `out/mcp-servers/`。
+- Good: `src/mcp-servers/fyllo-specs/` 和 `src/mcp-servers/fyllo-cortex/` 作为独立 Node 目标，通过 `scripts/build-mcp-servers.mjs` 构建到 `out/mcp-servers/`。
 - Bad: 在 `src/renderer/src/components/**` 中直接访问 `ipcRenderer`、`fs`、`process.resourcesPath` 或 `@main/*`。
 - Bad: 在 `src/main/services/**` 里硬编码 renderer 路由路径、Vue 组件名或浏览器 DOM 逻辑。
 

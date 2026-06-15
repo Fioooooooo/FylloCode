@@ -1,6 +1,6 @@
 ## Why
 
-FylloCode 通过 Cmd+Q 等正常路径退出后，由 ACP agent 进程（如 `codex-acp`）拉起的 MCP 子进程（`fyllo-skills`、`fyllo-specs`、`pencil` 等）以及 ACP agent 自身在系统中残留为孤儿进程，PPID 被 reparent 到 PID 1（macOS 的 `launchd` / Linux 的 `systemd` / Windows 的 `services.exe`）后继续占用 CPU、文件句柄与端口。
+FylloCode 通过 Cmd+Q 等正常路径退出后，由 ACP agent 进程（如 `codex-acp`）拉起的 MCP 子进程（`fyllo-cortex`、`fyllo-specs`、`pencil` 等）以及 ACP agent 自身在系统中残留为孤儿进程，PPID 被 reparent 到 PID 1（macOS 的 `launchd` / Linux 的 `systemd` / Windows 的 `services.exe`）后继续占用 CPU、文件句柄与端口。
 
 根因是 `electron/main/infra/process/acp-process-pool.ts` 在 spawn ACP agent 时未启用进程组隔离，dispose 阶段调用 `child.kill()` 只对 ACP agent 直接进程发 SIGTERM，**信号不会传递到 ACP agent 派生的 MCP 孙进程**；同时 graceful 等待 2 秒后才强杀，加上外层 `disposeAll()` 的 5 秒总超时，强杀路径常常被截断。
 

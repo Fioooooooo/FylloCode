@@ -77,7 +77,7 @@ ACP 流式链路当前有两层数据表示：
 - `resolveStatus`：`status === "completed"` 且 `rawOutput.error` 为非空字符串时返回 `failed`，content 取 error 文本。
 - MCP 标识识别：优先用 `rawInput` 结构 `{ server, tool, arguments }`（codex 形态）判定，而非解析 title 字符串。
 
-**理由**：这两项无法从 ACP 规范推导，只能靠观察样本得到，天然只对见过的 agent 生效，属启发式纠偏。与协议派生的通用原则（决策 3）隔离，将来好加好删，且不会让其伪装成通用能力。原规划缺口 5 的"最后一个 `_`→`/`"规则建立在错误前提上（差异矩阵误记 gemini MCP title，实际为 `"guidelines (fyllo-skills MCP Server)"`），本期需先修正矩阵事实再实现。
+**理由**：这两项无法从 ACP 规范推导，只能靠观察样本得到，天然只对见过的 agent 生效，属启发式纠偏。与协议派生的通用原则（决策 3）隔离，将来好加好删，且不会让其伪装成通用能力。原规划缺口 5 的"最后一个 `_`→`/`"规则建立在错误前提上（差异矩阵误记 gemini MCP title，实际为 `"guidelines (fyllo-cortex MCP Server)"`），本期需先修正矩阵事实再实现。
 
 ### 决策 6：为 ACP 扩展字段预留可选字段位
 

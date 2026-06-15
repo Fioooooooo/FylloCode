@@ -1,0 +1,1 @@
+export const FYLLO_CORTEX_SERVER_VERSION = "0.2.0";

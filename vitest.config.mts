@@ -79,7 +79,7 @@ export default defineConfig({
         "src/renderer/src",
         "src/main",
         "src/mcp-servers/fyllo-specs",
-        "src/mcp-servers/fyllo-skills",
+        "src/mcp-servers/fyllo-cortex",
         "src/shared",
       ],
       exclude: [

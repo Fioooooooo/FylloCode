@@ -434,16 +434,16 @@ describe("mapSessionUpdate", () => {
       const update = {
         sessionUpdate: "tool_call",
         toolCallId: "call_mcp_1",
-        title: "Tool: fyllo-skills/guidelines",
+        title: "Tool: fyllo-cortex/guidelines",
         kind: "other",
         status: "in_progress",
-        rawInput: { server: "fyllo-skills", tool: "guidelines", arguments: { mode: "read" } },
+        rawInput: { server: "fyllo-cortex", tool: "guidelines", arguments: { mode: "read" } },
         content: [],
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toMatchObject({
         kind: "tool_call_start",
-        title: "fyllo-skills/guidelines",
+        title: "fyllo-cortex/guidelines",
       });
     });
 

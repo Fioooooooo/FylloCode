@@ -15,7 +15,7 @@ This release turns FylloCode into a more traceable project workspace. The new Ov
 - Origin task banner in Chat sessions started from a task, so users can see the task source even after returning to the conversation later
 - Chat `<fyllo-action>` rendering and persistence, starting with a confirmed `task.create` action that lets agents propose a local task from structured assistant output while FylloCode keeps validation and execution under user control
 - Open-discussion task creation flow for direct Chat sessions that produce proposals, allowing unbound conversations to create and bind a local task into the same lineage subject
-- VitePress documentation site with product guides, feature references, screenshots, ACP agent docs, `fyllo-specs` and `fyllo-skills` references, and docs build/preview scripts
+- VitePress documentation site with product guides, feature references, screenshots, ACP agent docs, `fyllo-specs` and `fyllo-cortex` references, and docs build/preview scripts
 - Codex session repair skill for recovering Codex CLI session JSONL files affected by encrypted-content parse failures
 
 ### Changed
@@ -222,12 +222,12 @@ This patch release adds the first end-to-end multimodal chat prompt flow. Users 
 
 ## [0.10.0] - 2026-05-24
 
-This release extends the built-in MCP workflow layer beyond the initial `0.9.0` stable baseline. It adds the new `fyllo-skills` bundled server, deepens `fyllo-specs` automation around OpenSpec setup and archive finalization, and fixes a visible chat stop-state issue during the first-message setup path.
+This release extends the built-in MCP workflow layer beyond the initial `0.9.0` stable baseline. It adds the new `fyllo-cortex` bundled server, deepens `fyllo-specs` automation around OpenSpec setup and archive finalization, and fixes a visible chat stop-state issue during the first-message setup path.
 
 ### Added
 
-- Bundled `fyllo-skills` MCP server with a `guidelines` tool for repository guideline authoring workflows
-- `fyllo-skills` `guidelines` read mode, returning scanned `guidelines/**/*.md` metadata so agents can inspect local guideline coverage
+- Bundled `fyllo-cortex` MCP server with a `guidelines` tool for repository guideline authoring workflows
+- `fyllo-cortex` `guidelines` read mode, returning scanned `guidelines/**/*.md` metadata so agents can inspect local guideline coverage
 - Automatic OpenSpec bootstrap in `fyllo-specs create-proposal`, including missing directory initialization and default config creation when needed
 - Automatic `guidelines-evaluation` rule injection for OpenSpec configs created or reused by `fyllo-specs`
 

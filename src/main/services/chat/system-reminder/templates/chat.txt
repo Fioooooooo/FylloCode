@@ -54,7 +54,7 @@ Treat the conversation as grounded in that task, but rely on explicit user messa
 
 ## Project Guidelines
 
-- `mcp__fyllo_skills__guidelines` is the bundled source for the project guidelines file contract and maintenance rules.
+- `mcp__fyllo_cortex__guidelines` is the bundled source for the project guidelines file contract and maintenance rules.
 - Before creating a proposal for code, behavior, architecture, testing, workflow, or convention changes, consider whether local repository guidelines should be created or updated.
 
 ## OpenSpec Judgment

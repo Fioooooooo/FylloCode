@@ -14,7 +14,7 @@
 
 ```
 501 18273  1  ... codex-acp                    # PPID = 1，已是孤儿
-501 18275 18273  ... fyllocode mcp-servers/fyllo-skills/index.js
+501 18275 18273  ... fyllocode mcp-servers/fyllo-cortex/index.js
 501 18276 18273  ... pencil/.../mcp-server-darwin-arm64
 501 18277 18273  ... fyllocode mcp-servers/fyllo-specs/index.js
 ```

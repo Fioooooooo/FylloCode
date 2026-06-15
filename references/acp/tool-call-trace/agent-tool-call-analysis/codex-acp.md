@@ -13,17 +13,17 @@
 
 ---
 
-### MCP Tool（fyllo-skills/guidelines）
+### MCP Tool（fyllo-cortex/guidelines）
 
 ```
 ← tool_call {
-  "rawInput": {"server":"fyllo-skills","tool":"guidelines","arguments":{"mode":"read"}},
+  "rawInput": {"server":"fyllo-cortex","tool":"guidelines","arguments":{"mode":"read"}},
   "status": "in_progress",
-  "title": "Tool: fyllo-skills/guidelines",
+  "title": "Tool: fyllo-cortex/guidelines",
   "toolCallId": "call_rivVn0kqMOGaXTNCAySriJT6",
   "sessionUpdate": "tool_call"
 }
-→ {"type":"tool_call_start","toolCallId":"call_rivVn0kqMOGaXTNCAySriJT6","title":"Tool: fyllo-skills/guidelines","kind":"other"}
+→ {"type":"tool_call_start","toolCallId":"call_rivVn0kqMOGaXTNCAySriJT6","title":"Tool: fyllo-cortex/guidelines","kind":"other"}
 
 ← tool_call_update {
   "content": [{"content":{"text":"{ \"guidelines\": [...] }","type":"text"},"type":"content"}],

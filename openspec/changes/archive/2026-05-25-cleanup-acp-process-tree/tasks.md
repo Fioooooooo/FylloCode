@@ -39,7 +39,7 @@
 
 ## 6. 端到端手工验证（由用户在 main worktree 完成）
 
-- [ ] 6.1 在 macOS（用户主开发机）执行：`pnpm dev` → 选择 codex agent 发起一次对话 → `ps -ef | grep -E "codex-acp|fyllo-skills|fyllo-specs|pencil"` 记录 PID 树 → Cmd+Q 关闭 FylloCode → 再次 `ps -ef | grep ...` 确认全部进程消失。
+- [ ] 6.1 在 macOS（用户主开发机）执行：`pnpm dev` → 选择 codex agent 发起一次对话 → `ps -ef | grep -E "codex-acp|fyllo-cortex|fyllo-specs|pencil"` 记录 PID 树 → Cmd+Q 关闭 FylloCode → 再次 `ps -ef | grep ...` 确认全部进程消失。
 - [ ] 6.2 （可选）在 Linux 上重复 6.1 流程；用 `pgrep -f codex-acp` / `pgrep -f fyllo-` 替代。
 - [ ] 6.3 （可选）在 Windows 上重复 6.1 流程；用 PowerShell `Get-Process | Where-Object { $_.Path -like "*codex-acp*" -or $_.Path -like "*FylloCode*MCP*" }` 或 Task Manager 验证。
 - [ ] 6.4 验证退出耗时：从触发 Cmd+Q 到 dock 图标消失，正常情况应在 2 秒内（graceful close 即可结束）；最坏情况不超过 8 秒。

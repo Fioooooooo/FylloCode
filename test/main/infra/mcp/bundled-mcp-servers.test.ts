@@ -17,13 +17,13 @@ describe("bundled mcp servers", () => {
 
   it("returns dev bundle specs in stable order", () => {
     const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
-    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-skills"]);
+    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-cortex"]);
     expect(specs[0]?.command).toBe(process.execPath);
     expect(specs[0]?.args[0]).toBe(
       join(process.cwd(), "out", "mcp-servers", "fyllo-specs", "index.js")
     );
     expect(specs[1]?.args[0]).toBe(
-      join(process.cwd(), "out", "mcp-servers", "fyllo-skills", "index.js")
+      join(process.cwd(), "out", "mcp-servers", "fyllo-cortex", "index.js")
     );
     expect(specs[0]?.env).toEqual(
       expect.objectContaining({
@@ -56,7 +56,7 @@ describe("bundled mcp servers", () => {
 
     const specs = getBundledMcpServers({ projectPath: "/tmp/project" });
 
-    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-skills"]);
+    expect(specs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-cortex"]);
     expect(specs[0]?.args[0]).toBe(
       join(
         "/Applications/FylloCode.app/Contents/Resources",
@@ -71,7 +71,7 @@ describe("bundled mcp servers", () => {
         "/Applications/FylloCode.app/Contents/Resources",
         "app.asar.unpacked",
         "mcp-servers",
-        "fyllo-skills",
+        "fyllo-cortex",
         "index.js"
       )
     );

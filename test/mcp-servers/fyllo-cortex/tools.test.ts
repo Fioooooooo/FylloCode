@@ -10,16 +10,16 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-skills/src/types";
-import { registerTools } from "../../../src/mcp-servers/fyllo-skills/src/tools";
+import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types";
+import { registerTools } from "../../../src/mcp-servers/fyllo-cortex/src/tools";
 
 async function createToolClient(): Promise<{
   client: Client;
   close: () => Promise<void>;
 }> {
-  const server = new McpServer({ name: "fyllo-skills-test", version: "1.0.0" });
+  const server = new McpServer({ name: "fyllo-cortex-test", version: "1.0.0" });
   registerTools(server);
-  const client = new Client({ name: "fyllo-skills-client", version: "1.0.0" });
+  const client = new Client({ name: "fyllo-cortex-client", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   return {
@@ -70,7 +70,7 @@ function parseReadPayload(text: string): { guidelines: GuidelineEntry[] } {
   return JSON.parse(text) as { guidelines: GuidelineEntry[] };
 }
 
-describe("fyllo-skills tools", () => {
+describe("fyllo-cortex tools", () => {
   it("lists only the guidelines tool", async () => {
     const { client, close } = await createToolClient();
     try {
@@ -121,7 +121,7 @@ describe("fyllo-skills tools", () => {
 
   it("returns guideline entries when mode=read", async () => {
     const originalCwd = process.cwd();
-    const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-skills-"));
+    const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
     const guidelinesDir = join(tmpDir, "guidelines");
     const frontendDir = join(guidelinesDir, "frontend");
     const { client, close } = await createToolClient();
@@ -185,7 +185,7 @@ describe("fyllo-skills tools", () => {
 
   it("returns empty array when guidelines directory missing", async () => {
     const originalCwd = process.cwd();
-    const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-skills-"));
+    const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
     const { client, close } = await createToolClient();
 
     try {

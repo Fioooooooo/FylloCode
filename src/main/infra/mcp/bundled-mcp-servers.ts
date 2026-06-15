@@ -4,7 +4,7 @@ import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
 import { mcpEventsDir } from "@main/infra/storage/project-paths";
 import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
 
-type BundledMcpServerName = "fyllo-specs" | "fyllo-skills";
+type BundledMcpServerName = "fyllo-specs" | "fyllo-cortex";
 
 interface BundledMcpServerRegistration {
   name: BundledMcpServerName;
@@ -19,7 +19,7 @@ const bundledMcpServers: BundledMcpServerRegistration[] = [
     }),
   },
   {
-    name: "fyllo-skills",
+    name: "fyllo-cortex",
   },
 ];
 

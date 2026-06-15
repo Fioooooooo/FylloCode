@@ -114,7 +114,7 @@ describe("system-reminder templates", () => {
     expect(() => wrapAsSystemReminder(applyTemplate)).not.toThrow();
   });
 
-  it("routes chat and apply reminders to fyllo-skills guidelines", () => {
+  it("routes chat and apply reminders to fyllo-cortex guidelines", () => {
     const chatReminder = renderSystemReminderTemplate(
       chatTemplate,
       createContext({ owner: "chat" })
@@ -124,8 +124,11 @@ describe("system-reminder templates", () => {
       createContext({ owner: "apply" })
     );
 
-    expect(chatReminder).toContain("mcp__fyllo_skills__guidelines");
-    expect(applyReminder).toContain("mcp__fyllo_skills__guidelines");
+    expect(chatReminder).toContain("mcp__fyllo_cortex__guidelines");
+    expect(applyReminder).toContain("mcp__fyllo_cortex__guidelines");
+    const legacyToolName = ["mcp", "fyllo", "skills", "guidelines"].join("__");
+    expect(chatReminder).not.toContain(legacyToolName);
+    expect(applyReminder).not.toContain(legacyToolName);
   });
 
   it("keeps detailed guideline template headings out of chat and apply reminders", () => {

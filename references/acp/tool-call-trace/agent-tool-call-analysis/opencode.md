@@ -278,7 +278,7 @@
 
 ---
 
-### MCP Tool（fyllo-skills_guidelines）
+### MCP Tool（fyllo-cortex_guidelines）
 
 ```
 ← tool_call {
@@ -286,11 +286,11 @@
   "locations": [],
   "rawInput": {},
   "status": "pending",
-  "title": "fyllo-skills_guidelines",
+  "title": "fyllo-cortex_guidelines",
   "toolCallId": "call_06_hrk9qzR3fDHJnxE8AQEt3224",
   "sessionUpdate": "tool_call"
 }
-→ {"type":"tool_call_start","toolCallId":"call_06_hrk9qzR3fDHJnxE8AQEt3224","title":"fyllo-skills_guidelines","kind":"other"}
+→ {"type":"tool_call_start","toolCallId":"call_06_hrk9qzR3fDHJnxE8AQEt3224","title":"fyllo-cortex_guidelines","kind":"other"}
 
 ← tool_call_update {
   "kind": "other",

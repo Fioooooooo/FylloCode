@@ -1,14 +1,14 @@
 ## MODIFIED Requirements
 
-### Requirement: fyllo-skills MCP server registers only the guidelines tool
+### Requirement: fyllo-cortex MCP server registers only the guidelines tool
 
-`fyllo-skills` MCP server SHALL be implemented as a bundled stdio MCP server under `mcp-servers/fyllo-skills/`. It SHALL register exactly one tool named `guidelines`.
+`fyllo-cortex` MCP server SHALL be implemented as a bundled stdio MCP server under `mcp-servers/fyllo-cortex/`. It SHALL register exactly one tool named `guidelines`.
 
 The `guidelines` tool SHALL accept exactly one required input field: `mode`, with allowed values `"read"` or `"write"`. The input schema SHALL NOT define a default for `mode`. The input schema SHALL NOT require or accept project-specific parameters such as `targetPath`, `changeName`, or `includeInstruction`.
 
 #### Scenario: tool list contains only guidelines
 
-- **WHEN** MCP client calls `tools/list` on `fyllo-skills`
+- **WHEN** MCP client calls `tools/list` on `fyllo-cortex`
 - **THEN** the returned tool list contains exactly one tool
 - **AND** that tool name is `guidelines`
 
@@ -160,14 +160,14 @@ The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat
 - **AND** returned instruction does not contain `worktree`
 - **AND** returned instruction does not contain `commit`
 
-### Requirement: fyllo-skills has independent server metadata and tests
+### Requirement: fyllo-cortex has independent server metadata and tests
 
-`fyllo-skills` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
+`fyllo-cortex` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
 
-#### Scenario: server metadata uses fyllo-skills name
+#### Scenario: server metadata uses fyllo-cortex name
 
-- **WHEN** `fyllo-skills` starts its `McpServer`
-- **THEN** the server name is `fyllo-skills`
+- **WHEN** `fyllo-cortex` starts its `McpServer`
+- **THEN** the server name is `fyllo-cortex`
 
 #### Scenario: tests verify guidelines write response
 

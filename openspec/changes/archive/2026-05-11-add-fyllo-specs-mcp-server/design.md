@@ -19,7 +19,7 @@ FylloCode 的 chat 能力基于 ACP 协议：主进程通过 `services/chat/acp-
 
 **Non-Goals:**
 
-- 不实现 `fyllo-skills` MCP server（另一个 change）。
+- 不实现 `fyllo-cortex` MCP server（另一个 change）。
 - 不处理"用户自定义 MCP"与内置 MCP 的合并（归 `integration-custom-mcp`，留空位）。
 - 不为内置 MCP 提供 UI（首版默认全开，无 toggle）。
 - 不保证兼容非 `claude-acp` 的 ACP agent 的 MCP 行为差异。

@@ -44,7 +44,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
         ↑ writes back results
 ┌──────────────────────────────┐
 │         FylloCode            │  ← governance layer
-│  fyllo-specs · fyllo-skills  │
+│  fyllo-specs · fyllo-cortex  │
 └──────────────────────────────┘
         ↓ constraints & context injection
    Coding Agent (any)
@@ -58,7 +58,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 | **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                       |
 | **Full traceability**          | Task → Chat → Proposal → Apply & Archive — every step recorded as one lineage, from intent to execution                                               |
 | **Project overview**           | Each project opens to an overview page aggregating governance status, active changes, recent lineage threads, and spec/guideline evolution trends     |
-| **Self-evolving rules**        | `fyllo-skills` currently ships the `guidelines` tool, which auto-updates project conventions after each task so agents always work from current rules |
+| **Self-evolving rules**        | `fyllo-cortex` currently ships the `guidelines` tool, which auto-updates project conventions after each task so agents always work from current rules |
 | **Writes back to dev systems** | Task results sync back to your existing project management tools — no new silos                                                                       |
 
 ---
@@ -116,7 +116,7 @@ and multiple tasks can run in parallel at different stages without blocking each
 
 Once the change lands, the complete record is automatically archived: code change scope, decision context, spec
 updates, guidelines evolution, and a refreshed project health score. Part of this feeds back into `fyllo-specs` and
-`fyllo-skills` as background knowledge for the next task — closing the lineage so the next Task no longer starts from
+`fyllo-cortex` as background knowledge for the next task — closing the lineage so the next Task no longer starts from
 scratch. The rest syncs to your existing dev systems — no new tool silos.
 
 ---
@@ -148,7 +148,7 @@ Before it writes any code, a FylloCode Agent has access to:
 - **Project specs** (from `fyllo-specs`: architecture constraints, naming conventions, restricted operations)
 - **Historical decision context** (why this module was designed this way, which directions were ruled out)
 - **Change history** (what problem was being solved the last time this area was touched)
-- **Evolving guidelines** (from `fyllo-skills`, auto-updated after each task)
+- **Evolving guidelines** (from `fyllo-cortex`, auto-updated after each task)
 
 It knows **why** the project became what it is today — not just **what** it is.
 
@@ -159,7 +159,7 @@ It knows **why** the project became what it is today — not just **what** it is
 Sustaining a project over time means turning what the team learns in practice — mistakes made, conventions reached,
 recurring patterns — into structured context that agents can use directly in the next task.
 
-This is currently implemented through the `fyllo-skills.guidelines` tool: during Chat and Proposal, the Agent considers
+This is currently implemented through the `fyllo-cortex.guidelines` tool: during Chat and Proposal, the Agent considers
 whether the guidelines need updating; while applying, project conventions are automatically updated based on the task
 details — so agents always work from current rules, not a manually maintained document that drifts over time.
 
@@ -197,7 +197,7 @@ Task results can be written back to existing dev systems to maintain toolchain c
 | Client         | Electron · Vue 3 · TypeScript                          |
 | Agent protocol | Agent Client Protocol (ACP)                            |
 | Spec server    | `fyllo-specs` (MCP Server enhanced on top of OpenSpec) |
-| Skills server  | `fyllo-skills` MCP Server                              |
+| Cortex server  | `fyllo-cortex` MCP Server                              |
 
 ---
 

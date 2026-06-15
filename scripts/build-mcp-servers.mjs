@@ -10,7 +10,7 @@ const bundledMcpServers = [
     external: ["@fission-ai/openspec"],
   },
   {
-    name: "fyllo-skills",
+    name: "fyllo-cortex",
     external: [],
   },
 ];

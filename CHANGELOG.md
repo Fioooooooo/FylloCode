@@ -15,7 +15,7 @@
 - 从任务发起的 Chat 会话新增来源任务横幅，重新进入对话后仍可看到该会话对应的任务来源
 - Chat 新增 `<fyllo-action>` 渲染与状态持久化，首个支持的 `task.create` action 可让 Agent 以结构化输出提议创建本地任务，同时由 FylloCode 控制校验、确认和最终执行
 - 直接在 Chat 中讨论并创建 proposal 的开放会话，现在可通过本地任务创建流程补齐来源任务，并把任务绑定回同一个 lineage subject
-- 新增 VitePress 文档站，包含产品指南、功能参考、截图、ACP Agent 文档、`fyllo-specs` 与 `fyllo-skills` 参考资料，以及文档构建/预览脚本
+- 新增 VitePress 文档站，包含产品指南、功能参考、截图、ACP Agent 文档、`fyllo-specs` 与 `fyllo-cortex` 参考资料，以及文档构建/预览脚本
 
 ### 调整
 
@@ -221,12 +221,12 @@
 
 ## [0.10.0] - 2026-05-24
 
-这个版本是在 `0.9.0` 稳定基线之上，对内置 MCP 工作流层做的一次明显扩展。它新增了 `fyllo-skills` bundled server，继续增强了 `fyllo-specs` 在 OpenSpec 初始化与 archive 收尾阶段的自动化能力，并修复了首条消息 setup 阶段可见的 chat 停止状态问题。
+这个版本是在 `0.9.0` 稳定基线之上，对内置 MCP 工作流层做的一次明显扩展。它新增了 `fyllo-cortex` bundled server，继续增强了 `fyllo-specs` 在 OpenSpec 初始化与 archive 收尾阶段的自动化能力，并修复了首条消息 setup 阶段可见的 chat 停止状态问题。
 
 ### 新增
 
-- 新增 bundled `fyllo-skills` MCP server，提供面向仓库 guideline 编写流程的 `guidelines` tool
-- `fyllo-skills` 的 `guidelines` 新增 read mode，可扫描 `guidelines/**/*.md` 并返回本地 guideline 元数据，供 agent 读取当前项目规范覆盖情况
+- 新增 bundled `fyllo-cortex` MCP server，提供面向仓库 guideline 编写流程的 `guidelines` tool
+- `fyllo-cortex` 的 `guidelines` 新增 read mode，可扫描 `guidelines/**/*.md` 并返回本地 guideline 元数据，供 agent 读取当前项目规范覆盖情况
 - `fyllo-specs create-proposal` 新增 OpenSpec 自动初始化能力，缺少目录或默认配置时可自动补齐
 - `fyllo-specs` 会在创建或复用 OpenSpec 配置时自动注入 `guidelines-evaluation` 规则
 

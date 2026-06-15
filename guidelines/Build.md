@@ -56,7 +56,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 ## Examples
 
 - Good: `pnpm dev` 先运行 `npm run build:mcp-servers`，再执行 `electron-vite dev`。
-- Good: `scripts/build-mcp-servers.mjs` 使用 esbuild 为 `src/mcp-servers/fyllo-specs` 与 `src/mcp-servers/fyllo-skills` 生成 `out/mcp-servers/<name>/index.js`。
+- Good: `scripts/build-mcp-servers.mjs` 使用 esbuild 为 `src/mcp-servers/fyllo-specs` 与 `src/mcp-servers/fyllo-cortex` 生成 `out/mcp-servers/<name>/index.js`。
 - Good: `electron-builder.yml` 通过 `extraResources` 将构建好的 MCP servers 带入产物。
 - Good: `electron-builder.yml` 在顶层 `files` 中只包含 `out/**`、`resources/**` 与 `package.json`，并排除源码目录、`.github` / `.vscode` / `.cursor` / `.claude` 等工程元数据、`.map`、测试目录、示例目录、benchmark、`docs/` 文档目录和临时构建元数据，使规则对 macOS、Windows、Linux 同时生效。
 - Good: 推送与 `package.json.version` 一致的 `v*.*.*` tag 后，`.github/workflows/release.yml` 分别构建 macOS x64、macOS arm64、Windows x64、Linux x64，并通过 electron-builder 创建 GitHub draft release 和上传平台产物。
@@ -76,7 +76,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - 如修改打包配置：`pnpm build:unpack`
 - 如修改平台相关配置：运行对应平台脚本，如 `pnpm build:mac`、`pnpm build:win`、`pnpm build:linux`
 - 手动检查 `out/mcp-servers/`、`dist/` 与打包资源路径是否符合文档描述。
-- 修改包内容过滤后，检查解包产物中 `app.asar.unpacked/mcp-servers/fyllo-specs/index.js` 与 `app.asar.unpacked/mcp-servers/fyllo-skills/index.js` 均存在。
+- 修改包内容过滤后，检查解包产物中 `app.asar.unpacked/mcp-servers/fyllo-specs/index.js` 与 `app.asar.unpacked/mcp-servers/fyllo-cortex/index.js` 均存在。
 - 修改 Electron locale 后，检查解包产物的 `locales` 目录只保留配置中的 locale 文件，并至少包含 `en-US` 与 `zh-CN`。
 - 修改 Windows NSIS 压缩策略后，在 Windows 机器记录 setup 大小、`Please wait while setup is loading` 阶段耗时和实际安装阶段耗时；无法在当前机器验证时，必须在变更说明中列出待补测命令与缺口。
 - 修改 release workflow 后，真实 draft release 创建与 asset 上传必须通过推送与 `package.json.version` 匹配的 `v*.*.*` tag 在 GitHub Actions 中验证；无法在当前环境验证时，必须在变更说明中列出该缺口。

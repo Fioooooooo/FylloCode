@@ -22,7 +22,7 @@ Your job in this stage is to turn an already-agreed proposal into code, one task
 - Read every file listed in `state.contextFiles` first. No code change before this is done.
 - Confirm at least the proposal, spec, and tasks; read `design` when it exists. Do not skip dependent artifacts.
 - Consult project documentation and conventions relevant to this change, especially the `guidelines/` docs.
-- Use `mcp__fyllo_skills__guidelines` as the bundled source for the project guidelines file contract and maintenance rules.
+- Use `mcp__fyllo_cortex__guidelines` as the bundled source for the project guidelines file contract and maintenance rules.
 - Read applicable local repository guidelines before editing code.
 - Read before write, evidence before assertion. If a fact is reachable from existing code, types, docs, or specs, do not assume it.
 

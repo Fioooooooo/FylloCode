@@ -26,7 +26,7 @@ keywords: [testing, vitest, happy-dom, mocks, verification]
 - `test/main/**`
 - `test/shared/**`
 - `test/mcp-servers/fyllo-specs/**`
-- `test/mcp-servers/fyllo-skills/**`
+- `test/mcp-servers/fyllo-cortex/**`
 
 ## Rules
 
@@ -49,7 +49,7 @@ keywords: [testing, vitest, happy-dom, mocks, verification]
 
 - Good: renderer 组件测试放在 `test/renderer/src/components/`，store 测试放在 `test/renderer/src/stores/`。
 - Good: `test/main/ipc/_kit/` 用来验证 `wrap-handler`、`stream-channel`、schema 校验和错误归一化。
-- Good: `test/mcp-servers/fyllo-specs/` 与 `test/mcp-servers/fyllo-skills/` 归入 main project 测试环境。
+- Good: `test/mcp-servers/fyllo-specs/` 与 `test/mcp-servers/fyllo-cortex/` 归入 main project 测试环境。
 - Good: `test/renderer/src/components/task-card.spec.ts` mock `useConfirmDialog()`，只断言“点击删除后是否发起确认、确认后是否 emit 删除事件”。
 - Bad: 在 Vue 组件测试里直接 mock `ipcRenderer.invoke(...)` 而绕过 `src/renderer/src/api/*`。
 - Bad: 改了 `src/shared/types/ipc.ts` 或 storage 格式后，只跑一个前端快照测试就提交。

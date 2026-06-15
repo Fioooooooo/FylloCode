@@ -54,9 +54,9 @@ qodercli 的 Grep 等工具在执行失败时，发出 `status: "completed"` 但
 
 不同 agent 的 MCP tool 标题格式各异，UI 无法统一识别和展示：
 
-- codex-acp：`"Tool: fyllo-skills/guidelines"`
+- codex-acp：`"Tool: fyllo-cortex/guidelines"`
 - opencode：`"fyllo-specs_explore"`（下划线分隔 server 和 tool）
-- gemini/claude：`"fyllo-skills/guidelines"`（已经是标准格式）
+- gemini/claude：`"fyllo-cortex/guidelines"`（已经是标准格式）
 
 ---
 
@@ -131,9 +131,9 @@ tool_call_update 处理时：
 统一为 `server/tool` 格式：
 
 ```
-"Tool: fyllo-skills/guidelines"  →  "fyllo-skills/guidelines"   (strip "Tool: " prefix)
+"Tool: fyllo-cortex/guidelines"  →  "fyllo-cortex/guidelines"   (strip "Tool: " prefix)
 "fyllo-specs_explore"            →  "fyllo-specs/explore"        (last _ → /)
-"fyllo-skills/guidelines"        →  不变
+"fyllo-cortex/guidelines"        →  不变
 ```
 
 规则按优先级依次尝试，最后 fallback 原样返回。

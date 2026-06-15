@@ -37,5 +37,5 @@ FylloCode 希望吸取 OpenSpec 的规范方法，并让内置的 ACP agent 在 
 - **向后兼容**：不破坏既有 chat session 元数据格式与 IPC 契约；已保存的历史 session `resumeSession` 后会多挂载一个 MCP server，但不会影响已有 tool call 历史。
 - **Non-goals**（留待后续 change）：
   - 用户自定义 MCP 的合并（归 `integration-custom-mcp`）。
-  - `fyllo-skills` MCP server 的设计与实现。
+  - `fyllo-cortex` MCP server 的设计与实现。
   - 对 Claude Code 以外 ACP agent 的 MCP 兼容性测试。

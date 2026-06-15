@@ -106,7 +106,7 @@ export function resolveStatus(
  * agent 怪癖补丁；非 codex 形态本期 fallback。
  *
  * 各 agent 的 MCP 工具展示标识格式不一（codex `"Tool: server/tool"`、gemini
- * `"guidelines (fyllo-skills MCP Server)"`、opencode `"server_tool"`）。本函数仅依据
+ * `"guidelines (fyllo-cortex MCP Server)"`、opencode `"server_tool"`）。本函数仅依据
  * codex 形态的结构化 `rawInput`（`{ server, tool, arguments }`）可靠识别 MCP 工具，
  * 归一为 `"server/tool"`；识别失败（其他 agent 形态或非 MCP 工具）回退原 title。
  * 不解析 title 字符串，避免对 server/tool 名含分隔符的脆弱启发式。

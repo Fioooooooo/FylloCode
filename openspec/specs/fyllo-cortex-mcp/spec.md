@@ -1,45 +1,45 @@
-# fyllo-skills-mcp Specification
+# fyllo-cortex-mcp Specification
 
 ## Purpose
 
-TBD - created by archiving change add-fyllo-skills-mcp. Update Purpose after archive.
+TBD - created by archiving change rename-fyllo-skills-to-fyllo-cortex. Update Purpose after archive.
 
 ## Requirements
 
-### Requirement: fyllo-skills MCP server registers only the guidelines tool
+### Requirement: fyllo-cortex MCP server 注册 guidelines 工具
 
-`fyllo-skills` MCP server SHALL be implemented as a bundled stdio MCP server under `src/mcp-servers/fyllo-skills/`. It SHALL register exactly one tool named `guidelines`.
+`fyllo-cortex` MCP server SHALL 作为 bundled stdio MCP server 实现在 `src/mcp-servers/fyllo-cortex/` 下。它 SHALL 注册一个名为 `guidelines` 的工具，用于读取本地 guideline 元数据和返回 guideline 编写契约。
 
-The `guidelines` tool SHALL be a no-argument tool. Its input schema SHALL NOT require or accept project-specific parameters such as `targetPath`, `mode`, `changeName`, or `includeInstruction`.
+`guidelines` 工具 SHALL 接受 `mode` 字段，取值 SHALL 为 `"read"` 或 `"write"`。该工具 SHALL NOT 接受项目路径、OpenSpec change 名称或 workspace 控制参数，例如 `targetPath`、`changeName`、`includeInstruction` 或 `workspaceMode`。
 
-#### Scenario: tool list contains only guidelines
+#### Scenario: tool list contains guidelines
 
-- **WHEN** MCP client calls `tools/list` on `fyllo-skills`
-- **THEN** the returned tool list contains exactly one tool
-- **AND** that tool name is `guidelines`
+- **WHEN** MCP client calls `tools/list` on `fyllo-cortex`
+- **THEN** the returned tool list contains a tool named `guidelines`
+- **AND** no returned tool is namespaced under `fyllo-skills`
 
-#### Scenario: guidelines accepts no arguments
+#### Scenario: guidelines accepts only mode input
 
-- **WHEN** MCP client calls `guidelines` with an empty input object
+- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` or `{ "mode": "write" }`
 - **THEN** the call succeeds
-- **AND** the tool does not require `targetPath`, `mode`, `changeName`, or `includeInstruction`
+- **AND** the tool does not require `targetPath`, `changeName`, `includeInstruction`, or `workspaceMode`
 
-### Requirement: guidelines prompt is maintained as a markdown file
+### Requirement: guidelines prompt 由 markdown 文件维护
 
-The `guidelines` tool instruction body SHALL be maintained in `src/mcp-servers/fyllo-skills/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through a small loader so esbuild can inline it with the existing `.md` text loader.
+The `guidelines` tool instruction body SHALL be maintained in `src/mcp-servers/fyllo-cortex/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through the existing prompt loader pattern so esbuild can inline it with the existing `.md` text loader.
 
 #### Scenario: prompt file exists
 
-- **WHEN** checking `src/mcp-servers/fyllo-skills/src/tools/instructions/`
+- **WHEN** checking `src/mcp-servers/fyllo-cortex/src/tools/instructions/`
 - **THEN** `guidelines.md` exists
 
 #### Scenario: instruction body is not embedded in tool code
 
-- **WHEN** searching TypeScript files under `src/mcp-servers/fyllo-skills/src/`
+- **WHEN** searching TypeScript files under `src/mcp-servers/fyllo-cortex/src/`
 - **THEN** project guidelines instruction prose is not duplicated as long string literals in tool registration code
-- **AND** the `guidelines` tool uses the markdown prompt loader to produce its response
+- **AND** the `guidelines` tool uses the markdown prompt loader to produce its write-mode response
 
-### Requirement: guidelines instruction defines only project guideline contract
+### Requirement: guidelines instruction 定义项目 guideline 契约
 
 The `guidelines.md` instruction body returned by `mode=write` SHALL define the project guidelines file contract and maintenance rules. It SHALL cover:
 
@@ -52,7 +52,7 @@ The `guidelines.md` instruction body returned by `mode=write` SHALL define the p
 - authoring rules based on repository evidence
 - maintenance triggers for updating guidelines when project conventions change
 - conflict handling when local guidelines disagree with higher-priority instructions or observed repository facts
-- a YAML frontmatter description that defines the recommended (non-mandatory) frontmatter fields `name`, `description`, and `keywords` as part of the guideline document format, including an example that places the frontmatter at the top of the document template, and a note that `mode=read` parses these fields to surface guideline metadata
+- a YAML frontmatter description that defines the recommended frontmatter fields `name`, `description`, and `keywords`, including an example placed at the top of the document template and a note that `mode=read` parses these fields to surface guideline metadata
 
 The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat, Proposal, Apply, Archive, OpenSpec, worktrees, commits, archive, `mcp__fyllo_specs__*`, or Fyllo proposal tasks. Stage-specific orchestration belongs in system-reminder templates, not in the `guidelines` tool instruction.
 
@@ -72,14 +72,6 @@ The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat
 - **AND** returned instruction contains topic-specific content requirements
 - **AND** returned instruction mentions `guidelines/Architecture.md`, `guidelines/CodeStyle.md`, `guidelines/Testing.md`, and `guidelines/DataModel.md`
 
-#### Scenario: instruction includes frontmatter schema
-
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
-- **THEN** returned instruction describes YAML frontmatter for guideline files
-- **AND** that description names the fields `name`, `description`, and `keywords`
-- **AND** that description states the frontmatter is recommended but not strictly required
-- **AND** that description explains how `mode=read` consumes these fields
-
 #### Scenario: instruction remains workflow-agnostic
 
 - **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
@@ -91,14 +83,14 @@ The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat
 - **AND** returned instruction does not contain `worktree`
 - **AND** returned instruction does not contain `commit`
 
-### Requirement: fyllo-skills has independent server metadata and tests
+### Requirement: fyllo-cortex has independent server metadata and tests
 
-`fyllo-skills` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
+`fyllo-cortex` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
 
-#### Scenario: server metadata uses fyllo-skills name
+#### Scenario: server metadata uses fyllo-cortex name
 
-- **WHEN** `fyllo-skills` starts its `McpServer`
-- **THEN** the server name is `fyllo-skills`
+- **WHEN** `fyllo-cortex` starts its `McpServer`
+- **THEN** the server name is `fyllo-cortex`
 
 #### Scenario: tests verify guidelines write response
 
@@ -123,8 +115,8 @@ When `mode` is `"read"`, the tool SHALL return `content: [{ type: "text", text }
 
 Each guideline entry SHALL include the following fields:
 
-- `path`: project-root-relative POSIX path to the file (for example `guidelines/Architecture.md`).
-- `name`: the value of `name` from the file's YAML frontmatter when it is a non-empty string; otherwise the file name stem (the file name with the trailing `.md` removed).
+- `path`: project-root-relative POSIX path to the file, for example `guidelines/Architecture.md`.
+- `name`: the value of `name` from the file's YAML frontmatter when it is a non-empty string; otherwise the file name stem.
 - `description`: the value of `description` from the file's YAML frontmatter when it is a non-empty string; otherwise `null`.
 - `keywords`: the value of `keywords` from the file's YAML frontmatter when it is an array of strings; otherwise `null`.
 

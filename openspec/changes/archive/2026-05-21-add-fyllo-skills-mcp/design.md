@@ -2,13 +2,13 @@
 
 FylloCode binds bundled MCP servers into ACP sessions through `getBundledMcpServers({ projectPath })`. The current implementation and tests assume only `fyllo-specs`, while `scripts/build-mcp-servers.mjs` also builds only that server. The new project-guidelines capability should not be added to `fyllo-specs` because `fyllo-specs` is scoped to OpenSpec lifecycle tools.
 
-The target shape is a separate `fyllo-skills` stdio MCP server that exposes one atomic `guidelines` skill. Fyllo stage prompts may route agents to this tool, but the tool instruction itself must stay independent of Fyllo stage workflow concepts.
+The target shape is a separate `fyllo-cortex` stdio MCP server that exposes one atomic `guidelines` skill. Fyllo stage prompts may route agents to this tool, but the tool instruction itself must stay independent of Fyllo stage workflow concepts.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Add a bundled `fyllo-skills` MCP server with one no-argument `guidelines` tool.
+- Add a bundled `fyllo-cortex` MCP server with one no-argument `guidelines` tool.
 - Keep the `guidelines` tool as an instruction-only tool; it does not inspect the repository, mutate files, or return project state.
 - Generalize bundled MCP build and startup logic to an explicit multi-server registry.
 - Keep `fyllo-specs` unchanged in purpose and tool surface.
@@ -24,9 +24,9 @@ The target shape is a separate `fyllo-skills` stdio MCP server that exposes one 
 
 ## Decisions
 
-### Decision: Use a separate `fyllo-skills` MCP server
+### Decision: Use a separate `fyllo-cortex` MCP server
 
-`fyllo-skills` will live under `mcp-servers/fyllo-skills/` with its own `src/index.ts`, `src/server.ts`, `src/tools/`, `src/tools/instructions/`, `version.ts`, `tsconfig.json`, and tests.
+`fyllo-cortex` will live under `mcp-servers/fyllo-cortex/` with its own `src/index.ts`, `src/server.ts`, `src/tools/`, `src/tools/instructions/`, `version.ts`, `tsconfig.json`, and tests.
 
 Rationale: `fyllo-specs` has a precise OpenSpec lifecycle contract. Adding guidelines behavior there would expand its responsibility and make future skill additions harder to bound.
 
@@ -34,7 +34,7 @@ Alternative considered: Add `guidelines` to `fyllo-specs`. Rejected because proj
 
 ### Decision: `guidelines` is no-argument and instruction-only
 
-The first `fyllo-skills` tool will register exactly one tool named `guidelines`. It accepts no input schema fields and returns a single text content item containing `<tool_instruction>...</tool_instruction>`.
+The first `fyllo-cortex` tool will register exactly one tool named `guidelines`. It accepts no input schema fields and returns a single text content item containing `<tool_instruction>...</tool_instruction>`.
 
 The instruction defines:
 
@@ -51,7 +51,7 @@ Alternative considered: Add `mode` parameters such as `discover`, `author`, or `
 
 ### Decision: Use explicit bundled MCP registry instead of directory scanning
 
-`electron/main/infra/mcp/bundled-mcp-servers.ts` should define an explicit registry containing `fyllo-specs` and `fyllo-skills`. Each entry provides the server name and optional env factory.
+`electron/main/infra/mcp/bundled-mcp-servers.ts` should define an explicit registry containing `fyllo-specs` and `fyllo-cortex`. Each entry provides the server name and optional env factory.
 
 `getBundledMcpServers({ projectPath })` returns one `McpServerSpec` per registry entry unless `FYLLO_DISABLE_BUNDLED_MCP=1`.
 
@@ -73,7 +73,7 @@ Shared build options:
 - aliases for `@shared` and `@main`
 - current `import.meta.url` banner/define workaround
 
-`fyllo-specs` keeps `external: ["@fission-ai/openspec"]`. `fyllo-skills` should not require OpenSpec-specific externals.
+`fyllo-specs` keeps `external: ["@fission-ai/openspec"]`. `fyllo-cortex` should not require OpenSpec-specific externals.
 
 ### Decision: Keep env common, add OpenSpec env only to `fyllo-specs`
 
@@ -85,17 +85,17 @@ Both bundled servers receive:
 
 Only `fyllo-specs` receives `FYLLO_OPENSPEC_CLI_PATH`.
 
-Rationale: `fyllo-skills` does not invoke OpenSpec and should not receive unrelated env.
+Rationale: `fyllo-cortex` does not invoke OpenSpec and should not receive unrelated env.
 
 ### Decision: System-reminder does only lightweight routing
 
-The chat/apply/archive system-reminder templates should mention the existence of `fyllo-skills.guidelines` and stage-level expectations for when to use it. They must not embed the full guidelines file contract or duplicate the guidelines tool instruction.
+The chat/apply/archive system-reminder templates should mention the existence of `fyllo-cortex.guidelines` and stage-level expectations for when to use it. They must not embed the full guidelines file contract or duplicate the guidelines tool instruction.
 
 Rationale: This keeps repeated session reminders small and leaves the maintainable guidelines content in one prompt file.
 
 ## Risks / Trade-offs
 
 - **Risk: Agent forgets to call `guidelines`.** Mitigation: add explicit but concise routing text to stage reminders, and cover it with reminder template tests.
-- **Risk: `fyllo-skills` becomes a dumping ground for unrelated tools.** Mitigation: spec the first server as registering only `guidelines`; future tools require explicit spec changes.
-- **Risk: Build registry and runtime registry drift.** Mitigation: keep both lists short and covered by tests that check both `fyllo-specs` and `fyllo-skills` output/registration.
+- **Risk: `fyllo-cortex` becomes a dumping ground for unrelated tools.** Mitigation: spec the first server as registering only `guidelines`; future tools require explicit spec changes.
+- **Risk: Build registry and runtime registry drift.** Mitigation: keep both lists short and covered by tests that check both `fyllo-specs` and `fyllo-cortex` output/registration.
 - **Risk: Instruction grows too large over time.** Mitigation: keep the instruction atomic and forbid workflow-specific content.

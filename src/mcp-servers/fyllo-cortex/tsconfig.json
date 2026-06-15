@@ -6,5 +6,5 @@
     "baseUrl": ".",
     "paths": {}
   },
-  "include": ["src/**/*", "../../../test/mcp-servers/fyllo-skills/**/*"]
+  "include": ["src/**/*", "../../../test/mcp-servers/fyllo-cortex/**/*"]
 }

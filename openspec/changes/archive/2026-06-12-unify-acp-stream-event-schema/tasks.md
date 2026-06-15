@@ -33,7 +33,7 @@
 ## 5. agent 怪癖补丁（明确隔离）
 
 - [x] 5.1 在 `src/main/services/chat/acp-mapper.ts` 新增 `resolveStatus(status, rawOutput): "in_progress" | "completed" | "failed"`：当 `status === "completed"` 且 `rawOutput?.error` 为非空字符串时返回 `"failed"`。在 `tool_call_update` 分支应用，并在 error 降级时将 `content` 取为该 error 文本。函数上方注释标注"qodercli 怪癖补丁：违反 ACP failed 语义"。
-- [x] 5.2 新增 `normalizeMcpTool(rawInput, title): { title: string } | undefined`：优先用 `rawInput` 结构 `{ server, tool, arguments }`（codex 形态）识别 MCP 工具并归一展示标识；识别失败回退原 `title`。函数上方注释标注"agent 怪癖补丁；非 codex 形态本期 fallback"。先修正 `references/acp/tool-call-trace/acp-mapper-refactor-plan.md` 差异矩阵中的事实错误（gemini MCP title 实为 `"guidelines (fyllo-skills MCP Server)"`、qodercli 主 toolCallId 实为 `toolu_bdrk_*`、claude 为 `tooluse_*`），再据修正后的事实实现。
+- [x] 5.2 新增 `normalizeMcpTool(rawInput, title): { title: string } | undefined`：优先用 `rawInput` 结构 `{ server, tool, arguments }`（codex 形态）识别 MCP 工具并归一展示标识；识别失败回退原 `title`。函数上方注释标注"agent 怪癖补丁；非 codex 形态本期 fallback"。先修正 `references/acp/tool-call-trace/acp-mapper-refactor-plan.md` 差异矩阵中的事实错误（gemini MCP title 实为 `"guidelines (fyllo-cortex MCP Server)"`、qodercli 主 toolCallId 实为 `toolu_bdrk_*`、claude 为 `tooluse_*`），再据修正后的事实实现。
 - [x] 5.3 新增测试：qodercli Grep `completed + rawOutput.error` trace 断言降级为 `failed`；codex MCP `{server,tool,arguments}` trace 断言 title 归一；非 codex 形态断言 fallback 原值。验收：`pnpm test` 全绿。
 
 ## 6. 校验与文档

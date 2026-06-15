@@ -1,10 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerTools } from "./tools";
-import { FYLLO_SKILLS_SERVER_VERSION } from "./version";
+import { FYLLO_CORTEX_SERVER_VERSION } from "./version";
 
 export async function startServer(signal?: AbortSignal): Promise<void> {
-  const server = new McpServer({ name: "fyllo-skills", version: FYLLO_SKILLS_SERVER_VERSION });
+  const server = new McpServer({ name: "fyllo-cortex", version: FYLLO_CORTEX_SERVER_VERSION });
   const transport = new StdioServerTransport();
 
   registerTools(server);

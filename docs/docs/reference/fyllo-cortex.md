@@ -4,9 +4,9 @@ sidebar:
   order: 30
 ---
 
-# fyllo-skills MCP
+# fyllo-cortex MCP
 
-`fyllo-skills` 是 FylloCode 内置的 MCP server。目前它只提供一个 tool：`guidelines`。
+`fyllo-cortex` 是 FylloCode 内置的 MCP server。目前它只提供一个 tool：`guidelines`。
 
 ## guidelines tool
 
@@ -64,4 +64,4 @@ keywords: [architecture, electron, ipc]
 
 ## 适用场景
 
-`fyllo-skills` 解决的是团队工程知识如何持续沉淀的问题。每次任务后，Agent 可以把新形成的约定、踩过的坑和边界规则更新到 guidelines 中，让后续会话从最新规则开始。
+`fyllo-cortex` 解决的是团队工程知识如何持续沉淀的问题。每次任务后，Agent 可以把新形成的约定、踩过的坑和边界规则更新到 guidelines 中，让后续会话从最新规则开始。

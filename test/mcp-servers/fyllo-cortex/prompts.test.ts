@@ -1,20 +1,20 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { loadPrompt } from "../../../src/mcp-servers/fyllo-skills/src/utils/load-prompt";
+import { loadPrompt } from "../../../src/mcp-servers/fyllo-cortex/src/utils/load-prompt";
 
 const promptPath = join(
   process.cwd(),
   "src",
   "mcp-servers",
-  "fyllo-skills",
+  "fyllo-cortex",
   "src",
   "tools",
   "instructions",
   "guidelines.md"
 );
 
-describe("fyllo-skills prompts", () => {
+describe("fyllo-cortex prompts", () => {
   it("keeps guidelines.md on disk", () => {
     expect(existsSync(promptPath)).toBe(true);
     expect(readFileSync(promptPath, "utf8").trim()).toBeTruthy();

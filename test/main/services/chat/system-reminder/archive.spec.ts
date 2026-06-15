@@ -42,7 +42,8 @@ describe("archive system-reminder template", () => {
     expect(reminder).toContain("Workspace Policy");
     expect(reminder).toContain("/abs/.worktrees/foo");
     expect(reminder).toContain("mcp__fyllo_specs__archive-change");
-    expect(reminder).toContain("mcp__fyllo_skills__guidelines");
+    expect(reminder).toContain("mcp__fyllo_cortex__guidelines");
+    expect(reminder).not.toContain(["mcp", "fyllo", "skills", "guidelines"].join("__"));
     expect(reminder).toContain("state.archive");
     expect(reminder).toContain("state.workspace");
     expect(reminder).toContain('state.workspace.recovery.required === "agent"');
