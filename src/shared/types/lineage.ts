@@ -13,6 +13,7 @@ export type LineageTaskSnapshot = {
 export type LineageProposalLink = {
   changeId: string;
   createdAt: string;
+  commitHash?: string;
 };
 
 export type LineageSessionLink = {
@@ -48,5 +49,6 @@ export type LineageIndex = {
   tasks: Record<string, string>;
   sessions: Record<string, string>;
   proposals: Record<string, string>;
+  commitHashes: Record<string, string>;
   updatedAt: string;
 };

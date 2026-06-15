@@ -8,6 +8,7 @@ import {
 } from "@main/domain/lineage/projection";
 import {
   appendProposal,
+  attachProposalCommitHash,
   attachTask,
   buildSubject,
   upsertSessionLink,
@@ -42,6 +43,7 @@ function emptyIndex(updatedAt: string): LineageIndex {
     tasks: {},
     sessions: {},
     proposals: {},
+    commitHashes: {},
     updatedAt,
   };
 }
@@ -72,6 +74,10 @@ function mergeSubjectIntoIndex(index: LineageIndex, subject: Subject): LineageIn
     proposals: {
       ...removeSubjectEntries(index.proposals, subject.id),
       ...entries.proposals,
+    },
+    commitHashes: {
+      ...removeSubjectEntries(index.commitHashes, subject.id),
+      ...entries.commitHashes,
     },
     updatedAt: subject.updatedAt,
   };
@@ -217,6 +223,35 @@ export async function recordProposal(
   }
 
   const nextSubject = appendProposal(subject, sessionId, changeId, now);
+  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  return nextSubject;
+}
+
+export async function recordProposalCommitHash(
+  projectPath: string,
+  changeId: string,
+  commitHash: string
+): Promise<Subject | null> {
+  const now = nowIso();
+  const index = await readWritableIndex(projectPath, now);
+  const subjectId = index.proposals[changeId];
+  if (!subjectId) {
+    return null;
+  }
+
+  const subject = await readSubject(projectPath, subjectId);
+  if (!subject) {
+    return null;
+  }
+
+  const hasProposal = subject.links.some((link) =>
+    link.proposals.some((proposal) => proposal.changeId === changeId)
+  );
+  if (!hasProposal) {
+    return null;
+  }
+
+  const nextSubject = attachProposalCommitHash(subject, changeId, commitHash, now);
   await writeSubjectWithIndex(projectPath, nextSubject, index);
   return nextSubject;
 }

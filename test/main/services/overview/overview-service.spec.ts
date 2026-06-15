@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   listSubjects: vi.fn(),
   getByProposal: vi.fn(),
   listRecentSubjects: vi.fn(),
+  recordProposalCommitHash: vi.fn(),
   countSpecs: vi.fn(),
   countArchives: vi.fn(),
   countGuidelines: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@main/infra/storage/lineage-store", () => ({
 vi.mock("@main/services/lineage/lineage-service", () => ({
   getByProposal: mocks.getByProposal,
   listRecentSubjects: mocks.listRecentSubjects,
+  recordProposalCommitHash: mocks.recordProposalCommitHash,
 }));
 
 vi.mock("@main/services/overview/openspec-stats", () => ({
@@ -86,6 +88,7 @@ describe("overview-service", () => {
       guidelinesLastUpdated: "2026-06-10T00:00:00.000Z",
     });
     mocks.buildArchiveCommitIndex.mockResolvedValue(new Map());
+    mocks.recordProposalCommitHash.mockResolvedValue(subject({ id: "written-subject" }));
   });
 
   it("maps active changes, lineage task refs, task linked ratio, and recent lineage merge status", async () => {
@@ -173,6 +176,23 @@ describe("overview-service", () => {
         ],
       }),
       subject({
+        id: "recent-persisted",
+        origin: "chat",
+        links: [
+          {
+            sessionId: "session-persisted",
+            createdAt: "2026-06-04T00:00:00.000Z",
+            proposals: [
+              {
+                changeId: "persisted-change",
+                createdAt: "2026-06-04T00:00:00.000Z",
+                commitHash: "stored123",
+              },
+            ],
+          },
+        ],
+      }),
+      subject({
         id: "recent-pending",
         origin: "chat",
         links: [
@@ -186,15 +206,6 @@ describe("overview-service", () => {
     ]);
     mocks.buildArchiveCommitIndex.mockResolvedValue(
       new Map([
-        [
-          "applying-change",
-          {
-            changeId: "applying-change",
-            archivedChangeId: "2026-06-03-applying-change",
-            hash: "applying-hash-should-not-win",
-            committedAt: "2026-06-03T12:00:00.000Z",
-          },
-        ],
         [
           "old-change",
           {
@@ -244,10 +255,15 @@ describe("overview-service", () => {
       "[overview] unknown proposal status reviewing; falling back to drafting"
     );
     expect(mocks.buildArchiveCommitIndex).toHaveBeenCalledWith("/repo", [
-      "applying-change",
       "old-change",
       "no-commit",
     ]);
+    expect(mocks.recordProposalCommitHash).toHaveBeenCalledTimes(1);
+    expect(mocks.recordProposalCommitHash).toHaveBeenCalledWith(
+      "/repo",
+      "old-change",
+      "abc123archive"
+    );
     expect(overview.recentLineages).toEqual([
       expect.objectContaining({
         subjectId: "recent-applying",
@@ -260,6 +276,11 @@ describe("overview-service", () => {
         subjectId: "recent-merged",
         mergeStatus: "merged",
         mergeCommitSha: "abc123archive",
+      }),
+      expect.objectContaining({
+        subjectId: "recent-persisted",
+        mergeStatus: "merged",
+        mergeCommitSha: "stored123",
       }),
       expect.objectContaining({
         subjectId: "recent-pending",
@@ -280,5 +301,54 @@ describe("overview-service", () => {
     expect(overview.stats.totalSubjects).toBe(0);
     expect(overview.activeChanges).toEqual([]);
     expect(overview.recentLineages).toEqual([]);
+  });
+
+  it("returns a git-resolved merge hash when lineage writeback fails", async () => {
+    mocks.readProposalFiles.mockResolvedValue([]);
+    mocks.getByProposal.mockResolvedValue(null);
+    mocks.listSubjects.mockResolvedValue([]);
+    mocks.listRecentSubjects.mockResolvedValue([
+      subject({
+        id: "recent-missing",
+        origin: "chat",
+        links: [
+          {
+            sessionId: "session-1",
+            createdAt: "2026-06-04T00:00:00.000Z",
+            proposals: [{ changeId: "missing-hash", createdAt: "2026-06-04T00:00:00.000Z" }],
+          },
+        ],
+      }),
+    ]);
+    mocks.buildArchiveCommitIndex.mockResolvedValue(
+      new Map([
+        [
+          "missing-hash",
+          {
+            changeId: "missing-hash",
+            archivedChangeId: "2026-06-04-missing-hash",
+            hash: "git123",
+            committedAt: "2026-06-04T12:00:00.000Z",
+          },
+        ],
+      ])
+    );
+    const writebackError = new Error("write failed");
+    mocks.recordProposalCommitHash.mockRejectedValueOnce(writebackError);
+
+    const overview = await getProjectOverview("/repo");
+
+    expect(overview.recentLineages).toEqual([
+      expect.objectContaining({
+        subjectId: "recent-missing",
+        mergeStatus: "merged",
+        mergeCommitSha: "git123",
+      }),
+    ]);
+    expect(mocks.recordProposalCommitHash).toHaveBeenCalledWith("/repo", "missing-hash", "git123");
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      "[overview] failed to persist proposal commit hash project=/repo change=missing-hash",
+      writebackError
+    );
   });
 });

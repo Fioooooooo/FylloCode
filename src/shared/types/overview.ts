@@ -27,7 +27,7 @@ export type RecentLineage = {
   taskTitle: string | null;
   sessionCount: number;
   proposalCount: number;
-  // Derived from current Git history; not persisted in lineage.
+  // Prefer the lineage-persisted proposal commit hash; overview may query Git to fill missing values.
   mergeCommitSha: string | null;
   mergeStatus: "merged" | "applying" | "pending";
   createdAt: string;

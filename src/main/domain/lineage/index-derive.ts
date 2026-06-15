@@ -1,6 +1,9 @@
 import type { LineageIndex, Subject } from "@shared/types/lineage";
 
-export type LineageIndexEntries = Pick<LineageIndex, "tasks" | "sessions" | "proposals">;
+export type LineageIndexEntries = Pick<
+  LineageIndex,
+  "tasks" | "sessions" | "proposals" | "commitHashes"
+>;
 
 const EMPTY_INDEX_UPDATED_AT = new Date(0).toISOString();
 
@@ -8,6 +11,7 @@ export function deriveIndexEntries(subject: Subject): LineageIndexEntries {
   const tasks: Record<string, string> = {};
   const sessions: Record<string, string> = {};
   const proposals: Record<string, string> = {};
+  const commitHashes: Record<string, string> = {};
 
   if (subject.task) {
     tasks[subject.task.ref] = subject.id;
@@ -17,10 +21,13 @@ export function deriveIndexEntries(subject: Subject): LineageIndexEntries {
     sessions[link.sessionId] = subject.id;
     for (const proposal of link.proposals) {
       proposals[proposal.changeId] = subject.id;
+      if (typeof proposal.commitHash === "string" && proposal.commitHash.length > 0) {
+        commitHashes[proposal.commitHash] = subject.id;
+      }
     }
   }
 
-  return { tasks, sessions, proposals };
+  return { tasks, sessions, proposals, commitHashes };
 }
 
 function latestUpdatedAt(subjects: Subject[]): string {
@@ -44,6 +51,7 @@ export function buildIndexFromSubjects(subjects: Subject[]): LineageIndex {
     tasks: {},
     sessions: {},
     proposals: {},
+    commitHashes: {},
     updatedAt: latestUpdatedAt(subjects),
   };
 
@@ -52,6 +60,7 @@ export function buildIndexFromSubjects(subjects: Subject[]): LineageIndex {
     Object.assign(index.tasks, entries.tasks);
     Object.assign(index.sessions, entries.sessions);
     Object.assign(index.proposals, entries.proposals);
+    Object.assign(index.commitHashes, entries.commitHashes);
   }
 
   return index;

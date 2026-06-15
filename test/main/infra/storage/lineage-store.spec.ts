@@ -78,6 +78,7 @@ function index(overrides: Partial<LineageIndex> = {}): LineageIndex {
     tasks: { "local:task-1": "subject-1" },
     sessions: { "session-1": "subject-1" },
     proposals: { "change-1": "subject-1" },
+    commitHashes: {},
     updatedAt: now,
     ...overrides,
   };
@@ -114,6 +115,66 @@ describe("lineage-store", () => {
     });
     await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
     await expect(readIndex(projectPath)).resolves.toEqual(index());
+  });
+
+  it("round-trips proposal commit hashes on subject links", async () => {
+    const subjectWithCommitHash = subject({
+      links: [
+        {
+          sessionId: "session-1",
+          createdAt: now,
+          proposals: [{ changeId: "change-1", createdAt: now, commitHash: "abc123" }],
+        },
+      ],
+    });
+
+    await writeSubject(projectPath, subjectWithCommitHash);
+
+    expect(JSON.parse(readFileSync(subjectFilePath(), "utf8"))).toMatchObject({
+      links: [
+        {
+          proposals: [{ changeId: "change-1", commitHash: "abc123" }],
+        },
+      ],
+    });
+    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subjectWithCommitHash);
+  });
+
+  it("reads old subject proposal links without commitHash", async () => {
+    mkdirSync(subjectsDir(projectPath), { recursive: true });
+    writeFileSync(subjectFilePath(), JSON.stringify(subject(), null, 2), "utf8");
+
+    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
+  });
+
+  it("normalizes old index files missing commitHashes", async () => {
+    mkdirSync(lineageDir(projectPath), { recursive: true });
+    writeFileSync(
+      indexFilePath(),
+      JSON.stringify(
+        {
+          version: 1,
+          tasks: { "local:task-1": "subject-1" },
+          sessions: { "session-1": "subject-1" },
+          proposals: { "change-1": "subject-1" },
+          updatedAt: now,
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    await expect(readIndex(projectPath)).resolves.toEqual(index({ commitHashes: {} }));
+  });
+
+  it("writes index commitHashes", async () => {
+    await writeIndex(projectPath, index({ commitHashes: { abc123: "subject-1" } }));
+
+    expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).toMatchObject({
+      version: 1,
+      commitHashes: { abc123: "subject-1" },
+    });
   });
 
   it("returns null or empty results for missing and corrupt files", async () => {

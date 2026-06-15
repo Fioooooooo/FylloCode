@@ -24,7 +24,7 @@ vi.mock("@main/infra/logger", () => ({
   default: logger,
 }));
 
-import { readIndex } from "@main/infra/storage/lineage-store";
+import { readIndex, readSubject } from "@main/infra/storage/lineage-store";
 import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
 import {
   backfillTask,
@@ -38,6 +38,7 @@ import {
   linkTaskSession,
   rebuildIndex,
   recordProposal,
+  recordProposalCommitHash,
 } from "@main/services/lineage/lineage-service";
 
 const projectPath = "/tmp/project";
@@ -301,6 +302,100 @@ describe("lineage-service", () => {
     ).resolves.toBeNull();
   });
 
+  it("records proposal commit hashes into the subject and index", async () => {
+    const subject = await ensureTaskSubject(projectPath, taskSnapshot());
+    await linkSession(projectPath, "session-1", subject.id);
+    await recordProposal(projectPath, "session-1", "change-1");
+
+    setNow("2026-06-09T00:10:00.000Z");
+    await expect(
+      recordProposalCommitHash(projectPath, "change-1", "abc123")
+    ).resolves.toMatchObject({
+      id: subject.id,
+      updatedAt: "2026-06-09T00:10:00.000Z",
+      links: [
+        {
+          sessionId: "session-1",
+          proposals: [{ changeId: "change-1", commitHash: "abc123" }],
+        },
+      ],
+    });
+
+    await expect(readSubject(projectPath, subject.id)).resolves.toMatchObject({
+      links: [
+        {
+          proposals: [{ changeId: "change-1", commitHash: "abc123" }],
+        },
+      ],
+    });
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      proposals: { "change-1": subject.id },
+      commitHashes: { abc123: subject.id },
+    });
+  });
+
+  it("records the same proposal commit hash idempotently", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+    await recordProposal(projectPath, "session-chat", "change-chat");
+
+    setNow("2026-06-09T00:10:00.000Z");
+    await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+    setNow("2026-06-09T00:20:00.000Z");
+    const repeated = await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+
+    expect(repeated).toMatchObject({
+      id: subject.id,
+      updatedAt: "2026-06-09T00:10:00.000Z",
+      links: [
+        {
+          proposals: [{ changeId: "change-chat", commitHash: "abc123" }],
+        },
+      ],
+    });
+    expect(
+      repeated?.links.flatMap((link) =>
+        link.proposals.filter((proposal) => proposal.changeId === "change-chat")
+      )
+    ).toHaveLength(1);
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      commitHashes: { abc123: subject.id },
+    });
+  });
+
+  it("does not overwrite an existing different proposal commit hash", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+    await recordProposal(projectPath, "session-chat", "change-chat");
+
+    setNow("2026-06-09T00:10:00.000Z");
+    await recordProposalCommitHash(projectPath, "change-chat", "oldhash");
+    setNow("2026-06-09T00:20:00.000Z");
+    const repeated = await recordProposalCommitHash(projectPath, "change-chat", "newhash");
+
+    expect(repeated).toMatchObject({
+      id: subject.id,
+      updatedAt: "2026-06-09T00:10:00.000Z",
+      links: [
+        {
+          proposals: [{ changeId: "change-chat", commitHash: "oldhash" }],
+        },
+      ],
+    });
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      commitHashes: { oldhash: subject.id },
+    });
+    await expect(readIndex(projectPath)).resolves.not.toMatchObject({
+      commitHashes: { newhash: subject.id },
+    });
+  });
+
+  it("returns null when recording a commit hash for an unknown proposal", async () => {
+    await expect(
+      recordProposalCommitHash(projectPath, "missing-change", "abc123")
+    ).resolves.toBeNull();
+
+    expect(existsSync(lineageDir(projectPath))).toBe(false);
+  });
+
   it("self-heals a missing index during queries", async () => {
     const snapshot = taskSnapshot();
     const subject = await ensureTaskSubject(projectPath, snapshot);
@@ -349,6 +444,19 @@ describe("lineage-service", () => {
     await expect(rebuildIndex(projectPath)).resolves.toMatchObject({
       sessions: { "session-chat": subject.id },
       proposals: { "change-chat": subject.id },
+    });
+  });
+
+  it("rebuilds commit hash index entries from subjects", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+    await recordProposal(projectPath, "session-chat", "change-chat");
+    await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+    unlinkSync(indexFilePath());
+
+    await expect(rebuildIndex(projectPath)).resolves.toMatchObject({
+      sessions: { "session-chat": subject.id },
+      proposals: { "change-chat": subject.id },
+      commitHashes: { abc123: subject.id },
     });
   });
 });

@@ -1,7 +1,11 @@
 import { readProposalFiles } from "@main/infra/proposal/openspec-reader";
 import logger from "@main/infra/logger";
 import { listSubjects } from "@main/infra/storage/lineage-store";
-import { getByProposal, listRecentSubjects } from "@main/services/lineage/lineage-service";
+import {
+  getByProposal,
+  listRecentSubjects,
+  recordProposalCommitHash,
+} from "@main/services/lineage/lineage-service";
 import type {
   ActiveChange,
   OverviewChangeStage,
@@ -79,34 +83,81 @@ async function computeRecentLineages(
 ): Promise<RecentLineage[]> {
   const activeChangeIds = new Set(activeChanges.map((change) => change.id));
   const subjects = await listRecentSubjects(projectPath, 10);
-  const proposalChangeIds = subjects.flatMap((subject) =>
-    subject.links.flatMap((link) => link.proposals.map((proposal) => proposal.changeId))
-  );
-  const archiveCommitIndex = await buildArchiveCommitIndex(projectPath, proposalChangeIds);
-
-  return subjects.map((subject) => {
+  const lineageStates = subjects.map((subject) => {
+    const proposals = subject.links.flatMap((link) => link.proposals);
     const proposalCount = subject.links.reduce((total, link) => total + link.proposals.length, 0);
-    const hasApplyingChange = subject.links.some((link) =>
-      link.proposals.some((proposal) => activeChangeIds.has(proposal.changeId))
-    );
-    const archiveCommit = hasApplyingChange
+    const hasApplyingChange = proposals.some((proposal) => activeChangeIds.has(proposal.changeId));
+    const persistedCommitHash = hasApplyingChange
       ? null
-      : (subject.links
-          .flatMap((link) => link.proposals)
-          .map((proposal) => archiveCommitIndex.get(proposal.changeId))
-          .find(Boolean) ?? null);
+      : (proposals.find(
+          (proposal) => typeof proposal.commitHash === "string" && proposal.commitHash.length > 0
+        )?.commitHash ?? null);
+    const missingChangeIds =
+      hasApplyingChange || persistedCommitHash
+        ? []
+        : proposals.map((proposal) => proposal.changeId).filter(Boolean);
 
     return {
-      subjectId: subject.id,
-      origin: subject.origin,
-      taskRef: subject.task?.ref ?? null,
-      taskTitle: subject.task?.snapshot.title ?? null,
-      sessionCount: subject.links.length,
+      subject,
       proposalCount,
-      mergeCommitSha: archiveCommit?.hash ?? null,
-      mergeStatus: hasApplyingChange ? "applying" : archiveCommit ? "merged" : "pending",
-      createdAt: subject.createdAt,
-      updatedAt: subject.updatedAt,
+      hasApplyingChange,
+      persistedCommitHash,
+      missingChangeIds,
+    };
+  });
+  const missingChangeIds = Array.from(
+    new Set(lineageStates.flatMap((state) => state.missingChangeIds))
+  );
+  const archiveCommitIndex =
+    missingChangeIds.length > 0
+      ? await buildArchiveCommitIndex(projectPath, missingChangeIds)
+      : new Map();
+
+  await Promise.all(
+    Array.from(archiveCommitIndex.values()).map(async (archiveCommit) => {
+      try {
+        const subject = await recordProposalCommitHash(
+          projectPath,
+          archiveCommit.changeId,
+          archiveCommit.hash
+        );
+        if (!subject) {
+          logger.warn(
+            `[overview] failed to persist proposal commit hash project=${projectPath} change=${archiveCommit.changeId}`
+          );
+        }
+      } catch (error: unknown) {
+        logger.warn(
+          `[overview] failed to persist proposal commit hash project=${projectPath} change=${archiveCommit.changeId}`,
+          error
+        );
+      }
+    })
+  );
+
+  return lineageStates.map((state) => {
+    const archiveCommit =
+      state.hasApplyingChange || state.persistedCommitHash
+        ? null
+        : (state.missingChangeIds
+            .map((changeId) => archiveCommitIndex.get(changeId))
+            .find(Boolean) ?? null);
+
+    return {
+      subjectId: state.subject.id,
+      origin: state.subject.origin,
+      taskRef: state.subject.task?.ref ?? null,
+      taskTitle: state.subject.task?.snapshot.title ?? null,
+      sessionCount: state.subject.links.length,
+      proposalCount: state.proposalCount,
+      mergeCommitSha: state.persistedCommitHash ?? archiveCommit?.hash ?? null,
+      mergeStatus: state.hasApplyingChange
+        ? "applying"
+        : state.persistedCommitHash || archiveCommit
+          ? "merged"
+          : "pending",
+      createdAt: state.subject.createdAt,
+      updatedAt: state.subject.updatedAt,
     };
   });
 }

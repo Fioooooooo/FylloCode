@@ -75,12 +75,13 @@ keywords: [data-model, shared-types, persistence, serialization]
 ## Project Lineage
 
 - 项目级 lineage 数据写入 `<userData>/projects/<encoded(projectPath)>/lineage/`。其中 `subjects/<subjectId>.json` 是每条原始需求线索的权威源，`index.json` 是从 subjects 派生的反查索引。
+- `LineageProposalLink.commitHash?: string` 记录 proposal 已知的归档提交 hash；未知、尚未提交、Git 不可用或查询未命中时保持缺省，不写入 `null`。
 - `SessionMeta.originTaskRef?: LineageTaskRef` 写入 `<userData>/projects/<encoded(projectPath)>/sessions/<sessionId>.json`，字段名使用驼峰 `originTaskRef`。它是 session 出身任务的 write-once 权威指针，唯一写入者为 `chat-service.createSession`；`SessionMetaPatch` 必须排除该字段，创建后不得通过 patch 路径改写或清除。
 - `Session.originTaskRef` 从 `SessionMeta.originTaskRef` 映射给 renderer。lineage 的 task→session link 是尽力而为的派生边；当边写入失败时，session 出身事实仍以 `originTaskRef` 为准，任务标题与来源展示仍从 lineage subject 的 `LineageTaskSnapshot` 快照读取。
 - `TaskItem.originSessionId?: string` 写入 `<userData>/projects/<encoded(projectPath)>/tasks/tasks.json`，字段名使用驼峰 `originSessionId`。它是本地任务由 chat 会话创建时的 write-once 来源指针，唯一写入者为 `lineage:createSessionTask` 协调流程；`CreateLocalTaskInput`、`UpdateTaskInput` 与 task IPC schema 不包含该字段，普通 `task:create` / `task:update` 不得写入或改写它。读取旧任务文件时历史 `proposalId` 字段必须被忽略，不进入规范化后的 `TaskItem`。
 - `Subject.origin` 只能是 `"task"` 或 `"chat"`，创建后不得翻转。chat 起源后续补建本地 task 时仍保持 `origin: "chat"`，消费方可据此判断 task 是否为后补建。
 - `Subject.task` 是 `LineageTaskSnapshot | null`。快照保存 `<source>:<taskId>` 形式的 `ref`、全量 `TaskItem` 和 `capturedAt`，用于保留第三方任务在关闭或过滤后仍可回溯的源头信息；chat 起源在补建 task 前允许为 `null`。
-- `index.json` 含 `tasks`、`sessions`、`proposals` 三类 `key → subjectId` 反查表，可由 `subjects/*.json` 重建。读取 index 失败或缺失时，service 查询路径应触发重建；因此 index 格式变化无需迁移脚本。
+- `index.json` 含 `tasks`、`sessions`、`proposals`、`commitHashes` 四类 `key → subjectId` 反查表，其中 `commitHashes` 的 key 为 proposal `commitHash`。该文件可由 `subjects/*.json` 重建；读取旧 index 缺少 `commitHashes` 时归一为空对象，读取失败或缺失时 service 查询路径应触发重建，因此 index 格式变化无需迁移脚本。
 - `subjects/*.json` 是账本类权威数据。后续若 subject schema 发生不兼容变化（字段重命名、类型变更、字段删除、结构调整），必须按本文迁移规则新增迁移脚本。
 - MCP proposal 事件写入 `<userData>/projects/<encoded(projectPath)>/mcp-events/`，文件名为 `<timestamp>-<nanoid>.json`，内容类型为 `McpProposalEvent`：`{ server: "fyllo-specs", tool: "create-proposal", createdAt, sessionId, changeId }`。写出方必须先写临时文件再 rename，消费成功后由主进程删除事件文件；损坏事件文件跳过并记录日志，不阻断其他事件。
 - `mcp-events` 是 MCP server 到主进程 lineage 写入者之间的单向持久化队列。主进程 consumer 启动时全量扫描残留事件，随后以 `fs.watch` 触发重新全量扫描；消费时先 `recordProposal`，纯 chat 起源缺 subject 时先 `ensureChatSubject` 再重试，lineage 仍保持主进程单一写入。

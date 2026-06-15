@@ -225,6 +225,10 @@ function normalizeProposalLink(value: unknown): LineageProposalLink | null {
   return {
     changeId: value.changeId,
     createdAt: value.createdAt,
+    commitHash:
+      typeof value.commitHash === "string" && value.commitHash.length > 0
+        ? value.commitHash
+        : undefined,
   };
 }
 
@@ -290,6 +294,7 @@ function normalizeIndex(value: unknown): LineageIndex | null {
     tasks: normalizeStringRecord(value.tasks),
     sessions: normalizeStringRecord(value.sessions),
     proposals: normalizeStringRecord(value.proposals),
+    commitHashes: normalizeStringRecord(value.commitHashes),
     updatedAt: value.updatedAt,
   };
 }

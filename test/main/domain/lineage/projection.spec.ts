@@ -45,7 +45,11 @@ function subject(): Subject {
         createdAt: "2026-06-09T00:01:00.000Z",
         proposals: [
           { changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
-          { changeId: "change-2", createdAt: "2026-06-09T00:03:00.000Z" },
+          {
+            changeId: "change-2",
+            createdAt: "2026-06-09T00:03:00.000Z",
+            commitHash: "abc123",
+          },
         ],
       },
       {
@@ -85,7 +89,11 @@ describe("lineage projections", () => {
       origin: "task",
       task: taskSnapshot(),
       sessionId: "session-1",
-      proposal: { changeId: "change-2", createdAt: "2026-06-09T00:03:00.000Z" },
+      proposal: {
+        changeId: "change-2",
+        createdAt: "2026-06-09T00:03:00.000Z",
+        commitHash: "abc123",
+      },
     });
     expect(projectProposalOrigin(subject(), "change-missing")).toBeNull();
   });

@@ -1,25 +1,4 @@
-# project-lineage-model 规范
-
-## Purpose
-
-定义项目 lineage 持久化模型、subject 聚合根、origin 不变量、任务快照、索引派生自愈和写入/查询 API。
-
-## Requirements
-
-### Requirement: Lineage 持久化布局
-
-系统 SHALL 将项目级 lineage 数据存储在 `projects/<encodedProjectId>/lineage/` 目录下，包含 `subjects/<subjectId>.json`（每条线索一个文件，权威源）与 `index.json`（派生反查索引）。路径 SHALL 通过 `project-paths.ts` 新增的 `lineageDir(projectPath)` 与 `subjectsDir(projectPath)` 生成，不得在 service 或 handler 层手写路径拼接。
-
-#### Scenario: 首次访问空 lineage
-
-- **WHEN** 一个从未写入 lineage 的项目调用查询 API
-- **THEN** 系统返回空结果，不抛出异常，不创建多余文件
-
-#### Scenario: subject 与 index 落点
-
-- **WHEN** 系统创建一个 subjectId 为 `subject-1` 的线索
-- **THEN** 写入 `lineage/subjects/subject-1.json`
-- **AND** 在 `lineage/index.json` 登记对应反查项
+## MODIFIED Requirements
 
 ### Requirement: Subject 聚合根结构
 
@@ -47,36 +26,6 @@ Subject SHALL 表示一条原始需求线索，结构包含：`id`（经 `infra/
 
 - **WHEN** 系统已确认 proposal `add-foo` 对应归档提交 hash 为 `abc123`
 - **THEN** 对应 `LineageProposalLink` 包含 `commitHash: "abc123"`
-
-### Requirement: 起源 origin 不变量
-
-`Subject.origin` SHALL 取值 `"task"` 或 `"chat"`，表示线索的起源。`origin` 一旦创建 SHALL NOT 改变。chat 起源的线索在后续补建本地任务后，`origin` SHALL 保持 `"chat"`。系统 SHALL 以 `origin` 作为判定"task 是否为后补建"的依据。
-
-#### Scenario: chat 起源补建任务后 origin 不翻转
-
-- **WHEN** 一条 `origin="chat"` 的线索在 proposal 创建后补建了本地任务并回填 `task`
-- **THEN** 该 Subject 的 `origin` 仍为 `"chat"`
-- **AND** 据此可判定其 task 为后补建
-
-#### Scenario: task 起源
-
-- **WHEN** 从一个本地或第三方任务发起讨论创建线索
-- **THEN** 该 Subject 的 `origin` 为 `"task"`
-
-### Requirement: Task 快照语义
-
-`Subject.task` SHALL 为 `LineageTaskSnapshot | null`。`LineageTaskSnapshot` SHALL 包含 `ref`（形如 `<source>:<taskId>` 的引用键）、`snapshot`（全量 `TaskItem` 拷贝）、`capturedAt`（ISO 8601 字符串，标记快照时刻）。系统 SHALL 对所有来源的 task 统一存全量快照，不按来源区分。chat 起源在补建 task 前 `task` SHALL 为 `null`。
-
-#### Scenario: 第三方任务快照保留源头
-
-- **WHEN** 从一个 yunxiao 任务发起讨论创建线索
-- **THEN** `Subject.task.snapshot` 保存该任务的全量 `TaskItem`
-- **AND** 即使该任务后续在云效侧关闭、本地不再可见，仍可从快照读取原始任务信息
-
-#### Scenario: chat 起源建 proposal 前 task 为空
-
-- **WHEN** 一条 chat 起源线索尚未创建任何 proposal
-- **THEN** 其 `Subject.task` 为 `null`，且该 Subject 可被正常持久化
 
 ### Requirement: Index 派生与自愈
 
@@ -106,21 +55,6 @@ Subject SHALL 表示一条原始需求线索，结构包含：`id`（经 `infra/
 - **WHEN** 历史 `index.json` 仅包含 `tasks`、`sessions`、`proposals` 与 `updatedAt`
 - **THEN** 系统读取后返回的 `LineageIndex.commitHashes` 为 `{}`
 - **AND** 不因缺失该字段触发读取失败
-
-### Requirement: 持久化写入可靠性
-
-系统 SHALL 对每个 subject 文件与 `index.json` 使用 per-file 写锁队列串行化写入，使用临时文件加 rename 的原子写。读取 subject 与 index 时 SHALL 做防御性解析，遇损坏文件跳过而非中断整体操作。
-
-#### Scenario: 并发写同一 subject 串行化
-
-- **WHEN** 对同一 subject 发起两次并发写入
-- **THEN** 两次写入按队列串行执行，最终文件为有效 JSON，不出现交错损坏
-
-#### Scenario: 损坏文件被跳过
-
-- **WHEN** `subjects/` 中存在一个无法解析的损坏文件
-- **AND** 系统执行 `rebuildIndex` 或列举操作
-- **THEN** 系统跳过该损坏文件，正常处理其余有效文件
 
 ### Requirement: Lineage 写入编排 API
 
@@ -165,49 +99,3 @@ Subject SHALL 表示一条原始需求线索，结构包含：`id`（经 `infra/
 - **AND** `index.proposals` 中不存在 `"missing-change"`
 - **THEN** 系统返回 `null`
 - **AND** 不创建新的 subject 或 proposal link
-
-### Requirement: Lineage 查询投影 API
-
-系统 SHALL 在 `services/lineage` 暴露查询 API：`getByTask`、`getBySession`、`getByProposal`，均经 index 反查 subject 后由 domain 投影函数产出结果，覆盖以下回溯需求。
-
-#### Scenario: 从 task 查下游
-
-- **WHEN** 调用 `getByTask(projectPath, ref)`
-- **THEN** 返回该线索下全部 session 及各 session 产出的 proposal
-
-#### Scenario: 从 session 查上游与产出
-
-- **WHEN** 调用 `getBySession(projectPath, sessionId)`
-- **THEN** 返回该 session 所属线索的 `origin`（上游来源）与该 session 的 proposal 产出列表
-
-#### Scenario: 从 proposal 查原始任务
-
-- **WHEN** 调用 `getByProposal(projectPath, changeId)`
-- **THEN** 返回该 proposal 所属线索的 `task`（原始任务，可能为快照）与 `origin`（据此判定 task 是否后补建）
-
-### Requirement: linkTaskSession 便利写入 API
-
-系统 SHALL 在 `services/lineage`（`src/main/services/lineage/lineage-service.ts`）暴露便利写入 API `linkTaskSession(projectPath, taskRef, sessionId)`，其内部 SHALL 组合现有的 `ensureTaskSubject`（以 taskRef 命中/新建 subject）与 `linkSession`（把 sessionId 关联到该 subject）两步，使调用方仅凭 `taskRef` 与 `sessionId` 即可一次完成"建/复用 task subject 并挂上 session 边"。
-
-该 API SHALL 全程幂等：对同一 `(taskRef, sessionId)` 重复调用 SHALL NOT 产生重复 link 条目，Subject 状态保持一致；与第①步预先调用的 `ensureTaskSubject` 重复 ensure 同一 ref SHALL 无副作用（复用既有 subject）。
-
-`linkTaskSession` 内部调用 `ensureTaskSubject` 时，若调用方未提供完整快照而仅有 `taskRef`，系统 SHALL 复用既有 subject 的 task 快照（命中既有 subject 时不要求重新提供 snapshot）。本 API 的设计前提是：task subject 已由发起讨论的第①步 `ensureTaskSubject(携带完整 LineageTaskSnapshot)` 创建，`linkTaskSession` 在 createSession handler 阶段仅负责挂边。
-
-#### Scenario: linkTaskSession 一次完成建/复用与挂边
-
-- **WHEN** 对一个已由 `ensureTaskSubject` 创建 subject 的 `taskRef` 调用 `linkTaskSession(projectPath, taskRef, sessionId)`
-- **THEN** 系统经 `index.tasks` 以 ref 命中既有 subjectId，复用该 Subject
-- **AND** 在该 Subject 的 `links` 中追加 `sessionId` 对应的 `LineageSessionLink`
-- **AND** 在 `index.sessions` 登记 `sessionId → subjectId`
-
-#### Scenario: linkTaskSession 幂等
-
-- **WHEN** 对同一 `(taskRef, sessionId)` 重复调用 `linkTaskSession`
-- **THEN** 结果不产生重复 link 条目
-- **AND** Subject 状态保持一致
-
-#### Scenario: ensureTaskSubject 与 linkTaskSession 组合不冲突
-
-- **WHEN** 先以完整快照调用 `ensureTaskSubject(taskRef)`，随后调用 `linkTaskSession(taskRef, sessionId)`
-- **THEN** 两次操作命中同一 subjectId
-- **AND** 该 subject 同时保有原始 task 快照与新挂的 session 边

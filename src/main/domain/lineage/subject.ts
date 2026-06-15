@@ -71,6 +71,51 @@ export function appendProposal(
   };
 }
 
+export function attachProposalCommitHash(
+  subject: Subject,
+  changeId: string,
+  commitHash: string,
+  now: string
+): Subject {
+  if (commitHash.length === 0) {
+    return subject;
+  }
+
+  let changed = false;
+  const links = subject.links.map((link) => ({
+    ...link,
+    proposals: link.proposals.map((proposal) => {
+      if (proposal.changeId !== changeId) {
+        return proposal;
+      }
+
+      if (proposal.commitHash === commitHash) {
+        return proposal;
+      }
+
+      if (typeof proposal.commitHash === "string" && proposal.commitHash.length > 0) {
+        return proposal;
+      }
+
+      changed = true;
+      return {
+        ...proposal,
+        commitHash,
+      };
+    }),
+  }));
+
+  if (!changed) {
+    return subject;
+  }
+
+  return {
+    ...subject,
+    links,
+    updatedAt: now,
+  };
+}
+
 export function attachTask(subject: Subject, taskSnapshot: LineageTaskSnapshot): Subject {
   if (subject.task?.ref === taskSnapshot.ref) {
     return subject;
