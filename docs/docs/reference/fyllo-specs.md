@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 参考
+  order: 20
+---
+
 # fyllo-specs MCP
 
 `fyllo-specs` 是 FylloCode 内置的 MCP server，围绕 OpenSpec 提供项目规范探索、Proposal 创建、Apply 执行和 Archive 归档能力。

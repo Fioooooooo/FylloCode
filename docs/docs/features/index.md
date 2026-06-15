@@ -1,3 +1,10 @@
+---
+sidebar:
+  group: 产品功能
+  groupOrder: 20
+  order: 10
+---
+
 # 功能总览
 
 FylloCode 的功能不是按“聊天工具”组织的，而是按一次 Agent 编码任务的治理路径组织的。

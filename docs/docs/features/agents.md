@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 产品功能
+  order: 70
+---
+
 # ACP Agents
 
 FylloCode 通过 Agent Client Protocol 接入不同 Coding Agent。ACP Agents 页面负责展示 registry 中可用的 Agent，并管理安装、更新和本地识别状态。

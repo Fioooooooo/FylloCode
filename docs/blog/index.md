@@ -1,3 +1,9 @@
+---
+sidebar:
+  order: 10
+  text: 全部文章
+---
+
 # 博客
 
 这里记录 FylloCode 的开发过程、产品解读，以及围绕 Coding Agent 和 Agent in Teams 的持续思考。

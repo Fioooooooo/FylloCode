@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 指南
+  order: 20
+---
+
 # 为什么需要 FylloCode
 
 每个 Agent 会话结束后，代码会留下来，但很多关键决策不会自然留下来。

@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 指南
+  order: 50
+---
+
 # Lineage 追溯链路
 
 lineage 是 FylloCode 实现"全程可追溯"的底层机制：一条需求从提出、讨论、形成方案到落地归档，整个过程被记录成一条可回溯的线索。[四阶段工作流](/docs/guide/workflow)定义了变更怎么走，lineage 负责把走过的每一步真实地串起来。

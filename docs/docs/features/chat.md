@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 产品功能
+  order: 40
+---
+
 # 对话与执行
 
 对话页面承载项目上下文中的 Agent 协作，是主线上 Chat 阶段的落点。Agent 在这里分析需求、检索代码佐证、引导团队权衡取舍，与你一起收敛出决策，再继续推动 Proposal 和 Apply & Archive 阶段。

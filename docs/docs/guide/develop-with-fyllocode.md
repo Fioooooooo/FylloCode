@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 参与贡献
+  order: 20
+---
+
 # 用 FylloCode 开发 FylloCode
 
 FylloCode 自身也在用 FylloCode 开发。对于参与贡献者，推荐使用 Releases 中的打包版本，而不是直接用开发模式启动 FylloCode 来修改 FylloCode。

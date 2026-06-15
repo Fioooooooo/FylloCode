@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 产品功能
+  order: 50
+---
+
 # Proposal 评审
 
 Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方案、设计、任务拆分和归档状态集中展示出来。

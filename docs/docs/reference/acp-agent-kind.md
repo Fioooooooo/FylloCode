@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 参考
+  order: 40
+---
+
 # ACP Agent 分类
 
 FylloCode 会为 ACP registry 中的 agent 注入 `__fyllo.kind`，用于帮助用户理解它和本地 CLI、官方产品或桥接工具之间的关系。

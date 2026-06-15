@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 产品功能
+  order: 60
+---
+
 # Workflow 编排
 
 Workflow 页面用于把团队自己的执行阶段固化成 YAML 模板。它适合描述 Proposal 之后如何执行、审查、归档或触发后续动作。

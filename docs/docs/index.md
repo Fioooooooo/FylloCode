@@ -1,3 +1,11 @@
+---
+sidebar:
+  group: 指南
+  groupOrder: 10
+  order: 10
+  text: 概览
+---
+
 # 文档
 
 FylloCode 是面向团队使用 Coding Agent 的桌面应用。它不直接替代 IDE、CI/CD 或项目管理系统，而是在这些工具之上补一层持久、结构化、可追溯的治理层。

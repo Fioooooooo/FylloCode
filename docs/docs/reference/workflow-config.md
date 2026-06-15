@@ -1,3 +1,10 @@
+---
+sidebar:
+  group: 参考
+  groupOrder: 30
+  order: 10
+---
+
 # Workflow 配置
 
 Workflow 模板使用 YAML 描述。编辑器以 YAML 为唯一数据源，界面上的阶段预览、追加、删除、排序和 Agent 选择都会回写到 YAML 字符串。

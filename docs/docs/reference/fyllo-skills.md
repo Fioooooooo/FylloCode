@@ -1,3 +1,9 @@
+---
+sidebar:
+  group: 参考
+  order: 30
+---
+
 # fyllo-skills MCP
 
 `fyllo-skills` 是 FylloCode 内置的 MCP server。目前它只提供一个 tool：`guidelines`。
