@@ -1,8 +1,9 @@
 import DefaultTheme from "vitepress/theme";
-import { inBrowser, useRoute } from "vitepress";
+import { inBrowser } from "vitepress";
 import { watch, nextTick } from "vue";
 import type { Theme } from "vitepress";
 import "./custom.css";
+import VitePressMermaid from "../plugins/vitepress-mermaid/index.vue";
 
 declare global {
   interface Window {
@@ -14,11 +15,14 @@ declare global {
 
 const theme: Theme = {
   ...DefaultTheme,
-  enhanceApp({app, router}) {
+  enhanceApp({ app, router }) {
     if (!inBrowser) return;
 
-    const route = router.route;
+    // Registry theme
+    app.component("vitepress-mermaid", VitePressMermaid);
 
+    // Send event when route path changed
+    const route = router.route;
     watch(
       () => route.path,
       async () => {

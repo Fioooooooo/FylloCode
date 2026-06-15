@@ -1,5 +1,6 @@
 import { defineConfig } from "vitepress";
 import { docsSidebar, blogSidebar } from "./sidebar.mjs";
+import { mermaidPlugin } from "./plugins/vitepress-mermaid";
 
 const github = "https://github.com/Fioooooooo/FylloCode";
 
@@ -60,6 +61,11 @@ export default defineConfig({
     footer: {
       message: "基于 AGPL-3.0 发布",
       copyright: "Copyright © 2026 FylloCode",
+    },
+  },
+  markdown: {
+    config: (md) => {
+      md.use(mermaidPlugin);
     },
   },
 });
