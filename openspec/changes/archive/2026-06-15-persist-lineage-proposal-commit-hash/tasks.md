@@ -14,16 +14,16 @@
 
 ## 3. Overview 查询与回写
 
-- [x] 3.1 修改 `src/main/services/overview/overview-service.ts` 的 `computeRecentLineages`：active proposal 仍优先返回 `mergeStatus: "applying"` 与 `mergeCommitSha: null`；非 active proposal 先使用已持久化 `commitHash`；仅收集缺失 hash 的 changeId 调用一次 `buildArchiveCommitIndex(projectPath, missingChangeIds)`。
+- [x] 3.1 修改 `src/main/services/overview/overview-service.ts` 的 `computeRecentLineages`：active proposal 仍优先返回 `proposalStatus: "applying"` 与 `archiveCommitHash: null`；非 active proposal 先使用已持久化 `commitHash`；仅收集缺失 hash 的 changeId 调用一次 `buildArchiveCommitIndex(projectPath, missingChangeIds)`。
 - [x] 3.2 在 `computeRecentLineages` 中对 Git 查到的缺失 hash 调用 `recordProposalCommitHash(projectPath, changeId, hash)`；写回失败只用 `logger.warn` 记录，不阻断 `getProjectOverview`，本次结果可返回已查到的 hash。
 - [x] 3.3 更新 `test/main/services/overview/overview-service.spec.ts`：覆盖已持久化 hash 不查 Git、缺失 hash 查 Git 并调用 `recordProposalCommitHash`、active proposal 不写回、Git 未命中时保持 pending、写回失败仍返回成功。
 - [x] 3.4 保持 `src/main/services/overview/archive-commit-index.ts` 的批量 Git 查询口径不变；若测试断言参数，确保只传缺失 hash 的 changeId。
 
 ## 4. 文档与共享注释
 
-- [x] 4.1 更新 `src/shared/types/overview.ts` 中 `RecentLineage.mergeCommitSha` 的注释，移除“not persisted in lineage”的旧描述，改为说明优先来自 lineage 持久化值，缺失时由 overview 查询补齐。
+- [x] 4.1 更新 `src/shared/types/overview.ts` 中 `RecentLineage.archiveCommitHash` 的注释，移除“not persisted in lineage”的旧描述，改为说明优先来自 lineage 持久化值，缺失时由 overview 查询补齐。
 - [x] 4.2 更新 `guidelines/DataModel.md` 的 Project Lineage 段落：说明 `LineageProposalLink.commitHash?: string`、`index.commitHashes`、旧数据兼容和 index 变更无需迁移脚本。
-- [x] 4.3 更新 `guidelines/IPC.md` 的 Overview Channels 段落：将 `recentLineages[].mergeCommitSha` 从“查询时派生且不持久化”改为“优先读取 lineage 持久化 hash，缺失时查询 Git 并尽力写回”。
+- [x] 4.3 更新 `guidelines/IPC.md` 的 Overview Channels 段落：将 `recentLineages[].archiveCommitHash` 从“查询时派生且不持久化”改为“优先读取 lineage 持久化 hash，缺失时查询 Git 并尽力写回”。
 
 ## 5. 验证
 

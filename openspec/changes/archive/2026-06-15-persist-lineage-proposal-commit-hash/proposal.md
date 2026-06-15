@@ -6,7 +6,7 @@
 
 - 在 lineage subject 的 proposal link 中增加可选 `commitHash` 字段；未知时保持缺省，已获取时写入 `subjects/<subjectId>.json`。
 - 在 `lineage/index.json` 增加 `commitHashes: Record<commitHash, subjectId>` 派生反查表；该索引从 subject 的 proposal `commitHash` 重建。
-- 概览页查询 recent lineages 时，若 proposal 已有 `commitHash`，直接用持久化值计算 `mergeCommitSha` 与 `mergeStatus`。
+- 概览页查询 recent lineages 时，若 proposal 已有 `commitHash`，直接用持久化值计算 `archiveCommitHash` 与 `proposalStatus`。
 - 概览页查询 recent lineages 时，若 proposal 缺少 `commitHash` 且不属于进行中变更，则批量从当前 Git 历史查找归档锚点提交；查到后写回 subject 和 index，查不到则不写入。
 - 本次不实现 rebase、amend、squash 后的 hash 变更感知或自动修正；已有持久化 `commitHash` 不会被 overview 查询路径主动覆盖。
 

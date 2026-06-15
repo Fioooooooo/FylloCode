@@ -38,9 +38,9 @@ interface RecentThread {
   taskTitle: string | null;
   sessionCount: number;
   proposalCount: number;
-  mergeCommitSha: string | null;
+  archiveCommitHash: string | null;
   mergeCommitUrl: string | null; // 草案漏掉此字段
-  mergeStatus: "merged" | "applying" | "pending";
+  proposalStatus: "merged" | "applying" | "pending";
   createdAt: string;
   updatedAt: string;
 }
@@ -76,7 +76,7 @@ interface ProjectOverview {
 
 **Non-Goals:**
 
-- 不实现 `recordMerge`：`mergeStatus` 仅在 "applying"（changeId 命中活跃变更）与 "pending" 间判定，`merged` 分支留待 `recordMerge` 上线后补；`mergeCommitSha`/`mergeCommitUrl` 本期恒为 `null`。
+- 不实现 `recordMerge`：`proposalStatus` 仅在 "applying"（changeId 命中活跃变更）与 "pending" 间判定，`merged` 分支留待 `recordMerge` 上线后补；`archiveCommitHash`/`mergeCommitUrl` 本期恒为 `null`。
 - 不做 archive 趋势图：archive 是离散事件，只进 Stats Bar 计数。
 - 不做 `fs.watch` 增量刷新：每次进入页面调一次 `load()`，git 部分加 60 秒内存缓存。
 - 不修改 activity-bar 默认项逻辑（已在 main worktree 落地）。
@@ -131,8 +131,8 @@ git ls-tree -d --name-only <sha> openspec/specs/    # 数当时的目录数
 
 - `sessionCount = subject.links.length`
 - `proposalCount = subject.links.flatMap(l => l.proposals).length`
-- `mergeStatus`：若任一 proposal 的 changeId 命中 activeChanges → `"applying"`，否则 `"pending"`（`merged` 本期不产生）。
-- `mergeCommitSha`/`mergeCommitUrl` 恒 `null`。
+- `proposalStatus`：若任一 proposal 的 changeId 命中 activeChanges → `"applying"`，否则 `"pending"`（`merged` 本期不产生）。
+- `archiveCommitHash`/`mergeCommitUrl` 恒 `null`。
 
 `computeRecentThreads` 依赖 activeChanges 结果，故在聚合时于 `Promise.all` 之后串行执行。
 

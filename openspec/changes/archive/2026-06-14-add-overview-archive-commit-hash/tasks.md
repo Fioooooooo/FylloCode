@@ -6,9 +6,9 @@
 
 ## 2. Overview 投影
 
-- [x] 2.1 修改 `src/main/services/overview/overview-service.ts#computeRecentLineages`，先收集最近 10 个 subject 下所有 proposal `changeId`，调用 `buildArchiveCommitIndex`，并按优先级计算 `mergeStatus`：active change 命中为 `"applying"`，否则 commit index 命中为 `"merged"`，否则为 `"pending"`。
-- [x] 2.2 修改 `computeRecentLineages` 返回的 `mergeCommitSha`：`"applying"` 与 `"pending"` 返回 `null`，`"merged"` 返回当前 Git 历史中可达的 archive commit hash；`mergeCommitUrl` 本次仍固定为 `null`。
-- [x] 2.3 将 `src/shared/types/overview.ts` 中最近脉络字段和类型命名为 `ProjectOverview.recentLineages` / `RecentLineage`，并通过注释明确 `mergeCommitSha` 是当前 Git 历史派生值而非 lineage 持久字段。
+- [x] 2.1 修改 `src/main/services/overview/overview-service.ts#computeRecentLineages`，先收集最近 10 个 subject 下所有 proposal `changeId`，调用 `buildArchiveCommitIndex`，并按优先级计算 `proposalStatus`：active change 命中为 `"applying"`，否则 commit index 命中为 `"merged"`，否则为 `"pending"`。
+- [x] 2.2 修改 `computeRecentLineages` 返回的 `archiveCommitHash`：`"applying"` 与 `"pending"` 返回 `null`，`"merged"` 返回当前 Git 历史中可达的 archive commit hash；`mergeCommitUrl` 本次仍固定为 `null`。
+- [x] 2.3 将 `src/shared/types/overview.ts` 中最近脉络字段和类型命名为 `ProjectOverview.recentLineages` / `RecentLineage`，并通过注释明确 `archiveCommitHash` 是当前 Git 历史派生值而非 lineage 持久字段。
 
 ## 3. 测试
 
@@ -18,7 +18,7 @@
 
 ## 4. 文档与规范同步
 
-- [x] 4.1 核对 `guidelines/IPC.md` 的 Overview Channels 描述是否仍准确；如果实现改变了 `ProjectOverview` DTO 语义但不改变 channel 入口，补充 `RecentLineage.mergeCommitSha` 为 Git 派生字段的说明。
+- [x] 4.1 核对 `guidelines/IPC.md` 的 Overview Channels 描述是否仍准确；如果实现改变了 `ProjectOverview` DTO 语义但不改变 channel 入口，补充 `RecentLineage.archiveCommitHash` 为 Git 派生字段的说明。
 - [x] 4.2 核对 `guidelines/DataModel.md` 的 Project Lineage 章节无需新增 commit 持久字段；若实现中误引入 lineage 持久化字段，应撤回该方向并保持本 proposal 的读时派生契约。
 
 ## 5. 命名统一

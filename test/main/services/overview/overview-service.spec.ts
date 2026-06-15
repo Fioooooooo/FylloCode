@@ -269,23 +269,23 @@ describe("overview-service", () => {
         subjectId: "recent-applying",
         sessionCount: 1,
         proposalCount: 1,
-        mergeStatus: "applying",
-        mergeCommitSha: null,
+        proposalStatus: "applying",
+        archiveCommitHash: null,
       }),
       expect.objectContaining({
         subjectId: "recent-merged",
-        mergeStatus: "merged",
-        mergeCommitSha: "abc123archive",
+        proposalStatus: "merged",
+        archiveCommitHash: "abc123archive",
       }),
       expect.objectContaining({
         subjectId: "recent-persisted",
-        mergeStatus: "merged",
-        mergeCommitSha: "stored123",
+        proposalStatus: "merged",
+        archiveCommitHash: "stored123",
       }),
       expect.objectContaining({
         subjectId: "recent-pending",
-        mergeStatus: "pending",
-        mergeCommitSha: null,
+        proposalStatus: "pending",
+        archiveCommitHash: null,
       }),
     ]);
   });
@@ -341,8 +341,8 @@ describe("overview-service", () => {
     expect(overview.recentLineages).toEqual([
       expect.objectContaining({
         subjectId: "recent-missing",
-        mergeStatus: "merged",
-        mergeCommitSha: "git123",
+        proposalStatus: "merged",
+        archiveCommitHash: "git123",
       }),
     ]);
     expect(mocks.recordProposalCommitHash).toHaveBeenCalledWith("/repo", "missing-hash", "git123");

@@ -150,11 +150,11 @@ async function computeRecentLineages(
       taskTitle: state.subject.task?.snapshot.title ?? null,
       sessionCount: state.subject.links.length,
       proposalCount: state.proposalCount,
-      mergeCommitSha: state.persistedCommitHash ?? archiveCommit?.hash ?? null,
-      mergeStatus: state.hasApplyingChange
+      archiveCommitHash: state.persistedCommitHash ?? archiveCommit?.hash ?? null,
+      proposalStatus: state.hasApplyingChange
         ? "applying"
         : state.persistedCommitHash || archiveCommit
-          ? "merged"
+          ? "completed"
           : "pending",
       createdAt: state.subject.createdAt,
       updatedAt: state.subject.updatedAt,

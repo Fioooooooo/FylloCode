@@ -1,6 +1,6 @@
 ---
 sidebar:
-  order: 10
+  order: 1
   text: 全部文章
 ---
 

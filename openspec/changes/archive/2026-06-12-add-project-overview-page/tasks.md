@@ -25,7 +25,7 @@
 
 - [x] 5.1 创建 `src/main/services/overview/overview-service.ts`：唯一导出 `getProjectOverview(projectPath): Promise<ProjectOverview>`。`Promise.all` 并行跑 stats（含 specsThisMonth 来自 git growth）、activeChanges、governance；之后串行跑 `computeRecentThreads(projectPath, activeChanges)`。
 - [x] 5.2 实现 `computeActiveChanges`：调既有 `readProposalFiles`（`@main/domain/proposal/openspec-reader`），过滤 `status === "archived"`，按 stage 映射表（`creating→drafting`/`draft→proposal`/`applying→applying`，未知值兜底 `drafting` 并 `logger.warn`）转 `ActiveChange`；`changeName=meta.id`、`createdAt=meta.date`；用 `getByProposal` 反查填 `taskTitle`/`taskRef`（taskRef 保留前缀）。
-- [x] 5.3 实现 `computeRecentThreads`：`listRecentSubjects(projectPath, 10)` 投影为 `RecentThread[]`；`sessionCount=links.length`、`proposalCount=links.flatMap(proposals).length`；`mergeStatus` 命中 activeChanges 的 changeId → `applying`，否则 `pending`；`mergeCommitSha`/`mergeCommitUrl` 恒 null。
+- [x] 5.3 实现 `computeRecentThreads`：`listRecentSubjects(projectPath, 10)` 投影为 `RecentThread[]`；`sessionCount=links.length`、`proposalCount=links.flatMap(proposals).length`；`proposalStatus` 命中 activeChanges 的 changeId → `applying`，否则 `pending`；`archiveCommitHash`/`mergeCommitUrl` 恒 null。
 - [x] 5.4 创建 `src/main/ipc/overview.ts`：导出 `registerOverviewHandlers()`，按 `ipc/lineage.ts` 模式用单参 `wrapHandler(async () => { const form = validate(getProjectOverviewInputSchema, input); const projectPath = await resolveProjectPath(form.projectId); return getProjectOverview(projectPath); })`，`resolveProjectPath` 来自 `@main/services/chat/chat-service`，`validate` 来自 `./_kit/schema`。
 - [x] 5.5 在 `src/main/ipc/index.ts` 注册 `registerOverviewHandlers()`。
 
@@ -45,7 +45,7 @@
 
 - [x] 8.1 `test/main/services/overview/openspec-stats.spec.ts`：mock fs，覆盖正常计数、目录缺失返回 0。
 - [x] 8.2 `test/main/services/overview/git-stats.spec.ts`：mock cross-spawn，覆盖 specsGrowth 解析、recentGuidelines 去重排序、非 git 仓库降级空值、缓存命中。
-- [x] 8.3 `test/main/services/overview/overview-service.spec.ts`：mock 各数据源，覆盖 stage 映射、mergeStatus 判定、taskRef 保留前缀、recentThreads 依赖 activeChanges。
+- [x] 8.3 `test/main/services/overview/overview-service.spec.ts`：mock 各数据源，覆盖 stage 映射、proposalStatus 判定、taskRef 保留前缀、recentThreads 依赖 activeChanges。
 - [x] 8.4 更新 `test/renderer/src/pages/overview.spec.ts`：从 mock store 断言改为 mock `overviewApi`/store `load`，覆盖 loading/error/data 三态。
 - [x] 8.5 运行 `pnpm typecheck`、`pnpm lint`、`pnpm vitest run test/main/services/overview/**` 与 `test/renderer/src/pages/overview.spec.ts`，全部通过。
 

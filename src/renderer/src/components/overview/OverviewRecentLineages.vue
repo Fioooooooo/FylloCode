@@ -20,8 +20,8 @@ const originConfig = {
 } as const;
 
 const statusConfig = {
-  merged: {
-    label: "merged",
+  completed: {
+    label: "completed",
     icon: "i-lucide-check",
     className: "text-success",
   },
@@ -46,7 +46,7 @@ function lineageStart(lineage: RecentLineage): string {
 }
 
 function shortSha(lineage: RecentLineage): string {
-  return lineage.mergeCommitSha?.slice(0, 7) ?? "";
+  return lineage.archiveCommitHash?.slice(0, 7) ?? "";
 }
 </script>
 
@@ -106,20 +106,20 @@ function shortSha(lineage: RecentLineage): string {
           <span
             :class="[
               'inline-flex items-center gap-1 font-medium',
-              statusConfig[lineage.mergeStatus].className,
+              statusConfig[lineage.proposalStatus].className,
             ]"
           >
             <UIcon
-              :name="statusConfig[lineage.mergeStatus].icon"
-              :class="['size-3', lineage.mergeStatus === 'applying' ? 'animate-spin' : '']"
+              :name="statusConfig[lineage.proposalStatus].icon"
+              :class="['size-3', lineage.proposalStatus === 'applying' ? 'animate-spin' : '']"
             />
-            <template v-if="lineage.mergeStatus === 'merged' && lineage.mergeCommitSha">
+            <template v-if="lineage.proposalStatus === 'completed' && lineage.archiveCommitHash">
               <span class="rounded px-1.5 py-0.5 font-mono text-highlighted">
                 {{ shortSha(lineage) }}
               </span>
             </template>
             <template v-else>
-              {{ statusConfig[lineage.mergeStatus].label }}
+              {{ statusConfig[lineage.proposalStatus].label }}
             </template>
           </span>
         </div>

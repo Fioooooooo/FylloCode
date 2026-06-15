@@ -60,17 +60,17 @@
 
 ### Requirement: 最近线索投影
 
-系统 SHALL 通过 lineage `listRecentSubjects(projectPath, 10)` 取按 `updatedAt` 倒序的前 10 个 subject，投影为 `recentThreads`。每条 `RecentThread` 的 `sessionCount` 为 `links` 数，`proposalCount` 为所有 link 的 proposals 总数。`mergeStatus` 在本期 SHALL 仅判定 `applying`（任一 proposal 的 changeId 命中 `activeChanges`）与 `pending`（其余），`mergeCommitSha` 与 `mergeCommitUrl` 恒为 `null`。
+系统 SHALL 通过 lineage `listRecentSubjects(projectPath, 10)` 取按 `updatedAt` 倒序的前 10 个 subject，投影为 `recentThreads`。每条 `RecentThread` 的 `sessionCount` 为 `links` 数，`proposalCount` 为所有 link 的 proposals 总数。`proposalStatus` 在本期 SHALL 仅判定 `applying`（任一 proposal 的 changeId 命中 `activeChanges`）与 `pending`（其余），`archiveCommitHash` 与 `mergeCommitUrl` 恒为 `null`。
 
 #### Scenario: 线索命中活跃变更
 
 - **WHEN** 某 subject 的任一 proposal changeId 出现在 `activeChanges` 中
-- **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"applying"`
+- **THEN** 该 `RecentThread` 的 `proposalStatus` 为 `"applying"`
 
 #### Scenario: 线索未命中活跃变更
 
 - **WHEN** 某 subject 的所有 proposal changeId 都不在 `activeChanges` 中
-- **THEN** 该 `RecentThread` 的 `mergeStatus` 为 `"pending"`
+- **THEN** 该 `RecentThread` 的 `proposalStatus` 为 `"pending"`
 
 #### Scenario: lineage 数据为空
 

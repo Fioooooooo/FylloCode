@@ -12,8 +12,8 @@
 **Goals:**
 
 - 将 overview 最近脉络 DTO 字段和类型统一命名为 `recentLineages` / `RecentLineage`，避免继续引入非领域术语。
-- 在 overview 最近脉络列表中填充 `mergeCommitSha`，语义为“当前 Git 历史中引入该 archived change 的 commit hash”。
-- 在存在可定位归档提交且不处于 applying 时返回 `mergeStatus: "merged"`。
+- 在 overview 最近脉络列表中填充 `archiveCommitHash`，语义为“当前 Git 历史中引入该 archived change 的 commit hash”。
+- 在存在可定位归档提交且不处于 applying 时返回 `proposalStatus: "merged"`。
 - 批量构建 archive commit index，避免 recentLineages 列表展示时按 subject/proposal 执行 N 次 Git 查询。
 - Git 查询失败、非 Git 项目、归档目录未提交时稳定返回 `null` / `"pending"`，不阻断 overview IPC。
 
@@ -28,7 +28,7 @@
 
 ### 1. commit hash 为读时派生字段
 
-`RecentLineage.mergeCommitSha` 的权威来源不是 lineage 持久化字段，而是 `changeId + openspec/changes/archive/<date>-<changeId>/.openspec.yaml + Git 当前历史`。当人为 rebase 将 `c-hash-a` 改写为 `c-hash-b` 后，下一次 overview 查询应返回 `c-hash-b`，因为它才是当前 main 历史中可达的归档提交。
+`RecentLineage.archiveCommitHash` 的权威来源不是 lineage 持久化字段，而是 `changeId + openspec/changes/archive/<date>-<changeId>/.openspec.yaml + Git 当前历史`。当人为 rebase 将 `c-hash-a` 改写为 `c-hash-b` 后，下一次 overview 查询应返回 `c-hash-b`，因为它才是当前 main 历史中可达的归档提交。
 
 替代方案是 archive 阶段写入 hash 到 lineage。该方案会在 rebase、amend、squash 或人工恢复后产生过期 hash，并需要额外补偿机制，因此不采用。
 
@@ -65,13 +65,13 @@ export async function buildArchiveCommitIndex(
 
 具体 Git 命令可以按锚点文件批量查询，也可以先用一次 `git log --diff-filter=A --format=... --name-status -- openspec/changes/archive` 构建项目级索引。无论实现选哪一种，对 `computeRecentLineages` 来说都必须是“一次构建 index，再内存 join”，不得在 subject map 循环里逐条 spawn Git。
 
-### 4. mergeStatus 优先级
+### 4. proposalStatus 优先级
 
 `computeRecentLineages` 的状态优先级为：
 
-1. 任一 proposal 的 `changeId` 命中 `activeChanges[].id` 时，`mergeStatus = "applying"`，`mergeCommitSha = null`。
-2. 否则，任一 proposal 能从 archive commit index 命中 hash 时，`mergeStatus = "merged"`，`mergeCommitSha = <hash>`。
-3. 其余返回 `mergeStatus = "pending"`，`mergeCommitSha = null`。
+1. 任一 proposal 的 `changeId` 命中 `activeChanges[].id` 时，`proposalStatus = "applying"`，`archiveCommitHash = null`。
+2. 否则，任一 proposal 能从 archive commit index 命中 hash 时，`proposalStatus = "merged"`，`archiveCommitHash = <hash>`。
+3. 其余返回 `proposalStatus = "pending"`，`archiveCommitHash = null`。
 
 如果一个 subject 下有多个已归档 proposal，选择 `subject.links[*].proposals` 中按出现顺序第一个能命中 commit index 的 proposal。后续如需要展示多个 commit，应另行扩展 DTO。
 

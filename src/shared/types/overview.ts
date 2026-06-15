@@ -28,8 +28,8 @@ export type RecentLineage = {
   sessionCount: number;
   proposalCount: number;
   // Prefer the lineage-persisted proposal commit hash; overview may query Git to fill missing values.
-  mergeCommitSha: string | null;
-  mergeStatus: "merged" | "applying" | "pending";
+  archiveCommitHash: string | null;
+  proposalStatus: "completed" | "applying" | "pending";
   createdAt: string;
   updatedAt: string;
 };

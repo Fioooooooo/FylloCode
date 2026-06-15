@@ -1,6 +1,6 @@
 ## Context
 
-lineage 的权威数据写在 `<userData>/projects/<encoded(projectPath)>/lineage/subjects/<subjectId>.json`，`index.json` 是从 subjects 派生的反查索引。当前 `LineageProposalLink` 只包含 `changeId` 与 `createdAt`，overview 通过 `buildArchiveCommitIndex(projectPath, changeIds)` 在查询时从 Git 当前历史推导 `RecentLineage.mergeCommitSha`，并且现有文档明确该 hash 不写入 lineage。
+lineage 的权威数据写在 `<userData>/projects/<encoded(projectPath)>/lineage/subjects/<subjectId>.json`，`index.json` 是从 subjects 派生的反查索引。当前 `LineageProposalLink` 只包含 `changeId` 与 `createdAt`，overview 通过 `buildArchiveCommitIndex(projectPath, changeIds)` 在查询时从 Git 当前历史推导 `RecentLineage.archiveCommitHash`，并且现有文档明确该 hash 不写入 lineage。
 
 本次需求改变了该契约：overview 在发现 proposal 缺少 commit hash 时仍从 Git 获取，但只要获取成功就应持久化到 lineage subject，并在 `index.json` 中增加 `commitHashes: Record<commitHash, subjectId>` 反查关联。若 Git 查不到，则不修改持久化数据。
 
@@ -49,11 +49,11 @@ lineage 的权威数据写在 `<userData>/projects/<encoded(projectPath)>/lineag
 
 `computeRecentLineages` 应先读取 recent subjects，并把每个 subject 的状态分为：
 
-1. 若任一 proposal 是 active change，状态仍为 `applying`，`mergeCommitSha` 为 `null`，不查询、不写入该 active proposal。
-2. 否则，若任一 proposal 已有 `commitHash`，状态为 `merged`，`mergeCommitSha` 为该持久化值。
+1. 若任一 proposal 是 active change，状态仍为 `applying`，`archiveCommitHash` 为 `null`，不查询、不写入该 active proposal。
+2. 否则，若任一 proposal 已有 `commitHash`，状态为 `merged`，`archiveCommitHash` 为该持久化值。
 3. 否则，收集缺失 `commitHash` 的 proposal changeId，调用一次 `buildArchiveCommitIndex(projectPath, missingChangeIds)` 批量查询 Git。
 4. 对 Git 查到的 hash 调用 `recordProposalCommitHash` 写回 lineage；写回失败只记录日志，不阻断 overview 返回。
-5. Git 查不到或 Git 不可用时保持 `pending` 与 `mergeCommitSha: null`，不写入持久化数据。
+5. Git 查不到或 Git 不可用时保持 `pending` 与 `archiveCommitHash: null`，不写入持久化数据。
 
 这保留现有“Git 查询失败不阻断 overview”的用户体验，同时让成功查询到的 hash 逐步沉淀到 lineage。
 

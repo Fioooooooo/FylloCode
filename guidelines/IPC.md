@@ -78,7 +78,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 
 ## Overview Channels
 
-- `overview:getProjectOverview`：入参 `{ projectId }`，主进程解析 `projectId → projectPath` 后调用 `overview-service.getProjectOverview`，返回 `IpcResponse<ProjectOverview>`。该 channel 是概览页的单一聚合入口，返回 `stats`、`activeChanges`、`recentLineages`、`governance` 四块数据。`recentLineages[].mergeCommitSha` 优先读取 lineage 中已持久化的 proposal commit hash；缺失时 overview 从当前 Git 历史查询归档提交 hash 并尽力写回 lineage。Git 不可用或归档锚点尚未提交时返回 `null` 且不写入。
+- `overview:getProjectOverview`：入参 `{ projectId }`，主进程解析 `projectId → projectPath` 后调用 `overview-service.getProjectOverview`，返回 `IpcResponse<ProjectOverview>`。该 channel 是概览页的单一聚合入口，返回 `stats`、`activeChanges`、`recentLineages`、`governance` 四块数据。`recentLineages[].archiveCommitHash` 优先读取 lineage 中已持久化的 proposal commit hash；缺失时 overview 从当前 Git 历史查询归档提交 hash 并尽力写回 lineage。Git 不可用或归档锚点尚未提交时返回 `null` 且不写入。
 - 入参 schema 位于 `src/shared/schemas/ipc/overview.ts`，要求 `projectId` 为非空字符串；DTO 类型位于 `src/shared/types/overview.ts`。handler 位于 `src/main/ipc/overview.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/overview.ts` 与 `src/renderer/src/api/overview.ts`。
 - 主进程内部允许 overview service 并行聚合仓库扫描、git 查询与 lineage 投影，但 IPC handler 仍只负责 `validate -> resolveProjectPath -> service`，不得把文件系统扫描、git 调用或 lineage 投影逻辑写在 handler 中。
 
