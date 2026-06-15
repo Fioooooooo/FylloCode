@@ -25,4 +25,4 @@ FylloCode 会把 ACP Agent 标注为三类：
 | `adapter` | 独立适配层，自带完整实现，可与对应官方 CLI 共享配置或环境变量 |
 | `bridge` | 桥接层，运行时通过本地命令行工具完成工作 |
 
-详细判定标准见 [ACP Agent 分类](/reference/acp-agent-kind)。
+详细判定标准见 [ACP Agent 分类](/docs/reference/acp-agent-kind)。

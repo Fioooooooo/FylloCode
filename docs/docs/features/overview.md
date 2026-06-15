@@ -23,7 +23,7 @@
 
 ## 进行中
 
-展示当前所有未归档的活跃提案。每个提案会显示所处阶段——草拟（drafting）、提案（proposal）或 Apply（applying）——并通过 lineage 反查出它来自哪个任务。点击条目可直接进入对应的 [Proposal 详情](/features/proposal)。
+展示当前所有未归档的活跃提案。每个提案会显示所处阶段——草拟（drafting）、提案（proposal）或 Apply（applying）——并通过 lineage 反查出它来自哪个任务。点击条目可直接进入对应的 [Proposal 详情](/docs/features/proposal)。
 
 ## 最近脉络
 
@@ -34,7 +34,7 @@
 - 串联的会话数和产出的 proposal 数
 - 合并状态：`applying`（有 proposal 正在进行）或 `pending`
 
-这里是观察“一条需求走到了哪一步”的入口。关于脉络如何建立和串联，见 [Lineage 追溯链路](/guide/lineage)。
+这里是观察“一条需求走到了哪一步”的入口。关于脉络如何建立和串联，见 [Lineage 追溯链路](/docs/guide/lineage)。
 
 ## 治理演化
 

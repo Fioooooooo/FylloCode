@@ -13,13 +13,13 @@ hero:
   actions:
     - theme: brand
       text: 快速开始
-      link: /guide/getting-started
+      link: /docs/guide/getting-started
     - theme: alt
       text: 下载桌面端
       link: https://github.com/Fioooooooo/FylloCode/releases
     - theme: alt
       text: 了解工作流
-      link: /guide/workflow
+      link: /docs/guide/workflow
 ---
 
 <main class="fc-landing">
@@ -96,10 +96,10 @@ hero:
           推进执行，Workflow 编辑器负责把流程固化下来。
         </p>
         <div class="fc-links">
-          <a class="fc-link" href="/features/overview">项目概览</a>
-          <a class="fc-link" href="/features/task">任务看板</a>
-          <a class="fc-link" href="/features/proposal">Proposal 评审</a>
-          <a class="fc-link" href="/features/workflow">Workflow 编排</a>
+          <a class="fc-link" href="/docs/features/overview">项目概览</a>
+          <a class="fc-link" href="/docs/features/task">任务看板</a>
+          <a class="fc-link" href="/docs/features/proposal">Proposal 评审</a>
+          <a class="fc-link" href="/docs/features/workflow">Workflow 编排</a>
         </div>
       </div>
       <figure class="fc-screenshot">
@@ -120,9 +120,9 @@ hero:
           Agent 协作需要的治理层。
         </p>
         <div class="fc-links">
-          <a class="fc-link" href="/features/agents">ACP Agents</a>
-          <a class="fc-link" href="/features/integrations">研发系统集成</a>
-          <a class="fc-link" href="/reference/acp-agent-kind">Agent 分类</a>
+          <a class="fc-link" href="/docs/features/agents">ACP Agents</a>
+          <a class="fc-link" href="/docs/features/integrations">研发系统集成</a>
+          <a class="fc-link" href="/docs/reference/acp-agent-kind">Agent 分类</a>
         </div>
       </div>
     </div>

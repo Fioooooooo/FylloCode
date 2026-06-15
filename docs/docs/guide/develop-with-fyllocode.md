@@ -43,4 +43,4 @@ pnpm lint
 pnpm typecheck
 ```
 
-更多贡献约定见 [贡献指南](/contributing)。
+更多贡献约定见 [贡献指南](/docs/contributing)。
