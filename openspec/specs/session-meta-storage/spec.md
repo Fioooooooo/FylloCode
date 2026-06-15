@@ -4,7 +4,7 @@ Session meta storage 规范定义主线程 session meta 的单点持久化边界
 
 ## Requirements
 
-### Requirement: Session meta updates are centralized in session-store
+### Requirement: Session meta 更新集中在 session-store
 
 系统 SHALL 将 chat owner 的 session meta（位于 `data/projects/<encoded>/sessions/<sessionId>.json`）的读取、创建、字段更新和删除能力集中在 `src/main/infra/storage/session-store.ts`。除 session-store 外，其他主进程模块 MUST NOT 直接通过 `loadSessionMeta` 读取后自行 `saveSessionMeta` 回写，也 MUST NOT 构造缺失现存字段的整对象覆盖写入。
 
@@ -14,13 +14,13 @@ Session meta storage 规范定义主线程 session meta 的单点持久化边界
 
 `ChatAcpSessionStore` 在 `persistAcpSessionId(acpSessionId)` 中 SHALL 通过 session-store 的字段级更新接口写入 `acpSessionId`、`agentId`、`turnCount`（自增）、`updatedAt`，并保留 session meta 中已有的 `title`、`tokenUsage`、`available_commands` 等所有未变更字段。
 
-#### Scenario: Chat flow updates title through session-store
+#### Scenario: Chat 流程通过 session-store 更新 title
 
 - **WHEN** chat 主线程处理 `session_info_update`
 - **THEN** 它通过 session-store 提供的字段级更新入口修改 `title` 与 `updatedAt`
 - **AND** 不在 `ipc/chat.ts` 内手写 `loadSessionMeta -> spread -> saveSessionMeta`
 
-#### Scenario: ChatAcpSessionStore writes acpSessionId via session-store
+#### Scenario: ChatAcpSessionStore 通过 session-store 写入 acpSessionId
 
 - **WHEN** `AcpSession.start()` 在 `newSession` 或恢复分支中需要写入 `acpSessionId`、`turnCount` 或 `updatedAt`
 - **AND** 当前 owner 为 `"chat"`
@@ -28,37 +28,37 @@ Session meta storage 规范定义主线程 session meta 的单点持久化边界
 - **AND** `ChatAcpSessionStore` 内部通过 session-store 的字段级更新入口完成写入
 - **AND** 现存的 `available_commands`、`tokenUsage.cost` 以及未来新增字段 SHALL 被保留
 
-#### Scenario: ApplyStageAcpSessionStore does not touch session-store
+#### Scenario: ApplyStageAcpSessionStore 不接触 session-store
 
 - **WHEN** `AcpSession.start()` 在 apply owner 下调用 `sessionStore.persistAcpSessionId(acpSessionId)`
 - **THEN** 持久化通过 `updateRunMetaIfCurrent` 写入 `run.json` 的 `stageAcpSessionIds[stageIndex]`
 - **AND** 不调用 `loadSessionMeta` / `upsertSessionMeta` / `saveSessionMeta`
 - **AND** 不创建 `data/projects/<encoded>/sessions/` 下的任何文件
 
-#### Scenario: ArchiveAcpSessionStore does not touch session-store
+#### Scenario: ArchiveAcpSessionStore 不接触 session-store
 
 - **WHEN** `AcpSession.start()` 在 archive owner 下调用 `sessionStore.persistAcpSessionId(acpSessionId)`
 - **THEN** 持久化通过 `updateArchiveRunAcpSessionId` 写入 `archive.json` 的 `acpSessionId` 字段
 - **AND** 不调用 `loadSessionMeta` / `upsertSessionMeta` / `saveSessionMeta`
 - **AND** 不创建 `data/projects/<encoded>/sessions/` 下的任何文件
 
-### Requirement: Session meta field updates preserve unrelated fields
+### Requirement: Session meta 字段更新保留无关字段
 
 系统 SHALL 将 session meta 的增量修改视为字段级合并，而不是整对象覆盖。任何一次更新只允许改变本次明确指定的字段，其余已持久化字段 MUST 原样保留，包括当前未知但合法的扩展字段。
 
-#### Scenario: available_commands survives second-turn session writes
+#### Scenario: available_commands 在第二轮 session 写入后仍保留
 
 - **WHEN** 某 session 在第一轮对话中已持久化 `available_commands`
 - **AND** 第二轮对话启动时 `AcpSession.start()` 更新 `acpSessionId`、`turnCount` 或 `updatedAt`
 - **THEN** 写回后的 session meta 仍包含原有 `available_commands`
 
-#### Scenario: usage update does not erase future meta fields
+#### Scenario: usage update 不抹除未来 meta 字段
 
 - **WHEN** chat 流式处理 `usage_update` 并更新 `tokenUsage`
 - **THEN** session-store 仅修改 `tokenUsage` 与本次需要变化的字段
 - **AND** 不删除 `available_commands`、`acpSessionId` 或未来新增的其他 meta 字段
 
-#### Scenario: explicit empty available_commands remains persisted
+#### Scenario: 显式空 available_commands 仍保持持久化
 
 - **WHEN** agent 推送 `available_commands_update`，其 `commands` 为空数组
 - **THEN** session-store 将 `available_commands` 持久化为 `[]`
@@ -104,7 +104,7 @@ Session meta storage 规范定义主线程 session meta 的单点持久化边界
 - **WHEN** renderer 调用 `chat:listSessions`
 - **THEN** main 调用 `listSessionMetas`，并在 `toSession(meta, projectId)` 内把 `meta.configOptions` 映射为 `Session.configOptions`（未持久化时为 `undefined`）
 
-### Requirement: Chat session meta persists Fyllo action states
+### Requirement: Chat session meta 持久化 Fyllo action 状态
 
 系统 SHALL 在 chat session meta 中持久化 Fyllo action 的用户交互状态，字段名为 `actionStates`。该字段 SHALL 只服务 Chat 主会话中的 `<fyllo-action>`，Apply / Archive SHALL NOT 读写该字段。
 
@@ -154,7 +154,7 @@ Session meta storage 规范定义主线程 session meta 的单点持久化边界
 - **THEN** `Session.actionStates` 包含持久化的 action state
 - **AND** 对应 action card 按 `succeeded`、`failed` 或 `cancelled` 状态回显
 
-### Requirement: Action state updates use field-level session meta patch
+### Requirement: Action state 更新使用字段级 session meta patch
 
 系统 SHALL 通过 `session-store.ts` 的字段级更新接口写入 `actionStates`。写入单个 action state 时 SHALL 合并现有 `actionStates`，并保留 session meta 的所有其他字段。
 

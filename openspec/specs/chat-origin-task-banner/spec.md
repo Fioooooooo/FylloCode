@@ -1,8 +1,8 @@
-# chat-origin-task-banner Specification
+# chat-origin-task-banner 规范
 
 ## Purpose
 
-TBD - created by archiving change link-task-session-lineage. Update Purpose after archive.
+定义任务来源会话在对话页顶部的来源条展示，以及 session store 对关联任务快照的懒加载、缓存和降级行为。
 
 ## Requirements
 

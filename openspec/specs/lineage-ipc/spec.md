@@ -1,8 +1,8 @@
-# lineage-ipc Specification
+# lineage-ipc 规范
 
 ## Purpose
 
-TBD - created by archiving change link-task-session-lineage. Update Purpose after archive.
+定义 lineage 服务向渲染进程暴露的 IPC 契约，包括 subject 建立/查询、任务会话绑定、会话中创建任务以及 schema 校验失败语义。
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-# fyllo-specs-mcp Specification
+# fyllo-specs-mcp 规范
 
 ## Purpose
 
@@ -136,13 +136,13 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **THEN** tool instruction SHALL 指示 agent 在 `state.workspace.path` 下读取和修改 proposal artifacts
 - **AND** 当 `workspace.path` 存在时，instruction SHALL NOT 让 agent 从 `targetPath` 自行推导 artifact 路径
 
-#### Scenario: creation workflow finalizes to draft
+#### Scenario: 创建工作流最终写回 draft
 
 - **WHEN** agent 完成所有 required artifacts
 - **THEN** prompt SHALL 要求写回同一 change 的 `.openspec.yaml`，将 `status` 设置为 `draft`
 - **AND** 创建工作流仅在该写回完成后结束
 
-#### Scenario: non-git linked fallback
+#### Scenario: non-git linked 模式回退
 
 - **WHEN** 调用 `create-proposal` 传入 non-git 项目 `targetPath` 且 `workspaceMode` 省略
 - **THEN** tool 不尝试创建 linked worktree
@@ -150,7 +150,7 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **AND** 返回 `state.workspace.path === path.resolve(targetPath)`
 - **AND** `state.warnings` 包含 non-git fallback 说明
 
-#### Scenario: create-proposal initializes missing OpenSpec project structure
+#### Scenario: create-proposal 初始化缺失的 OpenSpec 项目结构
 
 - **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
 - **AND** 解析出的 `workspace.path` 下缺少 `openspec/changes/archive/`、`openspec/specs/` 或 `openspec/config.yaml`
@@ -160,7 +160,7 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
 - **AND** tool 返回正常 `create-proposal` state
 
-#### Scenario: existing OpenSpec config is preserved
+#### Scenario: 保留既有 OpenSpec config
 
 - **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
 - **AND** 解析出的 `workspace.path` 下已存在 `openspec/config.yaml`
@@ -169,7 +169,7 @@ tool 内部 projectRoot SHALL 取自 `workspace.path`，并在该路径下调用
 - **AND** 仍然创建缺失的 `openspec/changes/archive/` 与 `openspec/specs/` 目录
 - **AND** 随后继续创建 `<workspace.path>/openspec/changes/<changeName>/`
 
-#### Scenario: existing OpenSpec config is augmented with default guidelines rule
+#### Scenario: 既有 OpenSpec config 补充默认 guidelines 规则
 
 - **WHEN** 调用 `create-proposal` 传入合法 `targetPath`
 - **AND** 解析出的 `workspace.path` 下已存在 `openspec/config.yaml`
@@ -441,7 +441,7 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **THEN** 不存在 `import ... from "@fission-ai/openspec"` 或 `require("@fission-ai/openspec/...")`
 - **AND** 存在通过 `child_process.spawn`（或等价 API）启动 `bin/openspec.js` 的代码路径
 
-#### Scenario: createChange initializes before spawning CLI
+#### Scenario: createChange 在启动 CLI 前执行初始化
 
 - **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
 - **AND** `<projectRoot>/openspec/config.yaml` 不存在
@@ -451,7 +451,7 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **AND** 在 spawn OpenSpec CLI 前创建 `<projectRoot>/openspec/specs/`
 - **AND** spawn OpenSpec CLI 创建 change
 
-#### Scenario: createChange preserves existing config when default rule already present
+#### Scenario: 默认规则已存在时 createChange 保留既有 config
 
 - **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
 - **AND** `<projectRoot>/openspec/config.yaml` 已存在且文件文本中包含默认 guidelines-evaluation 英文规则字面量
@@ -459,7 +459,7 @@ tool 层 SHALL 不直接 spawn CLI，也 SHALL 不直接 import `@fission-ai/ope
 - **AND** SHALL 在 spawn OpenSpec CLI 前补齐缺失目录
 - **AND** spawn OpenSpec CLI 创建 change
 
-#### Scenario: createChange augments existing config when default rule missing
+#### Scenario: 默认规则缺失时 createChange 补充既有 config
 
 - **WHEN** `runtime-openspec#createChange(projectRoot, name)` 被调用
 - **AND** `<projectRoot>/openspec/config.yaml` 已存在但文件文本中不包含默认 guidelines-evaluation 英文规则字面量
@@ -648,31 +648,31 @@ zod schema 校验失败（如入参类型错误）仍由 MCP SDK 在 `registerTo
 - **THEN** 它先调用 `runtime-openspec#archiveChange`，再调用 `runtime-workspace#finalizeArchiveWorkspace`
 - **AND** 当 OpenSpec archive 失败时，不调用 workspace finalization
 
-### Requirement: create-proposal must close creating state to draft
+### Requirement: create-proposal 必须将 creating 状态收敛为 draft
 
-`create-proposal` tool SHALL keep `creating` as the initial intermediate state for a new change, but its prompt SHALL explicitly require the agent to update the corresponding `.openspec.yaml` `status` to `draft` after all required artifacts are complete. The agent SHALL perform that write-back inside the creation workflow and SHALL NOT depend on a second `create-proposal` invocation.
+`create-proposal` tool SHALL 将 `creating` 保留为新 change 的初始中间状态，但其 prompt SHALL 明确要求 agent 在所有必需 artifacts 完成后，把对应 `.openspec.yaml` 的 `status` 更新为 `draft`。agent SHALL 在创建工作流内部执行该写回，SHALL NOT 依赖第二次 `create-proposal` 调用。
 
-#### Scenario: proposal creation finishes
+#### Scenario: proposal 创建完成
 
-- **WHEN** the agent finishes all required artifacts for a change created through `create-proposal`
-- **THEN** the agent writes `.openspec.yaml` with `status: draft` before stopping the creation workflow
-- **AND** the resulting proposal can be treated as ready for implementation in proposal list and detail views
+- **WHEN** agent 完成通过 `create-proposal` 创建的 change 的所有必需 artifacts
+- **THEN** agent 在停止创建工作流前写入包含 `status: draft` 的 `.openspec.yaml`
+- **AND** 生成的 proposal 可在 proposal 列表页与详情页中被视为已准备好进入实现
 
-#### Scenario: creating is only transitional
+#### Scenario: creating 只是过渡状态
 
-- **WHEN** a proposal is still in `creating`
-- **THEN** it SHALL NOT be treated as the final actionable state for implementation
-- **AND** `create-proposal` prompt SHALL instruct the agent to complete artifacts first and then write back `draft`
+- **WHEN** proposal 仍处于 `creating`
+- **THEN** 系统 SHALL NOT 将其视为可进入实现的最终状态
+- **AND** `create-proposal` prompt SHALL 指示 agent 先完成 artifacts，再写回 `draft`
 
-### Requirement: explore is read-only
+### Requirement: explore 保持只读
 
-`explore` tool SHALL NOT modify proposal `.openspec.yaml` state and SHALL NOT perform any lifecycle transition. It only returns exploratory instructions and state.
+`explore` tool SHALL NOT 修改 proposal `.openspec.yaml` 状态，也 SHALL NOT 执行任何生命周期转换。它只返回探索性 instructions 与 state。
 
-#### Scenario: explore does not mutate status
+#### Scenario: explore 不改变状态
 
-- **WHEN** the agent calls `explore` in any phase of a proposal lifecycle
-- **THEN** the call SHALL NOT change `creating` into `draft`
-- **AND** the call SHALL NOT modify any proposal files
+- **WHEN** agent 在 proposal 生命周期任意阶段调用 `explore`
+- **THEN** 该调用 SHALL NOT 将 `creating` 改为 `draft`
+- **AND** 该调用 SHALL NOT 修改任何 proposal 文件
 
 ### Requirement: archive-change 通过 stdout 成功标记确认 OpenSpec 归档完成
 

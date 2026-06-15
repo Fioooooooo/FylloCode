@@ -22,9 +22,9 @@
 - **THEN** header 中的主题切换生效并影响 WelcomeView 外观
 - **AND** WelcomeView 使用与其他页面相同的背景色
 
-### Requirement: WelcomeView 保留所有原有功能
+### Requirement: WelcomeView 保留所有当前欢迎页功能
 
-系统 SHALL 在 WelcomeView 组件内保留所有欢迎页功能。
+系统 SHALL 在 WelcomeView 组件内保留当前欢迎页功能，包括打开文件夹和最近项目入口；系统 SHALL NOT 恢复已移除的创建项目入口。
 
 #### Scenario: 从 WelcomeView 打开文件夹
 
@@ -33,21 +33,15 @@
 - **AND** 选择后当前项目上下文更新
 - **AND** 主内容区域从 WelcomeView 切换到项目工作区
 
-#### Scenario: 从 WelcomeView 创建项目
-
-- **WHEN** 用户在 WelcomeView 中点击"创建项目"
-- **THEN** 项目创建模态框打开
-- **AND** 成功创建后主内容区域切换到项目工作区
-
 #### Scenario: WelcomeView 中的最近项目
 
 - **WHEN** 用户在 WelcomeView 中点击最近项目
 - **THEN** 当前项目上下文更新
 - **AND** 主内容区域切换到项目工作区
 
-## MODIFIED Requirements
+## Historical Notes
 
-### Requirement: 无项目打开时显示欢迎页
+### 已合并：无项目打开时显示欢迎页
 
 系统 SHALL 在无项目打开时显示欢迎内容，欢迎内容 SHALL 在共享应用外壳内渲染。
 

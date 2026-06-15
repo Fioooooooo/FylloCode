@@ -1,8 +1,8 @@
-# settings-about-panel Specification
+# settings-about-panel 规范
 
 ## Purpose
 
-TBD - created by archiving change add-settings-about-version. Update Purpose after archive.
+定义设置页 About tab 的应用信息展示、版本与发布渠道、版权和仓库/反馈链接、加载失败反馈以及新版本检测入口。
 
 ## Requirements
 

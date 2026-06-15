@@ -1,8 +1,8 @@
-# global-preferences Specification
+# global-preferences 规范
 
 ## Purpose
 
-TBD - created by archiving change settings-page. Update Purpose after archive.
+定义全局偏好设置的数据分组、主题/行为/数据选项、即时保存机制及清除历史数据确认流程。
 
 ## Requirements
 

@@ -1,8 +1,8 @@
-# guidelines-auto-evolve Specification
+# guidelines-auto-evolve 规范
 
 ## Purpose
 
-TBD - created by archiving change guidelines-auto-evolve. Update Purpose after archive.
+定义 OpenSpec 生成 tasks 时对仓库 guidelines 演进的提示规则，确保行为、架构、测试、工作流或约定变更会评估是否需要同步更新 guidelines。
 
 ## Requirements
 

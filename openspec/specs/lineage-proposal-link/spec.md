@@ -1,8 +1,8 @@
-# lineage-proposal-link Specification
+# lineage-proposal-link 规范
 
 ## Purpose
 
-TBD - created by archiving change link-chat-proposal-lineage. Update Purpose after archive.
+定义 Chat/任务会话与 Proposal 之间的 lineage 关联链路，包括 MCP 事件目录、事件文件、主进程消费者、崩溃恢复与 disposable 管理。
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-# agent-update Specification
+# agent-update 规范
 
 ## Purpose
 

@@ -1,8 +1,8 @@
-# agent-status-cache Specification
+# agent-status-cache 规范
 
 ## Purpose
 
-TBD - created by archiving change optimize-agent-status-detection. Update Purpose after archive.
+定义 CLI agent 安装状态的批量检测、本地缓存、stale-while-revalidate 刷新与状态广播机制。
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-# bundled-mcp-servers Specification
+# bundled-mcp-servers 规范
 
 ## Purpose
 
@@ -41,21 +41,21 @@
 
 系统 SHALL 把每个内置 MCP server 构建为单文件 JS bundle，输出到 `out/mcp-servers/<server-name>/index.js`（dev 与构建阶段）。electron-builder 打包时 SHALL 通过 `extraResources` 将 `out/mcp-servers/` 复制到打包后 app 的 `Contents/Resources/mcp-servers/`（macOS；Windows / Linux 按各自的 app resources 目录），SHALL 位于 asar 外部以便 spawn 执行。项目根的 `resources/` 源目录（git-tracked）SHALL 不承载 MCP server 产物。
 
-`scripts/build-mcp-servers.mjs` SHALL build all explicitly registered bundled MCP servers. Shared esbuild settings SHALL include the markdown text loader so prompt markdown files can be bundled into each server.
+`scripts/build-mcp-servers.mjs` SHALL 构建所有显式注册的内置 MCP servers。共享 esbuild 配置 SHALL 包含 markdown 文本 loader，使 prompt markdown 文件能被打包进对应 server。
 
 #### Scenario: 开发环境 bundle 可执行
 
 - **WHEN** 执行 `pnpm build:mcp-servers`
 - **THEN** `out/mcp-servers/fyllo-specs/index.js` 生成
 - **AND** `out/mcp-servers/fyllo-cortex/index.js` 生成
-- **AND** each generated bundle can be started as a stdio MCP server through `process.execPath` with `ELECTRON_RUN_AS_NODE=1` or a system `node`
+- **AND** 每个生成的 bundle 都能通过带 `ELECTRON_RUN_AS_NODE=1` 的 `process.execPath` 或系统 `node` 启动为 stdio MCP server
 
 #### Scenario: 生产打包产物位置
 
 - **WHEN** `electron-builder` 打包完成
 - **THEN** 应用包内存在 `Contents/Resources/app.asar.unpacked/mcp-servers/fyllo-specs/index.js`（或对应平台的等价路径）
 - **AND** 应用包内存在 `Contents/Resources/app.asar.unpacked/mcp-servers/fyllo-cortex/index.js`（或对应平台的等价路径）
-- **AND** these files are located outside app.asar and can be spawned as external Node files
+- **AND** 这些文件位于 app.asar 外部，可作为外部 Node 文件启动
 - **AND** 项目源仓库的 `resources/` 目录不包含 `mcp-servers/` 子目录
 
 ### Requirement: 启动描述符由统一 infra 模块提供
@@ -64,7 +64,7 @@
 
 返回的每个 `McpServerSpec` SHALL 至少包含 `name`、`command`、`args`、`env` 四个字段，用于传递给 ACP 的 `connection.newSession`、`connection.resumeSession` 与 `connection.loadSession`。
 
-When bundled MCP is enabled, `getBundledMcpServers` SHALL return specs for both `fyllo-specs` and `fyllo-cortex`. The returned order SHALL be stable with `fyllo-specs` before `fyllo-cortex`.
+当内置 MCP 启用时，`getBundledMcpServers` SHALL 同时返回 `fyllo-specs` 与 `fyllo-cortex` 的 specs。返回顺序 SHALL 保持稳定，`fyllo-specs` 位于 `fyllo-cortex` 之前。
 
 #### Scenario: 开发环境 specs 指向 out 目录
 
@@ -102,36 +102,36 @@ When bundled MCP is enabled, `getBundledMcpServers` SHALL return specs for both 
 
 MCP server 实现 SHALL 优先读取 `FYLLO_PROJECT_PATH` 而非 `process.cwd()` 来解析项目路径。
 
-Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-cortex` SHALL NOT receive that OpenSpec-specific environment variable.
+只有 `fyllo-specs` spec SHALL 接收 `FYLLO_OPENSPEC_CLI_PATH`；`fyllo-cortex` SHALL NOT 接收该 OpenSpec 专用环境变量。
 
 #### Scenario: env 覆盖完整
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 返回 spec
-- **THEN** every returned spec env contains `ELECTRON_RUN_AS_NODE`, `FYLLO_PROJECT_PATH`, `FYLLO_MCP_TELEMETRY`, and `FYLLO_MCP_EVENT_DIR`
-- **AND** every returned spec env has `FYLLO_PROJECT_PATH` equal to the input `projectPath`
-- **AND** every returned spec env has `FYLLO_MCP_EVENT_DIR` equal to `mcpEventsDir(projectPath)`
+- **THEN** 每个返回 spec 的 env 都包含 `ELECTRON_RUN_AS_NODE`、`FYLLO_PROJECT_PATH`、`FYLLO_MCP_TELEMETRY` 与 `FYLLO_MCP_EVENT_DIR`
+- **AND** 每个返回 spec 的 env 中 `FYLLO_PROJECT_PATH` 都等于输入的 `projectPath`
+- **AND** 每个返回 spec 的 env 中 `FYLLO_MCP_EVENT_DIR` 都等于 `mcpEventsDir(projectPath)`
 
 #### Scenario: 提供 fylloSessionId 时注入 FYLLO_SESSION_ID
 
 - **WHEN** `getBundledMcpServers({ projectPath, fylloSessionId: "sess-1" })` 被调用
-- **THEN** every returned spec env contains `FYLLO_SESSION_ID` equal to `"sess-1"`
+- **THEN** 每个返回 spec 的 env 都包含等于 `"sess-1"` 的 `FYLLO_SESSION_ID`
 
 #### Scenario: 未提供 fylloSessionId 时不注入 FYLLO_SESSION_ID
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 被调用且未传 `fylloSessionId`
-- **THEN** no returned spec env contains `FYLLO_SESSION_ID`
+- **THEN** 所有返回 spec 的 env 都不包含 `FYLLO_SESSION_ID`
 
 #### Scenario: OpenSpec CLI env 只提供给 fyllo-specs
 
 - **WHEN** `getBundledMcpServers({ projectPath })` 返回 specs
-- **THEN** the `name === "fyllo-specs"` spec env contains `FYLLO_OPENSPEC_CLI_PATH`
-- **AND** the `name === "fyllo-cortex"` spec env does not contain `FYLLO_OPENSPEC_CLI_PATH`
+- **THEN** `name === "fyllo-specs"` 的 spec env 包含 `FYLLO_OPENSPEC_CLI_PATH`
+- **AND** `name === "fyllo-cortex"` 的 spec env 不包含 `FYLLO_OPENSPEC_CLI_PATH`
 
 #### Scenario: MCP server 优先使用 FYLLO_PROJECT_PATH
 
-- **WHEN** a bundled MCP server starts and needs the current project root
-- **THEN** 系统 SHALL read `process.env.FYLLO_PROJECT_PATH` as the base project directory
-- **AND** only fall back to `process.cwd()` when that variable is missing
+- **WHEN** 内置 MCP server 启动且需要当前项目根目录
+- **THEN** 系统 SHALL 读取 `process.env.FYLLO_PROJECT_PATH` 作为基础项目目录
+- **AND** 仅在该变量缺失时回退到 `process.cwd()`
 
 ### Requirement: 紧急关闭开关 via 环境变量
 
@@ -142,7 +142,7 @@ Only the `fyllo-specs` spec SHALL receive `FYLLO_OPENSPEC_CLI_PATH`; `fyllo-cort
 - **WHEN** 启动 Electron 主进程前设置环境变量 `FYLLO_DISABLE_BUNDLED_MCP=1`
 - **AND** `getBundledMcpServers({ projectPath })` 被调用
 - **THEN** 返回 `[]`
-- **AND** neither `fyllo-specs` nor `fyllo-cortex` is included
+- **AND** 不包含 `fyllo-specs` 或 `fyllo-cortex`
 
 ### Requirement: 内置 MCP server 不注册为主进程 disposable
 

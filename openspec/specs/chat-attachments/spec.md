@@ -1,8 +1,8 @@
-# chat-attachments Specification
+# chat-attachments 规范
 
 ## Purpose
 
-TBD - created by archiving change add-multimodal-prompt-parts. Update Purpose after archive.
+定义 Chat 附件按 session 管理的落盘路径、保存/读取 IPC、删除清理，以及 AI SDK `FileUIPart` 持久化还原契约。
 
 ## Requirements
 

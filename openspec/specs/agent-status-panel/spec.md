@@ -1,8 +1,8 @@
-# agent-status-panel Specification
+# agent-status-panel 规范
 
 ## Purpose
 
-TBD - created by archiving change settings-page. Update Purpose after archive.
+定义设置页 Agent 状态面板的卡片展示、安装/更新状态、外链入口、手动刷新与启动预热复用行为。
 
 ## Requirements
 

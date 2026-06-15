@@ -1,4 +1,4 @@
-# proposal-list Specification
+# proposal-list 规范
 
 ## Purpose
 
@@ -6,13 +6,13 @@
 
 ## Requirements
 
-### Requirement: Proposal list page displays overview statistics
+### Requirement: Proposal 列表页展示概览统计
 
 系统 SHALL 在列表页顶部展示三个统计数字：全部 proposal 数量、进行中（applying 状态）数量、已归档数量。
 
 统计 SHALL 基于 `proposal:list` 返回的全部 ProposalMeta 计数，不区分 worktree 来源；worktree 来源的 active change 计入 "进行中"，主仓库 archive 来源计入"已归档"。
 
-#### Scenario: Statistics reflect current data
+#### Scenario: 统计反映当前数据
 
 - **WHEN** 用户进入 `/proposal` 页面
 - **THEN** 页面顶部显示全部、进行中、已归档三个统计数字
@@ -23,45 +23,45 @@
 - **WHEN** 列表中存在 worktree 来源、status 为 `applying` 的 ProposalMeta
 - **THEN** "进行中"统计包含该条
 
-### Requirement: Proposal list supports status filtering
+### Requirement: Proposal 列表支持状态筛选
 
 系统 SHALL 提供状态筛选，支持按全部、创建中、草稿、实现中、已归档过滤列表。
 
-#### Scenario: Filter by status
+#### Scenario: 按状态筛选
 
 - **WHEN** 用户点击某个状态筛选项
 - **THEN** 列表只显示该状态的 proposal
 - **AND** 其他状态的 proposal 不可见
 
-#### Scenario: Default shows all
+#### Scenario: 默认显示全部
 
 - **WHEN** 用户进入列表页，未选择任何筛选
 - **THEN** 显示全部 proposal
 
-### Requirement: Proposal cards display key metadata
+### Requirement: Proposal 卡片展示关键元数据
 
 每张 proposal 卡片 SHALL 展示：标题（目录名格式化）、状态 badge、Why 摘要（2 行截断）、创建日期、任务完成进度（完成数/总数）。
 
-#### Scenario: Card renders metadata
+#### Scenario: 卡片渲染元数据
 
 - **WHEN** 列表中存在 proposal
 - **THEN** 每张卡片显示标题、状态 badge、why 摘要、日期和任务进度
 
-#### Scenario: Why text truncation
+#### Scenario: Why 文本截断
 
 - **WHEN** Why 摘要超过 2 行
 - **THEN** 超出部分以省略号截断
 
-### Requirement: Proposal list is sorted by creation date descending
+### Requirement: Proposal 列表按创建时间倒序排列
 
 系统 SHALL 按 `.openspec.yaml` 中的 `created` 字段倒序排列 proposal 列表。
 
-#### Scenario: Newest first
+#### Scenario: 最新项优先
 
 - **WHEN** 列表页加载完成
 - **THEN** 创建日期最新的 proposal 排在最前
 
-### Requirement: Proposal list aggregates main repo and linked worktrees
+### Requirement: Proposal 列表聚合主仓库与 linked worktrees
 
 系统 SHALL 在生成 proposal 列表时，扫描以下三处目录并合并结果：
 
@@ -97,7 +97,7 @@
 - **THEN** list 不包含 id 为 `2026-05-19-xx` 的来自该 worktree 的条目
 - **AND** （这条目录不应在正常工作流中出现，因为 P4 archive 编排在 archive 完成后会删除 worktree；本场景仅作鲁棒性约束）
 
-### Requirement: Proposal list deduplicates by changeId with worktree priority
+### Requirement: Proposal 列表按 changeId 去重且 worktree 优先
 
 系统 SHALL 在合并主仓库 active / 主仓库 archive / worktree active 三段结果时执行去重：
 
@@ -120,7 +120,7 @@
 - **AND** 两条 changeId 不同，不参与去重
 - **AND** worktree 来源那条状态为 active 名（`foo`），但 status 已是 `archived`，且 `worktreePath` 非空
 
-### Requirement: ProposalMeta exposes worktreePath when sourced from worktree
+### Requirement: ProposalMeta 在来源为 worktree 时暴露 worktreePath
 
 `ProposalMeta` 实例的 `worktreePath` 字段 SHALL 按以下规则赋值：
 
@@ -146,7 +146,7 @@
 - **WHEN** worktree 路径在文件系统上是 `/Users/foo/myapp/.worktrees/bar/`（含 trailing slash）
 - **THEN** ProposalMeta.worktreePath === `/Users/foo/myapp/.worktrees/bar`（path.resolve 剥离 trailing slash 后）
 
-### Requirement: Proposal cards mark worktree-sourced changes
+### Requirement: Proposal 卡片标记来源为 worktree 的 changes
 
 前端 proposal 列表卡片组件 SHALL 在 `ProposalMeta.worktreePath` 非空时显示视觉标记，向用户暗示该 change 当前驻留在 linked worktree。标记的具体形式（badge / icon / 文案）由实现决定，但 SHALL：
 

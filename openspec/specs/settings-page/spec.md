@@ -1,12 +1,12 @@
-# settings-page Specification
+# settings-page 规范
 
 ## Purpose
 
-TBD - created by archiving change settings-page. Update Purpose after archive.
+定义 Settings 页面布局、垂直 tab 导航、About tab 入口、响应式行为，以及 settings store 与 Electron 共享类型边界。
 
 ## Requirements
 
-### Requirement: Settings page layout
+### Requirement: Settings 页面布局
 
 Settings 页面 SHALL 采用左侧垂直 tab 导航（宽度约 180px）+ 右侧内容区的双栏布局。右侧内容区 SHALL 居中显示，最大宽度限制在 720px（`max-w-2xl`）。页面路由为 `/settings`。左侧导航 SHALL 包含 `Agents`、`集成提供方`、`偏好设置` 和 `About` 四个 tab，且默认激活 `Agents`。
 

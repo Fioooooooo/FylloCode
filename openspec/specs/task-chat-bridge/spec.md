@@ -1,4 +1,4 @@
-# task-chat-bridge Specification
+# task-chat-bridge 规范
 
 ## Purpose
 

@@ -1,8 +1,8 @@
-# data-migration Specification
+# data-migration 规范
 
 ## Purpose
 
-TBD - created by archiving change data-migration-framework. Update Purpose after archive.
+定义应用启动时数据迁移引擎的执行时机、迁移脚本约定、执行记录持久化以及失败隔离策略。
 
 ## Requirements
 

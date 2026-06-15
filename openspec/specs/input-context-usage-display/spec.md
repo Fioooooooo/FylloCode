@@ -1,4 +1,4 @@
-# input-context-usage-display Specification
+# input-context-usage-display 规范
 
 ## Purpose
 

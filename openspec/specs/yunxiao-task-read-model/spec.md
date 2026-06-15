@@ -1,8 +1,8 @@
-# yunxiao-task-read-model Specification
+# yunxiao-task-read-model 规范
 
 ## Purpose
 
-TBD - created by archiving change integrate-yunxiao-task-board. Update Purpose after archive.
+定义云效任务只读聚合模型，包括项目挂载资源查询、工作项拉取参数、`TaskItem` 映射、部分成功策略和详情读取。
 
 ## Requirements
 

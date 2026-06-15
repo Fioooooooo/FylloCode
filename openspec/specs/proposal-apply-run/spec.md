@@ -1,4 +1,4 @@
-# proposal-apply-run Specification
+# proposal-apply-run 规范
 
 ## Purpose
 

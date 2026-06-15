@@ -1,4 +1,4 @@
-# agent-install Specification
+# agent-install 规范
 
 ## Purpose
 

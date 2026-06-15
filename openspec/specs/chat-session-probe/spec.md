@@ -1,8 +1,8 @@
-# chat-session-probe Specification
+# chat-session-probe 规范
 
 ## Purpose
 
-TBD - created by archiving change add-draft-session-probe. Update Purpose after archive.
+定义草稿会话阶段的 ACP session probe 机制，包括主进程 ProbeRegistry/ProbeService、probe IPC、available commands 接收、SessionMeta 转正与 `FYLLO_SESSION_ID` 注入。
 
 ## Requirements
 

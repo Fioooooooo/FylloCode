@@ -1,8 +1,8 @@
-# acp-agent-kind-classification Specification
+# acp-agent-kind-classification 规范
 
 ## Purpose
 
-TBD - created by archiving change add-acp-agent-kind-classification. Update Purpose after archive.
+定义 ACP agent 的 native、adapter、bridge 分类元数据、内置映射、唯一注入出口，以及设置页卡片中的分类徽章展示规则。
 
 ## Requirements
 

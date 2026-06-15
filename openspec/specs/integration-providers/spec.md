@@ -1,8 +1,8 @@
-# integration-providers Specification
+# integration-providers 规范
 
 ## Purpose
 
-TBD - created by archiving change separate-provider-credentials-and-project-integration. Update Purpose after archive.
+定义第三方 Provider 的全局凭证管理、API Token/OAuth 连接、凭证状态回显与过期探测、内置 Provider 注册和 IPC 查询能力。
 
 ## Requirements
 

@@ -1,8 +1,8 @@
-# project-overview Specification
+# project-overview 规范
 
 ## Purpose
 
-TBD - created by archiving change add-project-overview-page. Update Purpose after archive.
+定义项目概览页的数据聚合、仓库统计口径、进行中变更和最近脉络投影、任务关联率、治理演化指标与缓存策略。
 
 ## Requirements
 

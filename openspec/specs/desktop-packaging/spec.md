@@ -1,8 +1,8 @@
-# desktop-packaging Specification
+# desktop-packaging 规范
 
 ## Purpose
 
-TBD - created by archiving change optimize-desktop-packaging. Update Purpose after archive.
+定义桌面生产包的内容过滤、Electron locale 精简、内置 MCP server 分发、体积基线、Windows NSIS 优化和版本 tag draft release 流程。
 
 ## Requirements
 

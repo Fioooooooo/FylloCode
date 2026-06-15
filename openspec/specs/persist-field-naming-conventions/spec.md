@@ -1,8 +1,8 @@
-# persist-field-naming-conventions Specification
+# persist-field-naming-conventions 规范
 
 ## Purpose
 
-TBD - created by archiving change persist-field-naming-conventions. Update Purpose after archive.
+定义 FylloCode 主动写入持久化字段的命名与时间字段格式约束，统一使用 camelCase key 和 ISO 8601 时间字符串。
 
 ## Requirements
 

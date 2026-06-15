@@ -1,8 +1,8 @@
-# project-health-check-ui Specification
+# project-health-check-ui 规范
 
 ## Purpose
 
-TBD - created by archiving change project-health-check. Update Purpose after archive.
+定义 AppHeader 中央健康度 icon 的颜色、Popover 交互、确认后发起健康检查 session，以及进入项目/点击时的 `healthScore` 刷新行为。
 
 ## Requirements
 

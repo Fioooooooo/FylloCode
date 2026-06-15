@@ -1,4 +1,4 @@
-# agent-registry-cache Specification
+# agent-registry-cache 规范
 
 ## Purpose
 

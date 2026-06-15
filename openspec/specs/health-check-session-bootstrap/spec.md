@@ -1,8 +1,8 @@
-# health-check-session-bootstrap Specification
+# health-check-session-bootstrap 规范
 
 ## Purpose
 
-TBD - created by archiving change project-health-check. Update Purpose after archive.
+定义项目健康检查入口自动创建会话、结构化 system-reminder、三类十维评分规则，以及评估到改进 proposal 的闭环输出契约。
 
 ## Requirements
 

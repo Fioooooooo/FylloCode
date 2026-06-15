@@ -24,13 +24,15 @@
 - **AND** 选择后打开目录作为当前项目
 - **AND** 系统进入 `/workspace`
 
-## REMOVED Requirements
-
 ### Requirement: 项目切换器下拉包含新建项目选项
 
-**Reason**: 创建项目功能已从应用中移除。
+系统 SHALL NOT 在项目切换器下拉菜单中展示新建项目入口。用户 SHALL 通过"打开项目"或 WelcomeView 的"打开文件夹"入口添加已有项目。
 
-**Migration**: 用户应在 WelcomeView 使用"打开文件夹"按钮来添加新项目。
+#### Scenario: 项目切换器不展示新建项目
+
+- **WHEN** 用户展开项目切换器
+- **THEN** 下拉菜单包含已有项目列表和"打开项目"入口
+- **AND** 下拉菜单不包含新建项目入口
 
 ### Requirement: Header 中不再显示项目级 agent 标签
 

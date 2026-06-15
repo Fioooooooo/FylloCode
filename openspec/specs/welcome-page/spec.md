@@ -1,76 +1,76 @@
-# welcome-page Specification
+# welcome-page 规范
 
 ## Purpose
 
-定义应用启动时无项目状态下的欢迎内容展示，包括品牌标识、操作按钮和最近项目列表。
+定义应用启动时无项目状态下的欢迎内容展示，包括共享应用外壳中的品牌标识、打开文件夹入口、最近项目列表、空态文案，以及已移除创建项目入口后的迁移约束。
 
 ## Requirements
 
-### Requirement: Welcome page displays when no project is open
+### Requirement: 无项目打开时显示欢迎页
 
-The system SHALL display the Welcome content when no project is currently open, and the Welcome content SHALL render inside the shared application shell.
+系统 SHALL 在当前没有打开项目时显示 Welcome 内容，且 Welcome 内容 SHALL 渲染在共享应用外壳内。
 
-#### Scenario: User opens app with no project
+#### Scenario: 用户无项目启动应用
 
-- **WHEN** the application starts with no active project
-- **THEN** the Welcome content is displayed in the main content region
-- **AND** the shared application shell header and side navigation are visible
+- **WHEN** 应用启动时没有 active project
+- **THEN** Welcome 内容显示在主内容区域
+- **AND** 共享应用外壳 header 与侧边导航可见
 
-### Requirement: Welcome page shows brand identity
+### Requirement: 欢迎页展示品牌标识
 
-The system SHALL display the FylloCode logo, product name, and tagline centered at the top of the Welcome content.
+系统 SHALL 在 Welcome 内容顶部居中显示 FylloCode logo、产品名称和 tagline。
 
-#### Scenario: Brand identity is visible
+#### Scenario: 品牌标识可见
 
-- **WHEN** the Welcome content is displayed
-- **THEN** the logo, "FylloCode" text, and tagline "Autonomous Coding Workflow" are visible
-- **AND** they are horizontally centered
+- **WHEN** Welcome 内容显示
+- **THEN** logo、`FylloCode` 文本和 tagline `Autonomous Coding Workflow` 可见
+- **AND** 三者水平居中
 
-### Requirement: Welcome page provides action buttons
+### Requirement: 欢迎页提供操作按钮
 
-The system SHALL display a single "Open Folder" action button below the brand identity.
+系统 SHALL 在品牌标识下方显示单个 `Open Folder` 操作按钮。
 
-#### Scenario: Action button is visible
+#### Scenario: 操作按钮可见
 
-- **WHEN** the Welcome content is displayed
-- **THEN** an "Open Folder" button is shown
-- **AND** the "Open Folder" button is styled as a primary solid button
-- **AND** the button has an icon on the left side
-- **AND** no "Create Project" button is displayed
+- **WHEN** Welcome 内容显示
+- **THEN** 显示 `Open Folder` 按钮
+- **AND** `Open Folder` 按钮使用 primary solid 样式
+- **AND** 按钮左侧有 icon
+- **AND** 不显示 `Create Project` 按钮
 
-#### Scenario: Open Folder button is clicked
+#### Scenario: 点击 Open Folder 按钮
 
-- **WHEN** user clicks the "Open Folder" button
-- **THEN** a directory selection dialog is invoked
-- **AND** upon selection, the current project context is updated
-- **AND** the system enters `/workspace`
+- **WHEN** 用户点击 `Open Folder` 按钮
+- **THEN** 系统打开目录选择对话框
+- **AND** 用户选择目录后，当前项目上下文被更新
+- **AND** 系统进入 `/workspace`
 
-### Requirement: Welcome page handles empty recent projects state
+### Requirement: 欢迎页处理最近项目空态
 
-The system SHALL display an empty state message when no recent projects exist.
+系统 SHALL 在不存在最近项目时显示空态消息。
 
-#### Scenario: No recent projects
+#### Scenario: 无最近项目
 
-- **WHEN** the Welcome content is displayed and no recent projects exist
-- **THEN** a message "No recent projects. Open a folder or create a new project to get started." is shown
-- **AND** the recent projects list is not displayed
+- **WHEN** Welcome 内容显示且不存在最近项目
+- **THEN** 显示消息 `No recent projects. Open a folder or create a new project to get started.`
+- **AND** 不显示最近项目列表
 
-## REMOVED Requirements
+## Historical Notes
 
-### Requirement: Welcome page shows two side-by-side action buttons
+### 已移除：欢迎页显示两个并排操作按钮
 
-**Reason**: The "Create Project" functionality is being removed from the application.
+**Reason**: `Create Project` 功能已从应用中移除。
 
-**Migration**: Users should use the "Open Folder" button to open an existing directory instead.
+**Migration**: 用户应改用 `Open Folder` 按钮打开已有目录。
 
-### Requirement: Create Project button opens modal
+### 已移除：Create Project 按钮打开模态框
 
-**Reason**: The "Create Project" functionality is being removed from the application.
+**Reason**: `Create Project` 功能已从应用中移除。
 
-**Migration**: N/A — the Create Project modal is being deleted entirely.
+**Migration**: N/A。Create Project 模态框已整体删除。
 
-### Requirement: Welcome page is standalone route
+### 已移除：欢迎页是独立路由
 
-**Reason**: Welcome content is now embedded in the shared application shell, no longer a standalone `/welcome` route.
+**Reason**: Welcome 内容现在嵌入共享应用外壳，不再是独立的 `/welcome` 路由。
 
-**Migration**: The `/welcome` route is removed. Users without a project will see Welcome content at `/`.
+**Migration**: `/welcome` 路由已移除。无项目用户会在 `/` 看到 Welcome 内容。

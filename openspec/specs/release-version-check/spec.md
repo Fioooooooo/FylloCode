@@ -1,8 +1,8 @@
-# release-version-check Specification
+# release-version-check 规范
 
 ## Purpose
 
-TBD - created by archiving change add-github-release-version-check. Update Purpose after archive.
+定义从 GitHub Release 检测新版本的只读检查能力、打开发布页入口和结构化错误反馈。
 
 ## Requirements
 

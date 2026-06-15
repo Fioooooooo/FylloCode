@@ -1,8 +1,8 @@
-# acp-agent-runtime-spawn Specification
+# acp-agent-runtime-spawn 规范
 
 ## Purpose
 
-TBD - created by archiving change fix-acp-agent-spawn-env-args. Update Purpose after archive.
+定义 ACP agent distribution 中 `args` / `env` 运行时元数据的共享类型与启动注入规则，确保 npx、uvx、binary 三类分发在保持兼容的同时正确传递参数和环境变量。
 
 ## Requirements
 

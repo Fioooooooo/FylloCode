@@ -1,8 +1,8 @@
-# project-lineage-model Specification
+# project-lineage-model 规范
 
 ## Purpose
 
-TBD - created by archiving change add-lineage-model. Update Purpose after archive.
+定义项目 lineage 持久化模型、subject 聚合根、origin 不变量、任务快照、索引派生自愈和写入/查询 API。
 
 ## Requirements
 

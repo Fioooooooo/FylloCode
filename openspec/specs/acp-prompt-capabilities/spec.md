@@ -1,8 +1,8 @@
-# acp-prompt-capabilities Specification
+# acp-prompt-capabilities 规范
 
 ## Purpose
 
-TBD - created by archiving change add-multimodal-prompt-parts. Update Purpose after archive.
+定义 ACP `promptCapabilities` 的归一化、缓存、失效与 IPC 查询契约，用于在渲染端判断 agent 是否支持图片和 embedded context 等多模态 prompt 能力。
 
 ## Requirements
 

@@ -1,8 +1,8 @@
-# repository-quality-constraints Specification
+# repository-quality-constraints 规范
 
 ## Purpose
 
-TBD - created by archiving change health-check-hardening-static-and-coverage. Update Purpose after archive.
+定义仓库质量门禁的硬性约束，包括类型感知 ESLint、可失败的 coverage 阈值，以及与 guideline 文档的同步要求。
 
 ## Requirements
 

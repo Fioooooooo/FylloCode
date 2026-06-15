@@ -1,176 +1,176 @@
-# fyllo-cortex-mcp Specification
+# fyllo-cortex-mcp 规范
 
 ## Purpose
 
-Define the bundled `fyllo-cortex` MCP server contract. This server owns the project-guidelines tool surface and is the extension point for future FylloCode core tools.
+定义内置 `fyllo-cortex` MCP 服务的契约。该服务负责项目 guidelines 工具能力，并作为 FylloCode 未来核心工具的扩展点。
 
 ## Requirements
 
-### Requirement: fyllo-cortex MCP server 注册 guidelines 工具
+### Requirement: fyllo-cortex MCP 服务注册 guidelines 工具
 
-`fyllo-cortex` MCP server SHALL 作为 bundled stdio MCP server 实现在 `src/mcp-servers/fyllo-cortex/` 下。它 SHALL 注册一个名为 `guidelines` 的工具，用于读取本地 guideline 元数据和返回 guideline 编写契约。
+`fyllo-cortex` MCP 服务 SHALL 作为内置 stdio MCP 服务实现在 `src/mcp-servers/fyllo-cortex/` 下。它 SHALL 注册一个名为 `guidelines` 的工具，用于读取本地 guideline 元数据和返回 guideline 编写契约。
 
-`guidelines` 工具 SHALL 接受 `mode` 字段，取值 SHALL 为 `"read"` 或 `"write"`。该工具 SHALL NOT 接受项目路径、OpenSpec change 名称或 workspace 控制参数，例如 `targetPath`、`changeName`、`includeInstruction` 或 `workspaceMode`。
+`guidelines` 工具 SHALL 接受 `mode` 字段，取值 SHALL 为 `"read"` 或 `"write"`。该工具 SHALL NOT 接受项目路径、OpenSpec 变更名称或工作区控制参数，例如 `targetPath`、`changeName`、`includeInstruction` 或 `workspaceMode`。
 
-#### Scenario: tool list contains guidelines
+#### Scenario: 工具列表包含 guidelines
 
-- **WHEN** MCP client calls `tools/list` on `fyllo-cortex`
-- **THEN** the returned tool list contains a tool named `guidelines`
-- **AND** no returned tool is namespaced under a legacy guidelines server name
+- **WHEN** MCP 客户端在 `fyllo-cortex` 上调用 `tools/list`
+- **THEN** 返回的工具列表包含名为 `guidelines` 的工具
+- **AND** 没有返回工具使用旧 guidelines 服务名称作为命名空间
 
-#### Scenario: guidelines accepts only mode input
+#### Scenario: guidelines 只接受 mode 输入
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` or `{ "mode": "write" }`
-- **THEN** the call succeeds
-- **AND** the tool does not require `targetPath`, `changeName`, `includeInstruction`, or `workspaceMode`
+- **WHEN** MCP 客户端使用 `{ "mode": "read" }` 或 `{ "mode": "write" }` 调用 `guidelines`
+- **THEN** 调用成功
+- **AND** 工具不要求传入 `targetPath`、`changeName`、`includeInstruction` 或 `workspaceMode`
 
 ### Requirement: guidelines prompt 由 markdown 文件维护
 
-The `guidelines` tool instruction body SHALL be maintained in `src/mcp-servers/fyllo-cortex/src/tools/instructions/guidelines.md`. TypeScript code SHALL NOT inline the instruction body as a long string literal. The MCP server implementation SHALL load the markdown prompt through the existing prompt loader pattern so esbuild can inline it with the existing `.md` text loader.
+`guidelines` 工具的指令正文 SHALL 维护在 `src/mcp-servers/fyllo-cortex/src/tools/instructions/guidelines.md` 中。TypeScript 代码 SHALL NOT 将指令正文以内联长字符串形式维护。MCP 服务实现 SHALL 通过现有 prompt loader 模式加载 Markdown prompt，使 esbuild 能够沿用现有 `.md` text loader 将其内联。
 
-#### Scenario: prompt file exists
+#### Scenario: prompt 文件存在
 
-- **WHEN** checking `src/mcp-servers/fyllo-cortex/src/tools/instructions/`
-- **THEN** `guidelines.md` exists
+- **WHEN** 检查 `src/mcp-servers/fyllo-cortex/src/tools/instructions/`
+- **THEN** `guidelines.md` 存在
 
-#### Scenario: instruction body is not embedded in tool code
+#### Scenario: 指令正文不嵌入工具代码
 
-- **WHEN** searching TypeScript files under `src/mcp-servers/fyllo-cortex/src/`
-- **THEN** project guidelines instruction prose is not duplicated as long string literals in tool registration code
-- **AND** the `guidelines` tool uses the markdown prompt loader to produce its write-mode response
+- **WHEN** 搜索 `src/mcp-servers/fyllo-cortex/src/` 下的 TypeScript 文件
+- **THEN** 项目 guidelines 指令文案没有以长字符串字面量形式重复出现在工具注册代码中
+- **AND** `guidelines` 工具使用 markdown prompt loader 生成 write 模式响应
 
-### Requirement: guidelines instruction 定义项目 guideline 契约
+### Requirement: guidelines 指令定义项目 guideline 契约
 
-The `guidelines.md` instruction body returned by `mode=write` SHALL define the project guidelines file contract and maintenance rules. It SHALL cover:
+`mode=write` 返回的 `guidelines.md` 指令正文 SHALL 定义项目 guidelines 文件契约和维护规则。它 SHALL 覆盖：
 
-- root `AGENTS.md` as the agent-facing repository entry point
-- `guidelines/*.md` as detailed topic documents
-- a focused `Project Guidelines Index` section for root `AGENTS.md` that agents add only when local guideline links are missing or stale
-- a recommended `guidelines/*.md` taxonomy for common repository surfaces such as architecture, code style, testing, data models, APIs, IPC, frontend, backend, build, security, dependencies, workflow, and domain rules
-- guideline document format using stable sections and `MUST` / `SHOULD` / `MAY` normative terms
-- topic-specific content checklists for common guideline files
-- authoring rules based on repository evidence
-- maintenance triggers for updating guidelines when project conventions change
-- conflict handling when local guidelines disagree with higher-priority instructions or observed repository facts
-- a YAML frontmatter description that defines the recommended frontmatter fields `name`, `description`, and `keywords`, including an example placed at the top of the document template and a note that `mode=read` parses these fields to surface guideline metadata
+- 根目录 `AGENTS.md` 作为面向 agent 的仓库入口文件
+- `guidelines/*.md` 作为按主题拆分的详细文档
+- 根目录 `AGENTS.md` 中聚焦的 `Project Guidelines Index` 小节，并要求 agent 只在本地 guideline 链接缺失或过期时添加该小节
+- 推荐的 `guidelines/*.md` 分类体系，覆盖架构、代码风格、测试、数据模型、API、IPC、前端、后端、构建、安全、依赖、工作流和领域规则等常见仓库表面
+- 使用稳定章节和 `MUST` / `SHOULD` / `MAY` 规范术语的 guideline 文档格式
+- 常见 guideline 文件的主题级内容检查清单
+- 基于仓库证据的编写规则
+- 当项目约定变化时更新 guidelines 的维护触发条件
+- 当本地 guidelines 与更高优先级指令或观察到的仓库事实冲突时的处理规则
+- YAML frontmatter 说明，定义推荐的 `name`、`description`、`keywords` 字段，包括放在文档模板顶部的示例，并说明 `mode=read` 会解析这些字段来暴露 guideline 元数据
 
-The instruction SHALL NOT mention Fyllo stage names or workflows, including Chat, Proposal, Apply, Archive, OpenSpec, worktrees, commits, archive, `mcp__fyllo_specs__*`, or Fyllo proposal tasks. Stage-specific orchestration belongs in system-reminder templates, not in the `guidelines` tool instruction.
+该指令 SHALL NOT 提及 Fyllo stage 名称或工作流，包括 Chat、Proposal、Apply、Archive、OpenSpec、worktrees、commits、archive、`mcp__fyllo_specs__*` 或 Fyllo proposal tasks。阶段特定编排属于 system-reminder 模板，不属于 `guidelines` 工具指令。
 
-#### Scenario: instruction includes file contract
+#### Scenario: 指令包含文件契约
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
-- **THEN** returned instruction mentions root `AGENTS.md`
-- **AND** returned instruction mentions `guidelines/`
-- **AND** returned instruction describes that repository-owned guidelines are maintained in the user's project
+- **WHEN** MCP 客户端使用 `{ "mode": "write" }` 调用 `guidelines`
+- **THEN** 返回的指令提及根目录 `AGENTS.md`
+- **AND** 返回的指令提及 `guidelines/`
+- **AND** 返回的指令说明仓库拥有的 guidelines 维护在用户项目中
 
-#### Scenario: instruction includes reusable guideline index and document templates
+#### Scenario: 指令包含可复用 guideline 索引和文档模板
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
-- **THEN** returned instruction contains an `AGENTS.md` guidelines index section
-- **AND** returned instruction tells agents not to generate or replace a full `AGENTS.md` document from this instruction
-- **AND** returned instruction contains a recommended guideline files section
-- **AND** returned instruction contains topic-specific content requirements
-- **AND** returned instruction mentions `guidelines/Architecture.md`, `guidelines/CodeStyle.md`, `guidelines/Testing.md`, and `guidelines/DataModel.md`
+- **WHEN** MCP 客户端使用 `{ "mode": "write" }` 调用 `guidelines`
+- **THEN** 返回的指令包含 `AGENTS.md` guidelines index 小节
+- **AND** 返回的指令告知 agent 不要根据该指令生成或替换完整的 `AGENTS.md` 文档
+- **AND** 返回的指令包含推荐 guideline 文件小节
+- **AND** 返回的指令包含主题级内容要求
+- **AND** 返回的指令提及 `guidelines/Architecture.md`、`guidelines/CodeStyle.md`、`guidelines/Testing.md` 和 `guidelines/DataModel.md`
 
-#### Scenario: instruction remains workflow-agnostic
+#### Scenario: 指令与工作流无关
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
-- **THEN** returned instruction does not contain `Chat`
-- **AND** returned instruction does not contain `Proposal`
-- **AND** returned instruction does not contain `Apply`
-- **AND** returned instruction does not contain `Archive`
-- **AND** returned instruction does not contain `OpenSpec`
-- **AND** returned instruction does not contain `worktree`
-- **AND** returned instruction does not contain `commit`
+- **WHEN** MCP 客户端使用 `{ "mode": "write" }` 调用 `guidelines`
+- **THEN** 返回的指令不包含 `Chat`
+- **AND** 返回的指令不包含 `Proposal`
+- **AND** 返回的指令不包含 `Apply`
+- **AND** 返回的指令不包含 `Archive`
+- **AND** 返回的指令不包含 `OpenSpec`
+- **AND** 返回的指令不包含 `worktree`
+- **AND** 返回的指令不包含 `commit`
 
-### Requirement: fyllo-cortex has independent server metadata and tests
+### Requirement: fyllo-cortex 拥有独立服务元数据和测试
 
-`fyllo-cortex` SHALL define its own server name and version module. Tests SHALL cover tool registration and response shape for both `mode=read` and `mode=write` without depending on `fyllo-specs` internals.
+`fyllo-cortex` SHALL 定义自己的服务名称和版本模块。测试 SHALL 覆盖工具注册以及 `mode=read` 和 `mode=write` 两种模式的响应形状，并且不得依赖 `fyllo-specs` 内部实现。
 
-#### Scenario: server metadata uses fyllo-cortex name
+#### Scenario: 服务元数据使用 fyllo-cortex 名称
 
-- **WHEN** `fyllo-cortex` starts its `McpServer`
-- **THEN** the server name is `fyllo-cortex`
+- **WHEN** `fyllo-cortex` 启动其 `McpServer`
+- **THEN** 服务名称为 `fyllo-cortex`
 
-#### Scenario: tests verify guidelines write response
+#### Scenario: 测试验证 guidelines write 响应
 
-- **WHEN** running MCP server tests
-- **THEN** there is coverage that calls `guidelines` with `{ "mode": "write" }`
-- **AND** the test verifies the response contains `<tool_instruction>` and not `<state>`
+- **WHEN** 运行 MCP 服务测试
+- **THEN** 测试覆盖使用 `{ "mode": "write" }` 调用 `guidelines` 的场景
+- **AND** 测试验证响应包含 `<tool_instruction>` 且不包含 `<state>`
 
-#### Scenario: tests verify guidelines read response
+#### Scenario: 测试验证 guidelines read 响应
 
-- **WHEN** running MCP server tests
-- **THEN** there is coverage that calls `guidelines` with `{ "mode": "read" }` against a fixture project
-- **AND** the test verifies the response is JSON with a `guidelines` array
-- **AND** the test verifies entries from frontmatter, missing frontmatter, and malformed frontmatter cases all behave per the specification
+- **WHEN** 运行 MCP 服务测试
+- **THEN** 测试覆盖在 fixture project 中使用 `{ "mode": "read" }` 调用 `guidelines` 的场景
+- **AND** 测试验证响应是包含 `guidelines` 数组的 JSON
+- **AND** 测试验证包含 frontmatter、缺少 frontmatter 和 frontmatter 格式错误的条目均符合本规范
 
-### Requirement: guidelines tool returns mode-specific responses
+### Requirement: guidelines 工具返回按 mode 区分的响应
 
-The `guidelines` tool SHALL return responses whose shape is determined by the `mode` input field.
+`guidelines` 工具 SHALL 根据 `mode` 输入字段返回不同形状的响应。
 
-When `mode` is `"write"`, the tool SHALL return `content: [{ type: "text", text }]`, where `text` contains a `<tool_instruction>...</tool_instruction>` block holding the guideline authoring contract. The response SHALL NOT include a `<state>` block. The tool SHALL NOT mutate any repository file.
+当 `mode` 为 `"write"` 时，工具 SHALL 返回 `content: [{ type: "text", text }]`，其中 `text` 包含持有 guideline 编写契约的 `<tool_instruction>...</tool_instruction>` 块。响应 SHALL NOT 包含 `<state>` 块。工具 SHALL NOT 修改任何仓库文件。
 
-When `mode` is `"read"`, the tool SHALL return `content: [{ type: "text", text }]`, where `text` is a JSON document with a single root field named `guidelines` whose value is an array of guideline entries. The tool SHALL recursively scan `guidelines/**/*.md` under the MCP server's current working directory and produce one entry per matched file. The tool SHALL NOT mutate any repository file. If the `guidelines/` directory does not exist, the tool SHALL return `{ "guidelines": [] }` without error.
+当 `mode` 为 `"read"` 时，工具 SHALL 返回 `content: [{ type: "text", text }]`，其中 `text` 是一个 JSON 文档，根字段只有 `guidelines`，其值为 guideline 条目数组。工具 SHALL 在 MCP 服务当前工作目录下递归扫描 `guidelines/**/*.md`，并为每个匹配文件生成一个条目。工具 SHALL NOT 修改任何仓库文件。如果 `guidelines/` 目录不存在，工具 SHALL 返回 `{ "guidelines": [] }` 且不报错。
 
-Each guideline entry SHALL include the following fields:
+每个 guideline 条目 SHALL 包含以下字段：
 
-- `path`: project-root-relative POSIX path to the file, for example `guidelines/Architecture.md`.
-- `name`: the value of `name` from the file's YAML frontmatter when it is a non-empty string; otherwise the file name stem.
-- `description`: the value of `description` from the file's YAML frontmatter when it is a non-empty string; otherwise `null`.
-- `keywords`: the value of `keywords` from the file's YAML frontmatter when it is an array of strings; otherwise `null`.
+- `path`: 文件相对于项目根目录的 POSIX 路径，例如 `guidelines/Architecture.md`。
+- `name`: 当文件 YAML frontmatter 中的 `name` 是非空字符串时使用该值；否则使用文件名主干。
+- `description`: 当文件 YAML frontmatter 中的 `description` 是非空字符串时使用该值；否则为 `null`。
+- `keywords`: 当文件 YAML frontmatter 中的 `keywords` 是字符串数组时使用该值；否则为 `null`。
 
-When the file has no leading `---` frontmatter delimiter, the entry SHALL still be returned with `description` and `keywords` set to `null` and `name` set to the file name stem. When the file has a frontmatter block but YAML parsing fails or the parsed value is not a plain object, the entry SHALL include an additional optional field `parseError` whose value is a short error message string, and `description` and `keywords` SHALL be `null`.
+当文件没有开头的 `---` frontmatter 分隔符时，条目 SHALL 仍然返回，其中 `description` 和 `keywords` 为 `null`，`name` 为文件名主干。当文件存在 frontmatter 块但 YAML 解析失败，或解析结果不是普通对象时，条目 SHALL 包含额外的可选字段 `parseError`，其值为简短错误信息字符串，并且 `description` 和 `keywords` SHALL 为 `null`。
 
-Entries SHALL be sorted by `path` in ascending lexicographic order.
+条目 SHALL 按 `path` 的字典序升序排序。
 
-#### Scenario: write mode returns instruction block
+#### Scenario: write mode 返回指令块
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "write" }`
-- **THEN** response `content[0].type === "text"`
-- **AND** response `content[0].text` contains `<tool_instruction>`
-- **AND** response `content[0].text` contains `</tool_instruction>`
-- **AND** response `content[0].text` does not contain `<state>`
+- **WHEN** MCP 客户端使用 `{ "mode": "write" }` 调用 `guidelines`
+- **THEN** 响应满足 `content[0].type === "text"`
+- **AND** 响应 `content[0].text` 包含 `<tool_instruction>`
+- **AND** 响应 `content[0].text` 包含 `</tool_instruction>`
+- **AND** 响应 `content[0].text` 不包含 `<state>`
 
-#### Scenario: read mode returns guidelines array
+#### Scenario: read mode 返回 guidelines 数组
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` in a project containing `guidelines/A.md` and `guidelines/B.md`
-- **THEN** response `content[0].text` parses as JSON
-- **AND** the JSON has a root field `guidelines` whose value is an array
-- **AND** the array contains entries whose `path` values include `guidelines/A.md` and `guidelines/B.md`
-- **AND** the entries are sorted by `path` ascending
+- **WHEN** MCP 客户端在包含 `guidelines/A.md` 和 `guidelines/B.md` 的项目中使用 `{ "mode": "read" }` 调用 `guidelines`
+- **THEN** 响应 `content[0].text` 可解析为 JSON
+- **AND** 该 JSON 有根字段 `guidelines`，其值为数组
+- **AND** 该数组包含 `path` 值为 `guidelines/A.md` 和 `guidelines/B.md` 的条目
+- **AND** 条目按 `path` 升序排序
 
-#### Scenario: read mode parses frontmatter fields
+#### Scenario: read mode 解析 frontmatter 字段
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a guideline file declares `name: "Architecture"`, `description: "system layout"`, and `keywords: ["electron", "ipc"]` in its YAML frontmatter
-- **THEN** the corresponding entry has `name === "Architecture"`
-- **AND** the entry has `description === "system layout"`
-- **AND** the entry has `keywords` deep-equal to `["electron", "ipc"]`
+- **WHEN** MCP 客户端使用 `{ "mode": "read" }` 调用 `guidelines`，且某个 guideline 文件在 YAML frontmatter 中声明 `name: "Architecture"`、`description: "system layout"` 和 `keywords: ["electron", "ipc"]`
+- **THEN** 对应条目满足 `name === "Architecture"`
+- **AND** 该条目满足 `description === "system layout"`
+- **AND** 该条目的 `keywords` 与 `["electron", "ipc"]` 深度相等
 
-#### Scenario: read mode tolerates missing frontmatter
+#### Scenario: read mode 容忍缺失 frontmatter
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a file `guidelines/Legacy.md` does not start with `---`
-- **THEN** the corresponding entry has `path === "guidelines/Legacy.md"`
-- **AND** the entry has `name === "Legacy"`
-- **AND** the entry has `description === null`
-- **AND** the entry has `keywords === null`
-- **AND** the entry does not include `parseError`
+- **WHEN** MCP 客户端使用 `{ "mode": "read" }` 调用 `guidelines`，且文件 `guidelines/Legacy.md` 不以 `---` 开头
+- **THEN** 对应条目满足 `path === "guidelines/Legacy.md"`
+- **AND** 该条目满足 `name === "Legacy"`
+- **AND** 该条目满足 `description === null`
+- **AND** 该条目满足 `keywords === null`
+- **AND** 该条目不包含 `parseError`
 
-#### Scenario: read mode reports frontmatter parse failure
+#### Scenario: read mode 报告 frontmatter 解析失败
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and a file's frontmatter contains malformed YAML
-- **THEN** the corresponding entry has `name === <file name stem>`
-- **AND** the entry has `description === null`
-- **AND** the entry has `keywords === null`
-- **AND** the entry has `parseError` set to a non-empty string
+- **WHEN** MCP 客户端使用 `{ "mode": "read" }` 调用 `guidelines`，且某个文件的 frontmatter 包含格式错误的 YAML
+- **THEN** 对应条目满足 `name === <文件名主干>`
+- **AND** 该条目满足 `description === null`
+- **AND** 该条目满足 `keywords === null`
+- **AND** 该条目的 `parseError` 为非空字符串
 
-#### Scenario: read mode supports nested directories
+#### Scenario: read mode 支持嵌套目录
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` and the project contains `guidelines/src/renderer/Routing.md`
-- **THEN** the response contains an entry with `path === "guidelines/src/renderer/Routing.md"`
+- **WHEN** MCP 客户端使用 `{ "mode": "read" }` 调用 `guidelines`，且项目包含 `guidelines/src/renderer/Routing.md`
+- **THEN** 响应包含满足 `path === "guidelines/src/renderer/Routing.md"` 的条目
 
-#### Scenario: read mode returns empty array when guidelines directory missing
+#### Scenario: read mode 在 guidelines 目录缺失时返回空数组
 
-- **WHEN** MCP client calls `guidelines` with `{ "mode": "read" }` in a project that has no `guidelines/` directory
-- **THEN** response `content[0].text` parses as JSON
-- **AND** the JSON equals `{ "guidelines": [] }`
+- **WHEN** MCP 客户端在没有 `guidelines/` 目录的项目中使用 `{ "mode": "read" }` 调用 `guidelines`
+- **THEN** 响应 `content[0].text` 可解析为 JSON
+- **AND** 该 JSON 等于 `{ "guidelines": [] }`

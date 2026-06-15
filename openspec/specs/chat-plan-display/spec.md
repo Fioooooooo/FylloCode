@@ -1,8 +1,8 @@
-# chat-plan-display Specification
+# chat-plan-display 规范
 
 ## Purpose
 
-TBD - created by archiving change add-acp-plan-display. Update Purpose after archive.
+定义 Chat 执行计划面板的展示、折叠、空态和会话内存态切换规则。
 
 ## Requirements
 
