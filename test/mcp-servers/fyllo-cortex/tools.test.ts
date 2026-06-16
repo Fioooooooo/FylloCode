@@ -408,6 +408,7 @@ describe("fyllo-cortex tools", () => {
           changeId: "add-foo",
           commitHash: null,
           status: "pending",
+          proposalPath: expect.stringMatching(/\/openspec\/changes\/add-foo$/),
         });
         expect(dto.createdAt).toBe("2026-06-16T00:00:00.000Z");
         expect(dto.updatedAt).toBe("2026-06-16T00:01:00.000Z");

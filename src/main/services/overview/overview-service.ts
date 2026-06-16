@@ -1,4 +1,4 @@
-import { readProposalFiles } from "@main/infra/proposal/openspec-reader";
+import { readProposalFiles, stripArchivePrefix } from "@main/infra/proposal/openspec-reader";
 import logger from "@main/infra/logger";
 import { listSubjects } from "@main/infra/storage/lineage-store";
 import {
@@ -105,7 +105,9 @@ function resolveLineageStatus(
 
 async function computeRecentLineages(projectPath: string): Promise<RecentLineage[]> {
   const allProposals = await readProposalFiles(projectPath);
-  const statusMap = new Map<string, ProposalStatus>(allProposals.map((p) => [p.id, p.status]));
+  const statusMap = new Map<string, ProposalStatus>(
+    allProposals.map((p) => [stripArchivePrefix(p.id), p.status])
+  );
 
   const subjects = await listRecentSubjects(projectPath, 5);
   const lineageStates = subjects.map((subject) => {

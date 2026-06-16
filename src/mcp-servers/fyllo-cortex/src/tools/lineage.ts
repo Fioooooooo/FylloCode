@@ -7,24 +7,24 @@ import {
   type LineageResponseDto,
 } from "../utils/lineage-reader";
 
-const traceProposalInputSchema = z
+const lineageInputSchema = z
   .object({
-    mode: z.literal("trace-proposal"),
-    changeId: z.string().min(1),
+    mode: z.enum(["trace-proposal", "trace-commit"]),
+    changeId: z.string().optional(),
+    commitHash: z.string().optional(),
   })
-  .strict();
-
-const traceCommitInputSchema = z
-  .object({
-    mode: z.literal("trace-commit"),
-    commitHash: z.string().min(1),
-  })
-  .strict();
-
-const lineageInputSchema = z.discriminatedUnion("mode", [
-  traceProposalInputSchema,
-  traceCommitInputSchema,
-]);
+  .strict()
+  .refine(
+    (input) => {
+      if (input.mode === "trace-proposal") {
+        return typeof input.changeId === "string" && input.changeId.length > 0;
+      }
+      return typeof input.commitHash === "string" && input.commitHash.length > 0;
+    },
+    {
+      message: "trace-proposal requires changeId, trace-commit requires commitHash",
+    }
+  );
 
 type LineageInput = z.infer<typeof lineageInputSchema>;
 type LineageResponse = { content: [{ type: "text"; text: string }] };
@@ -34,9 +34,9 @@ export async function handleLineage(input: LineageInput): Promise<LineageRespons
     let result: LineageResponseDto | null;
 
     if (input.mode === "trace-proposal") {
-      result = await traceLineageByProposal(input.changeId);
+      result = await traceLineageByProposal(input.changeId as string);
     } else {
-      result = await traceLineageByCommit(input.commitHash);
+      result = await traceLineageByCommit(input.commitHash as string);
     }
 
     return {
@@ -55,7 +55,7 @@ export function registerLineageTool(server: McpServer): void {
     "lineage",
     {
       description:
-        "Trace lineage by proposal changeId or commit hash. Returns the subject's origin, task summary, sessions, and proposals with their status. Use mode=trace-proposal with changeId to look up by OpenSpec change ID, or mode=trace-commit with commitHash to look up by full commit SHA.",
+        "Trace the origin of a commit or proposal. Given a `changeId` (OpenSpec change ID) or `commitHash` (full Git SHA), returns the chat session, task, and proposal chain that produced it, including each proposal's status (`pending`/`applying`/`completed`) and filesystem path. The `proposalPath` points to a directory containing the agreed-upon design and task list produced during the Chat stage (e.g., `proposal.md`, `design.md`, `tasks.md`). Use this to answer 'where did this change come from' or 'what was the context for this commit'.",
       inputSchema: lineageInputSchema,
     },
     handleLineage

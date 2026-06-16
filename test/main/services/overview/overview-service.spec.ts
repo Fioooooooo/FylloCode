@@ -15,9 +15,13 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }));
 
-vi.mock("@main/infra/proposal/openspec-reader", () => ({
-  readProposalFiles: mocks.readProposalFiles,
-}));
+vi.mock("@main/infra/proposal/openspec-reader", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@main/infra/proposal/openspec-reader")>();
+  return {
+    ...actual,
+    readProposalFiles: mocks.readProposalFiles,
+  };
+});
 
 vi.mock("@main/infra/storage/lineage-store", () => ({
   listSubjects: mocks.listSubjects,

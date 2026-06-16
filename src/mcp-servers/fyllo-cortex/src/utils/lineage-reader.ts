@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   LineageIndex,
@@ -23,6 +23,7 @@ export type LineageProposalDto = {
   createdAt: string;
   commitHash: string | null;
   status: "completed" | "applying" | "pending";
+  proposalPath: string | null;
 };
 
 export type LineageSessionDto = {
@@ -93,34 +94,53 @@ function isValidSubject(value: unknown): value is Subject {
   return true;
 }
 
+function stripArchivePrefix(dirname: string): string {
+  return dirname.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+}
+
+async function findArchiveDir(projectPath: string, changeId: string): Promise<string | null> {
+  const archiveRoot = join(projectPath, "openspec", "changes", "archive");
+  try {
+    const entries = await readdir(archiveRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && stripArchivePrefix(entry.name) === changeId) {
+        return join(archiveRoot, entry.name);
+      }
+    }
+  } catch {
+    // archive 目录不存在或无法读取
+  }
+  return null;
+}
+
 // ── Status derivation ───────────────────────────────────────────────────────
 
-async function readProposalStatus(changeId: string): Promise<ProposalStatus | null> {
+async function resolveProposalLocation(
+  changeId: string
+): Promise<{ status: ProposalStatus | null; proposalPath: string | null }> {
   const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
 
   const mainPath = join(projectPath, "openspec", "changes", changeId, ".openspec.yaml");
   try {
     const content = await readFile(mainPath, "utf-8");
     const match = content.match(/^\s*status:\s*(creating|draft|applying|archived)\s*$/m);
-    return (match?.[1] as ProposalStatus | undefined) ?? null;
+    return {
+      status: (match?.[1] as ProposalStatus | undefined) ?? null,
+      proposalPath: join(projectPath, "openspec", "changes", changeId),
+    };
   } catch {
     // 主目录不存在，继续检查 archive 目录
   }
 
-  const archivePath = join(
-    projectPath,
-    "openspec",
-    "changes",
-    "archive",
-    changeId,
-    ".openspec.yaml"
-  );
-  try {
-    await readFile(archivePath, "utf-8");
-    return "archived";
-  } catch {
-    return null;
+  const archiveDir = await findArchiveDir(projectPath, changeId);
+  if (archiveDir) {
+    return {
+      status: "archived",
+      proposalPath: archiveDir,
+    };
   }
+
+  return { status: null, proposalPath: null };
 }
 
 function deriveLineageStatus(rawStatus: ProposalStatus | null): LineageProposalDto["status"] {
@@ -162,7 +182,7 @@ function projectTaskDto(task: Subject["task"]): LineageTaskDto | null {
 async function projectProposalDto(
   link: LineageSessionLink["proposals"][number]
 ): Promise<LineageProposalDto> {
-  const rawStatus = await readProposalStatus(link.changeId);
+  const { status: rawStatus, proposalPath } = await resolveProposalLocation(link.changeId);
   const status = deriveLineageStatus(rawStatus);
 
   return {
@@ -170,6 +190,7 @@ async function projectProposalDto(
     createdAt: link.createdAt,
     commitHash: link.commitHash ?? null,
     status,
+    proposalPath,
   };
 }
 
