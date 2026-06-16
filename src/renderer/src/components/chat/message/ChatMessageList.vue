@@ -58,6 +58,9 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
         variant: 'naked',
         ui: { content: 'flex flex-col items-end' },
       }"
+      :assistant="{
+        ui: { body: 'min-w-[70%]' },
+      }"
       :ui="{ indicator: '*:bg-accented' }"
     >
       <template #content="{ message }">

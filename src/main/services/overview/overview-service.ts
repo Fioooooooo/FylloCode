@@ -107,7 +107,7 @@ async function computeRecentLineages(projectPath: string): Promise<RecentLineage
   const allProposals = await readProposalFiles(projectPath);
   const statusMap = new Map<string, ProposalStatus>(allProposals.map((p) => [p.id, p.status]));
 
-  const subjects = await listRecentSubjects(projectPath, 10);
+  const subjects = await listRecentSubjects(projectPath, 5);
   const lineageStates = subjects.map((subject) => {
     const proposals = subject.links.flatMap((link) => link.proposals);
     const proposalCount = subject.links.reduce((total, link) => total + link.proposals.length, 0);

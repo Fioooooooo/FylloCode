@@ -1,6 +1,14 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import ChatContainer from "@renderer/components/chat/ChatContainer.vue";
 import ChatSidebar from "@renderer/components/chat/ChatSidebar.vue";
+import { useSessionStore } from "@renderer/stores/session";
+
+const sessionStore = useSessionStore();
+
+onMounted(() => {
+  sessionStore.beginDraftSession();
+});
 </script>
 
 <template>
