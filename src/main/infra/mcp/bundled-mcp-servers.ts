@@ -1,7 +1,7 @@
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
-import { mcpEventsDir } from "@main/infra/storage/project-paths";
+import { mcpEventsDir, projectDir } from "@main/infra/storage/project-paths";
 import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
 
 type BundledMcpServerName = "fyllo-specs" | "fyllo-cortex";
@@ -53,6 +53,7 @@ export function getBundledMcpServers(opts: {
     env: {
       ELECTRON_RUN_AS_NODE: "1",
       FYLLO_PROJECT_PATH: opts.projectPath,
+      FYLLO_PROJECT_DATA_DIR: projectDir(opts.projectPath),
       FYLLO_MCP_TELEMETRY: "0",
       FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.projectPath),
       ...(opts.fylloSessionId ? { FYLLO_SESSION_ID: opts.fylloSessionId } : {}),

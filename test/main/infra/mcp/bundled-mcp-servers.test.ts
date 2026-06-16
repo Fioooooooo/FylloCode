@@ -2,7 +2,7 @@ import { join } from "path";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { is } from "@electron-toolkit/utils";
 import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
-import { mcpEventsDir } from "@main/infra/storage/project-paths";
+import { mcpEventsDir, projectDir } from "@main/infra/storage/project-paths";
 
 describe("bundled mcp servers", () => {
   beforeEach(() => {
@@ -29,6 +29,7 @@ describe("bundled mcp servers", () => {
       expect.objectContaining({
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: "/tmp/project",
+        FYLLO_PROJECT_DATA_DIR: projectDir("/tmp/project"),
         FYLLO_MCP_TELEMETRY: "0",
         FYLLO_MCP_EVENT_DIR: mcpEventsDir("/tmp/project"),
       })
@@ -37,6 +38,7 @@ describe("bundled mcp servers", () => {
       expect.objectContaining({
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: "/tmp/project",
+        FYLLO_PROJECT_DATA_DIR: projectDir("/tmp/project"),
         FYLLO_MCP_TELEMETRY: "0",
         FYLLO_MCP_EVENT_DIR: mcpEventsDir("/tmp/project"),
       })

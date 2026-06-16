@@ -1,10 +1,12 @@
 {
   "extends": "../../../node_modules/@electron-toolkit/tsconfig/tsconfig.node.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "../../../",
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@shared/*": ["../../shared/*"]
+    }
   },
   "include": ["src/**/*", "../../../test/mcp-servers/fyllo-cortex/**/*"]
 }
