@@ -6,6 +6,7 @@ import type {
   LineageSessionLink,
   Subject,
 } from "@shared/types/lineage";
+import type { ProposalStatus } from "@shared/types/proposal";
 
 // ── DTO ───────────────────────────────────────────────────────────────────────
 
@@ -94,14 +95,45 @@ function isValidSubject(value: unknown): value is Subject {
 
 // ── Status derivation ───────────────────────────────────────────────────────
 
-async function checkApplyingStatus(changeId: string): Promise<boolean> {
+async function readProposalStatus(changeId: string): Promise<ProposalStatus | null> {
+  const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
+
+  const mainPath = join(projectPath, "openspec", "changes", changeId, ".openspec.yaml");
   try {
-    const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
-    const openspecYamlPath = join(projectPath, "openspec", "changes", changeId, ".openspec.yaml");
-    const content = await readFile(openspecYamlPath, "utf-8");
-    return content.includes("status: applying");
+    const content = await readFile(mainPath, "utf-8");
+    const match = content.match(/^\s*status:\s*(creating|draft|applying|archived)\s*$/m);
+    return (match?.[1] as ProposalStatus | undefined) ?? null;
   } catch {
-    return false;
+    // 主目录不存在，继续检查 archive 目录
+  }
+
+  const archivePath = join(
+    projectPath,
+    "openspec",
+    "changes",
+    "archive",
+    changeId,
+    ".openspec.yaml"
+  );
+  try {
+    await readFile(archivePath, "utf-8");
+    return "archived";
+  } catch {
+    return null;
+  }
+}
+
+function deriveLineageStatus(rawStatus: ProposalStatus | null): LineageProposalDto["status"] {
+  switch (rawStatus) {
+    case "creating":
+    case "draft":
+      return "pending";
+    case "applying":
+      return "applying";
+    case "archived":
+      return "completed";
+    default:
+      return "pending";
   }
 }
 
@@ -130,11 +162,8 @@ function projectTaskDto(task: Subject["task"]): LineageTaskDto | null {
 async function projectProposalDto(
   link: LineageSessionLink["proposals"][number]
 ): Promise<LineageProposalDto> {
-  const status = link.commitHash
-    ? "completed"
-    : (await checkApplyingStatus(link.changeId))
-      ? "applying"
-      : "pending";
+  const rawStatus = await readProposalStatus(link.changeId);
+  const status = deriveLineageStatus(rawStatus);
 
   return {
     changeId: link.changeId,

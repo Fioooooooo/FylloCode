@@ -346,6 +346,10 @@ describe("fyllo-cortex tools", () => {
     it("trace-proposal returns subject DTO with task summary and pending status", async () => {
       const { client, close } = await createToolClient();
       try {
+        const changeDir = join(tmpProjectPath, "openspec", "changes", "add-foo");
+        await mkdir(changeDir, { recursive: true });
+        await writeFile(join(changeDir, ".openspec.yaml"), "status: creating\n");
+
         await createLineageFixture(tmpDataDir, { proposals: { "add-foo": "subject-1" } }, [
           {
             id: "subject-1",
@@ -416,6 +420,10 @@ describe("fyllo-cortex tools", () => {
       const { client, close } = await createToolClient();
       try {
         const fullHash = "abcdef1234567890abcdef1234567890abcdef12";
+        const archiveChangeDir = join(tmpProjectPath, "openspec", "changes", "archive", "add-foo");
+        await mkdir(archiveChangeDir, { recursive: true });
+        await writeFile(join(archiveChangeDir, ".openspec.yaml"), "status: archived\n");
+
         await createLineageFixture(
           tmpDataDir,
           {

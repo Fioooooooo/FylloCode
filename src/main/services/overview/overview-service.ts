@@ -13,7 +13,7 @@ import type {
   RecentLineage,
   SpecsGrowthBucket,
 } from "@shared/types/overview";
-import type { ProposalMeta } from "@shared/types/proposal";
+import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
 import { buildArchiveCommitIndex } from "./archive-commit-index";
 import { getGitGovernance } from "./git-stats";
 import { countArchives, countGuidelines, countSpecs } from "./openspec-stats";
@@ -77,16 +77,43 @@ async function computeTaskLinkedRatio(projectPath: string): Promise<TaskLinkedSt
   };
 }
 
-async function computeRecentLineages(
-  projectPath: string,
-  activeChanges: ActiveChange[]
-): Promise<RecentLineage[]> {
-  const activeChangeIds = new Set(activeChanges.map((change) => change.id));
+function deriveLineageStatus(
+  rawStatus: ProposalStatus | undefined
+): RecentLineage["proposalStatus"] {
+  switch (rawStatus) {
+    case "creating":
+    case "draft":
+      return "pending";
+    case "applying":
+      return "applying";
+    case "archived":
+      return "completed";
+    default:
+      return "pending";
+  }
+}
+
+function resolveLineageStatus(
+  proposalStatuses: Array<ProposalStatus | undefined>
+): RecentLineage["proposalStatus"] {
+  const mapped = proposalStatuses.map(deriveLineageStatus);
+  if (mapped.includes("applying")) return "applying";
+  if (mapped.includes("pending")) return "pending";
+  if (mapped.includes("completed")) return "completed";
+  return "pending";
+}
+
+async function computeRecentLineages(projectPath: string): Promise<RecentLineage[]> {
+  const allProposals = await readProposalFiles(projectPath);
+  const statusMap = new Map<string, ProposalStatus>(allProposals.map((p) => [p.id, p.status]));
+
   const subjects = await listRecentSubjects(projectPath, 10);
   const lineageStates = subjects.map((subject) => {
     const proposals = subject.links.flatMap((link) => link.proposals);
     const proposalCount = subject.links.reduce((total, link) => total + link.proposals.length, 0);
-    const hasApplyingChange = proposals.some((proposal) => activeChangeIds.has(proposal.changeId));
+    const hasApplyingChange = proposals.some(
+      (proposal) => statusMap.get(proposal.changeId) === "applying"
+    );
     const persistedCommitHash = hasApplyingChange
       ? null
       : (proposals.find(
@@ -143,6 +170,10 @@ async function computeRecentLineages(
             .map((changeId) => archiveCommitIndex.get(changeId))
             .find(Boolean) ?? null);
 
+    const proposalStatuses = state.subject.links
+      .flatMap((link) => link.proposals)
+      .map((proposal) => statusMap.get(proposal.changeId));
+
     return {
       subjectId: state.subject.id,
       origin: state.subject.origin,
@@ -151,11 +182,7 @@ async function computeRecentLineages(
       sessionCount: state.subject.links.length,
       proposalCount: state.proposalCount,
       archiveCommitHash: state.persistedCommitHash ?? archiveCommit?.hash ?? null,
-      proposalStatus: state.hasApplyingChange
-        ? "applying"
-        : state.persistedCommitHash || archiveCommit
-          ? "completed"
-          : "pending",
+      proposalStatus: resolveLineageStatus(proposalStatuses),
       createdAt: state.subject.createdAt,
       updatedAt: state.subject.updatedAt,
     };
@@ -196,7 +223,7 @@ export async function getProjectOverview(projectPath: string): Promise<ProjectOv
 
   const [[specsCount, archiveCounts, guidelinesCount], taskLinked, activeChanges, governance] =
     await Promise.all([countsPromise, taskLinkedPromise, activeChangesPromise, governancePromise]);
-  const recentLineages = await computeRecentLineages(projectPath, activeChanges);
+  const recentLineages = await computeRecentLineages(projectPath);
 
   return {
     stats: {

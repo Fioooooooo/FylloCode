@@ -123,6 +123,24 @@ describe("overview-service", () => {
         status: "archived",
         date: "2026-06-05T00:00:00.000Z",
       },
+      {
+        id: "old-change",
+        title: "Old Change",
+        status: "archived",
+        date: "2026-06-02T00:00:00.000Z",
+      },
+      {
+        id: "persisted-change",
+        title: "Persisted Change",
+        status: "archived",
+        date: "2026-06-04T00:00:00.000Z",
+      },
+      {
+        id: "no-commit",
+        title: "No Commit",
+        status: "draft",
+        date: "2026-06-04T00:00:00.000Z",
+      },
     ]);
     mocks.getByProposal.mockImplementation(async (_projectPath: string, changeId: string) => {
       if (changeId === "creating-change") {
@@ -249,6 +267,11 @@ describe("overview-service", () => {
         title: "Unknown Change",
         stage: "drafting",
       }),
+      expect.objectContaining({
+        id: "no-commit",
+        title: "No Commit",
+        stage: "proposal",
+      }),
     ]);
     expect(overview.activeChanges.map((change) => change.id)).not.toContain("archived-change");
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
@@ -304,7 +327,14 @@ describe("overview-service", () => {
   });
 
   it("returns a git-resolved merge hash when lineage writeback fails", async () => {
-    mocks.readProposalFiles.mockResolvedValue([]);
+    mocks.readProposalFiles.mockResolvedValue([
+      {
+        id: "missing-hash",
+        title: "Missing Hash",
+        status: "archived",
+        date: "2026-06-04T00:00:00.000Z",
+      },
+    ]);
     mocks.getByProposal.mockResolvedValue(null);
     mocks.listSubjects.mockResolvedValue([]);
     mocks.listRecentSubjects.mockResolvedValue([
