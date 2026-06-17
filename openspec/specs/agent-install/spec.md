@@ -8,7 +8,22 @@
 
 ### Requirement: Agent 安装状态检测
 
-主进程 SHALL 通过 `acp:detectStatus` 检测系统中每个 registry agent 的安装状态，返回 `AcpAgentStatus[]`，每项包含 `id`、`installed`、`detectedVersion`（可选）、`managedBy`（`"fyllocode" | "user" | null`）。
+主进程 SHALL 通过 `acp:detectStatus` 检测系统中每个 **Catalog Agent** 的安装状态，返回 `AcpAgentStatus[]`，每项包含 `id`、`installed`、`detectedVersion`（可选）、`managedBy`（`"fyllocode" | "user" | null`）。Catalog Agent 包含 Registry Agent 与 Custom Agent 两类。
+
+#### Scenario: 检测到自定义 Agent 已安装
+
+- **WHEN** 调用 `detectStatus`，且某 custom agent 的 command 经 `~` 展开和 PATH 解析后指向存在的可执行文件
+- **THEN** 返回 `installed: true, managedBy: null, detectedVersion: undefined`
+
+#### Scenario: 检测到自定义 Agent 未安装
+
+- **WHEN** 调用 `detectStatus`，且某 custom agent 的 command 无法解析或指向文件不存在
+- **THEN** 返回 `installed: false, managedBy: null`
+
+#### Scenario: Registry Agent 检测行为保持不变
+
+- **WHEN** 调用 `detectStatus` 检测 Registry Agent
+- **THEN** 返回结果与变更前一致，包括 `managedBy` 与 `detectedVersion` 语义
 
 #### Scenario: 检测到已安装（FylloCode 管理）
 
@@ -103,7 +118,12 @@
 
 ### Requirement: 卸载入口可见性
 
-设置页 SHALL 仅在 `AcpAgentStatus.installed === true` 时提供卸载操作项。卸载操作项可呈现为 kebab（`...`）菜单中的菜单项，不要求是常驻并排按钮。卸载操作项 SHALL 在另一个 agent 处于安装中或卸载中状态时禁用，禁用时通过 tooltip 提示"其他 Agent 正在处理中"。
+设置页 SHALL 仅在 `AcpAgentStatus.installed === true` 时提供卸载操作项。卸载操作项可呈现为 kebab（`...`）菜单中的菜单项，不要求是常驻并排按钮。卸载操作项 SHALL 在另一个 agent 处于安装中或卸载中状态时禁用，禁用时通过 tooltip 提示"其他 Agent 正在处理中"。**Custom Agent 不展示卸载操作项，因为它不存在安装流程。**
+
+#### Scenario: 自定义 Agent 卡片不展示卸载入口
+
+- **WHEN** 渲染一个 custom agent 卡片
+- **THEN** SHALL 不渲染 kebab 菜单及卸载操作项
 
 #### Scenario: agent 未安装
 
@@ -222,14 +242,17 @@
 
 ### Requirement: 卸载 IPC 契约
 
-`acp:uninstall` 通道 SHALL 接受 `agentId: string`（非空）作为输入参数，校验通过 `uninstallAgentInputSchema = z.string().min(1)`；找不到对应 agent 或 `installed.json` 中无记录时，返回错误 `{ code: "AGENT_NOT_FOUND" }`。
-
-`acp:uninstallProgress` 通道 SHALL 推送 `AcpUninstallProgress` 类型的事件：`{ agentId: string, status: "uninstalling" | "done" | "error", message?: string }`。
+`acp:uninstall` 通道 SHALL 接受 `agentId: string`（非空）作为输入参数，校验通过 `uninstallAgentInputSchema = z.string().min(1)`。**Custom Agent id 以 `custom-` 前缀开头，调用 `acp:uninstall` 时 SHALL 返回错误 `{ code: "AGENT_NOT_FOUND" }`，因为自定义 Agent 不存在安装记录。**
 
 #### Scenario: 输入参数为空
 
 - **WHEN** 调用 `acp:uninstall` 时传入空字符串或 `undefined`
 - **THEN** schema 校验失败，返回错误，不进入业务逻辑
+
+#### Scenario: agent 是自定义 Agent
+
+- **WHEN** 调用 `acp:uninstall` 传入以 `custom-` 开头的 agentId
+- **THEN** 返回错误 `{ code: "AGENT_NOT_FOUND", message: "自定义 Agent 不支持卸载操作" }`
 
 #### Scenario: agent 未在 registry 中
 

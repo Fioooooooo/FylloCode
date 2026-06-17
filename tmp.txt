@@ -1,0 +1,7 @@
+npx @modelcontextprotocol/inspector \
+  -e FYLLO_PROJECT_PATH="/Users/tao/Work/Fio/projects/FylloCode" \
+  -e FYLLO_PROJECT_DATA_DIR="/Users/tao/Library/Application Support/FylloCode/projects/Users-tao-Work-Fio-projects-FylloCode" \
+  -e FYLLO_MCP_TELEMETRY=0 \
+  -e FYLLO_MCP_EVENT_DIR="/Users/tao/Library/Application Support/FylloCode/projects/Users-tao-Work-Fio-projects-FylloCode/mcp-events" \
+  -e FYLLO_SESSION_ID=session-mJYglIYSqG \
+  node /Users/tao/Work/Fio/projects/FylloCode/out/mcp-servers/fyllo-cortex/index.js

@@ -1,8 +1,7 @@
-import { homedir } from "os";
-import { join } from "path";
 import { promises as fs } from "fs";
 import type { ProjectInfo, ProjectMeta } from "@shared/types/project";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { expandHomePath } from "@main/infra/paths";
 import {
   createProjectMeta,
   deleteProject as deleteProjectStore,
@@ -14,14 +13,6 @@ import {
   toProjectInfo,
 } from "@main/infra/storage/project-store";
 import { ipcError } from "@main/ipc/_kit/errors";
-
-export function expandHomePath(inputPath: string): string {
-  if (inputPath === "~") return homedir();
-  if (inputPath.startsWith("~/") || inputPath.startsWith("~\\")) {
-    return join(homedir(), inputPath.slice(2));
-  }
-  return inputPath;
-}
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {

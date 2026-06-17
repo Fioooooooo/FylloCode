@@ -32,7 +32,7 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 
 ### Requirement: agent-capabilities.json 磁盘缓存
 
-系统 SHALL 在 `<userData>/acp/agent-capabilities.json` 持久化每个 agent 的 `promptCapabilities`，schema 形如：
+系统 SHALL 在 `data/acp/agent-capabilities.json` 持久化每个 agent 的 `promptCapabilities`，schema 形如：
 
 ```json
 {
@@ -48,8 +48,8 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 ```
 
 - 文件路径基于 `getDataSubPath('acp')`
-- `agents` key 使用 `AcpAgentEntry.id`（与 `installed.json` / registry 一致）
-- `capturedAgentVersion` 来自该 agent 当前 `installed.installedVersion`
+- `agents` key 使用 `AcpAgentEntry.id`（与 `installed.json` / registry 一致）**或 Custom Agent id**
+- `capturedAgentVersion` 来自该 agent 当前 `installed.installedVersion`；**Custom Agent 的 `capturedAgentVersion` SHALL 固定为空字符串 `""**
 - `capturedAt` 为 ISO 时间戳
 
 读写 SHALL 经由 `src/main/infra/storage/agent-capability-store.ts` 提供的统一 API，主进程其他模块 MUST NOT 自行 `load → merge → save` 整对象回写。
@@ -59,6 +59,12 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 - **WHEN** ACP 进程通过 `connection.initialize(...)` 返回 `agentCapabilities`
 - **THEN** 进程池调 `agent-capability-store.upsertPromptCapabilities(agentId, capabilities, installedVersion)`
 - **AND** 文件中 `agents[agentId]` 被覆盖为最新值（其他 agent 条目保留）
+
+#### Scenario: 自定义 Agent 写入缓存
+
+- **WHEN** 一个 custom agent 通过 `connection.initialize(...)` 返回 `agentCapabilities`
+- **THEN** 进程池调 `agent-capability-store.upsertPromptCapabilities(customAgentId, capabilities, "")`
+- **AND** 文件中 `agents[customAgentId]` 的 `capturedAgentVersion` 为 `""`
 
 #### Scenario: 读取磁盘缓存
 
@@ -79,6 +85,8 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 - 一致：直接使用磁盘缓存值，跳过运行时检测的 UI 阻塞
 - 不一致：磁盘缓存视为失效，等待 `connection.initialize(...)` 完成后用最新值覆盖
 
+**对于 Custom Agent，`installed.installedVersion` 视为空字符串 `""`。因此当缓存中 `capturedAgentVersion` 为空字符串时视为一致，可直接使用缓存；否则视为不一致。**
+
 #### Scenario: 缓存版本与 installedVersion 一致
 
 - **WHEN** `acp:ensureAgent` 被调用
@@ -93,11 +101,24 @@ ACP 协议中三个字段都是 optional boolean，FylloCode 在归一化时 SHA
 - **THEN** IPC SHALL 等待进程 `initialize` 完成后再返回最新 `promptCapabilities`
 - **AND** 完成后落盘的 `capturedAgentVersion` 等于当前 `installed.installedVersion`
 
+#### Scenario: 自定义 Agent 缓存命中
+
+- **WHEN** 调用 `acp:ensureAgent` 传入 custom agent id
+- **AND** 磁盘缓存中存在该 id 且 `capturedAgentVersion === ""`
+- **THEN** IPC 立即返回缓存中的 `promptCapabilities`
+
+#### Scenario: 自定义 Agent 缓存未命中
+
+- **WHEN** 调用 `acp:ensureAgent` 传入 custom agent id
+- **AND** 磁盘缓存中不存在该 id
+- **THEN** IPC SHALL 等待进程 `initialize` 完成后返回最新 `promptCapabilities`
+- **AND** 落盘时 `capturedAgentVersion` 为 `""`
+
 ### Requirement: acp:ensureAgent IPC
 
 系统 SHALL 实现 `acp:ensureAgent` IPC handler，接受 `{ agentId: string }`，返回 `IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>`。
 
-handler SHALL 复用现有进程池的懒启动语义（不重复启动已存在进程），通过 `AgentProcess.initializeResponse` 取出 `promptCapabilities` 并归一化返回。
+handler SHALL 复用现有进程池的懒启动语义（不重复启动已存在进程），通过 `AgentProcess.initializeResponse` 取出 `promptCapabilities` 并归一化返回。**对于 Custom Agent，handler SHALL 跳过 `installed.json` 检查，直接通过 Agent Catalog 获取启动配置。**
 
 #### Scenario: 首次调用懒启动 agent 进程
 
@@ -105,6 +126,13 @@ handler SHALL 复用现有进程池的懒启动语义（不重复启动已存在
 - **AND** 该 agent 在进程池中没有活跃实例
 - **THEN** 主进程通过进程池启动并完成 `initialize` 握手
 - **AND** 把归一化后的 `promptCapabilities` 写入 `agent-capabilities.json`
+- **AND** 返回 `IpcResponse.ok({ promptCapabilities })`
+
+#### Scenario: 自定义 Agent 首次调用
+
+- **WHEN** 渲染进程调用 `acp:ensureAgent({ agentId: "custom-xxx" })`
+- **THEN** 主进程 SHALL 不检查 `installed.json`
+- **AND** 通过 Agent Catalog 加载 `command/args/env` 并启动进程
 - **AND** 返回 `IpcResponse.ok({ promptCapabilities })`
 
 #### Scenario: agent 已在线时直接复用
@@ -145,3 +173,13 @@ handler SHALL 复用现有进程池的懒启动语义（不重复启动已存在
 
 - **WHEN** `agentUnavailable` 事件触发
 - **THEN** `agent-capabilities.json` 文件保持不变（保留上次成功 initialize 的值用于下次启动期加载）
+
+### Requirement: 自定义 Agent 配置变更时失效 capabilities 缓存
+
+**当用户通过设置页保存 `custom-agents.json` 后，系统 SHALL 从内存与磁盘中删除所有 custom agent 的 capabilities 缓存条目，确保下次使用时重新获取。**
+
+#### Scenario: 保存 custom-agents.json 后清空 custom capabilities
+
+- **WHEN** 用户保存 `custom-agents.json`
+- **THEN** 系统 SHALL 从 `agent-capabilities.json` 中删除所有 id 以 `custom-` 开头的条目
+- **AND** 同时清空 `useAcpAgentsStore.promptCapabilitiesByAgent` 中对应条目

@@ -10,7 +10,7 @@
 
 ## 2. Agent Catalog Service
 
-- [x] 2.1 创建 `src/main/infra/acp/agent-catalog-service.ts`，定义 `CatalogAgent` 类型：包含 `id`、`source: 'registry' | 'custom'`、`name`、`registryEntry?`、`customConfig?`
+- [x] 2.1 创建 `src/main/infra/acp/agent-catalog.ts`，定义 `CatalogAgent` 类型：包含 `id`、`source: 'registry' | 'custom'`、`name`、`registryEntry?`、`customConfig?`
 - [x] 2.2 实现 `listAgents(): Promise<CatalogAgent[]>`，合并 `acp:getRegistry` 返回的 Registry Agent 与 `custom-agents.json` 中的 Custom Agent
 - [x] 2.3 实现 `getAgentById(id: string): Promise<CatalogAgent | undefined>`，支持 `custom-` 前缀 id 反查
 - [x] 2.4 实现 `isCustomAgentId(id: string): boolean` 工具函数
@@ -84,7 +84,7 @@
 
 - [x] 11.1 修改 `src/renderer/src/components/workflow/StageCard.vue` 的 `agentItems`，从合并后的 `installedAgentIds` 构建 dropdown items
 - [x] 11.2 确保 `getAgentLabel` 能为 custom agent 返回正确显示名
-- [ ] 11.3 验证 workflow 执行时 `custom-xxx` id 能被主进程正确解析并启动
+- [x] 11.3 验证 workflow 执行时 `custom-xxx` id 能被主进程正确解析并启动
 
 ## 12. 图标与回显
 
@@ -95,11 +95,11 @@
 
 - [x] 13.1 运行 `pnpm typecheck` 确保新增类型无错误
 - [x] 13.2 运行 `pnpm test` 确保新增与修改的单元测试通过
-- [ ] 13.3 在设置页验证 custom-agents.json 的保存与刷新
-- [ ] 13.4 在 Chat empty 状态验证 custom agent 出现在 4 个 slot 中
-- [ ] 13.5 在 AgentPickerModal 验证 Registry/Custom tab 切换与选择
-- [ ] 13.6 在 workflow 中验证 custom agent 可被选择并保存到 YAML
-- [ ] 13.7 验证 custom agent 对话能正常建立 ACP 连接并获取 capabilities
+- [x] 13.3 在设置页验证 custom-agents.json 的保存与刷新
+- [x] 13.4 在 Chat empty 状态验证 custom agent 出现在 4 个 slot 中
+- [x] 13.5 在 AgentPickerModal 验证 Registry/Custom tab 切换与选择
+- [x] 13.6 在 workflow 中验证 custom agent 可被选择并保存到 YAML
+- [x] 13.7 验证 custom agent 对话能正常建立 ACP 连接并获取 capabilities
 
 ## 14. 文档
 

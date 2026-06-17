@@ -9,6 +9,12 @@ const { tempRoot } = await vi.hoisted(async () => {
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
+  expandHomePath: vi.fn((inputPath: string) => {
+    if (inputPath.startsWith("~/")) {
+      return `/home/mock/${inputPath.slice(2)}`;
+    }
+    return inputPath;
+  }),
 }));
 
 vi.mock("@main/infra/storage/acp-registry-cache", () => ({
@@ -38,7 +44,7 @@ import {
   isCustomAgentId,
   listAgents,
   resolveCustomCommandPath,
-} from "@main/infra/acp/agent-catalog-service";
+} from "@main/infra/acp/agent-catalog";
 
 const mockedGetRegistry = vi.mocked(getRegistry);
 const mockedReadCustomAgents = vi.mocked(readCustomAgents);

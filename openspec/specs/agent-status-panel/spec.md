@@ -29,6 +29,8 @@ Agents tab SHALL 以网格卡片列表展示 ACP registry 中的所有 CLI agent
 - `adapter`：渲染 `i-lucide-layers` 图标，hover 显示「适配器 · 自带完整实现，可与已安装的对应 Agent 共享配置」
 - `bridge`：渲染 `i-lucide-cable` 图标，hover 显示「桥接器 · 与 Agent 桥接打通，需要先安装对应的 Agent」
 
+**Custom Agent 在"全部"与"已安装" tab 中不展示；Custom Agent 的管理集中在独立的"自定义" tab 中。**
+
 #### Scenario: 已安装且为最新版
 
 - **WHEN** store 中某 agent 的 `installed` 为 `true` 且 `updateAvailable` 为 `false`
@@ -36,79 +38,42 @@ Agents tab SHALL 以网格卡片列表展示 ACP registry 中的所有 CLI agent
 - **AND** 卡片右侧主操作位不显示任何标签或按钮
 - **AND** 卡片右侧显示 kebab（`...`）菜单入口，菜单内包含「卸载」操作项
 
-#### Scenario: 已安装且有更新可用（FylloCode 管理）
-
-- **WHEN** store 中某 agent 的 `installed` 为 `true`，`updateAvailable` 为 `true`，`managedBy` 为 `"fyllocode"`
-- **THEN** 卡片右侧显示"Update Available"badge 及"更新"按钮，点击直接执行更新
-- **AND** 「卸载」操作项位于 kebab 菜单内，不与「更新」按钮并排常驻
-
-#### Scenario: 已安装且有更新可用（用户自管理）
-
-- **WHEN** store 中某 agent 的 `installed` 为 `true`，`updateAvailable` 为 `true`，`managedBy` 为 `"user"`
-- **THEN** 卡片右侧显示"Update Available"badge 及"更新"按钮，点击弹出确认对话框
-- **AND** 「卸载」操作项位于 kebab 菜单内，不与「更新」按钮并排常驻
-
 #### Scenario: 未安装 agent 展示
 
 - **WHEN** store 中某 agent 的 `installed` 为 `false`
 - **THEN** 卡片右侧显示"安装"按钮，点击触发安装流程
 - **AND** 卡片右侧不显示 kebab 菜单入口（无次操作可用）
 
-#### Scenario: 安装中状态
-
-- **WHEN** 某 agent 正在安装（收到 `acp:installProgress` 推送，`status` 为 `"installing"` 或 `"downloading"`）
-- **THEN** 卡片右侧"安装"/"更新"按钮替换为 loading 状态，其他 agent 的安装按钮禁用
-
-#### Scenario: 卡片展示外链入口（website 优先）
-
-- **WHEN** 渲染的 agent 同时具有 `website` 与 `repository`
-- **THEN** 卡片 SHALL 渲染 `i-lucide-external-link` 外链图标
-- **AND** 点击后经 `shell.openExternal` 打开 `agent.website`
-
-#### Scenario: 卡片外链回退到 repository
-
-- **WHEN** 渲染的 agent 缺失 `website` 但具有 `repository`
-- **THEN** 卡片 SHALL 渲染外链图标，点击后经 `shell.openExternal` 打开 `agent.repository`
-
-#### Scenario: 无可用外链时不渲染入口
-
-- **WHEN** 渲染的 agent 既无 `website` 也无 `repository`
-- **THEN** 卡片 SHALL NOT 渲染外链图标
-
-#### Scenario: 卡片不常驻展示 license 与 authors
-
-- **WHEN** 渲染任意 agent 卡片
-- **THEN** 卡片 SHALL NOT 显示 `license` 文本
-- **AND** 卡片 SHALL NOT 显示 `authors` 文本
-
-#### Scenario: 打开 settings 时直接复用已预热数据
-
-- **WHEN** 用户在 app bootstrap 完成后进入 settings agents 页面
-- **THEN** 页面直接展示 `acp-agents` store 中已有的 registry/icons/statuses 数据
-- **AND** 不需要重新执行首次初始化流程
-
-#### Scenario: bootstrap 缺失时 settings 页面兜底初始化
-
-- **WHEN** 用户进入 settings agents 页面时，全局 bootstrap 尚未完成或未触发，且 `acp-agents` store 仍未初始化
-- **THEN** 页面可调用 `ensureInitialized()` 作为兜底
-- **AND** 该兜底不改变"全局 bootstrap 为主路径"的职责边界
-
 #### Scenario: native 卡片不显示分类徽章
 
 - **WHEN** 渲染的 agent 满足 `__fyllo?.kind === "native"` 或 `__fyllo` 缺失
 - **THEN** 卡片上 SHALL 不显示分类图标
 
-#### Scenario: adapter 卡片显示 layers 图标与 tooltip
+### Requirement: 自定义 Agent 管理 tab
 
-- **WHEN** 渲染的 agent 满足 `__fyllo?.kind === "adapter"`
-- **THEN** 卡片名称区域 SHALL 显示 `i-lucide-layers` 图标
-- **AND** hover 该图标时 SHALL 显示「适配器 · 自带完整实现，可与已安装的对应 Agent 共享配置」
+Agents tab SHALL 在现有"全部"、"已安装" tab 之外新增"自定义" tab。切换到"自定义" tab 时，右侧 SHALL 展示一个基于 `stream-monaco` 的 JSON 编辑器，用于编辑 `data/acp/custom-agents.json`；编辑器下方或侧边 SHALL 展示字段说明；底部提供"保存"按钮。
 
-#### Scenario: bridge 卡片显示 cable 图标与 tooltip
+"自定义" tab 中的操作 SHALL 与 Registry Agent 卡片完全隔离：此处不提供安装/卸载/更新按钮，仅允许编辑 JSON 配置。
 
-- **WHEN** 渲染的 agent 满足 `__fyllo?.kind === "bridge"`
-- **THEN** 卡片名称区域 SHALL 显示 `i-lucide-cable` 图标
-- **AND** hover 该图标时 SHALL 显示「桥接器 · 与 Agent 桥接打通，需要先安装对应的 Agent」
+#### Scenario: 切换到自定义 tab
+
+- **WHEN** 用户点击 Agents tab 栏的"自定义"
+- **THEN** 右侧内容区切换为 JSON 编辑器，预填充当前 `custom-agents.json` 内容
+
+#### Scenario: 保存合法配置
+
+- **WHEN** 用户在 JSON 编辑器中输入合法配置并点击保存
+- **THEN** 系统 SHALL 校验 JSON、写入 `custom-agents.json`、刷新 Agent 列表并提示保存成功
+
+#### Scenario: 保存非法 JSON
+
+- **WHEN** 用户在 JSON 编辑器中输入非法 JSON 并点击保存
+- **THEN** 系统 SHALL 不写入文件，并在编辑器附近提示 JSON 解析错误
+
+#### Scenario: 自定义 tab 不展示 Registry Agent
+
+- **WHEN** 用户处于"自定义" tab
+- **THEN** SHALL 不渲染任何 Registry Agent 卡片或安装操作
 
 ### Requirement: 手动刷新检测
 

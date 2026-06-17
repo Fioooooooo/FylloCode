@@ -193,8 +193,8 @@ function goToSettings(): void {
               :key="agent.id"
               :agent="agent"
               :agent-status="statuses[agent.id]"
+              source="custom"
               selectable
-              hide-install
               :selected="stagedAgentId === agent.id"
               @select="handleSelect"
             />

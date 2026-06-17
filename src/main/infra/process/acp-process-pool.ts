@@ -8,7 +8,7 @@ import type { RequestPermissionRequest, SessionNotification } from "@agentclient
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords, resolveBinaryDistribution } from "@main/infra/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
-import { getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog-service";
+import { getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog";
 import {
   normalizePromptCapabilities,
   type AcpAgentEntry,

@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
-import { homedir } from "os";
-import { basename, isAbsolute, resolve } from "path";
+import { basename, isAbsolute } from "path";
+import { expandHomePath } from "@main/infra/paths";
 import { findCommandPath } from "@main/infra/acp/detector";
 import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
@@ -23,17 +23,8 @@ function shortHash(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 8);
 }
 
-function normalizeCustomCommand(command: string): string {
-  let expanded = command;
-  if (expanded.startsWith("~")) {
-    expanded = resolve(homedir(), expanded.slice(1));
-  }
-
-  return expanded;
-}
-
 export async function resolveCustomCommandPath(command: string): Promise<string> {
-  const expanded = normalizeCustomCommand(command);
+  const expanded = expandHomePath(command);
   if (isAbsolute(expanded)) {
     return expanded;
   }
@@ -43,7 +34,7 @@ export async function resolveCustomCommandPath(command: string): Promise<string>
 }
 
 export function generateCustomAgentId(command: string, args: string[]): string {
-  const normalizedCommand = normalizeCustomCommand(command);
+  const normalizedCommand = expandHomePath(command);
   const payload = JSON.stringify([normalizedCommand, args ?? []]);
   const base = slug(basename(normalizedCommand));
   return `${CUSTOM_AGENT_ID_PREFIX}${base}-${shortHash(payload)}`;

@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { homedir } from "os";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 
@@ -12,6 +13,24 @@ type SubPath =
   | "workflows"
   | "apply-runs"
   | "migrations";
+
+/**
+ * 展开路径中的 `~` 为当前用户 home 目录
+ *
+ * 支持：
+ * - `~` → home 目录
+ * - `~/path` (POSIX) → home + path
+ * - `~\path` (Windows) → home + path
+ *
+ * 不支持 `~otheruser`（跨用户 home 目录）。
+ */
+export function expandHomePath(inputPath: string): string {
+  if (inputPath === "~") return homedir();
+  if (inputPath.startsWith("~/") || inputPath.startsWith("~\\")) {
+    return join(homedir(), inputPath.slice(2));
+  }
+  return inputPath;
+}
 
 /**
  * 获取业务数据子目录路径

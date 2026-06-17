@@ -70,13 +70,12 @@ async function refreshStatuses(): Promise<void> {
 const isCustomTab = computed(() => activeTab.value === "custom");
 const customEditorContainer = ref<HTMLElement | null>(null);
 const customAgentsJson = ref(JSON.stringify({ agent_servers: {} }, null, 2));
-const customAgentsLoading = ref(false);
 const customAgentsSaving = ref(false);
 const customAgentsError = ref<string | null>(null);
 
 const { createEditor, cleanupEditor, getCode } = useMonaco({
   languages: ["json"],
-  themes: ["vitesse-dark", "vitesse-light"],
+  themes: ["vitesse-light", "vitesse-dark"],
   readOnly: false,
   MAX_HEIGHT: 480,
   minimap: { enabled: false },
@@ -94,7 +93,6 @@ async function loadCustomAgentsEditor(): Promise<void> {
     return;
   }
 
-  customAgentsLoading.value = true;
   customAgentsError.value = null;
   try {
     const config = await store.loadCustomAgents();
@@ -106,8 +104,6 @@ async function loadCustomAgentsEditor(): Promise<void> {
     }
   } catch (error: unknown) {
     customAgentsError.value = error instanceof Error ? error.message : String(error);
-  } finally {
-    customAgentsLoading.value = false;
   }
 }
 
@@ -244,19 +240,14 @@ const exampleConfig = `{
     </div>
 
     <div v-else class="space-y-4">
-      <div v-if="customAgentsLoading" class="flex items-center justify-center py-16">
-        <UIcon name="i-lucide-loader-circle" class="w-6 h-6 text-muted animate-spin" />
-      </div>
-
-      <div v-else-if="customAgentsError" class="flex items-center justify-center py-16">
+      <div v-if="customAgentsError" class="flex items-center justify-center py-16">
         <p class="text-sm text-error">{{ customAgentsError }}</p>
       </div>
 
       <template v-else>
         <div
           ref="customEditorContainer"
-          class="border border-default rounded-lg overflow-hidden"
-          style="height: 480px"
+          class="border border-default rounded-lg overflow-hidden h-120!"
         />
 
         <div class="rounded-lg bg-muted/50 p-4 space-y-2 text-sm">

@@ -9,6 +9,7 @@ const { tempRoot } = await vi.hoisted(async () => {
 
 vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
+  expandHomePath: vi.fn((inputPath: string) => inputPath),
 }));
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
@@ -49,7 +50,7 @@ import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
 import { getCachedPromptCapabilities } from "@main/infra/storage/agent-capability-store";
 import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
 import { ensureAgent } from "@main/services/acp-agent/acp-agent-service";
-import { generateCustomAgentId } from "@main/infra/acp/agent-catalog-service";
+import { generateCustomAgentId } from "@main/infra/acp/agent-catalog";
 
 const mockedGetOrStartProcess = vi.mocked(getOrStartProcess);
 const mockedGetCachedPromptCapabilities = vi.mocked(getCachedPromptCapabilities);

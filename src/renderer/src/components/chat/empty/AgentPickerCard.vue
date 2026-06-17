@@ -15,7 +15,7 @@ const props = defineProps<{
   selected?: boolean;
   selectable?: boolean;
   installDisabled?: boolean;
-  hideInstall?: boolean;
+  source?: "registry" | "custom";
 }>();
 
 const emit = defineEmits<{
@@ -23,8 +23,9 @@ const emit = defineEmits<{
   install: [agentId: string];
 }>();
 
-const installed = computed(() => props.agentStatus?.installed === true);
-const fallbackIcon = computed(() => (isCustomAgentId(props.agent.id) ? "i-lucide-bot" : undefined));
+const isCustom = computed(() => props.source === "custom" || isCustomAgentId(props.agent.id));
+const usable = computed(() => isCustom.value || props.agentStatus?.installed === true);
+const fallbackIcon = computed(() => (isCustom.value ? "i-lucide-bot" : undefined));
 const isInstalling = computed(() => {
   const status = props.installProgress?.status;
   return status === "downloading" || status === "installing";
@@ -33,7 +34,7 @@ const hasInstallError = computed(() => props.installProgress?.status === "error"
 const progressMessage = computed(() => props.installProgress?.message ?? "正在处理...");
 
 function handleClick(): void {
-  if (!installed.value || !props.selectable) {
+  if (!usable.value || !props.selectable) {
     return;
   }
   emit("select", props.agent.id);
@@ -49,23 +50,22 @@ function handleInstall(event: MouseEvent): void {
   <AgentCardBase
     class="group relative transition-colors"
     :class="[
-      installed && selectable ? 'cursor-pointer hover:border-primary/40' : '',
+      usable && selectable ? 'cursor-pointer hover:border-primary/40' : '',
       selected ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : '',
     ]"
     :agent="agent"
     :icon="icon"
     :fallback-icon="fallbackIcon"
+    :compact="isCustom"
     @click="handleClick"
   >
     <template #actions>
       <div class="flex flex-col items-end gap-1.5">
-        <template v-if="!installed">
+        <template v-if="!isCustom && !usable">
           <div v-if="isInstalling" class="flex items-center gap-1 text-xs text-muted">
             <UIcon name="i-lucide-loader-circle" class="h-3.5 w-3.5 animate-spin" />
             <span class="max-w-24 truncate">{{ progressMessage }}</span>
           </div>
-
-          <div v-else-if="hideInstall" class="text-xs text-muted">命令未找到</div>
 
           <UButton
             v-else

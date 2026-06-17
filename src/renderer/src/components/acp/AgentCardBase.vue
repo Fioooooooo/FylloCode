@@ -7,16 +7,19 @@ withDefaults(
     agent: AcpAgentEntry;
     icon?: string;
     fallbackIcon?: string;
+    compact?: boolean;
   }>(),
   {
     fallbackIcon: "i-lucide-terminal",
+    compact: false,
   }
 );
 </script>
 
 <template>
   <div
-    class="flex items-start gap-3 rounded-lg border bg-default p-4 group relative transition-colors border-default hover:bg-elevated/40"
+    class="flex gap-3 rounded-lg border bg-default p-4 group relative transition-colors border-default hover:bg-elevated/40"
+    :class="[compact ? 'items-center' : 'items-start']"
   >
     <div
       class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white"
@@ -26,8 +29,8 @@ withDefaults(
     </div>
 
     <div class="min-w-0 flex-1">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0 flex-1">
+      <div class="flex items-center justify-between gap-3" :class="[compact ? '' : 'items-start']">
+        <div class="min-w-0 flex-1" :class="[compact ? 'flex items-center gap-1.5' : '']">
           <div class="flex items-center gap-1.5">
             <span class="min-w-0 truncate text-sm font-semibold text-highlighted">
               {{ agent.name }}
@@ -35,8 +38,8 @@ withDefaults(
             <AgentKindBadge :kind="agent.__fyllo?.kind" />
           </div>
 
-          <div class="mt-1 flex items-center gap-1.5 text-xs text-muted/60">
-            <span class="shrink-0">{{ agent.version }}</span>
+          <div v-if="!compact" class="mt-1 flex items-center gap-1.5 text-xs text-muted/60">
+            <span v-if="agent.version" class="shrink-0">{{ agent.version }}</span>
             <slot name="meta" />
           </div>
         </div>
@@ -46,7 +49,9 @@ withDefaults(
         </div>
       </div>
 
-      <p class="mt-1.5 text-xs text-muted line-clamp-2">{{ agent.description }}</p>
+      <p v-if="!compact && agent.description" class="mt-1.5 text-xs text-muted line-clamp-2">
+        {{ agent.description }}
+      </p>
     </div>
 
     <div v-if="$slots.corner" class="absolute right-2 top-2">

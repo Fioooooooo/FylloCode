@@ -39,7 +39,7 @@ const hasInstalled = computed(() => installedAgentIds.value.length > 0);
 const totalAgents = computed(() => registry.value?.agents.length ?? 0);
 
 function handleSelect(agentId: string): void {
-  if (statuses.value[agentId]?.installed !== true) {
+  if (!agentId.startsWith("custom-") && statuses.value[agentId]?.installed !== true) {
     return;
   }
 

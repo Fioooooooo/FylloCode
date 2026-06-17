@@ -8,12 +8,13 @@
 
 ### Requirement: 批量化安装状态检测
 
-主进程检测全部 Agent 安装状态时，SHALL 按检测方式（npx / uvx / binary）分组聚合，使每类外部命令在单次检测周期内只执行一次，进程数量不随 npx / uvx 类 Agent 数量线性增长。
+主进程检测全部 Agent 安装状态时，SHALL 按检测方式（npx / uvx / binary / custom）分组聚合，使每类外部命令在单次检测周期内只执行一次，进程数量不随 npx / uvx 类 Agent 数量线性增长。
 
 - npx 类：SHALL 只执行一次 `npm list -g --depth=0 --json`（不带任何包名）获取全量全局包清单，再在内存中按各 npx Agent 的包名（经 `stripPackageVersion` 去版本后缀）匹配判断是否安装与版本。
 - uvx 类：SHALL 在单次检测周期内只执行一次 `uv tool list`，再在内存中匹配各 uvx Agent。
 - `which npm`、`which uv` 等命令路径查找 SHALL 在单次检测周期内各只执行一次并复用结果。
 - binary 类：因需对每个二进制实际探测路径与版本，允许逐 Agent 执行 `which <cmd>` 与 `<cmd> --version`，但 SHALL 与上述聚合查询并行执行。
+- custom 类：对每个 custom agent， SHALL 执行一次 `which <cmd>`（Windows 为 `where <cmd>`）或文件存在性检查，以判断 command 是否可解析且存在。
 
 检测的对外输出 SHALL 保持为 `AcpAgentStatus[]`，逐项结构与字段语义不变；本要求只改变内部检测实现，不改变 `acp:detectStatus` 的 IPC 契约。
 
@@ -27,6 +28,11 @@
 - **WHEN** 单次检测周期内存在多个 npx 类 Agent
 - **THEN** `which npm`（Windows 为 `where npm`）SHALL 只执行一次，结果在该周期内复用
 
+#### Scenario: custom agent 命令检测
+
+- **WHEN** 存在 custom agent 配置，其 command 为 `kimi`
+- **THEN** 系统 SHALL 执行 `which kimi` 判断是否存在，并将结果计入 `AcpAgentStatus[]`
+
 #### Scenario: 检测输出结构不变
 
 - **WHEN** 批量化检测完成
@@ -34,12 +40,12 @@
 
 ### Requirement: 安装状态本地缓存
 
-主进程 SHALL 将一次完整检测的结果缓存到 `getDataSubPath('acp')/status-cache.json`，结构为 `{ fetchedAt: string, statuses: AcpAgentStatus[] }`，其中 `fetchedAt` SHALL 为 ISO 8601 字符串（如 `"2026-06-01T05:38:28.407Z"`）。该缓存为检测输出的只读派生快照，不替代 `installed.json`（安装账本权威源），且 SHALL NOT 设置时间 TTL。
+主进程 SHALL 将一次完整检测的结果缓存到 `getDataSubPath('acp')/status-cache.json`，结构为 `{ fetchedAt: string, statuses: AcpAgentStatus[] }`，其中 `fetchedAt` SHALL 为 ISO 8601 字符串（如 `"2026-06-01T05:38:28.407Z"`）。该缓存为检测输出的只读派生快照，不替代 `installed.json`（安装账本权威源），且 SHALL NOT 设置时间 TTL。**缓存中的 `statuses` SHALL 同时包含 Registry Agent 与 Custom Agent 的状态。**
 
 #### Scenario: 写入状态缓存
 
 - **WHEN** 主进程完成一次完整的安装状态检测
-- **THEN** 主进程 SHALL 将结果以 `{ fetchedAt, statuses }` 写入 `status-cache.json`，`fetchedAt` 为写入时刻的 ISO 8601 字符串（`new Date().toISOString()`），`statuses` 为该次检测产出的完整 `AcpAgentStatus[]`（含 `installed: false` 的未安装 Agent）
+- **THEN** 主进程 SHALL 将结果以 `{ fetchedAt, statuses }` 写入 `status-cache.json`，`fetchedAt` 为写入时刻的 ISO 8601 字符串（`new Date().toISOString()`），`statuses` 为该次检测产出的完整 `AcpAgentStatus[]`（含 `installed: false` 的未安装 Agent 与 custom agents）
 
 #### Scenario: 读取损坏或缺失的缓存
 
@@ -73,7 +79,7 @@
 
 ### Requirement: 状态更新广播通道
 
-主进程 SHALL 提供广播通道 `acp:statusUpdated`，在后台检测完成且缓存更新后，向所有 `BrowserWindow` 推送最新 `AcpAgentStatus[]`，机制与既有 `acp:registryUpdated` 一致。
+主进程 SHALL 提供广播通道 `acp:statusUpdated`，在后台检测完成且缓存更新后，向所有 `BrowserWindow` 推送最新 `AcpAgentStatus[]`，机制与既有 `acp:registryUpdated` 一致。**推送的数组 SHALL 同时包含 Registry Agent 与 Custom Agent。**
 
 #### Scenario: 后台检测完成推送
 
@@ -84,3 +90,8 @@
 
 - **WHEN** 前端 store 收到 `acp:statusUpdated` 推送
 - **THEN** store SHALL 用推送的 `AcpAgentStatus[]` 覆盖本地 `statuses`，触发面板卡片就地刷新
+
+#### Scenario: custom agent 状态变更后推送
+
+- **WHEN** 用户修改 `custom-agents.json` 并保存，或手动删除/新增 custom agent 配置
+- **THEN** 系统 SHALL 重新检测 custom agents 状态，并通过 `acp:statusUpdated` 推送更新后的完整 `AcpAgentStatus[]`

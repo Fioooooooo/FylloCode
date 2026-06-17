@@ -34,7 +34,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
   const installedAgentIds = computed<string[]>(() => {
     const installed = new Set(
       Object.values(statuses.value)
-        .filter((status) => status.installed)
+        .filter((status) => status.installed || status.source === "custom")
         .map((status) => status.id)
     );
 
@@ -113,7 +113,9 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
   }
 
   function isInstalledAgent(agentId: string | null | undefined): agentId is string {
-    return agentId != null && statuses.value[agentId]?.installed === true;
+    return (
+      agentId != null && (statuses.value[agentId]?.installed === true || isCustomAgentId(agentId))
+    );
   }
 
   function resolveInstalledAgent(preferredAgentId?: string | null): string | null {

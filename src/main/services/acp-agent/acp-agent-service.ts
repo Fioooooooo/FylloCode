@@ -24,7 +24,7 @@ import {
   removeAgentCapabilities,
 } from "@main/infra/storage/agent-capability-store";
 import { writeCustomAgents } from "@main/infra/storage/custom-agent-config-store";
-import { listAgents, getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog-service";
+import { listAgents, getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog";
 import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
 

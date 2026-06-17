@@ -61,7 +61,7 @@ keywords: [electron, main-process, ipc, services, infra]
 
 ## ACP Agent Catalog
 
-- `src/main/infra/acp/agent-catalog-service.ts` 是 Registry Agent 与 Custom Agent 的统一入口，返回带 `source: "registry" | "custom"` 标识的 `CatalogAgent`。
+- `src/main/infra/acp/agent-catalog.ts` 是 Registry Agent 与 Custom Agent 的统一入口，返回带 `source: "registry" | "custom"` 标识的 `CatalogAgent`。
 - `services/` 中的状态检测、进程启动、能力获取等入口应通过 Catalog 获取 agent 信息，不再直接依赖 Registry entry。
 - `infra/` 层（如 `acp-process-pool.ts`）允许依赖 `infra/acp/agent-catalog-service`，但不得反向依赖 `services/`。
 - Custom Agent 由 `data/acp/custom-agents.json` 定义，其 id 由 `command` + `args` 确定性生成，不存在安装/卸载/更新语义。

@@ -8,12 +8,12 @@
 
 ### Requirement: ACP agent distribution 运行时元数据
 
-系统 SHALL 在共享类型 `src/shared/types/acp-agent.ts` 中表达 ACP agent runtime 启动所需的参数和环境变量。`AcpAgentNpxDistribution`、`AcpAgentUvxDistribution` 与 `AcpAgentBinaryDistribution` 均 SHALL 支持可选字段 `args?: string[]` 与 `env?: Record<string, string>`。对于 binary distribution，`args` 与 `env` SHALL 位于当前平台对应的 binary entry 上。
+系统 SHALL 在共享类型 `src/shared/types/acp-agent.ts` 中表达 ACP agent runtime 启动所需的参数和环境变量。`AcpAgentNpxDistribution`、`AcpAgentUvxDistribution`、`AcpAgentBinaryDistribution` 与 **新增的 `AcpAgentCustomDistribution`** 均 SHALL 支持可选字段 `args?: string[]` 与 `env?: Record<string, string>`。对于 binary distribution，`args` 与 `env` SHALL 位于当前平台对应的 binary entry 上；对于 custom distribution，`args` 与 `env` SHALL 直接位于 entry 上。
 
-#### Scenario: binary distribution 声明运行时 args/env
+#### Scenario: custom distribution 声明运行时 args/env
 
-- **WHEN** registry 中某 agent 的 `distribution.binary[<platform>]` 包含 `args` 与 `env`
-- **THEN** FylloCode 的共享类型 SHALL 能表达该 entry 的 `args?: string[]` 与 `env?: Record<string, string>`
+- **WHEN** `custom-agents.json` 中某 agent 的 entry 包含 `command`、`args` 与 `env`
+- **THEN** FylloCode 的共享类型 SHALL 能表达该 entry 的 `command: string`、`args?: string[]` 与 `env?: Record<string, string>`
 - **AND** 不要求把这些字段写入 `AcpInstalledRecord`
 
 #### Scenario: 旧 registry cache 缺少可选字段
@@ -24,7 +24,9 @@
 
 ### Requirement: ACP agent 运行时启动加载 distribution args/env
 
-主进程 SHALL 在 `src/main/infra/process/acp-process-pool.ts` 启动 ACP agent 子进程时，从 registry distribution 和 installed record 组装 runtime spawn spec。distribution `env` 存在时，spawn options 的 `env` SHALL 为 `{ ...process.env, ...distribution.env }`；distribution `env` 不存在时 SHALL 保持 `process.env`。distribution env 的同名 key SHALL 覆盖父进程环境。
+主进程 SHALL 在 `src/main/infra/process/acp-process-pool.ts` 启动 ACP agent 子进程时，从 Catalog Agent 组装 runtime spawn spec。对于 Registry Agent，distribution `env` 存在时，spawn options 的 `env` SHALL 为 `{ ...process.env, ...distribution.env }`；distribution `env` 不存在时 SHALL 保持 `process.env`。distribution env 的同名 key SHALL 覆盖父进程环境。
+
+对于 **Custom Agent**，spawn options 的 `env` SHALL 为 `{ ...process.env, ...customEnv }`，`customEnv` 的同名 key SHALL 覆盖父进程环境；`command` 与 `args` 直接取自 `custom-agents.json` 中解析后的值。
 
 #### Scenario: npx agent 加载 args 与 env
 
@@ -53,6 +55,19 @@
 - **THEN** 主进程 SHALL 继续使用 `installPath` 作为 `cross-spawn` 命令
 - **AND** args SHALL 为空数组
 - **AND** spawn options 的 `env` SHALL 保持 `process.env`
+
+#### Scenario: custom agent 加载 command/args/env
+
+- **WHEN** 启动一个 id 以 `custom-` 开头的 Agent
+- **THEN** 主进程 SHALL 从 Agent Catalog 读取其 `command`、`args` 与 `env`
+- **AND** 使用 `command` 作为 `cross-spawn` 命令
+- **AND** args SHALL 为 entry 的 `args` 或空数组
+- **AND** spawn options 的 `env` SHALL 合并 `process.env` 与 entry 的 `env`
+
+#### Scenario: custom agent command 不存在时启动失败
+
+- **WHEN** 启动 custom agent 时，其 `command` 无法解析或指向文件不存在
+- **THEN** 主进程 SHALL 抛出启动错误，错误码复用现有 ACP 启动错误码
 
 #### Scenario: env 不写入日志
 
