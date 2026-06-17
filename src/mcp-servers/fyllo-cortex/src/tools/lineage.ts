@@ -3,15 +3,18 @@ import { z } from "zod";
 import {
   MissingEnvError,
   traceLineageByCommit,
+  traceLineageByFile,
   traceLineageByProposal,
   type LineageResponseDto,
 } from "../utils/lineage-reader";
 
 const lineageInputSchema = z
   .object({
-    mode: z.enum(["trace-proposal", "trace-commit"]),
+    mode: z.enum(["trace-proposal", "trace-commit", "trace-file"]),
     changeId: z.string().optional(),
     commitHash: z.string().optional(),
+    filePath: z.string().optional(),
+    lineRange: z.string().optional(),
   })
   .strict()
   .refine(
@@ -19,28 +22,39 @@ const lineageInputSchema = z
       if (input.mode === "trace-proposal") {
         return typeof input.changeId === "string" && input.changeId.length > 0;
       }
-      return typeof input.commitHash === "string" && input.commitHash.length > 0;
+      if (input.mode === "trace-commit") {
+        return typeof input.commitHash === "string" && input.commitHash.length > 0;
+      }
+      return typeof input.filePath === "string" && input.filePath.length > 0;
     },
     {
-      message: "trace-proposal requires changeId, trace-commit requires commitHash",
+      message:
+        "trace-proposal requires changeId, trace-commit requires commitHash, trace-file requires filePath",
     }
   );
 
 type LineageInput = z.infer<typeof lineageInputSchema>;
 type LineageResponse = { content: [{ type: "text"; text: string }] };
 
+function formatResult(result: LineageResponseDto | LineageResponseDto[] | null): string {
+  if (result === null) return "null";
+  return JSON.stringify(result, null, 2);
+}
+
 export async function handleLineage(input: LineageInput): Promise<LineageResponse> {
   try {
-    let result: LineageResponseDto | null;
+    let result: LineageResponseDto | LineageResponseDto[] | null;
 
     if (input.mode === "trace-proposal") {
       result = await traceLineageByProposal(input.changeId as string);
-    } else {
+    } else if (input.mode === "trace-commit") {
       result = await traceLineageByCommit(input.commitHash as string);
+    } else {
+      result = await traceLineageByFile(input.filePath as string, input.lineRange);
     }
 
     return {
-      content: [{ type: "text", text: result === null ? "null" : JSON.stringify(result, null, 2) }],
+      content: [{ type: "text", text: formatResult(result) }],
     };
   } catch (error) {
     if (error instanceof MissingEnvError) {
@@ -54,8 +68,16 @@ export function registerLineageTool(server: McpServer): void {
   server.registerTool(
     "lineage",
     {
-      description:
-        "Trace the origin of a commit or proposal. Given a `changeId` (OpenSpec change ID) or `commitHash` (full Git SHA), returns the chat session, task, and proposal chain that produced it, including each proposal's status (`pending`/`applying`/`completed`) and filesystem path. The `proposalPath` points to a directory containing the agreed-upon design and task list produced during the Chat stage (e.g., `proposal.md`, `design.md`, `tasks.md`). Use this to answer 'where did this change come from' or 'what was the context for this commit'.",
+      description: [
+        "Retrieve the design history behind code changes — the task, chat session, and proposal artifacts (proposal.md, design.md, tasks.md) that explain *why* code was written the way it is.",
+        "",
+        "Use this tool when the user asks about design rationale, decision context, or the motivation behind existing code. It surfaces the full deliberation chain that produced a change, which git commit messages alone do not capture.",
+        "",
+        "Modes:",
+        "- trace-file (preferred for 'why' questions): given a file path (and optional line range), finds all commits that touched the file and returns the lineage entries that originated from FylloCode sessions. This is the easiest entry point — no need to know a commit hash upfront.",
+        "- trace-commit: given a full Git SHA, returns the lineage entry for that specific commit.",
+        "- trace-proposal: given an OpenSpec change ID, returns the lineage entry for that proposal.",
+      ].join("\n"),
       inputSchema: lineageInputSchema,
     },
     handleLineage

@@ -7,6 +7,7 @@ import type {
   Subject,
 } from "@shared/types/lineage";
 import type { ProposalStatus } from "@shared/types/proposal";
+import { runGit } from "./git";
 
 // ── DTO ───────────────────────────────────────────────────────────────────────
 
@@ -271,4 +272,47 @@ export async function traceLineageByCommit(commitHash: string): Promise<LineageR
   if (!subject) return null;
 
   return projectSubjectDto(subject);
+}
+
+export async function traceLineageByFile(
+  filePath: string,
+  lineRange?: string
+): Promise<LineageResponseDto[]> {
+  const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
+
+  const args = lineRange
+    ? ["log", "--format=%H", `-L`, `${lineRange}:${filePath}`]
+    : ["log", "--format=%H", "--", filePath];
+  let stdout: string;
+  try {
+    stdout = await runGit(projectPath, args);
+  } catch {
+    return [];
+  }
+
+  const commitHashes = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[0-9a-f]{40}$/.test(line));
+
+  if (commitHashes.length === 0) return [];
+
+  const index = await readLineageIndex();
+  if (!index) return [];
+
+  const seenSubjects = new Set<string>();
+  const results: LineageResponseDto[] = [];
+
+  for (const hash of commitHashes) {
+    const subjectId = index.commitHashes[hash];
+    if (!subjectId || seenSubjects.has(subjectId)) continue;
+    seenSubjects.add(subjectId);
+
+    const subject = await readSubject(subjectId);
+    if (!subject) continue;
+
+    results.push(await projectSubjectDto(subject));
+  }
+
+  return results;
 }

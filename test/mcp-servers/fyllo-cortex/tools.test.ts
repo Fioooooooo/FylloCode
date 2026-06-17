@@ -6,6 +6,7 @@ import {
   ListToolsResultSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -159,6 +160,43 @@ function makeSubject(options: {
   };
 }
 
+// ── Git helpers ────────────────────────────────────────────────────────────
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_AUTHOR_NAME: "test",
+      GIT_AUTHOR_EMAIL: "test@test",
+      GIT_COMMITTER_NAME: "test",
+      GIT_COMMITTER_EMAIL: "test@test",
+    },
+  });
+}
+
+async function initGitRepo(dir: string): Promise<void> {
+  git(dir, ["init", "-b", "main"]);
+  git(dir, ["config", "user.name", "test"]);
+  git(dir, ["config", "user.email", "test@test"]);
+}
+
+async function gitCommitFile(
+  dir: string,
+  relativePath: string,
+  content: string,
+  message: string
+): Promise<string> {
+  const fullPath = join(dir, relativePath);
+  await mkdir(join(fullPath, ".."), { recursive: true });
+  await writeFile(fullPath, content);
+  git(dir, ["add", relativePath]);
+  git(dir, ["commit", "-m", message]);
+  return git(dir, ["rev-parse", "HEAD"]).trim();
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe("fyllo-cortex tools", () => {
@@ -192,7 +230,7 @@ describe("fyllo-cortex tools", () => {
           type: "object",
           properties: {
             mode: {
-              enum: ["trace-proposal", "trace-commit"],
+              enum: ["trace-proposal", "trace-commit", "trace-file"],
             },
           },
           required: ["mode"],
@@ -633,6 +671,178 @@ describe("fyllo-cortex tools", () => {
         const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
         const text = expectTextContent(result);
         expect(text).toBe("null");
+      } finally {
+        await close();
+      }
+    });
+
+    it("trace-file returns matching subjects for commits in lineage index", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await initGitRepo(tmpProjectPath);
+        const hash1 = await gitCommitFile(tmpProjectPath, "src/foo.ts", "v1", "first");
+        await gitCommitFile(tmpProjectPath, "src/foo.ts", "v2", "second");
+        const hash3 = await gitCommitFile(tmpProjectPath, "src/foo.ts", "v3", "third");
+
+        await createLineageFixture(
+          tmpDataDir,
+          { commitHashes: { [hash1]: "subject-1", [hash3]: "subject-2" } },
+          [
+            {
+              id: "subject-1",
+              content: makeSubject({
+                id: "subject-1",
+                origin: "task",
+                task: null,
+                links: [
+                  {
+                    sessionId: "sess-1",
+                    createdAt: "2026-06-16T00:00:00.000Z",
+                    proposals: [
+                      {
+                        changeId: "change-a",
+                        createdAt: "2026-06-16T00:01:00.000Z",
+                        commitHash: hash1,
+                      },
+                    ],
+                  },
+                ],
+              }),
+            },
+            {
+              id: "subject-2",
+              content: makeSubject({
+                id: "subject-2",
+                origin: "chat",
+                task: null,
+                links: [
+                  {
+                    sessionId: "sess-2",
+                    createdAt: "2026-06-16T00:02:00.000Z",
+                    proposals: [
+                      {
+                        changeId: "change-b",
+                        createdAt: "2026-06-16T00:03:00.000Z",
+                        commitHash: hash3,
+                      },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ]
+        );
+
+        const result = await callLineage(client, { mode: "trace-file", filePath: "src/foo.ts" });
+        const text = expectTextContent(result);
+        const dto = JSON.parse(text) as Array<{ subjectId: string }>;
+
+        expect(dto).toHaveLength(2);
+        const subjectIds = dto.map((d) => d.subjectId).sort();
+        expect(subjectIds).toEqual(["subject-1", "subject-2"]);
+      } finally {
+        await close();
+      }
+    });
+
+    it("trace-file returns empty array when no commits match lineage index", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await initGitRepo(tmpProjectPath);
+        await gitCommitFile(tmpProjectPath, "src/bar.ts", "content", "untracked commit");
+
+        await createLineageFixture(tmpDataDir, { commitHashes: {} }, []);
+
+        const result = await callLineage(client, { mode: "trace-file", filePath: "src/bar.ts" });
+        const text = expectTextContent(result);
+        const dto = JSON.parse(text) as unknown[];
+
+        expect(dto).toEqual([]);
+      } finally {
+        await close();
+      }
+    });
+
+    it("trace-file returns empty array when file has no commits", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await initGitRepo(tmpProjectPath);
+        await gitCommitFile(tmpProjectPath, "src/other.ts", "x", "init");
+
+        const result = await callLineage(client, {
+          mode: "trace-file",
+          filePath: "src/nonexistent.ts",
+        });
+        const text = expectTextContent(result);
+        const dto = JSON.parse(text) as unknown[];
+
+        expect(dto).toEqual([]);
+      } finally {
+        await close();
+      }
+    });
+
+    it("trace-file deduplicates subjects when multiple commits map to same subject", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await initGitRepo(tmpProjectPath);
+        const hash1 = await gitCommitFile(tmpProjectPath, "src/dup.ts", "v1", "first");
+        const hash2 = await gitCommitFile(tmpProjectPath, "src/dup.ts", "v2", "second");
+
+        await createLineageFixture(
+          tmpDataDir,
+          { commitHashes: { [hash1]: "subject-1", [hash2]: "subject-1" } },
+          [
+            {
+              id: "subject-1",
+              content: makeSubject({
+                id: "subject-1",
+                origin: "chat",
+                task: null,
+                links: [
+                  {
+                    sessionId: "sess-1",
+                    createdAt: "2026-06-16T00:00:00.000Z",
+                    proposals: [
+                      {
+                        changeId: "change-a",
+                        createdAt: "2026-06-16T00:01:00.000Z",
+                        commitHash: hash1,
+                      },
+                      {
+                        changeId: "change-b",
+                        createdAt: "2026-06-16T00:02:00.000Z",
+                        commitHash: hash2,
+                      },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ]
+        );
+
+        const result = await callLineage(client, { mode: "trace-file", filePath: "src/dup.ts" });
+        const text = expectTextContent(result);
+        const dto = JSON.parse(text) as Array<{ subjectId: string }>;
+
+        expect(dto).toHaveLength(1);
+        expect(dto[0].subjectId).toBe("subject-1");
+      } finally {
+        await close();
+      }
+    });
+
+    it("trace-file returns empty array when not a git repo", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await writeFile(join(tmpProjectPath, "file.ts"), "content");
+
+        const result = await callLineage(client, { mode: "trace-file", filePath: "file.ts" });
+        const text = expectTextContent(result);
+        const dto = JSON.parse(text) as unknown[];
+
+        expect(dto).toEqual([]);
       } finally {
         await close();
       }
