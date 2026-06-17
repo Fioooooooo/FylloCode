@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useToast } from "@nuxt/ui/composables";
 import { useChatAttachment } from "@renderer/composables/useChatAttachment";
 import { useChatPrompt } from "@renderer/composables/useChatPrompt";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
@@ -16,7 +15,6 @@ import SlashCommandMenu from "./SlashCommandMenu.vue";
 const chatStore = useChatStore();
 const acpAgentsStore = useAcpAgentsStore();
 const sessionStore = useSessionStore();
-const toast = useToast();
 const { chatStatus } = storeToRefs(chatStore);
 const { activeSession, draftAgentId, activeDraftProbe } = storeToRefs(sessionStore);
 
@@ -59,10 +57,6 @@ const {
   submitDisabled: sendDisabled,
   afterSubmit: () => clearAttachments(),
 });
-
-function handleAudioClick(): void {
-  toast.add({ title: "即将开放", color: "info" });
-}
 </script>
 
 <template>
@@ -103,22 +97,23 @@ function handleAudioClick(): void {
 
           <div class="inline-flex items-center gap-2 min-w-0">
             <ContextUsageRing
-              v-if="activeSession"
+              v-if="activeSession && activeSession.tokenUsage.used > 0"
               :used="activeSession.tokenUsage.used"
               :size="activeSession.tokenUsage.size"
               :cost="activeSession.tokenUsage.cost"
             />
-            <UTooltip :text="promptCapabilities.audio ? '语音输入' : '当前 agent 不支持音频输入'">
-              <UButton
-                variant="ghost"
-                color="neutral"
-                size="sm"
-                icon="i-lucide-audio-lines"
-                :disabled="!promptCapabilities.audio"
-                aria-label="语音输入"
-                @click="handleAudioClick"
-              />
-            </UTooltip>
+            <!--            暂时隐藏这个 button -->
+            <!--            <UTooltip :text="promptCapabilities.audio ? '语音输入' : '当前 agent 不支持音频输入'">-->
+            <!--              <UButton-->
+            <!--                variant="ghost"-->
+            <!--                color="neutral"-->
+            <!--                size="sm"-->
+            <!--                icon="i-lucide-audio-lines"-->
+            <!--                :disabled="!promptCapabilities.audio"-->
+            <!--                aria-label="语音输入"-->
+            <!--                @click="handleAudioClick"-->
+            <!--              />-->
+            <!--            </UTooltip>-->
             <UChatPromptSubmit
               :status="chatStatus"
               color="neutral"

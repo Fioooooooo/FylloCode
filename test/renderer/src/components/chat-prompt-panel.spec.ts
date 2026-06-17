@@ -463,20 +463,4 @@ describe("ChatPromptPanel", () => {
       },
     ]);
   });
-
-  it("disables audio when unsupported and shows placeholder toast when enabled", async () => {
-    const wrapper = mountPanel();
-    expect(wrapper.get('button[aria-label="语音输入"]').attributes("disabled")).toBeDefined();
-
-    promptCapabilitiesRef.value = {
-      image: true,
-      audio: true,
-      embeddedContext: true,
-    };
-    await wrapper.vm.$nextTick();
-    await wrapper.get('button[aria-label="语音输入"]').trigger("click");
-
-    const { useToast } = await import("@nuxt/ui/composables");
-    expect(useToast().add).toHaveBeenCalledWith({ title: "即将开放", color: "info" });
-  });
 });
