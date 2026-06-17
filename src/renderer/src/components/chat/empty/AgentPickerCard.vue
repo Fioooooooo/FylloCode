@@ -25,7 +25,6 @@ const emit = defineEmits<{
 
 const isCustom = computed(() => props.source === "custom" || isCustomAgentId(props.agent.id));
 const usable = computed(() => isCustom.value || props.agentStatus?.installed === true);
-const fallbackIcon = computed(() => (isCustom.value ? "i-lucide-bot" : undefined));
 const isInstalling = computed(() => {
   const status = props.installProgress?.status;
   return status === "downloading" || status === "installing";
@@ -55,7 +54,6 @@ function handleInstall(event: MouseEvent): void {
     ]"
     :agent="agent"
     :icon="icon"
-    :fallback-icon="fallbackIcon"
     :compact="isCustom"
     @click="handleClick"
   >

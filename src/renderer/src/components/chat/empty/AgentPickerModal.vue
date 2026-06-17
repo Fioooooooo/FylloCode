@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import AgentPickerCard from "./AgentPickerCard.vue";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 
@@ -201,7 +202,7 @@ function goToSettings(): void {
           </div>
 
           <div v-else class="flex flex-col items-center justify-center gap-3 py-12 text-center">
-            <UIcon name="i-lucide-bot" class="h-8 w-8 text-muted/40" />
+            <CustomAgentIcon class="h-full w-full" />
             <p class="text-sm text-muted">暂无自定义 Agent</p>
             <UButton size="sm" variant="outline" color="neutral" @click="goToSettings">
               去设置页添加

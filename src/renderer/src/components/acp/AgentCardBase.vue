@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import AgentKindBadge from "@renderer/components/acp/AgentKindBadge.vue";
+import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 
 withDefaults(
   defineProps<{
     agent: AcpAgentEntry;
     icon?: string;
-    fallbackIcon?: string;
     compact?: boolean;
   }>(),
   {
-    fallbackIcon: "i-lucide-terminal",
     compact: false,
   }
 );
@@ -25,7 +24,7 @@ withDefaults(
       class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white"
     >
       <img v-if="icon" :src="icon" :alt="agent.name" class="h-full w-full object-cover" />
-      <UIcon v-else :name="fallbackIcon" class="h-4 w-4 text-muted" />
+      <CustomAgentIcon v-else class="h-full w-full" />
     </div>
 
     <div class="min-w-0 flex-1">

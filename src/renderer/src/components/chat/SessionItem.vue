@@ -4,6 +4,7 @@ import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
 import { useChatStore } from "@renderer/stores";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 
 const props = defineProps<{
   session: Session;
@@ -103,12 +104,7 @@ async function handleDelete(): Promise<void> {
         class="h-full w-full object-cover"
         data-test="session-agent-icon"
       />
-      <UIcon
-        v-else
-        name="i-lucide-bot"
-        class="h-3.5 w-3.5"
-        data-test="session-agent-icon-fallback"
-      />
+      <CustomAgentIcon v-else class="h-full w-full" data-test="session-agent-icon-fallback" />
     </div>
 
     <div class="min-w-0 flex-1 pr-8">
