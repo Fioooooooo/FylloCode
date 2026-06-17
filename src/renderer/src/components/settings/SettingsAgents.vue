@@ -245,12 +245,24 @@ const exampleConfig = `{
       </div>
 
       <template v-else>
+        <div class="flex justify-start">
+          <UButton
+            color="primary"
+            icon="i-lucide-save"
+            :loading="customAgentsSaving"
+            size="sm"
+            @click="saveCustomAgents"
+          >
+            保存
+          </UButton>
+        </div>
+
         <div
           ref="customEditorContainer"
           class="border border-default rounded-lg overflow-hidden h-120!"
         />
 
-        <div class="rounded-lg bg-muted/50 p-4 space-y-2 text-sm">
+        <div class="rounded-lg bg-muted/100 p-4 space-y-2 text-sm">
           <p class="font-medium text-highlighted">字段说明</p>
           <ul class="space-y-1.5 text-muted list-disc list-inside">
             <li>
@@ -271,17 +283,6 @@ const exampleConfig = `{
           <pre class="mt-2 rounded bg-default p-3 text-xs font-mono text-muted overflow-auto">{{
             exampleConfig
           }}</pre>
-        </div>
-
-        <div class="flex justify-end">
-          <UButton
-            color="primary"
-            icon="i-lucide-save"
-            :loading="customAgentsSaving"
-            @click="saveCustomAgents"
-          >
-            保存
-          </UButton>
         </div>
       </template>
     </div>
