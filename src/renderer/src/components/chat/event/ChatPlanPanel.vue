@@ -47,32 +47,29 @@ const priorityConfig: Record<PlanEntryPriority, { label: string; class: string }
 </script>
 
 <template>
-  <div
-    v-if="entries.length > 0"
-    class="mx-2 mb-0 rounded-lg border border-default bg-elevated/40 overflow-hidden"
-  >
+  <div v-if="entries.length > 0" class="space-y-1">
     <button
       type="button"
-      class="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-elevated/60 transition-colors"
+      class="w-full flex items-center justify-between gap-2 px-1 py-1.5 text-muted hover:text-highlighted transition-colors"
       @click="collapsed = !collapsed"
     >
       <div class="flex items-center gap-2 min-w-0">
         <span v-if="hasActive" class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
-        <UIcon v-else name="i-lucide-list-checks" class="w-4 h-4 text-muted shrink-0" />
-        <span class="text-sm font-medium text-highlighted">执行计划</span>
+        <UIcon v-else name="i-lucide-list-checks" class="w-3.5 h-3.5 shrink-0" />
+        <span class="text-sm font-medium uppercase tracking-wide">执行计划</span>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-muted tabular-nums">
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-xs tabular-nums opacity-70">
           {{ completedCount }}/{{ entries.length }}
         </span>
         <UIcon
           :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
-          class="w-4 h-4 text-muted"
+          class="w-3.5 h-3.5 opacity-70"
         />
       </div>
     </button>
 
-    <ul v-show="!collapsed" class="px-3 pb-2 space-y-1 border-t border-default pt-2">
+    <ul v-show="!collapsed" class="space-y-1">
       <li
         v-for="(entry, index) in entries"
         :key="index"

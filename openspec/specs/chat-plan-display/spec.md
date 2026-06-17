@@ -8,7 +8,7 @@
 
 ### Requirement: ChatPlanPanel 展示会话执行计划
 
-渲染进程 SHALL 提供 `ChatPlanPanel.vue` 组件（位于 `src/renderer/src/components/chat/plan/`），展示当前会话的 ACP 执行计划。组件接收 `entries: PlanEntry[]` prop，固定渲染在 `ChatContainer.vue` 中消息列表与 `ChatPromptPanel` 之间（输入框上方）。
+渲染进程 SHALL 提供 `ChatPlanPanel.vue` 组件（位于 `src/renderer/src/components/chat/plan/`），展示当前会话的 ACP 执行计划。组件接收 `entries: PlanEntry[]` prop，并 SHALL 作为 Chat 右侧会话事件栏中的执行计划事件卡片渲染。`ChatContainer.vue` SHALL NOT 再把 `ChatPlanPanel` 固定渲染在消息列表与 `ChatPromptPanel` 之间（输入框上方）。
 
 `PlanEntry` 类型由 `src/shared/types/chat.ts` 导出，结构为：
 
@@ -31,6 +31,7 @@ interface PlanEntry {
 - **THEN** 面板标题栏显示"执行计划"与进度计数 `2/5`
 - **AND** 列表按数组顺序逐条渲染，每条显示对应 status 图标、content 文本与 priority 标记
 - **AND** 存在 `in_progress` 条目时，标题栏显示 warning 色脉冲圆点；否则显示 `i-lucide-list-checks` 图标
+- **AND** 面板显示在 Chat 右侧会话事件栏内，而不是底部输入框上方
 
 #### Scenario: 折叠与展开
 
