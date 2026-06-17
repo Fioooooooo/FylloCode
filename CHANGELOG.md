@@ -4,6 +4,39 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.13.1] - 2026-06-17
+
+这个补丁版本继续收敛项目治理与 Chat 体验，同时提升 ACP Agent 的扩展性与主进程稳定性。你现在可以通过自定义 Agent 配置文件接入更多 ACP Agent；Chat 的执行计划面板被整合到会话事件轨，Overview 则进一步把 proposal 导航、归档提交线索和活跃变更标题聚合到统一视图。主进程架构也完成了重要整理，使存储、进程通信和错误处理更加稳定可靠。
+
+### 新增
+
+- 支持通过 `custom-agents.json` 配置自定义 ACP Agent，扩展第三方或内部 Agent 的接入方式
+- Chat 新增会话事件轨，把 ACP 执行计划面板整合到会话事件时间线，保持输入区简洁并强化执行进度的可读性
+- fyllo-cortex MCP server 新增 lineage 工具，支持按 trace-file 模式追踪需求线索并返回 proposal 路径
+- Overview 新增归档提交线索展示，需求 proposal 的 archive commit hash 现在会被持久化并呈现在 lineage 视图中
+- 自定义 Agent 编辑器将保存按钮置顶，方便长表单一键保存
+
+### 调整
+
+- Proposal 导航入口从独立页面迁移到 Overview，减少项目空间的跳转成本
+- Chat 进入页面时自动清空已失效的活跃会话状态，避免旧状态干扰新对话
+- 隐藏 Chat 音频输入按钮，直到相关能力准备就绪
+- fyllo-skills MCP server 重命名为 fyllo-cortex，与项目文档和概念模型保持一致
+- Overview 统计栏网格布局优化，在较小窗口下也能保持信息密度
+- ACP 流式事件解析统一为共享驱动，减少主进程、preload 与渲染层之间的重复映射
+- 主进程错误构建统一收敛到 ipcError，Agent 相关错误码由单一事件映射函数维护
+- IO 密集型模块从 domain 层下沉到 infra 层，配合事件总线广播与 ID 工厂规范对齐主进程分层
+
+### 修复
+
+- 修复 overview 与 lineage 中 proposalStatus 推导逻辑不一致的问题
+- 修复 ACP 二进制归档解压可能受到的 zip slip 路径遍历风险
+- 限制外部导航只允许 http/https 协议，防止非预期 scheme 跳转
+- 修复主进程在窗口销毁后仍向已关闭窗口广播以及重启定时器未取消的问题
+- 修复 integration 与 window-state 存储写入非原子化可能导致的数据损坏
+- 强化存储解析、启动流程与日志脱敏，提升异常输入与日志安全边界
+- 修复 Overview 活跃变更标题的格式化问题
+
 ## [0.13.0] - 2026-06-12
 
 这个版本把 FylloCode 推进为更可追溯的项目治理。新的 Overview 页面成为项目默认入口，集中展示项目治理、进行中变更、近期讨论和基于 lineage 的指标。Chat、Task 与 Proposal 现在通过持久化 lineage 模型串联；Chat 也可以渲染并持久化由 Agent 输出、经用户确认后执行的 Fyllo action。同时，本版本补齐了公开文档站，恢复了多会话并行流式输出，并提升了不同 ACP Agent 的工具调用展示兼容性。

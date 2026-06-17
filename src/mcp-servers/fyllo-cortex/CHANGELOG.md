@@ -4,6 +4,26 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [0.3.0] - 2026-06-17
+
+### Added
+
+- New `lineage` tool that retrieves the design history behind code changes, linking commits back to tasks, chat sessions, and OpenSpec proposal artifacts (`proposal.md`, `design.md`, `tasks.md`).
+- `lineage` tool supports three trace modes:
+  - `trace-file`: given a file path and optional line range, find all commits that touched the file and return matching lineage entries (preferred entry point for "why" questions).
+  - `trace-commit`: given a full Git SHA, return the lineage entry for that specific commit.
+  - `trace-proposal`: given an OpenSpec change ID, return the lineage entry for that proposal.
+- `lineage` responses now include `proposalPath` for each proposal, pointing to either the active change directory or the archived change directory.
+
+### Changed
+
+- Server renamed from `fyllo-skills` to `fyllo-cortex` to align with the project documentation and conceptual model.
+- `lineage` tool description was expanded to clarify when and how to use each trace mode.
+
+### Fixed
+
+- Corrected `proposalStatus` derivation so archived proposals are reported as `completed` and active proposals reflect their actual OpenSpec status.
+
 ## [0.2.0] - 2026-05-24
 
 ### Added

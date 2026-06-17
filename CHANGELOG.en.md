@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.13.1] - 2026-06-17
+
+This patch release continues to tighten project governance and the Chat experience while improving ACP Agent extensibility and main-process stability. You can now register additional ACP Agents through a custom agent configuration file. The Chat execution plan panel has been merged into a session event rail, and Overview further unifies proposal navigation, archived commit clues, and active-change titles. Main-process architecture was also reorganized to make storage, process communication, and error handling more reliable.
+
+### Added
+
+- Support custom ACP agents via `custom-agents.json`, enabling integration of third-party or internal agents
+- Chat session event rail that incorporates the ACP execution plan panel into the session event timeline, keeping the input area clean and execution progress readable
+- New lineage tool in the fyllo-cortex MCP server with trace-file mode for tracing requirement subjects and returning proposal paths
+- Archive commit hashes are now persisted for requirement proposals and displayed in the Overview lineage view
+- Custom agent editor moves the save button to the top for easier one-click saving on long forms
+
+### Changed
+
+- Proposal navigation moved from a standalone page into Overview, reducing context switching across project workspace
+- Chat now clears stale active session state when entering the page, preventing old state from interfering with new conversations
+- Hide the Chat audio input button until the related capability is ready
+- Renamed the `fyllo-skills` MCP server to `fyllo-cortex` to align with project docs and conceptual model
+- Optimized Overview stats bar grid columns to preserve information density in narrower windows
+- Unified ACP stream parsing through a shared driver, reducing duplicated mapping across main, preload, and renderer layers
+- Normalized agent error construction onto `ipcError`, with agent error codes maintained by a single event-mapping function
+- Relocated IO-bound pseudo-domain modules into the infra layer and routed agent-service broadcasts through an event bus, aligning the main-process layering with the id factory spec
+
+### Fixed
+
+- Corrected inconsistent `proposalStatus` derivation between overview and lineage
+- Guarded ACP binary archive extraction against zip-slip path traversal
+- Restricted external navigation to http/https schemes to prevent unintended protocol jumps
+- Fixed main-process infra continuing to broadcast to closed windows and failing to cancel restart timers on dispose
+- Used atomic synchronous writes for integration and window-state stores to prevent data corruption
+- Hardened storage parsing, startup flow, and log redaction against malformed input and log leakage
+- Fixed active change title formatting in Overview
+
 ## [0.13.0] - 2026-06-12
 
 This release turns FylloCode into a more traceable project workspace. The new Overview page surfaces project governance, active changes, recent threads, and lineage-backed metrics as the default project entry. Chat, Task, and Proposal are now connected through a persisted lineage model, while Chat can render confirmed Fyllo actions from agent output. The release also adds the public documentation site, restores parallel chat streaming, and improves ACP tool-call compatibility across agents.
