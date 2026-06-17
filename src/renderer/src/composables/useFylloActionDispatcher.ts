@@ -1,5 +1,6 @@
 import { lineageApi } from "@renderer/api/lineage";
 import { useProjectStore } from "@renderer/stores/project";
+import { useSessionStore } from "@renderer/stores/session";
 import type {
   FylloActionHandlerResult,
   FylloActionPayloadByType,
@@ -22,6 +23,7 @@ export function useFylloActionDispatcher(): {
   ) => Promise<FylloActionHandlerResult>;
 } {
   const projectStore = useProjectStore();
+  const sessionStore = useSessionStore();
 
   async function dispatchFylloAction<Type extends FylloActionType>(
     type: Type,
@@ -55,6 +57,8 @@ export function useFylloActionDispatcher(): {
         if (!result.ok) {
           throw new Error(result.error.message);
         }
+
+        sessionStore.setSessionOriginTaskRef(sessionId, `local:${result.data.id}`);
 
         return { ok: true };
       }

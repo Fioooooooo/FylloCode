@@ -1,10 +1,4 @@
-# chat-origin-task-banner 规范
-
-## Purpose
-
-定义任务来源会话在对话页顶部的来源条展示，以及 session store 对关联任务快照的懒加载、缓存和降级行为。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 对话页顶部展示当前会话关联的任务来源条
 
@@ -54,11 +48,15 @@
 - **AND** 主进程已将 `originTaskRef` 更新为 `"local:task-new"`
 - **THEN** `OriginTaskBanner` 从展示 `"local:task-old"` 切换为展示 `"local:task-new"`
 
+## UNCHANGED Requirements
+
 ### Requirement: session store 懒加载并缓存关联任务信息
 
 系统 SHALL 在 session store 维护内存缓存 `taskInfoBySessionId`，存储每个 session 解析后的关联任务展示信息（来源 + 标题）。`selectSession` 时若目标 session 的 `originTaskRef` 非空且该 sessionId 未在缓存中，系统 SHALL 调用 `lineage:getByTask` 获取 subject 快照、解析出展示信息并写入缓存。已缓存的 session 再次切换 SHALL NOT 重复发起 `lineage:getByTask`。
 
 该缓存 SHALL 复刻 session messages 的懒加载缓存模式（参照 `selectSession` 对 `loadedSessionIds` 的处理），为内存态、不持久化。
+
+当 `originTaskRef` 在会话运行期间被更新（例如通过 `fyllo-action task.create`）时，session store SHALL 使该 sessionId 在 `taskInfoBySessionId` 中的缓存失效或更新，以确保 `OriginTaskBanner` 能回显最新绑定任务。
 
 #### Scenario: 首次切换关联会话时懒加载
 
@@ -77,3 +75,9 @@
 - **WHEN** 切换关联会话时 `lineage:getByTask` 返回 `null`（subject 缺失）
 - **THEN** 来源条降级为仅展示从 ref 解析的来源与原始 ref 文本（如 `yunxiao:STORY-42`）
 - **AND** 不阻断会话切换或对话
+
+#### Scenario: originTaskRef 更新后缓存刷新
+
+- **WHEN** 某会话运行期间 `originTaskRef` 从 `undefined` 更新为 `"local:task-new"`
+- **THEN** session store 使该 sessionId 的 `taskInfoBySessionId` 缓存失效
+- **AND** `OriginTaskBanner` 重新调用 `lineage:getByTask` 获取新任务快照并展示

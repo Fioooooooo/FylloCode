@@ -400,6 +400,27 @@ export async function upsertSessionMeta(
   });
 }
 
+export async function updateSessionOriginTaskRef(
+  projectPath: string,
+  sessionId: string,
+  originTaskRef: LineageTaskRef
+): Promise<SessionMeta | null> {
+  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
+    const currentRecord = await readSessionMetaRecord(projectPath, sessionId);
+    if (!currentRecord) {
+      return null;
+    }
+
+    return toSessionMeta(
+      await writeSessionMetaRecordUnlocked(projectPath, {
+        ...currentRecord,
+        originTaskRef,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  });
+}
+
 export async function deleteSession(projectPath: string, sessionId: string): Promise<void> {
   await Promise.allSettled([
     fs.unlink(metaPath(projectPath, sessionId)),

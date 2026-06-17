@@ -3,6 +3,7 @@ import { useFylloActionDispatcher } from "@renderer/composables/useFylloActionDi
 
 const createTaskMock = vi.hoisted(() => vi.fn());
 const createSessionTaskMock = vi.hoisted(() => vi.fn());
+const setSessionOriginTaskRefMock = vi.hoisted(() => vi.fn());
 const currentProject = vi.hoisted(() => ({
   value: { id: "project-1" } as { id: string } | null,
 }));
@@ -27,15 +28,22 @@ vi.mock("@renderer/stores/project", () => ({
   }),
 }));
 
+vi.mock("@renderer/stores/session", () => ({
+  useSessionStore: () => ({
+    setSessionOriginTaskRef: setSessionOriginTaskRefMock,
+  }),
+}));
+
 describe("useFylloActionDispatcher", () => {
   beforeEach(() => {
     createTaskMock.mockReset();
     createSessionTaskMock.mockReset();
+    setSessionOriginTaskRefMock.mockReset();
     currentProject.value = { id: "project-1" };
   });
 
   it("routes task.create through lineage createSessionTask with session context", async () => {
-    createSessionTaskMock.mockResolvedValue({ ok: true, data: {} });
+    createSessionTaskMock.mockResolvedValue({ ok: true, data: { id: "task-1" } });
 
     const { dispatchFylloAction } = useFylloActionDispatcher();
     const result = await dispatchFylloAction(
@@ -56,8 +64,23 @@ describe("useFylloActionDispatcher", () => {
     expect(createTaskMock).not.toHaveBeenCalled();
   });
 
+  it("updates session originTaskRef after task.create succeeds", async () => {
+    createSessionTaskMock.mockResolvedValue({ ok: true, data: { id: "task-new" } });
+
+    const { dispatchFylloAction } = useFylloActionDispatcher();
+    await dispatchFylloAction(
+      "task.create",
+      {
+        title: "补齐错误处理",
+      },
+      { sessionId: "session-1" }
+    );
+
+    expect(setSessionOriginTaskRefMock).toHaveBeenCalledWith("session-1", "local:task-new");
+  });
+
   it("passes undefined description when description is missing", async () => {
-    createSessionTaskMock.mockResolvedValue({ ok: true, data: {} });
+    createSessionTaskMock.mockResolvedValue({ ok: true, data: { id: "task-1" } });
 
     const { dispatchFylloAction } = useFylloActionDispatcher();
     await dispatchFylloAction(
@@ -76,7 +99,7 @@ describe("useFylloActionDispatcher", () => {
   });
 
   it("returns failed results when sessionId is missing", async () => {
-    createSessionTaskMock.mockResolvedValue({ ok: true, data: {} });
+    createSessionTaskMock.mockResolvedValue({ ok: true, data: { id: "task-1" } });
 
     const { dispatchFylloAction } = useFylloActionDispatcher();
     const result = await dispatchFylloAction("task.create", {
@@ -89,6 +112,7 @@ describe("useFylloActionDispatcher", () => {
     });
     expect(createSessionTaskMock).not.toHaveBeenCalled();
     expect(createTaskMock).not.toHaveBeenCalled();
+    expect(setSessionOriginTaskRefMock).not.toHaveBeenCalled();
   });
 
   it("returns failed results when lineage createSessionTask fails", async () => {
@@ -110,5 +134,6 @@ describe("useFylloActionDispatcher", () => {
       ok: false,
       error: "创建失败",
     });
+    expect(setSessionOriginTaskRefMock).not.toHaveBeenCalled();
   });
 });

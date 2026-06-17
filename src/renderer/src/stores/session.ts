@@ -101,6 +101,7 @@ export interface SessionStore {
   setDraftAgent: (agentId: string) => void;
   clearSessions: () => void;
   sortSessions: () => void;
+  setSessionOriginTaskRef: (sessionId: string, ref: LineageTaskRef) => void;
 }
 
 function toDate(value: SerializableDate): Date {
@@ -203,6 +204,23 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
   function sortSessions(): void {
     sessions.value = sortByUpdatedAt(sessions.value);
+  }
+
+  function setSessionOriginTaskRef(sessionId: string, ref: LineageTaskRef): void {
+    const session = findSession(sessionId);
+    if (session) {
+      session.originTaskRef = ref;
+    }
+
+    if (taskInfoBySessionId.value.has(sessionId)) {
+      const next = new Map(taskInfoBySessionId.value);
+      next.delete(sessionId);
+      taskInfoBySessionId.value = next;
+    }
+
+    if (session) {
+      void ensureOriginTaskInfo(session);
+    }
   }
 
   function findSession(sessionId: string): Session | null {
@@ -706,5 +724,6 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     setDraftAgent,
     clearSessions,
     sortSessions,
+    setSessionOriginTaskRef,
   };
 });

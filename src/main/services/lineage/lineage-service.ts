@@ -22,7 +22,7 @@ import {
   writeIndex,
   writeSubject,
 } from "@main/infra/storage/lineage-store";
-import logger from "@main/infra/logger";
+import { updateSessionOriginTaskRef } from "@main/infra/storage/session-store";
 import { createTask } from "@main/services/task/task-service";
 import type {
   CreateSessionTaskInput,
@@ -300,14 +300,25 @@ export async function createSessionTask(
       existingSubject?.subjectId ?? (await ensureChatSubject(projectPath, input.sessionId)).id;
     const backfilled = await backfillTask(projectPath, subjectId, taskSnapshot);
     if (!backfilled) {
-      logger.warn(
+      throw new Error(
         `[lineage] failed to backfill session task; subject missing project=${projectPath} session=${input.sessionId} task=${task.id}`
       );
     }
+
+    const updated = await updateSessionOriginTaskRef(
+      projectPath,
+      input.sessionId,
+      taskSnapshot.ref
+    );
+    if (!updated) {
+      throw new Error(
+        `[lineage] failed to update session originTaskRef; session missing project=${projectPath} session=${input.sessionId} task=${task.id}`
+      );
+    }
   } catch (error: unknown) {
-    logger.warn(
-      `[lineage] failed to backfill session task project=${projectPath} session=${input.sessionId} task=${task.id}`,
-      error
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `[lineage] failed to bind session task project=${projectPath} session=${input.sessionId} task=${task.id}: ${reason}`
     );
   }
 

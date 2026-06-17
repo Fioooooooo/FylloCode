@@ -593,4 +593,47 @@ describe("useSessionStore", () => {
       projectId: "project-1",
     });
   });
+
+  it("setSessionOriginTaskRef updates the session originTaskRef", () => {
+    const store = useSessionStore();
+    store.sessions = [session()];
+
+    store.setSessionOriginTaskRef("session-1", "local:task-new");
+
+    expect(store.sessions[0]?.originTaskRef).toBe("local:task-new");
+  });
+
+  it("setSessionOriginTaskRef clears cached task info and reloads it", async () => {
+    const store = useSessionStore();
+    store.sessions = [session({ originTaskRef: "local:task-old" })];
+    store.taskInfoBySessionId.set("session-1", {
+      source: "local",
+      title: "Old task",
+      ref: "local:task-old",
+    });
+    mocks.getByTask.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "chat",
+        task: {
+          ref: "local:task-new",
+          snapshot: { title: "New task" },
+          capturedAt: "2026-06-09T00:00:00.000Z",
+        },
+        links: [],
+      },
+    });
+
+    store.setSessionOriginTaskRef("session-1", "local:task-new");
+    await nextTick();
+
+    expect(store.sessions[0]?.originTaskRef).toBe("local:task-new");
+    expect(mocks.getByTask).toHaveBeenCalledWith("project-1", "local:task-new");
+    expect(store.taskInfoBySessionId.get("session-1")).toEqual({
+      source: "local",
+      title: "New task",
+      ref: "local:task-new",
+    });
+  });
 });

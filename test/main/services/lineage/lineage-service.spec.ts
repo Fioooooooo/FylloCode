@@ -16,15 +16,8 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
-const logger = vi.hoisted(() => ({
-  warn: vi.fn(),
-}));
-
-vi.mock("@main/infra/logger", () => ({
-  default: logger,
-}));
-
 import { readIndex, readSubject } from "@main/infra/storage/lineage-store";
+import { createSessionMeta } from "@main/infra/storage/session-store";
 import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
 import {
   backfillTask,
@@ -79,7 +72,6 @@ function indexFilePath(): string {
 
 beforeEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
-  logger.warn.mockClear();
   vi.useFakeTimers();
   setNow("2026-06-09T00:00:00.000Z");
 });
@@ -207,6 +199,15 @@ describe("lineage-service", () => {
 
   it("creates a local task and backfills an existing chat subject", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
+    await createSessionMeta(projectPath, {
+      sessionId: "session-chat",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z",
+    });
 
     const created = await createSessionTask(projectPath, {
       sessionId: "session-chat",
@@ -236,27 +237,29 @@ describe("lineage-service", () => {
     });
   });
 
-  it("returns the created task when session task backfill fails", async () => {
+  it("throws when session task backfill fails", async () => {
     mkdirSync(dirname(lineageDir(projectPath)), { recursive: true });
     writeFileSync(lineageDir(projectPath), "not a directory", "utf8");
 
-    const created = await createSessionTask(projectPath, {
-      sessionId: "session-chat",
-      title: "Backfill later",
-    });
-
-    expect(created).toMatchObject({
-      title: "Backfill later",
-      description: { format: "plain_text", content: "" },
-      originSessionId: "session-chat",
-    });
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("[lineage] failed to backfill session task"),
-      expect.any(Error)
-    );
+    await expect(
+      createSessionTask(projectPath, {
+        sessionId: "session-chat",
+        title: "Backfill later",
+      })
+    ).rejects.toThrow(/failed to bind session task/);
   });
 
   it("creates a chat subject before backfilling when the session has no subject", async () => {
+    await createSessionMeta(projectPath, {
+      sessionId: "session-new",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z",
+    });
+
     const created = await createSessionTask(projectPath, {
       sessionId: "session-new",
       title: "Open discussion task",
@@ -273,6 +276,27 @@ describe("lineage-service", () => {
       origin: "chat",
       links: [{ sessionId: "session-new" }],
     });
+  });
+
+  it("updates session originTaskRef after creating a session task", async () => {
+    await createSessionMeta(projectPath, {
+      sessionId: "session-chat",
+      agentId: "claude-acp",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z",
+    });
+
+    const created = await createSessionTask(projectPath, {
+      sessionId: "session-chat",
+      title: "补齐错误处理",
+    });
+
+    const { loadSessionMeta } = await import("@main/infra/storage/session-store");
+    const meta = await loadSessionMeta(projectPath, "session-chat");
+    expect(meta?.originTaskRef).toBe(`local:${created.id}`);
   });
 
   it("links sessions by task ref idempotently", async () => {

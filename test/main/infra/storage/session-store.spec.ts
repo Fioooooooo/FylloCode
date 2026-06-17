@@ -21,6 +21,7 @@ import {
   loadSessionMeta,
   patchSessionMeta,
   saveSessionMeta,
+  updateSessionOriginTaskRef,
 } from "@main/infra/storage/session-store";
 import { sessionsDir } from "@main/infra/storage/project-paths";
 
@@ -304,6 +305,55 @@ describe("session-store", () => {
       sessionId: "session-3",
       title: "Created Later",
       available_commands: [{ name: "review", description: "Review code" }],
+    });
+  });
+
+  describe("updateSessionOriginTaskRef", () => {
+    it("updates originTaskRef and updatedAt while preserving other fields", async () => {
+      await createSessionMeta(
+        projectPath,
+        meta({
+          available_commands: [{ name: "review", description: "Review code" }],
+          originTaskRef: "yunxiao:STORY-1",
+        })
+      );
+
+      const before = Date.now();
+      const result = await updateSessionOriginTaskRef(projectPath, "session-1", "local:task-new");
+      const after = Date.now();
+
+      expect(result).toMatchObject({
+        sessionId: "session-1",
+        originTaskRef: "local:task-new",
+        available_commands: [{ name: "review", description: "Review code" }],
+      });
+
+      const updatedAt = new Date(result?.updatedAt ?? "").getTime();
+      expect(updatedAt).toBeGreaterThanOrEqual(before);
+      expect(updatedAt).toBeLessThanOrEqual(after);
+
+      const raw = JSON.parse(readFileSync(sessionMetaPath(), "utf8")) as Record<string, unknown>;
+      expect(raw.originTaskRef).toBe("local:task-new");
+      expect(raw.available_commands).toEqual([{ name: "review", description: "Review code" }]);
+    });
+
+    it("returns null when the session meta does not exist", async () => {
+      const result = await updateSessionOriginTaskRef(
+        projectPath,
+        "missing-session",
+        "local:task-new"
+      );
+      expect(result).toBeNull();
+    });
+
+    it("allows originTaskRef to be overwritten by the controlled writer", async () => {
+      await createSessionMeta(projectPath, meta({ originTaskRef: "local:task-old" }));
+
+      const result = await updateSessionOriginTaskRef(projectPath, "session-1", "local:task-new");
+
+      expect(result?.originTaskRef).toBe("local:task-new");
+      const loaded = await loadSessionMeta(projectPath, "session-1");
+      expect(loaded?.originTaskRef).toBe("local:task-new");
     });
   });
 });
