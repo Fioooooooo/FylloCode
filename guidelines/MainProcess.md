@@ -59,6 +59,13 @@ keywords: [electron, main-process, ipc, services, infra]
 - Bad: `import { spawn } from "child_process"` 后直接启动外部命令。
 - Bad: 在 `services/` 中硬编码 `session-${Date.now()}`、`process.resourcesPath` 或项目数据目录字符串。
 
+## ACP Agent Catalog
+
+- `src/main/infra/acp/agent-catalog-service.ts` 是 Registry Agent 与 Custom Agent 的统一入口，返回带 `source: "registry" | "custom"` 标识的 `CatalogAgent`。
+- `services/` 中的状态检测、进程启动、能力获取等入口应通过 Catalog 获取 agent 信息，不再直接依赖 Registry entry。
+- `infra/` 层（如 `acp-process-pool.ts`）允许依赖 `infra/acp/agent-catalog-service`，但不得反向依赖 `services/`。
+- Custom Agent 由 `data/acp/custom-agents.json` 定义，其 id 由 `command` + `args` 确定性生成，不存在安装/卸载/更新语义。
+
 ## Chat Session Probe
 
 - `src/main/services/chat/session-probe-service.ts` 负责草稿态 ACP `newSession` 握手、`closeSession` 释放和草稿态 `session/set_config_option`；probe 是 `agentId` 维度的主进程纯内存资源，不写入 SessionMeta。

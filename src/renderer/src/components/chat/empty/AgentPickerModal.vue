@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { useRouter } from "vue-router";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import AgentPickerCard from "./AgentPickerCard.vue";
+import type { AcpAgentEntry } from "@shared/types/acp-agent";
 
 const open = defineModel<boolean>("open", { required: true });
 
@@ -15,14 +17,22 @@ const emit = defineEmits<{
 }>();
 
 const store = useAcpAgentsStore();
+const router = useRouter();
 const { registry, statuses, icons, installProgress } = storeToRefs(store);
 
 const search = ref("");
 const stagedAgentId = ref<string | null>(null);
+const activeModalTab = ref<"registry" | "custom">("registry");
+
+const modalTabs = [
+  { label: "Registry", value: "registry" },
+  { label: "Custom", value: "custom" },
+];
 
 watch(open, (isOpen) => {
   if (isOpen) {
     search.value = "";
+    activeModalTab.value = "registry";
     stagedAgentId.value = props.currentAgentId ?? null;
   }
 });
@@ -45,6 +55,25 @@ const installedAgents = computed(() =>
 
 const notInstalledAgents = computed(() =>
   filtered.value.filter((a) => statuses.value[a.id]?.installed !== true)
+);
+
+const customAgentStatuses = computed(() =>
+  Object.values(statuses.value).filter((s) => s.source === "custom" || s.id.startsWith("custom-"))
+);
+
+const customAgentsForPicker = computed(() =>
+  customAgentStatuses.value.map(
+    (s) =>
+      ({
+        id: s.id,
+        name: s.name ?? s.id,
+        version: "",
+        description: "",
+        authors: [],
+        license: "MIT",
+        distribution: {},
+      }) as AcpAgentEntry
+  )
 );
 
 const currentInstallingId = computed(
@@ -75,6 +104,11 @@ function handleConfirm(): void {
   emit("confirm", stagedAgentId.value);
   open.value = false;
 }
+
+function goToSettings(): void {
+  open.value = false;
+  void router.push("/settings");
+}
 </script>
 
 <template>
@@ -86,9 +120,26 @@ function handleConfirm(): void {
   >
     <template #body>
       <div class="flex flex-col gap-4">
-        <UInput v-model="search" size="sm" placeholder="按名称搜索..." icon="i-lucide-search" />
+        <div class="flex items-center gap-3">
+          <UInput
+            v-if="activeModalTab === 'registry'"
+            v-model="search"
+            size="sm"
+            placeholder="按名称搜索..."
+            icon="i-lucide-search"
+            class="flex-1"
+          />
+          <div v-else class="flex-1" />
+          <UTabs
+            v-model="activeModalTab"
+            :items="modalTabs"
+            size="sm"
+            variant="link"
+            value-key="value"
+          />
+        </div>
 
-        <div class="space-y-4 pr-1">
+        <div v-if="activeModalTab === 'registry'" class="space-y-4 pr-1">
           <section v-if="installedAgents.length > 0" class="space-y-3">
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-medium text-muted">已安装</h3>
@@ -132,6 +183,29 @@ function handleConfirm(): void {
             class="py-12 text-center text-sm text-muted"
           >
             没有匹配的 Agent
+          </div>
+        </div>
+
+        <div v-else class="space-y-4 pr-1">
+          <div v-if="customAgentsForPicker.length > 0" class="grid grid-cols-2 gap-2">
+            <AgentPickerCard
+              v-for="agent in customAgentsForPicker"
+              :key="agent.id"
+              :agent="agent"
+              :agent-status="statuses[agent.id]"
+              selectable
+              hide-install
+              :selected="stagedAgentId === agent.id"
+              @select="handleSelect"
+            />
+          </div>
+
+          <div v-else class="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <UIcon name="i-lucide-bot" class="h-8 w-8 text-muted/40" />
+            <p class="text-sm text-muted">暂无自定义 Agent</p>
+            <UButton size="sm" variant="outline" color="neutral" @click="goToSettings">
+              去设置页添加
+            </UButton>
           </div>
         </div>
       </div>

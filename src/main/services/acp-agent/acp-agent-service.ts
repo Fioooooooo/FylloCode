@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import {
   normalizePromptCapabilities,
   type AcpAgentStatus,
+  type AcpCustomAgentsJson,
   type AcpInstallProgress,
   type AcpPromptCapabilities,
   type AcpRegistry,
@@ -22,6 +23,8 @@ import {
   getCachedPromptCapabilities,
   removeAgentCapabilities,
 } from "@main/infra/storage/agent-capability-store";
+import { writeCustomAgents } from "@main/infra/storage/custom-agent-config-store";
+import { listAgents, getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog-service";
 import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
 
@@ -83,8 +86,8 @@ export async function listAgentIcons(): Promise<Record<string, string>> {
 let statusRefreshInFlight: Promise<AcpAgentStatus[]> | null = null;
 
 async function refreshStatusesInBackground(): Promise<AcpAgentStatus[]> {
-  const registry = await loadAgentRegistry();
-  const statuses = await detectAgentStatuses(registry);
+  const agents = await listAgents();
+  const statuses = await detectAgentStatuses(agents);
   await writeStatusCache(statuses);
   emitStatusUpdated(statuses);
   return statuses;
@@ -115,8 +118,8 @@ export async function listAgentStatuses(): Promise<AcpAgentStatus[]> {
     return cached.statuses;
   }
 
-  const registry = await loadAgentRegistry();
-  const statuses = await detectAgentStatuses(registry);
+  const agents = await listAgents();
+  const statuses = await detectAgentStatuses(agents);
   await writeStatusCache(statuses);
   return statuses;
 }
@@ -126,10 +129,18 @@ export async function listAgentStatuses(): Promise<AcpAgentStatus[]> {
  * 服务于设置页手动刷新及安装/卸载后的状态刷新。
  */
 export async function detectAgentStatusesForced(): Promise<AcpAgentStatus[]> {
-  const registry = await loadAgentRegistry();
-  const statuses = await detectAgentStatuses(registry);
+  const agents = await listAgents();
+  const statuses = await detectAgentStatuses(agents);
   await writeStatusCache(statuses);
   return statuses;
+}
+
+export async function saveCustomAgents(config: AcpCustomAgentsJson): Promise<void> {
+  await writeCustomAgents(config);
+  const agents = await listAgents();
+  const statuses = await detectAgentStatuses(agents);
+  await writeStatusCache(statuses);
+  emitStatusUpdated(statuses);
 }
 
 export async function installAgentById(agentId: string): Promise<void> {
@@ -142,6 +153,10 @@ export async function installAgentById(agentId: string): Promise<void> {
 }
 
 export async function uninstallAgentById(agentId: string): Promise<void> {
+  if (isCustomAgentId(agentId)) {
+    throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, "自定义 Agent 不支持卸载操作");
+  }
+
   const registry = await loadAgentRegistry();
   const agent = registry.agents.find((item) => item.id === agentId);
   if (!agent) {
@@ -162,6 +177,28 @@ export async function uninstallAgentById(agentId: string): Promise<void> {
 export async function ensureAgent(agentId: string): Promise<{
   promptCapabilities: AcpPromptCapabilities;
 }> {
+  if (isCustomAgentId(agentId)) {
+    const agent = await getAgentById(agentId);
+    if (!agent || agent.source !== "custom") {
+      throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not configured`);
+    }
+
+    const cached = await getCachedPromptCapabilities(agentId);
+    if (cached && cached.capturedAgentVersion === "") {
+      void getOrStartProcess(agentId).catch((error: unknown) => {
+        logger.error(`[acp-agent-service] failed to lazily start ${agentId}`, error);
+      });
+      return { promptCapabilities: cached.capabilities };
+    }
+
+    const agentProcess = await getOrStartProcess(agentId);
+    return {
+      promptCapabilities: normalizePromptCapabilities(
+        agentProcess.initializeResponse.agentCapabilities?.promptCapabilities
+      ),
+    };
+  }
+
   const records = await readInstalledRecords();
   const installed = records[agentId];
   if (!installed) {

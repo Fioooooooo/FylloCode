@@ -14,4 +14,14 @@ const promptCapabilitiesSchema = z.object({
   embeddedContext: z.boolean(),
 });
 
+const customAgentConfigSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
+
+export const saveCustomAgentsInputSchema = z.object({
+  agent_servers: z.record(z.string(), customAgentConfigSchema),
+});
+
 export const promptCapabilitiesCacheSchema = z.record(z.string(), promptCapabilitiesSchema);

@@ -4,6 +4,7 @@ import { AcpAgentChannels } from "@shared/types/channels";
 import {
   ensureAgentInputSchema,
   installAgentInputSchema,
+  saveCustomAgentsInputSchema,
   uninstallAgentInputSchema,
 } from "@shared/schemas/ipc/acp-agents";
 import { wrapHandler } from "./_kit/wrap-handler";
@@ -17,10 +18,12 @@ import {
   loadAgentRegistry,
   onAgentServiceEvent,
   reloadAgentRegistry,
+  saveCustomAgents,
   uninstallAgentById,
 } from "@main/services/acp-agent/acp-agent-service";
 import { onAgentUnavailable } from "@main/infra/process/acp-process-pool";
 import { loadCache } from "@main/infra/storage/agent-capability-store";
+import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
 
 let agentEventWindow: BrowserWindow | null = null;
 let agentEventSubscribed = false;
@@ -82,6 +85,15 @@ export function registerAcpAgentHandlers(): void {
       return Object.fromEntries(
         Object.entries(cache).map(([agentId, entry]) => [agentId, entry.promptCapabilities])
       );
+    })
+  );
+  ipcMain.handle(AcpAgentChannels.loadCustomAgents, () =>
+    wrapHandler(async () => readCustomAgents())
+  );
+  ipcMain.handle(AcpAgentChannels.saveCustomAgents, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(saveCustomAgentsInputSchema, input);
+      await saveCustomAgents(form);
     })
   );
   ipcMain.handle(AcpAgentChannels.install, (_event, input: unknown) =>

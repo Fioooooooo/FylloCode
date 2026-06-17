@@ -5,6 +5,7 @@ import { appApi } from "@renderer/api/app";
 import { useSessionStore } from "./session";
 import type {
   AcpAgentStatus,
+  AcpCustomAgentsJson,
   AcpInstallProgress,
   AcpPromptCapabilities,
   AcpRegistry,
@@ -123,7 +124,14 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     return installedAgentIds.value[0] ?? null;
   }
 
+  function isCustomAgentId(agentId: string | null | undefined): agentId is string {
+    return agentId != null && agentId.startsWith("custom-");
+  }
+
   function getAgentLabel(agentId: string): string {
+    if (isCustomAgentId(agentId)) {
+      return statuses.value[agentId]?.name ?? agentId;
+    }
     return registry.value?.agents.find((agent) => agent.id === agentId)?.name ?? agentId;
   }
 
@@ -189,6 +197,26 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     }
 
     userDataPath.value = response.data;
+  }
+
+  async function loadCustomAgents(): Promise<AcpCustomAgentsJson | null> {
+    ensureAgentListeners();
+    const response = await acpAgentsApi.loadCustomAgents();
+    if (!response.ok) {
+      return null;
+    }
+    return response.data;
+  }
+
+  async function saveCustomAgents(config: AcpCustomAgentsJson): Promise<void> {
+    ensureAgentListeners();
+    const response = await acpAgentsApi.saveCustomAgents(config);
+    if (!response.ok) {
+      throw new Error(response.error.message);
+    }
+
+    // 保存成功后后台刷新状态； capabilities 缓存已在主进程清除
+    void refreshStatus(true);
   }
 
   async function refreshCapabilities(agentId: string): Promise<void> {
@@ -336,6 +364,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     installedAgentIds,
     ensureAgentListeners,
     isInstalledAgent,
+    isCustomAgentId,
     resolveInstalledAgent,
     getAgentLabel,
     ensureInitialized,
@@ -346,6 +375,8 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     loadCapabilitiesCache,
     ensureUserDataPath,
     refreshCapabilities,
+    loadCustomAgents,
+    saveCustomAgents,
     getPromptCapabilities,
     installAgent,
     uninstallAgent,

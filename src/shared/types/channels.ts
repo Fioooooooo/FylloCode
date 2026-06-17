@@ -110,6 +110,8 @@ export const AcpAgentChannels = {
   uninstall: "acp:uninstall",
   ensureAgent: "acp:ensureAgent",
   loadCapabilitiesCache: "acp:loadCapabilitiesCache",
+  loadCustomAgents: "acp:loadCustomAgents",
+  saveCustomAgents: "acp:saveCustomAgents",
   registryUpdated: "acp:registryUpdated",
   statusUpdated: "acp:statusUpdated",
   installProgress: "acp:installProgress",

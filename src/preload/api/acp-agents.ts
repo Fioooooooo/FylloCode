@@ -3,6 +3,7 @@ import type { IpcResponse } from "@shared/types/ipc";
 import { AcpAgentChannels } from "@shared/types/channels";
 import type {
   AcpAgentStatus,
+  AcpCustomAgentsJson,
   AcpInstallProgress,
   AcpInstalledRecord,
   AcpPromptCapabilities,
@@ -58,6 +59,14 @@ export const acpAgentsApi = {
 
   loadCapabilitiesCache(): Promise<IpcResponse<Record<string, AcpPromptCapabilities>>> {
     return ipcRenderer.invoke(AcpAgentChannels.loadCapabilitiesCache);
+  },
+
+  saveCustomAgents(config: AcpCustomAgentsJson): Promise<IpcResponse<void>> {
+    return ipcRenderer.invoke(AcpAgentChannels.saveCustomAgents, config);
+  },
+
+  loadCustomAgents(): Promise<IpcResponse<AcpCustomAgentsJson>> {
+    return ipcRenderer.invoke(AcpAgentChannels.loadCustomAgents);
   },
 
   onRegistryUpdated(listener: (registry: AcpRegistry) => void): () => void {

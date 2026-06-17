@@ -17,6 +17,7 @@ vi.mock("@main/infra/paths", () => ({
 import {
   getCachedPromptCapabilities,
   loadCache,
+  removeCustomAgentCapabilities,
   upsertPromptCapabilities,
 } from "@main/infra/storage/agent-capability-store";
 
@@ -88,5 +89,37 @@ describe("agent-capability-store", () => {
       capabilities: { image: true, audio: true, embeddedContext: true },
       capturedAgentVersion: "1.1.0",
     });
+  });
+
+  it("stores custom agent capabilities with empty captured version", async () => {
+    await upsertPromptCapabilities(
+      "custom-kimi-acp-7f3a9e2d",
+      { image: true, audio: false, embeddedContext: false },
+      ""
+    );
+
+    await expect(getCachedPromptCapabilities("custom-kimi-acp-7f3a9e2d")).resolves.toEqual({
+      capabilities: { image: true, audio: false, embeddedContext: false },
+      capturedAgentVersion: "",
+    });
+  });
+
+  it("removes all custom agent capabilities", async () => {
+    await upsertPromptCapabilities(
+      "custom-kimi-acp-7f3a9e2d",
+      { image: true, audio: false, embeddedContext: false },
+      ""
+    );
+    await upsertPromptCapabilities(
+      "agent-a",
+      { image: false, audio: true, embeddedContext: true },
+      "1.0.0"
+    );
+
+    await removeCustomAgentCapabilities();
+
+    const cache = await loadCache();
+    expect(cache["custom-kimi-acp-7f3a9e2d"]).toBeUndefined();
+    expect(cache["agent-a"]).toBeDefined();
   });
 });

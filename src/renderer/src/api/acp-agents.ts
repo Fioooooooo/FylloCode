@@ -1,6 +1,7 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
   AcpAgentStatus,
+  AcpCustomAgentsJson,
   AcpInstallProgress,
   AcpInstalledRecord,
   AcpPromptCapabilities,
@@ -45,6 +46,14 @@ export const acpAgentsApi = {
 
   loadCapabilitiesCache(): Promise<IpcResponse<Record<string, AcpPromptCapabilities>>> {
     return window.api.acpAgents.loadCapabilitiesCache();
+  },
+
+  loadCustomAgents(): Promise<IpcResponse<AcpCustomAgentsJson>> {
+    return window.api.acpAgents.loadCustomAgents();
+  },
+
+  saveCustomAgents(config: AcpCustomAgentsJson): Promise<IpcResponse<void>> {
+    return window.api.acpAgents.saveCustomAgents(config);
   },
 
   onRegistryUpdated(listener: (registry: AcpRegistry) => void): () => void {

@@ -101,3 +101,24 @@ export async function removeAgentCapabilities(agentId: string): Promise<void> {
     agents,
   });
 }
+
+export async function removeCustomAgentCapabilities(): Promise<void> {
+  const agents = await loadCache();
+  let changed = false;
+
+  for (const agentId of Object.keys(agents)) {
+    if (agentId.startsWith("custom-")) {
+      delete agents[agentId];
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return;
+  }
+
+  await writeCacheDocument({
+    version: CACHE_VERSION,
+    agents,
+  });
+}

@@ -56,6 +56,29 @@ export interface AcpRegistryCache {
   data: AcpRegistry;
 }
 
+export interface AcpCustomAgentConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export interface AcpCustomAgentsJson {
+  agent_servers: Record<string, AcpCustomAgentConfig>;
+}
+
+export interface CatalogAgent {
+  id: string;
+  source: "registry" | "custom";
+  name: string;
+  registryEntry?: AcpAgentEntry;
+  customConfig?: {
+    displayName: string;
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+  };
+}
+
 export interface AcpStatusCache {
   fetchedAt: string;
   statuses: AcpAgentStatus[];
@@ -79,6 +102,10 @@ export interface AcpAgentStatus {
   installMethod?: AcpInstallMethod;
   updateAvailable: boolean;
   latestVersion?: string;
+  /** 状态来源：registry 为 ACP Registry，custom 为本地 custom-agents.json */
+  source?: "registry" | "custom";
+  /** 显示名称；custom agent 在检测时填充，避免渲染进程再查一次配置 */
+  name?: string;
 }
 
 export interface AcpPromptCapabilities {

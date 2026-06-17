@@ -45,6 +45,15 @@ keywords: [domain, acp, agent-kind]
 - `native`: `glm-acp-agent`（GLM 无官方 CLI 产品，纯 HTTP 实现）
 - `native`: `agoragentic-acp`（marketplace SaaS，无对应 CLI 产品）
 
+## 自定义 Agent（Custom Agent）
+
+自定义 Agent 是用户通过本地 `data/acp/custom-agents.json` 配置的 ACP Agent，不来自 ACP Registry，因此不参与上述 `native` / `adapter` / `bridge` 分类。
+
+- 自定义 Agent 通过 `source: "custom"` 与 Registry Agent 的 `source: "registry"` 区分。
+- 其内部 id 由 `command` 与 `args` 确定性生成，格式为 `custom-${slug(basename(command))}-${shortHash(command + args)}`。
+- 自定义 Agent 不存在安装/卸载/更新语义，只要配置存在且 `command` 可解析即视为可用。
+- UI 不回显 `__fyllo.kind` 徽章，默认图标使用 `lucide:bot`。
+
 ## ACP sessionUpdate → SessionEvent 映射约定
 
 ACP 协议规定 tool call 字段除 `toolCallId`/`title` 外全部可选、且不规定字段出现时机（见 `references/acp/tool-call-trace/`）。`acp-mapper.ts` 据此遵循以下约定：

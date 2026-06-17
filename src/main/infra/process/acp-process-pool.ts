@@ -8,7 +8,12 @@ import type { RequestPermissionRequest, SessionNotification } from "@agentclient
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords, resolveBinaryDistribution } from "@main/infra/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
-import { normalizePromptCapabilities, type AcpAgentEntry } from "@shared/types/acp-agent";
+import { getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog-service";
+import {
+  normalizePromptCapabilities,
+  type AcpAgentEntry,
+  type CatalogAgent,
+} from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
@@ -77,6 +82,32 @@ function mergeSpawnEnv(env?: Record<string, string>): NodeJS.ProcessEnv {
   return env ? { ...process.env, ...env } : process.env;
 }
 
+function buildCustomSpawnSpec(agent: CatalogAgent): AgentSpawnSpec {
+  const config = agent.customConfig;
+  if (!config) {
+    throw new Error(`No custom config for agent ${agent.id}`);
+  }
+  return {
+    cmd: config.command,
+    args: config.args,
+    env: mergeSpawnEnv(config.env),
+  };
+}
+
+export function buildSpawnSpecForTesting(
+  agent: CatalogAgent,
+  installPath?: string,
+  installMethod?: string
+): AgentSpawnSpec {
+  if (agent.source === "custom") {
+    return buildCustomSpawnSpec(agent);
+  }
+  if (!agent.registryEntry || !installMethod) {
+    throw new Error("Registry agent requires registryEntry and installMethod");
+  }
+  return buildSpawnSpec(agent.registryEntry, installPath, installMethod);
+}
+
 function buildSpawnSpec(
   agent: AcpAgentEntry,
   installPath: string | undefined,
@@ -110,15 +141,30 @@ function buildSpawnSpec(
 }
 
 async function startProcess(agentId: string, priorFailures: number): Promise<AgentProcess> {
-  const records = await readInstalledRecords();
-  const record = records[agentId];
-  if (!record) throw new Error(`Agent ${agentId} is not installed`);
+  let spawnSpec: AgentSpawnSpec;
+  let installedVersion: string | undefined;
 
-  const registry = await getRegistry();
-  const agentEntry = registry.agents.find((a) => a.id === agentId);
-  if (!agentEntry) throw new Error(`Agent ${agentId} not found in registry`);
+  if (isCustomAgentId(agentId)) {
+    const agent = await getAgentById(agentId);
+    if (!agent || agent.source !== "custom") {
+      throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not configured`);
+    }
+    spawnSpec = buildCustomSpawnSpec(agent);
+    installedVersion = "";
+  } else {
+    const records = await readInstalledRecords();
+    const record = records[agentId];
+    if (!record) throw new Error(`Agent ${agentId} is not installed`);
 
-  const { cmd, args, env } = buildSpawnSpec(agentEntry, record.installPath, record.installMethod);
+    const registry = await getRegistry();
+    const agentEntry = registry.agents.find((a) => a.id === agentId);
+    if (!agentEntry) throw new Error(`Agent ${agentId} not found in registry`);
+
+    spawnSpec = buildSpawnSpec(agentEntry, record.installPath, record.installMethod);
+    installedVersion = record.installedVersion;
+  }
+
+  const { cmd, args, env } = spawnSpec;
   logger.info(`[infra.process.acp] spawning agent ${agentId}: ${cmd} ${args.join(" ")}`);
 
   const child = spawn(cmd, args, {
@@ -185,7 +231,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     await upsertPromptCapabilities(
       agentId,
       normalizePromptCapabilities(initializeResponse.agentCapabilities?.promptCapabilities),
-      record.installedVersion ?? ""
+      installedVersion ?? ""
     );
   } catch (error: unknown) {
     logger.error(`[infra.process.acp] failed to persist prompt capabilities for ${agentId}`, error);

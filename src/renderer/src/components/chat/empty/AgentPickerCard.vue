@@ -3,6 +3,10 @@ import { computed } from "vue";
 import AgentCardBase from "@renderer/components/acp/AgentCardBase.vue";
 import type { AcpAgentEntry, AcpAgentStatus, AcpInstallProgress } from "@shared/types/acp-agent";
 
+function isCustomAgentId(id: string): boolean {
+  return id.startsWith("custom-");
+}
+
 const props = defineProps<{
   agent: AcpAgentEntry;
   icon?: string;
@@ -11,6 +15,7 @@ const props = defineProps<{
   selected?: boolean;
   selectable?: boolean;
   installDisabled?: boolean;
+  hideInstall?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +24,7 @@ const emit = defineEmits<{
 }>();
 
 const installed = computed(() => props.agentStatus?.installed === true);
+const fallbackIcon = computed(() => (isCustomAgentId(props.agent.id) ? "i-lucide-bot" : undefined));
 const isInstalling = computed(() => {
   const status = props.installProgress?.status;
   return status === "downloading" || status === "installing";
@@ -48,6 +54,7 @@ function handleInstall(event: MouseEvent): void {
     ]"
     :agent="agent"
     :icon="icon"
+    :fallback-icon="fallbackIcon"
     @click="handleClick"
   >
     <template #actions>
@@ -57,6 +64,8 @@ function handleInstall(event: MouseEvent): void {
             <UIcon name="i-lucide-loader-circle" class="h-3.5 w-3.5 animate-spin" />
             <span class="max-w-24 truncate">{{ progressMessage }}</span>
           </div>
+
+          <div v-else-if="hideInstall" class="text-xs text-muted">命令未找到</div>
 
           <UButton
             v-else

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-defineProps<{
-  agentId: string;
-  name: string;
-  icon?: string;
-  selected?: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    agentId: string;
+    name: string;
+    icon?: string;
+    selected?: boolean;
+    fallbackIcon?: string;
+  }>(),
+  {
+    fallbackIcon: "i-lucide-terminal",
+  }
+);
 
 const emit = defineEmits<{
   select: [agentId: string];
@@ -29,7 +35,7 @@ const emit = defineEmits<{
     </span>
     <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-white">
       <img v-if="icon" :src="icon" :alt="name" class="h-full w-full object-cover" />
-      <UIcon v-else name="i-lucide-terminal" class="h-5 w-5 text-muted" />
+      <UIcon v-else :name="fallbackIcon" class="h-5 w-5 text-muted" />
     </div>
     <span class="line-clamp-1 text-sm font-medium text-highlighted">{{ name }}</span>
   </div>

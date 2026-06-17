@@ -10,6 +10,7 @@ import {
   type AcpInstallMethod,
   type AcpInstalledMap,
   type AcpInstalledRecord,
+  type CatalogAgent,
 } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
 
@@ -386,17 +387,50 @@ export async function detectAgentInstallation(
   return detection;
 }
 
-export async function detectAgentStatuses(registry: {
-  agents: AcpAgentEntry[];
-}): Promise<AcpAgentStatus[]> {
+export async function detectAgentStatuses(agents: CatalogAgent[]): Promise<AcpAgentStatus[]> {
   const records = await readInstalledRecords();
-  const context = await buildDetectionContext(registry.agents);
+  const registryAgents = agents
+    .filter(
+      (agent): agent is CatalogAgent & { registryEntry: AcpAgentEntry } =>
+        agent.source === "registry"
+    )
+    .map((agent) => agent.registryEntry);
+  const context = await buildDetectionContext(registryAgents);
   let shouldPersist = false;
 
   const statuses = await Promise.all(
-    registry.agents.map(async (agent) => {
+    agents.map(async (agent) => {
+      if (agent.source === "custom") {
+        const command = agent.customConfig?.command;
+        const commandExists = command ? await pathExists(command) : false;
+        return {
+          id: agent.id,
+          installed: commandExists,
+          detectedVersion: undefined,
+          managedBy: null,
+          installMethod: undefined,
+          updateAvailable: false,
+          latestVersion: undefined,
+          source: "custom",
+          name: agent.name,
+        } satisfies AcpAgentStatus;
+      }
+
+      const registryEntry = agent.registryEntry;
+      if (!registryEntry) {
+        return {
+          id: agent.id,
+          installed: false,
+          managedBy: null,
+          installMethod: undefined,
+          updateAvailable: false,
+          latestVersion: undefined,
+          source: "registry",
+        } satisfies AcpAgentStatus;
+      }
+
       const existingRecord = records[agent.id];
-      const detection = await detectAgentInstallation(agent, existingRecord, context);
+      const detection = await detectAgentInstallation(registryEntry, existingRecord, context);
 
       if (!detection.installed) {
         // 检测不到但 installed.json 有记录，说明用户已卸载，清除记录
@@ -410,7 +444,8 @@ export async function detectAgentStatuses(registry: {
           managedBy: null,
           installMethod: undefined,
           updateAvailable: false,
-          latestVersion: agent.version,
+          latestVersion: registryEntry.version,
+          source: "registry",
         } satisfies AcpAgentStatus;
       }
 
@@ -419,7 +454,7 @@ export async function detectAgentStatuses(registry: {
       const installMethod =
         detection.installMethod ??
         existingRecord?.installMethod ??
-        inferInstallMethod(agent.distribution);
+        inferInstallMethod(registryEntry.distribution);
       const installPath = detection.installPath ?? existingRecord?.installPath;
       const nextRecord: AcpInstalledRecord = {
         managedBy,
@@ -447,9 +482,10 @@ export async function detectAgentStatuses(registry: {
         managedBy,
         installMethod,
         updateAvailable: installedVersion
-          ? compareVersions(agent.version, installedVersion) > 0
+          ? compareVersions(registryEntry.version, installedVersion) > 0
           : false,
-        latestVersion: agent.version,
+        latestVersion: registryEntry.version,
+        source: "registry",
       } satisfies AcpAgentStatus;
     })
   );

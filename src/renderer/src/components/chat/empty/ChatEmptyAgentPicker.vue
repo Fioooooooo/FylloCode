@@ -31,6 +31,7 @@ const visibleInstalled = computed(() =>
     id,
     name: acpAgentsStore.getAgentLabel(id),
     icon: icons.value[id],
+    fallbackIcon: id.startsWith("custom-") ? "i-lucide-bot" : undefined,
   }))
 );
 
@@ -76,6 +77,7 @@ function handleConfirm(agentId: string): void {
           :agent-id="item.id"
           :name="item.name"
           :icon="item.icon"
+          :fallback-icon="item.fallbackIcon"
           :selected="selectedAgentId === item.id"
           @select="handleSelect"
         />

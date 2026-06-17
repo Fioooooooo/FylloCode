@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import { PassThrough } from "stream";
 import { rmSync } from "fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AcpAgentEntry } from "@shared/types/acp-agent";
+import type { AcpAgentEntry, CatalogAgent } from "@shared/types/acp-agent";
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -126,6 +126,15 @@ function npxAgent(id: string, pkg: string): AcpAgentEntry {
   };
 }
 
+function toCatalogAgent(entry: AcpAgentEntry): CatalogAgent {
+  return {
+    id: entry.id,
+    source: "registry",
+    name: entry.name,
+    registryEntry: entry,
+  };
+}
+
 describe("acp detector batched detection", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -159,13 +168,11 @@ describe("acp detector batched detection", () => {
 
     const { detectAgentStatuses } = await import("@main/infra/acp/detector");
 
-    const statuses = await detectAgentStatuses({
-      agents: [
-        npxAgent("a", "@scope/a"),
-        npxAgent("b", "@scope/b"),
-        npxAgent("c", "@scope/missing"),
-      ],
-    });
+    const statuses = await detectAgentStatuses(
+      [npxAgent("a", "@scope/a"), npxAgent("b", "@scope/b"), npxAgent("c", "@scope/missing")].map(
+        toCatalogAgent
+      )
+    );
 
     const listCalls = calls.filter((call) => call.args.includes("list"));
     expect(listCalls).toHaveLength(1);

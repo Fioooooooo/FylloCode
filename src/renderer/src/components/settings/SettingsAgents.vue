@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useMonaco } from "stream-monaco";
+import { useToast } from "@nuxt/ui/composables";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import type { AcpCustomAgentsJson } from "@shared/types/acp-agent";
 import AgentCard from "./AgentCard.vue";
 
 const store = useAcpAgentsStore();
+const toast = useToast();
 const refreshing = ref(false);
 const searchQuery = ref("");
 const activeTab = ref("all");
@@ -11,6 +15,7 @@ const activeTab = ref("all");
 const tabs = [
   { label: "全部", value: "all" },
   { label: "已安装", value: "installed" },
+  { label: "自定义", value: "custom" },
 ];
 
 const agents = computed(() => store.registry?.agents ?? []);
@@ -60,6 +65,116 @@ async function refreshStatuses(): Promise<void> {
     refreshing.value = false;
   }
 }
+
+// Custom tab editor state
+const isCustomTab = computed(() => activeTab.value === "custom");
+const customEditorContainer = ref<HTMLElement | null>(null);
+const customAgentsJson = ref(JSON.stringify({ agent_servers: {} }, null, 2));
+const customAgentsLoading = ref(false);
+const customAgentsSaving = ref(false);
+const customAgentsError = ref<string | null>(null);
+
+const { createEditor, cleanupEditor, getCode } = useMonaco({
+  languages: ["json"],
+  themes: ["vitesse-dark", "vitesse-light"],
+  readOnly: false,
+  MAX_HEIGHT: 480,
+  minimap: { enabled: false },
+  scrollbar: {
+    verticalScrollbarSize: 10,
+    horizontalScrollbarSize: 10,
+    alwaysConsumeMouseWheel: false,
+  },
+  wordWrap: "on",
+  automaticLayout: true,
+});
+
+async function loadCustomAgentsEditor(): Promise<void> {
+  if (!isCustomTab.value) {
+    return;
+  }
+
+  customAgentsLoading.value = true;
+  customAgentsError.value = null;
+  try {
+    const config = await store.loadCustomAgents();
+    const nextJson = JSON.stringify(config ?? { agent_servers: {} }, null, 2);
+    customAgentsJson.value = nextJson;
+    await nextTick();
+    if (customEditorContainer.value) {
+      await createEditor(customEditorContainer.value, nextJson, "json");
+    }
+  } catch (error: unknown) {
+    customAgentsError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    customAgentsLoading.value = false;
+  }
+}
+
+async function disposeCustomEditor(): Promise<void> {
+  cleanupEditor();
+}
+
+watch(isCustomTab, async (active) => {
+  if (active) {
+    await loadCustomAgentsEditor();
+  } else {
+    await disposeCustomEditor();
+  }
+});
+
+onUnmounted(() => {
+  disposeCustomEditor();
+});
+
+async function saveCustomAgents(): Promise<void> {
+  const raw = getCode();
+  const text = typeof raw === "string" ? raw : "";
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error: unknown) {
+    customAgentsError.value = `JSON 格式错误: ${error instanceof Error ? error.message : String(error)}`;
+    toast.add({
+      title: "保存失败",
+      description: customAgentsError.value,
+      color: "error",
+    });
+    return;
+  }
+
+  customAgentsSaving.value = true;
+  customAgentsError.value = null;
+  try {
+    await store.saveCustomAgents(parsed as AcpCustomAgentsJson);
+    toast.add({
+      title: "保存成功",
+      description: "自定义 Agent 配置已更新。",
+      color: "success",
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    customAgentsError.value = message;
+    toast.add({
+      title: "保存失败",
+      description: message,
+      color: "error",
+    });
+  } finally {
+    customAgentsSaving.value = false;
+  }
+}
+
+const exampleConfig = `{
+  "agent_servers": {
+    "Kimi Code CLI": {
+      "command": "~/.local/bin/kimi",
+      "args": ["acp"],
+      "env": {}
+    }
+  }
+}`;
 </script>
 
 <template>
@@ -83,45 +198,101 @@ async function refreshStatuses(): Promise<void> {
 
     <div class="flex items-center gap-3 mb-4">
       <UInput
+        v-if="!isCustomTab"
         v-model="searchQuery"
         size="sm"
         placeholder="搜索 Agent..."
         icon="i-lucide-search"
         class="flex-1"
       />
+      <div v-else class="flex-1" />
       <UTabs v-model="activeTab" :items="tabs" size="sm" variant="link" value-key="value" />
     </div>
 
-    <div
-      v-if="store.registryLoading && !agents.length"
-      class="flex items-center justify-center py-16"
-    >
-      <UIcon name="i-lucide-loader-circle" class="w-6 h-6 text-muted animate-spin" />
+    <div v-if="!isCustomTab">
+      <div
+        v-if="store.registryLoading && !agents.length"
+        class="flex items-center justify-center py-16"
+      >
+        <UIcon name="i-lucide-loader-circle" class="w-6 h-6 text-muted animate-spin" />
+      </div>
+
+      <div v-else-if="hasRegistryError" class="flex items-center justify-center py-16">
+        <p class="text-sm text-muted">{{ store.registryError }}</p>
+      </div>
+
+      <template v-else>
+        <div v-if="filteredAgents.length" class="grid grid-cols-2 gap-4">
+          <AgentCard
+            v-for="agent in filteredAgents"
+            :key="agent.id"
+            :agent="agent"
+            :icon="store.icons[agent.id]"
+            :agent-status="store.statuses[agent.id]"
+            :install-progress="store.installProgress[agent.id] ?? store.uninstallProgress[agent.id]"
+            :user-data-path="store.userDataPath"
+            :is-installing="currentMutatingAgentId === agent.id"
+            :action-disabled="!!currentMutatingAgentId && currentMutatingAgentId !== agent.id"
+            @install="store.installAgent"
+            @uninstall="store.uninstallAgent"
+          />
+        </div>
+        <div v-else class="flex items-center justify-center py-16">
+          <p class="text-sm text-muted">没有匹配的 Agent</p>
+        </div>
+      </template>
     </div>
 
-    <div v-else-if="hasRegistryError" class="flex items-center justify-center py-16">
-      <p class="text-sm text-muted">{{ store.registryError }}</p>
-    </div>
+    <div v-else class="space-y-4">
+      <div v-if="customAgentsLoading" class="flex items-center justify-center py-16">
+        <UIcon name="i-lucide-loader-circle" class="w-6 h-6 text-muted animate-spin" />
+      </div>
 
-    <template v-else>
-      <div v-if="filteredAgents.length" class="grid grid-cols-2 gap-4">
-        <AgentCard
-          v-for="agent in filteredAgents"
-          :key="agent.id"
-          :agent="agent"
-          :icon="store.icons[agent.id]"
-          :agent-status="store.statuses[agent.id]"
-          :install-progress="store.installProgress[agent.id] ?? store.uninstallProgress[agent.id]"
-          :user-data-path="store.userDataPath"
-          :is-installing="currentMutatingAgentId === agent.id"
-          :action-disabled="!!currentMutatingAgentId && currentMutatingAgentId !== agent.id"
-          @install="store.installAgent"
-          @uninstall="store.uninstallAgent"
+      <div v-else-if="customAgentsError" class="flex items-center justify-center py-16">
+        <p class="text-sm text-error">{{ customAgentsError }}</p>
+      </div>
+
+      <template v-else>
+        <div
+          ref="customEditorContainer"
+          class="border border-default rounded-lg overflow-hidden"
+          style="height: 480px"
         />
-      </div>
-      <div v-else class="flex items-center justify-center py-16">
-        <p class="text-sm text-muted">没有匹配的 Agent</p>
-      </div>
-    </template>
+
+        <div class="rounded-lg bg-muted/50 p-4 space-y-2 text-sm">
+          <p class="font-medium text-highlighted">字段说明</p>
+          <ul class="space-y-1.5 text-muted list-disc list-inside">
+            <li>
+              <code class="text-highlighted bg-default px-1 rounded">command</code>：Agent
+              可执行文件路径，支持
+              <code class="text-highlighted bg-default px-1 rounded">~</code>
+              展开与 PATH 查找（必填）
+            </li>
+            <li>
+              <code class="text-highlighted bg-default px-1 rounded">args</code>：启动参数数组，如
+              <code class="text-highlighted bg-default px-1 rounded">["acp"]</code>（可选）
+            </li>
+            <li>
+              <code class="text-highlighted bg-default px-1 rounded">env</code
+              >：额外环境变量，会合并到系统环境变量之上（可选）
+            </li>
+          </ul>
+          <pre class="mt-2 rounded bg-default p-3 text-xs font-mono text-muted overflow-auto">{{
+            exampleConfig
+          }}</pre>
+        </div>
+
+        <div class="flex justify-end">
+          <UButton
+            color="primary"
+            icon="i-lucide-save"
+            :loading="customAgentsSaving"
+            @click="saveCustomAgents"
+          >
+            保存
+          </UButton>
+        </div>
+      </template>
+    </div>
   </div>
 </template>

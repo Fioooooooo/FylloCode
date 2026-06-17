@@ -38,6 +38,16 @@ vi.mock("@nuxt/ui/composables", () => ({
   useToast: vi.fn(() => mockToast),
 }));
 
+vi.mock("stream-monaco", () => ({
+  useMonaco: vi.fn(() => ({
+    createEditor: vi.fn(),
+    cleanupEditor: vi.fn(),
+    getCode: vi.fn(() => ""),
+    updateCode: vi.fn(),
+    setTheme: vi.fn(),
+  })),
+}));
+
 // ─────────────────────────────────────────────
 // Stub 全局自动注册的第三方组件
 // @nuxt/ui 组件在 vite 构建时由插件自动导入注册，
