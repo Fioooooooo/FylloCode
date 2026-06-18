@@ -288,6 +288,33 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     void proposalApi.watch({ projectId, changeId: proposal.id, sessionId });
   }
 
+  async function handleProposalStatusChanged(payload: ProposalStatusChangedPayload): Promise<void> {
+    try {
+      if (payload.removed) {
+        removeSessionProposal(payload.sessionId, payload.changeId);
+        return;
+      }
+
+      const proposalStore = useProposalStore();
+      const existsInStore = proposalStore.proposals.some((item) => item.id === payload.changeId);
+      if (!existsInStore && !proposalStore.loading) {
+        await proposalStore.loadProposals();
+      }
+
+      const list = sessionProposals.value[payload.sessionId] ?? [];
+      if (!list.some((item) => item.id === payload.changeId)) {
+        // Defensive: if a status push arrives for a proposal we are not yet
+        // watching (e.g. after app restart), ensure the watcher is active so
+        // future updates are also delivered.
+        ensureProposalWatched(buildProposalMetaFromPayload(payload), payload.sessionId);
+      }
+      upsertSessionProposal(payload.sessionId, buildProposalMetaFromPayload(payload));
+    } catch {
+      // Status updates are best-effort; avoid unhandled rejections in the
+      // renderer-side event handler.
+    }
+  }
+
   function subscribeProposalStatus(): () => void {
     if (unsubscribeStatusChanged) {
       return unsubscribeStatusChanged;
@@ -295,18 +322,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
     try {
       unsubscribeStatusChanged = proposalApi.onStatusChanged((payload) => {
-        if (payload.removed) {
-          removeSessionProposal(payload.sessionId, payload.changeId);
-          return;
-        }
-        const list = sessionProposals.value[payload.sessionId] ?? [];
-        if (!list.some((item) => item.id === payload.changeId)) {
-          // Defensive: if a status push arrives for a proposal we are not yet
-          // watching (e.g. after app restart), ensure the watcher is active so
-          // future updates are also delivered.
-          ensureProposalWatched(buildProposalMetaFromPayload(payload), payload.sessionId);
-        }
-        upsertSessionProposal(payload.sessionId, buildProposalMetaFromPayload(payload));
+        void handleProposalStatusChanged(payload);
       });
     } catch {
       unsubscribeStatusChanged = () => {};

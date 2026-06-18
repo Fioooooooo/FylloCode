@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   useProjectStore,
@@ -12,6 +12,8 @@ import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
 defineProps<{
   proposals: ProposalMeta[];
 }>();
+
+const collapsed = ref(false);
 
 const router = useRouter();
 const projectStore = useProjectStore();
@@ -85,68 +87,87 @@ function viewDetail(proposal: ProposalMeta): void {
 </script>
 
 <template>
-  <div class="space-y-2">
-    <h3 class="text-xs font-semibold text-muted uppercase tracking-wider">Proposals</h3>
-
-    <div
-      v-for="proposal in proposals"
-      :key="proposal.id"
-      class="rounded-lg border border-default bg-default p-3 space-y-2"
-      data-test="chat-proposal-item"
+  <div class="space-y-1">
+    <button
+      type="button"
+      class="w-full flex items-center justify-between gap-2 px-1 py-1.5 text-muted hover:text-highlighted transition-colors"
+      @click="collapsed = !collapsed"
     >
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-highlighted truncate">{{ proposal.title }}</p>
-          <p class="text-xs text-muted truncate">{{ proposal.id }}</p>
-        </div>
-        <UBadge
-          :color="statusConfig[proposal.status].color"
-          :variant="statusConfig[proposal.status].variant"
-          size="sm"
-        >
-          {{ statusConfig[proposal.status].label }}
-        </UBadge>
+      <div class="flex items-center gap-2 min-w-0">
+        <UIcon name="i-lucide-file-text" class="w-3.5 h-3.5 shrink-0" />
+        <span class="text-sm font-medium uppercase tracking-wide">会话提案</span>
       </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-xs tabular-nums opacity-70">{{ proposals.length }} 个</span>
+        <UIcon
+          :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
+          class="w-3.5 h-3.5 opacity-70"
+        />
+      </div>
+    </button>
 
-      <div class="flex items-center justify-end gap-2">
-        <UDropdownMenu
-          v-if="proposal.status === 'draft'"
-          :items="buildWorkflowMenuItems(proposal)"
-          :loading="workflowStore.isLoading"
-        >
-          <UButton
-            size="xs"
-            color="primary"
-            icon="i-lucide-play"
-            trailing-icon="i-lucide-chevron-down"
-            data-test="start-apply-button"
-            @click="ensureWorkflowsLoaded"
+    <div v-show="!collapsed" class="space-y-2">
+      <div
+        v-for="proposal in proposals"
+        :key="proposal.id"
+        class="rounded-lg border border-default bg-default p-3 space-y-2"
+        data-test="chat-proposal-item"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-highlighted truncate">{{ proposal.title }}</p>
+            <p class="text-xs text-muted truncate">{{ proposal.id }}</p>
+          </div>
+          <UBadge
+            :color="statusConfig[proposal.status].color"
+            :variant="statusConfig[proposal.status].variant"
+            size="sm"
+            class="shrink-0"
           >
-            开始实现
+            {{ statusConfig[proposal.status].label }}
+          </UBadge>
+        </div>
+
+        <div class="flex items-center justify-end gap-2">
+          <UDropdownMenu
+            v-if="proposal.status === 'draft'"
+            :items="buildWorkflowMenuItems(proposal)"
+            :loading="workflowStore.isLoading"
+          >
+            <UButton
+              size="xs"
+              color="primary"
+              icon="i-lucide-play"
+              trailing-icon="i-lucide-chevron-down"
+              data-test="start-apply-button"
+              @click="ensureWorkflowsLoaded"
+            >
+              开始实现
+            </UButton>
+          </UDropdownMenu>
+
+          <UButton
+            v-else-if="canArchive(proposal)"
+            size="xs"
+            color="neutral"
+            icon="i-lucide-archive"
+            data-test="archive-button"
+            @click="startArchive(proposal)"
+          >
+            归档
           </UButton>
-        </UDropdownMenu>
 
-        <UButton
-          v-else-if="canArchive(proposal)"
-          size="xs"
-          color="neutral"
-          icon="i-lucide-archive"
-          data-test="archive-button"
-          @click="startArchive(proposal)"
-        >
-          归档
-        </UButton>
-
-        <UButton
-          v-else
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          data-test="view-detail-button"
-          @click="viewDetail(proposal)"
-        >
-          查看详情
-        </UButton>
+          <UButton
+            v-else-if="proposal.status !== 'creating'"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            data-test="view-detail-button"
+            @click="viewDetail(proposal)"
+          >
+            查看详情
+          </UButton>
+        </div>
       </div>
     </div>
   </div>

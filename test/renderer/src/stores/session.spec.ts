@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import { useChatStore } from "@renderer/stores/chat";
 import { useProjectStore } from "@renderer/stores/project";
+import { useProposalStore } from "@renderer/stores/proposal";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
+import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
@@ -17,6 +20,20 @@ const mocks = vi.hoisted(() => ({
   onProbeUpdate: vi.fn(),
   getByTask: vi.fn(),
   createSession: vi.fn(),
+}));
+
+const proposalMocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  watch: vi.fn(),
+  onStatusChanged: vi.fn((handler: (payload: ProposalStatusChangedPayload) => void) => {
+    proposalMocks.statusHandler = handler;
+    return vi.fn();
+  }),
+  statusHandler: null as ((payload: ProposalStatusChangedPayload) => void) | null,
+}));
+
+vi.mock("@renderer/api/proposal", () => ({
+  proposalApi: proposalMocks,
 }));
 
 vi.mock("@renderer/api/chat", () => ({
@@ -635,5 +652,82 @@ describe("useSessionStore", () => {
       title: "New task",
       ref: "local:task-new",
     });
+  });
+
+  function proposalMeta(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
+    return {
+      id: "change-1",
+      title: "Friendly Title",
+      status: "draft",
+      why: "",
+      totalTasks: 0,
+      doneTasks: 0,
+      hasDesign: false,
+      date: "2026-06-18T00:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("refreshes proposal store when a statusChanged event arrives for an unknown proposal", async () => {
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    proposalMocks.list.mockResolvedValue({ ok: true, data: [proposalMeta()] });
+    proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
+
+    const store = useSessionStore();
+    store.sessions = [session()];
+    store.activeSessionId = "session-1";
+
+    proposalMocks.statusHandler?.({
+      sessionId: "session-1",
+      changeId: "change-1",
+      projectPath: "/tmp/project",
+      status: "creating",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(proposalMocks.list).toHaveBeenCalledTimes(1);
+    expect(store.getSessionProposals("session-1")[0]?.title).toBe("Friendly Title");
+  });
+
+  it("does not reload proposals when a statusChanged event arrives for a known proposal", async () => {
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [proposalMeta({ title: "Cached Title" })];
+    proposalMocks.list.mockResolvedValue({ ok: true, data: [] });
+    proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
+
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+
+    const store = useSessionStore();
+    store.sessions = [session()];
+    store.activeSessionId = "session-1";
+
+    proposalMocks.statusHandler?.({
+      sessionId: "session-1",
+      changeId: "change-1",
+      projectPath: "/tmp/project",
+      status: "creating",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(proposalMocks.list).not.toHaveBeenCalled();
+    expect(store.getSessionProposals("session-1")[0]?.title).toBe("Cached Title");
   });
 });
