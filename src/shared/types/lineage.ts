@@ -38,6 +38,21 @@ export type TaskDownstreamProjection = {
   links: LineageSessionLink[];
 };
 
+export type SessionLineageProjection = {
+  subjectId: string;
+  origin: LineageOrigin;
+  task: LineageTaskSnapshot | null;
+  session: LineageSessionLink;
+};
+
+export type ProposalOriginProjection = {
+  subjectId: string;
+  origin: LineageOrigin;
+  task: LineageTaskSnapshot | null;
+  sessionId: string;
+  proposal: LineageProposalLink;
+};
+
 export interface CreateSessionTaskInput {
   sessionId: string;
   title: string;

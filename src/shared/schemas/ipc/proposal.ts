@@ -32,6 +32,12 @@ export const archiveInputSchema = z.object({
 
 export const archiveCancelInputSchema = archiveInputSchema;
 
+export const watchProposalInputSchema = z.object({
+  projectId: z.string().min(1),
+  changeId: z.string().min(1),
+  sessionId: z.string().min(1),
+});
+
 export const loadRunInputSchema = z.object({
   projectId: z.string().min(1),
   changeId: z.string().min(1),

@@ -35,6 +35,11 @@ export const getByTaskInputSchema = z.object({
   ref: lineageTaskRefSchema,
 });
 
+export const getBySessionInputSchema = z.object({
+  projectId: z.string().min(1),
+  sessionId: z.string().min(1),
+});
+
 export const createSessionTaskInputSchema = z.object({
   projectId: z.string().min(1),
   sessionId: z.string().min(1),

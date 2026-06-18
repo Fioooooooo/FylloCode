@@ -13,10 +13,17 @@ import OriginTaskBanner from "./OriginTaskBanner.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError } = storeToRefs(store);
-const { activeSession, activeSessionId, isLoadingMessages } = storeToRefs(useSessionStore());
+const sessionStore = useSessionStore();
+const { activeSession, activeSessionId, isLoadingMessages } = storeToRefs(sessionStore);
 
 const isDraft = computed(() => activeSessionId.value === null);
-const showEventRail = computed(() => (activeSession?.value?.plan ?? []).length > 0);
+const showEventRail = computed(() => {
+  const plan = activeSession?.value?.plan ?? [];
+  const proposals = activeSession.value
+    ? sessionStore.getSessionProposals(activeSession.value.id)
+    : [];
+  return plan.length > 0 || proposals.length > 0;
+});
 </script>
 
 <template>

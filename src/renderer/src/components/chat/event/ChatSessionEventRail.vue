@@ -3,9 +3,14 @@ import { ref, computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useSessionStore } from "@renderer/stores";
 import ChatPlanPanel from "@renderer/components/chat/event/ChatPlanPanel.vue";
+import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel.vue";
 
-const { activeSession } = storeToRefs(useSessionStore());
+const sessionStore = useSessionStore();
+const { activeSession } = storeToRefs(sessionStore);
 const planEntries = computed(() => activeSession?.value?.plan ?? []);
+const sessionProposals = computed(() =>
+  activeSession.value ? sessionStore.getSessionProposals(activeSession.value.id) : []
+);
 
 const collapsed = ref(false);
 </script>
@@ -26,8 +31,9 @@ const collapsed = ref(false);
         <span class="text-sm font-medium text-highlighted">会话事件</span>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-4 space-y-2">
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <ChatPlanPanel v-if="planEntries.length > 0" :entries="planEntries" />
+        <ChatProposalPanel v-if="sessionProposals.length > 0" :proposals="sessionProposals" />
       </div>
     </div>
 

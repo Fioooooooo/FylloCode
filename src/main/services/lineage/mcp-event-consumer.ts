@@ -6,6 +6,7 @@ import { mcpEventsDir } from "@main/infra/storage/project-paths";
 import logger from "@main/infra/logger";
 import type { McpProposalEvent } from "@shared/types/mcp-event";
 import { ensureChatSubject, recordProposal } from "./lineage-service";
+import { proposalStatusService } from "@main/services/proposal/proposal-status-service";
 
 type ConsumerState = {
   watcher: nodeFs.FSWatcher | null;
@@ -65,6 +66,8 @@ async function consumeEventFile(
       );
       return;
     }
+
+    proposalStatusService.watchProposal(projectPath, event.changeId, event.sessionId);
 
     await fs.unlink(filePath);
   } catch (error: unknown) {

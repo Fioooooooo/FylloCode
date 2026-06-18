@@ -76,6 +76,11 @@ keywords: [ipc, electron, preload, channels, contracts]
 - 四个 lineage channel 必须通过 `LineageChannels` 声明，入参 schema 位于 `src/shared/schemas/ipc/lineage.ts`，handler 位于 `src/main/ipc/lineage.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/lineage.ts` 与 `src/renderer/src/api/lineage.ts`。
 - `chat:listSessions` 在解析 `projectId → projectPath` 后必须调用 `ensureLineageEventConsumer(projectPath)`，作为 MCP proposal 事件目录 consumer 的项目级懒触发点；consumer 创建本身必须幂等，handler 不承担文件扫描或 lineage 写入细节。
 
+## Proposal Channels
+
+- `proposal:list`、`proposal:readFile`、`proposal:apply`、`proposal:stageStream`、`proposal:archive`、`proposal:loadRun`、`proposal:loadArchive` 等请求-响应 channel 的入参 schema 位于 `src/shared/schemas/ipc/proposal.ts`，handler 位于 `src/main/ipc/proposal.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/proposal.ts` 与 `src/renderer/src/api/proposal.ts`。
+- `proposal:statusChanged` 是主进程主动向渲染进程推送的广播型 channel：当 `ProposalStatusService` 监听到 `.openspec.yaml` 的 `status` 变化、proposal 被归档或删除时，通过 `webContents.send(ProposalChannels.statusChanged, payload)` 发送 `ProposalStatusChangedPayload`。渲染进程通过 `proposalApi.onStatusChanged` 订阅并在 `useSessionStore` 中更新 `sessionProposals`。新增广播 channel 时必须同步更新 `src/shared/types/channels.ts`、`src/preload/index.d.ts` 与 `src/renderer/src/api/`。
+
 ## Overview Channels
 
 - `overview:getProjectOverview`：入参 `{ projectId }`，主进程解析 `projectId → projectPath` 后调用 `overview-service.getProjectOverview`，返回 `IpcResponse<ProjectOverview>`。该 channel 是概览页的单一聚合入口，返回 `stats`、`activeChanges`、`recentLineages`、`governance` 四块数据。`recentLineages[].archiveCommitHash` 优先读取 lineage 中已持久化的 proposal commit hash；缺失时 overview 从当前 Git 历史查询归档提交 hash 并尽力写回 lineage。Git 不可用或归档锚点尚未提交时返回 `null` 且不写入。

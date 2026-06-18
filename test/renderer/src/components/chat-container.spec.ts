@@ -23,6 +23,7 @@ vi.mock("@renderer/stores/session", () => ({
     activeSession: computed(() => activeSessionRef.value),
     activeSessionId: computed(() => activeSessionIdRef.value),
     isLoadingMessages: computed(() => isLoadingMessagesRef.value),
+    getSessionProposals: () => [],
   }),
 }));
 

@@ -1,5 +1,10 @@
 import type { IpcResponse } from "@shared/types/ipc";
-import type { ApplyRunMeta, ArchiveRunMeta, ProposalMeta } from "@shared/types/proposal";
+import type {
+  ApplyRunMeta,
+  ArchiveRunMeta,
+  ProposalMeta,
+  ProposalStatusChangedPayload,
+} from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -74,5 +79,17 @@ export const proposalApi = {
     changeId: string;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return window.api.proposal.loadArchiveMessages(input);
+  },
+
+  watch(input: {
+    projectId: string;
+    changeId: string;
+    sessionId: string;
+  }): Promise<IpcResponse<void>> {
+    return window.api.proposal.watch(input);
+  },
+
+  onStatusChanged(handler: (payload: ProposalStatusChangedPayload) => void): () => void {
+    return window.api.proposal.onStatusChanged(handler);
   },
 };

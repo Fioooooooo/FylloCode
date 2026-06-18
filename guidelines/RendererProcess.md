@@ -95,6 +95,11 @@ keywords: [renderer, vue, pinia, routing, ui]
 - `ConfigOptionsBar` 在已建立 session 时读取 `activeSession.configOptions`，草稿态只在 `activeDraftProbe.status === "ready"` 时读取 probe config options；starting/failed/null 均不渲染。
 - `sendMessage` 在草稿态创建首个 fyllo session 时，必须使用创建前捕获的 probe 快照：当快照为 `ready` 且 `acpSessionId` 非空时，把 `configOptions` 与 `acpSessionId` 一并透传给 `useSessionStore.createSession`，`createSession` resolve 后再调用 `applyProbeUpdate(agentId, null)` 清空 draft probe；后续 `chatApi.streamMessage` 仍传同一个 `acpSessionId`。`createSession` 抛错路径下不清空 draft probe，让下次发送复用同一快照。
 
+## Chat Session Proposals
+
+- `useSessionStore.sessionProposals` 维护 `Record<sessionId, ProposalMeta[]>`，展示在 `ChatSessionEventRail` 的 `ChatProposalPanel` 中。它通过 `proposalApi.onStatusChanged` 接收主进程推送的 `proposal:statusChanged` 事件增量更新，并在切换 `activeSession` 时从 `useProposalStore.proposals` 与 lineage 数据回填历史 proposals。
+- `ChatProposalPanel` 只渲染状态 badge 与操作入口（draft 时“开始实现”、applying 且 run 完成时“归档”、其他状态“查看详情”），不展示 apply/archive 的流式执行日志；实现与归档复用 `useProposalRunStore.startRun` / `startArchive`。
+
 ## Chat Session Streams
 
 - `useChatStore` 必须按已建立的 `sessionId` 维护 chat stream run、status、cancel 和瞬时 error；组件消费的 `chatStatus`、`streamError`、`cancelFn` 只能从当前 `useSessionStore.activeSessionId` 对应 session 派生，草稿态或无运行态时回落为 `ready` / `null`。

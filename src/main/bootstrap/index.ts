@@ -3,6 +3,7 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
 import { setupProbeBroadcast } from "@main/ipc/chat";
 import { setupAgentEventBroadcast } from "@main/ipc/acp-agents";
+import { setupProposalStatusBroadcast } from "@main/ipc/proposal";
 import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { runAllMigrations } from "@main/migrations";
@@ -31,12 +32,14 @@ export function startApp(): void {
     const mainWindow = createMainWindow();
     setupProbeBroadcast(mainWindow);
     setupAgentEventBroadcast(mainWindow);
+    setupProposalStatusBroadcast(mainWindow);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         const reopenedWindow = createMainWindow();
         setupProbeBroadcast(reopenedWindow);
         setupAgentEventBroadcast(reopenedWindow);
+        setupProposalStatusBroadcast(reopenedWindow);
       }
     });
   });

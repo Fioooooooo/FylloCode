@@ -3,6 +3,7 @@ import type {
   CreateSessionTaskInput,
   LineageTaskRef,
   LineageTaskSnapshot,
+  SessionLineageProjection,
   Subject,
   TaskDownstreamProjection,
 } from "@shared/types/lineage";
@@ -29,6 +30,13 @@ export const lineageApi = {
     ref: LineageTaskRef
   ): Promise<IpcResponse<TaskDownstreamProjection | null>> {
     return window.api.lineage.getByTask(projectId, ref);
+  },
+
+  getBySession(
+    projectId: string,
+    sessionId: string
+  ): Promise<IpcResponse<SessionLineageProjection | null>> {
+    return window.api.lineage.getBySession(projectId, sessionId);
   },
 
   createSessionTask(

@@ -47,6 +47,8 @@ export const ProposalChannels = {
   loadRunMessages: "proposal:loadRunMessages",
   loadArchive: "proposal:loadArchive",
   loadArchiveMessages: "proposal:loadArchiveMessages",
+  statusChanged: "proposal:statusChanged",
+  watch: "proposal:watch",
 } as const;
 
 export const TaskChannels = {
@@ -61,6 +63,7 @@ export const LineageChannels = {
   ensureTaskSubject: "lineage:ensureTaskSubject",
   linkTaskSession: "lineage:linkTaskSession",
   getByTask: "lineage:getByTask",
+  getBySession: "lineage:getBySession",
   createSessionTask: "lineage:createSessionTask",
 } as const;
 

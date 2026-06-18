@@ -233,47 +233,93 @@ export async function findProposalMetaById(
   return proposals.find((proposal) => proposal.id === changeId) ?? null;
 }
 
-export async function resolveChangeDir(
-  projectPath: string,
+export type ResolvedChangeDir = {
+  dir: string;
+  archived: boolean;
+  worktreePath?: string;
+};
+
+async function findArchiveDirByChangeId(
+  archiveRoot: string,
   changeId: string
 ): Promise<string | null> {
-  const rootDir = join(projectPath, "openspec", "changes", changeId);
-  const archiveDir = join(projectPath, "openspec", "changes", "archive", changeId);
-
-  if (await readIfExists(join(rootDir, ".openspec.yaml"))) {
-    return rootDir;
+  try {
+    const entries = await fs.readdir(archiveRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (stripArchivePrefix(entry.name) !== changeId) {
+        continue;
+      }
+      const dir = join(archiveRoot, entry.name);
+      if (await readIfExists(join(dir, ".openspec.yaml"))) {
+        return dir;
+      }
+    }
+  } catch {
+    // archive directory may not exist
   }
-  if (await readIfExists(join(archiveDir, ".openspec.yaml"))) {
-    return archiveDir;
+  return null;
+}
+
+export async function resolveChangeDirAnywhere(
+  projectPath: string,
+  changeId: string
+): Promise<ResolvedChangeDir | null> {
+  const mainActiveDir = join(projectPath, "openspec", "changes", changeId);
+  if (await readIfExists(join(mainActiveDir, ".openspec.yaml"))) {
+    return { dir: mainActiveDir, archived: false };
+  }
+
+  const mainArchiveRoot = join(projectPath, "openspec", "changes", "archive");
+  const mainArchiveDirect = join(mainArchiveRoot, changeId);
+  if (await readIfExists(join(mainArchiveDirect, ".openspec.yaml"))) {
+    return { dir: mainArchiveDirect, archived: true };
+  }
+  const mainArchiveMatched = await findArchiveDirByChangeId(mainArchiveRoot, changeId);
+  if (mainArchiveMatched) {
+    return { dir: mainArchiveMatched, archived: true };
   }
 
   try {
-    const worktreeEntries = await fs.readdir(join(projectPath, ".worktrees"), {
-      withFileTypes: true,
-    });
+    const worktreesRoot = join(projectPath, ".worktrees");
+    const worktreeEntries = await fs.readdir(worktreesRoot, { withFileTypes: true });
 
     for (const entry of worktreeEntries) {
       if (!entry.isDirectory()) {
         continue;
       }
 
-      const worktreeDir = join(
-        projectPath,
-        ".worktrees",
-        entry.name,
-        "openspec",
-        "changes",
-        changeId
-      );
-      if (await readIfExists(join(worktreeDir, ".openspec.yaml"))) {
-        return worktreeDir;
+      const worktreePath = resolve(worktreesRoot, entry.name);
+      const activeDir = join(worktreePath, "openspec", "changes", changeId);
+      if (await readIfExists(join(activeDir, ".openspec.yaml"))) {
+        return { dir: activeDir, archived: false, worktreePath };
+      }
+
+      const worktreeArchiveRoot = join(worktreePath, "openspec", "changes", "archive");
+      const worktreeArchiveDirect = join(worktreeArchiveRoot, changeId);
+      if (await readIfExists(join(worktreeArchiveDirect, ".openspec.yaml"))) {
+        return { dir: worktreeArchiveDirect, archived: true, worktreePath };
+      }
+      const worktreeArchiveMatched = await findArchiveDirByChangeId(worktreeArchiveRoot, changeId);
+      if (worktreeArchiveMatched) {
+        return { dir: worktreeArchiveMatched, archived: true, worktreePath };
       }
     }
   } catch {
-    return null;
+    // .worktrees directory may not exist
   }
 
   return null;
+}
+
+export async function resolveChangeDir(
+  projectPath: string,
+  changeId: string
+): Promise<string | null> {
+  const resolved = await resolveChangeDirAnywhere(projectPath, changeId);
+  return resolved?.dir ?? null;
 }
 
 export async function readChangeFile(

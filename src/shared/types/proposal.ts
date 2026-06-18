@@ -35,3 +35,12 @@ export interface ArchiveRunMeta {
   updatedAt: string;
   acpSessionId?: string;
 }
+
+export type ProposalStatusChangedPayload = {
+  changeId: string;
+  sessionId: string;
+  projectPath: string;
+  status: ProposalStatus;
+  updatedAt: string;
+  removed?: boolean;
+};

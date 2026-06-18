@@ -11,6 +11,7 @@ vi.mock("@renderer/stores", () => ({
   useSessionStore: () =>
     reactive({
       activeSession: computed(() => activeSessionRef.value),
+      getSessionProposals: () => [],
     }),
 }));
 

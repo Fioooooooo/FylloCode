@@ -9,6 +9,7 @@ import {
   readProposalFiles,
   resolveApplyRunChangeId,
   resolveChangeDir,
+  resolveChangeDirAnywhere,
   stripArchivePrefix,
   toTitleCase,
 } from "@main/infra/proposal/openspec-reader";
@@ -403,5 +404,98 @@ describe("resolveChangeDir", () => {
     });
 
     await expect(resolveChangeDir(projectPath, "foo")).resolves.toBeNull();
+  });
+});
+
+describe("resolveChangeDirAnywhere", () => {
+  const projectPath = "/tmp/project";
+  const baseChangesDir = join(projectPath, "openspec", "changes");
+  const archiveDir = join(baseChangesDir, "archive");
+  const worktreesDir = join(projectPath, ".worktrees");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns main active directory with archived=false", async () => {
+    const mainDir = join(baseChangesDir, "foo");
+    mockFsTree({
+      files: {
+        [join(mainDir, ".openspec.yaml")]: "status: draft\n",
+      },
+    });
+
+    await expect(resolveChangeDirAnywhere(projectPath, "foo")).resolves.toEqual({
+      dir: mainDir,
+      archived: false,
+    });
+  });
+
+  it("returns main archive directory with archived=true", async () => {
+    const archivedDir = join(archiveDir, "2026-05-19-foo");
+    mockFsTree({
+      directories: {
+        [archiveDir]: [dirent("2026-05-19-foo")],
+      },
+      files: {
+        [join(archivedDir, ".openspec.yaml")]: "status: archived\n",
+      },
+    });
+
+    await expect(resolveChangeDirAnywhere(projectPath, "foo")).resolves.toEqual({
+      dir: archivedDir,
+      archived: true,
+    });
+  });
+
+  it("returns worktree active directory with worktreePath", async () => {
+    const worktreePath = resolve(worktreesDir, "wt-1");
+    const worktreeDir = join(worktreePath, "openspec", "changes", "foo");
+    mockFsTree({
+      directories: {
+        [worktreesDir]: [dirent("wt-1")],
+      },
+      files: {
+        [join(worktreeDir, ".openspec.yaml")]: "status: draft\n",
+      },
+    });
+
+    await expect(resolveChangeDirAnywhere(projectPath, "foo")).resolves.toEqual({
+      dir: worktreeDir,
+      archived: false,
+      worktreePath,
+    });
+  });
+
+  it("returns worktree archive directory with archived=true and worktreePath", async () => {
+    const worktreePath = resolve(worktreesDir, "wt-1");
+    const worktreeArchiveRoot = join(worktreePath, "openspec", "changes", "archive");
+    const worktreeArchiveDir = join(worktreeArchiveRoot, "2026-05-20-foo");
+    mockFsTree({
+      directories: {
+        [worktreesDir]: [dirent("wt-1")],
+        [worktreeArchiveRoot]: [dirent("2026-05-20-foo")],
+      },
+      files: {
+        [join(worktreeArchiveDir, ".openspec.yaml")]: "status: archived\n",
+      },
+    });
+
+    await expect(resolveChangeDirAnywhere(projectPath, "foo")).resolves.toEqual({
+      dir: worktreeArchiveDir,
+      archived: true,
+      worktreePath,
+    });
+  });
+
+  it("returns null when proposal does not exist anywhere", async () => {
+    mockFsTree({
+      directories: {
+        [worktreesDir]: [dirent("wt-1")],
+      },
+      files: {},
+    });
+
+    await expect(resolveChangeDirAnywhere(projectPath, "foo")).resolves.toBeNull();
   });
 });

@@ -13,11 +13,14 @@ import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { TaskSource } from "@shared/types/task";
+import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
 import { chatApi } from "@renderer/api/chat";
 import { lineageApi } from "@renderer/api/lineage";
+import { proposalApi } from "@renderer/api/proposal";
 import { useAcpAgentsStore } from "./acp-agents";
 import { useChatStore } from "./chat";
 import { useProjectStore } from "./project";
+import { useProposalStore } from "./proposal";
 
 type SerializableDate = Date | string;
 
@@ -61,9 +64,14 @@ export interface SessionStore {
   draftAgentId: Ref<string | null>;
   draftProbeByAgent: Ref<Map<string, DraftProbeState>>;
   activeDraftProbe: ComputedRef<DraftProbeState | null>;
+  sessionProposals: Ref<Record<string, ProposalMeta[]>>;
   isLoading: Ref<boolean>;
   isLoadingMessages: Ref<boolean>;
   loadSessions: (projectId: string) => Promise<void>;
+  getSessionProposals: (sessionId: string) => ProposalMeta[];
+  upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
+  removeSessionProposal: (sessionId: string, changeId: string) => void;
+  subscribeProposalStatus: () => () => void;
   createSession: (input: {
     projectId: string;
     agentId: string;
@@ -156,6 +164,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   const taskInfoBySessionId = ref<Map<string, OriginTaskInfo>>(new Map());
   const draftAgentId = ref<string | null>(null);
   const draftProbeByAgent = ref<Map<string, DraftProbeState>>(new Map());
+  const sessionProposals = ref<Record<string, ProposalMeta[]>>({});
+  let unsubscribeStatusChanged: (() => void) | null = null;
   const isLoading = ref(false);
   const isLoadingMessages = ref(false);
   const activeSession = computed<Session | null>(
@@ -220,6 +230,122 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
     if (session) {
       void ensureOriginTaskInfo(session);
+    }
+  }
+
+  function getSessionProposals(sessionId: string): ProposalMeta[] {
+    return sessionProposals.value[sessionId] ?? [];
+  }
+
+  function upsertSessionProposal(sessionId: string, proposal: ProposalMeta): void {
+    const list = sessionProposals.value[sessionId] ?? [];
+    const index = list.findIndex((item) => item.id === proposal.id);
+    if (index >= 0) {
+      list[index] = proposal;
+    } else {
+      list.push(proposal);
+    }
+    list.sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+    sessionProposals.value = { ...sessionProposals.value, [sessionId]: list };
+  }
+
+  function removeSessionProposal(sessionId: string, changeId: string): void {
+    const list = sessionProposals.value[sessionId];
+    if (!list) {
+      return;
+    }
+    const filtered = list.filter((item) => item.id !== changeId);
+    if (filtered.length === list.length) {
+      return;
+    }
+    sessionProposals.value = { ...sessionProposals.value, [sessionId]: filtered };
+  }
+
+  function buildProposalMetaFromPayload(payload: ProposalStatusChangedPayload): ProposalMeta {
+    const proposalStore = useProposalStore();
+    const existing = proposalStore.proposals.find((item) => item.id === payload.changeId);
+    if (existing) {
+      return { ...existing, status: payload.status };
+    }
+    return {
+      id: payload.changeId,
+      title: payload.changeId,
+      status: payload.status,
+      why: "",
+      totalTasks: 0,
+      doneTasks: 0,
+      hasDesign: false,
+      date: payload.updatedAt,
+    };
+  }
+
+  function ensureProposalWatched(proposal: ProposalMeta, sessionId: string): void {
+    const projectStore = useProjectStore();
+    const projectId = projectStore.currentProject?.id;
+    if (!projectId) {
+      return;
+    }
+    void proposalApi.watch({ projectId, changeId: proposal.id, sessionId });
+  }
+
+  function subscribeProposalStatus(): () => void {
+    if (unsubscribeStatusChanged) {
+      return unsubscribeStatusChanged;
+    }
+
+    try {
+      unsubscribeStatusChanged = proposalApi.onStatusChanged((payload) => {
+        if (payload.removed) {
+          removeSessionProposal(payload.sessionId, payload.changeId);
+          return;
+        }
+        const list = sessionProposals.value[payload.sessionId] ?? [];
+        if (!list.some((item) => item.id === payload.changeId)) {
+          // Defensive: if a status push arrives for a proposal we are not yet
+          // watching (e.g. after app restart), ensure the watcher is active so
+          // future updates are also delivered.
+          ensureProposalWatched(buildProposalMetaFromPayload(payload), payload.sessionId);
+        }
+        upsertSessionProposal(payload.sessionId, buildProposalMetaFromPayload(payload));
+      });
+    } catch {
+      unsubscribeStatusChanged = () => {};
+    }
+    return unsubscribeStatusChanged;
+  }
+
+  async function backfillSessionProposals(sessionId: string): Promise<void> {
+    const existing = sessionProposals.value[sessionId];
+    if (existing && existing.length > 0) {
+      return;
+    }
+
+    const projectStore = useProjectStore();
+    const projectId = projectStore.currentProject?.id;
+    if (!projectId) {
+      return;
+    }
+
+    const proposalStore = useProposalStore();
+    if (proposalStore.proposals.length === 0 && !proposalStore.loading) {
+      await proposalStore.loadProposals();
+    }
+
+    try {
+      const result = await lineageApi.getBySession(projectId, sessionId);
+      if (!result.ok) {
+        return;
+      }
+      const changeIds = new Set(result.data?.session.proposals.map((link) => link.changeId) ?? []);
+      const matched = proposalStore.proposals.filter((item) => changeIds.has(item.id));
+      if (matched.length > 0) {
+        sessionProposals.value = { ...sessionProposals.value, [sessionId]: matched };
+        for (const proposal of matched) {
+          ensureProposalWatched(proposal, sessionId);
+        }
+      }
+    } catch {
+      // backfill is best-effort; future status pushes will incrementally populate the list
     }
   }
 
@@ -694,6 +820,17 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     { immediate: true }
   );
 
+  watch(
+    () => activeSession.value?.id ?? null,
+    (sessionId) => {
+      if (sessionId) {
+        void backfillSessionProposals(sessionId);
+      }
+    }
+  );
+
+  subscribeProposalStatus();
+
   return {
     sessions,
     activeSessionId,
@@ -702,9 +839,14 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftAgentId,
     draftProbeByAgent,
     activeDraftProbe,
+    sessionProposals,
     isLoading,
     isLoadingMessages,
     loadSessions,
+    getSessionProposals,
+    upsertSessionProposal,
+    removeSessionProposal,
+    subscribeProposalStatus,
     createSession,
     beginDraftSession,
     selectSession,

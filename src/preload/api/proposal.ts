@@ -1,7 +1,12 @@
 import { ipcRenderer } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import type { IpcErrorInfo, IpcResponse, MessageChunkData } from "@shared/types/ipc";
-import type { ProposalMeta, ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
+import type {
+  ProposalMeta,
+  ApplyRunMeta,
+  ArchiveRunMeta,
+  ProposalStatusChangedPayload,
+} from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
@@ -144,5 +149,23 @@ export const proposalApi = {
     changeId: string;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return ipcRenderer.invoke(ProposalChannels.loadArchiveMessages, input);
+  },
+
+  watch(input: {
+    projectId: string;
+    changeId: string;
+    sessionId: string;
+  }): Promise<IpcResponse<void>> {
+    return ipcRenderer.invoke(ProposalChannels.watch, input);
+  },
+
+  onStatusChanged(listener: (payload: ProposalStatusChangedPayload) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: ProposalStatusChangedPayload) => {
+      listener(payload);
+    };
+    ipcRenderer.on(ProposalChannels.statusChanged, handler);
+    return () => {
+      ipcRenderer.off(ProposalChannels.statusChanged, handler);
+    };
   },
 };

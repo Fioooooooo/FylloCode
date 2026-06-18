@@ -4,6 +4,7 @@ import {
   createSessionTaskInputSchema,
   ensureTaskSubjectInputSchema,
   getByTaskInputSchema,
+  getBySessionInputSchema,
   linkTaskSessionInputSchema,
 } from "@shared/schemas/ipc/lineage";
 import { resolveProjectPath } from "@main/services/chat/chat-service";
@@ -11,6 +12,7 @@ import {
   createSessionTask,
   ensureTaskSubject,
   getByTask,
+  getBySession,
   linkTaskSession,
 } from "@main/services/lineage/lineage-service";
 import { validate } from "./_kit/schema";
@@ -38,6 +40,14 @@ export function registerLineageHandlers(): void {
       const form = validate(getByTaskInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
       return getByTask(projectPath, form.ref);
+    })
+  );
+
+  ipcMain.handle(LineageChannels.getBySession, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(getBySessionInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return getBySession(projectPath, form.sessionId);
     })
   );
 

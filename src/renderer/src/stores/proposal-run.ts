@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, type Ref } from "vue";
 import { defineStore } from "pinia";
 import type { UIMessage } from "ai";
 import { proposalApi } from "@renderer/api/proposal";
@@ -7,7 +7,22 @@ import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 
-export const useProposalRunStore = defineStore("proposal-run", () => {
+export interface ProposalRunStore {
+  runMeta: Ref<ApplyRunMeta | null>;
+  archiveRunMeta: Ref<ArchiveRunMeta | null>;
+  messages: Ref<UIMessage<MessageMeta>[]>;
+  isStreaming: Ref<boolean>;
+  isArchiving: Ref<boolean>;
+  cancelFn: Ref<(() => void) | null>;
+  startRun: (projectId: string, changeId: string, workflowId: string) => Promise<void>;
+  startArchive: (projectId: string, changeId: string) => Promise<void>;
+  streamCurrentStage: (projectId: string, changeId: string) => void;
+  resumeRun: (projectId: string, changeId: string) => Promise<void>;
+  resumeArchive: (projectId: string, changeId: string) => Promise<boolean>;
+  cancelRun: () => void;
+}
+
+export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunStore => {
   const runMeta = ref<ApplyRunMeta | null>(null);
   const archiveRunMeta = ref<ArchiveRunMeta | null>(null);
   const messages = ref<UIMessage<MessageMeta>[]>([]);

@@ -5,6 +5,7 @@ import type {
   CreateSessionTaskInput,
   LineageTaskRef,
   LineageTaskSnapshot,
+  SessionLineageProjection,
   Subject,
   TaskDownstreamProjection,
 } from "@shared/types/lineage";
@@ -31,6 +32,13 @@ export const lineageApi = {
     ref: LineageTaskRef
   ): Promise<IpcResponse<TaskDownstreamProjection | null>> {
     return ipcRenderer.invoke(LineageChannels.getByTask, { projectId, ref });
+  },
+
+  getBySession(
+    projectId: string,
+    sessionId: string
+  ): Promise<IpcResponse<SessionLineageProjection | null>> {
+    return ipcRenderer.invoke(LineageChannels.getBySession, { projectId, sessionId });
   },
 
   createSessionTask(
