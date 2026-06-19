@@ -1,14 +1,14 @@
 ---
 sidebar:
   order: 3
-  text: 对 ACP 又爱又恨
+  text: 以ACP实现Agent连接层
 ---
 
-# 对 ACP 又爱又恨
+# 以ACP实现Agent连接层
 
 > 这篇文章记录的是我给 FylloCode 在 Agent Runtime 接入层上的一次核心技术选型：为什么没有选择逐个适配 CLI，而是把 ACP 放在 Agent 连接层，同时在内部消息层留出解耦和回退空间。
 
-## 初始 ACP
+## 初识 ACP
 
 在玩 OpenClaw 的时候，我想用它来驱动 `Claude Code` 或 `Codex` 完成一些 Coding 任务，搜索方案时在 GitHub 找到了 OpenClaw 的 [acpx](https://github.com/openclaw/acpx)，进而发现了它只是一个 headless 的 ACP Client，底层使用 ACP 协议通过 JSON-RPC 2.0 与 Coding Agent 交互。
 
