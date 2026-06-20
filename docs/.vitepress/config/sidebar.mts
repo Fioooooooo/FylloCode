@@ -4,9 +4,7 @@ import { fileURLToPath } from "node:url";
 import { load } from "js-yaml";
 import type { DefaultTheme } from "vitepress";
 
-const siteRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const docsRoot = join(siteRoot, "docs");
-const blogRoot = join(siteRoot, "blog");
+const siteRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
 type SidebarSource = {
   /**
@@ -65,6 +63,14 @@ type SidebarSource = {
    * ```
    */
   text?: string;
+};
+
+type LocaleSidebarOptions = {
+  blogRoutePrefix: string;
+  docsRoutePrefix: string;
+  fallbackGroupText: string;
+  localeDir: string;
+  sortLocale: string;
 };
 
 function normalizePath(path: string): string {
@@ -152,7 +158,7 @@ function readBoolean(source: Record<string, unknown>, key: string): boolean | un
   return typeof value === "boolean" ? value : undefined;
 }
 
-function createFlatSidebar(rootDir: string, routePrefix: string): DefaultTheme.SidebarItem[] {
+function createFlatSidebar(rootDir: string, routePrefix: string, sortLocale: string): DefaultTheme.SidebarItem[] {
   return listMarkdownFiles(rootDir)
     .map((path) => {
       const page = readPage(join(rootDir, path));
@@ -164,14 +170,19 @@ function createFlatSidebar(rootDir: string, routePrefix: string): DefaultTheme.S
       };
     })
     .filter((page) => !page.hidden)
-    .sort((first, second) => first.order - second.order || first.text.localeCompare(second.text, "zh-CN"))
+    .sort((first, second) => first.order - second.order || first.text.localeCompare(second.text, sortLocale))
     .map(({ path, text }) => ({
       text,
       link: createSidebarLink(routePrefix, path),
     }));
 }
 
-function createGroupedSidebar(rootDir: string, routePrefix: string): DefaultTheme.SidebarItem[] {
+function createGroupedSidebar(
+  rootDir: string,
+  routePrefix: string,
+  sortLocale: string,
+  fallbackGroupText: string,
+): DefaultTheme.SidebarItem[] {
   const groups = new Map<string, { groupOrder: number; items: Array<DefaultTheme.SidebarItem & { order: number }> }>();
 
   for (const path of listMarkdownFiles(rootDir)) {
@@ -181,7 +192,7 @@ function createGroupedSidebar(rootDir: string, routePrefix: string): DefaultThem
       continue;
     }
 
-    const groupText = page.group ?? "未分组";
+    const groupText = page.group ?? fallbackGroupText;
     const group = groups.get(groupText) ?? { groupOrder: Number.POSITIVE_INFINITY, items: [] };
     group.groupOrder = Math.min(group.groupOrder, page.groupOrder ?? Number.POSITIVE_INFINITY);
     group.items.push({
@@ -195,12 +206,12 @@ function createGroupedSidebar(rootDir: string, routePrefix: string): DefaultThem
   return [...groups]
     .sort(
       ([firstText, first], [secondText, second]) =>
-        first.groupOrder - second.groupOrder || firstText.localeCompare(secondText, "zh-CN"),
+        first.groupOrder - second.groupOrder || firstText.localeCompare(secondText, sortLocale),
     )
     .map(([text, group]) => ({
       text,
       items: group.items
-        .sort((first, second) => first.order - second.order || first.text.localeCompare(second.text, "zh-CN"))
+        .sort((first, second) => first.order - second.order || first.text.localeCompare(second.text, sortLocale))
         .map(({ order: _order, ...item }) => item),
     }));
 }
@@ -212,7 +223,26 @@ function createSidebarLink(routePrefix: string, path: string): string {
   return slug.length === 0 ? `${prefix}/` : `${prefix}/${slug}`;
 }
 
-const docsSidebar = createGroupedSidebar(docsRoot, "/docs");
-const blogSidebar = createFlatSidebar(blogRoot, "/blog");
+function createSidebarKey(routePrefix: string): string {
+  return `${routePrefix.replace(/\/$/, "")}/`;
+}
 
-export { docsSidebar, blogSidebar };
+export function createLocaleSidebar(options: LocaleSidebarOptions): DefaultTheme.Sidebar {
+  const localeRoot = join(siteRoot, options.localeDir);
+  const docsRoot = join(localeRoot, "docs");
+  const blogRoot = join(localeRoot, "blog");
+
+  return {
+    [createSidebarKey(options.docsRoutePrefix)]: createGroupedSidebar(
+      docsRoot,
+      options.docsRoutePrefix,
+      options.sortLocale,
+      options.fallbackGroupText,
+    ),
+    [createSidebarKey(options.blogRoutePrefix)]: createFlatSidebar(
+      blogRoot,
+      options.blogRoutePrefix,
+      options.sortLocale,
+    ),
+  };
+}

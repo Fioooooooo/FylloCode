@@ -8,7 +8,7 @@ hero:
   text: Coding Agent 的团队治理层
   tagline: 让全队的 Agent 遵守同一套持续进化的规则，从 Task、Chat 到 Proposal、Archive 由 lineage 串成一条可追溯的决策主线。
   image:
-    src: /assets/icon.svg
+    src: /assets/fyllocode.svg
     alt: FylloCode
   actions:
     - theme: brand
