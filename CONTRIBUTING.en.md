@@ -83,4 +83,4 @@ Scope corresponds to the module or feature area — for example: `proposal`, `sp
 
 ## License
 
-Contributions are licensed under the repository's [AGPL-3.0](LICENSE).
+Contributions are licensed under the repository's [MIT](LICENSE).

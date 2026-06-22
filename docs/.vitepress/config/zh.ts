@@ -1,7 +1,7 @@
 import { createLocaleSidebar } from "./sidebar.mjs";
 
 const releaseUrl = "https://github.com/Fioooooooo/FylloCode/releases";
-const copyright = "Copyright © 2026 FylloCode";
+const copyright = "Copyright © 2026 Fio";
 const sidebar = createLocaleSidebar({
   localeDir: "zh",
   docsRoutePrefix: "/docs",
@@ -35,7 +35,7 @@ export const zh = {
     },
 
     footer: {
-      message: "基于 AGPL-3.0 发布",
+      message: "基于 MIT 发布",
       copyright,
     },
   },

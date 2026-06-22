@@ -4,6 +4,7 @@
   "description": "The governance layer for Coding Agents.",
   "main": "./out/main/index.js",
   "author": "Fio<fuyitao2018@gmail.com>",
+  "license": "MIT",
   "homepage": "https://fyllocode.cc",
   "engines": {
     "node": ">=22",

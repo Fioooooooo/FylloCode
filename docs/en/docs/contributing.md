@@ -100,4 +100,4 @@ Use a scope that matches the module or feature area, such as `overview`, `chat`,
 
 ## License
 
-FylloCode is released under the [AGPL-3.0](https://github.com/Fioooooooo/FylloCode/blob/main/LICENSE) license.
+FylloCode is released under the [MIT](https://github.com/Fioooooooo/FylloCode/blob/main/LICENSE) license.

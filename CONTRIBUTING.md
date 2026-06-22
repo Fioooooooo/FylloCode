@@ -86,4 +86,4 @@ scope 对应模块或功能区域，比如 `proposal`、`specs`、`archive`、`w
 
 ## 许可证
 
-贡献的代码遵循仓库的 [AGPL-3.0](LICENSE) 许可证。
+贡献的代码遵循仓库的 [MIT](LICENSE) 许可证。

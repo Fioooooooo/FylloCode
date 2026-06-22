@@ -207,7 +207,7 @@ Download the installer for your platform from the [Releases](https://github.com/
 
 ## Contributing
 
-FylloCode is licensed under AGPL-3.0. PRs are welcome — please read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) before
+FylloCode is licensed under MIT. PRs are welcome — please read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) before
 submitting.
 
 ## Acknowledgements
@@ -218,7 +218,7 @@ FylloCode is built on top of these open source projects and protocols:
 
 ## License
 
-[AGPL-3.0](LICENSE)
+[MIT](LICENSE)
 
 ## Community
 

@@ -100,4 +100,4 @@ scope 对应模块或功能区域，例如 `overview`、`chat`、`proposal`、`s
 
 ## 许可证
 
-FylloCode 使用 [AGPL-3.0](https://github.com/Fioooooooo/FylloCode/blob/main/LICENSE) 许可证。
+FylloCode 使用 [MIT](https://github.com/Fioooooooo/FylloCode/blob/main/LICENSE) 许可证。

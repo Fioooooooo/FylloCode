@@ -1,7 +1,7 @@
 import { createLocaleSidebar } from "./sidebar.mjs";
 
 const releaseUrl = "https://github.com/Fioooooooo/FylloCode/releases";
-const copyright = "Copyright © 2026 FylloCode";
+const copyright = "Copyright © 2026 Fio";
 const sidebar = createLocaleSidebar({
   localeDir: "en",
   docsRoutePrefix: "/en/docs",
@@ -36,7 +36,7 @@ export const en = {
     },
 
     footer: {
-      message: "Released under AGPL-3.0",
+      message: "Released under MIT",
       copyright,
     },
   },
