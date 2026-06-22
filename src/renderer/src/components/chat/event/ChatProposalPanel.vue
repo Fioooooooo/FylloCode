@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   useProjectStore,
+  useProposalStore,
   useProposalRunStore,
   useSessionStore,
   useWorkflowStore,
@@ -17,14 +18,16 @@ const collapsed = ref(false);
 
 const router = useRouter();
 const projectStore = useProjectStore();
+const proposalStore = useProposalStore();
 const workflowStore = useWorkflowStore();
 const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
 
 const projectId = computed(() => projectStore.currentProject?.id ?? "");
+type ProposalDisplayStatus = ProposalStatus | "archiveReady" | "archiving";
 
 const statusConfig: Record<
-  ProposalStatus,
+  ProposalDisplayStatus,
   {
     label: string;
     color: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
@@ -34,6 +37,8 @@ const statusConfig: Record<
   creating: { label: "创建中", color: "primary", variant: "soft" },
   draft: { label: "草稿", color: "neutral", variant: "soft" },
   applying: { label: "实施中", color: "primary", variant: "soft" },
+  archiveReady: { label: "可归档", color: "warning", variant: "soft" },
+  archiving: { label: "归档中", color: "warning", variant: "soft" },
   archived: { label: "已归档", color: "neutral", variant: "outline" },
 };
 
@@ -49,8 +54,34 @@ function buildWorkflowMenuItems(proposal: ProposalMeta) {
 function canArchive(proposal: ProposalMeta): boolean {
   return (
     proposal.status === "applying" &&
+    !proposalRunStore.isArchiving &&
     proposalRunStore.runMeta?.status === "done" &&
     proposalRunStore.runMeta?.changeId === proposal.id
+  );
+}
+
+function isArchivingProposal(proposal: ProposalMeta): boolean {
+  return (
+    proposal.status === "applying" &&
+    proposalRunStore.isArchiving &&
+    proposalRunStore.runMeta?.changeId === proposal.id
+  );
+}
+
+function getDisplayStatus(proposal: ProposalMeta): ProposalDisplayStatus {
+  if (isArchivingProposal(proposal)) {
+    return "archiving";
+  }
+  return canArchive(proposal) ? "archiveReady" : proposal.status;
+}
+
+function findArchivedProposal(previousChangeId: string): ProposalMeta | null {
+  return (
+    proposalStore.proposals.find((proposal) => proposal.id === previousChangeId) ??
+    proposalStore.proposals.find(
+      (proposal) => proposal.status === "archived" && proposal.id.endsWith(`-${previousChangeId}`)
+    ) ??
+    null
   );
 }
 
@@ -78,7 +109,20 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
   if (!projectId.value) {
     return;
   }
-  await proposalRunStore.startArchive(projectId.value, proposal.id);
+  const previousChangeId = proposal.id;
+  await proposalRunStore.startArchive(projectId.value, previousChangeId);
+  await proposalStore.loadProposals();
+
+  const sessionId = sessionStore.activeSession?.id;
+  const nextProposal = findArchivedProposal(previousChangeId);
+  if (!sessionId || !nextProposal) {
+    return;
+  }
+
+  if (nextProposal.id !== previousChangeId) {
+    sessionStore.removeSessionProposal(sessionId, previousChangeId);
+  }
+  sessionStore.upsertSessionProposal(sessionId, nextProposal);
 }
 
 function viewDetail(proposal: ProposalMeta): void {
@@ -119,16 +163,27 @@ function viewDetail(proposal: ProposalMeta): void {
             <p class="text-xs text-muted truncate">{{ proposal.id }}</p>
           </div>
           <UBadge
-            :color="statusConfig[proposal.status].color"
-            :variant="statusConfig[proposal.status].variant"
+            :color="statusConfig[getDisplayStatus(proposal)].color"
+            :variant="statusConfig[getDisplayStatus(proposal)].variant"
             size="sm"
             class="shrink-0"
           >
-            {{ statusConfig[proposal.status].label }}
+            {{ statusConfig[getDisplayStatus(proposal)].label }}
           </UBadge>
         </div>
 
         <div class="flex items-center justify-end gap-2">
+          <UButton
+            v-if="getDisplayStatus(proposal) !== 'creating'"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            data-test="view-detail-button"
+            @click="viewDetail(proposal)"
+          >
+            查看详情
+          </UButton>
+
           <UDropdownMenu
             v-if="proposal.status === 'draft'"
             :items="buildWorkflowMenuItems(proposal)"
@@ -147,7 +202,7 @@ function viewDetail(proposal: ProposalMeta): void {
           </UDropdownMenu>
 
           <UButton
-            v-else-if="canArchive(proposal)"
+            v-if="getDisplayStatus(proposal) === 'archiveReady'"
             size="xs"
             color="neutral"
             icon="i-lucide-archive"
@@ -155,17 +210,6 @@ function viewDetail(proposal: ProposalMeta): void {
             @click="startArchive(proposal)"
           >
             归档
-          </UButton>
-
-          <UButton
-            v-else-if="proposal.status !== 'creating'"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            data-test="view-detail-button"
-            @click="viewDetail(proposal)"
-          >
-            查看详情
           </UButton>
         </div>
       </div>
