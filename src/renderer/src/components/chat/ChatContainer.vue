@@ -27,12 +27,12 @@ const showEventRail = computed(() => {
 </script>
 
 <template>
-  <div class="flex-1 flex min-h-0 relative">
+  <div class="flex-1 flex min-h-0 min-w-0 relative">
     <div v-if="!isDraft" class="absolute inset-x-0 top-0 z-10 pointer-events-auto">
       <OriginTaskBanner />
     </div>
 
-    <div class="flex-1 flex flex-col min-h-0">
+    <div class="flex-1 flex flex-col min-h-0 min-w-0">
       <div class="flex-1 overflow-y-auto py-4 px-2 relative">
         <div class="max-w-3xl mx-auto h-full">
           <template v-if="isLoadingMessages">
