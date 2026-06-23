@@ -86,7 +86,7 @@ async function openDevTools(): Promise<void> {
     <div class="w-[20%] h-full flex items-center justify-end pr-4">
       <div class="flex items-center justify-end gap-2" style="-webkit-app-region: no-drag">
         <!-- Debug Tools -->
-        <UTooltip text="打开开发者工具" :delay-duration="200">
+        <UTooltip text="打开开发者工具">
           <UButton
             variant="ghost"
             color="neutral"
@@ -97,7 +97,7 @@ async function openDevTools(): Promise<void> {
           </UButton>
         </UTooltip>
         <!-- System Bell -->
-        <UTooltip text="通知" :delay-duration="200">
+        <UTooltip text="通知">
           <UButton
             variant="ghost"
             color="neutral"
@@ -107,7 +107,7 @@ async function openDevTools(): Promise<void> {
           </UButton>
         </UTooltip>
         <!-- Theme Toggle -->
-        <UTooltip text="切换主题" :delay-duration="200">
+        <UTooltip text="切换主题">
           <UButton
             variant="ghost"
             color="neutral"

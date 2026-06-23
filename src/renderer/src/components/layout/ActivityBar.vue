@@ -36,11 +36,7 @@ const activeItem = computed(() => {
 
     <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-menu">
       <template v-for="item in items" :key="item.id">
-        <UTooltip
-          :text="item.label"
-          :delay-duration="200"
-          :content="{ align: 'center', side: 'right' }"
-        >
+        <UTooltip :text="item.label" :content="{ align: 'center', side: 'right' }">
           <UButton
             variant="ghost"
             size="sm"
@@ -64,11 +60,7 @@ const activeItem = computed(() => {
 
     <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-settings">
       <template v-for="item in bottomItems" :key="item.id">
-        <UTooltip
-          :text="item.label"
-          :delay-duration="200"
-          :content="{ align: 'center', side: 'right' }"
-        >
+        <UTooltip :text="item.label" :content="{ align: 'center', side: 'right' }">
           <UButton
             variant="ghost"
             size="sm"
