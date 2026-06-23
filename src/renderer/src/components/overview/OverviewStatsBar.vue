@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { timeAgo } from "@renderer/utils/time";
+import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import type { OverviewStats } from "@renderer/stores/overview";
 
 const props = defineProps<{
@@ -55,10 +56,11 @@ function openArchives(): void {
 <template>
   <section class="grid grid-cols-4 gap-4" data-test="overview-stats">
     <template v-for="card in cards" :key="card.key">
-      <button
+      <UiSurface
         v-if="card.key === 'archives'"
-        type="button"
-        class="rounded-lg border border-default bg-elevated px-5 py-4 text-left transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        as="button"
+        interactive
+        class="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         data-test="overview-archives-card"
         @click="openArchives"
       >
@@ -70,17 +72,13 @@ function openArchives(): void {
             </p>
             <p class="truncate text-xs text-muted">{{ card.meta }}</p>
           </div>
-          <div class="flex size-5 shrink-0 items-center justify-center text-muted">
-            <UIcon :name="card.icon" class="size-4" />
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+            <UIcon :name="card.icon" class="size-5 text-primary/70" />
           </div>
         </div>
-      </button>
+      </UiSurface>
 
-      <div
-        v-else
-        class="rounded-lg border border-default bg-elevated px-5 py-4"
-        :data-test="`overview-stat-card-${card.key}`"
-      >
+      <UiSurface v-else :data-test="`overview-stat-card-${card.key}`">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 space-y-1">
             <p class="text-xs text-muted">{{ card.label }}</p>
@@ -89,11 +87,11 @@ function openArchives(): void {
             </p>
             <p class="truncate text-xs text-muted">{{ card.meta }}</p>
           </div>
-          <div class="flex size-5 shrink-0 items-center justify-center text-muted">
-            <UIcon :name="card.icon" class="size-4" />
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+            <UIcon :name="card.icon" class="size-5 text-primary/70" />
           </div>
         </div>
-      </div>
+      </UiSurface>
     </template>
   </section>
 </template>

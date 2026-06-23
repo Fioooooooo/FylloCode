@@ -58,7 +58,7 @@ async function handleDisconnect(): Promise<void> {
 <template>
   <section
     :id="`provider-${provider.id}`"
-    class="rounded-xl border border-default bg-card transition-colors"
+    class="rounded-xl bg-elevated transition-colors"
     :class="autofocus ? 'ring-2 ring-primary/30 border-primary/50' : ''"
   >
     <button
@@ -88,12 +88,13 @@ async function handleDisconnect(): Promise<void> {
     </button>
 
     <div v-if="expanded" class="border-t border-default px-4 py-4">
-      <div
+      <AppEmptyState
         v-if="isComingSoon"
-        class="rounded-lg border border-dashed border-default px-4 py-3 text-sm text-muted"
-      >
-        当前 provider 仅保留占位信息，暂未开放真实连接能力。
-      </div>
+        icon="i-lucide-clock"
+        title="暂未开放"
+        description="当前 provider 仅保留占位信息，暂未开放真实连接能力。"
+        compact
+      />
 
       <div v-else-if="!isConnected && !isExpired" class="space-y-4">
         <div v-for="field in provider.credentialFields" :key="field.key" class="space-y-1.5">

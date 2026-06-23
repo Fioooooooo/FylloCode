@@ -27,12 +27,12 @@ const showEventRail = computed(() => {
 </script>
 
 <template>
-  <div class="flex-1 flex min-h-0 min-w-0 relative">
-    <div v-if="!isDraft" class="absolute inset-x-0 top-0 z-10 pointer-events-auto">
-      <OriginTaskBanner />
-    </div>
+  <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
+    <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
+      <div v-if="!isDraft" class="absolute inset-x-0 top-0 z-10 pointer-events-none">
+        <OriginTaskBanner />
+      </div>
 
-    <div class="flex-1 flex flex-col min-h-0 min-w-0">
       <div class="flex-1 overflow-y-auto py-4 px-2 relative">
         <div class="max-w-3xl mx-auto h-full">
           <template v-if="isLoadingMessages">
@@ -61,8 +61,10 @@ const showEventRail = computed(() => {
       </div>
     </div>
 
-    <div class="shrink-0">
-      <ChatSessionEventRail v-if="!isDraft && showEventRail" />
+    <div class="shrink-0 flex">
+      <div class="flex-1 flex flex-col rounded-lg bg-default overflow-auto">
+        <ChatSessionEventRail v-if="!isDraft && showEventRail" />
+      </div>
     </div>
   </div>
 </template>

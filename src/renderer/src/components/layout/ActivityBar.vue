@@ -24,53 +24,66 @@ const activeItem = computed(() => {
 
 <template>
   <div
-    class="w-14 h-full flex flex-col items-center gap-3 py-3 border-r border-default bg-muted/30 shrink-0"
+    class="w-16 h-full flex flex-col items-center gap-3 py-3 bg-muted/30 border-r border-default/50 shrink-0"
     data-test="activity-bar"
   >
     <div
-      class="flex h-8 w-8 items-center justify-center rounded-lg bg-default ring-1 ring-inset ring-default"
+      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-default ring-1 ring-inset ring-default mb-1"
       data-test="activity-bar-brand"
     >
-      <img
-        :src="brandIconSrc"
-        alt="FylloCode"
-        class="h-5 w-5"
-        data-test="activity-bar-brand-icon"
-      />
+      <img :src="brandIconSrc" alt="FylloCode" class="size-6" data-test="activity-bar-brand-icon" />
     </div>
 
-    <div class="flex w-full flex-col items-center gap-2" data-test="activity-bar-menu">
+    <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-menu">
       <template v-for="item in items" :key="item.id">
-        <UButton
-          variant="ghost"
-          size="sm"
-          class="h-auto w-11 flex-col gap-1 rounded-lg px-1 py-1.5 text-[10px]/3"
-          :color="activeItem === item.id ? 'primary' : 'neutral'"
-          :disabled="!hasProject"
-          :to="hasProject ? item.path : undefined"
-          :data-test="`activity-bar-item-${item.id}`"
+        <UTooltip
+          :text="item.label"
+          :delay-duration="200"
+          :content="{ align: 'center', side: 'right' }"
         >
-          <UIcon :name="item.icon" class="size-4" />
-          <span class="text-center leading-[1.1] break-words">{{ item.label }}</span>
-        </UButton>
+          <UButton
+            variant="ghost"
+            size="sm"
+            class="relative size-10 rounded-lg"
+            :class="[
+              activeItem === item.id
+                ? 'bg-primary/15 text-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-primary'
+                : 'text-muted hover:bg-elevated',
+            ]"
+            :disabled="!hasProject"
+            :to="hasProject ? item.path : undefined"
+            :data-test="`activity-bar-item-${item.id}`"
+          >
+            <UIcon :name="item.icon" class="size-5" />
+          </UButton>
+        </UTooltip>
       </template>
     </div>
 
     <div class="flex-1 w-full" />
 
-    <div class="flex w-full flex-col items-center gap-2" data-test="activity-bar-settings">
+    <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-settings">
       <template v-for="item in bottomItems" :key="item.id">
-        <UButton
-          variant="ghost"
-          size="sm"
-          class="h-auto w-11 flex-col gap-1 rounded-lg px-1 py-1.5 text-[10px]/3"
-          :color="activeItem === item.id ? 'primary' : 'neutral'"
-          :to="item.path"
-          :data-test="`activity-bar-item-${item.id}`"
+        <UTooltip
+          :text="item.label"
+          :delay-duration="200"
+          :content="{ align: 'center', side: 'right' }"
         >
-          <UIcon :name="item.icon" class="size-4" />
-          <span class="text-center leading-[1.1] break-words">{{ item.label }}</span>
-        </UButton>
+          <UButton
+            variant="ghost"
+            size="sm"
+            class="relative size-10 rounded-lg"
+            :class="[
+              activeItem === item.id
+                ? 'bg-primary/15 text-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-primary'
+                : 'text-muted hover:bg-elevated',
+            ]"
+            :to="item.path"
+            :data-test="`activity-bar-item-${item.id}`"
+          >
+            <UIcon :name="item.icon" class="size-5" />
+          </UButton>
+        </UTooltip>
       </template>
     </div>
   </div>

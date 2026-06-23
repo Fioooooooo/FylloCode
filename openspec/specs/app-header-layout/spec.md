@@ -35,52 +35,53 @@
 - **WHEN** AppHeader 渲染
 - **THEN** 左侧区域不包含任何交互元素或文字
 
-### Requirement: 中央区域显示项目和 Agent 信息
+### Requirement: 中央区域显示项目切换器和项目状态
 
-系统 SHALL 在中央区域渲染当前项目名称、当前 Agent 名称和向下箭头图标，所有元素水平居中。
+系统 SHALL 在中央区域渲染当前项目名称、向下箭头图标和项目状态入口，所有元素水平居中。
 
 #### Scenario: 中央区域显示项目切换器（有活跃项目）
 
 - **WHEN** AppHeader 在有活跃项目时渲染
 - **THEN** 中央区域显示项目名称
-- **AND** 显示当前 Agent 名称
 - **AND** 显示向下箭头图标
+- **AND** 显示项目状态入口
 - **AND** 所有元素在区域内水平居中
 
 #### Scenario: 中央区域无项目时显示回退内容
 
 - **WHEN** AppHeader 在无活跃项目时渲染
-- **THEN** 中央区域显示"无项目"作为项目名称
+- **THEN** 中央区域显示"未选择项目"作为项目名称
 
-### Requirement: 右侧区域仅包含主题切换图标按钮
+### Requirement: 右侧区域包含辅助控制图标按钮
 
-系统 SHALL 在右侧区域仅渲染主题切换图标按钮。
+系统 SHALL 在右侧区域渲染开发者工具、通知和主题切换图标按钮。
 
-#### Scenario: 右侧区域有主题切换
+#### Scenario: 右侧区域有辅助控制
 
 - **WHEN** AppHeader 渲染
-- **THEN** 右侧区域包含主题切换图标按钮
-- **AND** 不存在其他控件（Token 用量、Agent 状态）
+- **THEN** 右侧区域包含开发者工具图标按钮
+- **AND** 包含通知图标按钮
+- **AND** 包含主题切换图标按钮
 
 ### Requirement: 右侧区域图标按钮容器有适当间距
 
-系统 SHALL 以 8px 右内边距渲染右侧区域的内部容器，内部图标按钮右对齐，按钮间距为 4px。
+系统 SHALL 以 16px 右内边距渲染右侧区域的内部容器，内部图标按钮右对齐，按钮间距为 8px。
 
 #### Scenario: 图标按钮容器布局
 
 - **WHEN** AppHeader 渲染
-- **THEN** 右侧区域内部容器有 8px 右内边距
+- **THEN** 右侧区域内部容器有 16px 右内边距
 - **AND** 图标按钮右对齐
-- **AND** 图标按钮间距为 4px
+- **AND** 图标按钮间距为 8px
 
 ### Requirement: 图标按钮有固定尺寸
 
-系统 SHALL 将每个图标按钮渲染为 22px × 22px，实际图标为 16px × 16px。
+系统 SHALL 将每个图标按钮渲染为 24px × 24px，实际图标为 16px × 16px。
 
 #### Scenario: 图标按钮尺寸
 
 - **WHEN** AppHeader 渲染
-- **THEN** 每个图标按钮宽 22px、高 22px
+- **THEN** 每个图标按钮宽 24px、高 24px
 - **AND** 每个图标宽 16px、高 16px
 
 ### Requirement: 图标按钮有悬停背景效果
@@ -121,33 +122,41 @@
 - **THEN** 窗口无原生标题栏
 - **AND** 交通灯按钮（关闭、最小化、最大化）可见
 
-### Requirement: 中央区域使用带边框的 div 并有垂直间距
+### Requirement: 中央区域使用 pill 形态容器并有垂直间距
 
-系统 SHALL 将中央区域的项目切换器渲染为带边框的 div 容器，与 Header 上下边缘有垂直间距，而非使用 UButton。
+系统 SHALL 将中央区域的项目切换器渲染为圆角 pill 形态的容器，使用 `bg-elevated` 且不使用阴影，与 Header 上下边缘有垂直间距，而非使用带边框的矩形 div 或 UButton。
 
-#### Scenario: 中央区域有带边框的 div
+#### Scenario: 中央区域有 pill 容器
 
 - **WHEN** AppHeader 渲染
-- **THEN** 中央区域包含一个带边框的 div
-- **AND** 该 div 与 Header 上下边缘有垂直间距
-- **AND** 该 div 水平居中
+- **THEN** 中央区域包含一个 `rounded-full` 的 pill 容器
+- **AND** 该容器使用 `bg-elevated`
+- **AND** 该容器不使用阴影
+- **AND** 该容器与 Header 上下边缘有垂直间距
+- **AND** 该容器水平居中
+
+#### Scenario: 项目切换器 hover 反馈
+
+- **WHEN** 用户将鼠标悬停在中央项目切换器上
+- **THEN** 容器背景色 SHALL 发生变化
+- **AND** 容器 SHALL 不发生缩放、位移或阴影变化
 
 ### Requirement: 点击中央 div 打开项目切换器下拉框
 
-系统 SHALL 在用户点击中央区域 div 时打开下拉菜单，显示最近项目和以分隔线分隔的"新建项目"选项。
+系统 SHALL 在用户点击中央区域 div 时打开下拉菜单，显示最近项目和以分隔线分隔的"打开项目"选项。
 
 #### Scenario: 下拉框显示最近项目
 
 - **WHEN** 用户点击中央区域 div
 - **THEN** 下拉菜单打开
 - **AND** 菜单以可滚动列表显示最近项目
-- **AND** 分隔线将项目列表与"新建项目"选项分开
+- **AND** 分隔线将项目列表与"打开项目"选项分开
 
-#### Scenario: 点击"新建项目"打开模态框
+#### Scenario: 点击"打开项目"打开系统项目选择
 
-- **WHEN** 用户点击下拉框中的"新建项目"
-- **THEN** CreateProjectModal 打开
-- **AND** 模态框功能与欢迎页的创建项目流程完全一致
+- **WHEN** 用户点击下拉框中的"打开项目"
+- **THEN** 系统项目选择流程启动
+- **AND** 成功选择项目后跳转到当前项目的默认页面
 
 ### Requirement: macOS 交通灯按钮定位在 Header 左侧区域
 

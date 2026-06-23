@@ -333,7 +333,7 @@ async function handleRemoveResource(
                     "
                     type="text"
                     class="min-w-0 flex-1 rounded-md border border-default bg-default px-3 py-2 text-sm outline-none"
-                    placeholder="搜索资源..."
+                    placeholder="搜索资源…"
                     :data-test="`resource-search-${provider.id}-${capability.resourceType}`"
                     @keyup.enter="loadResourceOptions(provider.id, capability.resourceType)"
                   />

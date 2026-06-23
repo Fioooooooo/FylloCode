@@ -32,7 +32,7 @@ function onSearchInput(event: Event): void {
   <div class="flex items-center gap-3">
     <UInput
       :model-value="searchQuery"
-      placeholder="搜索集成..."
+      placeholder="搜索集成…"
       class="w-64"
       size="sm"
       @input="onSearchInput"

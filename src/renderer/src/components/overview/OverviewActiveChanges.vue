@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { timeAgo } from "@renderer/utils/time";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import type { ActiveChange, OverviewChangeStage } from "@renderer/stores/overview";
 
-defineProps<{
+const props = defineProps<{
   changes: ActiveChange[];
 }>();
 
@@ -43,23 +45,25 @@ function openChange(changeId: string): void {
   <section class="space-y-3" data-test="overview-active-changes">
     <div class="flex items-center justify-between gap-3">
       <h2 class="text-sm font-semibold text-highlighted">进行中</h2>
-      <span class="text-xs text-muted">{{ changes.length }} 个提案</span>
+      <span class="text-xs text-muted">{{ props.changes.length }} 个提案</span>
     </div>
 
-    <div
-      v-if="changes.length === 0"
-      class="rounded-lg border border-dashed border-default bg-elevated/60 px-4 py-8 text-center"
-    >
-      <UIcon name="i-lucide-file-pen" class="mx-auto size-6 text-muted" />
-      <p class="mt-3 text-sm text-muted">暂无进行中的提案</p>
-    </div>
+    <AppEmptyState
+      v-if="props.changes.length === 0"
+      icon="i-lucide-file-pen"
+      title="暂无进行中的提案"
+      description="创建一个 proposal 或从任务发起讨论，开始推进工作。"
+      compact
+    />
 
     <div v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <button
-        v-for="change in changes"
+      <UiSurface
+        v-for="change in props.changes"
         :key="change.id"
-        type="button"
-        class="group rounded-lg border border-default bg-elevated px-4 py-3 text-left transition-colors hover:bg-accented"
+        as="button"
+        interactive
+        padding="sm"
+        class="text-left"
         @click="openChange(change.id)"
       >
         <div class="flex min-w-0 items-start justify-between gap-3">
@@ -74,7 +78,7 @@ function openChange(changeId: string): void {
           </div>
           <UBadge
             :color="stageConfig[change.stage].color"
-            variant="outline"
+            variant="soft"
             size="sm"
             class="shrink-0 font-normal"
           >
@@ -85,19 +89,10 @@ function openChange(changeId: string): void {
           </UBadge>
         </div>
 
-        <div class="mt-3 flex items-center justify-between gap-3 text-xs text-muted">
+        <div class="mt-3 text-xs text-muted">
           <span>{{ createdLabel(change) }}</span>
-          <span
-            class="inline-flex items-center gap-1 opacity-0 transition-all duration-150 group-hover:opacity-75"
-          >
-            查看
-            <UIcon
-              name="i-lucide-arrow-right"
-              class="size-3 transition-transform group-hover:translate-x-0.5"
-            />
-          </span>
         </div>
-      </button>
+      </UiSurface>
     </div>
   </section>
 </template>

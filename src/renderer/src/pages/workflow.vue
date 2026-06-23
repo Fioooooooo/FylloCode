@@ -175,34 +175,44 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-1 overflow-hidden">
-    <WorkflowSidebar
-      :custom-templates="workflowStore.customTemplates"
-      :built-in-templates="workflowStore.builtInTemplates"
-      :selected-template-id="selectedTemplateId"
-      :loading="workflowStore.isLoading"
-      @select="selectTemplate"
-      @create="createTemplate"
-      @delete="deleteTemplate"
-    />
-
-    <main class="flex-1 min-w-0 flex flex-col bg-default">
-      <div v-if="currentView === 'empty'" class="flex flex-1 items-center justify-center h-full">
-        <div class="flex flex-col items-center text-center">
-          <UIcon name="i-lucide-workflow" class="w-10 h-10 text-muted" />
-          <p class="text-sm font-medium text-highlighted mt-3">选择或新建工作流模板</p>
-          <p class="text-xs text-muted mt-1">编辑 YAML，并从 YAML 渲染工作流预览</p>
-        </div>
-      </div>
-
-      <WorkflowDetail
-        v-else
-        v-model="yamlContent"
-        :template="selectedTemplate"
-        :saving="isSaving"
-        @save="saveTemplate"
-        @delete="handleDetailDelete"
+  <div class="flex flex-1 overflow-hidden bg-elevated space-x-2">
+    <div class="w-65 h-full flex flex-col bg-default shrink-0 rounded-lg">
+      <WorkflowSidebar
+        :custom-templates="workflowStore.customTemplates"
+        :built-in-templates="workflowStore.builtInTemplates"
+        :selected-template-id="selectedTemplateId"
+        :loading="workflowStore.isLoading"
+        @select="selectTemplate"
+        @create="createTemplate"
+        @delete="deleteTemplate"
       />
-    </main>
+    </div>
+
+    <div class="flex-1 min-w-0 flex overflow-hidden">
+      <div class="flex-1 flex flex-col min-w-0 rounded-lg bg-default overflow-auto">
+        <div
+          v-if="currentView === 'empty'"
+          class="flex flex-1 items-center justify-center overflow-y-auto"
+        >
+          <AppEmptyState
+            icon="i-lucide-workflow"
+            title="选择或新建工作流模板"
+            description="在左侧选择模板开始编辑，或创建新的工作流模板。"
+            action-label="新建模板"
+            action-icon="i-lucide-plus"
+            @action="createTemplate"
+          />
+        </div>
+
+        <WorkflowDetail
+          v-else
+          v-model="yamlContent"
+          :template="selectedTemplate"
+          :saving="isSaving"
+          @save="saveTemplate"
+          @delete="handleDetailDelete"
+        />
+      </div>
+    </div>
   </div>
 </template>

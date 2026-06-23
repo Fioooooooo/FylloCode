@@ -66,6 +66,7 @@ pnpm test:coverage    # 生成覆盖率报告
 - **IPC 通信** - [IPC](guidelines/IPC.md)
 - **测试规范** - [Testing](guidelines/Testing.md)
 - **编码规范** - [CodeStyle](guidelines/CodeStyle.md)
+- **UI 设计规范** - [UiDesign](guidelines/UiDesign.md)
 - **构建与打包** - [Build](guidelines/Build.md)
 - **开发工作流** - [DeveloperWorkflow](guidelines/DeveloperWorkflow.md)
 

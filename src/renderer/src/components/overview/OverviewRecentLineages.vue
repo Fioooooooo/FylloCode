@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { timeAgo } from "@renderer/utils/time";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import type { RecentLineage } from "@renderer/stores/overview";
 
-defineProps<{
+const props = defineProps<{
   lineages: RecentLineage[];
 }>();
 
@@ -54,29 +56,25 @@ function shortSha(lineage: RecentLineage): string {
   <section class="space-y-3" data-test="overview-recent-lineages">
     <div class="flex items-center justify-between gap-3">
       <h2 class="text-sm font-semibold text-highlighted">最近脉络</h2>
-      <span class="text-xs text-muted">{{ lineages.length }} 条脉络</span>
+      <span class="text-xs text-muted">{{ props.lineages.length }} 条脉络</span>
     </div>
 
-    <div
-      v-if="lineages.length === 0"
-      class="rounded-lg border border-dashed border-default bg-elevated/60 px-4 py-8 text-center"
-    >
-      <UIcon name="i-lucide-git-merge" class="mx-auto size-8 text-muted" />
-      <p class="mt-3 text-sm text-muted">还没有脉络记录</p>
-    </div>
+    <AppEmptyState
+      v-if="props.lineages.length === 0"
+      icon="i-lucide-git-merge"
+      title="还没有脉络记录"
+      description="从任务或聊天开始一次讨论，脉络会自动建立。"
+      compact
+    />
 
     <div v-else class="space-y-2.5">
-      <div
-        v-for="lineage in lineages"
-        :key="lineage.subjectId"
-        class="rounded-lg border border-default bg-elevated px-4 py-3 transition-colors hover:bg-accented"
-      >
+      <UiSurface v-for="lineage in props.lineages" :key="lineage.subjectId" padding="sm">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-2">
               <UBadge
                 :color="originConfig[lineage.origin].color"
-                variant="outline"
+                variant="soft"
                 size="sm"
                 class="shrink-0 font-normal"
               >
@@ -123,7 +121,7 @@ function shortSha(lineage: RecentLineage): string {
             </template>
           </span>
         </div>
-      </div>
+      </UiSurface>
     </div>
   </section>
 </template>

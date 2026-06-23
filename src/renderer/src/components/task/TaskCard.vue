@@ -49,9 +49,7 @@ function handleViewDetail(): void {
 </script>
 
 <template>
-  <div
-    class="flex h-full flex-col rounded-lg border border-default bg-elevated px-4 py-4 space-y-3 transition-colors hover:border-accented"
-  >
+  <UiSurface interactive class="flex h-full flex-col">
     <div
       data-role="detail-trigger"
       class="space-y-3 cursor-pointer rounded-md transition-colors hover:text-highlighted"
@@ -126,5 +124,5 @@ function handleViewDetail(): void {
         @click.stop="void handleDelete()"
       />
     </div>
-  </div>
+  </UiSurface>
 </template>

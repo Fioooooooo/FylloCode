@@ -30,7 +30,7 @@ const isInstalling = computed(() => {
   return status === "downloading" || status === "installing";
 });
 const hasInstallError = computed(() => props.installProgress?.status === "error");
-const progressMessage = computed(() => props.installProgress?.message ?? "正在处理...");
+const progressMessage = computed(() => props.installProgress?.message ?? "正在处理…");
 
 function handleClick(): void {
   if (!usable.value || !props.selectable) {
@@ -49,8 +49,8 @@ function handleInstall(event: MouseEvent): void {
   <AgentCardBase
     class="group relative transition-colors"
     :class="[
-      usable && selectable ? 'cursor-pointer hover:border-primary/40' : '',
-      selected ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : '',
+      usable && selectable ? 'cursor-pointer hover:bg-primary/15' : '',
+      selected ? 'border-primary bg-primary/15 ring-1 ring-primary/40' : '',
     ]"
     :agent="agent"
     :icon="icon"

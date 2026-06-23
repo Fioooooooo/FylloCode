@@ -80,7 +80,7 @@ async function handleDelete(): Promise<void> {
 <template>
   <div
     class="group relative flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-colors"
-    :class="active ? 'bg-primary/8' : 'hover:bg-muted/60'"
+    :class="active ? 'bg-primary/15' : 'hover:bg-elevated'"
     @click="
       void handleSelect().catch((error: unknown) => {
         console.error('Failed to select session:', error);
@@ -88,7 +88,7 @@ async function handleDelete(): Promise<void> {
     "
   >
     <div
-      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted bg-white rounded-md"
+      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted bg-muted dark:bg-white/80 rounded-md"
       data-test="session-media"
     >
       <span

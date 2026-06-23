@@ -65,7 +65,9 @@ function handleConfirm(agentId: string): void {
   <div class="flex h-full items-center justify-center px-6 py-10">
     <div class="w-full max-w-2xl space-y-6">
       <header class="text-center">
-        <h2 class="text-2xl font-semibold text-highlighted">Pick an Agent to Start</h2>
+        <h2 class="text-[28px] font-bold tracking-tight text-highlighted">
+          Pick an Agent to Start
+        </h2>
         <p class="mt-1 text-sm text-muted">选择一个 Agent 开始你的会话</p>
       </header>
 

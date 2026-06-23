@@ -7,7 +7,7 @@ const settingsStore = useSettingsStore();
 const aboutInfo = computed(() => settingsStore.aboutInfo);
 const releaseCheckResult = computed(() => settingsStore.releaseCheckResult);
 const releaseCheckButtonLabel = computed(() => {
-  if (settingsStore.releaseCheckLoading) return "检测中...";
+  if (settingsStore.releaseCheckLoading) return "检测中…";
   if (settingsStore.releaseCheckError) return "重试";
   return "检查新版本";
 });
@@ -33,30 +33,31 @@ function formatPublishedAt(value: string | undefined): string {
 <template>
   <div class="space-y-6">
     <div class="space-y-1">
-      <h1 class="text-2xl font-bold text-highlighted">About</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-highlighted">About</h1>
       <p class="text-sm text-muted">
         查看当前应用版本、发布渠道以及 FylloCode 项目的公开入口信息。
       </p>
     </div>
 
     <div data-test="about-card">
-      <UCard>
-        <div
+      <UiSurface padding="none">
+        <AppEmptyState
           v-if="settingsStore.aboutInfoLoading"
-          class="px-4 py-6 text-sm text-muted"
           data-test="about-loading"
-        >
-          正在加载应用信息...
-        </div>
+          icon="i-lucide-loader-circle"
+          title="正在加载"
+          description="正在加载应用信息…"
+          compact
+        />
 
-        <div
+        <AppEmptyState
           v-else-if="settingsStore.aboutInfoError"
-          class="flex items-start gap-3 px-4 py-6 text-sm text-error"
           data-test="about-error"
-        >
-          <UIcon name="i-lucide-triangle-alert" class="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{{ settingsStore.aboutInfoError }}</span>
-        </div>
+          icon="i-lucide-triangle-alert"
+          title="加载失败"
+          :description="settingsStore.aboutInfoError"
+          compact
+        />
 
         <div v-else class="divide-y divide-default" data-test="about-card-content">
           <div
@@ -86,7 +87,7 @@ function formatPublishedAt(value: string | undefined): string {
                 class="text-xs text-muted"
                 data-test="release-check-loading"
               >
-                正在检测 GitHub 最新正式 Release...
+                正在检测 GitHub 最新正式 Release…
               </p>
               <p
                 v-else-if="settingsStore.releaseCheckError"
@@ -195,7 +196,7 @@ function formatPublishedAt(value: string | undefined): string {
             </a>
           </div>
         </div>
-      </UCard>
+      </UiSurface>
     </div>
   </div>
 </template>

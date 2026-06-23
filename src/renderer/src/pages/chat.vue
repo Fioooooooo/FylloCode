@@ -14,13 +14,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-1 overflow-hidden">
-    <aside class="w-65 h-full flex flex-col border-r border-default bg-default shrink-0">
+  <div class="flex flex-1 overflow-hidden bg-elevated space-x-2">
+    <div class="w-65 h-full flex flex-col bg-default shrink-0 rounded-lg">
       <ChatSidebar />
-    </aside>
+    </div>
 
-    <main class="flex-1 flex flex-col min-w-0 bg-default">
-      <ChatContainer />
-    </main>
+    <div class="flex-1 flex min-w-0">
+      <div class="flex-1 flex flex-col min-w-0 rounded-lg bg-default overflow-auto">
+        <ChatContainer />
+      </div>
+    </div>
   </div>
 </template>

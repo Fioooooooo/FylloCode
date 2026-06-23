@@ -58,10 +58,10 @@ function handleSave(): void {
 </script>
 
 <template>
-  <div class="flex flex-col flex-1 overflow-hidden">
+  <div class="flex flex-col flex-1 overflow-hidden bg-default">
     <div
       v-if="isBuiltIn"
-      class="flex items-center gap-2 px-6 py-2 bg-info/10 border-b border-info/20 text-xs text-info shrink-0"
+      class="flex items-center gap-2 px-6 py-2 bg-info/10 text-xs text-info shrink-0"
     >
       <UIcon name="i-lucide-info" class="w-3.5 h-3.5 shrink-0" />
       <span>内置模板不可直接编辑，保存时将创建自定义副本</span>

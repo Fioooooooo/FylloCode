@@ -60,7 +60,7 @@ const {
 </script>
 
 <template>
-  <div class="py-4">
+  <div class="p-4">
     <div
       :ref="setPromptShellRef"
       @keydown.capture="handlePromptKeydown"

@@ -197,10 +197,13 @@ const exampleConfig = `{
         v-if="!isCustomTab"
         v-model="searchQuery"
         size="sm"
-        placeholder="搜索 Agent..."
-        icon="i-lucide-search"
+        placeholder="搜索 Agent…"
         class="flex-1"
-      />
+      >
+        <template #leading>
+          <UIcon name="i-lucide-search" class="h-4 w-4 text-muted" />
+        </template>
+      </UInput>
       <div v-else class="flex-1" />
       <UTabs v-model="activeTab" :items="tabs" size="sm" variant="link" value-key="value" />
     </div>
@@ -213,9 +216,17 @@ const exampleConfig = `{
         <UIcon name="i-lucide-loader-circle" class="w-6 h-6 text-muted animate-spin" />
       </div>
 
-      <div v-else-if="hasRegistryError" class="flex items-center justify-center py-16">
-        <p class="text-sm text-muted">{{ store.registryError }}</p>
-      </div>
+      <AppEmptyState
+        v-else-if="hasRegistryError"
+        icon="i-lucide-triangle-alert"
+        title="加载失败"
+        :description="
+          store.registryError ??
+          store.initializationError ??
+          'Agent registry 加载失败，请稍后重试。'
+        "
+        compact
+      />
 
       <template v-else>
         <div v-if="filteredAgents.length" class="grid grid-cols-2 gap-4">
@@ -233,9 +244,13 @@ const exampleConfig = `{
             @uninstall="store.uninstallAgent"
           />
         </div>
-        <div v-else class="flex items-center justify-center py-16">
-          <p class="text-sm text-muted">没有匹配的 Agent</p>
-        </div>
+        <AppEmptyState
+          v-else
+          icon="i-lucide-search-x"
+          title="没有匹配的 Agent"
+          :description="searchQuery ? '尝试调整搜索关键词' : '当前筛选条件下没有 Agent'"
+          compact
+        />
       </template>
     </div>
 
@@ -262,7 +277,7 @@ const exampleConfig = `{
           class="border border-default rounded-lg overflow-hidden h-120!"
         />
 
-        <div class="rounded-lg bg-muted/100 p-4 space-y-2 text-sm">
+        <UiSurface variant="flat" padding="md" class="space-y-2 text-sm">
           <p class="font-medium text-highlighted">字段说明</p>
           <ul class="space-y-1.5 text-muted list-disc list-inside">
             <li>
@@ -283,7 +298,7 @@ const exampleConfig = `{
           <pre class="mt-2 rounded bg-default p-3 text-xs font-mono text-muted overflow-auto">{{
             exampleConfig
           }}</pre>
-        </div>
+        </UiSurface>
       </template>
     </div>
   </div>

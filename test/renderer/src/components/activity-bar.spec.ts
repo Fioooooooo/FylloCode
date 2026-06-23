@@ -19,7 +19,7 @@ vi.mock("@renderer/stores/project", () => ({
 }));
 
 describe("ActivityBar", () => {
-  it("renders the brand icon and all registered item labels", () => {
+  it("renders the brand icon and all registered item buttons", () => {
     const wrapper = mount(ActivityBar);
     const buttons = wrapper.findAll("button");
     const brandIcon = wrapper.get('[data-test="activity-bar-brand-icon"]');
@@ -28,9 +28,7 @@ describe("ActivityBar", () => {
     expect(brandIcon.attributes("src")).toContain("icon.svg");
 
     for (const item of activityBarItems) {
-      expect(wrapper.get(`[data-test="activity-bar-item-${item.id}"]`).text()).toContain(
-        item.label
-      );
+      expect(wrapper.find(`[data-test="activity-bar-item-${item.id}"]`).exists()).toBe(true);
     }
   });
 
@@ -39,7 +37,7 @@ describe("ActivityBar", () => {
     const wrapper = mount(ActivityBar);
     await wrapper.vm.$nextTick();
 
-    const activeButtons = wrapper.findAll('button[data-color="primary"]');
+    const activeButtons = wrapper.findAll('button[class*="bg-primary/15"]');
 
     expect(activeButtons).toHaveLength(1);
     expect(activeButtons[0].attributes("to")).toBe("/chat");
@@ -50,7 +48,7 @@ describe("ActivityBar", () => {
     const wrapper = mount(ActivityBar);
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.findAll('button[data-color="primary"]')).toHaveLength(0);
+    expect(wrapper.findAll('button[class*="bg-primary/15"]')).toHaveLength(0);
   });
 
   it("does not render or highlight the proposal entry", async () => {
@@ -59,7 +57,7 @@ describe("ActivityBar", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="activity-bar-item-proposal"]').exists()).toBe(false);
-    expect(wrapper.findAll('button[data-color="primary"]')).toHaveLength(0);
+    expect(wrapper.findAll('button[class*="bg-primary/15"]')).toHaveLength(0);
   });
 
   it("renders three sections with settings separated at the bottom", () => {

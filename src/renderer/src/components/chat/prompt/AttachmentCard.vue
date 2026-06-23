@@ -14,7 +14,7 @@ const emit = defineEmits<{
   <div
     v-if="attachment.isImage"
     data-test="attachment-image-card"
-    class="group relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-default bg-elevated/60"
+    class="group relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-default bg-muted"
   >
     <img
       :src="attachment.previewUrl ?? undefined"
@@ -37,10 +37,10 @@ const emit = defineEmits<{
   <div
     v-else
     data-test="attachment-file-card"
-    class="group relative flex h-14 min-w-64 shrink-0 items-center gap-3 rounded-md border border-default bg-elevated/45 p-2"
+    class="group relative flex h-14 min-w-64 shrink-0 items-center gap-3 rounded-md border border-default bg-muted p-2"
   >
     <div
-      class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+      class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"
     >
       <UIcon name="i-lucide-file" class="h-5 w-5" />
     </div>

@@ -14,13 +14,11 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div
-    class="w-32 h-32 p-4 group relative flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border bg-default transition-colors"
-    :class="
-      selected
-        ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
-        : 'border-default hover:border-primary/40 hover:bg-elevated/40'
-    "
+  <UiSurface
+    interactive
+    padding="none"
+    class="group relative flex aspect-square h-32 w-32 flex-col items-center justify-center gap-2"
+    :class="selected ? 'bg-primary/15 ring-1 ring-primary/40' : ''"
     @click="emit('select', agentId)"
   >
     <span
@@ -29,10 +27,10 @@ const emit = defineEmits<{
     >
       <UIcon name="i-lucide-check" class="h-3 w-3" />
     </span>
-    <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-white">
+    <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-elevated">
       <img v-if="icon" :src="icon" :alt="name" class="h-full w-full object-cover" />
       <CustomAgentIcon v-else class="h-full w-full" />
     </div>
     <span class="line-clamp-1 text-sm font-medium text-highlighted">{{ name }}</span>
-  </div>
+  </UiSurface>
 </template>

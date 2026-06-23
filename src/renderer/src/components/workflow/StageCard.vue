@@ -91,7 +91,7 @@ const agentItems = computed(() => {
         >
           <button
             type="button"
-            class="mt-0.5 flex w-full items-center justify-between gap-2 rounded-md border border-default bg-default px-2 py-1 text-left transition-colors hover:bg-muted/50"
+            class="mt-0.5 flex w-full items-center justify-between gap-2 rounded-md border border-default bg-elevated px-2 py-1 text-left transition-colors hover:bg-accented"
           >
             <span class="min-w-0 truncate font-mono">
               {{ agentLabel ?? "未配置" }}

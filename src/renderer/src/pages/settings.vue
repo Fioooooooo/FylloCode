@@ -47,49 +47,35 @@ function selectTab(tab: SettingsTab): void {
 </script>
 
 <template>
-  <div class="flex flex-1 overflow-hidden bg-default flex-row">
-    <nav class="flex shrink-0 gap-1 border-default px-2 py-4 w-65 flex-col border-r overflow-auto">
-      <UButton
-        variant="ghost"
-        :color="activeTab === 'agents' ? 'primary' : 'neutral'"
-        class="justify-start"
-        @click="selectTab('agents')"
+  <div class="flex flex-1 overflow-hidden bg-elevated space-x-2">
+    <nav class="flex w-65 shrink-0 flex-col gap-1 bg-default rounded-lg px-2 py-4 overflow-auto">
+      <button
+        v-for="tab in [
+          { id: 'agents', label: 'Agents', icon: 'i-lucide-bot' },
+          { id: 'integration-providers', label: '集成提供方', icon: 'i-lucide-plug-zap' },
+          { id: 'preferences', label: '偏好设置', icon: 'i-lucide-sliders-horizontal' },
+          { id: 'about', label: 'About', icon: 'i-lucide-info' },
+        ]"
+        :key="tab.id"
+        type="button"
+        class="relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
+        :class="
+          activeTab === tab.id
+            ? 'bg-primary/15 text-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-primary'
+            : 'hover:bg-elevated'
+        "
+        @click="selectTab(tab.id as SettingsTab)"
       >
-        <UIcon name="i-lucide-bot" class="mr-2 h-4 w-4" />
-        Agents
-      </UButton>
-      <UButton
-        variant="ghost"
-        :color="activeTab === 'integration-providers' ? 'primary' : 'neutral'"
-        class="justify-start"
-        @click="selectTab('integration-providers')"
-      >
-        <UIcon name="i-lucide-plug-zap" class="mr-2 h-4 w-4" />
-        集成提供方
-      </UButton>
-      <UButton
-        variant="ghost"
-        :color="activeTab === 'preferences' ? 'primary' : 'neutral'"
-        class="justify-start"
-        @click="selectTab('preferences')"
-      >
-        <UIcon name="i-lucide-sliders-horizontal" class="mr-2 h-4 w-4" />
-        偏好设置
-      </UButton>
-      <UButton
-        variant="ghost"
-        :color="activeTab === 'about' ? 'primary' : 'neutral'"
-        class="justify-start"
-        @click="selectTab('about')"
-      >
-        <UIcon name="i-lucide-info" class="mr-2 h-4 w-4" />
-        About
-      </UButton>
+        <UIcon :name="tab.icon" class="h-4 w-4" />
+        {{ tab.label }}
+      </button>
     </nav>
 
-    <div class="flex-1 overflow-y-auto">
-      <div class="mx-auto max-w-2xl px-6 py-8">
-        <component :is="activeComponent" />
+    <div class="flex-1 flex min-w-0">
+      <div class="flex-1 flex flex-col min-w-0 rounded-lg bg-default overflow-auto">
+        <div class="mx-auto max-w-2xl px-6 py-8 w-full">
+          <component :is="activeComponent" />
+        </div>
       </div>
     </div>
   </div>

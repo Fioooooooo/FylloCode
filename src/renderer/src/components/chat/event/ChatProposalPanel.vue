@@ -151,10 +151,12 @@ function viewDetail(proposal: ProposalMeta): void {
     </button>
 
     <div v-show="!collapsed" class="space-y-2">
-      <div
+      <UiSurface
         v-for="proposal in proposals"
         :key="proposal.id"
-        class="rounded-lg border border-default bg-default p-3 space-y-2"
+        variant="flat"
+        padding="sm"
+        class="space-y-2 border border-default"
         data-test="chat-proposal-item"
       >
         <div class="flex items-start justify-between gap-2">
@@ -212,7 +214,7 @@ function viewDetail(proposal: ProposalMeta): void {
             归档
           </UButton>
         </div>
-      </div>
+      </UiSurface>
     </div>
   </div>
 </template>

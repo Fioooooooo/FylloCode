@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
-import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import AgentPickerCard from "./AgentPickerCard.vue";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 
@@ -126,7 +125,7 @@ function goToSettings(): void {
             v-if="activeModalTab === 'registry'"
             v-model="search"
             size="sm"
-            placeholder="按名称搜索..."
+            placeholder="按名称搜索…"
             icon="i-lucide-search"
             class="flex-1"
           />
@@ -179,12 +178,14 @@ function goToSettings(): void {
             </div>
           </section>
 
-          <div
+          <AppEmptyState
             v-if="installedAgents.length === 0 && notInstalledAgents.length === 0"
-            class="py-12 text-center text-sm text-muted"
-          >
-            没有匹配的 Agent
-          </div>
+            icon="i-lucide-search-x"
+            title="没有匹配的 Agent"
+            description="尝试更换关键词"
+            compact
+            class="py-12"
+          />
         </div>
 
         <div v-else class="space-y-4 pr-1">
@@ -201,13 +202,17 @@ function goToSettings(): void {
             />
           </div>
 
-          <div v-else class="flex flex-col items-center justify-center gap-3 py-12 text-center">
-            <CustomAgentIcon class="h-full w-full" />
-            <p class="text-sm text-muted">暂无自定义 Agent</p>
-            <UButton size="sm" variant="outline" color="neutral" @click="goToSettings">
-              去设置页添加
-            </UButton>
-          </div>
+          <AppEmptyState
+            v-else
+            icon="i-lucide-bot"
+            title="暂无自定义 Agent"
+            description="配置自定义 Agent 后在这里选择"
+            action-label="去设置页添加"
+            action-icon="i-lucide-settings"
+            compact
+            class="py-12"
+            @action="goToSettings"
+          />
         </div>
       </div>
     </template>

@@ -42,7 +42,7 @@ const isUserManagedUpdate = computed(
   () => canUpdate.value && props.agentStatus?.managedBy === "user"
 );
 const hasError = computed(() => props.installProgress?.status === "error");
-const progressMessage = computed(() => props.installProgress?.message ?? "正在处理...");
+const progressMessage = computed(() => props.installProgress?.message ?? "正在处理…");
 const detectedVersion = computed(() => props.agentStatus?.detectedVersion ?? props.agent.version);
 const externalUrl = computed(() => props.agent.website ?? props.agent.repository);
 const uninstallDisabledReason = computed(() =>

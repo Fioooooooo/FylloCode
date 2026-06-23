@@ -12,6 +12,7 @@ export interface MarkdownTab {
 <script setup lang="ts">
 import { computed } from "vue";
 import { useDark } from "@vueuse/core";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 
 const props = defineProps<{
@@ -53,7 +54,7 @@ function handleModelValueUpdate(value: unknown): void {
           v-if="visibleTabs.length > 0"
           :model-value="modelValue"
           :items="visibleTabs"
-          variant="link"
+          variant="pill"
           value-key="value"
           @update:model-value="handleModelValueUpdate"
         />
@@ -74,12 +75,12 @@ function handleModelValueUpdate(value: unknown): void {
           </div>
         </div>
 
-        <div
+        <AppEmptyState
           v-else-if="visibleTabs.length === 0"
-          class="rounded-lg border border-default bg-elevated px-4 py-8 text-center text-sm text-muted"
-        >
-          暂无可展示的 markdown 文件
-        </div>
+          icon="i-lucide-file-text"
+          title="暂无可展示的 markdown 文件"
+          description="当前 proposal 没有可展示的 markdown 文件。"
+        />
 
         <div v-else class="prose prose-sm dark:prose-invert max-w-none">
           <MarkStream

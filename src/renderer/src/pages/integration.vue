@@ -9,6 +9,11 @@ const integrationProvidersStore = useIntegrationProvidersStore();
 
 const currentProjectId = computed(() => projectStore.currentProject?.id ?? "");
 
+const searchQuery = computed({
+  get: () => integrationProvidersStore.searchQuery,
+  set: (value) => integrationProvidersStore.setSearchQuery(value),
+});
+
 onMounted(async () => {
   await integrationProvidersStore.loadProviders();
 });
@@ -24,19 +29,22 @@ watch(
 
 <template>
   <div class="flex-1 overflow-y-auto bg-default">
-    <div class="max-w-240 mx-auto px-6 py-8 space-y-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 space-y-8">
       <div class="space-y-1">
-        <h1 class="text-2xl font-bold text-highlighted">集成</h1>
+        <span class="text-[11px] font-medium uppercase tracking-wider text-muted"
+          >Integrations</span
+        >
+        <h1 class="text-xl font-semibold tracking-tight text-highlighted">集成</h1>
         <p class="text-sm text-muted">
           为当前项目挂载各阶段需要的 provider 资源。连接与凭证管理统一在设置页处理。
         </p>
       </div>
 
-      <UInput
-        :model-value="integrationProvidersStore.searchQuery"
-        placeholder="搜索 provider..."
-        @input="integrationProvidersStore.setSearchQuery(($event.target as HTMLInputElement).value)"
-      />
+      <UInput v-model="searchQuery" placeholder="搜索 provider…" size="sm" class="w-full sm:w-96">
+        <template #leading>
+          <UIcon name="i-lucide-search" class="w-4 h-4 text-muted" />
+        </template>
+      </UInput>
 
       <div v-if="currentProjectId" class="space-y-10">
         <ProviderStageSection
@@ -48,12 +56,12 @@ watch(
         />
       </div>
 
-      <div
+      <AppEmptyState
         v-else
-        class="rounded-xl border border-dashed border-default bg-muted/10 px-4 py-6 text-sm text-muted"
-      >
-        请先打开一个项目，再配置该项目的集成资源。
-      </div>
+        icon="i-lucide-folder-open"
+        title="请先打开一个项目"
+        description="选择或创建一个项目后，即可为项目配置集成资源。"
+      />
     </div>
   </div>
 </template>

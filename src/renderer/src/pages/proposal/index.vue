@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalStore } from "@renderer/stores/proposal";
 import type { ProposalStatus } from "@shared/types/proposal";
 
@@ -32,11 +34,19 @@ const statusConfig: Record<
   archived: { label: "已归档", color: "neutral", variant: "outline" },
 };
 
-const stats = computed(() => ({
-  total: store.proposals.length,
-  applying: store.proposals.filter((proposal) => proposal.status === "applying").length,
-  archived: store.proposals.filter((proposal) => proposal.status === "archived").length,
-}));
+const stats = computed(() => [
+  { key: "total", label: "全部", value: store.proposals.length },
+  {
+    key: "applying",
+    label: "进行中",
+    value: store.proposals.filter((proposal) => proposal.status === "applying").length,
+  },
+  {
+    key: "archived",
+    label: "已归档",
+    value: store.proposals.filter((proposal) => proposal.status === "archived").length,
+  },
+]);
 
 const filteredProposals = computed(() => {
   if (selectedFilter.value === "all") {
@@ -59,34 +69,27 @@ onMounted(() => {
   <div class="flex-1 overflow-y-auto bg-default">
     <div class="max-w-3xl mx-auto px-6 py-8 space-y-6">
       <div class="space-y-1">
-        <h1 class="text-2xl font-bold text-highlighted">Proposals</h1>
+        <span class="text-[11px] font-medium uppercase tracking-wider text-muted">Proposals</span>
+        <h1 class="text-xl font-semibold tracking-tight text-highlighted">变更提案</h1>
         <p class="text-sm text-muted">管理 OpenSpec 变更提案，追踪实现进度。</p>
       </div>
 
       <div class="grid grid-cols-3 gap-4">
-        <div class="rounded-lg border border-default bg-elevated px-4 py-3 space-y-1">
-          <p class="text-xs text-muted">全部</p>
-          <p class="text-2xl font-semibold text-highlighted">{{ stats.total }}</p>
-        </div>
-        <div class="rounded-lg border border-default bg-elevated px-4 py-3 space-y-1">
-          <p class="text-xs text-muted">进行中</p>
-          <p class="text-2xl font-semibold text-highlighted">{{ stats.applying }}</p>
-        </div>
-        <div class="rounded-lg border border-default bg-elevated px-4 py-3 space-y-1">
-          <p class="text-xs text-muted">已归档</p>
-          <p class="text-2xl font-semibold text-highlighted">{{ stats.archived }}</p>
-        </div>
+        <UiSurface v-for="stat in stats" :key="stat.key" padding="sm">
+          <p class="text-xs text-muted">{{ stat.label }}</p>
+          <p class="text-2xl font-semibold text-highlighted">{{ stat.value }}</p>
+        </UiSurface>
       </div>
 
       <UTabs
         v-model="selectedFilter"
         :items="filterTabs"
         size="sm"
-        variant="link"
+        variant="pill"
         value-key="value"
       />
 
-      <div v-if="store.loading" class="rounded-lg border border-default bg-elevated px-4 py-8">
+      <div v-if="store.loading" class="rounded-lg bg-elevated px-4 py-8">
         <div class="flex items-center justify-center gap-2 text-sm text-muted">
           <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" />
           正在加载 proposals
@@ -100,18 +103,21 @@ onMounted(() => {
         </div>
       </div>
 
-      <div
+      <AppEmptyState
         v-else-if="filteredProposals.length === 0"
-        class="rounded-lg border border-default bg-elevated px-4 py-8 text-center text-sm text-muted"
-      >
-        暂无匹配的 proposal
-      </div>
+        icon="i-lucide-file-question"
+        title="暂无匹配的 proposal"
+        description="当前筛选条件下没有 proposal，尝试切换筛选条件或创建新提案。"
+      />
 
       <div v-else class="space-y-3">
-        <div
+        <UiSurface
           v-for="proposal in filteredProposals"
           :key="proposal.id"
-          class="rounded-lg border border-default bg-elevated px-4 py-4 cursor-pointer hover:bg-accented transition-colors"
+          as="button"
+          interactive
+          padding="sm"
+          class="text-left w-full"
           @click="openDetail(proposal.id)"
         >
           <div class="space-y-2.5">
@@ -148,7 +154,7 @@ onMounted(() => {
               </span>
             </div>
           </div>
-        </div>
+        </UiSurface>
       </div>
     </div>
   </div>

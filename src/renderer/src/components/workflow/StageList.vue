@@ -121,16 +121,16 @@ function handleRemoveStage(stageId: string): void {
       </UDropdownMenu>
     </div>
 
-    <div v-if="orderedStages.length === 0" class="text-sm text-muted py-8">
-      YAML 中尚未定义阶段。
-    </div>
+    <AppEmptyState
+      v-if="orderedStages.length === 0"
+      icon="i-lucide-list-start"
+      title="尚未定义阶段"
+      description="YAML 中还没有配置任何 stage。"
+      compact
+    />
 
     <div v-else ref="listRef" class="space-y-3">
-      <div
-        v-for="(stage, index) in orderedStages"
-        :key="stage.id"
-        class="rounded-md border border-default bg-elevated px-4 py-3"
-      >
+      <UiSurface v-for="(stage, index) in orderedStages" :key="stage.id">
         <div class="flex items-start gap-3">
           <div class="flex shrink-0 flex-col items-center gap-2 pt-0.5">
             <UBadge variant="soft" color="neutral" size="xs">
@@ -153,7 +153,7 @@ function handleRemoveStage(stageId: string): void {
             @remove="handleRemoveStage(stage.id)"
           />
         </div>
-      </div>
+      </UiSurface>
     </div>
   </div>
 </template>

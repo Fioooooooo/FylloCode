@@ -62,7 +62,7 @@ function getStageCount(): number {
 </script>
 
 <template>
-  <div class="shrink-0 border-b border-default">
+  <div class="shrink-0 bg-muted border-b border-default/50">
     <div class="max-w-3xl mx-auto px-6 py-5 space-y-3">
       <div class="flex items-center gap-2">
         <UButton

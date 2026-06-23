@@ -178,4 +178,16 @@ config.global.stubs = {
       '<div :data-content-type="contentType" :data-editable="String(editable)">{{ modelValue }}</div>',
     props: ["modelValue", "contentType", "editable"],
   },
+
+  // Shared components (auto-imported in app; stubbed for tests)
+  UiSurface: {
+    template:
+      '<button v-if="as === \'button\'" type="button" v-bind="$attrs"><slot /></button><div v-else v-bind="$attrs"><slot /></div>',
+    props: ["as", "variant", "interactive", "padding"],
+  },
+  AppEmptyState: {
+    template: `<div class="app-empty-state"><div><UIcon v-if="icon" :name="icon" /></div><h3>{{ title }}</h3><p v-if="description">{{ description }}</p><button v-if="actionLabel" type="button" @click="$emit('action')">{{ actionLabel }}</button></div>`,
+    props: ["icon", "title", "description", "actionLabel", "actionIcon", "compact"],
+    emits: ["action"],
+  },
 };

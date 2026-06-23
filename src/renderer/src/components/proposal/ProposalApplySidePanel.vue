@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import type { MessageMeta } from "@shared/types/chat";
 import type { ApplyRunMeta } from "@shared/types/proposal";
@@ -32,8 +33,10 @@ function getStageCount(): number {
 </script>
 
 <template>
-  <div class="flex flex-col w-96 shrink-0 border-l border-default bg-default overflow-hidden">
-    <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-default">
+  <div class="flex flex-col w-96 shrink-0 border-l border-default/50 bg-muted overflow-hidden">
+    <div
+      class="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-default/50"
+    >
       <div class="flex items-center gap-2 min-w-0">
         <span v-if="runMeta" class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
         <UIcon v-else name="i-lucide-history" class="w-4 h-4 text-muted shrink-0" />
@@ -53,7 +56,7 @@ function getStageCount(): number {
       </div>
     </div>
 
-    <div v-if="runMeta" class="shrink-0 px-4 py-2 border-b border-default bg-elevated/50">
+    <div v-if="runMeta" class="shrink-0 px-4 py-2 border-b border-default/50 bg-elevated/50">
       <div class="flex items-center gap-1.5">
         <template v-for="(stage, index) in runMeta.stages" :key="stage.id">
           <div
@@ -83,18 +86,13 @@ function getStageCount(): number {
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 py-3">
-      <div
+      <AppEmptyState
         v-if="showEmptyState"
-        class="flex h-full min-h-52 items-center justify-center rounded-lg border border-dashed border-default bg-elevated/20 px-6"
-      >
-        <div class="flex max-w-64 flex-col items-center text-center">
-          <div class="mb-3 rounded-full bg-elevated p-3 text-muted">
-            <UIcon name="i-lucide-history" class="w-5 h-5" />
-          </div>
-          <p class="text-sm font-medium text-highlighted">暂无运行记录</p>
-          <p class="mt-1 text-xs leading-5 text-muted">这个 proposal 还没有可查看的历史日志。</p>
-        </div>
-      </div>
+        compact
+        icon="i-lucide-history"
+        title="暂无运行记录"
+        description="这个 proposal 还没有可查看的历史日志。"
+      />
 
       <ChatMessageList
         v-else

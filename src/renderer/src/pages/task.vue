@@ -174,10 +174,22 @@ watch(
 <template>
   <div class="flex flex-1 overflow-hidden bg-default">
     <div class="flex-1 overflow-y-auto">
-      <div class="max-w-240 mx-auto px-6 py-8 space-y-6">
-        <div class="space-y-1">
-          <h1 class="text-2xl font-bold text-highlighted">任务看板</h1>
-          <p class="text-sm text-muted">集中查看任务，并快速发起 AI 讨论。</p>
+      <div class="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div class="space-y-1">
+            <span class="text-[11px] font-medium uppercase tracking-wider text-muted">Tasks</span>
+            <h1 class="text-xl font-semibold tracking-tight text-highlighted">任务看板</h1>
+            <p class="text-sm text-muted">集中查看任务，并快速发起 AI 讨论。</p>
+          </div>
+          <UButton
+            v-if="isLocalSource"
+            color="primary"
+            icon="i-lucide-plus"
+            size="sm"
+            @click="showCreateTaskModal = true"
+          >
+            新建任务
+          </UButton>
         </div>
 
         <div class="space-y-2">
@@ -192,34 +204,21 @@ watch(
         </div>
 
         <template v-if="isLocalSource">
-          <div class="flex items-center gap-6">
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              size="sm"
-              @click="showCreateTaskModal = true"
-            >
-              新建任务
-            </UButton>
-            <URadioGroup
-              v-model="taskStore.statusFilter"
-              :items="statusItems"
-              value-key="value"
-              orientation="horizontal"
-              color="primary"
-            />
-          </div>
+          <URadioGroup
+            v-model="taskStore.statusFilter"
+            :items="statusItems"
+            value-key="value"
+            orientation="horizontal"
+            color="primary"
+          />
         </template>
 
-        <div
-          v-if="taskStore.loading"
-          class="rounded-lg border border-default bg-elevated px-4 py-8"
-        >
-          <div class="flex items-center justify-center gap-2 text-sm text-muted">
+        <UiSurface v-if="taskStore.loading" class="flex items-center justify-center py-8">
+          <div class="flex items-center gap-2 text-sm text-muted">
             <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" />
             正在加载任务
           </div>
-        </div>
+        </UiSurface>
 
         <div
           v-else-if="taskStore.error"
@@ -231,13 +230,15 @@ watch(
           </div>
         </div>
 
-        <div
+        <AppEmptyState
           v-else-if="visibleTasks.length === 0"
-          class="rounded-lg border border-default bg-elevated px-4 py-10 text-center space-y-3"
-        >
-          <UIcon name="i-lucide-list-checks" class="w-10 h-10 text-muted mx-auto" />
-          <p class="text-sm text-muted">暂无任务</p>
-        </div>
+          icon="i-lucide-list-checks"
+          title="暂无任务"
+          :description="isLocalSource ? '创建一个新任务来开始追踪工作。' : '当前来源没有任务。'"
+          :action-label="isLocalSource ? '新建任务' : undefined"
+          action-icon="i-lucide-plus"
+          @action="showCreateTaskModal = true"
+        />
 
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-fr">
           <TaskCard

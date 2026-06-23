@@ -49,7 +49,7 @@ async function openDevTools(): Promise<void> {
 
 <template>
   <header
-    class="h-8.75 flex items-center border-b border-default bg-default shrink-0"
+    class="h-8.75 flex items-center bg-muted/30 border-b border-default/50 shrink-0"
     style="-webkit-app-region: drag"
   >
     <!-- Left: Empty placeholder for macOS traffic lights -->
@@ -69,13 +69,13 @@ async function openDevTools(): Promise<void> {
         }"
       >
         <div
-          class="flex items-center gap-2 px-3 py-0.5 rounded-md border border-default cursor-pointer hover:bg-muted/50 transition-colors"
+          class="flex items-center gap-2 px-3 py-0.5 rounded-full bg-elevated cursor-pointer hover:bg-accented transition-colors"
           style="-webkit-app-region: no-drag"
         >
-          <span class="truncate max-w-50 text-sm font-normal text-muted">
+          <span class="truncate max-w-48 text-sm font-normal text-highlighted">
             {{ projectStore.currentProject?.name ?? "未选择项目" }}
           </span>
-          <UIcon name="i-lucide-chevron-down" class="w-4 h-4 text-muted" />
+          <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" />
         </div>
       </UDropdownMenu>
 
@@ -90,10 +90,10 @@ async function openDevTools(): Promise<void> {
           <UButton
             variant="ghost"
             color="neutral"
-            class="w-5.5 h-5.5 flex items-center justify-center text-muted p-0"
+            class="size-6 flex items-center justify-center text-muted p-0"
             @click="openDevTools"
           >
-            <UIcon name="i-lucide-bug" class="w-4 h-4" />
+            <UIcon name="i-lucide-bug" class="size-4" />
           </UButton>
         </UTooltip>
         <!-- System Bell -->
@@ -101,9 +101,9 @@ async function openDevTools(): Promise<void> {
           <UButton
             variant="ghost"
             color="neutral"
-            class="w-5.5 h-5.5 flex items-center justify-center text-muted p-0"
+            class="size-6 flex items-center justify-center text-muted p-0"
           >
-            <UIcon name="i-lucide-bell" class="w-4 h-4" />
+            <UIcon name="i-lucide-bell" class="size-4" />
           </UButton>
         </UTooltip>
         <!-- Theme Toggle -->
@@ -111,13 +111,10 @@ async function openDevTools(): Promise<void> {
           <UButton
             variant="ghost"
             color="neutral"
-            class="w-5.5 h-5.5 flex items-center justify-center text-muted p-0"
+            class="size-6 flex items-center justify-center text-muted p-0"
             @click="toggleTheme"
           >
-            <UIcon
-              :name="colorMode === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
-              class="w-4 h-4"
-            />
+            <UIcon :name="colorMode === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'" class="size-4" />
           </UButton>
         </UTooltip>
       </div>

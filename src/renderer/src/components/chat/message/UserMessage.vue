@@ -159,7 +159,7 @@ function getFilePartExtension(part: UIMessage["parts"][number]): string {
         class="flex min-w-64 max-w-full items-center gap-3 rounded-lg border border-default bg-elevated/50 p-2"
       >
         <div
-          class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+          class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"
         >
           <UIcon name="i-lucide-file" class="h-5 w-5" />
         </div>

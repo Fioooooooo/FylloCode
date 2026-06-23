@@ -93,12 +93,15 @@ async function handleClearHistory(): Promise<void> {
 </script>
 
 <template>
-  <div>
-    <h2 class="text-lg font-semibold text-highlighted mb-6">偏好设置</h2>
+  <div class="space-y-6">
+    <div class="space-y-1">
+      <h1 class="text-xl font-semibold tracking-tight text-highlighted">偏好设置</h1>
+      <p class="text-sm text-muted">使用FylloCode时的个性化设置。</p>
+    </div>
 
     <section class="mb-8">
       <h3 class="text-xs font-semibold text-muted uppercase tracking-wider mb-3">外观</h3>
-      <UCard>
+      <UiSurface padding="none">
         <div class="divide-y divide-default">
           <div class="flex items-center justify-between py-4 px-4">
             <div>
@@ -134,12 +137,12 @@ async function handleClearHistory(): Promise<void> {
             />
           </div>
         </div>
-      </UCard>
+      </UiSurface>
     </section>
 
     <section class="mb-8">
       <h3 class="text-xs font-semibold text-muted uppercase tracking-wider mb-3">行为</h3>
-      <UCard>
+      <UiSurface padding="none">
         <div class="divide-y divide-default">
           <div class="flex items-center justify-between py-4 px-4">
             <div>
@@ -189,12 +192,12 @@ async function handleClearHistory(): Promise<void> {
             />
           </div>
         </div>
-      </UCard>
+      </UiSurface>
     </section>
 
     <section class="mb-8">
       <h3 class="text-xs font-semibold text-muted uppercase tracking-wider mb-3">数据</h3>
-      <UCard>
+      <UiSurface padding="none">
         <div class="divide-y divide-default">
           <div class="flex items-center justify-between py-4 px-4">
             <div>
@@ -260,7 +263,7 @@ async function handleClearHistory(): Promise<void> {
             </UButton>
           </div>
         </div>
-      </UCard>
+      </UiSurface>
     </section>
   </div>
 </template>

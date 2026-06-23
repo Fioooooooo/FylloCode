@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { timeAgo } from "@renderer/utils/time";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import type { GovernanceEvolution, SpecsGrowthBucket } from "@renderer/stores/overview";
 
 const props = defineProps<{
@@ -54,7 +56,7 @@ function formatCount(value: number): string {
     </div>
 
     <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <div class="rounded-lg border border-default bg-elevated px-4 py-4">
+      <UiSurface>
         <div class="flex items-start justify-between gap-3">
           <div>
             <h3 class="text-sm font-medium text-highlighted">规约增长</h3>
@@ -64,12 +66,12 @@ function formatCount(value: number): string {
         </div>
 
         <div
-          v-if="governance.specsGrowth.length > 0"
+          v-if="props.governance.specsGrowth.length > 0"
           class="mt-5 flex h-32 items-end gap-1.5"
           aria-label="规约增长柱状图"
         >
           <div
-            v-for="bucket in governance.specsGrowth"
+            v-for="bucket in props.governance.specsGrowth"
             :key="bucket.weekStart"
             class="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
             :title="`${formatWeekStart(bucket.weekStart)}: ${formatCount(bucket.cumulativeCount)}`"
@@ -88,21 +90,24 @@ function formatCount(value: number): string {
           </div>
         </div>
 
-        <div v-else class="mt-5 rounded-md bg-muted/30 px-3 py-8 text-center">
-          <UIcon name="i-lucide-chart-column" class="mx-auto size-8 text-muted" />
-          <p class="mt-3 text-sm text-muted">暂无规约趋势</p>
-        </div>
+        <AppEmptyState
+          v-else
+          compact
+          icon="i-lucide-chart-column"
+          title="暂无规约趋势"
+          description="近 8 周没有可展示的规约增长数据。"
+        />
 
         <div class="mt-4 flex items-center justify-between text-xs text-muted">
           <span>{{ startLabel }}</span>
-          <span v-if="governance.specsGrowth.length > 0">
-            累计 {{ governance.specsGrowth.at(-1)?.cumulativeCount ?? 0 }}
+          <span v-if="props.governance.specsGrowth.length > 0">
+            累计 {{ props.governance.specsGrowth.at(-1)?.cumulativeCount ?? 0 }}
           </span>
           <span>{{ endLabel }}</span>
         </div>
-      </div>
+      </UiSurface>
 
-      <div class="rounded-lg border border-default bg-elevated px-4 py-4">
+      <UiSurface>
         <div class="flex items-start justify-between gap-3">
           <div>
             <h3 class="text-sm font-medium text-highlighted">准则演化</h3>
@@ -111,16 +116,17 @@ function formatCount(value: number): string {
           <UIcon name="i-lucide-book-marked" class="size-4 text-muted" />
         </div>
 
-        <div
-          v-if="governance.recentGuidelines.length === 0"
-          class="mt-5 rounded-md bg-muted/30 px-3 py-8 text-center text-sm text-muted"
-        >
-          暂无 guideline 更新
-        </div>
+        <AppEmptyState
+          v-if="props.governance.recentGuidelines.length === 0"
+          compact
+          icon="i-lucide-book-marked"
+          title="暂无 guideline 更新"
+          description="近 8 周没有 guideline 更新记录。"
+        />
 
         <div v-else class="mt-4 divide-y divide-default">
           <div
-            v-for="item in governance.recentGuidelines"
+            v-for="item in props.governance.recentGuidelines"
             :key="item.fileName"
             class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2.5"
           >
@@ -140,7 +146,7 @@ function formatCount(value: number): string {
             </span>
           </div>
         </div>
-      </div>
+      </UiSurface>
     </div>
   </section>
 </template>
