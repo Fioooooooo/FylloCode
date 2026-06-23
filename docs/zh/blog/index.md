@@ -1,7 +1,8 @@
 ---
+title: FylloCode 博客
+description: 记录 FylloCode 的产品设计、工程取舍、Coding Agent 工作流和团队治理思考。
 sidebar:
   order: 1
-  text: 全部文章
 ---
 
 # 博客

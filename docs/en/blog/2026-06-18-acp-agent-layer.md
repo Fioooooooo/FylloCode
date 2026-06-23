@@ -1,7 +1,8 @@
 ---
+title: Using ACP as the Agent Connection Layer
+description: A technical note on why FylloCode uses ACP to connect local Coding Agents instead of maintaining one-off CLI adapters.
 sidebar:
   order: 3
-  text: Using ACP as the Agent Connection Layer
 ---
 
 # Using ACP as the Agent Connection Layer

@@ -1,7 +1,8 @@
 ---
+title: 以 ACP 实现 Agent 连接层
+description: 记录 FylloCode 为什么选择 ACP 作为本地 Coding Agent 的连接层，而不是逐个适配不同 Agent CLI。
 sidebar:
   order: 3
-  text: 以ACP实现Agent连接层
 ---
 
 # 以ACP实现Agent连接层

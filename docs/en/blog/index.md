@@ -1,7 +1,8 @@
 ---
+title: FylloCode Blog
+description: Product notes and engineering essays about FylloCode, Coding Agents, Agent workflows, and team governance.
 sidebar:
   order: 1
-  text: All Posts
 ---
 
 # Blog

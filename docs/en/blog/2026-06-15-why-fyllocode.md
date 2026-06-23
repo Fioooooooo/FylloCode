@@ -1,7 +1,8 @@
 ---
+title: Why I Built FylloCode
+description: Why FylloCode exists, how Coding Agent workflows become hard to manage in terminals, and how project knowledge should flow back into engineering work.
 sidebar:
   order: 2
-  text: Why I Built FylloCode
 ---
 
 # Why I Built FylloCode

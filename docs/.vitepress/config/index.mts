@@ -38,10 +38,10 @@ export default defineConfig({
     search: {
       provider: "local",
     },
+  },
 
-    sitemap: {
-      hostname: "https://fyllocode.cc",
-    },
+  sitemap: {
+    hostname: "https://fyllocode.cc",
   },
 
   markdown: {

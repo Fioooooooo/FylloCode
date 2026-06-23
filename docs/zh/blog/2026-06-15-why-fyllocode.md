@@ -1,7 +1,8 @@
 ---
+title: 为什么要做 FylloCode
+description: 说明 FylloCode 的起点：为什么终端里的多 Agent 工作流需要工程约束、上下文沉淀和自动流转。
 sidebar:
   order: 2
-  text: 为什么要做FylloCode
 ---
 
 # 为什么要做 FylloCode

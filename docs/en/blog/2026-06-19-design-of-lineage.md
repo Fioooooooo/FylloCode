@@ -1,7 +1,8 @@
 ---
+title: "Lineage: Giving Agents Engineering Context"
+description: How FylloCode records the path from task to chat, proposal, archive, and commit so Agents can recover the context behind engineering decisions.
 sidebar:
   order: 4
-  text: "Lineage: Giving Agents Engineering Context"
 ---
 
 # Lineage: Giving Agents Engineering Context

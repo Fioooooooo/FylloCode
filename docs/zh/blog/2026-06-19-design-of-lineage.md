@@ -1,7 +1,8 @@
 ---
+title: Lineage：给 Agent 补上工程脉络
+description: 介绍 FylloCode 如何用 Lineage 串联任务、会话、Proposal、归档和提交，让 Agent 能追溯工程决策背景。
 sidebar:
   order: 4
-  text: Lineage：给Agent补上工程脉络
 ---
 
 # Lineage：给 Agent 补上工程脉络
