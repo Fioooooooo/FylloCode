@@ -100,6 +100,11 @@ keywords: [renderer, vue, pinia, routing, ui]
 - `useSessionStore.sessionProposals` 维护 `Record<sessionId, ProposalMeta[]>`，展示在 `ChatSessionEventRail` 的 `ChatProposalPanel` 中。它通过 `proposalApi.onStatusChanged` 接收主进程推送的 `proposal:statusChanged` 事件增量更新，并在切换 `activeSession` 时从 `useProposalStore.proposals` 与 lineage 数据回填历史 proposals。
 - `ChatProposalPanel` 只渲染状态 badge 与操作入口（draft 时“开始实现”、applying 且 run 完成时“归档”、其他状态“查看详情”），不展示 apply/archive 的流式执行日志；实现与归档复用 `useProposalRunStore.startRun` / `startArchive`。
 
+## Chat Session Event Rail
+
+- `ChatSessionEventRail` 可以展示执行计划、proposal 入口和当前 Chat 主会话内未处理的 Fyllo action 提醒。pending Fyllo action 必须从 `activeSession.messages` 与 `activeSession.actionStates` 响应式派生；缺失 action state 表示待处理，`succeeded` / `failed` / `cancelled` 任一状态存在后不再作为 pending rail item 展示。
+- Fyllo action rail item 只负责提醒与定位：组件只能 emit `locate-action`，由 `ChatContainer` 在消息滚动容器内查找 `data-fyllo-action-id` anchor 并滚动到原 action card。事件栏不得 import action dispatcher、task store、lineage API、`src/renderer/src/api/*` 或 `window.api`，也不得确认、取消、重试或持久化 action state。
+
 ## Chat Session Streams
 
 - `useChatStore` 必须按已建立的 `sessionId` 维护 chat stream run、status、cancel 和瞬时 error；组件消费的 `chatStatus`、`streamError`、`cancelFn` 只能从当前 `useSessionStore.activeSessionId` 对应 session 派生，草稿态或无运行态时回落为 `ready` / `null`。

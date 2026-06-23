@@ -16,6 +16,23 @@ export interface FylloActionMarkdownNode {
   content?: string;
 }
 
+export interface ChatFylloActionIdInput {
+  sessionId: string;
+  messageIndex: number;
+  partIndex: number;
+  actionOrdinalInPart: number;
+}
+
+export function buildChatFylloActionId(input: ChatFylloActionIdInput): string {
+  return [
+    "chat",
+    input.sessionId,
+    String(input.messageIndex),
+    String(input.partIndex),
+    String(input.actionOrdinalInPart),
+  ].join(":");
+}
+
 function invalid(
   code: FylloActionParseErrorCode,
   message: string,

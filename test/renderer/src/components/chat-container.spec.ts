@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatContainer from "@renderer/components/chat/ChatContainer.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
@@ -10,6 +10,8 @@ const activeSessionIdRef = ref<string | null>(null);
 const isLoadingMessagesRef = ref(false);
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
 const streamErrorRef = ref<{ code: string; message: string } | null>(null);
+const persistSessionActionStateMock = vi.hoisted(() => vi.fn());
+const scrollIntoViewMock = vi.fn();
 
 vi.mock("@renderer/stores/chat", () => ({
   useChatStore: () => ({
@@ -24,6 +26,7 @@ vi.mock("@renderer/stores/session", () => ({
     activeSessionId: computed(() => activeSessionIdRef.value),
     isLoadingMessages: computed(() => isLoadingMessagesRef.value),
     getSessionProposals: () => [],
+    persistSessionActionState: persistSessionActionStateMock,
   }),
 }));
 
@@ -52,7 +55,7 @@ function mountContainer(): VueWrapper {
         ChatMessageList: {
           props: ["messages", "status", "type"],
           template:
-            '<div data-test="message-list">{{ messages.length }}|{{ status }}|{{ type }}</div>',
+            '<div data-test="message-list">{{ messages.length }}|{{ status }}|{{ type }}<div v-if="messages.length" data-test="action-anchor" data-fyllo-action-id="chat:session-1:0:0:0"></div></div>',
         },
         ChatStreamError: {
           template: '<div data-test="stream-error">{{ errorMessage }}</div>',
@@ -65,7 +68,19 @@ function mountContainer(): VueWrapper {
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
         ChatSessionEventRail: {
-          template: '<div data-test="event-rail"></div>',
+          emits: ["locate-action"],
+          template: `
+            <div data-test="event-rail">
+              <button
+                data-test="locate-action"
+                @click="$emit('locate-action', 'chat:session-1:0:0:0')"
+              ></button>
+              <button
+                data-test="locate-missing-action"
+                @click="$emit('locate-action', 'missing:id')"
+              ></button>
+            </div>
+          `,
         },
         ChatPlanPanel: {
           props: ["entries"],
@@ -92,6 +107,24 @@ function makeSession(commands: AcpAvailableCommand[] = []): Session {
   };
 }
 
+function makeSessionWithPendingAction(): Session {
+  const session = makeSession();
+  session.messages = [
+    {
+      id: "message-1",
+      role: "assistant",
+      metadata: { sessionId: session.id, createdAt: new Date("2026-05-12T00:00:00.000Z") },
+      parts: [
+        {
+          type: "text",
+          text: '<fyllo-action type="task.create">{"title":"补齐错误处理"}</fyllo-action>',
+        },
+      ],
+    } as Session["messages"][number],
+  ];
+  return session;
+}
+
 describe("ChatContainer", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -100,6 +133,12 @@ describe("ChatContainer", () => {
     isLoadingMessagesRef.value = false;
     chatStatusRef.value = "ready";
     streamErrorRef.value = null;
+    persistSessionActionStateMock.mockReset();
+    scrollIntoViewMock.mockReset();
+    vi.stubGlobal("CSS", {
+      escape: (value: string) => value,
+    });
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
   });
 
   it("renders the empty agent picker until the active session has messages", async () => {
@@ -185,6 +224,44 @@ describe("ChatContainer", () => {
     const wrapper = mountContainer();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
+  });
+
+  it("renders the event rail for non-draft sessions with only pending Fyllo actions", async () => {
+    const session = makeSessionWithPendingAction();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+
+    expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
+  });
+
+  it("scrolls to a Fyllo action anchor when a rail item is located", async () => {
+    const session = makeSessionWithPendingAction();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    await wrapper.get('[data-test="locate-action"]').trigger("click");
+    await flushPromises();
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({
+      block: "center",
+      behavior: "smooth",
+    });
+  });
+
+  it("silently ignores missing Fyllo action anchors without persisting action state", async () => {
+    const session = makeSessionWithPendingAction();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    await wrapper.get('[data-test="locate-missing-action"]').trigger("click");
+    await flushPromises();
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    expect(persistSessionActionStateMock).not.toHaveBeenCalled();
   });
 
   it("does not render the event rail when the active session has no plan entries", async () => {

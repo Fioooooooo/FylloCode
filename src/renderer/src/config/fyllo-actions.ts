@@ -8,6 +8,7 @@ type FylloActionDefinitionBase<Type extends FylloActionType> = {
   title: string;
   icon: string;
   component: Component<{ payload: FylloActionPayloadByType[Type] }>;
+  getSummary?: (payload: FylloActionPayloadByType[Type]) => string | undefined;
 };
 
 export type FylloActionDefinition = {
@@ -28,6 +29,7 @@ export const fylloActionDefinitions = [
     title: "创建任务",
     icon: "i-lucide-list-plus",
     component: TaskCreateAction,
+    getSummary: (payload) => payload.title,
   },
 ] as const satisfies readonly FylloActionDefinition[];
 

@@ -215,6 +215,7 @@ async function handleCancel(): Promise<void> {
     :data-custom-id="props.customId"
     :data-index-key="props.indexKey"
     :data-theme="props.isDark ? 'dark' : 'light'"
+    :data-fyllo-action-id="props.actionId ?? undefined"
   >
     <div class="flex items-start gap-3">
       <div

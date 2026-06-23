@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useChatStore } from "@renderer/stores/chat";
 import { useSessionStore } from "@renderer/stores/session";
+import { collectPendingFylloActionRailItems } from "@renderer/utils/fyllo-action-rail";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import ChatMessageSkeleton from "@renderer/components/chat/message/ChatMessageSkeleton.vue";
 import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";
@@ -16,14 +17,32 @@ const { chatStatus, streamError } = storeToRefs(store);
 const sessionStore = useSessionStore();
 const { activeSession, activeSessionId, isLoadingMessages } = storeToRefs(sessionStore);
 
+const messageScrollContainerRef = ref<HTMLElement | null>(null);
 const isDraft = computed(() => activeSessionId.value === null);
+const pendingActionRailItems = computed(() =>
+  collectPendingFylloActionRailItems(activeSession.value)
+);
 const showEventRail = computed(() => {
   const plan = activeSession?.value?.plan ?? [];
   const proposals = activeSession.value
     ? sessionStore.getSessionProposals(activeSession.value.id)
     : [];
-  return plan.length > 0 || proposals.length > 0;
+  return plan.length > 0 || proposals.length > 0 || pendingActionRailItems.value.length > 0;
 });
+
+async function handleLocateFylloAction(actionId: string): Promise<void> {
+  await nextTick();
+
+  const container = messageScrollContainerRef.value;
+  if (!container) {
+    return;
+  }
+
+  const target = container.querySelector<HTMLElement>(
+    `[data-fyllo-action-id="${CSS.escape(actionId)}"]`
+  );
+  target?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
 </script>
 
 <template>
@@ -33,7 +52,7 @@ const showEventRail = computed(() => {
         <OriginTaskBanner />
       </div>
 
-      <div class="flex-1 overflow-y-auto py-4 px-2 relative">
+      <div ref="messageScrollContainerRef" class="flex-1 overflow-y-auto py-4 px-2 relative">
         <div class="max-w-3xl mx-auto h-full">
           <template v-if="isLoadingMessages">
             <ChatMessageSkeleton />
@@ -63,7 +82,10 @@ const showEventRail = computed(() => {
 
     <div class="shrink-0 flex">
       <div class="flex-1 flex flex-col rounded-lg bg-default overflow-auto">
-        <ChatSessionEventRail v-if="!isDraft && showEventRail" />
+        <ChatSessionEventRail
+          v-if="!isDraft && showEventRail"
+          @locate-action="handleLocateFylloAction"
+        />
       </div>
     </div>
   </div>

@@ -4,7 +4,11 @@ import { getFylloActionDefinition } from "@renderer/config/fyllo-actions";
 import { useFylloActionDispatcher } from "@renderer/composables/useFylloActionDispatcher";
 import FylloActionShell from "./FylloActionShell.vue";
 import { fylloActionHostContextKey } from "./fyllo-action-context";
-import { parseFylloActionNode, type FylloActionMarkdownNode } from "@renderer/utils/fyllo-action";
+import {
+  buildChatFylloActionId,
+  parseFylloActionNode,
+  type FylloActionMarkdownNode,
+} from "@renderer/utils/fyllo-action";
 import type { FylloActionHandlerResult, FylloActionState } from "@shared/types/fyllo-action";
 
 const props = defineProps<{
@@ -37,13 +41,12 @@ const actionId = computed(() => {
     return null;
   }
 
-  return [
-    "chat",
-    hostContext.sessionId,
-    String(hostContext.messageIndex),
-    String(hostContext.partIndex),
-    String(actionOrdinal),
-  ].join(":");
+  return buildChatFylloActionId({
+    sessionId: hostContext.sessionId,
+    messageIndex: hostContext.messageIndex,
+    partIndex: hostContext.partIndex,
+    actionOrdinalInPart: actionOrdinal,
+  });
 });
 
 const persistedState = computed(() =>

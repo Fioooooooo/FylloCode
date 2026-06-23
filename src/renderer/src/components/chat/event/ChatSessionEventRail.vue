@@ -2,8 +2,14 @@
 import { ref, computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useSessionStore } from "@renderer/stores";
+import { collectPendingFylloActionRailItems } from "@renderer/utils/fyllo-action-rail";
+import ChatFylloActionPanel from "@renderer/components/chat/event/ChatFylloActionPanel.vue";
 import ChatPlanPanel from "@renderer/components/chat/event/ChatPlanPanel.vue";
 import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel.vue";
+
+const emit = defineEmits<{
+  "locate-action": [actionId: string];
+}>();
 
 const sessionStore = useSessionStore();
 const { activeSession } = storeToRefs(sessionStore);
@@ -11,6 +17,7 @@ const planEntries = computed(() => activeSession?.value?.plan ?? []);
 const sessionProposals = computed(() =>
   activeSession.value ? sessionStore.getSessionProposals(activeSession.value.id) : []
 );
+const pendingActionItems = computed(() => collectPendingFylloActionRailItems(activeSession.value));
 
 const collapsed = ref(false);
 </script>
@@ -34,6 +41,11 @@ const collapsed = ref(false);
       <div class="flex-1 overflow-y-auto px-4 py-2 space-y-4">
         <ChatPlanPanel v-if="planEntries.length > 0" :entries="planEntries" />
         <ChatProposalPanel v-if="sessionProposals.length > 0" :proposals="sessionProposals" />
+        <ChatFylloActionPanel
+          v-if="pendingActionItems.length > 0"
+          :items="pendingActionItems"
+          @locate-action="emit('locate-action', $event)"
+        />
       </div>
     </div>
 

@@ -69,6 +69,16 @@ describe("FylloActionShell", () => {
     expect(buttonByText(wrapper, "取消").exists()).toBe(true);
   });
 
+  it("exposes a data anchor only when an action id is provided", () => {
+    const wrapperWithoutId = mountShell(readyResult());
+    const wrapperWithId = mountShell(readyResult(), vi.fn(), {
+      actionId: "chat:session-1:3:0:0",
+    });
+
+    expect(wrapperWithoutId.attributes("data-fyllo-action-id")).toBeUndefined();
+    expect(wrapperWithId.attributes("data-fyllo-action-id")).toBe("chat:session-1:3:0:0");
+  });
+
   it("disables confirm for invalid actions", () => {
     const wrapper = mountShell({
       status: "invalid",
