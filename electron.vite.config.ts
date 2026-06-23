@@ -94,6 +94,7 @@ export default defineConfig(({ command }) => ({
       }),
       vue(),
       ui({
+        root: __dirname,
         autoImport: {
           eslintrc: {
             enabled: true,
