@@ -68,6 +68,7 @@ export interface SessionStore {
   isLoading: Ref<boolean>;
   isLoadingMessages: Ref<boolean>;
   loadSessions: (projectId: string) => Promise<void>;
+  ensureSessionOriginTaskInfo: (session: Session) => Promise<void>;
   getSessionProposals: (sessionId: string) => ProposalMeta[];
   upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
   removeSessionProposal: (sessionId: string, changeId: string) => void;
@@ -229,7 +230,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     if (session) {
-      void ensureOriginTaskInfo(session);
+      void ensureSessionOriginTaskInfo(session);
     }
   }
 
@@ -420,7 +421,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     taskInfoBySessionId.value = new Map(taskInfoBySessionId.value).set(sessionId, info);
   }
 
-  async function ensureOriginTaskInfo(session: Session): Promise<void> {
+  async function ensureSessionOriginTaskInfo(session: Session): Promise<void> {
     const ref = session.originTaskRef;
     if (!ref || taskInfoBySessionId.value.has(session.id)) {
       return;
@@ -703,7 +704,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     loadedSessionIds.add(session.id);
     // createSession 不经过 selectSession，需主动填充任务信息，否则首次发起讨论时
     // OriginTaskBanner 拿不到 taskInfoBySessionId，要等重新加载 sessionList 才显示。
-    void ensureOriginTaskInfo(session);
+    void ensureSessionOriginTaskInfo(session);
     return findSession(session.id) ?? session;
   }
 
@@ -714,7 +715,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     activeSessionId.value = sessionId;
-    await ensureOriginTaskInfo(session);
+    await ensureSessionOriginTaskInfo(session);
 
     if (session.messages.length > 0 || loadedSessionIds.has(sessionId)) {
       return;
@@ -859,6 +860,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     isLoading,
     isLoadingMessages,
     loadSessions,
+    ensureSessionOriginTaskInfo,
     getSessionProposals,
     upsertSessionProposal,
     removeSessionProposal,

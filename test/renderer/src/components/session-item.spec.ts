@@ -12,6 +12,9 @@ const streamErrorRef = ref<{ code: string; message: string } | null>({
   message: "bad network",
 });
 const iconsRef = ref<Record<string, string>>({});
+const taskInfoBySessionIdRef = ref(
+  new Map<string, { source: "local" | "yunxiao" | "github"; title: string; ref: string }>()
+);
 
 const selectSession = vi.fn(async (sessionId: string) => {
   activeSessionIdRef.value = sessionId;
@@ -23,6 +26,7 @@ const resetChatState = vi.fn(() => {
   streamErrorRef.value = null;
 });
 const cancelStream = vi.fn();
+const ensureSessionOriginTaskInfo = vi.fn(async () => undefined);
 
 vi.stubGlobal(
   "prompt",
@@ -35,10 +39,16 @@ vi.stubGlobal(
 
 vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
-    activeSessionId: computed(() => activeSessionIdRef.value),
+    get activeSessionId() {
+      return activeSessionIdRef.value;
+    },
+    get taskInfoBySessionId() {
+      return taskInfoBySessionIdRef.value;
+    },
     selectSession,
     renameSession,
     deleteSession,
+    ensureSessionOriginTaskInfo,
   }),
 }));
 
@@ -74,6 +84,17 @@ function makeSession(id: string): Session {
   };
 }
 
+function mountSessionItem(session: Session) {
+  return mount(SessionItem, {
+    props: {
+      session,
+    },
+    global: {
+      plugins: [createPinia()],
+    },
+  });
+}
+
 describe("SessionItem", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -81,11 +102,13 @@ describe("SessionItem", () => {
     chatStatusRef.value = "error";
     streamErrorRef.value = { code: "stream_failed", message: "bad network" };
     iconsRef.value = {};
+    taskInfoBySessionIdRef.value = new Map();
     selectSession.mockClear();
     renameSession.mockClear();
     deleteSession.mockClear();
     resetChatState.mockClear();
     cancelStream.mockClear();
+    ensureSessionOriginTaskInfo.mockClear();
   });
 
   it("clears transient view state without stopping streams after switching sessions", async () => {
@@ -136,6 +159,81 @@ describe("SessionItem", () => {
     expect(wrapper.find('[data-test="session-media"]').exists()).toBe(true);
     expect(icon.attributes("src")).toBe("data:image/png;base64,agent-icon");
     expect(icon.attributes("alt")).toBe("claude-code icon");
+  });
+
+  it("renders an origin task indicator when the session has an origin task ref", () => {
+    const wrapper = mountSessionItem({
+      ...makeSession("session-origin"),
+      originTaskRef: "yunxiao:STORY-42",
+    });
+
+    const indicator = wrapper.get('[data-test="session-origin-task-indicator"]');
+
+    expect(indicator.attributes("aria-label")).toBe("查看关联任务");
+    expect(indicator.get("i").attributes("data-icon-name")).toBe("i-lucide-clipboard-check");
+  });
+
+  it("does not render an origin task indicator when the session has no origin task ref", () => {
+    const wrapper = mountSessionItem(makeSession("session-no-origin"));
+
+    expect(wrapper.find('[data-test="session-origin-task-indicator"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="session-meta"]').text()).toContain("1 turns");
+  });
+
+  it("loads origin task info when hovering the indicator", async () => {
+    const session = {
+      ...makeSession("session-origin"),
+      originTaskRef: "yunxiao:STORY-42" as const,
+    };
+    const wrapper = mountSessionItem(session);
+
+    await wrapper.get('[data-test="session-origin-task-indicator"]').trigger("mouseenter");
+
+    expect(ensureSessionOriginTaskInfo).toHaveBeenCalledWith(session);
+  });
+
+  it.each([
+    ["local:task-1", "本地", "本地任务标题"],
+    ["yunxiao:STORY-42", "云效", "云效任务标题"],
+    ["github:repo-1:42", "GitHub", "GitHub task title"],
+  ] as const)(
+    "renders the origin task source and title for %s",
+    async (originTaskRef, expectedSourceLabel, title) => {
+      taskInfoBySessionIdRef.value = new Map([
+        [
+          `session-${expectedSourceLabel}`,
+          {
+            source: originTaskRef.split(":")[0] as "local" | "yunxiao" | "github",
+            title,
+            ref: originTaskRef,
+          },
+        ],
+      ]);
+      const wrapper = mountSessionItem({
+        ...makeSession(`session-${expectedSourceLabel}`),
+        originTaskRef,
+      });
+
+      await wrapper.get('[data-test="session-origin-task-indicator"]').trigger("mouseenter");
+
+      expect(wrapper.get('[data-test="session-origin-task-source"]').text()).toContain(
+        expectedSourceLabel
+      );
+      expect(wrapper.get('[data-test="session-origin-task-title"]').text()).toBe(title);
+      expect(wrapper.text()).not.toContain("已关联任务");
+    }
+  );
+
+  it("renders the loading text before origin task info is available", async () => {
+    ensureSessionOriginTaskInfo.mockReturnValueOnce(new Promise<undefined>(() => undefined));
+    const wrapper = mountSessionItem({
+      ...makeSession("session-origin"),
+      originTaskRef: "local:task-1",
+    });
+
+    await wrapper.get('[data-test="session-origin-task-indicator"]').trigger("mouseenter");
+
+    expect(wrapper.get('[data-test="session-origin-task-title"]').text()).toBe("正在加载任务…");
   });
 
   it("keeps a stable leading slot when the session agent icon is missing", () => {

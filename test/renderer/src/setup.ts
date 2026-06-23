@@ -33,6 +33,12 @@ const dropdownMenuStub = {
 const tooltipStub = {
   template: "<div><slot /></div>",
 };
+const popoverStub = {
+  template:
+    '<div><slot /><div v-if="open" data-test="popover-content"><slot name="content" /></div></div>',
+  props: ["open", "content", "ui", "portal"],
+  emits: ["update:open"],
+};
 
 vi.mock("@nuxt/ui/composables", () => ({
   useToast: vi.fn(() => mockToast),
@@ -67,6 +73,8 @@ config.global.stubs = {
   DropdownMenu: dropdownMenuStub,
   UTooltip: tooltipStub,
   Tooltip: tooltipStub,
+  UPopover: popoverStub,
+  Popover: popoverStub,
   UInput: {
     template:
       '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed, ref, toRef } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
 import { useChatStore } from "@renderer/stores";
@@ -14,9 +14,27 @@ const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 const acpAgentsStore = useAcpAgentsStore();
 
+const TASK_SOURCE_LABELS: Record<string, string> = {
+  local: "本地",
+  yunxiao: "云效",
+  github: "GitHub",
+};
+
 const session = toRef(props, "session");
 const active = computed(() => sessionStore.activeSessionId === session.value.id);
 const agentIcon = computed(() => acpAgentsStore.icons[session.value.agentId] ?? null);
+const originTaskSourceLabel = computed(() => {
+  const source = session.value.originTaskRef?.split(":")[0];
+  return source ? (TASK_SOURCE_LABELS[source] ?? null) : null;
+});
+const originTaskPopoverOpen = ref(false);
+const originTaskLoading = ref(false);
+const originTaskInfo = computed(
+  () => sessionStore.taskInfoBySessionId.get(session.value.id) ?? null
+);
+const originTaskTitle = computed(
+  () => originTaskInfo.value?.title ?? session.value.originTaskRef ?? ""
+);
 
 const menuItems = computed(() => [
   {
@@ -75,6 +93,28 @@ async function handleDelete(): Promise<void> {
     await sessionStore.deleteSession(session.value.id);
   }
 }
+
+async function handleOriginTaskEnter(): Promise<void> {
+  if (!session.value.originTaskRef) {
+    return;
+  }
+
+  originTaskPopoverOpen.value = true;
+  if (originTaskInfo.value) {
+    return;
+  }
+
+  originTaskLoading.value = true;
+  try {
+    await sessionStore.ensureSessionOriginTaskInfo(session.value);
+  } finally {
+    originTaskLoading.value = false;
+  }
+}
+
+function handleOriginTaskLeave(): void {
+  originTaskPopoverOpen.value = false;
+}
 </script>
 
 <template>
@@ -121,6 +161,54 @@ async function handleDelete(): Promise<void> {
         <span>{{ formatTime(session.updatedAt) }}</span>
         <span>·</span>
         <span>{{ session.turnCount }} turns</span>
+        <template v-if="session.originTaskRef">
+          <span>·</span>
+          <UPopover
+            :open="originTaskPopoverOpen"
+            :content="{ align: 'center', side: 'top', sideOffset: 6 }"
+            :ui="{ content: 'w-56 p-3' }"
+            @update:open="originTaskPopoverOpen = $event"
+          >
+            <template #default>
+              <span
+                class="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+                aria-label="查看关联任务"
+                data-test="session-origin-task-indicator"
+                @mouseenter="
+                  void handleOriginTaskEnter().catch((error: unknown) => {
+                    console.error('Failed to load origin task info:', error);
+                  })
+                "
+                @mouseleave="handleOriginTaskLeave"
+              >
+                <UIcon name="i-lucide-clipboard-check" class="h-3.5 w-3.5" />
+              </span>
+            </template>
+
+            <template #content>
+              <div
+                class="flex min-w-0 flex-col gap-1"
+                data-test="session-origin-task-popover"
+                @mouseenter="originTaskPopoverOpen = true"
+                @mouseleave="handleOriginTaskLeave"
+              >
+                <div
+                  class="flex items-center gap-1.5 text-xs text-muted"
+                  data-test="session-origin-task-source"
+                >
+                  <UIcon name="i-lucide-clipboard-check" class="h-3.5 w-3.5 shrink-0" />
+                  <span>{{ originTaskSourceLabel }}</span>
+                </div>
+                <div
+                  class="min-w-0 truncate text-sm font-medium text-highlighted"
+                  data-test="session-origin-task-title"
+                >
+                  {{ originTaskLoading && !originTaskInfo ? "正在加载任务…" : originTaskTitle }}
+                </div>
+              </div>
+            </template>
+          </UPopover>
+        </template>
       </div>
     </div>
 

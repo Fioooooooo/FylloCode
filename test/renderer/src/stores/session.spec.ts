@@ -268,6 +268,66 @@ describe("useSessionStore", () => {
     });
   });
 
+  it("does not query task info when ensuring a session without an origin task", async () => {
+    const store = useSessionStore();
+
+    await store.ensureSessionOriginTaskInfo(session());
+
+    expect(mocks.getByTask).not.toHaveBeenCalled();
+  });
+
+  it("does not query task info when origin task info is already cached", async () => {
+    const store = useSessionStore();
+    store.taskInfoBySessionId.set("session-1", {
+      source: "local",
+      title: "Cached task",
+      ref: "local:task-1",
+    });
+
+    await store.ensureSessionOriginTaskInfo(session({ originTaskRef: "local:task-1" }));
+
+    expect(mocks.getByTask).not.toHaveBeenCalled();
+  });
+
+  it("loads origin task info through the public lazy loader", async () => {
+    const store = useSessionStore();
+    mocks.getByTask.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "task",
+        task: {
+          ref: "local:task-1",
+          snapshot: { title: "Lazy loaded task" },
+          capturedAt: "2026-06-12T00:00:00.000Z",
+        },
+        links: [],
+      },
+    });
+
+    await store.ensureSessionOriginTaskInfo(session({ originTaskRef: "local:task-1" }));
+
+    expect(mocks.getByTask).toHaveBeenCalledWith("project-1", "local:task-1");
+    expect(store.taskInfoBySessionId.get("session-1")).toEqual({
+      source: "local",
+      title: "Lazy loaded task",
+      ref: "local:task-1",
+    });
+  });
+
+  it("falls back to the origin task ref when the public lazy loader fails", async () => {
+    const store = useSessionStore();
+    mocks.getByTask.mockRejectedValue(new Error("lineage unavailable"));
+
+    await store.ensureSessionOriginTaskInfo(session({ originTaskRef: "yunxiao:STORY-404" }));
+
+    expect(store.taskInfoBySessionId.get("session-1")).toEqual({
+      source: "yunxiao",
+      title: "yunxiao:STORY-404",
+      ref: "yunxiao:STORY-404",
+    });
+  });
+
   it("populates origin task info immediately after creating a linked session", async () => {
     const store = useSessionStore();
     mocks.createSession.mockResolvedValue({
