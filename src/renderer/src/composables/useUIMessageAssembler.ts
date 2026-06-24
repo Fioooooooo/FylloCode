@@ -19,15 +19,30 @@ export function useUIMessageAssembler(
   let activeTextPartIdx = -1;
   let activeReasoningPartIdx = -1;
 
+  function finishActiveReasoningPart(): void {
+    if (!activeAssistantId || activeReasoningPartIdx < 0) {
+      return;
+    }
+
+    const message = messages.value.find((item) => item.id === activeAssistantId);
+    const part = message?.parts[activeReasoningPartIdx];
+    if (part?.type === "reasoning" && part.state !== "done") {
+      part.state = "done";
+    }
+
+    activeReasoningPartIdx = -1;
+  }
+
   function resetActive(): void {
+    finishActiveReasoningPart();
     activeAssistantId = null;
     activeTextPartIdx = -1;
     activeReasoningPartIdx = -1;
   }
 
   function setMessages(nextMessages: UIMessage<MessageMeta>[]): void {
-    messages.value = nextMessages;
     resetActive();
+    messages.value = nextMessages;
   }
 
   function getSessionId(): string {
@@ -77,6 +92,7 @@ export function useUIMessageAssembler(
   }
 
   function applyToolUpdate(chunk: Extract<MessageChunkData, { kind: "tool_call_update" }>): void {
+    finishActiveReasoningPart();
     const message = ensureAssistantMessage();
 
     let idx = message.parts.findIndex(
@@ -134,6 +150,7 @@ export function useUIMessageAssembler(
   function applyChunk(chunk: MessageChunkData): void {
     switch (chunk.kind) {
       case "text_delta": {
+        finishActiveReasoningPart();
         const message = ensureAssistantMessage();
         const part = activeTextPartIdx >= 0 ? message.parts[activeTextPartIdx] : null;
 
@@ -143,7 +160,6 @@ export function useUIMessageAssembler(
           message.parts.push({ type: "text", text: chunk.text });
           activeTextPartIdx = message.parts.length - 1;
         }
-        activeReasoningPartIdx = -1;
         return;
       }
       case "reasoning_delta": {
@@ -153,13 +169,14 @@ export function useUIMessageAssembler(
         if (part && part.type === "reasoning") {
           part.text += chunk.text;
         } else {
-          message.parts.push({ type: "reasoning", text: chunk.text });
+          message.parts.push({ type: "reasoning", text: chunk.text, state: "streaming" });
           activeReasoningPartIdx = message.parts.length - 1;
         }
         activeTextPartIdx = -1;
         return;
       }
       case "tool_call_start": {
+        finishActiveReasoningPart();
         const message = ensureAssistantMessage();
         const part: DynamicToolUIPart = {
           type: "dynamic-tool",

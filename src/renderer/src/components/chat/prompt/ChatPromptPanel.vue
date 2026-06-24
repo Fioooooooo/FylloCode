@@ -38,7 +38,9 @@ const {
   removeAttachment,
   clearAttachments,
 } = useChatAttachment(promptCapabilities);
-const sendDisabled = computed(() => hasPendingAttachments.value);
+const submitDisabled = computed(
+  () => chatStatus.value === "streaming" || hasPendingAttachments.value
+);
 
 const {
   input,
@@ -54,7 +56,7 @@ const {
 } = useChatPrompt({
   hasAvailableCommands,
   attachmentParts,
-  submitDisabled: sendDisabled,
+  submitDisabled,
   afterSubmit: () => clearAttachments(),
 });
 </script>
@@ -118,7 +120,7 @@ const {
               :status="chatStatus"
               color="neutral"
               size="sm"
-              :disabled="sendDisabled"
+              :disabled="submitDisabled"
               @stop="chatStore.cancelStream()"
             />
           </div>

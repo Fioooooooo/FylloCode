@@ -126,7 +126,7 @@ describe("MarkStream Fyllo action integration", () => {
 });
 
 describe("AssistantMessage Fyllo action enablement", () => {
-  it("enables actions for text parts and disables them for reasoning parts", () => {
+  it("enables actions for text parts and renders reasoning without MarkStream", () => {
     const wrapper = mount(AssistantMessage, {
       props: {
         message: assistantMessage(),
@@ -150,9 +150,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
             template:
               '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
           },
-          UChatReasoning: {
-            template: "<div><slot /></div>",
-          },
+          UChatReasoning: true,
           UChatTool: {
             template: "<div><slot /></div>",
           },
@@ -161,13 +159,11 @@ describe("AssistantMessage Fyllo action enablement", () => {
     });
 
     const markstreams = wrapper.findAll('[data-test="markstream"]');
-    const reasoningPart = markstreams.find(
-      (node) => node.attributes("data-enable-actions") === "false"
-    );
     const textPart = markstreams.find((node) => node.attributes("data-enable-actions") === "true");
+    const reasoningBody = wrapper.get('[data-slot="body"]');
 
-    expect(markstreams).toHaveLength(2);
-    expect(reasoningPart?.attributes("data-content")).toContain("reasoning");
+    expect(markstreams).toHaveLength(1);
+    expect(reasoningBody.text()).toContain("reasoning");
     expect(textPart?.attributes("data-content")).toContain("text");
     expect(textPart?.attributes("data-session-id")).toBe("session-1");
     expect(textPart?.attributes("data-message-index")).toBe("0");

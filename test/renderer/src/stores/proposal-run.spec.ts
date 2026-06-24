@@ -123,7 +123,9 @@ describe("useProposalRunStore", () => {
     onChunk!({ kind: "reasoning_delta", text: "more" });
 
     expect(store.messages).toHaveLength(1);
-    expect(store.messages[0]?.parts).toEqual([{ type: "reasoning", text: "think more" }]);
+    expect(store.messages[0]?.parts).toEqual([
+      { type: "reasoning", text: "think more", state: "streaming" },
+    ]);
   });
 
   it("ignores available_commands_update chunks during stage streaming", async () => {

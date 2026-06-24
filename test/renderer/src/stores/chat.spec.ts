@@ -822,7 +822,7 @@ describe("useChatStore", () => {
 
     expect(sessionStore.activeSession?.messages).toHaveLength(2);
     expect(sessionStore.activeSession?.messages[1]?.parts).toEqual([
-      { type: "reasoning", text: "thinking" },
+      { type: "reasoning", text: "thinking", state: "streaming" },
     ]);
     expect(chatStore.chatStatus).toBe("streaming");
   });

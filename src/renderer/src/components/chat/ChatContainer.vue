@@ -48,7 +48,10 @@ async function handleLocateFylloAction(actionId: string): Promise<void> {
 <template>
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
-      <div v-if="!isDraft" class="absolute inset-x-0 top-0 z-10 pointer-events-none">
+      <div
+        v-if="!isDraft"
+        class="px-2 mt-2 space-y-2 absolute inset-x-0 top-0 z-10 pointer-events-none"
+      >
         <OriginTaskBanner />
       </div>
 

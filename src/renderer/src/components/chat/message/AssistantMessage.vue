@@ -105,15 +105,8 @@ function buildActionContext(partIndex: number) {
       v-else-if="isReasoningUIPart(item.part)"
       :text="item.part.text"
       :streaming="isPartStreaming(item.part)"
-      :default-open="true"
+      icon="i-lucide-brain"
     >
-      <MarkStream
-        :id="item.key"
-        :content="item.part.text"
-        :is-streaming="isPartStreaming(item.part)"
-        :is-dark="props.isDark"
-        :enable-actions="false"
-      />
     </UChatReasoning>
 
     <UChatTool

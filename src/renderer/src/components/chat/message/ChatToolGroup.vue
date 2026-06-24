@@ -35,9 +35,11 @@ const icon = computed(() =>
     :icon="icon"
     :streaming="streaming"
     :text="summary"
-    variant="card"
   >
-    <div class="space-y-2" data-test="chat-tool-group-items">
+    <div
+      class="space-y-2 p-2 rounded-md ring ring-default max-h-48 overflow-auto"
+      data-test="chat-tool-group-items"
+    >
       <UChatTool
         v-for="tool in props.tools"
         :key="`${tool.partIndex}-${tool.part.toolCallId}`"

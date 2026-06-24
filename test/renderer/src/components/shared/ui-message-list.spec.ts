@@ -129,10 +129,10 @@ function mountList(
       '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /></div></div>',
   };
   const chatToolStub = {
-    props: ["text", "suffix", "streaming", "icon", "open", "variant"],
+    props: ["text", "suffix", "streaming", "icon", "open", "variant", "ui"],
     emits: ["update:open"],
     template:
-      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" @click="$emit(\'update:open\', !open)"><span data-test="tool-text">{{ text }}</span><span data-test="tool-suffix">{{ suffix }}</span><slot v-if="open === undefined || open" /></div>',
+      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" :data-ui-content="ui?.content ?? \'\'" @click="$emit(\'update:open\', !open)"><span data-test="tool-text">{{ text }}</span><span data-test="tool-suffix">{{ suffix }}</span><slot v-if="open === undefined || open" /></div>',
   };
   const chatReasoningStub = {
     template: "<div><slot /></div>",
@@ -216,7 +216,7 @@ describe("UIMessageList", () => {
     const group = wrapper.get('[data-test="chat-tool-group"]');
     expect(group.get('[data-test="tool-text"]').text()).toBe("Read 1 file, Write 1 file");
     expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
-    expect(group.attributes("data-variant")).toBe("card");
+    expect(group.attributes("data-ui-content")).toContain("data-[state=open]:ring");
     expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(0);
   });
 

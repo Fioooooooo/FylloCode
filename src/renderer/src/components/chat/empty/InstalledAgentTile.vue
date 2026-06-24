@@ -18,7 +18,7 @@ const emit = defineEmits<{
     interactive
     padding="none"
     class="group relative flex aspect-square h-32 w-32 flex-col items-center justify-center gap-2"
-    :class="selected ? 'bg-primary/20 ring-1 ring-primary/20 hover:bg-primary/20' : ''"
+    :class="selected ? 'bg-primary/15 ring-1 ring-primary/15 hover:bg-primary/15' : ''"
     @click="emit('select', agentId)"
   >
     <span

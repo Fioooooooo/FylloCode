@@ -95,10 +95,12 @@ describe("useUIMessageAssembler", () => {
     assembler.applyChunk({ kind: "reasoning_delta", text: "more" });
 
     expect(messages.value).toHaveLength(1);
-    expect(messages.value[0]?.parts).toEqual([{ type: "reasoning", text: "think more" }]);
+    expect(messages.value[0]?.parts).toEqual([
+      { type: "reasoning", text: "think more", state: "streaming" },
+    ]);
   });
 
-  it("resets reasoning and text tracks independently", () => {
+  it("marks reasoning done when text starts", () => {
     const messages = ref<UIMessage<MessageMeta>[]>([]);
     const assembler = useUIMessageAssembler(messages);
 
@@ -107,13 +109,13 @@ describe("useUIMessageAssembler", () => {
     assembler.applyChunk({ kind: "reasoning_delta", text: "r2" });
 
     expect(messages.value[0]?.parts).toEqual([
-      { type: "reasoning", text: "r1" },
+      { type: "reasoning", text: "r1", state: "done" },
       { type: "text", text: "t1" },
-      { type: "reasoning", text: "r2" },
+      { type: "reasoning", text: "r2", state: "streaming" },
     ]);
   });
 
-  it("resets both active tracks on tool_call_start", () => {
+  it("marks reasoning done when tool_call_start starts", () => {
     const messages = ref<UIMessage<MessageMeta>[]>([]);
     const assembler = useUIMessageAssembler(messages);
 
@@ -131,6 +133,26 @@ describe("useUIMessageAssembler", () => {
       "dynamic-tool",
       "reasoning",
     ]);
+    expect(messages.value[0]?.parts[0]).toMatchObject({
+      type: "reasoning",
+      text: "r1",
+      state: "done",
+    });
+    expect(messages.value[0]?.parts[2]).toMatchObject({
+      type: "reasoning",
+      text: "r2",
+      state: "streaming",
+    });
+  });
+
+  it("marks active reasoning done when reset", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({ kind: "reasoning_delta", text: "r1" });
+    assembler.resetActive();
+
+    expect(messages.value[0]?.parts).toEqual([{ type: "reasoning", text: "r1", state: "done" }]);
   });
 
   it("ignores available_commands_update chunks", () => {

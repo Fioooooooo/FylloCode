@@ -29,20 +29,20 @@ const sourceMeta = computed(() => {
 </script>
 
 <template>
-  <div v-if="taskInfo && sourceMeta" data-test="origin-task-banner" class="px-2 pt-2">
-    <div
-      class="inline-flex max-w-full items-center gap-2.5 rounded-lg bg-primary/15 py-1.5 px-3 backdrop-blur"
-    >
-      <span class="shrink-0 text-xs text-muted">当前讨论</span>
+  <div
+    v-if="taskInfo && sourceMeta"
+    data-test="origin-task-banner"
+    class="inline-flex max-w-full items-center gap-2.5 rounded-lg bg-primary/15 py-1.5 px-3 backdrop-blur shadow-lg shadow-primary/10"
+  >
+    <span class="shrink-0 text-xs text-muted">当前讨论</span>
 
-      <span class="inline-flex shrink-0 items-center gap-1 text-xs text-primary">
-        <UIcon :name="sourceMeta.icon" class="h-3.5 w-3.5" />
-        {{ sourceMeta.label }}
-      </span>
+    <span class="inline-flex shrink-0 items-center gap-1 text-xs text-primary">
+      <UIcon :name="sourceMeta.icon" class="h-3.5 w-3.5" />
+      {{ sourceMeta.label }}
+    </span>
 
-      <span class="min-w-0 truncate text-sm font-medium text-highlighted">
-        {{ taskInfo.title }}
-      </span>
-    </div>
+    <span class="min-w-0 truncate text-sm font-medium text-highlighted">
+      {{ taskInfo.title }}
+    </span>
   </div>
 </template>
