@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/chat";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
-import type { UIMessage } from "ai";
+import type { DynamicToolUIPart, UIMessage } from "ai";
 
 vi.mock("@renderer/api/chat", () => ({
   chatApi: {
@@ -13,10 +13,14 @@ vi.mock("@renderer/api/chat", () => ({
 }));
 
 function textMessage(): UIMessage<MessageMeta> {
+  return assistantMessage([{ type: "text", text: "hello" }]);
+}
+
+function assistantMessage(parts: UIMessage<MessageMeta>["parts"]): UIMessage<MessageMeta> {
   return {
     id: "message-1",
     role: "assistant",
-    parts: [{ type: "text", text: "hello" }],
+    parts,
     metadata: { sessionId: "session-1", createdAt: new Date("2026-05-08T00:00:00.000Z") },
   };
 }
@@ -30,21 +34,31 @@ function userMessage(parts: UIMessage<MessageMeta>["parts"]): UIMessage<MessageM
   };
 }
 
-function toolMessage(): UIMessage<MessageMeta> {
+function dynamicTool(
+  toolCallId: string,
+  toolName: string,
+  output: string,
+  toolKind?: string
+): DynamicToolUIPart {
   return {
-    id: "message-2",
-    role: "assistant",
-    parts: [
-      {
-        type: "dynamic-tool",
-        toolCallId: "tool-1",
-        toolName: "Read",
-        state: "output-available",
-        input: {},
-        output: "done",
-      },
-    ],
-    metadata: { sessionId: "session-1", createdAt: new Date("2026-05-08T00:00:00.000Z") },
+    type: "dynamic-tool",
+    toolCallId,
+    toolName,
+    state: "output-available",
+    input: {},
+    output,
+    ...(toolKind === undefined ? {} : { toolMetadata: { toolKind } }),
+  };
+}
+
+function streamingTool(toolCallId: string, toolName: string, toolKind?: string): DynamicToolUIPart {
+  return {
+    type: "dynamic-tool",
+    toolCallId,
+    toolName,
+    state: "input-available",
+    input: {},
+    ...(toolKind === undefined ? {} : { toolMetadata: { toolKind } }),
   };
 }
 
@@ -115,7 +129,10 @@ function mountList(
       '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /></div></div>',
   };
   const chatToolStub = {
-    template: '<div data-test="tool"><slot /></div>',
+    props: ["text", "suffix", "streaming", "icon", "open", "variant"],
+    emits: ["update:open"],
+    template:
+      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" @click="$emit(\'update:open\', !open)"><span data-test="tool-text">{{ text }}</span><span data-test="tool-suffix">{{ suffix }}</span><slot v-if="open === undefined || open" /></div>',
   };
   const chatReasoningStub = {
     template: "<div><slot /></div>",
@@ -134,7 +151,7 @@ function mountList(
         MarkStream: {
           props: ["content", "isStreaming", "isDark", "enableActions", "actionContext"],
           template:
-            '<div data-test="markdown" :data-enable-actions="String(enableActions)">{{ content }}</div>',
+            '<div data-test="markdown" :data-enable-actions="String(enableActions)" :data-action-part-index="actionContext?.partIndex">{{ content }}</div>',
         },
         UChatMessages: chatMessagesStub,
         ChatMessages: chatMessagesStub,
@@ -181,9 +198,137 @@ describe("UIMessageList", () => {
   });
 
   it("renders dynamic tool parts", () => {
-    const wrapper = mountList([toolMessage()]);
+    const wrapper = mountList([assistantMessage([dynamicTool("tool-1", "Read", "done", "read")])]);
 
     expect(wrapper.text()).toContain("done");
+    expect(wrapper.get('[data-test="tool"]').attributes("data-icon")).toBe("i-lucide-file-text");
+  });
+
+  it("collapses consecutive tool parts into one tool group summary", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        dynamicTool("tool-2", "Write", "write output", "write"),
+      ]),
+    ]);
+
+    expect(wrapper.findAll('[data-test="chat-tool-group"]')).toHaveLength(1);
+    const group = wrapper.get('[data-test="chat-tool-group"]');
+    expect(group.get('[data-test="tool-text"]').text()).toBe("Read 1 file, Write 1 file");
+    expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
+    expect(group.attributes("data-variant")).toBe("card");
+    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(0);
+  });
+
+  it("uses the last streaming tool icon for a tool group header", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        streamingTool("tool-1", "Read", "read"),
+        streamingTool("tool-2", "Write", "write"),
+      ]),
+    ]);
+
+    const group = wrapper.get('[data-test="chat-tool-group"]');
+    expect(group.attributes("data-streaming")).toBe("true");
+    expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
+  });
+
+  it("uses the other icon for historical tool groups without metadata", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output"),
+        dynamicTool("tool-2", "Write", "write output"),
+      ]),
+    ]);
+
+    const group = wrapper.get('[data-test="chat-tool-group"]');
+    expect(group.get('[data-test="tool-text"]').text()).toBe("Run 2 tools");
+    expect(group.attributes("data-icon")).toBe("i-lucide-wrench");
+  });
+
+  it("passes kind icons to expanded tool group items", async () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        dynamicTool("tool-2", "Write", "write output", "write"),
+      ]),
+    ]);
+
+    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
+
+    expect(
+      wrapper.findAll('[data-test="tool"]').map((node) => node.attributes("data-icon"))
+    ).toEqual(["i-lucide-file-text", "i-lucide-file-plus"]);
+  });
+
+  it("expands a tool group and shows original tool outputs", async () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        dynamicTool("tool-2", "Write", "write output", "write"),
+      ]),
+    ]);
+
+    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
+
+    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
+    expect(wrapper.text()).toContain("Read");
+    expect(wrapper.text()).toContain("Write");
+    expect(wrapper.text()).toContain("read output");
+    expect(wrapper.text()).toContain("write output");
+  });
+
+  it("summarizes historical tool groups without metadata as run tools", async () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output"),
+        dynamicTool("tool-2", "Write", "write output"),
+      ]),
+    ]);
+
+    expect(wrapper.get('[data-test="chat-tool-group"] [data-test="tool-text"]').text()).toBe(
+      "Run 2 tools"
+    );
+
+    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
+
+    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
+    expect(wrapper.text()).toContain("read output");
+    expect(wrapper.text()).toContain("write output");
+  });
+
+  it("does not collapse single tools or tool runs interrupted by text", () => {
+    const singleWrapper = mountList([assistantMessage([dynamicTool("tool-1", "Read", "done")])]);
+    expect(singleWrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
+    expect(singleWrapper.findAll('[data-test="tool"]')).toHaveLength(1);
+
+    const interruptedWrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        { type: "text", text: "between" },
+        dynamicTool("tool-2", "Write", "write output", "write"),
+      ]),
+    ]);
+    expect(interruptedWrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
+    expect(interruptedWrapper.findAll('[data-test="tool"]')).toHaveLength(2);
+    expect(interruptedWrapper.text()).toContain("between");
+  });
+
+  it("keeps Fyllo action contexts on original part indices when tools are grouped", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        { type: "text", text: "action-a" },
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        dynamicTool("tool-2", "Write", "write output", "write"),
+        { type: "text", text: "action-b" },
+      ]),
+    ]);
+
+    expect(
+      wrapper
+        .findAll('[data-test="markdown"]')
+        .map((node) => node.attributes("data-action-part-index"))
+    ).toEqual(["0", "3"]);
   });
 
   it("renders empty lists and passes status through", () => {

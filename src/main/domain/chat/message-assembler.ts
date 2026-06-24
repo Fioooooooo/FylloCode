@@ -25,6 +25,22 @@ export class MessageAssembler {
     return this.currentMessage;
   }
 
+  private toolMetadataFor(
+    prev: DynamicToolUIPart | null,
+    toolKind: string | undefined
+  ): DynamicToolUIPart["toolMetadata"] {
+    const existing = prev?.toolMetadata;
+    if (typeof existing?.toolKind === "string" && existing.toolKind.length > 0) {
+      return existing;
+    }
+
+    if (typeof toolKind === "string" && toolKind.length > 0) {
+      return { ...(existing ?? {}), toolKind };
+    }
+
+    return existing;
+  }
+
   apply(ev: SessionEvent): void {
     if (ev.kind === "text_delta") {
       const message = this.ensureMessage();
@@ -63,6 +79,7 @@ export class MessageAssembler {
         toolName: ev.title,
         state: "input-available",
         input: {},
+        toolMetadata: { toolKind: ev.toolKind },
       };
       message.parts.push(part);
       this.activeTextPartIdx = -1;
@@ -84,6 +101,7 @@ export class MessageAssembler {
           toolName: ev.title ?? ev.toolCallId,
           state: "input-available",
           input: ev.input ?? {},
+          toolMetadata: this.toolMetadataFor(null, ev.toolKind),
         } as DynamicToolUIPart);
         idx = message.parts.length - 1;
         this.activeTextPartIdx = -1;
@@ -104,6 +122,7 @@ export class MessageAssembler {
             title: description ?? ev.content,
             state: "input-available",
             input: ev.input ?? prev.input,
+            toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
           } as DynamicToolUIPart);
         }
       } else if (ev.status === "completed" || ev.status === "failed") {
@@ -115,6 +134,7 @@ export class MessageAssembler {
           state: "output-available",
           input: prev.input,
           output: ev.content ?? "",
+          toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
         } as DynamicToolUIPart);
       }
     }

@@ -64,6 +64,7 @@ keywords: [data-model, shared-types, persistence, serialization]
 - ACP prompt capability 缓存写入 `<userData>/acp/agent-capabilities.json`，schema 为 `{ version: 1, agents: { <agentId>: { promptCapabilities, capturedAgentVersion, capturedAt } } }`。`promptCapabilities` 三个字段必须是归一化后的 boolean。
 - Chat prompt 附件写入 `<userData>/projects/<encoded(projectPath)>/sessions/<sessionId>/attachments/<uuid>.<ext>`；目录 owner 是 session，`chat:removeSession` 必须同步递归删除该 session 的 `attachments/` 目录。
 - `<sessionId>.messages.jsonl` 中的 user message `parts` 支持 AI SDK `text` 与 `FileUIPart` 混合：`{ type: "file", mediaType, url: "file://...", filename }`。assistant message part 结构不因此扩展。
+- `<sessionId>.messages.jsonl`、`stage-*.messages.jsonl`、`archive.messages.jsonl` 中新生成的 assistant `dynamic-tool` part 可包含 AI SDK 原生 `toolMetadata: { toolKind }`，用于记录 ACP 工具类别字符串。该字段是兼容性新增；历史 assistant tool part 可缺失 `toolMetadata` 或 `toolMetadata.toolKind`，读取时不得迁移、丢弃或报错。
 
 ## ACP 安装状态缓存
 

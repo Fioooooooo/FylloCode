@@ -35,6 +35,19 @@ describe("MessageAssembler", () => {
     expect((msg!.parts[2] as { text: string }).text).toBe("after");
   });
 
+  it("writes toolKind metadata when tool_call_start creates a dynamic tool part", () => {
+    const a = new MessageAssembler("s");
+    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+
+    const msg = a.flush()!;
+    const part = msg.parts[0] as DynamicToolUIPart;
+    expect(part.type).toBe("dynamic-tool");
+    expect(part.toolCallId).toBe("t1");
+    expect(part.toolName).toBe("Read");
+    expect(part.state).toBe("input-available");
+    expect(part.toolMetadata).toEqual({ toolKind: "read" });
+  });
+
   it("accumulates reasoning_delta events into a single reasoning part", () => {
     const a = new MessageAssembler("s");
     a.apply({ kind: "reasoning_delta", text: "abc" });
@@ -101,6 +114,7 @@ describe("MessageAssembler", () => {
     expect(part.type).toBe("dynamic-tool");
     expect(part.state).toBe("output-available");
     expect((part as { output: unknown }).output).toBe("file contents");
+    expect(part.toolMetadata).toEqual({ toolKind: "read" });
   });
 
   it("tool_call_update with failed status still transitions to output-available", () => {
@@ -178,6 +192,7 @@ describe("MessageAssembler", () => {
     expect(part.toolName).toBe("tool-call-trace");
     expect(part.state).toBe("output-available");
     expect((part as { output?: unknown }).output).toBe("Found 2 files");
+    expect(part.toolMetadata).toEqual({ toolKind: "search" });
   });
 
   it("孤儿 update 无 currentMessage 时也先创建 assistant 消息", () => {
@@ -191,6 +206,8 @@ describe("MessageAssembler", () => {
     const msg = a.flush();
     expect(msg).not.toBeNull();
     expect(msg!.role).toBe("assistant");
-    expect((msg!.parts[0] as DynamicToolUIPart).toolCallId).toBe("replace__1");
+    const part = msg!.parts[0] as DynamicToolUIPart;
+    expect(part.toolCallId).toBe("replace__1");
+    expect(part.toolMetadata).toBeUndefined();
   });
 });

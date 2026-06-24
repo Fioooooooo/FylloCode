@@ -36,6 +36,22 @@ export function useUIMessageAssembler(
       : (options.sessionId ?? "stream");
   }
 
+  function toolMetadataFor(
+    prev: DynamicToolUIPart | null,
+    toolKind: string | undefined
+  ): DynamicToolUIPart["toolMetadata"] {
+    const existing = prev?.toolMetadata;
+    if (typeof existing?.toolKind === "string" && existing.toolKind.length > 0) {
+      return existing;
+    }
+
+    if (typeof toolKind === "string" && toolKind.length > 0) {
+      return { ...(existing ?? {}), toolKind };
+    }
+
+    return existing;
+  }
+
   function ensureAssistantMessage(): UIMessage<MessageMeta> {
     if (activeAssistantId) {
       const existing = messages.value.find((message) => message.id === activeAssistantId);
@@ -74,6 +90,7 @@ export function useUIMessageAssembler(
         toolName: chunk.title ?? chunk.toolCallId,
         state: "input-available",
         input: chunk.input ?? {},
+        toolMetadata: toolMetadataFor(null, chunk.toolKind),
       } as DynamicToolUIPart);
       idx = message.parts.length - 1;
       activeTextPartIdx = -1;
@@ -94,6 +111,7 @@ export function useUIMessageAssembler(
           title: description ?? chunk.content,
           state: "input-available",
           input: chunk.input ?? prev.input,
+          toolMetadata: toolMetadataFor(prev, chunk.toolKind),
         } as DynamicToolUIPart);
       }
       return;
@@ -108,6 +126,7 @@ export function useUIMessageAssembler(
         state: "output-available",
         input: prev.input,
         output: chunk.content ?? "",
+        toolMetadata: toolMetadataFor(prev, chunk.toolKind),
       } as DynamicToolUIPart);
     }
   }
@@ -148,6 +167,7 @@ export function useUIMessageAssembler(
           toolName: chunk.title,
           state: "input-available",
           input: {},
+          toolMetadata: { toolKind: chunk.toolKind },
         };
         message.parts.push(part);
         activeTextPartIdx = -1;

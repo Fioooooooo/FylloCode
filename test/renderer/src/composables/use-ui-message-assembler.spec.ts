@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { describe, expect, it } from "vitest";
-import type { UIMessage } from "ai";
+import type { DynamicToolUIPart, UIMessage } from "ai";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import type { MessageMeta } from "@shared/types/chat";
 
@@ -49,7 +49,27 @@ describe("useUIMessageAssembler", () => {
       toolCallId: "tool-1",
       state: "output-available",
       output: "done",
+      toolMetadata: { toolKind: "read" },
     });
+  });
+
+  it("writes toolKind metadata when tool_call_start creates a dynamic tool part", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      title: "Read",
+      toolKind: "read",
+    });
+
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.type).toBe("dynamic-tool");
+    expect(part.toolCallId).toBe("tool-1");
+    expect(part.toolName).toBe("Read");
+    expect(part.state).toBe("input-available");
+    expect(part.toolMetadata).toEqual({ toolKind: "read" });
   });
 
   it("inserts user_message and starts a new assistant message after it", () => {
@@ -152,17 +172,32 @@ describe("useUIMessageAssembler", () => {
     });
 
     expect(messages.value).toHaveLength(1);
-    const part = messages.value[0]?.parts[0] as {
-      type: string;
-      toolCallId: string;
-      toolName: string;
-      state: string;
-      output?: unknown;
-    };
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
     expect(part.type).toBe("dynamic-tool");
     expect(part.toolCallId).toBe("replace__1");
     expect(part.toolName).toBe("test.txt");
     expect(part.state).toBe("output-available");
     expect(part.output).toBe("edited");
+    expect(part.toolMetadata).toEqual({ toolKind: "edit" });
+  });
+
+  it("缺少 toolKind 的孤儿 update 仍保持兼容", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });
+
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "replace__1",
+      status: "completed",
+      content: "done",
+    });
+
+    expect(messages.value).toHaveLength(1);
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.type).toBe("dynamic-tool");
+    expect(part.toolCallId).toBe("replace__1");
+    expect(part.state).toBe("output-available");
+    expect(part.output).toBe("done");
+    expect(part.toolMetadata).toBeUndefined();
   });
 });

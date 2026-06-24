@@ -2,6 +2,27 @@ import type { DynamicToolUIPart, ToolUIPart, UITools } from "ai";
 
 type AnyToolPart = DynamicToolUIPart | ToolUIPart<UITools>;
 type ToolInput = Record<string, unknown>;
+type ToolKind = "read" | "write" | "edit" | "search" | "execute" | "other";
+
+const TOOL_KINDS = new Set<ToolKind>(["read", "write", "edit", "search", "execute", "other"]);
+
+const TOOL_KIND_LABELS: Record<ToolKind, { verb: string; noun: string }> = {
+  read: { verb: "Read", noun: "file" },
+  write: { verb: "Write", noun: "file" },
+  edit: { verb: "Edit", noun: "file" },
+  search: { verb: "Search", noun: "tool" },
+  execute: { verb: "Run", noun: "command" },
+  other: { verb: "Run", noun: "tool" },
+};
+
+const TOOL_KIND_ICONS: Record<ToolKind, string> = {
+  read: "i-lucide-file-text",
+  write: "i-lucide-file-plus",
+  edit: "i-lucide-pencil",
+  search: "i-lucide-search",
+  execute: "i-lucide-square-terminal",
+  other: "i-lucide-wrench",
+};
 
 function isDynamic(part: AnyToolPart): part is DynamicToolUIPart {
   return part.type === "dynamic-tool";
@@ -13,6 +34,45 @@ function asInput(part: DynamicToolUIPart): ToolInput {
 
 function str(val: unknown): string {
   return typeof val === "string" ? val : "";
+}
+
+export function getToolKind(part: AnyToolPart): ToolKind {
+  const rawKind = part.toolMetadata?.toolKind;
+  if (typeof rawKind !== "string") return "other";
+
+  const kind = rawKind.trim();
+  return TOOL_KINDS.has(kind as ToolKind) ? (kind as ToolKind) : "other";
+}
+
+export function getToolIcon(part: AnyToolPart): string {
+  return TOOL_KIND_ICONS[getToolKind(part)];
+}
+
+export function getToolGroupIcon(
+  parts: AnyToolPart[],
+  isStreamingPart: (part: AnyToolPart) => boolean
+): string {
+  const representative =
+    [...parts].reverse().find((part) => isStreamingPart(part)) ?? parts[parts.length - 1];
+
+  return representative ? getToolIcon(representative) : TOOL_KIND_ICONS.other;
+}
+
+export function summarizeToolGroup(parts: AnyToolPart[]): string {
+  const counts = new Map<ToolKind, number>();
+
+  for (const part of parts) {
+    const kind = getToolKind(part);
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .map(([kind, count]) => {
+      const label = TOOL_KIND_LABELS[kind];
+      const noun = count === 1 ? label.noun : `${label.noun}s`;
+      return `${label.verb} ${count} ${noun}`;
+    })
+    .join(", ");
 }
 
 /**
