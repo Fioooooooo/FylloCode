@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.13.2] - 2026-06-24
+
+This patch release continues turning Chat into the operating surface for project governance. The session event rail can now show proposals linked to the current session and update as OpenSpec status changes are detected. Users can also start implementation, open details, or archive completed proposals from Chat. The documentation site now has a bilingual structure, blog entry points, and sitemap support, and the project license has moved to MIT to lower the barrier for external use and contributions.
+
+### Added
+
+- Chat session event rail now includes a Session Proposals panel with linked proposals, status badges, and detail entry points for the current session
+- Users can start draft proposal implementation from the Chat event rail by choosing a workflow, then archive the proposal once the apply run is complete
+- Main process proposal status watching and `proposal:statusChanged` broadcasts, covering active and archive directory changes in the main worktree and `.worktrees/*`
+- Pending Fyllo actions now appear in the Chat event rail, with event items that locate the original action card
+- Chat session list now shows a linked-task indicator and hover popover with the task source and lineage snapshot title
+- Documentation site now has an English locale, blog index pages, ACP agent layer and lineage design posts, and sitemap configuration
+- Shared `UiSurface` component and renderer UI design guidelines for consistent cards, page hierarchy, color usage, and copywriting
+
+### Changed
+
+- Unified the Chat plan panel and session proposal panel headers, collapse behavior, spacing, and Chinese titles
+- Improved Chat main-area resizing when the event rail is visible so the message column, error block, and prompt stay aligned
+- Activity Bar now uses an icon-first compact navigation with tooltips and consistent active and hover states
+- App Header now uses a lighter window-frame style, with a pill-shaped project switcher aligned with macOS title-bar constraints
+- Global tooltip behavior is configured through `UApp`, standardizing hover delay and keyboard focus behavior
+- Project license changed from AGPL-3.0 to MIT, with matching updates in `package.json`, README, and contribution docs
+- Upgraded `@nuxt/ui` to 4.9.0 and configured the Nuxt UI root for the updated `.nuxt-ui` override directory location
+
+### Fixed
+
+- Fixed cases where a new proposal status push arrived before the proposal store was loaded and the Chat event rail could show only the raw change id
+- Fixed layout issues where long change ids in Chat proposal cards could squeeze the status badge
+- Fixed creating-state proposals showing unavailable action entry points
+- Fixed newly task-bound sessions requiring a session-list reload before origin task information appeared
+
 ## [0.13.1] - 2026-06-17
 
 This patch release continues to tighten project governance and the Chat experience while improving ACP Agent extensibility and main-process stability. You can now register additional ACP Agents through a custom agent configuration file. The Chat execution plan panel has been merged into a session event rail, and Overview further unifies proposal navigation, archived commit clues, and active-change titles. Main-process architecture was also reorganized to make storage, process communication, and error handling more reliable.

@@ -4,6 +4,37 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.13.2] - 2026-06-24
+
+这个补丁版本继续把 Chat 打造成项目治理的操作入口。会话事件轨现在可以直接展示当前会话关联的 proposal，并跟随 OpenSpec 状态变化实时更新；用户也可以从 Chat 中开始实现、查看详情或在实现完成后归档 proposal。文档站补齐了中英文结构、博客入口和站点地图，同时项目许可证切换为 MIT，降低外部使用和贡献门槛。
+
+### 新增
+
+- Chat 会话事件轨新增“会话提案”面板，展示当前 session 关联的 proposal、状态 badge 和详情入口
+- 支持从 Chat 事件轨直接选择 workflow 开始实现 draft proposal，并在 apply 完成后提供归档入口
+- 主进程新增 proposal 状态监听与 `proposal:statusChanged` 推送，覆盖 main worktree 与 `.worktrees/*` 中的 active/archive 目录变化
+- Chat 事件轨新增待处理 Fyllo action 列表，用户可从事件项定位回原始 action card
+- Chat session 列表新增关联任务图标与 hover popover，按需展示任务来源和 lineage 中保存的任务标题
+- 文档站新增英文站点结构、博客索引、ACP Agent 分层与 lineage 设计文章，并生成 sitemap 配置
+- 新增共享 `UiSurface` 组件与 renderer UI 设计规范，为卡片、页面层级、颜色和文案提供统一约束
+
+### 调整
+
+- 统一 Chat 执行计划面板与会话提案面板的 header、折叠行为、间距和中文标题
+- 优化 Chat 主区域在事件轨显示时的可伸缩宽度，让消息列、错误提示和输入区保持同列对齐
+- Activity Bar 改为图标优先的窄导航，使用 tooltip 展示名称，并统一选中态与 hover 反馈
+- App Header 调整为更轻量的窗口框架样式，中央项目切换器改为 pill 形态并对齐 macOS 标题栏约束
+- 全局 tooltip 配置收敛到 `UApp`，统一 hover 延迟和键盘焦点行为
+- 将项目许可证从 AGPL-3.0 切换为 MIT，并同步更新 `package.json`、README 与贡献文档中的许可证说明
+- 升级 `@nuxt/ui` 到 4.9.0，并配置 Nuxt UI root 以适配 `.nuxt-ui` override 目录位置
+
+### 修复
+
+- 修复新 proposal 状态推送早于 proposal store 加载时，Chat 事件轨可能只能显示 raw change id 的问题
+- 修复 Chat proposal 卡片中长 change id 可能挤压状态 badge 的布局问题
+- 修复 creating 状态 proposal 仍可能显示不可用操作入口的问题
+- 修复任务绑定 session 首次创建后，来源任务信息需要重新加载 session 列表才会显示的问题
+
 ## [0.13.1] - 2026-06-17
 
 这个补丁版本继续收敛项目治理与 Chat 体验，同时提升 ACP Agent 的扩展性与主进程稳定性。你现在可以通过自定义 Agent 配置文件接入更多 ACP Agent；Chat 的执行计划面板被整合到会话事件轨，Overview 则进一步把 proposal 导航、归档提交线索和活跃变更标题聚合到统一视图。主进程架构也完成了重要整理，使存储、进程通信和错误处理更加稳定可靠。
