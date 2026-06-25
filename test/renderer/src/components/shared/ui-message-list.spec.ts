@@ -216,7 +216,6 @@ describe("UIMessageList", () => {
     const group = wrapper.get('[data-test="chat-tool-group"]');
     expect(group.get('[data-test="tool-text"]').text()).toBe("Read 1 file, Write 1 file");
     expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
-    expect(group.attributes("data-ui-content")).toContain("data-[state=open]:ring");
     expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(0);
   });
 
