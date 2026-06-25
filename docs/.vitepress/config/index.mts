@@ -33,7 +33,7 @@ export default defineConfig({
       `window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'RJF11TQC36');`
+      gtag('config', 'G-RJF11TQC36');`
     ],
     [
       "script",
