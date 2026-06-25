@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import SessionItem from "@renderer/components/chat/SessionItem.vue";
 import type { Session } from "@shared/types/chat";
@@ -27,15 +27,11 @@ const resetChatState = vi.fn(() => {
 });
 const cancelStream = vi.fn();
 const ensureSessionOriginTaskInfo = vi.fn(async () => undefined);
+const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
 
-vi.stubGlobal(
-  "prompt",
-  vi.fn(() => null)
-);
-vi.stubGlobal(
-  "confirm",
-  vi.fn(() => true)
-);
+vi.mock("@renderer/composables/useConfirmDialog", () => ({
+  useConfirmDialog: () => confirmDialogMock,
+}));
 
 vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
@@ -109,6 +105,7 @@ describe("SessionItem", () => {
     resetChatState.mockClear();
     cancelStream.mockClear();
     ensureSessionOriginTaskInfo.mockClear();
+    confirmDialogMock.mockReset();
   });
 
   it("clears transient view state without stopping streams after switching sessions", async () => {
@@ -281,5 +278,131 @@ describe("SessionItem", () => {
     expect(media.classes().some((className) => className.includes("ring-success"))).toBe(false);
     expect(indicator.classes()).toContain("animate-pulse");
     expect(wrapper.find('[data-test="session-status"]').exists()).toBe(false);
+  });
+
+  it("starts title editing from the dropdown and commits a changed trimmed title", async () => {
+    const session = makeSession("session-rename");
+    const wrapper = mountSessionItem(session);
+
+    await wrapper.get('[data-test="dropdown-item-修改标题"]').trigger("click");
+
+    const input = wrapper.get<HTMLInputElement>('[data-test="session-title-input"]');
+    expect(input.element.value).toBe("Session session-rename");
+
+    await input.setValue("  Updated session title  ");
+    await input.trigger("keydown.enter");
+    await flushPromises();
+
+    expect(renameSession).toHaveBeenCalledWith("session-rename", "Updated session title");
+    expect(wrapper.find('[data-test="session-title-input"]').exists()).toBe(false);
+  });
+
+  it("does not rename when the submitted title is blank", async () => {
+    const wrapper = mountSessionItem(makeSession("session-blank"));
+
+    await wrapper.get('[data-test="dropdown-item-修改标题"]').trigger("click");
+    const input = wrapper.get('[data-test="session-title-input"]');
+    await input.setValue("   ");
+    await input.trigger("keydown.enter");
+    await flushPromises();
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="session-title-input"]').exists()).toBe(false);
+  });
+
+  it("does not rename when the trimmed title is unchanged", async () => {
+    const wrapper = mountSessionItem(makeSession("session-unchanged"));
+
+    await wrapper.get('[data-test="dropdown-item-修改标题"]').trigger("click");
+    const input = wrapper.get('[data-test="session-title-input"]');
+    await input.setValue("  Session session-unchanged  ");
+    await input.trigger("blur");
+    await flushPromises();
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="session-title-input"]').exists()).toBe(false);
+  });
+
+  it("cancels title editing with Escape without renaming", async () => {
+    const wrapper = mountSessionItem(makeSession("session-cancel"));
+
+    await wrapper.get('[data-test="dropdown-item-修改标题"]').trigger("click");
+    const input = wrapper.get('[data-test="session-title-input"]');
+    await input.setValue("Updated title");
+    await input.trigger("keydown.escape");
+    await flushPromises();
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="session-title-input"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="session-title"]').text()).toBe("Session session-cancel");
+  });
+
+  it("deletes the session when the confirm dialog resolves true", async () => {
+    confirmDialogMock.mockResolvedValue(true);
+    const wrapper = mountSessionItem(makeSession("session-delete"));
+
+    await wrapper.get('[data-test="dropdown-item-删除"]').trigger("click");
+    await flushPromises();
+
+    expect(confirmDialogMock).toHaveBeenCalledWith({
+      title: "删除会话？",
+      description: "会话“Session session-delete”将从历史记录中永久删除，且不可撤销。",
+      confirmLabel: "删除会话",
+      confirmColor: "error",
+    });
+    expect(deleteSession).toHaveBeenCalledWith("session-delete");
+  });
+
+  it("does not delete the session when the confirm dialog resolves false", async () => {
+    confirmDialogMock.mockResolvedValue(false);
+    const wrapper = mountSessionItem(makeSession("session-keep"));
+
+    await wrapper.get('[data-test="dropdown-item-删除"]').trigger("click");
+    await flushPromises();
+
+    expect(confirmDialogMock).toHaveBeenCalledTimes(1);
+    expect(deleteSession).not.toHaveBeenCalled();
+  });
+
+  it("does not reserve permanent title padding and keeps the action trigger accessible", () => {
+    const wrapper = mountSessionItem(makeSession("session-layout"));
+
+    const titleContainer = wrapper.get('[data-test="session-title"]').element.parentElement;
+    const actionButton = wrapper.get('button[aria-label="会话操作"]');
+    const actionContainer = actionButton.element.closest(".absolute");
+
+    expect(titleContainer?.className).not.toContain("pr-8");
+    expect(actionButton.classes()).toEqual(expect.arrayContaining(["h-7", "w-7"]));
+    expect(actionContainer?.className).toContain("group-hover:opacity-100");
+    expect(actionContainer?.className).toContain("group-focus-within:opacity-100");
+  });
+
+  it("keeps the action trigger visible while the dropdown is open", async () => {
+    const dropdownMenuOpenStub = {
+      template:
+        '<div><slot /><button type="button" data-test="open-dropdown" @click="$emit(\'update:open\', true)">Open</button></div>',
+      props: ["items", "open"],
+      emits: ["update:open"],
+    };
+    const wrapper = mount(SessionItem, {
+      props: {
+        session: makeSession("session-menu-open"),
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          UDropdownMenu: dropdownMenuOpenStub,
+          DropdownMenu: dropdownMenuOpenStub,
+        },
+      },
+    });
+
+    await wrapper.get('[data-test="open-dropdown"]').trigger("click");
+    await flushPromises();
+
+    const actionContainer = wrapper
+      .get('button[aria-label="会话操作"]')
+      .element.closest(".absolute");
+    expect(actionContainer?.className).toContain("opacity-100");
   });
 });

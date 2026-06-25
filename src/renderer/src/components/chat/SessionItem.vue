@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from "vue";
+import { computed, nextTick, ref, toRef } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
 import { useChatStore } from "@renderer/stores";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
+import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 
 const props = defineProps<{
   session: Session;
@@ -13,6 +14,7 @@ const props = defineProps<{
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 const acpAgentsStore = useAcpAgentsStore();
+const confirmDialog = useConfirmDialog();
 
 const TASK_SOURCE_LABELS: Record<string, string> = {
   local: "本地",
@@ -35,15 +37,17 @@ const originTaskInfo = computed(
 const originTaskTitle = computed(
   () => originTaskInfo.value?.title ?? session.value.originTaskRef ?? ""
 );
+const isEditingTitle = ref(false);
+const titleDraft = ref("");
+const titleInputRef = ref<HTMLInputElement | null>(null);
+const menuOpen = ref(false);
 
 const menuItems = computed(() => [
   {
-    label: "重命名",
+    label: "修改标题",
     icon: "i-lucide-pencil",
     onSelect: (): void => {
-      void handleRename().catch((error: unknown) => {
-        console.error("Failed to rename session:", error);
-      });
+      startTitleEdit();
     },
   },
   {
@@ -81,15 +85,44 @@ async function handleSelect(): Promise<void> {
   await sessionStore.selectSession(session.value.id);
 }
 
-async function handleRename(): Promise<void> {
-  const newTitle = prompt("Rename session:", session.value.title);
-  if (newTitle && newTitle.trim()) {
-    await sessionStore.renameSession(session.value.id, newTitle.trim());
+function startTitleEdit(): void {
+  titleDraft.value = session.value.title;
+  isEditingTitle.value = true;
+  void nextTick(() => {
+    titleInputRef.value?.focus();
+    titleInputRef.value?.select();
+  });
+}
+
+async function commitTitleEdit(): Promise<void> {
+  if (!isEditingTitle.value) {
+    return;
   }
+
+  const trimmedTitle = titleDraft.value.trim();
+  isEditingTitle.value = false;
+
+  if (!trimmedTitle || trimmedTitle === session.value.title) {
+    return;
+  }
+
+  await sessionStore.renameSession(session.value.id, trimmedTitle);
+}
+
+function cancelTitleEdit(): void {
+  isEditingTitle.value = false;
+  titleDraft.value = session.value.title;
 }
 
 async function handleDelete(): Promise<void> {
-  if (confirm("Are you sure you want to delete this session?")) {
+  const confirmed = await confirmDialog({
+    title: "删除会话？",
+    description: `会话“${session.value.title}”将从历史记录中永久删除，且不可撤销。`,
+    confirmLabel: "删除会话",
+    confirmColor: "error",
+  });
+
+  if (confirmed) {
     await sessionStore.deleteSession(session.value.id);
   }
 }
@@ -147,13 +180,33 @@ function handleOriginTaskLeave(): void {
       <CustomAgentIcon v-else class="h-full w-full" data-test="session-agent-icon-fallback" />
     </div>
 
-    <div class="min-w-0 flex-1 pr-8">
+    <div class="min-w-0 flex-1">
       <div
+        v-if="!isEditingTitle"
         class="truncate text-sm font-medium leading-5 text-highlighted"
         data-test="session-title"
       >
         {{ session.title }}
       </div>
+      <input
+        v-else
+        ref="titleInputRef"
+        v-model="titleDraft"
+        class="h-5 w-full rounded-md border border-default bg-default px-1.5 text-sm font-medium leading-5 text-highlighted outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+        data-test="session-title-input"
+        @click.stop
+        @blur="
+          void commitTitleEdit().catch((error: unknown) => {
+            console.error('Failed to rename session:', error);
+          })
+        "
+        @keydown.enter.prevent="
+          void commitTitleEdit().catch((error: unknown) => {
+            console.error('Failed to rename session:', error);
+          })
+        "
+        @keydown.escape.stop.prevent="cancelTitleEdit"
+      />
       <div
         class="mt-1 flex items-center gap-1 text-xs leading-4 text-muted"
         data-test="session-meta"
@@ -213,11 +266,19 @@ function handleOriginTaskLeave(): void {
     </div>
 
     <div
-      class="absolute top-2 right-2 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      class="absolute top-2 right-2 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-hover:bg-muted group-active:bg-muted rounded-md"
+      :class="menuOpen ? 'opacity-100' : null"
       @click.stop
     >
-      <UDropdownMenu :items="menuItems">
-        <UButton variant="ghost" color="neutral" size="xs" class="text-muted" @click.stop>
+      <UDropdownMenu v-model:open="menuOpen" :items="menuItems" @click.stop>
+        <UButton
+          variant="ghost"
+          color="neutral"
+          size="xs"
+          class="h-7 w-7 text-muted"
+          aria-label="会话操作"
+          @click.stop
+        >
           <UIcon name="i-lucide-more-vertical" class="w-4 h-4" />
         </UButton>
       </UDropdownMenu>
