@@ -10,6 +10,7 @@ import { registerWorkflowHandlers } from "./workflow";
 import { registerTaskHandlers } from "./task";
 import { registerLineageHandlers } from "./lineage";
 import { registerOverviewHandlers } from "./overview";
+import { registerSpecsHandlers } from "./specs";
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -21,6 +22,7 @@ export function registerAllHandlers(): void {
   registerTaskHandlers();
   registerLineageHandlers();
   registerOverviewHandlers();
+  registerSpecsHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

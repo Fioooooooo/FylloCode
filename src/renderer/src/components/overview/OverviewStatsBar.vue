@@ -15,7 +15,17 @@ const taskLinkedValue = computed(() =>
   props.stats.totalSubjects === 0 ? "-" : `${Math.round(props.stats.taskLinkedRatio * 100)}%`
 );
 
-const cards = computed(() => [
+type StatCardKey = "specs" | "archives" | "guidelines" | "lineages";
+
+type StatCard = {
+  key: StatCardKey;
+  label: string;
+  value: string;
+  meta: string;
+  icon: string;
+};
+
+const cards = computed<StatCard[]>(() => [
   {
     key: "specs",
     label: "能力规约",
@@ -48,50 +58,55 @@ const cards = computed(() => [
   },
 ]);
 
+function isInteractiveCard(key: StatCardKey): boolean {
+  return key === "specs" || key === "archives";
+}
+
+function openSpecs(): void {
+  void router.push("/specs");
+}
+
 function openArchives(): void {
   void router.push("/proposal");
+}
+
+function openCard(key: StatCardKey): void {
+  if (key === "specs") {
+    openSpecs();
+    return;
+  }
+
+  if (key === "archives") {
+    openArchives();
+  }
 }
 </script>
 
 <template>
   <section class="grid grid-cols-4 gap-4" data-test="overview-stats">
-    <template v-for="card in cards" :key="card.key">
-      <UiSurface
-        v-if="card.key === 'archives'"
-        as="button"
-        interactive
-        class="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        data-test="overview-archives-card"
-        @click="openArchives"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0 space-y-1">
-            <p class="text-xs text-muted">{{ card.label }}</p>
-            <p class="text-2xl font-bold tracking-tight leading-8 text-highlighted">
-              {{ card.value }}
-            </p>
-            <p class="truncate text-xs text-muted">{{ card.meta }}</p>
-          </div>
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-            <UIcon :name="card.icon" class="size-5 text-primary/70" />
-          </div>
+    <UiSurface
+      v-for="card in cards"
+      :key="card.key"
+      :as="isInteractiveCard(card.key) ? 'button' : 'div'"
+      :interactive="isInteractiveCard(card.key)"
+      class="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      :data-test="
+        isInteractiveCard(card.key) ? `overview-${card.key}-card` : `overview-stat-card-${card.key}`
+      "
+      @click="openCard(card.key)"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 space-y-1">
+          <p class="text-xs text-muted">{{ card.label }}</p>
+          <p class="text-2xl font-bold tracking-tight leading-8 text-highlighted">
+            {{ card.value }}
+          </p>
+          <p class="truncate text-xs text-muted">{{ card.meta }}</p>
         </div>
-      </UiSurface>
-
-      <UiSurface v-else :data-test="`overview-stat-card-${card.key}`">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0 space-y-1">
-            <p class="text-xs text-muted">{{ card.label }}</p>
-            <p class="text-2xl font-bold tracking-tight leading-8 text-highlighted">
-              {{ card.value }}
-            </p>
-            <p class="truncate text-xs text-muted">{{ card.meta }}</p>
-          </div>
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-            <UIcon :name="card.icon" class="size-5 text-primary/70" />
-          </div>
+        <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+          <UIcon :name="card.icon" class="size-5 text-primary/70" />
         </div>
-      </UiSurface>
-    </template>
+      </div>
+    </UiSurface>
   </section>
 </template>

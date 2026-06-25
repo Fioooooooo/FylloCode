@@ -9,6 +9,7 @@ import type { workflowApi } from "./api/workflow";
 import type { taskApi } from "./api/task";
 import type { lineageApi } from "./api/lineage";
 import type { overviewApi } from "./api/overview";
+import type { specsApi } from "./api/specs";
 
 type SettingsApi = typeof settingsApi;
 type ChatApi = typeof chatApi;
@@ -25,6 +26,7 @@ export interface AppApi {
   task: typeof taskApi;
   lineage: typeof lineageApi;
   overview: typeof overviewApi;
+  specs: typeof specsApi;
 }
 
 declare global {

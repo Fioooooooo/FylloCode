@@ -10,9 +10,15 @@ const route = useRoute();
 const router = useRouter();
 const projectStore = useProjectStore();
 const { goToDefault } = useDefaultAppRoute();
+const projectScopedRoutes = ["/proposal", "/specs"];
 
 const protectedRoutes = computed(() =>
-  activityBarItems.filter((i) => i.requiresProject).map((i) => i.path)
+  Array.from(
+    new Set([
+      ...activityBarItems.filter((i) => i.requiresProject).map((i) => i.path),
+      ...projectScopedRoutes,
+    ])
+  )
 );
 
 watchEffect(() => {

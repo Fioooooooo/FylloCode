@@ -170,7 +170,7 @@ describe("overview page", () => {
     expect(routerMock.push).toHaveBeenCalledWith("/proposal/add-project-overview-page");
   });
 
-  it("navigates to proposal list from the archives stat card only", async () => {
+  it("navigates from interactive overview stat cards", async () => {
     vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
       ok: true,
       data: overview(),
@@ -178,6 +178,15 @@ describe("overview page", () => {
 
     const wrapper = mountPage();
     await flushPromises();
+
+    const specsCard = wrapper.get('[data-test="overview-specs-card"]');
+    expect(specsCard.element.tagName).toBe("BUTTON");
+
+    await specsCard.trigger("click");
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    expect(routerMock.push).toHaveBeenCalledWith("/specs");
+
+    routerMock.push.mockClear();
 
     const archivesCard = wrapper.get('[data-test="overview-archives-card"]');
     expect(archivesCard.element.tagName).toBe("BUTTON");
@@ -187,7 +196,7 @@ describe("overview page", () => {
     expect(routerMock.push).toHaveBeenCalledWith("/proposal");
 
     routerMock.push.mockClear();
-    for (const key of ["specs", "guidelines", "lineages"]) {
+    for (const key of ["guidelines", "lineages"]) {
       await wrapper.get(`[data-test="overview-stat-card-${key}"]`).trigger("click");
     }
 

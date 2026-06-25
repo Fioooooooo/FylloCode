@@ -71,6 +71,10 @@ export const OverviewChannels = {
   getProjectOverview: "overview:getProjectOverview",
 } as const;
 
+export const SpecsChannels = {
+  getSpecsBrowser: "specs:getSpecsBrowser",
+} as const;
+
 export const IntegrationChannels = {
   getConnections: "integration:getConnections",
   connect: "integration:connect",

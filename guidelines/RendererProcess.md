@@ -65,6 +65,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - Good: `src/renderer/src/stores/integration.providers.ts` 作为 settings 与 `/integration` 页共享的 provider 状态入口。
 - Good: `src/renderer/src/api/project.ts` 仅返回 `window.api.project.*` 的类型化 Promise，而不承担缓存或 toast 逻辑。
 - Good: `src/renderer/src/stores/overview.ts` 通过 `src/renderer/src/api/overview.ts` 读取单一 `ProjectOverview` DTO，并在 store 内集中维护 loading/error/null data 状态，页面只负责三态编排。
+- Good: `src/renderer/src/stores/specs.ts` 通过 `src/renderer/src/api/specs.ts` 读取 `SpecsBrowserOverview`，`/specs` 页面只消费 store 数据并派生选中项与 Requirement 快速定位状态。
 - Good: `src/renderer/src/bootstrap/tasks/projects.ts` 调用 store 的 `ensureInitialized()` 预热 persisted project 列表。
 - Good: 组件里用 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"` 打开外站，让 `setWindowOpenHandler` 统一走系统浏览器。
 - Good: `src/renderer/src/components/task/TaskCard.vue` 的删除确认通过 `useConfirmDialog()` 发起，只在用户确认后继续 emit 删除事件。

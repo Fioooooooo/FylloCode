@@ -87,6 +87,12 @@ keywords: [ipc, electron, preload, channels, contracts]
 - 入参 schema 位于 `src/shared/schemas/ipc/overview.ts`，要求 `projectId` 为非空字符串；DTO 类型位于 `src/shared/types/overview.ts`。handler 位于 `src/main/ipc/overview.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/overview.ts` 与 `src/renderer/src/api/overview.ts`。
 - 主进程内部允许 overview service 并行聚合仓库扫描、git 查询与 lineage 投影，但 IPC handler 仍只负责 `validate -> resolveProjectPath -> service`，不得把文件系统扫描、git 调用或 lineage 投影逻辑写在 handler 中。
 
+## Specs Browser Channels
+
+- `specs:getSpecsBrowser`：入参 `{ projectId }`，主进程解析 `projectId → projectPath` 后读取 `openspec/specs/*/spec.md`，返回 `IpcResponse<SpecsBrowserOverview>`。该 channel 是能力规约只读浏览页的数据入口，只返回 capability id、Purpose、源路径、更新时间、Requirement/Scenario 计数与解析后的 Requirement/Scenario 分组；不得返回 capability title、family、familyLabel 或 anchors。
+- 入参 schema 位于 `src/shared/schemas/ipc/specs.ts`，要求 `projectId` 为非空字符串；DTO 类型位于 `src/shared/types/specs.ts`。handler 位于 `src/main/ipc/specs.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/specs.ts` 与 `src/renderer/src/api/specs.ts`。
+- 主进程 handler 只负责 `validate -> resolveProjectPath -> getSpecsBrowser`。目录扫描、markdown heading 解析、排序和 `spec.md` 缺失容错都属于 `src/main/services/specs/**`。
+
 ## Bundled MCP Env
 
 - 主进程向 bundled MCP server 启动描述符注入 `FYLLO_MCP_EVENT_DIR = mcpEventsDir(projectPath)`，供 `fyllo-specs` 的 `create-proposal` 写出 proposal 事件文件。该目录按主项目 `projectPath` 计算，不随 linked worktree 变化。
