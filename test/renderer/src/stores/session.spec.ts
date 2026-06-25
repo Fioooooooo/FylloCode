@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   setActionState: vi.fn(),
   onProbeUpdate: vi.fn(),
   getByTask: vi.fn(),
+  getBySession: vi.fn(),
   createSession: vi.fn(),
 }));
 
@@ -57,6 +58,7 @@ vi.mock("@renderer/api/chat", () => ({
 vi.mock("@renderer/api/lineage", () => ({
   lineageApi: {
     getByTask: mocks.getByTask,
+    getBySession: mocks.getBySession,
   },
 }));
 
@@ -126,6 +128,7 @@ describe("useSessionStore", () => {
     });
     mocks.onProbeUpdate.mockReturnValue(vi.fn());
     mocks.getByTask.mockResolvedValue({ ok: true, data: null });
+    mocks.getBySession.mockResolvedValue({ ok: true, data: null });
   });
 
   it("overwrites availableCommands for an existing session", () => {
@@ -727,6 +730,132 @@ describe("useSessionStore", () => {
       ...overrides,
     };
   }
+
+  it("backfills a draft proposal from session lineage and starts watching it", async () => {
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    const proposal = proposalMeta({ id: "fix-login", status: "draft" });
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [proposal];
+    mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
+    mocks.getBySession.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "chat",
+        task: null,
+        session: {
+          sessionId: "session-1",
+          createdAt: "2026-06-25T00:00:00.000Z",
+          proposals: [{ changeId: "fix-login", createdAt: "2026-06-25T00:00:00.000Z" }],
+        },
+      },
+    });
+    proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
+
+    const store = useSessionStore();
+    store.sessions = [session()];
+
+    await store.selectSession("session-1");
+    await flushPromises();
+
+    expect(mocks.getBySession).toHaveBeenCalledWith("project-1", "session-1");
+    expect(store.sessionProposals["session-1"]).toEqual([proposal]);
+    expect(proposalMocks.watch).toHaveBeenCalledTimes(1);
+    expect(proposalMocks.watch).toHaveBeenCalledWith({
+      projectId: "project-1",
+      changeId: "fix-login",
+      sessionId: "session-1",
+    });
+  });
+
+  it("backfills an archived prefixed proposal from session lineage without watching it", async () => {
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
+    const proposal = proposalMeta({
+      id: "2026-06-25-fix-login",
+      status: "archived",
+    });
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [proposal];
+    mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
+    mocks.getBySession.mockResolvedValue({
+      ok: true,
+      data: {
+        subjectId: "subject-1",
+        origin: "chat",
+        task: null,
+        session: {
+          sessionId: "session-1",
+          createdAt: "2026-06-25T00:00:00.000Z",
+          proposals: [{ changeId: "fix-login", createdAt: "2026-06-25T00:00:00.000Z" }],
+        },
+      },
+    });
+
+    const store = useSessionStore();
+    store.sessions = [session()];
+
+    await store.selectSession("session-1");
+    await flushPromises();
+
+    expect(store.sessionProposals["session-1"]).toEqual([proposal]);
+    expect(proposalMocks.watch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["null", () => mocks.getBySession.mockResolvedValue({ ok: true, data: null })],
+    [
+      "an error response",
+      () =>
+        mocks.getBySession.mockResolvedValue({
+          ok: false,
+          error: { code: "LINEAGE_FAILED", message: "lineage failed" },
+        }),
+    ],
+    ["a thrown error", () => mocks.getBySession.mockRejectedValue(new Error("lineage failed"))],
+  ])(
+    "keeps session selection and proposal state stable when lineage getBySession returns %s",
+    async (_label, configureGetBySession) => {
+      const projectStore = useProjectStore();
+      projectStore.currentProject = {
+        id: "project-1",
+        name: "Project",
+        path: "/tmp/project",
+        metaPath: "/tmp/project/meta.json",
+        createdAt: new Date(),
+        lastOpenedAt: new Date(),
+      };
+      const proposalStore = useProposalStore();
+      proposalStore.proposals = [proposalMeta({ id: "other-change" })];
+      mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
+      configureGetBySession();
+
+      const store = useSessionStore();
+      store.sessions = [session()];
+
+      await expect(store.selectSession("session-1")).resolves.toBeUndefined();
+      await flushPromises();
+
+      expect(store.activeSessionId).toBe("session-1");
+      expect(store.getSessionProposals("session-1")).toEqual([]);
+      expect(proposalMocks.watch).not.toHaveBeenCalled();
+    }
+  );
 
   it("refreshes proposal store when a statusChanged event arrives for an unknown proposal", async () => {
     const projectStore = useProjectStore();

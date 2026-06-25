@@ -157,6 +157,14 @@ function parseTaskSource(ref: LineageTaskRef): TaskSource {
   return ref.split(":")[0] as TaskSource;
 }
 
+function stripArchiveProposalIdPrefix(proposalId: string): string {
+  return proposalId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+}
+
+function isProposalLinkedToChangeId(proposal: ProposalMeta, changeId: string): boolean {
+  return proposal.id === changeId || stripArchiveProposalIdPrefix(proposal.id) === changeId;
+}
+
 export const useSessionStore = defineStore("session", (): SessionStore => {
   const toast = useToast();
   const acpAgentsStore = useAcpAgentsStore();
@@ -303,13 +311,14 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       }
 
       const list = sessionProposals.value[payload.sessionId] ?? [];
-      if (!list.some((item) => item.id === payload.changeId)) {
+      const proposal = buildProposalMetaFromPayload(payload);
+      if (!list.some((item) => item.id === payload.changeId) && proposal.status !== "archived") {
         // Defensive: if a status push arrives for a proposal we are not yet
         // watching (e.g. after app restart), ensure the watcher is active so
         // future updates are also delivered.
-        ensureProposalWatched(buildProposalMetaFromPayload(payload), payload.sessionId);
+        ensureProposalWatched(proposal, payload.sessionId);
       }
-      upsertSessionProposal(payload.sessionId, buildProposalMetaFromPayload(payload));
+      upsertSessionProposal(payload.sessionId, proposal);
     } catch {
       // Status updates are best-effort; avoid unhandled rejections in the
       // renderer-side event handler.
@@ -354,11 +363,15 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         return;
       }
       const changeIds = new Set(result.data?.session.proposals.map((link) => link.changeId) ?? []);
-      const matched = proposalStore.proposals.filter((item) => changeIds.has(item.id));
+      const matched = proposalStore.proposals.filter((item) =>
+        [...changeIds].some((changeId) => isProposalLinkedToChangeId(item, changeId))
+      );
       if (matched.length > 0) {
         sessionProposals.value = { ...sessionProposals.value, [sessionId]: matched };
         for (const proposal of matched) {
-          ensureProposalWatched(proposal, sessionId);
+          if (proposal.status !== "archived") {
+            ensureProposalWatched(proposal, sessionId);
+          }
         }
       }
     } catch {

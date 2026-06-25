@@ -64,7 +64,10 @@ TBD - created by archiving change chat-event-rail-proposal-status. Update Purpos
 
 ### Requirement: Chat EventRail 展示当前 session 的 proposal 列表
 
-`ChatSessionEventRail` SHALL 展示与当前活跃 session 关联的所有 proposal，按创建时间倒序排列，并实时反映状态变化。
+`ChatSessionEventRail` SHALL 展示与当前活跃 session 关联的所有 proposal，按创建时间倒序排列，并实时反映非终态 proposal 的状态变化。进入或切换到一个已存在的 session 时，renderer SHALL 通过 `lineage:getBySession` 读取该 session 的 proposal 产出列表，并用 `useProposalStore.proposals` 中的完整 `ProposalMeta` 回填 `useSessionStore.sessionProposals`。回填匹配 SHALL 使用 lineage 中的原始 `changeId`，并且 SHALL 同时匹配 `ProposalMeta.id === changeId` 与 archived proposal 的 `ProposalMeta.id === YYYY-MM-DD-<changeId>` 形式。
+
+回填完成后，renderer SHALL 仅对 `status !== "archived"` 的 proposal 调用 `proposal:watch` 启动主进程状态监听；`archived` proposal SHALL 作为终态展示，不启动新的状态监听。
+
 `ChatProposalPanel` SHALL 从 `ProposalMeta.status` 与当前匹配的 `ApplyRunMeta.status` 派生卡片展示态：
 
 - `creating`：显示 badge “创建中”
@@ -110,6 +113,33 @@ TBD - created by archiving change chat-event-rail-proposal-status. Update Purpos
 - **GIVEN** `session-1` 关联 proposal A，`session-2` 关联 proposal B
 - **WHEN** 用户从 `session-1` 切换到 `session-2`
 - **THEN** `ChatSessionEventRail` SHALL 隐藏 proposal A，展示 proposal B
+
+#### Scenario: 重启后进入 session 恢复 active proposal 并启动 watch
+
+- **GIVEN** FylloCode 重启后 renderer 内存中的 `sessionProposals` 为空
+- **AND** lineage 中 `session-1` 的 proposal 列表包含 `changeId: "fix-login"`
+- **AND** `useProposalStore.proposals` 包含 `{ id: "fix-login", status: "draft" }`
+- **WHEN** 用户进入 `session-1`
+- **THEN** `useSessionStore.sessionProposals["session-1"]` SHALL 包含该完整 `ProposalMeta`
+- **AND** renderer SHALL 调用 `proposal:watch`，入参包含 `changeId: "fix-login"` 与 `sessionId: "session-1"`
+
+#### Scenario: 重启后进入 session 恢复 archived proposal 且不启动 watch
+
+- **GIVEN** FylloCode 重启后 renderer 内存中的 `sessionProposals` 为空
+- **AND** lineage 中 `session-1` 的 proposal 列表包含 `changeId: "fix-login"`
+- **AND** `useProposalStore.proposals` 包含 `{ id: "2026-06-25-fix-login", status: "archived" }`
+- **WHEN** 用户进入 `session-1`
+- **THEN** `useSessionStore.sessionProposals["session-1"]` SHALL 包含该 archived `ProposalMeta`
+- **AND** renderer SHALL NOT 为 `2026-06-25-fix-login` 调用 `proposal:watch`
+
+#### Scenario: 回填失败不阻断 session 切换
+
+- **GIVEN** 用户进入 `session-1`
+- **AND** `lineage:getBySession` 返回 `null`、错误响应或抛出异常
+- **WHEN** `useSessionStore` 执行 proposal 回填
+- **THEN** 当前 session SHALL 保持选中
+- **AND** `sessionProposals["session-1"]` SHALL 保持为空
+- **AND** renderer SHALL NOT 调用 `proposal:watch`
 
 ### Requirement: 从 Chat EventRail 发起实现
 
