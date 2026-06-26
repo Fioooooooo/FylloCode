@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import {
+  getProposalSpecDeltasInputSchema,
   listProposalsInputSchema,
   readProposalFileInputSchema,
   watchProposalInputSchema,
@@ -10,7 +11,11 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { wrapHandler } from "./_kit/wrap-handler";
 import { validate } from "./_kit/schema";
 import { ipcError } from "./_kit/errors";
-import { listProposals, readProposalFile } from "@main/services/proposal/proposal-service";
+import {
+  getProposalSpecDeltas,
+  listProposals,
+  readProposalFile,
+} from "@main/services/proposal/proposal-service";
 import { proposalStatusService } from "@main/services/proposal/proposal-status-service";
 import { loadProject } from "@main/infra/storage/project-store";
 
@@ -44,6 +49,13 @@ export function registerProposalHandlers(): void {
     wrapHandler(async () => {
       const { projectId, changeId, filename } = validate(readProposalFileInputSchema, input);
       return readProposalFile(projectId, changeId, filename);
+    })
+  );
+
+  ipcMain.handle(ProposalChannels.getSpecDeltas, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { projectId, changeId } = validate(getProposalSpecDeltasInputSchema, input);
+      return getProposalSpecDeltas(projectId, changeId);
     })
   );
 

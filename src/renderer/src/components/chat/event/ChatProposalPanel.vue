@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import {
   useProjectStore,
   useProposalStore,
@@ -16,7 +16,7 @@ defineProps<{
 
 const collapsed = ref(false);
 
-const router = useRouter();
+const { openProposalDetail } = useProposalDetailSlideover();
 const projectStore = useProjectStore();
 const proposalStore = useProposalStore();
 const workflowStore = useWorkflowStore();
@@ -126,7 +126,7 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
 }
 
 function viewDetail(proposal: ProposalMeta): void {
-  void router.push(`/proposal/${proposal.id}`);
+  void openProposalDetail(proposal.id);
 }
 </script>
 

@@ -16,7 +16,7 @@ const brandIconSrc = `${import.meta.env.BASE_URL}icon.svg`;
 const activeItem = computed(() => {
   const matches = activityBarItems.filter((i) => route.path.startsWith(i.path));
   if (matches.length === 0) return null;
-  // longest prefix wins (e.g. /proposal vs /proposal/:id)
+  // Longest prefix wins for future nested app routes.
   matches.sort((a, b) => b.path.length - a.path.length);
   return matches[0].id;
 });

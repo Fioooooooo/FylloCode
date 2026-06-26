@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, onMounted, ref, watch } from "vue";
 import { proposalApi } from "@renderer/api/proposal";
 import ProposalDetailHeader, {
   type DropdownMenuItem,
@@ -14,29 +13,35 @@ import { useProjectStore } from "@renderer/stores/project";
 import { useProposalRunStore } from "@renderer/stores/proposal-run";
 import { useProposalStore } from "@renderer/stores/proposal";
 import { useWorkflowStore } from "@renderer/stores/workflow";
-import type { ProposalMeta } from "@shared/types/proposal";
+import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
-const route = useRoute();
-const router = useRouter();
+const props = defineProps<{
+  changeId: string;
+}>();
+
+const emit = defineEmits<{
+  close: [];
+}>();
+
 const projectStore = useProjectStore();
 const proposalStore = useProposalStore();
 const workflowStore = useWorkflowStore();
+// This remains a global run store: Chat EventRail and the detail Slideover share run state.
 const proposalRunStore = useProposalRunStore();
 
+const currentChangeId = ref(props.changeId);
 const activeTab = ref<MarkdownTabValue>("proposal");
-const tabs = ref<MarkdownTab[]>([]);
+const markdownTabs = ref<MarkdownTab[]>([]);
+const specsOverview = ref<ProposalSpecDeltaOverview | null>(null);
 const loadingFiles = ref(false);
+const loadingSpecs = ref(false);
 const fileError = ref<string | null>(null);
+const specsError = ref<string | null>(null);
 const sidePanelOpen = ref(false);
 
-const changeId = computed(() => {
-  const value = (route.params as { id?: string | string[] }).id;
-  return (Array.isArray(value) ? value[0] : value) ?? "";
-});
-
 const currentProposal = computed<ProposalMeta | null>(() => {
-  return proposalStore.proposals.find((proposal) => proposal.id === changeId.value) ?? null;
+  return proposalStore.proposals.find((proposal) => proposal.id === currentChangeId.value) ?? null;
 });
 
 const canArchive = computed(() => {
@@ -44,6 +49,33 @@ const canArchive = computed(() => {
     currentProposal.value?.status === "applying" && proposalRunStore.runMeta?.status === "done"
   );
 });
+
+const specsTabAvailable = computed(
+  () => Boolean(specsError.value) || (specsOverview.value?.items.length ?? 0) > 0
+);
+
+const tabs = computed<MarkdownTab[]>(() => [
+  ...markdownTabs.value,
+  {
+    label: "Specs",
+    value: "specs",
+    content: null,
+    available: specsTabAvailable.value,
+  },
+]);
+
+function visibleTabValues(): MarkdownTabValue[] {
+  return tabs.value
+    .filter((tab) => (tab.value === "specs" ? tab.available : tab.content !== null))
+    .map((tab) => tab.value);
+}
+
+function syncActiveTab(): void {
+  const values = visibleTabValues();
+  if (!values.includes(activeTab.value)) {
+    activeTab.value = values[0] ?? "proposal";
+  }
+}
 
 function buildWorkflowMenuItems(workflows: WorkflowTemplate[]): DropdownMenuItem[] {
   return workflows.map((template) => ({
@@ -70,7 +102,7 @@ async function ensureProposalLoaded(): Promise<void> {
 
 async function loadMarkdownFiles(): Promise<void> {
   const projectId = projectStore.currentProject?.id;
-  const changeIdSnapshot = changeId.value;
+  const changeIdSnapshot = currentChangeId.value;
   if (!projectId || !changeIdSnapshot) {
     return;
   }
@@ -87,7 +119,8 @@ async function loadMarkdownFiles(): Promise<void> {
 
     const results = await Promise.all(
       fileRequests.map(async (tab) => {
-        const result = await proposalApi.readFile(projectId, changeIdSnapshot, tab.filename);
+        const filename = tab.filename ?? "";
+        const result = await proposalApi.readFile(projectId, changeIdSnapshot, filename);
         if (!result.ok) {
           throw new Error(result.error.message);
         }
@@ -99,19 +132,48 @@ async function loadMarkdownFiles(): Promise<void> {
       })
     );
 
-    tabs.value = results;
-    activeTab.value = results.find((tab) => tab.content !== null)?.value ?? "proposal";
+    markdownTabs.value = results;
   } catch (error: unknown) {
     fileError.value = error instanceof Error ? error.message : String(error);
-    tabs.value = [];
+    markdownTabs.value = [];
   } finally {
     loadingFiles.value = false;
   }
 }
 
+async function loadSpecDeltas(): Promise<void> {
+  const projectId = projectStore.currentProject?.id;
+  const changeIdSnapshot = currentChangeId.value;
+  if (!projectId || !changeIdSnapshot) {
+    return;
+  }
+
+  loadingSpecs.value = true;
+  specsError.value = null;
+
+  try {
+    const result = await proposalApi.getSpecDeltas(projectId, changeIdSnapshot);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    specsOverview.value = result.data;
+  } catch (error: unknown) {
+    specsError.value = error instanceof Error ? error.message : String(error);
+    specsOverview.value = null;
+  } finally {
+    loadingSpecs.value = false;
+  }
+}
+
+async function loadDetailFiles(): Promise<void> {
+  await Promise.all([loadMarkdownFiles(), loadSpecDeltas()]);
+  syncActiveTab();
+}
+
 async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
   const projectId = projectStore.currentProject?.id;
-  const changeIdSnapshot = changeId.value;
+  const changeIdSnapshot = currentChangeId.value;
   if (!projectId || !changeIdSnapshot) {
     return;
   }
@@ -129,7 +191,7 @@ async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
 
 async function archiveProposal(): Promise<void> {
   const projectId = projectStore.currentProject?.id;
-  const previousChangeId = changeId.value;
+  const previousChangeId = currentChangeId.value;
   if (!projectId || !previousChangeId) {
     return;
   }
@@ -149,10 +211,10 @@ async function archiveProposal(): Promise<void> {
       null;
 
     if (nextProposal && nextProposal.id !== previousChangeId) {
-      await router.replace(`/proposal/${nextProposal.id}`);
+      currentChangeId.value = nextProposal.id;
     }
 
-    await loadMarkdownFiles();
+    await loadDetailFiles();
   } catch (error: unknown) {
     console.error("Failed to archive proposal:", error);
   }
@@ -162,7 +224,7 @@ async function viewRunHistory(): Promise<void> {
   sidePanelOpen.value = true;
 
   const projectId = projectStore.currentProject?.id;
-  const changeIdSnapshot = changeId.value;
+  const changeIdSnapshot = currentChangeId.value;
   if (!projectId || !changeIdSnapshot) {
     return;
   }
@@ -175,32 +237,38 @@ async function viewRunHistory(): Promise<void> {
   }
 }
 
-function backToList(): void {
-  if (router.options.history.state.back == null) {
-    void router.replace("/overview");
-    return;
-  }
+watch(
+  () => props.changeId,
+  (changeId) => {
+    if (!changeId || changeId === currentChangeId.value) {
+      return;
+    }
 
-  router.back();
-}
+    currentChangeId.value = changeId;
+    sidePanelOpen.value = false;
+    void loadDetailFiles();
+  }
+);
+
+watch(tabs, syncActiveTab);
 
 onMounted(() => {
   void (async () => {
     await ensureProposalLoaded();
-    await loadMarkdownFiles();
+    await loadDetailFiles();
     await workflowStore.fetchTemplates();
 
     const projectId = projectStore.currentProject?.id;
     const proposal = currentProposal.value;
     if (projectId && proposal?.status === "applying") {
-      await proposalRunStore.resumeRun(projectId, changeId.value);
+      await proposalRunStore.resumeRun(projectId, currentChangeId.value);
       if (proposalRunStore.runMeta) {
         sidePanelOpen.value = true;
       }
     }
 
     if (projectId) {
-      const hasArchive = await proposalRunStore.resumeArchive(projectId, changeId.value);
+      const hasArchive = await proposalRunStore.resumeArchive(projectId, currentChangeId.value);
       if (hasArchive) {
         sidePanelOpen.value = true;
       }
@@ -210,36 +278,49 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-1 overflow-hidden bg-default">
-    <div class="flex flex-col flex-1 overflow-hidden min-w-0">
-      <ProposalDetailHeader
-        :proposal="currentProposal"
-        :change-id="changeId"
-        :workflow-menu-items="workflowMenuItems"
-        :workflow-store-loading="workflowStore.isLoading"
-        :run-meta="proposalRunStore.runMeta"
-        :is-streaming="proposalRunStore.isStreaming"
-        :can-archive="canArchive"
-        @back="backToList"
-        @open-side-panel="sidePanelOpen = true"
-        @view-run-history="viewRunHistory"
-        @archive="archiveProposal"
-      />
+  <USlideover
+    :close="false"
+    :ui="{
+      content: 'w-[min(100vw,1120px)] max-w-none',
+      body: 'h-full min-h-0 p-0 sm:p-0',
+    }"
+  >
+    <template #body>
+      <div class="flex h-full min-h-0 flex-1 overflow-hidden bg-default">
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <ProposalDetailHeader
+            :proposal="currentProposal"
+            :change-id="currentChangeId"
+            :workflow-menu-items="workflowMenuItems"
+            :workflow-store-loading="workflowStore.isLoading"
+            :run-meta="proposalRunStore.runMeta"
+            :is-streaming="proposalRunStore.isStreaming"
+            :can-archive="canArchive"
+            @close="emit('close')"
+            @open-side-panel="sidePanelOpen = true"
+            @view-run-history="viewRunHistory"
+            @archive="archiveProposal"
+          />
 
-      <ProposalMarkdownContent
-        v-model="activeTab"
-        :tabs="tabs"
-        :loading="loadingFiles"
-        :error="fileError"
-      />
-    </div>
+          <ProposalMarkdownContent
+            v-model="activeTab"
+            :tabs="tabs"
+            :loading="loadingFiles"
+            :error="fileError"
+            :specs-overview="specsOverview"
+            :specs-loading="loadingSpecs"
+            :specs-error="specsError"
+          />
+        </div>
 
-    <ProposalApplySidePanel
-      v-if="sidePanelOpen"
-      :run-meta="proposalRunStore.runMeta"
-      :messages="proposalRunStore.messages"
-      :is-streaming="proposalRunStore.isStreaming"
-      @close="sidePanelOpen = false"
-    />
-  </div>
+        <ProposalApplySidePanel
+          v-if="sidePanelOpen"
+          :run-meta="proposalRunStore.runMeta"
+          :messages="proposalRunStore.messages"
+          :is-streaming="proposalRunStore.isStreaming"
+          @close="sidePanelOpen = false"
+        />
+      </div>
+    </template>
+  </USlideover>
 </template>

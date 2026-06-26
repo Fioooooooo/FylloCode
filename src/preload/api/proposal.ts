@@ -5,6 +5,7 @@ import type {
   ProposalMeta,
   ApplyRunMeta,
   ArchiveRunMeta,
+  ProposalSpecDeltaOverview,
   ProposalStatusChangedPayload,
 } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
@@ -28,6 +29,13 @@ export const proposalApi = {
     filename: string
   ): Promise<IpcResponse<string | null>> {
     return ipcRenderer.invoke(ProposalChannels.readFile, { projectId, changeId, filename });
+  },
+
+  getSpecDeltas(
+    projectId: string,
+    changeId: string
+  ): Promise<IpcResponse<ProposalSpecDeltaOverview>> {
+    return ipcRenderer.invoke(ProposalChannels.getSpecDeltas, { projectId, changeId });
   },
 
   apply(input: {

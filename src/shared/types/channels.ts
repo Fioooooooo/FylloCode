@@ -36,6 +36,7 @@ export const ProjectChannels = {
 export const ProposalChannels = {
   list: "proposal:list",
   readFile: "proposal:readFile",
+  getSpecDeltas: "proposal:getSpecDeltas",
   apply: "proposal:apply",
   stageStream: "proposal:stageStream",
   stageStreamPort: "proposal:stageStream:port",

@@ -14,6 +14,34 @@ export interface ProposalMeta {
   worktreePath?: string;
 }
 
+export type ProposalSpecDeltaType = "ADDED" | "MODIFIED" | "REMOVED" | "RENAMED";
+
+export type ProposalSpecDeltaScenarioGroup = {
+  title: string;
+  body: string;
+};
+
+export type ProposalSpecDeltaRequirementGroup = {
+  deltaType: ProposalSpecDeltaType;
+  title: string;
+  body: string;
+  scenarios: ProposalSpecDeltaScenarioGroup[];
+};
+
+export type ProposalSpecDeltaItem = {
+  id: string;
+  purpose: string;
+  sourcePath: string;
+  deltaTypes: ProposalSpecDeltaType[];
+  requirementsCount: number;
+  scenariosCount: number;
+  requirementGroups: ProposalSpecDeltaRequirementGroup[];
+};
+
+export type ProposalSpecDeltaOverview = {
+  items: ProposalSpecDeltaItem[];
+};
+
 export interface ApplyRunMeta {
   runId: string;
   changeId: string;

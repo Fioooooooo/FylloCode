@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
 import { timeAgo } from "@renderer/utils/time";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
+import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import type { ActiveChange, OverviewChangeStage } from "@renderer/stores/overview";
 
 const props = defineProps<{
   changes: ActiveChange[];
 }>();
 
-const router = useRouter();
+const { openProposalDetail } = useProposalDetailSlideover();
 
 const stageConfig: Record<
   OverviewChangeStage,
@@ -37,7 +37,7 @@ function createdLabel(change: ActiveChange): string {
 }
 
 function openChange(changeId: string): void {
-  void router.push(`/proposal/${changeId}`);
+  void openProposalDetail(changeId);
 }
 </script>
 

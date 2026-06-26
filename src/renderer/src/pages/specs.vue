@@ -62,6 +62,10 @@ function formatUpdatedAt(value: string): string {
   }).format(date);
 }
 
+function formatScenarioCount(count: number): string {
+  return `${count} 个场景`;
+}
+
 function selectSpec(id: string): void {
   selectedId.value = id;
   activeRequirementIndex.value = 0;
@@ -85,7 +89,7 @@ function scrollToRequirement(index: number): void {
 
 <template>
   <div class="flex flex-1 overflow-hidden bg-elevated space-x-2" data-test="specs-page">
-    <aside class="h-full w-80 shrink-0 overflow-hidden rounded-lg bg-default">
+    <aside class="h-full w-65 shrink-0 overflow-hidden rounded-lg bg-default">
       <div class="h-full overflow-y-auto p-2">
         <div v-if="specsStore.loading" class="space-y-2" data-test="specs-loading-skeleton">
           <div v-for="item in 8" :key="item" class="rounded-lg bg-elevated/70 px-2.5 py-2">
@@ -182,13 +186,13 @@ function scrollToRequirement(index: number): void {
 
               <div class="grid w-48 shrink-0 grid-cols-2 gap-2">
                 <div class="rounded-lg bg-elevated/60 px-3 py-2">
-                  <p class="text-[11px] text-muted">Requirements</p>
+                  <p class="text-[11px] text-muted">需求</p>
                   <p class="text-lg font-semibold leading-6 text-highlighted">
                     {{ selectedSpec.requirementsCount }}
                   </p>
                 </div>
                 <div class="rounded-lg bg-elevated/60 px-3 py-2">
-                  <p class="text-[11px] text-muted">Scenarios</p>
+                  <p class="text-[11px] text-muted">场景</p>
                   <p class="text-lg font-semibold leading-6 text-highlighted">
                     {{ selectedSpec.scenariosCount }}
                   </p>
@@ -201,7 +205,7 @@ function scrollToRequirement(index: number): void {
         <div class="flex min-h-0 flex-1 overflow-hidden">
           <nav class="w-64 shrink-0 overflow-y-auto border-r border-default/50 bg-default p-3">
             <div class="mb-2 flex items-center justify-between gap-2 px-2">
-              <p class="text-[11px] font-medium uppercase text-muted">Requirements</p>
+              <p class="text-[11px] font-medium text-muted">需求</p>
               <span class="text-[11px] text-muted">
                 {{ selectedSpec.requirementGroups.length }}
               </span>
@@ -230,7 +234,7 @@ function scrollToRequirement(index: number): void {
                       {{ requirement.title }}
                     </p>
                     <p class="text-[11px] leading-4 text-muted">
-                      {{ requirement.scenarios.length }} scenarios
+                      {{ formatScenarioCount(requirement.scenarios.length) }}
                     </p>
                   </div>
                 </div>
@@ -285,10 +289,10 @@ function scrollToRequirement(index: number): void {
                         <span class="size-1.5 rounded-full bg-primary" />
                       </span>
                       <div class="flex items-center gap-2">
+                        <span class="text-[11px] text-muted">#{{ scenarioIndex + 1 }}</span>
                         <h4 class="text-sm font-medium text-highlighted">
                           {{ scenario.title }}
                         </h4>
-                        <span class="text-[11px] text-muted">#{{ scenarioIndex + 1 }}</span>
                       </div>
                       <div
                         v-if="scenario.body"

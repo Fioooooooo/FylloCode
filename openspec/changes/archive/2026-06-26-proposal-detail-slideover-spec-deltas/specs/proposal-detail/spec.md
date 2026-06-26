@@ -1,10 +1,11 @@
-# proposal-detail 规范
+## REMOVED Requirements
 
-## Purpose
+### Requirement: Proposal 详情页拥有独立路由
 
-定义 Proposal 详情页能力，包括独立详情路由、顶部基础信息展示，以及 proposal/design/tasks markdown 文件的 tab 渲染。
+**Reason**: Proposal 详情不再作为独立页面存在，用户已明确不需要保留旧版 `/proposal/:id` 兼容路径。
+**Migration**: 所有详情入口改为通过 Nuxt UI `useOverlay().create(...)` 编程打开 `ProposalDetailSlideover`；`/proposal` 仅保留列表页。
 
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Proposal 详情页 header 展示基础信息
 
@@ -142,6 +143,8 @@
 - **WHEN** 用户打开 proposal 详情 Slideover，proposal.status 为 `applying`
 - **THEN** 自动调用 `resumeRun`
 - **AND** SidePanel 自动打开，展示历史日志
+
+## ADDED Requirements
 
 ### Requirement: Proposal 详情通过 Slideover 打开
 

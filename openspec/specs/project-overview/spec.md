@@ -47,7 +47,7 @@
 
 ### Requirement: 进行中变更投影
 
-系统 SHALL 基于既有 `domain/proposal/openspec-reader.ts` 的 `readProposalFiles` 计算 `activeChanges`，过滤掉 `status === "archived"` 的条目，并将 `ProposalStatus` 映射为前端 `stage`：`creating → drafting`、`draft → proposal`、`applying → applying`。每个 `ActiveChange` SHALL 返回 `id` 与 `title`：`id` 为原始 changeId，用于提案详情路由参数；`title` 为 `readProposalFiles` 产出的展示标题（由 `toTitleCase(stripArchivePrefix(changeId))` 规则生成）。每个变更 SHALL 通过 lineage `getByProposal` 反查任务信息填充 `taskTitle` 与 `taskRef`，`taskRef` 保留 `source:` 前缀原样返回。
+系统 SHALL 基于既有 `domain/proposal/openspec-reader.ts` 的 `readProposalFiles` 计算 `activeChanges`，过滤掉 `status === "archived"` 的条目，并将 `ProposalStatus` 映射为前端 `stage`：`creating → drafting`、`draft → proposal`、`applying → applying`。每个 `ActiveChange` SHALL 返回 `id` 与 `title`：`id` 为原始 changeId，用于打开 proposal 详情 Slideover；`title` 为 `readProposalFiles` 产出的展示标题（由 `toTitleCase(stripArchivePrefix(changeId))` 规则生成）。每个变更 SHALL 通过 lineage `getByProposal` 反查任务信息填充 `taskTitle` 与 `taskRef`，`taskRef` 保留 `source:` 前缀原样返回。
 
 #### Scenario: 活跃变更关联到任务
 
@@ -201,3 +201,14 @@ overview 聚合 SHALL 批量构建 archive commit index 后再映射 recentLinea
 
 - **WHEN** 用户点击「项目准则」或「溯源覆盖」统计卡
 - **THEN** 不触发路由跳转
+
+### Requirement: 概览页进行中变更打开 proposal 详情 Slideover
+
+概览页进行中变更卡片 SHALL 使用 `ActiveChange.id` 打开 proposal 详情 Slideover，而不是导航到 proposal 详情路由。
+
+#### Scenario: 点击进行中变更卡片
+
+- **WHEN** 用户点击 Overview 进行中变更卡片
+- **THEN** 应用打开 proposal 详情 Slideover，并传入该变更的 `ActiveChange.id`
+- **AND** 当前路由保持 Overview 页面
+- **AND** `router.push('/proposal/<id>')` SHALL NOT 被调用

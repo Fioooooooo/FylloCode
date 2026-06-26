@@ -7,6 +7,16 @@ import { vi } from "vitest";
 // 但在 vitest 中不经过该插件，因此需要手动 mock
 // ─────────────────────────────────────────────
 const mockToast = { add: vi.fn() };
+const mockOverlay = {
+  create: vi.fn(() => ({
+    open: vi.fn(() => {
+      const result = Promise.resolve(undefined);
+      return Object.assign(result, { result });
+    }),
+    patch: vi.fn(),
+    close: vi.fn(),
+  })),
+};
 const buttonStub = {
   template:
     '<a v-if="as === \'a\'" v-bind="$attrs" :href="href" :target="target" :rel="rel" :title="title" :data-color="color || \'neutral\'" :data-icon="icon" @click="$emit(\'click\', $event)"><slot /></a><button v-else v-bind="$attrs" :title="title" :data-color="color || \'neutral\'" :data-icon="icon" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
@@ -42,6 +52,7 @@ const popoverStub = {
 
 vi.mock("@nuxt/ui/composables", () => ({
   useToast: vi.fn(() => mockToast),
+  useOverlay: vi.fn(() => mockOverlay),
 }));
 
 vi.mock("stream-monaco", () => ({
@@ -119,6 +130,16 @@ config.global.stubs = {
       '<div v-if="open !== false"><div v-if="title">{{ title }}</div><div v-if="description">{{ description }}</div><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
     props: ["open", "title", "description", "dismissible"],
   },
+  USlideover: {
+    template:
+      '<div v-if="open !== false" data-test="slideover"><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description", "close", "dismissible", "ui"],
+  },
+  Slideover: {
+    template:
+      '<div v-if="open !== false" data-test="slideover"><slot /><slot name="content" /><slot name="body" /><slot name="footer" /></div>',
+    props: ["open", "title", "description", "close", "dismissible", "ui"],
+  },
   UBadge: {
     template: "<span><slot /></span>",
   },
@@ -174,7 +195,11 @@ config.global.stubs = {
   UCard: {
     template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
   },
-  UAlert: true,
+  UAlert: {
+    template:
+      '<div role="alert"><strong v-if="title">{{ title }}</strong><p>{{ description }}</p></div>',
+    props: ["title", "description", "color", "variant", "icon"],
+  },
   USkeleton: {
     template: '<div class="skeleton" />',
   },

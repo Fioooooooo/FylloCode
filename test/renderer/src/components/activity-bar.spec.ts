@@ -52,7 +52,7 @@ describe("ActivityBar", () => {
   });
 
   it("does not render or highlight the proposal entry", async () => {
-    mockPath.value = "/proposal/some-id";
+    mockPath.value = "/proposal";
     const wrapper = mount(ActivityBar);
     await wrapper.vm.$nextTick();
 

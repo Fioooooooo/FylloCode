@@ -1,11 +1,12 @@
 <script lang="ts">
-export type MarkdownTabValue = "proposal" | "design" | "tasks";
+export type MarkdownTabValue = "proposal" | "design" | "tasks" | "specs";
 
 export interface MarkdownTab {
   label: string;
   value: MarkdownTabValue;
-  filename: string;
+  filename?: string;
   content: string | null;
+  available?: boolean;
 }
 </script>
 
@@ -14,11 +15,16 @@ import { computed } from "vue";
 import { useDark } from "@vueuse/core";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
+import ProposalSpecsDeltaContent from "@renderer/components/proposal/ProposalSpecsDeltaContent.vue";
+import type { ProposalSpecDeltaOverview } from "@shared/types/proposal";
 
 const props = defineProps<{
   tabs: MarkdownTab[];
   loading: boolean;
   error: string | null;
+  specsOverview: ProposalSpecDeltaOverview | null;
+  specsLoading: boolean;
+  specsError: string | null;
   modelValue: MarkdownTabValue;
 }>();
 
@@ -30,12 +36,14 @@ const isDark = useDark();
 
 const visibleTabs = computed(() =>
   props.tabs
-    .filter((tab) => tab.content !== null)
+    .filter((tab) => (tab.value === "specs" ? tab.available : tab.content !== null))
     .map((tab) => ({
       label: tab.label,
       value: tab.value,
     }))
 );
+
+const isSpecsTab = computed(() => props.modelValue === "specs");
 
 const activeContent = computed(() => {
   return props.tabs.find((tab) => tab.value === props.modelValue)?.content ?? "";
@@ -56,19 +64,26 @@ function handleModelValueUpdate(value: unknown): void {
           :items="visibleTabs"
           variant="pill"
           value-key="value"
+          :ui="{ root: 'py-2 gap-0' }"
           @update:model-value="handleModelValueUpdate"
         />
       </div>
     </div>
 
     <div class="flex-1 overflow-y-auto">
-      <div class="max-w-3xl mx-auto px-6 py-6">
-        <div v-if="loading" class="flex items-center justify-center gap-2 py-12 text-sm text-muted">
+      <div class="mx-auto max-w-3xl px-6 py-6" data-test="proposal-markdown-body">
+        <div
+          v-if="loading && !isSpecsTab"
+          class="flex items-center justify-center gap-2 py-12 text-sm text-muted"
+        >
           <UIcon name="i-lucide-loader-2" class="w-4 h-4 animate-spin" />
           正在加载 markdown
         </div>
 
-        <div v-else-if="error" class="rounded-lg border border-error/30 bg-error/5 px-4 py-4">
+        <div
+          v-else-if="error && !isSpecsTab"
+          class="rounded-lg border border-error/30 bg-error/5 px-4 py-4"
+        >
           <div class="flex items-start gap-2 text-sm text-error">
             <UIcon name="i-lucide-circle-alert" class="w-4 h-4 mt-0.5 shrink-0" />
             <span>{{ error }}</span>
@@ -80,6 +95,13 @@ function handleModelValueUpdate(value: unknown): void {
           icon="i-lucide-file-text"
           title="暂无可展示的 markdown 文件"
           description="当前 proposal 没有可展示的 markdown 文件。"
+        />
+
+        <ProposalSpecsDeltaContent
+          v-else-if="isSpecsTab"
+          :overview="specsOverview"
+          :loading="specsLoading"
+          :error="specsError"
         />
 
         <div v-else class="prose prose-sm dark:prose-invert max-w-none">

@@ -11,6 +11,10 @@ const routerMock = vi.hoisted(() => ({
   push: vi.fn(),
 }));
 
+const slideoverMock = vi.hoisted(() => ({
+  openProposalDetail: vi.fn(),
+}));
+
 vi.mock("@renderer/api/overview", () => ({
   overviewApi: {
     getProjectOverview: vi.fn(),
@@ -19,6 +23,10 @@ vi.mock("@renderer/api/overview", () => ({
 
 vi.mock("vue-router", () => ({
   useRouter: () => routerMock,
+}));
+
+vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
+  useProposalDetailSlideover: () => slideoverMock,
 }));
 
 function project(): ProjectInfo {
@@ -153,7 +161,7 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("治理演化");
   });
 
-  it("uses the active change title for display and id for navigation", async () => {
+  it("uses the active change title for display and id for slideover opening", async () => {
     vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
       ok: true,
       data: overview(),
@@ -167,7 +175,8 @@ describe("overview page", () => {
 
     await wrapper.get('[data-test="overview-active-changes"] button').trigger("click");
 
-    expect(routerMock.push).toHaveBeenCalledWith("/proposal/add-project-overview-page");
+    expect(slideoverMock.openProposalDetail).toHaveBeenCalledWith("add-project-overview-page");
+    expect(routerMock.push).not.toHaveBeenCalled();
   });
 
   it("navigates from interactive overview stat cards", async () => {

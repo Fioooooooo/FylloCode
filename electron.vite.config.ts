@@ -121,6 +121,11 @@ export default defineConfig(({ command }) => ({
               },
             },
           },
+          slideover: {
+            slots: {
+              overlay: "backdrop-blur-sm bg-slate-900/40",
+            },
+          },
         },
       }),
     ],

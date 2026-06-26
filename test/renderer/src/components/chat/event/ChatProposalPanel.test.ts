@@ -5,7 +5,7 @@ import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel
 import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
-  push: vi.fn(),
+  openProposalDetail: vi.fn(),
   startRun: vi.fn(),
   startArchive: vi.fn(),
   fetchTemplates: vi.fn(),
@@ -20,8 +20,10 @@ let proposalStoreProposalsValue: ProposalMeta[] = [];
 let customTemplatesValue = [{ id: "wf-1", name: "Standard Workflow" }];
 let isLoadingValue = false;
 
-vi.mock("vue-router", () => ({
-  useRouter: () => ({ push: mocks.push }),
+vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
+  useProposalDetailSlideover: () => ({
+    openProposalDetail: mocks.openProposalDetail,
+  }),
 }));
 
 vi.mock("@renderer/stores", () => ({
@@ -214,6 +216,16 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.find('[data-test="start-apply-button"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="archive-button"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
+  });
+
+  it("opens proposal detail slideover when view detail is clicked", async () => {
+    const wrapper = mount(ChatProposalPanel, {
+      props: { proposals: [makeProposal("draft")] },
+    });
+
+    await wrapper.get('[data-test="view-detail-button"]').trigger("click");
+
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
   });
 
   it("refreshes proposals and replaces the old applying item after archive succeeds", async () => {

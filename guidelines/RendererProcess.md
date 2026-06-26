@@ -53,6 +53,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - MUST: 让 `#body` 复用 `UModal` 默认内边距，不要再用一层 `p-4`/`p-5`/`p-6` 包裹整个 body；只在内部内容块上定义必要的 `gap-*`、`space-y-*` 或局部 padding。
 - MUST: 简单二选一确认弹窗统一通过 `src/renderer/src/composables/useConfirmDialog.ts` 发起。这里的“简单确认”指只有标题、描述、取消/确认按钮，没有额外表单、长说明、代码块、滚动列表或多状态切换。
 - MUST: 复杂弹窗继续直接使用 `UModal`，包括需要表单输入、富文本/代码块说明、滚动列表、多状态切换，或确认前必须展示额外上下文的场景；不要为了复用 `useConfirmDialog` 而硬塞复杂内容。
+- MUST: 业务级 programmatic overlay（例如 proposal 详情 Slideover）应提供领域 composable 统一打开入口。入口组件只调用 composable，不直接创建 overlay；composable 显式 import 业务组件并使用 `useOverlay().create(Component, { destroyOnClose: true })`，调用方只 await 关闭完成，不依赖 ESC/遮罩关闭返回值表达业务语义。
 - MUST: `src/renderer/src/components/shared/ConfirmDialog.vue` 自行通过 `UModal #content` 渲染 icon、标题、描述和操作区，不依赖 `UModal` 默认 header/footer；这是为了避免默认分隔线和局部重复布局，并保持全局确认弹窗视觉统一。
 - MUST: `useConfirmDialog()` 打开的确认弹窗必须通过显式按钮关闭并 resolve `Promise<boolean>`；调用方只把它当成确认结果使用，不要依赖 overlay 实例内部状态。
 - SHOULD: 将模板中的复杂逻辑下沉到 `stores/`、`composables/` 或 `utils/`，避免在 Vue template 内内联复杂表达式。
@@ -69,6 +70,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 - Good: `src/renderer/src/bootstrap/tasks/projects.ts` 调用 store 的 `ensureInitialized()` 预热 persisted project 列表。
 - Good: 组件里用 `<a target="_blank" rel="noreferrer">` 或 `UButton as="a"` 打开外站，让 `setWindowOpenHandler` 统一走系统浏览器。
 - Good: `src/renderer/src/components/task/TaskCard.vue` 的删除确认通过 `useConfirmDialog()` 发起，只在用户确认后继续 emit 删除事件。
+- Good: `src/renderer/src/composables/useProposalDetailSlideover.ts` 统一封装 proposal 详情 Slideover，列表页、Overview 和 Chat EventRail 只传入 changeId，不直接操作 overlay 实例或详情路由。
 - Good: `src/renderer/src/components/settings/AgentCard.vue` 的卸载确认仍直接使用 `UModal`，因为正文包含卸载命令、附注和更复杂的解释信息。
 - Good: `src/renderer/src/components/shared/ConfirmDialog.vue` 使用 `UModal #content` 自定义整块布局，而不是叠加默认 header/footer 分隔线。
 - Bad: 在 Vue 组件内直接 `window.api.integration.projectSet(...)`。

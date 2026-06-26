@@ -79,6 +79,7 @@ keywords: [ipc, electron, preload, channels, contracts]
 ## Proposal Channels
 
 - `proposal:list`、`proposal:readFile`、`proposal:apply`、`proposal:stageStream`、`proposal:archive`、`proposal:loadRun`、`proposal:loadArchive` 等请求-响应 channel 的入参 schema 位于 `src/shared/schemas/ipc/proposal.ts`，handler 位于 `src/main/ipc/proposal.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/proposal.ts` 与 `src/renderer/src/api/proposal.ts`。
+- `proposal:getSpecDeltas`：入参 `{ projectId, changeId }`，两个字段均为非空字符串；主进程解析 projectId 后使用 change 定位逻辑读取 `specs/*/spec.md`，返回 `IpcResponse<ProposalSpecDeltaOverview>`。该 channel 只返回 proposal capability delta DTO，不放宽 `proposal:readFile` 的顶层文件读取边界；共享类型位于 `src/shared/types/proposal.ts`，schema 位于 `src/shared/schemas/ipc/proposal.ts`，handler 位于 `src/main/ipc/proposal.ts`，bridge 与 renderer 薄封装分别位于 `src/preload/api/proposal.ts` 与 `src/renderer/src/api/proposal.ts`。
 - `proposal:statusChanged` 是主进程主动向渲染进程推送的广播型 channel：当 `ProposalStatusService` 监听到 `.openspec.yaml` 的 `status` 变化、proposal 被归档或删除时，通过 `webContents.send(ProposalChannels.statusChanged, payload)` 发送 `ProposalStatusChangedPayload`。渲染进程通过 `proposalApi.onStatusChanged` 订阅并在 `useSessionStore` 中更新 `sessionProposals`。新增广播 channel 时必须同步更新 `src/shared/types/channels.ts`、`src/preload/index.d.ts` 与 `src/renderer/src/api/`。
 
 ## Overview Channels

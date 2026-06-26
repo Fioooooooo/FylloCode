@@ -148,9 +148,9 @@ describe("specs page", () => {
     expect(wrapper.text()).toContain("project-overview");
     expect(wrapper.text()).toContain("定义项目概览页的数据聚合。");
     expect(wrapper.text()).toContain("openspec/specs/project-overview/spec.md");
-    expect(wrapper.text()).toContain("Requirements");
+    expect(wrapper.text()).toContain("需求");
     expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("Scenarios");
+    expect(wrapper.text()).toContain("场景");
     expect(wrapper.text()).toContain("3");
     expect(wrapper.findAll('[data-test="specs-requirement-index-item"]')).toHaveLength(2);
     expect(wrapper.text()).toContain("概览数据聚合通道");
@@ -158,6 +158,10 @@ describe("specs page", () => {
     expect(wrapper.findAll('[data-test="specs-scenario"]')).toHaveLength(3);
     expect(wrapper.text()).toContain("成功返回完整概览");
     expect(wrapper.text()).toContain("- **WHEN** renderer 调用 IPC");
+
+    const firstScenarioHeader = wrapper.get('[data-test="specs-scenario"] > div');
+    expect(firstScenarioHeader.element.children[0]?.textContent).toBe("#1");
+    expect(firstScenarioHeader.element.children[1]?.textContent).toBe("成功返回完整概览");
   });
 
   it("selects another capability from the left list", async () => {

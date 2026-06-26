@@ -23,7 +23,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  back: [];
+  close: [];
   "open-side-panel": [];
   "view-run-history": [];
   archive: [];
@@ -64,18 +64,6 @@ function getStageCount(): number {
 <template>
   <div class="shrink-0 bg-muted border-b border-default/50">
     <div class="max-w-3xl mx-auto px-6 py-5 space-y-3">
-      <div class="flex items-center gap-2">
-        <UButton
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          icon="i-lucide-arrow-left"
-          @click="$emit('back')"
-        >
-          返回
-        </UButton>
-      </div>
-
       <div v-if="proposal" class="flex items-start justify-between gap-4">
         <h1 class="text-xl font-semibold text-highlighted">{{ proposal.title }}</h1>
         <div class="flex items-center gap-2 shrink-0 mt-0.5">
@@ -119,6 +107,16 @@ function getStageCount(): number {
               查看运行历史
             </UButton>
           </div>
+          <UTooltip text="关闭详情">
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              icon="i-lucide-x"
+              aria-label="关闭 proposal 详情"
+              @click="$emit('close')"
+            />
+          </UTooltip>
         </div>
       </div>
 
@@ -134,7 +132,19 @@ function getStageCount(): number {
       </div>
 
       <div v-else class="space-y-2">
-        <h1 class="text-xl font-semibold text-highlighted">{{ changeId }}</h1>
+        <div class="flex items-start justify-between gap-4">
+          <h1 class="text-xl font-semibold text-highlighted">{{ changeId }}</h1>
+          <UTooltip text="关闭详情">
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              icon="i-lucide-x"
+              aria-label="关闭 proposal 详情"
+              @click="$emit('close')"
+            />
+          </UTooltip>
+        </div>
         <p class="text-sm text-muted">未找到该 proposal 的元数据</p>
       </div>
     </div>

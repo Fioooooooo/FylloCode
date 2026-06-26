@@ -81,7 +81,7 @@ Activity Bar SHALL 在共享应用外壳中采用三段式结构：顶部显示 
 
 ### Requirement: ActivityBar 主导航不再包含提案入口
 
-ActivityBar 中部主导航菜单 SHALL NOT 包含「提案」入口。提案区域（`/proposal` 列表页）SHALL 改由概览页进入，而非通过 ActivityBar 导航。ActivityBar 中部主导航菜单 SHALL NOT 包含「能力规约」或指向 `/specs` 的入口。能力规约浏览页 SHALL 改由概览页进入，而非通过 ActivityBar 导航。`/proposal`、`/proposal/:id` 与 `/specs` 路由本身 SHALL 保留，仍受共享外壳与项目作用域约束保护。
+ActivityBar 中部主导航菜单 SHALL NOT 包含「提案」入口。提案区域（`/proposal` 列表页）SHALL 改由概览页进入，而非通过 ActivityBar 导航。ActivityBar 中部主导航菜单 SHALL NOT 包含「能力规约」或指向 `/specs` 的入口。能力规约浏览页 SHALL 改由概览页进入，而非通过 ActivityBar 导航。`/proposal` 与 `/specs` 路由本身 SHALL 保留，仍受共享外壳与项目作用域约束保护。系统 SHALL NOT 保留 `/proposal/:id` proposal 详情路由；proposal 详情由 programmatic Slideover 打开。
 
 #### Scenario: 主导航不显示提案或能力规约入口
 
@@ -92,5 +92,11 @@ ActivityBar 中部主导航菜单 SHALL NOT 包含「提案」入口。提案区
 
 #### Scenario: 提案和 specs 路由仍可直接访问
 
-- **WHEN** 用户通过概览页入口或直接导航到 `/proposal`、`/proposal/:id` 或 `/specs`
+- **WHEN** 用户通过概览页入口或直接导航到 `/proposal` 或 `/specs`
 - **THEN** 对应页面在共享应用外壳内正常渲染
+
+#### Scenario: proposal 详情路由不存在
+
+- **WHEN** 用户或代码尝试导航到 `/proposal/<changeId>`
+- **THEN** 应用 SHALL NOT 渲染 proposal 详情页面
+- **AND** 常规 UI 入口 SHALL 通过 Slideover 打开 proposal 详情

@@ -8,6 +8,11 @@ export const readProposalFileInputSchema = z.object({
   filename: z.string().min(1),
 });
 
+export const getProposalSpecDeltasInputSchema = z.object({
+  projectId: z.string().min(1),
+  changeId: z.string().min(1),
+});
+
 export const applyInputSchema = z.object({
   projectId: z.string().min(1),
   changeId: z.string().min(1),
