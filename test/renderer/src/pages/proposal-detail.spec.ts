@@ -1,4 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
+import { shallowRef } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProposalDetailSlideover from "@renderer/components/proposal/ProposalDetailSlideover.vue";
 import { proposalApi } from "@renderer/api/proposal";
@@ -13,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   resumeArchive: vi.fn().mockResolvedValue(false),
 }));
 
-let proposalsValue: ProposalMeta[] = [];
+const proposalsValue = shallowRef<ProposalMeta[]>([]);
+let proposalStoreErrorValue: string | null = null;
 let runMetaValue: ApplyRunMeta | null = null;
 let isStreamingValue = false;
 let messagesValue: unknown[] = [];
@@ -34,7 +36,10 @@ vi.mock("@renderer/stores/project", () => ({
 vi.mock("@renderer/stores/proposal", () => ({
   useProposalStore: () => ({
     get proposals() {
-      return proposalsValue;
+      return proposalsValue.value;
+    },
+    get error() {
+      return proposalStoreErrorValue;
     },
     loadProposals: mocks.loadProposals,
   }),
@@ -133,6 +138,21 @@ function mockSuccessfulReads(): void {
   vi.mocked(proposalApi.getSpecDeltas).mockResolvedValue({ ok: true, data: specOverview() });
 }
 
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: () => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, resolve, reject };
+}
+
 function mountSlideover(changeId = "change-1") {
   return mount(ProposalDetailSlideover, {
     props: { changeId },
@@ -150,8 +170,20 @@ function mountSlideover(changeId = "change-1") {
 
 describe("ProposalDetailSlideover", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    proposalsValue = [buildProposal()];
+    mocks.loadProposals.mockReset();
+    mocks.fetchTemplates.mockReset();
+    mocks.startRun.mockReset();
+    mocks.startArchive.mockReset();
+    mocks.resumeRun.mockReset();
+    mocks.resumeArchive.mockReset();
+    vi.mocked(proposalApi.readFile).mockReset();
+    vi.mocked(proposalApi.getSpecDeltas).mockReset();
+
+    mocks.loadProposals.mockResolvedValue(undefined);
+    mocks.fetchTemplates.mockResolvedValue(undefined);
+    mocks.resumeArchive.mockResolvedValue(false);
+    proposalsValue.value = [buildProposal()];
+    proposalStoreErrorValue = null;
     runMetaValue = null;
     isStreamingValue = false;
     messagesValue = [];
@@ -165,6 +197,59 @@ describe("ProposalDetailSlideover", () => {
     await wrapper.get('button[aria-label="关闭 proposal 详情"]').trigger("click");
 
     expect(wrapper.emitted("close")?.length).toBe(1);
+  });
+
+  it("refreshes proposal metadata on open and updates task count from the store", async () => {
+    const load = deferred();
+    proposalsValue.value = [buildProposal({ doneTasks: 1, totalTasks: 2 })];
+    mocks.loadProposals.mockImplementation(async () => {
+      await load.promise;
+      proposalsValue.value = [buildProposal({ doneTasks: 2, totalTasks: 3 })];
+    });
+
+    const wrapper = mountSlideover();
+    await wrapper.vm.$nextTick();
+
+    expect(mocks.loadProposals).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("1/2 tasks");
+
+    load.resolve();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("2/3 tasks");
+  });
+
+  it("shows a metadata refresh icon while proposals are loading", async () => {
+    const load = deferred();
+    mocks.loadProposals.mockImplementation(() => load.promise);
+
+    const wrapper = mountSlideover();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="proposal-meta-refreshing"]').exists()).toBe(true);
+
+    load.resolve();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="proposal-meta-refreshing"]').exists()).toBe(false);
+  });
+
+  it("keeps the previous header metadata when background proposal refresh fails", async () => {
+    proposalsValue.value = [buildProposal({ doneTasks: 1, totalTasks: 2 })];
+    mocks.loadProposals.mockImplementation(async () => {
+      proposalsValue.value = [];
+      proposalStoreErrorValue = "refresh failed";
+      throw new Error("refresh failed");
+    });
+
+    const wrapper = mountSlideover();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Change 1");
+    expect(wrapper.text()).toContain("1/2 tasks");
+    expect(wrapper.find('[data-test="proposal-meta-refreshing"]').exists()).toBe(false);
+    expect(proposalApi.readFile).toHaveBeenCalledWith("project-1", "change-1", "proposal.md");
+    expect(proposalApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "change-1");
   });
 
   it("renders Specs tab with proposal capability deltas", async () => {
@@ -221,7 +306,7 @@ describe("ProposalDetailSlideover", () => {
   });
 
   it("updates current change id after archive and reloads detail files", async () => {
-    proposalsValue = [
+    proposalsValue.value = [
       buildProposal({
         status: "applying",
       }),
@@ -238,7 +323,7 @@ describe("ProposalDetailSlideover", () => {
       updatedAt: "2026-06-12T00:00:00.000Z",
     };
     mocks.startArchive.mockImplementation(async () => {
-      proposalsValue = [buildProposal({ id: "2026-06-22-change-1", status: "archived" })];
+      proposalsValue.value = [buildProposal({ id: "2026-06-22-change-1", status: "archived" })];
     });
 
     const wrapper = mountSlideover();

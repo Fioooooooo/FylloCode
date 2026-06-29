@@ -27,6 +27,7 @@ describe("ProposalDetailHeader", () => {
         runMeta: null,
         isStreaming: false,
         canArchive: false,
+        refreshingMeta: false,
       },
     });
 

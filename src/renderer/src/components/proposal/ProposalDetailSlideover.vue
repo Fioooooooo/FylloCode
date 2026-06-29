@@ -39,9 +39,31 @@ const loadingSpecs = ref(false);
 const fileError = ref<string | null>(null);
 const specsError = ref<string | null>(null);
 const sidePanelOpen = ref(false);
+const refreshingMeta = ref(false);
+const fallbackProposal = ref<ProposalMeta | null>(null);
+
+let detailRequestId = 0;
+
+function beginDetailRequest(): number {
+  detailRequestId += 1;
+  return detailRequestId;
+}
+
+function isCurrentRequest(requestId: number): boolean {
+  return requestId === detailRequestId;
+}
+
+function findCurrentProposal(): ProposalMeta | null {
+  return proposalStore.proposals.find((proposal) => proposal.id === currentChangeId.value) ?? null;
+}
 
 const currentProposal = computed<ProposalMeta | null>(() => {
-  return proposalStore.proposals.find((proposal) => proposal.id === currentChangeId.value) ?? null;
+  const proposal = findCurrentProposal();
+  if (proposal) {
+    return proposal;
+  }
+
+  return fallbackProposal.value?.id === currentChangeId.value ? fallbackProposal.value : null;
 });
 
 const canArchive = computed(() => {
@@ -92,15 +114,32 @@ const workflowMenuItems = computed<DropdownMenuItem[][]>(() => {
   return [buildWorkflowMenuItems(workflowStore.customTemplates)];
 });
 
-async function ensureProposalLoaded(): Promise<void> {
-  if (proposalStore.proposals.length > 0) {
-    return;
-  }
+async function refreshProposalMeta(requestId: number): Promise<void> {
+  const fallback = currentProposal.value;
+  fallbackProposal.value = fallback ? { ...fallback } : null;
+  refreshingMeta.value = true;
 
-  await proposalStore.loadProposals();
+  try {
+    await proposalStore.loadProposals();
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
+
+    if (findCurrentProposal()) {
+      fallbackProposal.value = null;
+    } else if (!proposalStore.error) {
+      fallbackProposal.value = null;
+    }
+  } catch {
+    // Keep the captured fallback visible; metadata refresh is background-only.
+  } finally {
+    if (isCurrentRequest(requestId)) {
+      refreshingMeta.value = false;
+    }
+  }
 }
 
-async function loadMarkdownFiles(): Promise<void> {
+async function loadMarkdownFiles(requestId: number): Promise<void> {
   const projectId = projectStore.currentProject?.id;
   const changeIdSnapshot = currentChangeId.value;
   if (!projectId || !changeIdSnapshot) {
@@ -132,16 +171,26 @@ async function loadMarkdownFiles(): Promise<void> {
       })
     );
 
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
+
     markdownTabs.value = results;
   } catch (error: unknown) {
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
+
     fileError.value = error instanceof Error ? error.message : String(error);
     markdownTabs.value = [];
   } finally {
-    loadingFiles.value = false;
+    if (isCurrentRequest(requestId)) {
+      loadingFiles.value = false;
+    }
   }
 }
 
-async function loadSpecDeltas(): Promise<void> {
+async function loadSpecDeltas(requestId: number): Promise<void> {
   const projectId = projectStore.currentProject?.id;
   const changeIdSnapshot = currentChangeId.value;
   if (!projectId || !changeIdSnapshot) {
@@ -157,17 +206,31 @@ async function loadSpecDeltas(): Promise<void> {
       throw new Error(result.error.message);
     }
 
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
+
     specsOverview.value = result.data;
   } catch (error: unknown) {
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
+
     specsError.value = error instanceof Error ? error.message : String(error);
     specsOverview.value = null;
   } finally {
-    loadingSpecs.value = false;
+    if (isCurrentRequest(requestId)) {
+      loadingSpecs.value = false;
+    }
   }
 }
 
-async function loadDetailFiles(): Promise<void> {
-  await Promise.all([loadMarkdownFiles(), loadSpecDeltas()]);
+async function loadDetailFiles(requestId: number): Promise<void> {
+  await Promise.all([loadMarkdownFiles(requestId), loadSpecDeltas(requestId)]);
+  if (!isCurrentRequest(requestId)) {
+    return;
+  }
+
   syncActiveTab();
 }
 
@@ -214,7 +277,8 @@ async function archiveProposal(): Promise<void> {
       currentChangeId.value = nextProposal.id;
     }
 
-    await loadDetailFiles();
+    const requestId = beginDetailRequest();
+    await loadDetailFiles(requestId);
   } catch (error: unknown) {
     console.error("Failed to archive proposal:", error);
   }
@@ -245,8 +309,11 @@ watch(
     }
 
     currentChangeId.value = changeId;
+    fallbackProposal.value = null;
     sidePanelOpen.value = false;
-    void loadDetailFiles();
+    const requestId = beginDetailRequest();
+    void refreshProposalMeta(requestId);
+    void loadDetailFiles(requestId);
   }
 );
 
@@ -254,9 +321,15 @@ watch(tabs, syncActiveTab);
 
 onMounted(() => {
   void (async () => {
-    await ensureProposalLoaded();
-    await loadDetailFiles();
-    await workflowStore.fetchTemplates();
+    const requestId = beginDetailRequest();
+    await Promise.all([
+      refreshProposalMeta(requestId),
+      loadDetailFiles(requestId),
+      workflowStore.fetchTemplates(),
+    ]);
+    if (!isCurrentRequest(requestId)) {
+      return;
+    }
 
     const projectId = projectStore.currentProject?.id;
     const proposal = currentProposal.value;
@@ -296,6 +369,7 @@ onMounted(() => {
             :run-meta="proposalRunStore.runMeta"
             :is-streaming="proposalRunStore.isStreaming"
             :can-archive="canArchive"
+            :refreshing-meta="refreshingMeta"
             @close="emit('close')"
             @open-side-panel="sidePanelOpen = true"
             @view-run-history="viewRunHistory"
