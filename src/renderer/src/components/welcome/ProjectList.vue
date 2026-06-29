@@ -33,7 +33,7 @@ function handleRemove(projectId: string): void {
       <div
         v-for="project in projectStore.recentProjects"
         :key="project.id"
-        class="group flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+        class="group flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer hover:bg-elevated transition-colors"
         @click="handleOpen(project)"
       >
         <div class="min-w-0 flex-1">
