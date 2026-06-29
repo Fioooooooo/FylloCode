@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import TaskCreateAction from "@renderer/components/chat/action/TaskCreateAction.vue";
+import TaskCreateAction from "@renderer/components/shared/fyllo-action/TaskCreateAction.vue";
 
 describe("TaskCreateAction", () => {
   it("renders task.create payload fields with task-specific labels", () => {

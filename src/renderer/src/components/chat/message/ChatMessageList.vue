@@ -2,6 +2,7 @@
 import type { UIMessage } from "ai";
 import { useDark } from "@vueuse/core";
 import { ref, onMounted, watch } from "vue";
+import ChatMessageActions from "../actions/ChatMessageActions.vue";
 import AssistantMessage from "./AssistantMessage.vue";
 import UserMessage from "./UserMessage.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
@@ -74,6 +75,10 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
           :message-index="getMessageIndex(message)"
           :action-states="getMessageActionStates(message)"
         />
+      </template>
+
+      <template #actions="{ message }">
+        <ChatMessageActions :message="message" />
       </template>
     </UChatMessages>
   </div>

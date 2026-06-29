@@ -1,5 +1,5 @@
 import { getFylloActionContract } from "@shared/constants/fyllo-action-contracts";
-import TaskCreateAction from "@renderer/components/chat/action/TaskCreateAction.vue";
+import TaskCreateAction from "@renderer/components/shared/fyllo-action/TaskCreateAction.vue";
 import type { Component } from "vue";
 import type { FylloActionPayloadByType, FylloActionType } from "@shared/types/fyllo-action";
 

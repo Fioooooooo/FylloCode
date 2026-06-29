@@ -12,6 +12,29 @@ vi.mock("@renderer/api/chat", () => ({
   },
 }));
 
+const writeTextMock = vi.fn();
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+function formatMessageTime(date: Date): string {
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatFullMessageTime(date: Date): string {
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 function textMessage(): UIMessage<MessageMeta> {
   return assistantMessage([{ type: "text", text: "hello" }]);
 }
@@ -124,9 +147,9 @@ function mountList(
   type: "chat" | "side" = "chat"
 ): VueWrapper {
   const chatMessagesStub = {
-    props: ["messages", "status"],
+    props: ["messages", "status", "user", "assistant"],
     template:
-      '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /></div></div>',
+      '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /><slot name="actions" :message="message" /></div></div>',
   };
   const chatToolStub = {
     props: ["text", "suffix", "streaming", "icon", "open", "variant", "ui"],
@@ -136,6 +159,10 @@ function mountList(
   };
   const chatReasoningStub = {
     template: "<div><slot /></div>",
+  };
+  const tooltipStub = {
+    props: ["text"],
+    template: '<span :data-tooltip="text"><slot /></span>',
   };
 
   return mount(ChatMessageList, {
@@ -159,6 +186,8 @@ function mountList(
         ChatTool: chatToolStub,
         UChatReasoning: chatReasoningStub,
         ChatReasoning: chatReasoningStub,
+        UTooltip: tooltipStub,
+        Tooltip: tooltipStub,
       },
     },
   });
@@ -168,6 +197,11 @@ describe("UIMessageList", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    writeTextMock.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: writeTextMock },
+    });
     vi.mocked(chatApi.readAttachmentDataUrl).mockResolvedValue({
       ok: true,
       data: { dataUrl: "data:image/png;base64,AAAA" },
@@ -177,6 +211,12 @@ describe("UIMessageList", () => {
   afterEach(() => {
     restoreTextHeightMock?.();
     restoreTextHeightMock = null;
+    vi.useRealTimers();
+    if (originalClipboardDescriptor) {
+      Object.defineProperty(navigator, "clipboard", originalClipboardDescriptor);
+    } else {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
   });
 
   it("renders text parts", () => {
@@ -195,6 +235,71 @@ describe("UIMessageList", () => {
     expect(sideWrapper.get('[data-test="markdown"]').attributes("data-enable-actions")).toBe(
       "false"
     );
+  });
+
+  it("copies only text parts and marks copied actions independently", async () => {
+    vi.useFakeTimers();
+    const wrapper = mountList([
+      userMessage([
+        { type: "text", text: "first user text" },
+        { type: "text", text: "<system-reminder>\nhidden user reminder\n</system-reminder>" },
+        { type: "text", text: "second user text" },
+      ]),
+      assistantMessage([
+        { type: "text", text: "assistant text" },
+        { type: "text", text: "<system-reminder>\nhidden assistant reminder\n</system-reminder>" },
+        dynamicTool("tool-1", "Read", "tool output", "read"),
+        { type: "text", text: "assistant follow-up" },
+      ]),
+    ]);
+
+    const userAction = wrapper.get(
+      '[data-test="message-copy-action"][data-message-id="user-message-1"]'
+    );
+    const assistantAction = wrapper.get(
+      '[data-test="message-copy-action"][data-message-id="message-1"]'
+    );
+    const messageCreatedAt = new Date("2026-05-08T00:00:00.000Z");
+    const expectedMessageTime = formatMessageTime(messageCreatedAt);
+    const expectedFullMessageTime = formatFullMessageTime(messageCreatedAt);
+
+    expect(userAction.attributes("data-icon")).toBe("i-lucide-copy");
+    expect(assistantAction.attributes("data-icon")).toBe("i-lucide-copy");
+    const timeNodes = wrapper.findAll('[data-test="message-created-at"]');
+    expect(timeNodes.map((node) => node.text())).toEqual([
+      expectedMessageTime,
+      expectedMessageTime,
+    ]);
+    expect(timeNodes.map((node) => node.attributes("datetime"))).toEqual([
+      messageCreatedAt.toISOString(),
+      messageCreatedAt.toISOString(),
+    ]);
+    expect(
+      timeNodes.map((node) => node.element.parentElement?.getAttribute("data-tooltip"))
+    ).toEqual([expectedFullMessageTime, expectedFullMessageTime]);
+
+    await userAction.trigger("click");
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(writeTextMock).toHaveBeenLastCalledWith("first user text\n\nsecond user text");
+    expect(userAction.attributes("data-icon")).toBe("i-lucide-check");
+    expect(userAction.attributes("aria-label")).toBe("已复制");
+    expect(assistantAction.attributes("data-icon")).toBe("i-lucide-copy");
+
+    await assistantAction.trigger("click");
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(writeTextMock).toHaveBeenLastCalledWith("assistant text\n\nassistant follow-up");
+    expect(userAction.attributes("data-icon")).toBe("i-lucide-check");
+    expect(assistantAction.attributes("data-icon")).toBe("i-lucide-check");
+
+    vi.advanceTimersByTime(1600);
+    await wrapper.vm.$nextTick();
+
+    expect(userAction.attributes("data-icon")).toBe("i-lucide-copy");
+    expect(assistantAction.attributes("data-icon")).toBe("i-lucide-copy");
   });
 
   it("renders dynamic tool parts", () => {
@@ -442,7 +547,8 @@ describe("UIMessageList", () => {
       userMessage([{ type: "text", text: "<system-reminder>\nbody\n</system-reminder>" }]),
     ]);
 
-    expect(wrapper.text()).toBe("");
+    expect(wrapper.text()).not.toContain("system-reminder");
+    expect(wrapper.text()).not.toContain("body");
   });
 
   it("does not filter assistant text that only looks like a reminder", () => {
