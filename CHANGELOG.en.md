@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.13.3] - 2026-06-29
+
+This patch release improves how project governance artifacts are read and traced inside the app. Overview can now drill into a read-only capability specs browser, Proposal details open as an in-context Slideover, and the new Specs tab shows how a proposal changes capability contracts. Chat also reduces tool-call noise, makes session title actions more consistent, and restores proposal associations after app restarts.
+
+### Added
+
+- Read-only `/specs` capability specs browser, reachable from the Overview Capability Specs stat card, showing Purpose, Requirements, Scenarios, source path, update time, and counts from `openspec/specs/*/spec.md`
+- Requirement quick navigation and Scenario timeline rendering in specs details, while continuing to use the shared Markdown renderer for body content
+- Specs tab in Proposal details, showing capability deltas from `specs/<capability>/spec.md` with added, modified, removed, and renamed badges
+- Controlled specs browser and proposal specs delta IPC, preload APIs, renderer stores, and shared DTOs for the read-only specs and proposal delta surfaces
+- Expandable tool groups for consecutive assistant tool calls in Chat, with summaries and icons based on `toolMetadata.toolKind` for read, write, edit, search, and execute actions
+- Newly generated assistant tool parts now preserve ACP tool-kind metadata; older messages without that metadata still collapse and fall back to a generic tool-run summary
+
+### Changed
+
+- Proposal details now open in a right-side Slideover instead of navigating to a standalone route, preserving context from the proposal list, Overview active changes, and Chat EventRail
+- Proposal detail Slideover keeps Proposal/Design/Tasks reading, implementation start, archive, run history, and applying-run recovery, and switches to the archived proposal id after archive
+- Proposal list routing is consolidated into the top-level `/proposal` page, removing the previous shell page used only for nested detail routes
+- Chat session item menu copy changed from rename to title editing, with title edits handled inline inside the session item
+- Chat session deletion now uses the app confirmation dialog instead of a native browser confirmation prompt
+- Chat session item overflow buttons no longer reserve permanent title space, so normal browsing shows longer session titles
+- Overview's Capability Specs stat card is now clickable; Guidelines and Lineage Coverage stats remain display-only
+- Documentation site adds the bilingual "Using Plan and SDD to Triage Agent Workflows" blog post, Google site verification, and gtag configuration
+
+### Fixed
+
+- Fixed historical proposals not being backfilled into Chat EventRail from lineage after restarting or reopening a session
+- Fixed archived proposals failing to match lineage change ids when archive directory names include a date prefix, causing the session proposal panel to disappear
+- Fixed archived backfilled proposals still starting proposal status watches; only non-terminal proposals are watched now
+- Fixed several Chat display details around reasoning content, tool calls, and normal text interleaving, and preserved Fyllo action part indexes after consecutive tool-call grouping
+
+### Notes
+
+- The standalone `/proposal/:id` detail route has been removed. Open Proposal detail Slideover from the `/proposal` list, Overview active changes, or Chat EventRail detail entry points.
+
 ## [0.13.2] - 2026-06-24
 
 This patch release continues turning Chat into the operating surface for project governance. The session event rail can now show proposals linked to the current session and update as OpenSpec status changes are detected. Users can also start implementation, open details, or archive completed proposals from Chat. The documentation site now has a bilingual structure, blog entry points, and sitemap support, and the project license has moved to MIT to lower the barrier for external use and contributions.
