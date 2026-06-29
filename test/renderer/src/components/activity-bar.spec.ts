@@ -5,6 +5,22 @@ import ActivityBar from "@renderer/components/layout/ActivityBar.vue";
 import { activityBarItems } from "@renderer/config/activity-bar";
 
 const mockPath = ref("/task");
+const tooltipStub = {
+  props: ["text", "content", "disableHoverableContent", "ignoreNonKeyboardFocus"],
+  template:
+    '<div data-test="activity-bar-tooltip" :data-disable-hoverable-content="String(disableHoverableContent)" :data-ignore-non-keyboard-focus="String(ignoreNonKeyboardFocus)"><slot /></div>',
+};
+
+function mountActivityBar() {
+  return mount(ActivityBar, {
+    global: {
+      stubs: {
+        UTooltip: tooltipStub,
+        Tooltip: tooltipStub,
+      },
+    },
+  });
+}
 
 vi.mock("vue-router", () => ({
   useRoute: () => ({
@@ -20,7 +36,7 @@ vi.mock("@renderer/stores/project", () => ({
 
 describe("ActivityBar", () => {
   it("renders the brand icon and all registered item buttons", () => {
-    const wrapper = mount(ActivityBar);
+    const wrapper = mountActivityBar();
     const buttons = wrapper.findAll("button");
     const brandIcon = wrapper.get('[data-test="activity-bar-brand-icon"]');
 
@@ -34,7 +50,7 @@ describe("ActivityBar", () => {
 
   it("highlights the item matching current route", async () => {
     mockPath.value = "/chat";
-    const wrapper = mount(ActivityBar);
+    const wrapper = mountActivityBar();
     await wrapper.vm.$nextTick();
 
     const activeButtons = wrapper.findAll('button[class*="bg-primary/15"]');
@@ -45,7 +61,7 @@ describe("ActivityBar", () => {
 
   it("returns null for unmatched routes", async () => {
     mockPath.value = "/unknown-route";
-    const wrapper = mount(ActivityBar);
+    const wrapper = mountActivityBar();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findAll('button[class*="bg-primary/15"]')).toHaveLength(0);
@@ -53,7 +69,7 @@ describe("ActivityBar", () => {
 
   it("does not render or highlight the proposal entry", async () => {
     mockPath.value = "/proposal";
-    const wrapper = mount(ActivityBar);
+    const wrapper = mountActivityBar();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="activity-bar-item-proposal"]').exists()).toBe(false);
@@ -61,7 +77,7 @@ describe("ActivityBar", () => {
   });
 
   it("renders three sections with settings separated at the bottom", () => {
-    const wrapper = mount(ActivityBar);
+    const wrapper = mountActivityBar();
 
     expect(wrapper.find('[data-test="activity-bar-brand"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="activity-bar-menu"]').exists()).toBe(true);
@@ -76,5 +92,16 @@ describe("ActivityBar", () => {
     expect(settingsButtons).toHaveLength(
       activityBarItems.filter((item) => item.group === "bottom").length
     );
+  });
+
+  it("keeps tooltip hover behavior scoped to activity bar items", () => {
+    const wrapper = mountActivityBar();
+
+    const tooltips = wrapper.findAll('[data-test="activity-bar-tooltip"]');
+    expect(tooltips).toHaveLength(activityBarItems.length);
+    for (const tooltip of tooltips) {
+      expect(tooltip.attributes("data-disable-hoverable-content")).toBe("true");
+      expect(tooltip.attributes("data-ignore-non-keyboard-focus")).toBe("true");
+    }
   });
 });

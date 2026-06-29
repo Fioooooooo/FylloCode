@@ -13,8 +13,6 @@ const toasterOptions: ToasterProps = {
 };
 
 const tooltipOptions: TooltipProps = {
-  disableHoverableContent: true,
-  ignoreNonKeyboardFocus: true,
   delayDuration: 200,
 };
 
