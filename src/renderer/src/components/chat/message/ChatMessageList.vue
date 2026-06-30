@@ -65,7 +65,11 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
       :ui="{ indicator: '*:bg-accented' }"
     >
       <template #content="{ message }">
-        <UserMessage v-if="message.role === 'user'" :message="message" />
+        <UserMessage
+          v-if="message.role === 'user'"
+          :message="message"
+          :data-chat-user-message-id="message.id"
+        />
         <AssistantMessage
           v-else
           :message="message"

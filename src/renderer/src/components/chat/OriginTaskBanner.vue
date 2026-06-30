@@ -32,7 +32,7 @@ const sourceMeta = computed(() => {
   <div
     v-if="taskInfo && sourceMeta"
     data-test="origin-task-banner"
-    class="inline-flex max-w-full items-center gap-2.5 rounded-lg bg-primary/15 py-1.5 px-3 backdrop-blur shadow-lg shadow-primary/10"
+    class="inline-flex max-w-full items-center gap-2.5 rounded-lg py-1.5 px-3"
   >
     <span class="shrink-0 text-xs text-muted">当前讨论</span>
 

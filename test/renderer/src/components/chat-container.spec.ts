@@ -54,8 +54,21 @@ function mountContainer(): VueWrapper {
       stubs: {
         ChatMessageList: {
           props: ["messages", "status", "type"],
-          template:
-            '<div data-test="message-list">{{ messages.length }}|{{ status }}|{{ type }}<div v-if="messages.length" data-test="action-anchor" data-fyllo-action-id="chat:session-1:0:0:0"></div></div>',
+          template: `
+            <div data-test="message-list">
+              {{ messages.length }}|{{ status }}|{{ type }}
+              <div
+                v-for="message in messages"
+                :key="message.id"
+                :data-chat-user-message-id="message.role === 'user' ? message.id : undefined"
+              ></div>
+              <div
+                v-if="messages.length"
+                data-test="action-anchor"
+                data-fyllo-action-id="chat:session-1:0:0:0"
+              ></div>
+            </div>
+          `,
         },
         ChatStreamError: {
           template: '<div data-test="stream-error">{{ errorMessage }}</div>',
@@ -120,6 +133,19 @@ function makeSessionWithPendingAction(): Session {
           text: '<fyllo-action type="task.create">{"title":"补齐错误处理"}</fyllo-action>',
         },
       ],
+    } as Session["messages"][number],
+  ];
+  return session;
+}
+
+function makeSessionWithUserPrompt(): Session {
+  const session = makeSession();
+  session.messages = [
+    {
+      id: "user-message-1",
+      role: "user",
+      metadata: { sessionId: session.id, createdAt: new Date("2026-05-12T00:00:00.000Z") },
+      parts: [{ type: "text", text: "定位这条 prompt" }],
     } as Session["messages"][number],
   ];
   return session;
@@ -243,6 +269,25 @@ describe("ChatContainer", () => {
 
     const wrapper = mountContainer();
     await wrapper.get('[data-test="locate-action"]').trigger("click");
+    await flushPromises();
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({
+      block: "center",
+      behavior: "smooth",
+    });
+  });
+
+  it("renders the prompt timeline and scrolls to a user prompt anchor", async () => {
+    const session = makeSessionWithUserPrompt();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-test="chat-prompt-timeline"]').exists()).toBe(true);
+
+    await wrapper.get('[data-test="chat-prompt-timeline-item"]').trigger("click");
     await flushPromises();
 
     expect(scrollIntoViewMock).toHaveBeenCalledWith({
