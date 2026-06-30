@@ -55,8 +55,11 @@ vi.mock("pinia", async (importOriginal) => {
   };
 });
 
-function mountContainer(): VueWrapper {
+function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper {
   return mount(ChatContainer, {
+    props: {
+      sidebarCollapsed: props.sidebarCollapsed ?? false,
+    },
     global: {
       plugins: [createPinia()],
       stubs: {
@@ -182,6 +185,32 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
+  });
+
+  it("emits toggle-sidebar from the sidebar toggle button", async () => {
+    const wrapper = mountContainer();
+
+    await wrapper.get('[aria-label="折叠聊天列表"]').trigger("click");
+
+    expect(wrapper.emitted("toggle-sidebar")).toHaveLength(1);
+  });
+
+  it("renders expanded sidebar toggle semantics", () => {
+    const wrapper = mountContainer({ sidebarCollapsed: false });
+    const button = wrapper.get('[aria-label="折叠聊天列表"]');
+
+    expect(button.attributes("data-icon")).toBe("i-lucide-panel-left-close");
+    expect(button.attributes("title")).toBe("折叠聊天列表");
+    expect(button.attributes("aria-expanded")).toBe("true");
+  });
+
+  it("renders collapsed sidebar toggle semantics", () => {
+    const wrapper = mountContainer({ sidebarCollapsed: true });
+    const button = wrapper.get('[aria-label="展开聊天列表"]');
+
+    expect(button.attributes("data-icon")).toBe("i-lucide-panel-left-open");
+    expect(button.attributes("title")).toBe("展开聊天列表");
+    expect(button.attributes("aria-expanded")).toBe("false");
   });
 
   it("renders an inline stream error after the message list", async () => {

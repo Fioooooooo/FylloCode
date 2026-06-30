@@ -49,6 +49,26 @@ const popoverStub = {
   props: ["open", "content", "ui", "portal"],
   emits: ["update:open"],
 };
+const dashboardGroupStub = {
+  template: '<div v-bind="$attrs" data-test="dashboard-group"><slot /></div>',
+  props: ["as", "unit", "persistent"],
+};
+const dashboardSidebarStub = {
+  template:
+    '<div v-bind="$attrs" data-test="dashboard-sidebar" :data-collapsed="String(collapsed)"><slot /></div>',
+  props: [
+    "collapsed",
+    "collapsible",
+    "resizable",
+    "toggle",
+    "defaultSize",
+    "collapsedSize",
+    "minSize",
+    "maxSize",
+    "ui",
+  ],
+  emits: ["update:collapsed"],
+};
 
 vi.mock("@nuxt/ui/composables", () => ({
   useToast: vi.fn(() => mockToast),
@@ -76,6 +96,10 @@ config.global.stubs = {
 
   // @nuxt/ui layout
   UApp: true,
+  UDashboardGroup: dashboardGroupStub,
+  DashboardGroup: dashboardGroupStub,
+  UDashboardSidebar: dashboardSidebarStub,
+  DashboardSidebar: dashboardSidebarStub,
 
   // @nuxt/ui components — 保留基础交互能力用于测试
   UButton: buttonStub,

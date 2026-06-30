@@ -17,15 +17,38 @@ const { chatStatus, streamError } = storeToRefs(store);
 const sessionStore = useSessionStore();
 const { activeSession, activeSessionId, isLoadingMessages } = storeToRefs(sessionStore);
 
+const props = defineProps<{
+  sidebarCollapsed: boolean;
+}>();
+
+const emit = defineEmits<{
+  "toggle-sidebar": [];
+}>();
+
 const messageScrollContainerRef = ref<HTMLElement | null>(null);
 const isDraft = computed(() => activeSessionId.value === null);
+const sidebarToggleLabel = computed(() =>
+  props.sidebarCollapsed ? "展开聊天列表" : "折叠聊天列表"
+);
+const sidebarToggleIcon = computed(() =>
+  props.sidebarCollapsed ? "i-lucide-panel-left-open" : "i-lucide-panel-left-close"
+);
 </script>
 
 <template>
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
       <div class="p-2 pb-0 shrink-0 flex items-center">
-        <UButton icon="i-lucide-panel-left" size="sm" color="neutral" variant="ghost" />
+        <UButton
+          :icon="sidebarToggleIcon"
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          :title="sidebarToggleLabel"
+          :aria-label="sidebarToggleLabel"
+          :aria-expanded="String(!sidebarCollapsed)"
+          @click="emit('toggle-sidebar')"
+        />
         <OriginTaskBanner />
       </div>
 
