@@ -148,6 +148,10 @@ function makeSubject(options: {
       createdAt: string;
       commitHash?: string;
     }>;
+    plans?: Array<{
+      slug: string;
+      createdAt: string;
+    }>;
   }>;
 }): unknown {
   return {
@@ -441,6 +445,7 @@ describe("fyllo-cortex tools", () => {
         });
         expect(dto.sessions).toHaveLength(1);
         expect(dto.sessions[0].sessionId).toBe("sess-1");
+        expect(dto.sessions[0].plans).toEqual([]);
         expect(dto.sessions[0].proposals).toHaveLength(1);
         expect(dto.sessions[0].proposals[0]).toMatchObject({
           changeId: "add-foo",

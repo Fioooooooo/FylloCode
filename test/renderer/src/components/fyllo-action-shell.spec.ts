@@ -38,7 +38,11 @@ function mountShell(
     },
     slots: {
       default: ({ payload }: { payload: FylloActionPayload }) =>
-        h("div", { "data-test": "action-body" }, `typed body: ${payload.title}`),
+        h(
+          "div",
+          { "data-test": "action-body" },
+          `typed body: ${"title" in payload ? payload.title : payload.slug}`
+        ),
     },
   });
 }
@@ -111,7 +115,7 @@ describe("FylloActionShell", () => {
     await buttonByText(wrapper, "确认").trigger("click");
     expect(confirmHandler).toHaveBeenCalledTimes(1);
 
-    resolveHandler({ ok: true });
+    resolveHandler({ outcome: "succeeded" });
     await flushPromises();
 
     expect(wrapper.text()).toContain("已完成");
@@ -123,8 +127,8 @@ describe("FylloActionShell", () => {
   it("allows retry after a failed handler result", async () => {
     const confirmHandler = vi
       .fn<() => Promise<FylloActionHandlerResult>>()
-      .mockResolvedValueOnce({ ok: false, error: "创建失败" })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ outcome: "failed", error: "创建失败" })
+      .mockResolvedValueOnce({ outcome: "succeeded" });
     const wrapper = mountShell(readyResult(), confirmHandler);
 
     await buttonByText(wrapper, "确认").trigger("click");
@@ -160,7 +164,7 @@ describe("FylloActionShell", () => {
     const persistActionState = vi.fn().mockResolvedValue(undefined);
     const confirmHandler = vi
       .fn<() => Promise<FylloActionHandlerResult>>()
-      .mockResolvedValue({ ok: true });
+      .mockResolvedValue({ outcome: "succeeded" });
     const wrapper = mountShell(readyResult(), confirmHandler, {
       actionId: "chat:session-1:0:0:0",
       persistActionState,
@@ -181,7 +185,7 @@ describe("FylloActionShell", () => {
     const wrapper = mountShell(
       readyResult(),
       vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({
-        ok: false,
+        outcome: "failed",
         error: "创建失败",
       }),
       {
@@ -234,7 +238,9 @@ describe("FylloActionShell", () => {
   it("keeps succeeded UI when action state persistence fails", async () => {
     const wrapper = mountShell(
       readyResult(),
-      vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({ ok: true }),
+      vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({
+        outcome: "succeeded",
+      }),
       {
         actionId: "chat:session-1:0:0:0",
         persistActionState: vi.fn().mockRejectedValue(new Error("meta write failed")),
@@ -248,6 +254,40 @@ describe("FylloActionShell", () => {
     expect(wrapper.text()).toContain("状态保存失败");
     expect(wrapper.text()).toContain("meta write failed");
     expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+
+  it("returns to ready without persisting when handler is dismissed", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountShell(
+      readyResult(),
+      vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({
+        outcome: "dismissed",
+      }),
+      {
+        actionId: "chat:session-1:0:0:0",
+        persistActionState,
+      }
+    );
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("待确认");
+    expect(buttonByText(wrapper, "确认").exists()).toBe(true);
+    expect(persistActionState).not.toHaveBeenCalled();
+  });
+
+  it("uses action definition labels and can hide cancel", () => {
+    const wrapper = mountShell(readyResult(), vi.fn(), {
+      definition: {
+        ...taskCreateDefinition,
+        confirmLabel: "审阅方案",
+        showCancel: false,
+      },
+    });
+
+    expect(buttonByText(wrapper, "审阅方案").exists()).toBe(true);
     expect(findButtonByText(wrapper, "取消")).toBeUndefined();
   });
 });

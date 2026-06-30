@@ -7,6 +7,7 @@ import {
   type TaskDownstreamProjection,
 } from "@main/domain/lineage/projection";
 import {
+  appendPlan,
   appendProposal,
   attachProposalCommitHash,
   attachTask,
@@ -223,6 +224,28 @@ export async function recordProposal(
   }
 
   const nextSubject = appendProposal(subject, sessionId, changeId, now);
+  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  return nextSubject;
+}
+
+export async function recordPlan(
+  projectPath: string,
+  sessionId: string,
+  slug: string
+): Promise<Subject | null> {
+  const now = nowIso();
+  const index = await readWritableIndex(projectPath, now);
+  const subjectId = index.sessions[sessionId];
+  if (!subjectId) {
+    return null;
+  }
+
+  const subject = await readSubject(projectPath, subjectId);
+  if (!subject) {
+    return null;
+  }
+
+  const nextSubject = appendPlan(subject, sessionId, slug, now);
   await writeSubjectWithIndex(projectPath, nextSubject, index);
   return nextSubject;
 }

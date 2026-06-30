@@ -4,6 +4,7 @@ import { useFylloActionDispatcher } from "@renderer/composables/useFylloActionDi
 const createTaskMock = vi.hoisted(() => vi.fn());
 const createSessionTaskMock = vi.hoisted(() => vi.fn());
 const setSessionOriginTaskRefMock = vi.hoisted(() => vi.fn());
+const openPlanReviewMock = vi.hoisted(() => vi.fn());
 const currentProject = vi.hoisted(() => ({
   value: { id: "project-1" } as { id: string } | null,
 }));
@@ -18,6 +19,12 @@ vi.mock("@renderer/api/lineage", () => ({
   lineageApi: {
     createSessionTask: createSessionTaskMock,
   },
+}));
+
+vi.mock("@renderer/composables/usePlanSlideover", () => ({
+  usePlanSlideover: () => ({
+    openPlanReview: openPlanReviewMock,
+  }),
 }));
 
 vi.mock("@renderer/stores/project", () => ({
@@ -39,6 +46,7 @@ describe("useFylloActionDispatcher", () => {
     createTaskMock.mockReset();
     createSessionTaskMock.mockReset();
     setSessionOriginTaskRefMock.mockReset();
+    openPlanReviewMock.mockReset();
     currentProject.value = { id: "project-1" };
   });
 
@@ -55,7 +63,7 @@ describe("useFylloActionDispatcher", () => {
       { sessionId: "session-1" }
     );
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ outcome: "succeeded" });
     expect(createSessionTaskMock).toHaveBeenCalledWith("project-1", {
       sessionId: "session-1",
       title: "补齐错误处理",
@@ -107,7 +115,7 @@ describe("useFylloActionDispatcher", () => {
     });
 
     expect(result).toEqual({
-      ok: false,
+      outcome: "failed",
       error: "当前聊天会话缺少 sessionId，无法创建任务。",
     });
     expect(createSessionTaskMock).not.toHaveBeenCalled();
@@ -131,9 +139,60 @@ describe("useFylloActionDispatcher", () => {
     );
 
     expect(result).toEqual({
-      ok: false,
+      outcome: "failed",
       error: "创建失败",
     });
     expect(setSessionOriginTaskRefMock).not.toHaveBeenCalled();
+  });
+
+  it("opens the plan slideover and returns succeeded when approved", async () => {
+    openPlanReviewMock.mockResolvedValue({ status: "approved" });
+
+    const { dispatchFylloAction } = useFylloActionDispatcher();
+    const result = await dispatchFylloAction(
+      "plan.create",
+      {
+        slug: "2026-06-29-plan-a",
+        goal: "Need review",
+      },
+      { sessionId: "session-1" }
+    );
+
+    expect(openPlanReviewMock).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      slug: "2026-06-29-plan-a",
+      mode: "review",
+    });
+    expect(result).toEqual({ outcome: "succeeded" });
+  });
+
+  it("returns dismissed when the plan slideover closes without approval", async () => {
+    openPlanReviewMock.mockResolvedValue({ status: "dismissed" });
+
+    const { dispatchFylloAction } = useFylloActionDispatcher();
+    const result = await dispatchFylloAction(
+      "plan.create",
+      {
+        slug: "2026-06-29-plan-a",
+        goal: "Need review",
+      },
+      { sessionId: "session-1" }
+    );
+
+    expect(result).toEqual({ outcome: "dismissed" });
+  });
+
+  it("returns failed when plan.create has no sessionId", async () => {
+    const { dispatchFylloAction } = useFylloActionDispatcher();
+    const result = await dispatchFylloAction("plan.create", {
+      slug: "2026-06-29-plan-a",
+      goal: "Need review",
+    });
+
+    expect(result).toEqual({
+      outcome: "failed",
+      error: "当前聊天会话缺少 sessionId，无法审阅规划。",
+    });
+    expect(openPlanReviewMock).not.toHaveBeenCalled();
   });
 });

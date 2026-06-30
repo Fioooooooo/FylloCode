@@ -31,7 +31,8 @@ export type ProposalOriginProjection = {
 function cloneSessionLink(link: LineageSessionLink): LineageSessionLink {
   return {
     ...link,
-    proposals: [...link.proposals],
+    proposals: link.proposals.map((proposal) => ({ ...proposal })),
+    plans: link.plans.map((plan) => ({ ...plan })),
   };
 }
 

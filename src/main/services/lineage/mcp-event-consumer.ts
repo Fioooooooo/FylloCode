@@ -4,8 +4,8 @@ import { join } from "path";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { mcpEventsDir } from "@main/infra/storage/project-paths";
 import logger from "@main/infra/logger";
-import type { McpProposalEvent } from "@shared/types/mcp-event";
-import { ensureChatSubject, recordProposal } from "./lineage-service";
+import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
+import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
 import { proposalStatusService } from "@main/services/proposal/proposal-status-service";
 
 type ConsumerState = {
@@ -34,40 +34,68 @@ function isMcpProposalEvent(value: unknown): value is McpProposalEvent {
   );
 }
 
+function isMcpPlanEvent(value: unknown): value is McpPlanEvent {
+  return (
+    isRecord(value) &&
+    value.server === "fyllo-specs" &&
+    value.tool === "create-plan" &&
+    typeof value.createdAt === "string" &&
+    typeof value.sessionId === "string" &&
+    value.sessionId.length > 0 &&
+    typeof value.planSlug === "string" &&
+    value.planSlug.length > 0
+  );
+}
+
+function isMcpEvent(value: unknown): value is McpEvent {
+  return isMcpProposalEvent(value) || isMcpPlanEvent(value);
+}
+
 async function consumeEventFile(
   projectPath: string,
   eventDir: string,
   fileName: string
 ): Promise<void> {
   const filePath = join(eventDir, fileName);
-  let event: McpProposalEvent;
+  let event: McpEvent;
   try {
-    event = JSON.parse(await fs.readFile(filePath, "utf8")) as unknown as McpProposalEvent;
+    event = JSON.parse(await fs.readFile(filePath, "utf8")) as unknown as McpEvent;
   } catch (error: unknown) {
     logger.warn(`[lineage-mcp-event] skipped unreadable event file: ${filePath}`, error);
     return;
   }
 
-  if (!isMcpProposalEvent(event)) {
+  if (!isMcpEvent(event)) {
     logger.warn(`[lineage-mcp-event] skipped invalid event file: ${filePath}`);
     return;
   }
 
   try {
-    let subject = await recordProposal(projectPath, event.sessionId, event.changeId);
+    let subject =
+      event.tool === "create-proposal"
+        ? await recordProposal(projectPath, event.sessionId, event.changeId)
+        : await recordPlan(projectPath, event.sessionId, event.planSlug);
+
     if (!subject) {
       await ensureChatSubject(projectPath, event.sessionId);
-      subject = await recordProposal(projectPath, event.sessionId, event.changeId);
+      subject =
+        event.tool === "create-proposal"
+          ? await recordProposal(projectPath, event.sessionId, event.changeId)
+          : await recordPlan(projectPath, event.sessionId, event.planSlug);
     }
 
     if (!subject) {
+      const target =
+        event.tool === "create-proposal" ? `change=${event.changeId}` : `plan=${event.planSlug}`;
       logger.warn(
-        `[lineage-mcp-event] proposal event could not be linked; session=${event.sessionId} change=${event.changeId}`
+        `[lineage-mcp-event] event could not be linked; session=${event.sessionId} ${target}`
       );
       return;
     }
 
-    proposalStatusService.watchProposal(projectPath, event.changeId, event.sessionId);
+    if (event.tool === "create-proposal") {
+      proposalStatusService.watchProposal(projectPath, event.changeId, event.sessionId);
+    }
 
     await fs.unlink(filePath);
   } catch (error: unknown) {

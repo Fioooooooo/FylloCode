@@ -56,7 +56,7 @@ const persistedState = computed(() =>
 function confirmReadyAction(): Promise<FylloActionHandlerResult> {
   if (parseResult.value.status !== "ready") {
     return Promise.resolve({
-      ok: false,
+      outcome: "failed",
       error: "Fyllo action is not ready.",
     });
   }

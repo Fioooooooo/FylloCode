@@ -4,6 +4,7 @@ import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
 import type {
   LineageIndex,
   LineageOrigin,
+  LineagePlanLink,
   LineageProposalLink,
   LineageSessionLink,
   LineageTaskRef,
@@ -232,6 +233,17 @@ function normalizeProposalLink(value: unknown): LineageProposalLink | null {
   };
 }
 
+function normalizePlanLink(value: unknown): LineagePlanLink | null {
+  if (!isRecord(value) || typeof value.slug !== "string" || typeof value.createdAt !== "string") {
+    return null;
+  }
+
+  return {
+    slug: value.slug,
+    createdAt: value.createdAt,
+  };
+}
+
 function normalizeSessionLink(value: unknown): LineageSessionLink | null {
   if (
     !isRecord(value) ||
@@ -248,6 +260,11 @@ function normalizeSessionLink(value: unknown): LineageSessionLink | null {
     proposals: value.proposals
       .map((proposal) => normalizeProposalLink(proposal))
       .filter((proposal): proposal is LineageProposalLink => proposal !== null),
+    plans: Array.isArray(value.plans)
+      ? value.plans
+          .map((plan) => normalizePlanLink(plan))
+          .filter((plan): plan is LineagePlanLink => plan !== null)
+      : [],
   };
 }
 

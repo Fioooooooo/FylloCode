@@ -66,6 +66,9 @@ export const LineageChannels = {
   getByTask: "lineage:getByTask",
   getBySession: "lineage:getBySession",
   createSessionTask: "lineage:createSessionTask",
+  readPlan: "lineage:readPlan",
+  savePlanBody: "lineage:savePlanBody",
+  approvePlan: "lineage:approvePlan",
 } as const;
 
 export const OverviewChannels = {

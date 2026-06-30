@@ -5,7 +5,7 @@ import { join } from "path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { Disposable } from "@main/bootstrap/lifecycle";
 import { mcpEventsDir } from "@main/infra/storage/project-paths";
-import type { McpProposalEvent } from "@shared/types/mcp-event";
+import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { createTestTempRoot } from "@test/main/test-temp-root";
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
     mocks.disposable = disposable;
   }),
   recordProposal: vi.fn(),
+  recordPlan: vi.fn(),
   ensureChatSubject: vi.fn(),
+  watchProposal: vi.fn(),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -40,7 +42,14 @@ vi.mock("@main/bootstrap/lifecycle", () => ({
 
 vi.mock("@main/services/lineage/lineage-service", () => ({
   recordProposal: mocks.recordProposal,
+  recordPlan: mocks.recordPlan,
   ensureChatSubject: mocks.ensureChatSubject,
+}));
+
+vi.mock("@main/services/proposal/proposal-status-service", () => ({
+  proposalStatusService: {
+    watchProposal: mocks.watchProposal,
+  },
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -62,10 +71,21 @@ function proposalEvent(overrides: Partial<McpProposalEvent> = {}): McpProposalEv
   };
 }
 
+function planEvent(overrides: Partial<McpPlanEvent> = {}): McpPlanEvent {
+  return {
+    server: "fyllo-specs",
+    tool: "create-plan",
+    createdAt: "2026-06-10T00:00:00.000Z",
+    sessionId: "session-1",
+    planSlug: "2026-06-29-plan-a",
+    ...overrides,
+  };
+}
+
 async function writeEventFile(
   projectPath: string,
   fileName: string,
-  event: McpProposalEvent | string
+  event: McpEvent | string
 ): Promise<string> {
   const eventDir = mcpEventsDir(projectPath);
   await fs.mkdir(eventDir, { recursive: true });
@@ -80,6 +100,7 @@ describe("lineage mcp event consumer", () => {
     mocks.watchCallbacks = [];
     mocks.watcherCloseFns = [];
     mocks.recordProposal.mockResolvedValue({ id: "subject-1" });
+    mocks.recordPlan.mockResolvedValue({ id: "subject-1" });
     mocks.ensureChatSubject.mockResolvedValue({ id: "chat-subject" });
     mocks.watch.mockImplementation(((_path, listener) => {
       const close = vi.fn();
@@ -120,6 +141,21 @@ describe("lineage mcp event consumer", () => {
     });
     expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-1");
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
+    expect(mocks.watchProposal).toHaveBeenCalledWith(projectPath, "change-1", "session-1");
+  });
+
+  it("consumes residual plan events on startup without chat fallback", async () => {
+    const projectPath = createTestTempRoot("fyllo-lineage-plan-");
+    const filePath = await writeEventFile(projectPath, "event.json", planEvent());
+
+    ensureLineageEventConsumer(projectPath);
+
+    await vi.waitFor(() => {
+      expect(existsSync(filePath)).toBe(false);
+    });
+    expect(mocks.recordPlan).toHaveBeenCalledWith(projectPath, "session-1", "2026-06-29-plan-a");
+    expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
+    expect(mocks.watchProposal).not.toHaveBeenCalled();
   });
 
   it("creates a chat subject and retries when recordProposal returns null", async () => {
@@ -134,6 +170,20 @@ describe("lineage mcp event consumer", () => {
     });
     expect(mocks.ensureChatSubject).toHaveBeenCalledWith(projectPath, "session-1");
     expect(mocks.recordProposal).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates a chat subject and retries when recordPlan returns null", async () => {
+    const projectPath = createTestTempRoot("fyllo-lineage-plan-chat-");
+    const filePath = await writeEventFile(projectPath, "event.json", planEvent());
+    mocks.recordPlan.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "chat-subject" });
+
+    ensureLineageEventConsumer(projectPath);
+
+    await vi.waitFor(() => {
+      expect(existsSync(filePath)).toBe(false);
+    });
+    expect(mocks.ensureChatSubject).toHaveBeenCalledWith(projectPath, "session-1");
+    expect(mocks.recordPlan).toHaveBeenCalledTimes(2);
   });
 
   it("skips damaged files while consuming valid files in the same scan", async () => {

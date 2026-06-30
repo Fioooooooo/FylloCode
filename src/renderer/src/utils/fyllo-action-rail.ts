@@ -1,7 +1,7 @@
 import { getFylloActionDefinition } from "@renderer/config/fyllo-actions";
 import { buildChatFylloActionId, parseFylloActionNode } from "@renderer/utils/fyllo-action";
 import type { Session } from "@shared/types/chat";
-import type { FylloActionType } from "@shared/types/fyllo-action";
+import type { FylloActionReadyParseResult, FylloActionType } from "@shared/types/fyllo-action";
 
 export interface PendingFylloActionRailItem {
   actionId: string;
@@ -48,6 +48,15 @@ function isAssistantTextPart(
   return message.role === "assistant" && part.type === "text" && typeof part.text === "string";
 }
 
+function getActionSummary(parseResult: FylloActionReadyParseResult): string | undefined {
+  switch (parseResult.type) {
+    case "task.create":
+      return getFylloActionDefinition("task.create").getSummary?.(parseResult.payload);
+    case "plan.create":
+      return getFylloActionDefinition("plan.create").getSummary?.(parseResult.payload);
+  }
+}
+
 export function collectPendingFylloActionRailItems(
   session: Session | null
 ): PendingFylloActionRailItem[] {
@@ -89,7 +98,7 @@ export function collectPendingFylloActionRailItems(
           type: parseResult.type,
           title: definition.title,
           icon: definition.icon,
-          summary: definition.getSummary?.(parseResult.payload),
+          summary: getActionSummary(parseResult),
         });
       });
     });

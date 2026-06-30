@@ -108,6 +108,13 @@ keywords: [renderer, vue, pinia, routing, ui]
 - `ChatSessionEventRail` 可以展示执行计划、proposal 入口和当前 Chat 主会话内未处理的 Fyllo action 提醒。pending Fyllo action 必须从 `activeSession.messages` 与 `activeSession.actionStates` 响应式派生；缺失 action state 表示待处理，`succeeded` / `failed` / `cancelled` 任一状态存在后不再作为 pending rail item 展示。
 - Fyllo action rail item 只负责提醒与定位：组件只能 emit `locate-action`，由 `ChatContainer` 在消息滚动容器内查找 `data-fyllo-action-id` anchor 并滚动到原 action card。事件栏不得 import action dispatcher、task store、lineage API、`src/renderer/src/api/*` 或 `window.api`，也不得确认、取消、重试或持久化 action state。
 
+## Plan Review Flow
+
+- `plan.create` action 由 `FylloActionShell` 的通用 outcome 状态机驱动。handler 返回 `succeeded` / `failed` / `cancelled` 时写入 session meta；返回 `dismissed` 时 action card 回到 ready，不写入 `actionStates`。
+- `PlanCreateAction.vue` 只能展示 `slug` 与 `goal`，不得 import renderer API、Pinia store、业务 service 或 `window.api`。业务执行只允许在 `useFylloActionDispatcher.ts` 中分发。
+- `usePlanSlideover()` 是打开 Plan Slideover 的领域 composable，内部使用 `useOverlay().create(PlanSlideover, { destroyOnClose: true })`。dispatcher 只 await `approved` / `dismissed` 结果，不直接操作 overlay 或文件路径。
+- `PlanSlideover.vue` 通过 renderer `lineageApi` 读写 plan：只编辑正文、保存正文、批准 plan。批准成功后再调用 chat store 发送 `我已确认规划方案：<slug>`。
+
 ## Chat Session Streams
 
 - `useChatStore` 必须按已建立的 `sessionId` 维护 chat stream run、status、cancel 和瞬时 error；组件消费的 `chatStatus`、`streamError`、`cancelFn` 只能从当前 `useSessionStore.activeSessionId` 对应 session 派生，草稿态或无运行态时回落为 `ready` / `null`。

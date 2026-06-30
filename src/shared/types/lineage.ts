@@ -16,10 +16,16 @@ export type LineageProposalLink = {
   commitHash?: string;
 };
 
+export type LineagePlanLink = {
+  slug: string;
+  createdAt: string;
+};
+
 export type LineageSessionLink = {
   sessionId: string;
   createdAt: string;
   proposals: LineageProposalLink[];
+  plans: LineagePlanLink[];
 };
 
 export type Subject = {
@@ -58,6 +64,16 @@ export interface CreateSessionTaskInput {
   title: string;
   description?: string;
 }
+
+export type PlanDocumentStatus = "draft" | "approved";
+
+export type PlanDocument = {
+  slug: string;
+  goal: string;
+  createdAt: string;
+  status: PlanDocumentStatus;
+  body: string;
+};
 
 export type LineageIndex = {
   version: 1;

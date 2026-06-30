@@ -27,10 +27,16 @@ export type LineageProposalDto = {
   proposalPath: string | null;
 };
 
+export type LineagePlanDto = {
+  slug: string;
+  createdAt: string;
+};
+
 export type LineageSessionDto = {
   sessionId: string;
   createdAt: string;
   proposals: LineageProposalDto[];
+  plans: LineagePlanDto[];
 };
 
 export type LineageResponseDto = {
@@ -197,10 +203,18 @@ async function projectProposalDto(
 
 async function projectSessionDto(link: LineageSessionLink): Promise<LineageSessionDto> {
   const proposals = await Promise.all(link.proposals.map((p) => projectProposalDto(p)));
+  const plans = Array.isArray(link.plans)
+    ? link.plans.map((plan) => ({
+        slug: plan.slug,
+        createdAt: plan.createdAt,
+      }))
+    : [];
+
   return {
     sessionId: link.sessionId,
     createdAt: link.createdAt,
     proposals,
+    plans,
   };
 }
 

@@ -3,6 +3,7 @@ import type {
   CreateSessionTaskInput,
   LineageTaskRef,
   LineageTaskSnapshot,
+  PlanDocument,
   SessionLineageProjection,
   Subject,
   TaskDownstreamProjection,
@@ -44,5 +45,26 @@ export const lineageApi = {
     input: CreateSessionTaskInput
   ): Promise<IpcResponse<TaskItem>> {
     return window.api.lineage.createSessionTask(projectId, input);
+  },
+
+  readPlan(
+    projectId: string,
+    input: { sessionId: string; slug: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return window.api.lineage.readPlan(projectId, input);
+  },
+
+  savePlanBody(
+    projectId: string,
+    input: { sessionId: string; slug: string; body: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return window.api.lineage.savePlanBody(projectId, input);
+  },
+
+  approvePlan(
+    projectId: string,
+    input: { sessionId: string; slug: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return window.api.lineage.approvePlan(projectId, input);
   },
 };

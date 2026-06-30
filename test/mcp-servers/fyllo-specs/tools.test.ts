@@ -12,6 +12,7 @@ import { join } from "path";
 import spawn from "cross-spawn";
 import { describe, expect, it, vi } from "vitest";
 import { applyChangeTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/apply-change";
+import { createPlanTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/create-plan";
 import { createProposalTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/create-proposal";
 import { archiveChangeTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/archive-change";
 import { exploreTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/explore";
@@ -100,9 +101,43 @@ describe("tools", () => {
     }
   });
 
-  it("tools reject missing targetPath via MCP SDK validation", async () => {
+  it("path-bound tools reject missing targetPath via MCP SDK validation", async () => {
     const { client, close } = await createToolClient();
     try {
+      const tools = await client.listTools();
+      expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+        "apply-change",
+        "archive-change",
+        "create-plan",
+        "create-proposal",
+        "explore",
+      ]);
+      const createPlanToolDefinition = tools.tools.find((tool) => tool.name === "create-plan");
+      expect(createPlanToolDefinition?.description).toContain(
+        "requires exploration or architectural trade-offs"
+      );
+      expect(createPlanToolDefinition?.description).toContain(
+        "does not change the behavior contract"
+      );
+      expect(createPlanToolDefinition?.description).toContain(
+        "public APIs, schemas, protocols, persistence formats"
+      );
+      expect(createPlanToolDefinition?.description).toContain("use create-proposal instead");
+      expect(createPlanToolDefinition?.inputSchema).toMatchObject({
+        type: "object",
+        required: ["goal", "slug"],
+        properties: {
+          goal: {
+            description: "One-sentence summary of what this plan aims to achieve.",
+          },
+          slug: {
+            description:
+              "Short kebab-case identifier for the plan, e.g. 'refactor-auth-flow'. Must not include a date prefix.",
+          },
+        },
+      });
+      expect(createPlanToolDefinition?.inputSchema.properties).not.toHaveProperty("targetPath");
+
       const exploreResult = await client.request(
         { method: "tools/call", params: { name: "explore", arguments: {} } },
         CallToolResultSchema
@@ -152,6 +187,34 @@ describe("tools", () => {
     }
   });
 
+  it("create-plan rejects path and instruction control inputs", async () => {
+    const { client, close } = await createToolClient();
+    try {
+      const result = await client.request(
+        {
+          method: "tools/call",
+          params: {
+            name: "create-plan",
+            arguments: {
+              goal: "Plan first",
+              slug: "plan-first",
+              targetPath: repoRoot,
+              includeInstruction: false,
+            },
+          },
+        },
+        CallToolResultSchema
+      );
+      expect(result.isError).toBe(true);
+      const text = firstTextContent(result);
+      expect(text).toContain(String(ErrorCode.InvalidParams));
+      expect(text).toContain("targetPath");
+      expect(text).toContain("includeInstruction");
+    } finally {
+      await close();
+    }
+  });
+
   it("explore rejects relative targetPath without calling git", async () => {
     const spawnSyncSpy = vi.spyOn(gitChildProcess, "spawnSync");
     try {
@@ -191,6 +254,123 @@ describe("tools", () => {
       expect((state.errors as Array<{ message: string }>)[0].message).toContain("kebab-case");
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
+  it("create-plan returns error state for invalid slug", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const prevDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    process.env.FYLLO_PROJECT_DATA_DIR = join(root, "data");
+    process.env.FYLLO_SESSION_ID = "session-1";
+    try {
+      const text = await createPlanTool({
+        goal: "Need a plan",
+        slug: "2026-06-29-plan-a",
+      });
+      expect(text).toContain("<tool_instruction>");
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain("date prefix");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_DATA_DIR", prevDataDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
+    }
+  });
+
+  it("create-plan requires project data and session env before creating files", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const dataDir = join(root, "data");
+    const prevDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    process.env.FYLLO_PROJECT_DATA_DIR = dataDir;
+    delete process.env.FYLLO_SESSION_ID;
+    try {
+      const text = await createPlanTool({
+        goal: "Need a plan",
+        slug: "plan-a",
+      });
+      expect(text).toContain("<tool_instruction>");
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain("FYLLO_SESSION_ID");
+      expect(existsSync(dataDir)).toBe(false);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_DATA_DIR", prevDataDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
+    }
+  });
+
+  it("create-plan creates a plan skeleton and writes a plan event", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const dataDir = join(root, "data");
+    const eventDir = join(root, "events");
+    const prevDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    const prevEventDir = process.env.FYLLO_MCP_EVENT_DIR;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-29T08:00:00.000Z"));
+    process.env.FYLLO_PROJECT_DATA_DIR = dataDir;
+    process.env.FYLLO_SESSION_ID = "session-1";
+    process.env.FYLLO_MCP_EVENT_DIR = eventDir;
+    try {
+      const text = await createPlanTool({
+        goal: "Need a plan",
+        slug: "plan-a",
+      });
+      expect(text).toContain("<tool_instruction>");
+      const state = parseState(text);
+      const planPath = join(dataDir, "sessions", "session-1", "plans", "2026-06-29-plan-a.md");
+      expect(state).toEqual({ planPath });
+      const plan = readFileSync(planPath, "utf8");
+      expect(plan).toContain("slug: 2026-06-29-plan-a");
+      expect(plan).toContain('goal: "Need a plan"');
+      expect(plan).toContain("status: draft");
+      expect(plan).toContain("## 任务目标/Goal");
+      expect(plan).toContain("## 验证方式/Verification");
+
+      const files = readdirSync(eventDir);
+      expect(files).toHaveLength(1);
+      expect(JSON.parse(readFileSync(join(eventDir, files[0]!), "utf8"))).toMatchObject({
+        server: "fyllo-specs",
+        tool: "create-plan",
+        sessionId: "session-1",
+        planSlug: "2026-06-29-plan-a",
+        createdAt: expect.any(String),
+      });
+    } finally {
+      vi.useRealTimers();
+      restoreEnv("FYLLO_PROJECT_DATA_DIR", prevDataDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
+      restoreEnv("FYLLO_MCP_EVENT_DIR", prevEventDir);
+    }
+  });
+
+  it("create-plan does not overwrite an existing plan", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const dataDir = join(root, "data");
+    const planPath = join(dataDir, "sessions", "session-1", "plans", "2026-06-29-plan-a.md");
+    mkdirSync(join(dataDir, "sessions", "session-1", "plans"), { recursive: true });
+    writeFileSync(planPath, "existing", "utf8");
+    const prevDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
+    const prevSessionId = process.env.FYLLO_SESSION_ID;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-29T08:00:00.000Z"));
+    process.env.FYLLO_PROJECT_DATA_DIR = dataDir;
+    process.env.FYLLO_SESSION_ID = "session-1";
+    try {
+      const text = await createPlanTool({
+        goal: "Need a plan",
+        slug: "plan-a",
+      });
+      expect(text).toContain("<tool_instruction>");
+      const state = parseState(text);
+      expect(state.errors).toBeInstanceOf(Array);
+      expect(readFileSync(planPath, "utf8")).toBe("existing");
+    } finally {
+      vi.useRealTimers();
+      restoreEnv("FYLLO_PROJECT_DATA_DIR", prevDataDir);
+      restoreEnv("FYLLO_SESSION_ID", prevSessionId);
     }
   });
 

@@ -64,6 +64,7 @@ function subject(overrides: Partial<Subject> = {}): Subject {
         sessionId: "session-1",
         createdAt: now,
         proposals: [{ changeId: "change-1", createdAt: now }],
+        plans: [],
       },
     ],
     createdAt: now,
@@ -124,6 +125,7 @@ describe("lineage-store", () => {
           sessionId: "session-1",
           createdAt: now,
           proposals: [{ changeId: "change-1", createdAt: now, commitHash: "abc123" }],
+          plans: [{ slug: "2026-06-29-plan-a", createdAt: now }],
         },
       ],
     });
@@ -134,6 +136,7 @@ describe("lineage-store", () => {
       links: [
         {
           proposals: [{ changeId: "change-1", commitHash: "abc123" }],
+          plans: [{ slug: "2026-06-29-plan-a", createdAt: now }],
         },
       ],
     });
@@ -145,6 +148,40 @@ describe("lineage-store", () => {
     writeFileSync(subjectFilePath(), JSON.stringify(subject(), null, 2), "utf8");
 
     await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
+  });
+
+  it("normalizes old subject session links missing plans", async () => {
+    mkdirSync(subjectsDir(projectPath), { recursive: true });
+    writeFileSync(
+      subjectFilePath(),
+      JSON.stringify(
+        {
+          ...subject(),
+          links: [
+            {
+              sessionId: "session-1",
+              createdAt: now,
+              proposals: [{ changeId: "change-1", createdAt: now }],
+            },
+          ],
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
+  });
+
+  it("drops plans from index normalization", async () => {
+    await writeIndex(projectPath, {
+      ...index(),
+      plans: { "2026-06-29-plan-a": "subject-1" },
+    } as unknown as LineageIndex);
+
+    expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).not.toHaveProperty("plans");
+    await expect(readIndex(projectPath)).resolves.toEqual(index());
   });
 
   it("normalizes old index files missing commitHashes", async () => {

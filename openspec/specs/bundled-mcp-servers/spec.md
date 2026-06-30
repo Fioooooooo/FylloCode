@@ -3,9 +3,7 @@
 ## Purpose
 
 定义 FylloCode 内置 MCP server 的分发契约、启动参数构造、env 约定、路径解析规则，以及与 ACP `newSession` / `resumeSession` 的对接方式。
-
 ## Requirements
-
 ### Requirement: 内置 MCP server 以顶级构建目标形式存在
 
 系统 SHALL 将随应用分发的 MCP server 源码组织在项目根目录 `src/mcp-servers/<server-name>/` 下，与 `src/main/`、`src/preload/`、`src/renderer/` 和 `src/shared/` 同属 `src/` 源码树。每个 MCP server 目录 SHALL 包含独立的 `src/` 与 `tsconfig.json`，对应测试 SHALL 位于 `test/mcp-servers/<server-name>/`，并 MAY 通过根 `package.json` 共享依赖与构建脚本。
@@ -21,7 +19,7 @@
 
 - **WHEN** 检查项目根目录
 - **THEN** 存在 `src/mcp-servers/fyllo-specs/src/index.ts` 作为 stdio MCP server 的入口
-- **AND** 存在 `src/mcp-servers/fyllo-specs/src/tools/instructions/` 目录包含四个 markdown 文件
+- **AND** 存在 `src/mcp-servers/fyllo-specs/src/tools/instructions/` 目录包含 `explore.md`、`create-plan.md`、`create-proposal.md`、`apply-change.md`、`archive-change.md`
 - **AND** 不在 `src/main/` 任何子目录下放置 MCP server 源码
 
 #### Scenario: fyllo-cortex 源码位置

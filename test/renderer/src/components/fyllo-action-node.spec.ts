@@ -26,7 +26,7 @@ function buttonByText(wrapper: VueWrapper, text: string): DOMWrapper<HTMLButtonE
 describe("FylloActionNode", () => {
   beforeEach(() => {
     dispatchMock.mockReset();
-    dispatchMock.mockResolvedValue({ ok: true } satisfies FylloActionHandlerResult);
+    dispatchMock.mockResolvedValue({ outcome: "succeeded" } satisfies FylloActionHandlerResult);
   });
 
   it("routes task.create to the task-specific renderer and generic dispatcher", async () => {

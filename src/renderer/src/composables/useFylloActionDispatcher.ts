@@ -1,4 +1,12 @@
 import { lineageApi } from "@renderer/api/lineage";
+import { createPlanCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/plan-create";
+import { createTaskCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/task-create";
+import type {
+  FylloActionDispatchContext,
+  FylloActionDispatchHandler,
+  FylloActionDispatchHandlerMap,
+} from "@renderer/composables/fyllo-action-handlers/types";
+import { usePlanSlideover } from "@renderer/composables/usePlanSlideover";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import type {
@@ -7,12 +15,15 @@ import type {
   FylloActionType,
 } from "@shared/types/fyllo-action";
 
-interface FylloActionDispatchContext {
-  sessionId?: string | null;
-}
-
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function getDispatchHandler<Type extends FylloActionType>(
+  handlers: FylloActionDispatchHandlerMap,
+  type: Type
+): FylloActionDispatchHandler<Type> {
+  return handlers[type] as FylloActionDispatchHandler<Type>;
 }
 
 export function useFylloActionDispatcher(): {
@@ -24,6 +35,16 @@ export function useFylloActionDispatcher(): {
 } {
   const projectStore = useProjectStore();
   const sessionStore = useSessionStore();
+  const { openPlanReview } = usePlanSlideover();
+  const handlers = {
+    "task.create": createTaskCreateActionHandler({
+      createSessionTask: lineageApi.createSessionTask,
+      setSessionOriginTaskRef: sessionStore.setSessionOriginTaskRef,
+    }),
+    "plan.create": createPlanCreateActionHandler({
+      openPlanReview,
+    }),
+  } satisfies FylloActionDispatchHandlerMap;
 
   async function dispatchFylloAction<Type extends FylloActionType>(
     type: Type,
@@ -31,45 +52,14 @@ export function useFylloActionDispatcher(): {
     context: FylloActionDispatchContext = {}
   ): Promise<FylloActionHandlerResult> {
     try {
-      if (type === "task.create") {
-        const taskPayload = payload as FylloActionPayloadByType["task.create"];
-        const projectId = projectStore.currentProject?.id;
-        if (!projectId) {
-          return {
-            ok: false,
-            error: "当前没有选中的项目",
-          };
-        }
-
-        const sessionId = context.sessionId?.trim();
-        if (!sessionId) {
-          return {
-            ok: false,
-            error: "当前聊天会话缺少 sessionId，无法创建任务。",
-          };
-        }
-
-        const result = await lineageApi.createSessionTask(projectId, {
-          sessionId,
-          title: taskPayload.title,
-          description: taskPayload.description,
-        });
-        if (!result.ok) {
-          throw new Error(result.error.message);
-        }
-
-        sessionStore.setSessionOriginTaskRef(sessionId, `local:${result.data.id}`);
-
-        return { ok: true };
-      }
-
-      return {
-        ok: false,
-        error: "Unsupported Fyllo action type.",
-      };
+      const handler = getDispatchHandler(handlers, type);
+      return await handler(payload, {
+        projectId: projectStore.currentProject?.id,
+        context,
+      });
     } catch (error) {
       return {
-        ok: false,
+        outcome: "failed",
         error: getErrorMessage(error),
       };
     }

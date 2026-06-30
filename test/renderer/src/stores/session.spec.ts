@@ -755,6 +755,7 @@ describe("useSessionStore", () => {
           sessionId: "session-1",
           createdAt: "2026-06-25T00:00:00.000Z",
           proposals: [{ changeId: "fix-login", createdAt: "2026-06-25T00:00:00.000Z" }],
+          plans: [],
         },
       },
     });
@@ -803,6 +804,7 @@ describe("useSessionStore", () => {
           sessionId: "session-1",
           createdAt: "2026-06-25T00:00:00.000Z",
           proposals: [{ changeId: "fix-login", createdAt: "2026-06-25T00:00:00.000Z" }],
+          plans: [],
         },
       },
     });

@@ -1,5 +1,8 @@
 import type { z } from "zod";
-import { taskCreateFylloActionPayloadSchema } from "@shared/schemas/fyllo-action";
+import {
+  planCreateFylloActionPayloadSchema,
+  taskCreateFylloActionPayloadSchema,
+} from "@shared/schemas/fyllo-action";
 import type { FylloActionPayloadByType, FylloActionType } from "@shared/types/fyllo-action";
 
 export interface FylloActionPayloadFieldContract {
@@ -43,6 +46,30 @@ export const enabledFylloActionContracts = [
     examplePayload: {
       title: "Add error handling",
       description: "Capture the agreed follow-up.",
+    },
+  },
+  {
+    type: "plan.create",
+    description:
+      "Open the current chat session plan for review after the user confirms the action in FylloCode.",
+    payloadSchema: planCreateFylloActionPayloadSchema,
+    payloadFields: [
+      {
+        name: "slug",
+        type: "string",
+        required: true,
+        description: "Required full plan slug in yyyy-MM-dd-agent-slug format.",
+      },
+      {
+        name: "goal",
+        type: "string",
+        required: true,
+        description: "Required one-sentence summary of what this plan aims to achieve.",
+      },
+    ],
+    examplePayload: {
+      slug: "2026-06-29-refactor-chat-store",
+      goal: "Review the multi-file implementation plan before code changes.",
     },
   },
 ] as const satisfies readonly FylloActionContract[];

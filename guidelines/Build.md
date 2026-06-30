@@ -42,6 +42,7 @@ keywords: [build, electron-vite, electron-builder, packaging, generated]
 - MUST: 将应用资源放在 `resources/`，将打包图标、entitlements 等构建素材放在 `build/`，避免把运行时数据混入构建素材目录。
 - MUST: 桌面生产包瘦身规则必须配置在 `electron-builder.yml` 的通用打包范围内，覆盖 macOS、Windows、Linux；优先使用白名单包含 `out/**`、`resources/**` 与 `package.json`，再用排除规则兜底过滤源码目录、工程元数据、source map、测试、示例、benchmark、`docs/` 文档目录和临时元数据。
 - MUST: bundled MCP server 启动环境变量 `FYLLO_PROJECT_DATA_DIR` 由主进程通过 `projectDir(projectPath)` 计算，指向当前项目 FylloCode 数据根目录（`<userData>/projects/<encodedProjectPath>`），用于内置 MCP server 读取项目级持久化数据（如 lineage）。MCP server 不得通过 `FYLLO_MCP_EVENT_DIR` 的父目录或硬编码 userData 路径推导数据目录。
+- MUST: `fyllo-specs` 的 tool prompt 文件维护在 `src/mcp-servers/fyllo-specs/src/tools/instructions/`，当前集合为 `explore.md`、`create-plan.md`、`create-proposal.md`、`apply-change.md`、`archive-change.md`。新增 tool 时必须同步更新 prompt registry、构建 text loader 覆盖、测试和 bundled MCP spec。
 - MUST: `electron-builder.yml` 必须显式声明 `electronLanguages`，默认至少保留 `en-US` 与 `zh-CN`；新增正式支持语言时同步扩展该列表。
 - MUST: 桌面发布 workflow 必须位于 `.github/workflows/release.yml`，并以 `v*.*.*` 版本 tag push 作为正式发布触发入口；workflow MUST 使用 `pnpm install --frozen-lockfile`、`pnpm build` 与 `pnpm exec electron-builder --<target> --<arch> --publish always`，不得改用不支持 pnpm 的 electron-builder action 封装。
 - MUST: release workflow 必须显式拆分 macOS x64 与 macOS arm64 产物，避免生成单个支持双架构的 macOS universal 安装包导致包体积增大；Windows 与 Linux 默认发布 x64 产物。

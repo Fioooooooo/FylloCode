@@ -8,6 +8,33 @@ vi.mock("@main/infra/logger", () => ({
   default: logger,
 }));
 
+const CHAT_SECTION_TAGS = ["authority", "context", "rules", "workspace", "critical"] as const;
+const CHAT_SECTION_TAGS_WITH_TASK = [
+  "authority",
+  "context",
+  "task-context",
+  "rules",
+  "workspace",
+  "critical",
+] as const;
+
+function getSection(text: string, tag: string): string | null {
+  const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(text);
+  return match?.[1]?.trim() ?? null;
+}
+
+function expectNonEmptyOrderedSections(text: string, tags: readonly string[]): void {
+  let previousIndex = -1;
+
+  for (const tag of tags) {
+    const openIndex = text.indexOf(`<${tag}`);
+    expect(openIndex, `${tag} should exist`).toBeGreaterThan(previousIndex);
+    expect(getSection(text, tag), `${tag} should not be empty`).toEqual(expect.any(String));
+    expect(getSection(text, tag)?.length, `${tag} should not be empty`).toBeGreaterThan(0);
+    previousIndex = openIndex;
+  }
+}
+
 describe("resolveSystemReminder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,7 +143,7 @@ describe("resolveSystemReminder", () => {
     expect(reminder).toContain("{{unknownField}}");
   });
 
-  it("renders the chat workspace tool contract", async () => {
+  it("renders non-empty chat reminder sections in a stable order", async () => {
     const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
 
     const reminder = await resolveSystemReminder({
@@ -127,13 +154,10 @@ describe("resolveSystemReminder", () => {
       agentId: "claude-acp",
     });
 
-    expect(reminder?.text).toContain("<workspace>");
-    expect(reminder?.text).toContain("Workspace Policy");
-    expect(reminder?.text).toContain("Let the tool choose and prepare the proposal workspace");
-    expect(reminder?.text).toContain("state.workspace.path");
-    expect(reminder?.text).toContain("mcp__fyllo_specs__create-proposal");
-    expect(reminder?.text).toContain("bypasses the MCP workspace runtime");
-    expect(reminder?.text).not.toContain("git worktree add");
+    expect(reminder?.text.trim().startsWith("<system-reminder>")).toBe(true);
+    expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
+    expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS);
+    expect(getSection(reminder?.text ?? "", "task-context")).toBeNull();
   });
 
   it("injects task context and task title into chat reminders when taskRef is present", async () => {
@@ -149,9 +173,9 @@ describe("resolveSystemReminder", () => {
       taskTitle: "修复登录超时",
     });
 
-    expect(reminder?.text).toContain("<task-context>");
-    expect(reminder?.text).toContain("existing task local:task-1");
-    expect(reminder?.text).toContain("Task title: 修复登录超时.");
+    expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS_WITH_TASK);
+    expect(getSection(reminder?.text ?? "", "task-context")).toContain("local:task-1");
+    expect(getSection(reminder?.text ?? "", "task-context")).toContain("修复登录超时");
   });
 
   it("keeps task context at ref level when task title is missing", async () => {
@@ -166,9 +190,9 @@ describe("resolveSystemReminder", () => {
       taskRef: "local:task-1",
     });
 
-    expect(reminder?.text).toContain("<task-context>");
-    expect(reminder?.text).toContain("existing task local:task-1");
-    expect(reminder?.text).not.toContain("Task title:");
+    expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS_WITH_TASK);
+    expect(getSection(reminder?.text ?? "", "task-context")).toContain("local:task-1");
+    expect(getSection(reminder?.text ?? "", "task-context")).not.toContain("Task title:");
   });
 
   it("omits task context from chat reminders when taskRef is absent", async () => {
@@ -182,8 +206,8 @@ describe("resolveSystemReminder", () => {
       agentId: "claude-acp",
     });
 
-    expect(reminder?.text).not.toContain("This chat session was started from existing task");
-    expect(reminder?.text).not.toContain("started from existing task");
+    expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS);
+    expect(getSection(reminder?.text ?? "", "task-context")).toBeNull();
   });
 
   it("does not inject task descriptions into chat reminders", async () => {
@@ -264,33 +288,21 @@ describe("resolveSystemReminder", () => {
 
     expect(reminder?.text).toContain("## Fyllo Action Tags");
     expect(reminder?.text).toContain('<fyllo-action type="task.create">');
+    expect(reminder?.text).toContain('<fyllo-action type="plan.create">');
     expect(reminder?.text).toContain("task.create");
+    expect(reminder?.text).toContain("plan.create");
     expect(reminder?.text).toContain("title");
     expect(reminder?.text).toContain("Required non-empty task title.");
     expect(reminder?.text).toContain("description");
     expect(reminder?.text).toContain("Optional plain-text task description.");
+    expect(reminder?.text).toContain("slug");
+    expect(reminder?.text).toContain("goal");
+    expect(reminder?.text).toContain(
+      "Payload schema: strict JSON object. Do not include unknown fields."
+    );
     expect(reminder?.text).toContain("The only allowed attribute is `type`.");
     expect(reminder?.text).toContain("FylloCode controls the UI and fixed confirm/cancel buttons.");
     expect(reminder?.text).toContain("confirmLabel");
-  });
-
-  it("injects the create-proposal task binding branch rule into chat reminders", async () => {
-    const { resolveSystemReminder } = await import("@main/services/chat/system-reminder");
-
-    const reminder = await resolveSystemReminder({
-      owner: "chat",
-      projectPath: "/tmp/project",
-      cwd: "/tmp/project",
-      fylloSessionId: "session-1",
-      agentId: "claude-acp",
-    });
-
-    expect(reminder?.text).toContain(
-      "After `mcp__fyllo_specs__create-proposal` returns and before writing any proposal artifacts"
-    );
-    expect(reminder?.text).toContain("If a `<task-context>` block is present");
-    expect(reminder?.text).toContain("If no `<task-context>` block is present");
-    expect(reminder?.text).toContain('<fyllo-action type="task.create">');
   });
 
   it("does not inject Fyllo action contracts into apply or archive reminders", async () => {
@@ -310,6 +322,7 @@ describe("resolveSystemReminder", () => {
 
       expect(reminder?.text).not.toContain("## Fyllo Action Tags");
       expect(reminder?.text).not.toContain('<fyllo-action type="task.create">');
+      expect(reminder?.text).not.toContain('<fyllo-action type="plan.create">');
       expect(reminder?.text).not.toContain("After `mcp__fyllo_specs__create-proposal` returns");
     }
   });

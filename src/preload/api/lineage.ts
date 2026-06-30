@@ -5,6 +5,7 @@ import type {
   CreateSessionTaskInput,
   LineageTaskRef,
   LineageTaskSnapshot,
+  PlanDocument,
   SessionLineageProjection,
   Subject,
   TaskDownstreamProjection,
@@ -46,5 +47,26 @@ export const lineageApi = {
     input: CreateSessionTaskInput
   ): Promise<IpcResponse<TaskItem>> {
     return ipcRenderer.invoke(LineageChannels.createSessionTask, { projectId, ...input });
+  },
+
+  readPlan(
+    projectId: string,
+    input: { sessionId: string; slug: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return ipcRenderer.invoke(LineageChannels.readPlan, { projectId, ...input });
+  },
+
+  savePlanBody(
+    projectId: string,
+    input: { sessionId: string; slug: string; body: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return ipcRenderer.invoke(LineageChannels.savePlanBody, { projectId, ...input });
+  },
+
+  approvePlan(
+    projectId: string,
+    input: { sessionId: string; slug: string }
+  ): Promise<IpcResponse<PlanDocument>> {
+    return ipcRenderer.invoke(LineageChannels.approvePlan, { projectId, ...input });
   },
 };

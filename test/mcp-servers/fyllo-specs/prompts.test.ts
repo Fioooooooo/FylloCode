@@ -11,7 +11,13 @@ const promptDir = join(
   "tools",
   "instructions"
 );
-const promptFiles = ["explore.md", "create-proposal.md", "apply-change.md", "archive-change.md"];
+const promptFiles = [
+  "explore.md",
+  "create-plan.md",
+  "create-proposal.md",
+  "apply-change.md",
+  "archive-change.md",
+];
 
 describe("fyllo-specs prompts", () => {
   for (const file of promptFiles) {
@@ -34,5 +40,19 @@ describe("fyllo-specs prompts", () => {
     const text = readFileSync(join(promptDir, "explore.md"), "utf8");
     expect(text).toMatch(/read-only/i);
     expect(text).toMatch(/must not mutate proposal status/i);
+  });
+
+  it("create-plan prompt forbids planPath in action payload", () => {
+    const text = readFileSync(join(promptDir, "create-plan.md"), "utf8");
+    expect(text).toContain("Call `create-plan` with only `goal`");
+    expect(text).toContain("Do not pass a project path");
+    expect(text).toContain("From the moment you decide to create a plan");
+    expect(text).toContain("Exploration, reading, and analysis are allowed");
+    expect(text).toContain("public APIs, schemas, protocols, persistence formats");
+    expect(text).toContain("任务目标/Goal");
+    expect(text).toContain("验证方式/Verification");
+    expect(text).toContain("Never include `planPath`");
+    expect(text).toContain('"slug": "<slug derived from state.planPath filename>"');
+    expect(text).toContain('"goal": "<the goal value you passed to create-plan>"');
   });
 });

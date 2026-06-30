@@ -51,11 +51,13 @@ function subject(): Subject {
             commitHash: "abc123",
           },
         ],
+        plans: [{ slug: "2026-06-29-plan-a", createdAt: "2026-06-09T00:03:30.000Z" }],
       },
       {
         sessionId: "session-2",
         createdAt: "2026-06-09T00:04:00.000Z",
         proposals: [],
+        plans: [],
       },
     ],
     createdAt: "2026-06-09T00:00:00.000Z",

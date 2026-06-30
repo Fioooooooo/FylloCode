@@ -1,11 +1,14 @@
 import { ipcMain } from "electron";
 import { LineageChannels } from "@shared/types/channels";
 import {
+  approvePlanInputSchema,
   createSessionTaskInputSchema,
   ensureTaskSubjectInputSchema,
   getByTaskInputSchema,
   getBySessionInputSchema,
   linkTaskSessionInputSchema,
+  readPlanInputSchema,
+  savePlanBodyInputSchema,
 } from "@shared/schemas/ipc/lineage";
 import { resolveProjectPath } from "@main/services/chat/chat-service";
 import {
@@ -15,6 +18,7 @@ import {
   getBySession,
   linkTaskSession,
 } from "@main/services/lineage/lineage-service";
+import { approvePlan, readPlan, savePlanBody } from "@main/services/lineage/plan";
 import { validate } from "./_kit/schema";
 import { wrapHandler } from "./_kit/wrap-handler";
 
@@ -60,6 +64,30 @@ export function registerLineageHandlers(): void {
         title: form.title,
         description: form.description,
       });
+    })
+  );
+
+  ipcMain.handle(LineageChannels.readPlan, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(readPlanInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return readPlan(projectPath, form.sessionId, form.slug);
+    })
+  );
+
+  ipcMain.handle(LineageChannels.savePlanBody, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(savePlanBodyInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return savePlanBody(projectPath, form.sessionId, form.slug, form.body);
+    })
+  );
+
+  ipcMain.handle(LineageChannels.approvePlan, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(approvePlanInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return approvePlan(projectPath, form.sessionId, form.slug);
     })
   );
 }

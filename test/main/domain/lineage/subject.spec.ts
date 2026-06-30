@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendPlan,
   appendProposal,
   attachTask,
   buildSubject,
@@ -63,7 +64,9 @@ describe("lineage subject domain", () => {
     const duplicate = upsertSessionLink(withFirst, "session-1", "2026-06-09T00:02:00.000Z");
     const withSecond = upsertSessionLink(withFirst, "session-2", "2026-06-09T00:03:00.000Z");
 
-    expect(withFirst.links).toEqual([{ sessionId: "session-1", createdAt: later, proposals: [] }]);
+    expect(withFirst.links).toEqual([
+      { sessionId: "session-1", createdAt: later, proposals: [], plans: [] },
+    ]);
     expect(duplicate).toBe(withFirst);
     expect(withSecond.links.map((link) => link.sessionId)).toEqual(["session-1", "session-2"]);
   });
@@ -89,8 +92,36 @@ describe("lineage subject domain", () => {
           { changeId: "change-1", createdAt: later },
           { changeId: "change-2", createdAt: later },
         ],
+        plans: [],
       },
-      { sessionId: "session-2", createdAt: now, proposals: [] },
+      { sessionId: "session-2", createdAt: now, proposals: [], plans: [] },
+    ]);
+  });
+
+  it("appends multiple plans per session and keeps duplicates idempotent", () => {
+    const subject = upsertSessionLink(
+      upsertSessionLink(buildSubject("task", taskSnapshot(), now, "subject-1"), "session-1", now),
+      "session-2",
+      now
+    );
+    const withFirst = appendPlan(subject, "session-1", "2026-06-29-plan-a", later);
+    const duplicate = appendPlan(withFirst, "session-1", "2026-06-29-plan-a", later);
+    const withSecond = appendPlan(withFirst, "session-1", "2026-06-29-plan-b", later);
+    const missingSession = appendPlan(withSecond, "session-missing", "2026-06-29-plan-c", later);
+
+    expect(duplicate).toBe(withFirst);
+    expect(missingSession).toBe(withSecond);
+    expect(withSecond.links).toEqual([
+      {
+        sessionId: "session-1",
+        createdAt: now,
+        proposals: [],
+        plans: [
+          { slug: "2026-06-29-plan-a", createdAt: later },
+          { slug: "2026-06-29-plan-b", createdAt: later },
+        ],
+      },
+      { sessionId: "session-2", createdAt: now, proposals: [], plans: [] },
     ]);
   });
 

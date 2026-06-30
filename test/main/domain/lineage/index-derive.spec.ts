@@ -43,6 +43,7 @@ function subject(overrides: Partial<Subject> = {}): Subject {
           { changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
           { changeId: "change-2", createdAt: "2026-06-09T00:03:00.000Z" },
         ],
+        plans: [{ slug: "2026-06-29-plan-a", createdAt: "2026-06-09T00:03:30.000Z" }],
       },
     ],
     createdAt: "2026-06-09T00:00:00.000Z",
@@ -79,6 +80,7 @@ describe("lineage index derivation", () => {
                   createdAt: "2026-06-09T00:02:00.000Z",
                 },
               ],
+              plans: [{ slug: "2026-06-29-plan-a", createdAt: "2026-06-09T00:03:00.000Z" }],
             },
           ],
         })
@@ -102,6 +104,7 @@ describe("lineage index derivation", () => {
           sessionId: "session-2",
           createdAt: "2026-06-09T00:05:00.000Z",
           proposals: [{ changeId: "change-3", createdAt: "2026-06-09T00:06:00.000Z" }],
+          plans: [{ slug: "2026-06-29-plan-b", createdAt: "2026-06-09T00:06:30.000Z" }],
         },
       ],
       updatedAt: "2026-06-09T00:07:00.000Z",
@@ -122,5 +125,12 @@ describe("lineage index derivation", () => {
       commitHashes: {},
       updatedAt: "2026-06-09T00:07:00.000Z",
     });
+  });
+
+  it("does not derive plan entries into the index", () => {
+    const index = buildIndexFromSubjects([subject()]);
+
+    expect(index).not.toHaveProperty("plans");
+    expect(JSON.stringify(index)).not.toContain("2026-06-29-plan-a");
   });
 });

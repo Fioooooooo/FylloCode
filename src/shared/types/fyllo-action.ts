@@ -1,12 +1,18 @@
-export type FylloActionType = "task.create";
+export type FylloActionType = "task.create" | "plan.create";
 
 export interface TaskCreateActionPayload {
   title: string;
   description?: string;
 }
 
+export interface PlanCreateActionPayload {
+  slug: string;
+  goal: string;
+}
+
 export interface FylloActionPayloadByType {
   "task.create": TaskCreateActionPayload;
+  "plan.create": PlanCreateActionPayload;
 }
 
 export type FylloActionPayload<T extends FylloActionType = FylloActionType> =
@@ -52,11 +58,17 @@ export type FylloActionParseResult =
 
 export type FylloActionHandlerResult =
   | {
-      ok: true;
+      outcome: "succeeded";
     }
   | {
-      ok: false;
+      outcome: "failed";
       error: string;
+    }
+  | {
+      outcome: "cancelled";
+    }
+  | {
+      outcome: "dismissed";
     };
 
 export type FylloActionStateStatus = "succeeded" | "failed" | "cancelled";

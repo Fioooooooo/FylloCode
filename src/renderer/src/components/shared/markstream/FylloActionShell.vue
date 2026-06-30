@@ -106,6 +106,9 @@ const showActions = computed(
   () => displayStatus.value !== "succeeded" && displayStatus.value !== "cancelled"
 );
 
+const confirmLabel = computed(() => props.definition?.confirmLabel ?? "确认");
+const showCancel = computed(() => props.definition?.showCancel ?? true);
+
 const statusLabel = computed(() => {
   const labels: Record<DisplayStatus, string> = {
     pending: "生成中",
@@ -182,9 +185,21 @@ async function handleConfirm(): Promise<void> {
 
   try {
     const result = await props.confirmHandler();
-    if (result.ok) {
+
+    if (result.outcome === "succeeded") {
       executionStatus.value = "succeeded";
       await persistExecutionStatus("succeeded");
+      return;
+    }
+
+    if (result.outcome === "cancelled") {
+      executionStatus.value = "cancelled";
+      await persistExecutionStatus("cancelled");
+      return;
+    }
+
+    if (result.outcome === "dismissed") {
+      executionStatus.value = "ready";
       return;
     }
 
@@ -269,9 +284,10 @@ async function handleCancel(): Promise<void> {
             :disabled="!canConfirm"
             @click="void handleConfirm()"
           >
-            确认
+            {{ confirmLabel }}
           </UButton>
           <UButton
+            v-if="showCancel"
             color="neutral"
             variant="outline"
             size="xs"

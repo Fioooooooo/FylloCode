@@ -34,6 +34,7 @@ export function upsertSessionLink(subject: Subject, sessionId: string, now: stri
         sessionId,
         createdAt: now,
         proposals: [],
+        plans: [],
       },
     ],
     updatedAt: now,
@@ -61,6 +62,37 @@ export function appendProposal(
               ...link.proposals,
               {
                 changeId,
+                createdAt: now,
+              },
+            ],
+          }
+        : link
+    ),
+    updatedAt: now,
+  };
+}
+
+export function appendPlan(
+  subject: Subject,
+  sessionId: string,
+  slug: string,
+  now: string
+): Subject {
+  const targetLink = subject.links.find((link) => link.sessionId === sessionId);
+  if (!targetLink || targetLink.plans.some((plan) => plan.slug === slug)) {
+    return subject;
+  }
+
+  return {
+    ...subject,
+    links: subject.links.map((link) =>
+      link.sessionId === sessionId
+        ? {
+            ...link,
+            plans: [
+              ...link.plans,
+              {
+                slug,
                 createdAt: now,
               },
             ],

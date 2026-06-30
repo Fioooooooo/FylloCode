@@ -30,6 +30,7 @@ import {
   linkSession,
   linkTaskSession,
   rebuildIndex,
+  recordPlan,
   recordProposal,
   recordProposalCommitHash,
 } from "@main/services/lineage/lineage-service";
@@ -195,6 +196,43 @@ describe("lineage-service", () => {
       task: { ref: "local:task-backfilled" },
       sessionId: "session-chat",
     });
+  });
+
+  it("records plans by session id without adding plan index entries", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+
+    setNow("2026-06-09T00:01:00.000Z");
+    await recordPlan(projectPath, "session-chat", "2026-06-29-plan-a");
+    setNow("2026-06-09T00:02:00.000Z");
+    const repeated = await recordPlan(projectPath, "session-chat", "2026-06-29-plan-a");
+
+    expect(repeated).toMatchObject({
+      id: subject.id,
+      updatedAt: "2026-06-09T00:01:00.000Z",
+      links: [
+        {
+          sessionId: "session-chat",
+          plans: [{ slug: "2026-06-29-plan-a", createdAt: "2026-06-09T00:01:00.000Z" }],
+        },
+      ],
+    });
+    expect(
+      repeated?.links.flatMap((link) =>
+        link.plans.filter((plan) => plan.slug === "2026-06-29-plan-a")
+      )
+    ).toHaveLength(1);
+    await expect(readIndex(projectPath)).resolves.toMatchObject({
+      sessions: { "session-chat": subject.id },
+    });
+    expect(await readIndex(projectPath)).not.toHaveProperty("plans");
+  });
+
+  it("returns null when recording a plan for an unknown session", async () => {
+    await expect(
+      recordPlan(projectPath, "session-missing", "2026-06-29-plan-a")
+    ).resolves.toBeNull();
+
+    expect(existsSync(lineageDir(projectPath))).toBe(false);
   });
 
   it("creates a local task and backfills an existing chat subject", async () => {

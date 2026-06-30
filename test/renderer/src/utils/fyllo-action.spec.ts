@@ -47,6 +47,40 @@ describe("parseFylloActionNode", () => {
     });
   });
 
+  it("parses a valid plan.create action", () => {
+    const result = parseFylloActionNode(
+      actionNode({
+        attrs: {
+          type: "plan.create",
+        },
+        content: '{"slug":"2026-06-29-plan-a","goal":"Need review"}',
+      })
+    );
+
+    expect(result).toEqual({
+      status: "ready",
+      type: "plan.create",
+      payload: {
+        slug: "2026-06-29-plan-a",
+        goal: "Need review",
+      },
+    });
+  });
+
+  it("rejects plan.create payloads containing planPath", () => {
+    const result = parseFylloActionNode(
+      actionNode({
+        attrs: {
+          type: "plan.create",
+        },
+        content: '{"slug":"2026-06-29-plan-a","goal":"Need review","planPath":"/tmp/plan.md"}',
+      })
+    );
+
+    expect(result.status).toBe("invalid");
+    expect(result.status === "invalid" ? result.error.code : null).toBe("invalid_payload");
+  });
+
   it("rejects an unknown action type", () => {
     const result = parseFylloActionNode(
       actionNode({
