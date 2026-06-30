@@ -30,6 +30,14 @@ vi.mock("@renderer/stores/session", () => ({
   }),
 }));
 
+vi.mock("@renderer/stores", () => ({
+  useSessionStore: () => ({
+    activeSession: computed(() => activeSessionRef.value),
+    activeSessionId: computed(() => activeSessionIdRef.value),
+    getSessionProposals: () => [],
+  }),
+}));
+
 vi.mock("pinia", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pinia")>();
   return {
@@ -80,21 +88,6 @@ function mountContainer(): VueWrapper {
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
-        ChatSessionEventRail: {
-          emits: ["locate-action"],
-          template: `
-            <div data-test="event-rail">
-              <button
-                data-test="locate-action"
-                @click="$emit('locate-action', 'chat:session-1:0:0:0')"
-              ></button>
-              <button
-                data-test="locate-missing-action"
-                @click="$emit('locate-action', 'missing:id')"
-              ></button>
-            </div>
-          `,
-        },
         ChatPlanPanel: {
           props: ["entries"],
           template: '<div data-test="chat-plan-panel">{{ entries.length }}</div>',
@@ -146,6 +139,12 @@ function makeSessionWithUserPrompt(): Session {
       role: "user",
       metadata: { sessionId: session.id, createdAt: new Date("2026-05-12T00:00:00.000Z") },
       parts: [{ type: "text", text: "定位这条 prompt" }],
+    } as Session["messages"][number],
+    {
+      id: "user-message-2",
+      role: "user",
+      metadata: { sessionId: session.id, createdAt: new Date("2026-05-12T00:01:00.000Z") },
+      parts: [{ type: "text", text: "第二条 prompt" }],
     } as Session["messages"][number],
   ];
   return session;
@@ -262,13 +261,13 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
   });
 
-  it("scrolls to a Fyllo action anchor when a rail item is located", async () => {
+  it("passes the message scroll container to the event rail host", async () => {
     const session = makeSessionWithPendingAction();
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
 
     const wrapper = mountContainer();
-    await wrapper.get('[data-test="locate-action"]').trigger("click");
+    await wrapper.get('[data-test="fyllo-action-rail-item"]').trigger("click");
     await flushPromises();
 
     expect(scrollIntoViewMock).toHaveBeenCalledWith({
@@ -294,19 +293,6 @@ describe("ChatContainer", () => {
       block: "center",
       behavior: "smooth",
     });
-  });
-
-  it("silently ignores missing Fyllo action anchors without persisting action state", async () => {
-    const session = makeSessionWithPendingAction();
-    activeSessionRef.value = session;
-    activeSessionIdRef.value = session.id;
-
-    const wrapper = mountContainer();
-    await wrapper.get('[data-test="locate-missing-action"]').trigger("click");
-    await flushPromises();
-
-    expect(scrollIntoViewMock).not.toHaveBeenCalled();
-    expect(persistSessionActionStateMock).not.toHaveBeenCalled();
   });
 
   it("does not render the event rail when the active session has no plan entries", async () => {

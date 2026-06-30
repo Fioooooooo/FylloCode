@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import ChatPromptTimeline from "@renderer/components/chat/ChatPromptTimeline.vue";
+import ChatPromptTimelineNav from "@renderer/components/chat/timeline/ChatPromptTimelineNav.vue";
 import type { ChatPromptTimelineItem } from "@renderer/utils/chat-prompt-timeline";
 
 const items: ChatPromptTimelineItem[] = [
@@ -20,9 +20,9 @@ const items: ChatPromptTimelineItem[] = [
   },
 ];
 
-describe("ChatPromptTimeline", () => {
+describe("ChatPromptTimelineNav", () => {
   it("marks active and inactive prompt items", () => {
-    const wrapper = mount(ChatPromptTimeline, {
+    const wrapper = mount(ChatPromptTimelineNav, {
       props: {
         items,
         activeItemId: "user-2",
@@ -37,7 +37,7 @@ describe("ChatPromptTimeline", () => {
   });
 
   it("emits locate-prompt when an item is clicked", async () => {
-    const wrapper = mount(ChatPromptTimeline, {
+    const wrapper = mount(ChatPromptTimelineNav, {
       props: {
         items,
         activeItemId: null,
@@ -50,7 +50,7 @@ describe("ChatPromptTimeline", () => {
   });
 
   it("shows the prompt preview on hover", async () => {
-    const wrapper = mount(ChatPromptTimeline, {
+    const wrapper = mount(ChatPromptTimelineNav, {
       props: {
         items,
         activeItemId: null,

@@ -1,20 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, nextTick, reactive, ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatSessionEventRail from "@renderer/components/chat/event/ChatSessionEventRail.vue";
 import type { PlanEntry, Session } from "@shared/types/chat";
 import type { FylloActionStateStatus } from "@shared/types/fyllo-action";
 
 const activeSessionRef = ref<Session | null>(null);
+const activeSessionIdRef = ref<string | null>(null);
 
 vi.mock("@renderer/stores", () => ({
   useSessionStore: () =>
     reactive({
       activeSession: computed(() => activeSessionRef.value),
+      activeSessionId: computed(() => activeSessionIdRef.value),
       getSessionProposals: () => [],
     }),
 }));
+
+function mountEventRail(scrollContainer: HTMLElement | null = null) {
+  return mount(ChatSessionEventRail, {
+    props: {
+      scrollContainer,
+    },
+  });
+}
+
+function makeContainer(actionId: string): {
+  container: HTMLElement;
+  scrollMock: ReturnType<typeof vi.fn>;
+} {
+  const container = document.createElement("div");
+  const anchor = document.createElement("div");
+  const scrollMock = vi.fn();
+  anchor.setAttribute("data-fyllo-action-id", actionId);
+  anchor.scrollIntoView = scrollMock;
+  container.appendChild(anchor);
+  return { container, scrollMock };
+}
 
 function makeSession(plan: PlanEntry[] = []): Session {
   return {
@@ -71,12 +94,17 @@ describe("ChatSessionEventRail", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     activeSessionRef.value = null;
+    activeSessionIdRef.value = null;
+    vi.stubGlobal("CSS", {
+      escape: (value: string) => value,
+    });
   });
 
   it("renders the plan panel when plan entries are provided", () => {
     activeSessionRef.value = makeSession(makeEntries());
+    activeSessionIdRef.value = activeSessionRef.value.id;
 
-    const wrapper = mount(ChatSessionEventRail);
+    const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("执行计划");
@@ -85,20 +113,21 @@ describe("ChatSessionEventRail", () => {
     expect(wrapper.text()).toContain("Review output");
   });
 
-  it("renders the rail container even when plan entries are empty", () => {
+  it("hides the rail container when there are no events", () => {
     activeSessionRef.value = makeSession([]);
+    activeSessionIdRef.value = activeSessionRef.value.id;
 
-    const wrapper = mount(ChatSessionEventRail);
+    const wrapper = mountEventRail();
 
-    expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain("执行计划");
   });
 
   it("renders pending Fyllo action items from the active session", () => {
     activeSessionRef.value = makePendingActionSession();
+    activeSessionIdRef.value = activeSessionRef.value.id;
 
-    const wrapper = mount(ChatSessionEventRail);
+    const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="fyllo-action-panel"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("待处理操作");
@@ -112,8 +141,9 @@ describe("ChatSessionEventRail", () => {
       const session = makePendingActionSession();
       const messageCount = session.messages.length;
       activeSessionRef.value = session;
+      activeSessionIdRef.value = activeSessionRef.value.id;
 
-      const wrapper = mount(ChatSessionEventRail);
+      const wrapper = mountEventRail();
       expect(wrapper.find('[data-test="fyllo-action-rail-item"]').exists()).toBe(true);
 
       activeSessionRef.value.actionStates = {
@@ -129,8 +159,9 @@ describe("ChatSessionEventRail", () => {
 
   it("collapses and expands via the header and right-edge handle", async () => {
     activeSessionRef.value = makeSession(makeEntries());
+    activeSessionIdRef.value = activeSessionRef.value.id;
 
-    const wrapper = mount(ChatSessionEventRail);
+    const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("执行计划");
@@ -148,5 +179,21 @@ describe("ChatSessionEventRail", () => {
     expect(wrapper.find('[data-test="expand-rail"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("执行计划");
+  });
+
+  it("scrolls to a Fyllo action anchor when a rail item is located", async () => {
+    activeSessionRef.value = makePendingActionSession();
+    activeSessionIdRef.value = activeSessionRef.value.id;
+    const actionId = "chat:session-1:0:0:0";
+    const { container, scrollMock } = makeContainer(actionId);
+
+    const wrapper = mountEventRail(container);
+    await wrapper.get('[data-test="fyllo-action-rail-item"]').trigger("click");
+    await flushPromises();
+
+    expect(scrollMock).toHaveBeenCalledWith({
+      block: "center",
+      behavior: "smooth",
+    });
   });
 });
