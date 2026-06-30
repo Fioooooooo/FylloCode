@@ -1,6 +1,6 @@
 ---
 title: Using Plan and SDD to Triage Agent Workflows
-description:
+description: Based on FylloCode's OpenSpec practice, this essay discusses the boundary between Plan and SDD, and how to triage Agent workflows by risk.
 sidebar:
   order: 5
 ---

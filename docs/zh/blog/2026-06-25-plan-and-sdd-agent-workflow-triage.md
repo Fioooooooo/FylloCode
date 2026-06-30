@@ -1,6 +1,6 @@
 ---
 title: 用 Plan 和 SDD 给 Agent 的工作流分级
-description:
+description: 基于 FylloCode 的 OpenSpec 实践，讨论 Plan 与 SDD 的边界，以及如何按风险给 Agent 工作流分级治理。
 sidebar:
   order: 5
 ---
