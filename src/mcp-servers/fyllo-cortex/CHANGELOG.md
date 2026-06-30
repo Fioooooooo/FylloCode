@@ -4,6 +4,13 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [0.3.1] - 2026-06-30
+
+### Changed
+
+- `lineage` session output now includes linked plans with `slug` and `createdAt`, so session-scoped planning records can be traced alongside proposals.
+- Older lineage session links without `plans` are handled as an empty list in MCP responses.
+
 ## [0.3.0] - 2026-06-17
 
 ### Added

@@ -4,6 +4,43 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.0-beta.1] - 2026-06-30
+
+这个 beta 版本引入 session-scoped Plan 工作流，用于承接不改变外部契约、但需要调研和方案取舍的复杂任务。Chat 现在可以生成、审阅、编辑并批准轻量计划，批准记录会进入 lineage，并通过新的 `fyllo-specs` MCP tool 与 Fyllo action 串联。与此同时，Chat 阅读体验补齐了 prompt 时间线、消息复制和会话侧栏折叠，Proposal 详情也会在打开时刷新元数据，减少旧状态干扰。
+
+### 新增
+
+- 新增 session-scoped Plan 工作流：Agent 可通过 `fyllo-specs` 的 `create-plan` 在当前 Chat session 下创建轻量 plan 文档，并由 `plan.create` Fyllo action 触发应用内审阅
+- 新增 Plan Slideover，支持读取、编辑、保存和批准 plan；用户批准后会自动发送确认消息，要求 Agent 重新读取最新 plan 后再实施
+- 新增 plan 读写与批准 IPC、preload API、renderer API、共享 schema 与主进程 plan service；plan 路径由主进程按项目、session 和 slug 推导，renderer 不接收本地路径
+- lineage session link 新增 plans 记录，MCP `create-plan` 事件会被消费并挂接到当前 session；历史 lineage 数据缺少 plans 时会兼容读取为空数组
+- Chat 新增用户 prompt 时间线，可在长会话中快速定位多轮用户输入，并在 hover/focus 时预览 prompt 内容
+- Chat 消息新增复制按钮与发送时间展示，复制时会排除 system reminder 内容，并在没有可复制文本或复制失败时给出应用内反馈
+- Chat 左侧 session sidebar 新增折叠/展开交互，折叠状态仅保存在当前 `/chat` 页面内存中
+- 新增 `openspec/specs/plan-tool` 能力规约，并同步扩展 Fyllo action、lineage、system reminder 和 bundled MCP server 相关规约
+
+### 调整
+
+- Chat system reminder 改为直接实现、Plan、Proposal 三级分流：低风险任务可直接做，非契约复杂任务走 Plan，涉及外部行为契约或边界变更时仍走 Proposal
+- Chat 事件轨和 prompt 时间线共享消息滚动容器，事件轨始终保持挂载并按当前会话内容展示可用事件
+- Fyllo action handler 结果从简单成功/失败扩展为 `succeeded`、`failed`、`cancelled`、`dismissed`，关闭 Plan 审阅但未批准时不会写入成功状态
+- `fyllo-specs` MCP server 的 instruction markdown 从四个扩展为五个，新增 `create-plan.md`，并更新 tool 列表、prompt 加载和测试覆盖
+- `fyllo-cortex` lineage 输出中的 session 信息现在包含关联 plans，方便追溯某次会话中的轻量决策记录
+- Proposal 详情 Slideover 每次打开都会后台刷新 proposal 元数据，header 可先展示已有数据，并在刷新期间显示 loading 状态
+- Chat 主区域增加顶部 fade mask 和布局细节调整，配合 prompt 时间线降低长会话扫描成本
+
+### 修复
+
+- 修复 Proposal 详情重新打开后任务数量、状态或日期可能仍显示旧元数据的问题
+- 修复 Proposal 详情元数据刷新失败时 header 可能丢失已有信息的问题；刷新失败时会继续保留打开前的可用元数据
+- 修复 Proposal overlay 层级低于任务来源横幅，导致详情面板可能被横幅遮挡的问题
+- 修复 shell 控件 tooltip hover 配置影响范围过宽的问题，现在相关选项仅作用于 shell 控件
+
+### 备注
+
+- `fyllo-specs` MCP server 升级到 `0.6.0`，新增 `create-plan` tool；`fyllo-cortex` MCP server 升级到 `0.3.1`，lineage session 输出新增 plans。
+- 本地 lineage session link 新增 `plans` 字段。既有数据会按空数组读取，不需要手动迁移。
+
 ## [0.13.3] - 2026-06-29
 
 这个补丁版本继续强化项目治理的阅读与回溯体验。Overview 现在可以下钻到只读能力规约浏览页，Proposal 详情改为在当前上下文中打开的 Slideover，并新增 Specs 变更视图，方便直接查看 proposal 对能力规约的影响。Chat 侧进一步降低工具调用噪音，优化会话标题操作，并修复重启后历史 proposal 关联可能丢失的问题。

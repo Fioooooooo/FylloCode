@@ -4,6 +4,20 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.6.0] - 2026-06-30
+
+### Added
+
+- Added `create-plan`, a session-scoped tool that creates lightweight plan documents under the current Fyllo project data directory when `FYLLO_PROJECT_DATA_DIR` and `FYLLO_SESSION_ID` are available.
+- `create-plan` writes a draft Markdown plan skeleton with YAML frontmatter, date-prefixed slug, goal, creation time, status, and the fixed Goal, Scope, Constraints, Trade-offs, Steps, and Verification sections.
+- `create-plan` writes a best-effort MCP event when `FYLLO_MCP_EVENT_DIR` is available, allowing FylloCode to attach the created plan to the originating chat session lineage.
+- Added a dedicated `create-plan.md` instruction prompt that tells agents to write the plan before emitting a `plan.create` Fyllo action without local paths in the payload.
+
+### Changed
+
+- Tool registration now exposes five tools: `explore`, `create-plan`, `create-proposal`, `apply-change`, and `archive-change`.
+- Prompt loading now includes five instruction markdown files so the bundled MCP server remains a single-file build without external prompt resources.
+
 ## [0.5.2] - 2026-06-12
 
 ### Added

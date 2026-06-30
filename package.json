@@ -1,6 +1,6 @@
 {
   "name": "FylloCode",
-  "version": "0.13.3",
+  "version": "0.14.0-beta.1",
   "description": "The governance layer for Coding Agents.",
   "main": "./out/main/index.js",
   "author": "Fio<fuyitao2018@gmail.com>",

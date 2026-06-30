@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.0-beta.1] - 2026-06-30
+
+This beta release introduces a session-scoped Plan workflow for complex work that needs investigation and trade-off review but does not change external contracts. Chat can now create, review, edit, and approve lightweight plans, with approvals recorded in lineage and connected through the new `fyllo-specs` MCP tool and Fyllo action. Chat also gains a prompt timeline, message copy and timestamps, collapsible session sidebar, and fresher Proposal metadata when details are opened.
+
+### Added
+
+- Session-scoped Plan workflow: agents can use the `fyllo-specs` `create-plan` tool to create lightweight plan documents under the current Chat session, then trigger in-app review through a `plan.create` Fyllo action
+- Plan Slideover for reading, editing, saving, and approving plans; after approval, the app sends a confirmation message that tells the agent to reread the latest plan before implementation
+- Plan read, save, and approve IPC, preload APIs, renderer APIs, shared schemas, and main-process plan service; plan paths are derived by the main process from project, session, and slug instead of being passed through the renderer
+- Lineage session links now record plans, and MCP `create-plan` events are consumed and attached to the current session; older lineage data without plans is normalized to an empty array
+- Chat user prompt timeline for navigating long conversations, with prompt previews on hover and focus
+- Chat message copy actions and sent-time display, excluding system reminder content from copied text and showing in-app feedback when no text can be copied or clipboard writes fail
+- Collapsible Chat session sidebar, with the collapsed state kept only in memory for the current `/chat` page
+- New `openspec/specs/plan-tool` capability spec, with matching updates to Fyllo action, lineage, system reminder, and bundled MCP server specs
+
+### Changed
+
+- Chat system reminders now use a three-lane decision model: direct implementation for low-risk work, Plan for complex non-contract work, and Proposal for changes that affect external behavior contracts or ownership boundaries
+- Chat EventRail and the prompt timeline now share the message scroll container, and the event rail remains mounted while rendering the events available for the current session
+- Fyllo action handler results now use `succeeded`, `failed`, `cancelled`, and `dismissed`; closing Plan review without approval no longer writes a successful action state
+- The `fyllo-specs` MCP server instruction markdown set expands from four files to five with `create-plan.md`, alongside updated tool registration, prompt loading, and tests
+- `fyllo-cortex` lineage session output now includes linked plans, making lightweight session decisions traceable through the lineage tool
+- Proposal detail Slideover refreshes proposal metadata in the background every time it opens, shows existing data immediately, and displays a loading state during refresh
+- Chat main-area layout adds a top fade mask and related polish to make long sessions easier to scan with the prompt timeline
+
+### Fixed
+
+- Fixed Proposal details showing stale task counts, status, or dates after reopening
+- Fixed Proposal detail metadata refresh failures potentially clearing existing header information; the header now keeps the best available pre-refresh metadata
+- Fixed the Proposal overlay stacking below the task origin banner, which could cause the detail panel to be covered
+- Fixed shell tooltip hover options applying too broadly; the scoped options now affect only shell controls
+
+### Notes
+
+- `fyllo-specs` MCP server is now `0.6.0` with the new `create-plan` tool; `fyllo-cortex` MCP server is now `0.3.1` with plans in lineage session output.
+- Local lineage session links now include a `plans` field. Existing data is read as an empty plans array and does not require manual migration.
+
 ## [0.13.3] - 2026-06-29
 
 This patch release improves how project governance artifacts are read and traced inside the app. Overview can now drill into a read-only capability specs browser, Proposal details open as an in-context Slideover, and the new Specs tab shows how a proposal changes capability contracts. Chat also reduces tool-call noise, makes session title actions more consistent, and restores proposal associations after app restarts.
