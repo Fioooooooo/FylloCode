@@ -24,7 +24,7 @@ const isDraft = computed(() => activeSessionId.value === null);
 <template>
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
-      <div class="p-2 border-b border-default/50 shrink-0 flex items-center">
+      <div class="p-2 pb-0 shrink-0 flex items-center">
         <UButton icon="i-lucide-panel-left" size="sm" color="neutral" variant="ghost" />
         <OriginTaskBanner />
       </div>
@@ -35,7 +35,11 @@ const isDraft = computed(() => activeSessionId.value === null);
           :scroll-container="messageScrollContainerRef"
         />
 
-        <div ref="messageScrollContainerRef" class="h-full overflow-y-auto py-4 px-2 relative">
+        <div
+          ref="messageScrollContainerRef"
+          class="h-full overflow-y-auto py-4 px-2 relative"
+          style="mask-image: linear-gradient(to bottom, transparent, black 24px, black 100%)"
+        >
           <div class="max-w-3xl mx-auto h-full">
             <template v-if="isLoadingMessages">
               <ChatMessageSkeleton />

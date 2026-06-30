@@ -104,4 +104,32 @@ describe("ActivityBar", () => {
       expect(tooltip.attributes("data-ignore-non-keyboard-focus")).toBe("true");
     }
   });
+
+  it("renders the dev badge when in development mode", () => {
+    const wrapper = mountActivityBar();
+
+    const badge = wrapper.find('[data-test="activity-bar-dev-badge"]');
+    expect(badge.exists()).toBe(true);
+    expect(badge.text()).toBe("DEV");
+  });
+
+  it("does not render the dev badge when not in development mode", async () => {
+    vi.stubEnv("DEV", false);
+    vi.resetModules();
+
+    const { default: ActivityBarProd } =
+      await import("@renderer/components/layout/ActivityBar.vue");
+    const wrapper = mount(ActivityBarProd, {
+      global: {
+        stubs: {
+          UTooltip: tooltipStub,
+          Tooltip: tooltipStub,
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-test="activity-bar-dev-badge"]').exists()).toBe(false);
+
+    vi.unstubAllEnvs();
+  });
 });

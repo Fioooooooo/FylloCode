@@ -30,7 +30,7 @@ function closePreview(itemId: string): void {
 
 <template>
   <nav
-    class="flex w-9 flex-col items-center overflow-y-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    class="flex w-9 flex-col items-center overflow-y-auto rounded-lg bg-default/50 py-2 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     aria-label="User prompt timeline"
     data-test="chat-prompt-timeline"
   >
@@ -41,7 +41,7 @@ function closePreview(itemId: string): void {
         :open="openItemId === item.id"
         :content="{ align: 'start', side: 'right', sideOffset: 8 }"
         :ui="{ content: 'w-72 p-3' }"
-        :portal="false"
+        :portal="true"
         :disable-hoverable-content="true"
         :ignore-non-keyboard-focus="true"
         @update:open="openItemId = $event ? item.id : null"
@@ -49,8 +49,8 @@ function closePreview(itemId: string): void {
         <template #default>
           <button
             type="button"
-            class="h-1 w-5 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-primary"
-            :class="isActive(item) ? 'bg-neutral-900 w-7' : 'bg-accented'"
+            class="h-1 w-5 shrink-0 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-primary"
+            :class="isActive(item) ? 'bg-inverted/90 w-7' : 'bg-accented'"
             :aria-label="`定位到第 ${item.index} 条 user prompt`"
             :aria-current="isActive(item) ? 'true' : undefined"
             :data-state="isActive(item) ? 'active' : 'inactive'"

@@ -20,6 +20,8 @@ const activeItem = computed(() => {
   matches.sort((a, b) => b.path.length - a.path.length);
   return matches[0].id;
 });
+
+const isDev = import.meta.env.DEV;
 </script>
 
 <template>
@@ -28,10 +30,17 @@ const activeItem = computed(() => {
     data-test="activity-bar"
   >
     <div
-      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-default ring-1 ring-inset ring-default mb-1"
+      class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-default ring-1 ring-inset ring-default mb-1"
       data-test="activity-bar-brand"
     >
       <img :src="brandIconSrc" alt="FylloCode" class="size-6" data-test="activity-bar-brand-icon" />
+      <span
+        v-if="isDev"
+        class="absolute -bottom-0.5 -right-0.5 rounded-xs bg-error px-1 py-0.5 text-[8px] font-bold leading-none text-inverted"
+        data-test="activity-bar-dev-badge"
+      >
+        DEV
+      </span>
     </div>
 
     <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-menu">
