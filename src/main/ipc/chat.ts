@@ -373,8 +373,8 @@ export function registerChatHandlers(): void {
                   );
                   break;
                 }
-                case "plan_update": {
-                  // plan 为运行时态，仅透传给 renderer，不持久化到 session meta。
+                case "agenda_update": {
+                  // agentAgenda 为运行时态，仅透传给 renderer，不持久化到 session meta。
                   const chunk = toMessageChunk(ev);
                   if (chunk) output.sendChunk(chunk);
                   break;

@@ -114,14 +114,14 @@ function mountEventRailHost(initialSession: Session | null = null): {
 }
 
 describe("useChatEventRail", () => {
-  it("shows the event rail for plan entries, proposals, or pending actions", () => {
+  it("shows the event rail for agenda entries, proposals, or pending actions", () => {
     const { api, activeSession, proposals } = mountEventRailHost(session());
 
     expect(api.showEventRail.value).toBe(false);
 
     activeSession.value = {
       ...session(),
-      plan: [{ content: "Step 1", priority: "high", status: "pending" }],
+      agentAgenda: [{ content: "Step 1", priority: "high", status: "pending" }],
     };
     expect(api.showEventRail.value).toBe(true);
 

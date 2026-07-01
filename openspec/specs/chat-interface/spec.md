@@ -60,7 +60,7 @@ Chat 界面定义了消息流的渲染方式、流式事件组装边界、侧边
 - **WHEN** session A 正在流式输出
 - **AND** 用户选择 session B 或点击新建 session 进入草稿态
 - **THEN** 前端不得使 session A 的当前 run 失效
-- **AND** session A 后续收到的 `onChunk` 继续更新 session A 的内存消息、标题、usage、可用命令、配置选项和计划状态
+- **AND** session A 后续收到的 `onChunk` 继续更新 session A 的内存消息、标题、usage、可用命令、配置选项和行动清单状态
 - **AND** session A 后续收到的 `onDone` 将 session A 状态更新为 `ended`
 
 #### Scenario: 无活跃流时 stop 无效

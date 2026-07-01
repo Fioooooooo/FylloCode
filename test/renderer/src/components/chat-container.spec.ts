@@ -91,9 +91,9 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
-        ChatPlanPanel: {
+        ChatAgentAgendaPanel: {
           props: ["entries"],
-          template: '<div data-test="chat-plan-panel">{{ entries.length }}</div>',
+          template: '<div data-test="chat-agent-agenda-panel">{{ entries.length }}</div>',
         },
       },
     },
@@ -266,9 +266,9 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(false);
   });
 
-  it("renders the event rail for non-draft sessions with plan entries", async () => {
+  it("renders the event rail for non-draft sessions with agent agenda entries", async () => {
     const session = makeSession();
-    session.plan = [
+    session.agentAgenda = [
       { content: "Step 1", priority: "high", status: "completed" },
       { content: "Step 2", priority: "medium", status: "in_progress" },
     ];
@@ -324,9 +324,9 @@ describe("ChatContainer", () => {
     });
   });
 
-  it("does not render the event rail when the active session has no plan entries", async () => {
+  it("does not render the event rail when the active session has no agent agenda entries", async () => {
     const session = makeSession();
-    session.plan = [];
+    session.agentAgenda = [];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
 
@@ -337,7 +337,7 @@ describe("ChatContainer", () => {
 
   it("keeps the prompt panel inside the conversation column", async () => {
     const session = makeSession();
-    session.plan = [{ content: "Step 1", priority: "high", status: "completed" }];
+    session.agentAgenda = [{ content: "Step 1", priority: "high", status: "completed" }];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
 
@@ -348,9 +348,9 @@ describe("ChatContainer", () => {
     expect(promptPanel.closest('[data-test="event-rail"]')).toBeNull();
   });
 
-  it("does not render the plan panel at the old bottom position", async () => {
+  it("does not render the agent agenda panel at the old bottom position", async () => {
     const session = makeSession();
-    session.plan = [{ content: "Step 1", priority: "high", status: "completed" }];
+    session.agentAgenda = [{ content: "Step 1", priority: "high", status: "completed" }];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
 
@@ -359,6 +359,6 @@ describe("ChatContainer", () => {
     const bottomContainer = bottomContainers[bottomContainers.length - 1];
 
     expect(bottomContainer.find('[data-test="prompt-panel"]').exists()).toBe(true);
-    expect(bottomContainer.find('[data-test="chat-plan-panel"]').exists()).toBe(false);
+    expect(bottomContainer.find('[data-test="chat-agent-agenda-panel"]').exists()).toBe(false);
   });
 });

@@ -105,7 +105,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 
 ## Chat Session Event Rail
 
-- `ChatSessionEventRail` 可以展示执行计划、proposal 入口和当前 Chat 主会话内未处理的 Fyllo action 提醒。pending Fyllo action 必须从 `activeSession.messages` 与 `activeSession.actionStates` 响应式派生；缺失 action state 表示待处理，`succeeded` / `failed` / `cancelled` 任一状态存在后不再作为 pending rail item 展示。
+- `ChatSessionEventRail` 可以展示行动清单、proposal 入口和当前 Chat 主会话内未处理的 Fyllo action 提醒。pending Fyllo action 必须从 `activeSession.messages` 与 `activeSession.actionStates` 响应式派生；缺失 action state 表示待处理，`succeeded` / `failed` / `cancelled` 任一状态存在后不再作为 pending rail item 展示。
 - Fyllo action rail item 只负责提醒与定位：组件只能 emit `locate-action`，由 `ChatContainer` 在消息滚动容器内查找 `data-fyllo-action-id` anchor 并滚动到原 action card。事件栏不得 import action dispatcher、task store、lineage API、`src/renderer/src/api/*` 或 `window.api`，也不得确认、取消、重试或持久化 action state。
 
 ## Plan Review Flow
@@ -119,7 +119,7 @@ keywords: [renderer, vue, pinia, routing, ui]
 
 - `useChatStore` 必须按已建立的 `sessionId` 维护 chat stream run、status、cancel 和瞬时 error；组件消费的 `chatStatus`、`streamError`、`cancelFn` 只能从当前 `useSessionStore.activeSessionId` 对应 session 派生，草稿态或无运行态时回落为 `ready` / `null`。
 - 选择 session 或进入草稿态只能清当前视图瞬时错误，不得取消、失效或清空其他 session 的后台 stream。只有显式 stop 可以取消当前选中 session 的 run，或取消仍处于首条消息 setup 阶段的 pending draft run。
-- 后台 session 的有效 stream 回调必须继续更新所属 session 的内存消息、标题、token usage、可用命令、配置选项、计划状态和 session 状态；切回已加载 session 时应显示这份内存最新状态，而不是依赖重新读磁盘修正丢失的 chunk。
+- 后台 session 的有效 stream 回调必须继续更新所属 session 的内存消息、标题、token usage、可用命令、配置选项、行动清单状态和 session 状态；切回已加载 session 时应显示这份内存最新状态，而不是依赖重新读磁盘修正丢失的 chunk。
 
 ## Verification
 

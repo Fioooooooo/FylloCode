@@ -11,19 +11,24 @@ const props = defineProps<{
 
 const sessionStore = useSessionStore();
 const { activeSession, activeSessionId } = storeToRefs(sessionStore);
-const { planEntries, sessionProposals, pendingActionRailItems, showEventRail, locateFylloAction } =
-  useChatEventRail({
-    activeSession,
-    activeSessionId,
-    getSessionProposals: sessionStore.getSessionProposals,
-    messageScrollContainerRef: toRef(props, "scrollContainer"),
-  });
+const {
+  agentAgendaEntries,
+  sessionProposals,
+  pendingActionRailItems,
+  showEventRail,
+  locateFylloAction,
+} = useChatEventRail({
+  activeSession,
+  activeSessionId,
+  getSessionProposals: sessionStore.getSessionProposals,
+  messageScrollContainerRef: toRef(props, "scrollContainer"),
+});
 </script>
 
 <template>
   <EventRailContent
     v-if="showEventRail"
-    :plan-entries="planEntries"
+    :agent-agenda-entries="agentAgendaEntries"
     :session-proposals="sessionProposals"
     :pending-action-items="pendingActionRailItems"
     @locate-action="locateFylloAction"

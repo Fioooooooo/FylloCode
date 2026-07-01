@@ -3,7 +3,7 @@ import { computed, nextTick, reactive, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatSessionEventRail from "@renderer/components/chat/event/ChatSessionEventRail.vue";
-import type { PlanEntry, Session } from "@shared/types/chat";
+import type { AgendaEntry, Session } from "@shared/types/chat";
 import type { FylloActionStateStatus } from "@shared/types/fyllo-action";
 
 const activeSessionRef = ref<Session | null>(null);
@@ -39,7 +39,7 @@ function makeContainer(actionId: string): {
   return { container, scrollMock };
 }
 
-function makeSession(plan: PlanEntry[] = []): Session {
+function makeSession(agentAgenda: AgendaEntry[] = []): Session {
   return {
     id: "session-1",
     projectId: "project-1",
@@ -52,14 +52,14 @@ function makeSession(plan: PlanEntry[] = []): Session {
     updatedAt: new Date("2026-05-12T00:00:00.000Z"),
     messages: [],
     availableCommands: [],
-    plan,
+    agentAgenda,
   };
 }
 
-function makeEntries(): PlanEntry[] {
+function makeEntries(): AgendaEntry[] {
   return [
     { content: "Analyze request", priority: "high", status: "completed" },
-    { content: "Generate plan", priority: "medium", status: "in_progress" },
+    { content: "Draft agenda", priority: "medium", status: "in_progress" },
     { content: "Review output", priority: "low", status: "pending" },
   ];
 }
@@ -100,16 +100,16 @@ describe("ChatSessionEventRail", () => {
     });
   });
 
-  it("renders the plan panel when plan entries are provided", () => {
+  it("renders the agent agenda panel when agenda entries are provided", () => {
     activeSessionRef.value = makeSession(makeEntries());
     activeSessionIdRef.value = activeSessionRef.value.id;
 
     const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("执行计划");
+    expect(wrapper.text()).toContain("行动清单");
     expect(wrapper.text()).toContain("Analyze request");
-    expect(wrapper.text()).toContain("Generate plan");
+    expect(wrapper.text()).toContain("Draft agenda");
     expect(wrapper.text()).toContain("Review output");
   });
 
@@ -120,7 +120,7 @@ describe("ChatSessionEventRail", () => {
     const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("执行计划");
+    expect(wrapper.text()).not.toContain("行动清单");
   });
 
   it("renders pending Fyllo action items from the active session", () => {
@@ -164,21 +164,21 @@ describe("ChatSessionEventRail", () => {
     const wrapper = mountEventRail();
 
     expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("执行计划");
+    expect(wrapper.text()).toContain("行动清单");
 
     await wrapper.get('[data-test="collapse-rail"]').trigger("click");
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="expand-rail"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain("执行计划");
+    expect(wrapper.text()).not.toContain("行动清单");
 
     await wrapper.get('[data-test="expand-rail"]').trigger("click");
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="expand-rail"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="collapse-rail"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("执行计划");
+    expect(wrapper.text()).toContain("行动清单");
   });
 
   it("scrolls to a Fyllo action anchor when a rail item is located", async () => {

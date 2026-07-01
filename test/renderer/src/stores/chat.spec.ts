@@ -748,7 +748,7 @@ describe("useChatStore", () => {
     expect(sessionStore.activeSession?.messages).toHaveLength(1);
   });
 
-  it("routes plan_update to the session store without touching the assembler path", async () => {
+  it("routes agenda_update to the session store without touching the assembler path", async () => {
     const acpAgentsStore = useAcpAgentsStore();
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
@@ -772,18 +772,18 @@ describe("useChatStore", () => {
     );
 
     const sessionStore = useSessionStore();
-    const setSessionPlanSpy = vi.spyOn(sessionStore, "setSessionPlan");
+    const setSessionAgentAgendaSpy = vi.spyOn(sessionStore, "setSessionAgentAgenda");
     sessionStore.beginDraftSession();
 
     const chatStore = useChatStore();
     await chatStore.sendMessage(textParts("hello world"));
 
     callbacks!.onChunk({
-      kind: "plan_update",
+      kind: "agenda_update",
       entries: [{ content: "分析代码", priority: "high", status: "in_progress" }],
     });
 
-    expect(setSessionPlanSpy).toHaveBeenCalledWith("session-1", [
+    expect(setSessionAgentAgendaSpy).toHaveBeenCalledWith("session-1", [
       { content: "分析代码", priority: "high", status: "in_progress" },
     ]);
     expect(sessionStore.activeSession?.messages).toHaveLength(1);

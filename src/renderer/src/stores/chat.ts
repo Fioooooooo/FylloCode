@@ -256,8 +256,8 @@ export const useChatStore = defineStore("chat", () => {
             case "config_options_update":
               sessionStore.setSessionConfigOptions(activeSession.id, data.options);
               return;
-            case "plan_update":
-              sessionStore.setSessionPlan(activeSession.id, data.entries);
+            case "agenda_update":
+              sessionStore.setSessionAgentAgenda(activeSession.id, data.entries);
               return;
             case "user_message":
             case "status":

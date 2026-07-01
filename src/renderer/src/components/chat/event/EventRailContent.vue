@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import ChatFylloActionPanel from "@renderer/components/chat/event/ChatFylloActionPanel.vue";
-import ChatPlanPanel from "@renderer/components/chat/event/ChatPlanPanel.vue";
+import ChatAgentAgendaPanel from "@renderer/components/chat/event/ChatAgentAgendaPanel.vue";
 import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel.vue";
 import type { PendingFylloActionRailItem } from "@renderer/utils/fyllo-action-rail";
-import type { PlanEntry } from "@shared/types/chat";
+import type { AgendaEntry } from "@shared/types/chat";
 import type { ProposalMeta } from "@shared/types/proposal";
 
 const props = defineProps<{
-  planEntries: PlanEntry[];
+  agentAgendaEntries: AgendaEntry[];
   sessionProposals: ProposalMeta[];
   pendingActionItems: PendingFylloActionRailItem[];
 }>();
@@ -37,7 +37,10 @@ const collapsed = ref(false);
       </div>
 
       <div class="flex-1 overflow-y-auto px-4 py-2 space-y-4">
-        <ChatPlanPanel v-if="props.planEntries.length > 0" :entries="props.planEntries" />
+        <ChatAgentAgendaPanel
+          v-if="props.agentAgendaEntries.length > 0"
+          :entries="props.agentAgendaEntries"
+        />
         <ChatProposalPanel
           v-if="props.sessionProposals.length > 0"
           :proposals="props.sessionProposals"

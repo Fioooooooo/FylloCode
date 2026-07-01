@@ -167,12 +167,12 @@ describe("useUIMessageAssembler", () => {
     expect(messages.value).toHaveLength(0);
   });
 
-  it("ignores plan_update chunks", () => {
+  it("ignores agenda_update chunks", () => {
     const messages = ref<UIMessage<MessageMeta>[]>([]);
     const assembler = useUIMessageAssembler(messages);
 
     assembler.applyChunk({
-      kind: "plan_update",
+      kind: "agenda_update",
       entries: [{ content: "分析代码", priority: "high", status: "pending" }],
     });
 

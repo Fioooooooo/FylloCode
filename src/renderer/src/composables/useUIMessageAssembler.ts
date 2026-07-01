@@ -196,7 +196,7 @@ export function useUIMessageAssembler(
         return;
       case "available_commands_update":
       case "config_options_update":
-      case "plan_update":
+      case "agenda_update":
       case "usage_update":
       case "session_info_update":
       case "status":

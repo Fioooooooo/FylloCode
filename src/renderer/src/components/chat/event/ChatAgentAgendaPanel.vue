@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PlanEntry } from "@shared/types/chat";
+import type { AgendaEntry } from "@shared/types/chat";
 
-// 形状对齐 ACP agent-plan：content / priority / status。
-type PlanEntryStatus = PlanEntry["status"];
-type PlanEntryPriority = PlanEntry["priority"];
+// 形状对齐 ACP agent agenda：content / priority / status。
+type AgendaEntryStatus = AgendaEntry["status"];
+type AgendaEntryPriority = AgendaEntry["priority"];
 
 const { entries } = defineProps<{
-  entries: PlanEntry[];
+  entries: AgendaEntry[];
 }>();
 
 const collapsed = ref(false);
@@ -19,7 +19,7 @@ const completedCount = computed(
 const hasActive = computed(() => entries.some((entry) => entry.status === "in_progress"));
 
 const statusConfig: Record<
-  PlanEntryStatus,
+  AgendaEntryStatus,
   { icon: string; iconClass: string; textClass: string }
 > = {
   completed: {
@@ -39,7 +39,7 @@ const statusConfig: Record<
   },
 };
 
-const priorityConfig: Record<PlanEntryPriority, { label: string; class: string }> = {
+const priorityConfig: Record<AgendaEntryPriority, { label: string; class: string }> = {
   high: { label: "高", class: "bg-error/10 text-error" },
   medium: { label: "中", class: "bg-warning/10 text-warning" },
   low: { label: "低", class: "bg-elevated text-muted" },
@@ -56,7 +56,7 @@ const priorityConfig: Record<PlanEntryPriority, { label: string; class: string }
       <div class="flex items-center gap-2 min-w-0">
         <span v-if="hasActive" class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
         <UIcon v-else name="i-lucide-list-checks" class="w-3.5 h-3.5 shrink-0" />
-        <span class="text-sm font-medium uppercase tracking-wide">执行计划</span>
+        <span class="text-sm font-medium uppercase tracking-wide">行动清单</span>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
         <span class="text-xs tabular-nums opacity-70">

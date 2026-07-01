@@ -30,7 +30,7 @@ export interface AcpAvailableCommand {
   hint?: string;
 }
 
-export interface PlanEntry {
+export interface AgendaEntry {
   content: string;
   priority: "high" | "medium" | "low";
   status: "pending" | "in_progress" | "completed";
@@ -51,8 +51,8 @@ export interface Session {
   configOptions?: AcpSessionConfigOption[];
   actionStates?: Record<string, FylloActionState>;
   originTaskRef?: LineageTaskRef;
-  // 运行时态：ACP 执行计划，全量替换、不持久化（不写入 session meta）。
-  plan?: PlanEntry[];
+  // 运行时态：ACP Agent 行动清单，全量替换、不持久化（不写入 session meta）。
+  agentAgenda?: AgendaEntry[];
 }
 
 export type ProjectAgent = ChatAgent;

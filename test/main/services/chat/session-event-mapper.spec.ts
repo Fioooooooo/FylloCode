@@ -111,14 +111,14 @@ describe("toMessageChunk", () => {
     expect(chunk && "options" in chunk ? chunk.options : null).not.toBe(options);
   });
 
-  it("maps plan_update with structural clone", () => {
+  it("maps agenda_update with structural clone", () => {
     const entries = [
       { content: "分析代码", priority: "high" as const, status: "completed" as const },
       { content: "写测试", priority: "medium" as const, status: "in_progress" as const },
     ];
-    const ev: SessionEvent = { kind: "plan_update", entries };
+    const ev: SessionEvent = { kind: "agenda_update", entries };
     const chunk = toMessageChunk(ev);
-    expect(chunk).toEqual({ kind: "plan_update", entries });
+    expect(chunk).toEqual({ kind: "agenda_update", entries });
     expect(chunk && "entries" in chunk ? chunk.entries : null).toEqual(entries);
     expect(chunk && "entries" in chunk ? chunk.entries : null).not.toBe(entries);
   });

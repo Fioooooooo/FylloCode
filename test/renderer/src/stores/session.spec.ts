@@ -405,37 +405,37 @@ describe("useSessionStore", () => {
     expect(store.sessions).toEqual([]);
   });
 
-  it("setSessionPlan writes the plan onto the matching session", () => {
+  it("setSessionAgentAgenda writes the agenda onto the matching session", () => {
     const store = useSessionStore();
     store.sessions = [session()];
 
-    store.setSessionPlan("session-1", [
+    store.setSessionAgentAgenda("session-1", [
       { content: "分析代码", priority: "high", status: "in_progress" },
     ]);
 
-    expect(store.sessions[0]?.plan).toEqual([
+    expect(store.sessions[0]?.agentAgenda).toEqual([
       { content: "分析代码", priority: "high", status: "in_progress" },
     ]);
   });
 
-  it("setSessionPlan does nothing when session is missing", () => {
+  it("setSessionAgentAgenda does nothing when session is missing", () => {
     const store = useSessionStore();
-    store.setSessionPlan("missing", [{ content: "x", priority: "low", status: "pending" }]);
+    store.setSessionAgentAgenda("missing", [{ content: "x", priority: "low", status: "pending" }]);
     expect(store.sessions).toEqual([]);
   });
 
-  it("setSessionPlan isolates plan between sessions", () => {
+  it("setSessionAgentAgenda isolates agenda between sessions", () => {
     const store = useSessionStore();
     store.sessions = [session({ id: "session-1" }), session({ id: "session-2" })];
 
-    store.setSessionPlan("session-1", [
+    store.setSessionAgentAgenda("session-1", [
       { content: "仅属于 session-1", priority: "medium", status: "pending" },
     ]);
 
-    expect(store.sessions[0]?.plan).toEqual([
+    expect(store.sessions[0]?.agentAgenda).toEqual([
       { content: "仅属于 session-1", priority: "medium", status: "pending" },
     ]);
-    expect(store.sessions[1]?.plan).toBeUndefined();
+    expect(store.sessions[1]?.agentAgenda).toBeUndefined();
   });
 
   it("persistSessionActionState updates memory immediately and merges IPC result", async () => {

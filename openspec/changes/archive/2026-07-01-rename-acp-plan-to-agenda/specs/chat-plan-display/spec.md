@@ -1,10 +1,18 @@
-# chat-plan-display 规范
+## REMOVED Requirements
 
-## Purpose
+### Requirement: ChatPlanPanel 展示会话执行计划
 
-定义 Chat 执行计划面板的展示、折叠、空态和会话内存态切换规则。
+**Reason**: ACP runtime `plan` 与 FylloCode `create-plan` / `plan.create` 正式规划方案同名但语义不同，继续使用 ChatPlanPanel 和“执行计划”会造成概念冲突。
 
-## Requirements
+**Migration**: 使用新增的 `ChatAgentAgendaPanel 展示 Agent 行动清单` requirement；实现层将 `ChatPlanPanel.vue` 改名为 `ChatAgentAgendaPanel.vue`，类型从 `PlanEntry` 改为 `AgendaEntry`。
+
+### Requirement: 执行计划为会话内存态且随会话切换
+
+**Reason**: 会话运行时字段 `Session.plan` 与 session-scoped plan 文档链路同名，容易被误认为可持久化或可审批的规划方案。
+
+**Migration**: 使用新增的 `行动清单为会话内存态且随会话切换` requirement；实现层将 `Session.plan` 改为 `Session.agentAgenda`。
+
+## ADDED Requirements
 
 ### Requirement: ChatAgentAgendaPanel 展示 Agent 行动清单
 

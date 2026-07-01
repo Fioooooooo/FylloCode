@@ -5,7 +5,7 @@ import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type {
   AcpAvailableCommand,
   Message,
-  PlanEntry,
+  AgendaEntry,
   Session,
   TokenUsage,
 } from "@shared/types/chat";
@@ -96,7 +96,7 @@ export interface SessionStore {
     actionId: string,
     state: FylloActionState
   ) => Promise<void>;
-  setSessionPlan: (sessionId: string, entries: PlanEntry[]) => void;
+  setSessionAgentAgenda: (sessionId: string, entries: AgendaEntry[]) => void;
   ensureDraftProbe: (agentId: string, projectId: string) => Promise<void>;
   closeDraftProbe: (agentId: string) => Promise<void>;
   setDraftConfigOption: (input: {
@@ -519,15 +519,15 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     session.actionStates = result.data.actionStates;
   }
 
-  // plan 为运行时态：全量替换，不持久化。SerializedSession / normalizeSession /
-  // mergeSessionMeta 都不处理 plan 字段，重启后自然为 undefined。
-  function setSessionPlan(sessionId: string, entries: PlanEntry[]): void {
+  // agentAgenda 为运行时态：全量替换，不持久化。SerializedSession / normalizeSession /
+  // mergeSessionMeta 都不处理 agentAgenda 字段，重启后自然为 undefined。
+  function setSessionAgentAgenda(sessionId: string, entries: AgendaEntry[]): void {
     const session = findSession(sessionId);
     if (!session) {
       return;
     }
 
-    session.plan = entries;
+    session.agentAgenda = entries;
   }
 
   function setDraftProbe(agentId: string, snapshot: ProbeSnapshot): void {
@@ -888,7 +888,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     setSessionConfigOptions,
     setSessionActionState,
     persistSessionActionState,
-    setSessionPlan,
+    setSessionAgentAgenda,
     ensureDraftProbe,
     closeDraftProbe,
     setDraftConfigOption,

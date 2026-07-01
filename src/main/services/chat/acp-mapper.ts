@@ -5,7 +5,7 @@ import type {
   AcpSessionConfigOptionGroup,
   AcpSessionConfigOptionValueItem,
 } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, PlanEntry } from "@shared/types/chat";
+import type { AcpAvailableCommand, AgendaEntry } from "@shared/types/chat";
 import type { ToolCallDiff, ToolCallLocation } from "@shared/types/stream-event";
 import logger from "@main/infra/logger";
 
@@ -134,23 +134,23 @@ export function normalizeAvailableCommands(
   }));
 }
 
-const PLAN_PRIORITIES: ReadonlySet<PlanEntry["priority"]> = new Set(["high", "medium", "low"]);
-const PLAN_STATUSES: ReadonlySet<PlanEntry["status"]> = new Set([
+const AGENDA_PRIORITIES: ReadonlySet<AgendaEntry["priority"]> = new Set(["high", "medium", "low"]);
+const AGENDA_STATUSES: ReadonlySet<AgendaEntry["status"]> = new Set([
   "pending",
   "in_progress",
   "completed",
 ]);
 
-export function normalizePlanEntries(
+export function normalizeAgendaEntries(
   update: Extract<SessionUpdate, { sessionUpdate: "plan" }>
-): PlanEntry[] {
+): AgendaEntry[] {
   return update.entries.map((entry) => ({
     content: entry.content,
-    priority: PLAN_PRIORITIES.has(entry.priority as PlanEntry["priority"])
-      ? (entry.priority as PlanEntry["priority"])
+    priority: AGENDA_PRIORITIES.has(entry.priority as AgendaEntry["priority"])
+      ? (entry.priority as AgendaEntry["priority"])
       : "medium",
-    status: PLAN_STATUSES.has(entry.status as PlanEntry["status"])
-      ? (entry.status as PlanEntry["status"])
+    status: AGENDA_STATUSES.has(entry.status as AgendaEntry["status"])
+      ? (entry.status as AgendaEntry["status"])
       : "pending",
   }));
 }
@@ -315,8 +315,8 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
 
     case "plan": {
       const event: SessionEvent = {
-        kind: "plan_update",
-        entries: normalizePlanEntries(update),
+        kind: "agenda_update",
+        entries: normalizeAgendaEntries(update),
       };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;

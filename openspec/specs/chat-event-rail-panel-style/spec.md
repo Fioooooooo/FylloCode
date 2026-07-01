@@ -8,11 +8,11 @@ TBD - created by archiving change unify-chat-event-rail-panel-styles. Update Pur
 
 ### Requirement: Chat EventRail 内 Panel Header 视觉统一
 
-`ChatPlanPanel` 与 `ChatProposalPanel` 的 Section Header SHALL 使用一致的视觉与交互结构。
+`ChatAgentAgendaPanel` 与 `ChatProposalPanel` 的 Section Header SHALL 使用一致的视觉与交互结构。
 
-#### Scenario: 用户同时看到执行计划与会话提案
+#### Scenario: 用户同时看到行动清单与会话提案
 
-- **GIVEN** 当前 session 同时存在 plan entries 与 proposals
+- **GIVEN** 当前 session 同时存在 agent agenda entries 与 proposals
 - **WHEN** `ChatSessionEventRail` 渲染
 - **THEN** 两个 Panel 的 Header SHALL 均为可折叠按钮
 - **AND** Header 左侧 SHALL 显示图标与中文标题
@@ -21,14 +21,14 @@ TBD - created by archiving change unify-chat-event-rail-panel-styles. Update Pur
 
 ### Requirement: Chat EventRail Panel 标题使用中文
 
-`ChatPlanPanel` 与 `ChatProposalPanel` 的标题 SHALL 使用简体中文，去除英文文案。
+`ChatAgentAgendaPanel` 与 `ChatProposalPanel` 的标题 SHALL 使用简体中文，去除英文文案。
 
 #### Scenario: 用户查看右侧事件栏
 
 - **GIVEN** `ChatSessionEventRail` 渲染
 - **WHEN** 用户查看 Panel 标题
-- **THEN** `ChatPlanPanel` 标题 SHALL 为 "执行计划"
-- **AND** `ChatProposalPanel` 标题 SHALL 为 "会话提案"
+- **THEN** `ChatAgentAgendaPanel` 标题 SHALL 为“行动清单”
+- **AND** `ChatProposalPanel` 标题 SHALL 为“会话提案”
 
 ### Requirement: ChatProposalPanel 支持折叠
 
@@ -52,21 +52,21 @@ TBD - created by archiving change unify-chat-event-rail-panel-styles. Update Pur
 
 当 `ChatSessionEventRail` 内同时渲染多个 Panel 时，Panel 之间的垂直间距 SHALL 一致。
 
-#### Scenario: 同时存在执行计划与会话提案
+#### Scenario: 同时存在行动清单与会话提案
 
-- **GIVEN** `ChatPlanPanel` 与 `ChatProposalPanel` 同时渲染
+- **GIVEN** `ChatAgentAgendaPanel` 与 `ChatProposalPanel` 同时渲染
 - **WHEN** 用户查看 Rail 内容区
 - **THEN** 两个 Panel 之间的外间距 SHALL 与 Rail 内容区 `space-y-*` 一致
 - **AND** Panel 内部 Header 与内容区间的内间距 SHALL 一致
 
 ### Requirement: Panel 内容形态保持不变
 
-统一 Header 后，`ChatPlanPanel` 与 `ChatProposalPanel` 的内容展示形态 SHALL 维持原有设计。
+统一 Header 后，`ChatAgentAgendaPanel` 与 `ChatProposalPanel` 的内容展示形态 SHALL 维持原有设计。
 
-#### Scenario: 用户查看执行计划内容
+#### Scenario: 用户查看行动清单内容
 
-- **GIVEN** `ChatPlanPanel` 展开
-- **WHEN** 用户查看计划条目
+- **GIVEN** `ChatAgentAgendaPanel` 展开
+- **WHEN** 用户查看行动清单条目
 - **THEN** 条目 SHALL 继续以无背景列表形式展示
 
 #### Scenario: 用户查看会话提案内容

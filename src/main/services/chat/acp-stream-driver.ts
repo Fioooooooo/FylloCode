@@ -31,7 +31,7 @@ export interface AcpStreamHooks {
   persistMessage(message: Message): Promise<void>;
   /**
    * Handle a non-content control event (usage/available_commands/config_options/
-   * plan/session_info). The driver does NOTHING with these by itself — it never
+   * agenda/session_info). The driver does NOTHING with these by itself — it never
    * forwards or persists them — so each handler decides explicitly. Omit to
    * ignore all control events (apply/archive).
    */
@@ -128,7 +128,7 @@ export function driveAcpStream(args: {
         sessionRegistry.unregister(owner, registryKey);
         return;
       default:
-        // Control events (usage/commands/config/plan/session_info): the driver
+        // Control events (usage/commands/config/agenda/session_info): the driver
         // never forwards or persists these; the handler decides via onControlEvent.
         hooks.onControlEvent?.(ev, output);
         return;

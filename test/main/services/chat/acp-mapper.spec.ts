@@ -107,7 +107,7 @@ describe("mapSessionUpdate", () => {
   });
 
   describe("plan", () => {
-    it("maps entries to plan_update keeping only content/priority/status", () => {
+    it("maps entries to agenda_update keeping only content/priority/status", () => {
       const update = {
         sessionUpdate: "plan",
         entries: [
@@ -123,7 +123,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        kind: "plan_update",
+        kind: "agenda_update",
         entries: [
           { content: "分析现有代码结构", priority: "high", status: "completed" },
           { content: "编写单元测试", priority: "medium", status: "in_progress" },
@@ -139,7 +139,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        kind: "plan_update",
+        kind: "agenda_update",
         entries: [],
       });
     });
@@ -151,7 +151,7 @@ describe("mapSessionUpdate", () => {
       } as unknown as SessionUpdate;
 
       expect(mapSessionUpdate(update)).toEqual({
-        kind: "plan_update",
+        kind: "agenda_update",
         entries: [{ content: "未知字段", priority: "medium", status: "pending" }],
       });
     });

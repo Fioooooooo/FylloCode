@@ -1,5 +1,5 @@
 import type { AcpSessionConfigOption } from "./acp-config";
-import type { AcpAvailableCommand, PlanEntry } from "./chat";
+import type { AcpAvailableCommand, AgendaEntry } from "./chat";
 
 /**
  * 跨进程同构的流式内容事件子集。
@@ -67,5 +67,5 @@ export type StreamContentEvent =
     }
   | { kind: "session_info_update"; title: string }
   | { kind: "available_commands_update"; commands: AcpAvailableCommand[] }
-  | { kind: "plan_update"; entries: PlanEntry[] }
+  | { kind: "agenda_update"; entries: AgendaEntry[] }
   | { kind: "config_options_update"; options: AcpSessionConfigOption[] };

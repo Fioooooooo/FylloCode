@@ -1,7 +1,7 @@
 import { computed, nextTick, type ComputedRef, type Ref } from "vue";
 import { collectPendingFylloActionRailItems } from "@renderer/utils/fyllo-action-rail";
 import type { PendingFylloActionRailItem } from "@renderer/utils/fyllo-action-rail";
-import type { PlanEntry, Session } from "@shared/types/chat";
+import type { AgendaEntry, Session } from "@shared/types/chat";
 import type { ProposalMeta } from "@shared/types/proposal";
 
 interface UseChatSessionEventRailInput {
@@ -16,13 +16,13 @@ function findFylloActionAnchor(container: HTMLElement, actionId: string): HTMLEl
 }
 
 export function useChatEventRail(input: UseChatSessionEventRailInput): {
-  planEntries: ComputedRef<PlanEntry[]>;
+  agentAgendaEntries: ComputedRef<AgendaEntry[]>;
   sessionProposals: ComputedRef<ProposalMeta[]>;
   pendingActionRailItems: ComputedRef<PendingFylloActionRailItem[]>;
   showEventRail: ComputedRef<boolean>;
   locateFylloAction: (actionId: string) => Promise<void>;
 } {
-  const planEntries = computed(() => input.activeSession.value?.plan ?? []);
+  const agentAgendaEntries = computed(() => input.activeSession.value?.agentAgenda ?? []);
   const sessionProposals = computed(() =>
     input.activeSession.value ? input.getSessionProposals(input.activeSession.value.id) : []
   );
@@ -32,7 +32,7 @@ export function useChatEventRail(input: UseChatSessionEventRailInput): {
   const showEventRail = computed(
     () =>
       input.activeSessionId.value !== null &&
-      (planEntries.value.length > 0 ||
+      (agentAgendaEntries.value.length > 0 ||
         sessionProposals.value.length > 0 ||
         pendingActionRailItems.value.length > 0)
   );
@@ -50,7 +50,7 @@ export function useChatEventRail(input: UseChatSessionEventRailInput): {
   }
 
   return {
-    planEntries,
+    agentAgendaEntries,
     sessionProposals,
     pendingActionRailItems,
     showEventRail,
