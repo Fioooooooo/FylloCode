@@ -51,6 +51,8 @@ const {
   handleSubmit,
   handlePromptFocusOut,
   handlePromptKeydown,
+  handlePromptInput,
+  handlePromptKeyup,
   handleSlashButtonClick,
   handleCommandSelect,
 } = useChatPrompt({
@@ -66,6 +68,8 @@ const {
     <div
       :ref="setPromptShellRef"
       @keydown.capture="handlePromptKeydown"
+      @input.capture="handlePromptInput"
+      @keyup.capture="handlePromptKeyup"
       @focusout="handlePromptFocusOut"
     >
       <UChatPrompt

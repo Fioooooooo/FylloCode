@@ -49,7 +49,7 @@ const slashCommandStub = {
         type="button"
         @click="$emit('button-trigger')"
       />
-      <div v-if="open" data-test="slash-menu">
+      <div v-if="open" data-test="slash-menu" :data-search-term="searchTerm">
         <button
           v-for="command in commands"
           :key="command.name"
@@ -330,7 +330,7 @@ describe("ChatPromptPanel", () => {
     expect(cancelStream).toHaveBeenCalledTimes(1);
   });
 
-  it("opens the menu on slash only at line start and never calls preventDefault", async () => {
+  it("opens the menu on slash input only at line start and never calls preventDefault", async () => {
     const cases = [
       { value: "", cursor: 0, shouldOpen: true },
       { value: "hello", cursor: 5, shouldOpen: false },
@@ -352,11 +352,78 @@ describe("ChatPromptPanel", () => {
       keydown.preventDefault = preventDefault;
       textarea.dispatchEvent(keydown);
       await wrapper.vm.$nextTick();
-      await wrapper.vm.$nextTick();
 
       expect(preventDefault).not.toHaveBeenCalled();
+      expect(wrapper.find('[data-test="slash-menu"]').exists()).toBe(false);
+
+      textarea.value =
+        testCase.value.slice(0, testCase.cursor) + "/" + testCase.value.slice(testCase.cursor);
+      textarea.setSelectionRange(testCase.cursor + 1, testCase.cursor + 1);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      await wrapper.vm.$nextTick();
+
       expect(wrapper.find('[data-test="slash-menu"]').exists()).toBe(testCase.shouldOpen);
+      if (testCase.shouldOpen) {
+        expect(wrapper.get('[data-test="slash-menu"]').attributes("data-search-term")).toBe("");
+      }
+
+      const keyup = new KeyboardEvent("keyup", { key: "/", bubbles: true, cancelable: true });
+      Object.defineProperty(keyup, "target", { value: textarea });
+      textarea.dispatchEvent(keyup);
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('[data-test="slash-menu"]').exists()).toBe(testCase.shouldOpen);
+      if (testCase.shouldOpen) {
+        expect(wrapper.get('[data-test="slash-menu"]').attributes("data-search-term")).toBe("");
+      }
     }
+  });
+
+  it("inserts a command from the slash trigger and preserves hint placeholder behavior", async () => {
+    activeSessionRef.value = makeSession([
+      { name: "review", description: "Review code", hint: "[path]" },
+    ]);
+    const wrapper = mountPanel();
+    const textareaWrapper = wrapper.get("textarea");
+    const textarea = textareaWrapper.element as HTMLTextAreaElement;
+
+    textarea.value = "";
+    textarea.setSelectionRange(0, 0);
+    const keydown = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    Object.defineProperty(keydown, "target", { value: textarea });
+    textarea.dispatchEvent(keydown);
+    textarea.value = "/";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.setSelectionRange(1, 1);
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="slash-menu"]').attributes("data-search-term")).toBe("");
+
+    await wrapper.get('[data-test="slash-menu"] button').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("/review ");
+    expect(wrapper.get("textarea").attributes("placeholder")).toBe("[path]");
+
+    await wrapper.get("textarea").setValue("/review now");
+    expect(wrapper.get("textarea").attributes("placeholder")).toBeUndefined();
+  });
+
+  it("inserts a command from the slash button without changing spacing semantics", async () => {
+    activeSessionRef.value = makeSession([{ name: "plan", description: "Create a plan" }]);
+    const wrapper = mountPanel();
+    const textareaWrapper = wrapper.get("textarea");
+    const textarea = textareaWrapper.element as HTMLTextAreaElement;
+
+    await textareaWrapper.setValue("hello");
+    textarea.setSelectionRange(5, 5);
+    await wrapper.get('[data-test="slash-button"]').trigger("click");
+    await wrapper.get('[data-test="slash-menu"] button').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("hello /plan ");
+    expect(wrapper.find('[data-test="slash-menu"]').exists()).toBe(false);
   });
 
   it("shows context usage only when token usage is provided", async () => {

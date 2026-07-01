@@ -22,6 +22,8 @@ export function useChatPrompt(options: {
   handleSubmit: () => Promise<void>;
   handlePromptFocusOut: (event: FocusEvent) => void;
   handlePromptKeydown: (event: KeyboardEvent) => void;
+  handlePromptInput: (event: Event) => void;
+  handlePromptKeyup: (event: KeyboardEvent) => void;
   handleSlashButtonClick: () => void;
   handleCommandSelect: (command: AcpAvailableCommand) => void;
 } {
@@ -131,18 +133,37 @@ export function useChatPrompt(options: {
 
     pendingSlashOpen.value = true;
     commandTriggerSource.value = "slash";
-    void nextTick(() => {
-      if (!pendingSlashOpen.value) {
-        return;
-      }
+  }
 
+  function openPendingSlashMenu(target: EventTarget | null): void {
+    if (!pendingSlashOpen.value) {
+      return;
+    }
+
+    if (!(target instanceof HTMLTextAreaElement)) {
       pendingSlashOpen.value = false;
-      openCommandMenu("slash");
-    });
+      return;
+    }
+
+    pendingSlashOpen.value = false;
+    openCommandMenu("slash");
+  }
+
+  function handlePromptInput(event: Event): void {
+    openPendingSlashMenu(event.target);
+  }
+
+  function handlePromptKeyup(event: KeyboardEvent): void {
+    if (event.key !== "/") {
+      return;
+    }
+
+    openPendingSlashMenu(event.target);
   }
 
   function handlePromptFocusOut(event: FocusEvent): void {
     if (event.target instanceof HTMLTextAreaElement) {
+      pendingSlashOpen.value = false;
       clearTemporaryPlaceholder();
     }
   }
@@ -195,6 +216,8 @@ export function useChatPrompt(options: {
     handleSubmit,
     handlePromptFocusOut,
     handlePromptKeydown,
+    handlePromptInput,
+    handlePromptKeyup,
     handleSlashButtonClick,
     handleCommandSelect,
   };

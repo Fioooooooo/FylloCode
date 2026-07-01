@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import SlashCommandMenu from "@renderer/components/chat/prompt/SlashCommandMenu.vue";
+import type { AcpAvailableCommand } from "@shared/types/chat";
 
 const buttonStub = {
   inheritAttrs: false,
@@ -22,20 +23,52 @@ const popoverStub = {
 };
 
 const commandPaletteStub = {
-  props: ["groups", "searchTerm", "autofocus", "placeholder", "ui"],
-  emits: ["update:modelValue", "update:open", "update:searchTerm"],
+  props: ["groups", "searchTerm", "autofocus", "placeholder", "ui", "fuse", "preserveGroupOrder"],
+  emits: ["highlight", "update:modelValue", "update:open", "update:searchTerm"],
   template: `
-    <div data-test="slash-menu" :class="$attrs.class" :data-ui-content="ui?.content">
+    <div
+      data-test="slash-menu"
+      :class="$attrs.class"
+      :data-ui-content="ui?.content"
+      :data-fuse-result-limit="fuse?.resultLimit"
+      :data-fuse-should-sort="String(fuse?.fuseOptions?.shouldSort)"
+      :data-fuse-match-empty="String(fuse?.matchAllWhenSearchEmpty)"
+      :data-fuse-keys="fuse?.fuseOptions?.keys?.join('|')"
+      :data-preserve-group-order="String(preserveGroupOrder)"
+    >
       <template v-for="group in groups" :key="group.id">
         <button
           v-for="item in group.items"
           :key="item.id"
           type="button"
+          :data-test="'command-item-' + item.id"
+          @mouseenter="$emit('highlight', { ref: $event.currentTarget, value: item })"
+          @focus="$emit('highlight', { ref: $event.currentTarget, value: item })"
           @click="$emit('update:modelValue', item)"
         >
-          {{ item.label }}
+          <span :data-test="'command-item-label-' + item.id">{{ item.label }}</span>
+          <span v-if="'description' in item" data-test="command-item-description">
+            {{ item.description }}
+          </span>
+          <span v-if="'hint' in item" data-test="command-item-hint">{{ item.hint }}</span>
         </button>
       </template>
+      <button data-test="command-highlight-clear" type="button" @click="$emit('highlight', undefined)" />
+    </div>
+  `,
+};
+
+const tooltipStub = {
+  props: ["open", "reference", "content", "ui"],
+  template: `
+    <div
+      v-if="open"
+      data-test="command-details-tooltip"
+      :data-reference-test="reference?.dataset?.test"
+      :data-content-side="content?.side"
+      :data-ui-content="ui?.content"
+    >
+      <slot name="content" />
     </div>
   `,
 };
@@ -66,12 +99,27 @@ const transitionStub = {
   `,
 };
 
-function mountMenu(): VueWrapper {
+function makeCommand(input: {
+  name: string;
+  description?: string;
+  hint?: string;
+}): AcpAvailableCommand {
+  return { description: "", ...input } as AcpAvailableCommand;
+}
+
+function mountMenu(
+  props: Partial<{
+    commands: AcpAvailableCommand[];
+    open: boolean;
+    searchTerm: string;
+  }> = {}
+): VueWrapper {
   return mount(SlashCommandMenu, {
     props: {
-      commands: [{ name: "review", description: "Review code" }],
+      commands: [makeCommand({ name: "review", description: "Review code" })],
       open: false,
       searchTerm: "",
+      ...props,
     },
     global: {
       stubs: {
@@ -80,6 +128,8 @@ function mountMenu(): VueWrapper {
         Popover: popoverStub,
         UCommandPalette: commandPaletteStub,
         CommandPalette: commandPaletteStub,
+        UTooltip: tooltipStub,
+        Tooltip: tooltipStub,
         Transition: transitionStub,
       },
     },
@@ -105,11 +155,143 @@ describe("SlashCommandMenu", () => {
     expect(menuClass).toContain("max-h-[min(24rem,calc(100vh-8rem))]");
     expect(menuClass).toContain("overflow-hidden");
     expect(wrapper.html()).toContain(
-      "w-[min(32rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] p-0"
+      "w-[min(13.333rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] p-0"
     );
     expect(menu.attributes("data-ui-content")).toContain(
       "max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto"
     );
+  });
+
+  it("configures palette search to keep command count and original order", () => {
+    const commands = Array.from({ length: 14 }, (_, index) =>
+      makeCommand({
+        name: `cmd-${index}`,
+        description: `Description ${index}`,
+        hint: `[arg-${index}]`,
+      })
+    );
+    const wrapper = mountMenu({ commands, open: true });
+    const menu = wrapper.get('[data-test="slash-menu"]');
+
+    expect(menu.attributes("data-fuse-result-limit")).toBe("14");
+    expect(menu.attributes("data-fuse-should-sort")).toBe("false");
+    expect(menu.attributes("data-fuse-match-empty")).toBe("true");
+    expect(menu.attributes("data-fuse-keys")).toBe("label|command.description|command.hint");
+    expect(menu.attributes("data-preserve-group-order")).toBe("true");
+    expect(
+      wrapper.findAll('[data-test^="command-item-label-"]').map((item) => item.text())
+    ).toEqual(commands.map((command) => `/${command.name}`));
+  });
+
+  it("renders command labels without description or hint list content", () => {
+    const wrapper = mountMenu({
+      open: true,
+      commands: [
+        makeCommand({ name: "review", description: "Review code", hint: "[path]" }),
+        makeCommand({ name: "plan", description: "Create a plan", hint: "[topic]" }),
+      ],
+    });
+
+    expect(wrapper.text()).toContain("/review");
+    expect(wrapper.text()).toContain("/plan");
+    expect(wrapper.text()).not.toContain("Review code");
+    expect(wrapper.text()).not.toContain("[path]");
+    expect(wrapper.find('[data-test="command-item-description"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="command-item-hint"]').exists()).toBe(false);
+  });
+
+  it("shows tooltip details for description and hint combinations", async () => {
+    const wrapper = mountMenu({
+      open: true,
+      commands: [
+        makeCommand({
+          name: "description",
+          description:
+            "Describe command with enough detail to verify the tooltip keeps a bounded readable size.",
+        }),
+        makeCommand({ name: "hint", description: "   ", hint: "[target]" }),
+        makeCommand({ name: "both", description: "Initialize", hint: "[path]" }),
+        makeCommand({ name: "full", description: "   ", hint: "/full [path]" }),
+        makeCommand({ name: "empty", description: "   ", hint: "\t" }),
+      ],
+    });
+
+    await wrapper.get('[data-test="command-item-description"]').trigger("mouseenter");
+    const detailsTooltip = wrapper.get('[data-test="command-details-tooltip"]');
+    expect(detailsTooltip.text()).toContain("Describe command");
+    expect(detailsTooltip.attributes("data-ui-content")).toContain("w-80");
+    expect(detailsTooltip.attributes("data-ui-content")).toContain(
+      "max-w-[min(20rem,calc(100vw-2rem))]"
+    );
+    expect(detailsTooltip.attributes("data-ui-content")).toContain(
+      "max-h-[min(18rem,calc(100vh-4rem))]"
+    );
+    expect(detailsTooltip.attributes("data-ui-content")).toContain("overflow-y-auto");
+
+    await wrapper.get('[data-test="command-item-hint"]').trigger("mouseenter");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain(
+      "用法: /hint [target]"
+    );
+
+    await wrapper.get('[data-test="command-item-both"]').trigger("mouseenter");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain("Initialize");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain(
+      "用法: /both [path]"
+    );
+
+    await wrapper.get('[data-test="command-item-full"]').trigger("mouseenter");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain(
+      "用法: /full [path]"
+    );
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).not.toContain(
+      "/full /full"
+    );
+
+    await wrapper.get('[data-test="command-item-empty"]').trigger("mouseenter");
+    expect(wrapper.find('[data-test="command-details-tooltip"]').exists()).toBe(false);
+  });
+
+  it("uses the same highlight state for hover and keyboard focus", async () => {
+    const wrapper = mountMenu({
+      open: true,
+      commands: [
+        makeCommand({ name: "review", description: "Review code" }),
+        makeCommand({ name: "plan", description: "Create a plan" }),
+      ],
+    });
+
+    await wrapper.get('[data-test="command-item-review"]').trigger("mouseenter");
+    expect(
+      wrapper.get('[data-test="command-details-tooltip"]').attributes("data-reference-test")
+    ).toBe("command-item-review");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain("Review code");
+
+    await wrapper.get('[data-test="command-item-plan"]').trigger("focus");
+    expect(
+      wrapper.get('[data-test="command-details-tooltip"]').attributes("data-reference-test")
+    ).toBe("command-item-plan");
+    expect(wrapper.get('[data-test="command-details-tooltip"]').text()).toContain("Create a plan");
+  });
+
+  it("clears tooltip state when highlight clears, commands empty, or a command is selected", async () => {
+    const wrapper = mountMenu({ open: true });
+
+    await wrapper.get('[data-test="command-item-review"]').trigger("mouseenter");
+    expect(wrapper.find('[data-test="command-details-tooltip"]').exists()).toBe(true);
+
+    await wrapper.get('[data-test="command-highlight-clear"]').trigger("click");
+    expect(wrapper.find('[data-test="command-details-tooltip"]').exists()).toBe(false);
+
+    await wrapper.get('[data-test="command-item-review"]').trigger("mouseenter");
+    await wrapper.get('[data-test="command-item-review"]').trigger("click");
+    expect(wrapper.find('[data-test="command-details-tooltip"]').exists()).toBe(false);
+    expect(wrapper.emitted("select")?.[0]).toEqual([
+      { name: "review", description: "Review code" },
+    ]);
+
+    await wrapper.get('[data-test="command-item-review"]').trigger("mouseenter");
+    await wrapper.setProps({ commands: [] });
+    expect(wrapper.find('[data-test="command-details-tooltip"]').exists()).toBe(false);
   });
 
   it("wraps the trigger button in a Transition matching ConfigOptionsBar", () => {
