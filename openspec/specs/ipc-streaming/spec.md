@@ -363,7 +363,7 @@ Preload 暴露的每个事件订阅方法 SHALL 返回一个 `() => void` 类型
 - **THEN** handler 在 `cancel` 出口调用 `assembler.flush()` 并通过 `appendArchiveMessage` 落盘
 - **AND** handler 仍调用 `session.cancel()` 与 `sessionRegistry.unregister("archive", sessionKey)`
 
-### Requirement: MessageChunkData 包含 plan_update 分支
+### Requirement: MessageChunkData 包含 agenda_update 分支
 
 `MessageChunkData` 联合类型 SHALL 包含 `agenda_update` 分支，用于流式协议在 turn 进行中传递 ACP Agent 行动清单的全量替换。该分支结构 SHALL 为：
 
