@@ -97,6 +97,10 @@ function toggleBoolean(value: boolean): void {
   emit("change", value);
 }
 
+function getItemDescription(item: DropdownEntry): string | undefined {
+  return (item as DropdownChild).description;
+}
+
 const tooltipUi = { content: "h-auto items-stretch gap-0 px-3 py-2 max-w-xs" } as const;
 const dropdownUi = {
   content: "max-w-xs max-h-[min(20rem,calc(100vh-8rem))] overflow-y-auto",
@@ -111,6 +115,22 @@ const dropdownUi = {
     :content="{ align: 'start', side: 'top', sideOffset: 8 }"
     :ui="dropdownUi"
   >
+    <template #item-label="{ item }">
+      <UTooltip
+        v-if="getItemDescription(item)"
+        :delay-duration="200"
+        :content="{ side: 'right', sideOffset: 18 }"
+        :ui="tooltipUi"
+      >
+        <template #content>
+          {{ getItemDescription(item) }}
+        </template>
+        <span class="block w-full truncate">{{ item.label }}</span>
+      </UTooltip>
+      <span v-else class="block w-full truncate">{{ item.label }}</span>
+    </template>
+    <template #item-description><div /></template>
+
     <UTooltip :delay-duration="200" :ignore-non-keyboard-focus="true" :ui="tooltipUi">
       <template #content>
         <div class="flex flex-col gap-0.5 text-xs leading-5">

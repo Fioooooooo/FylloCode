@@ -82,7 +82,7 @@ const {
         </template>
 
         <template #footer>
-          <div class="inline-flex items-center gap-1 min-w-0">
+          <div class="inline-flex items-center gap-0.5 min-w-0">
             <PromptActionMenu
               :prompt-capabilities="promptCapabilities"
               @select-files="handleAttachmentSelect"

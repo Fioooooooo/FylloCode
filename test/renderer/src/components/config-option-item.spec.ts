@@ -138,4 +138,59 @@ describe("ConfigOptionItem", () => {
     });
     expect(wrapper.find("button[disabled]").exists()).toBe(true);
   });
+
+  it("shows option value description in a right-side tooltip and only renders the name in the item", () => {
+    const UTooltipWithContent = {
+      template:
+        '<div data-test="tooltip-wrapper"><slot /><div v-if="$slots.content" data-test="tooltip-content"><slot name="content" /></div></div>',
+    };
+    const UDropdownMenuWithItemSlot = {
+      props: ["items"],
+      template: `
+        <div>
+          <slot />
+          <template v-for="item in items" :key="item.label">
+            <div v-if="item.type === 'label'" :data-test="\`dropdown-label-\${item.label}\`">{{ item.label }}</div>
+            <button v-else type="button" :data-test="\`dropdown-item-\${item.label}\`" @click="item.onSelect?.()">
+              <slot name="item-label" :item="item" />
+            </button>
+          </template>
+        </div>
+      `,
+    };
+
+    const wrapper = mount(ConfigOptionItem, {
+      props: {
+        isPending: false,
+        option: {
+          type: "select",
+          id: "model",
+          name: "Model",
+          category: "model",
+          currentValue: "sonnet",
+          options: [
+            { value: "sonnet", name: "Sonnet", description: "Fast and capable" },
+            { value: "haiku", name: "Haiku" },
+          ],
+        },
+      },
+      global: {
+        stubs: {
+          UDropdownMenu: UDropdownMenuWithItemSlot,
+          DropdownMenu: UDropdownMenuWithItemSlot,
+          UTooltip: UTooltipWithContent,
+          Tooltip: UTooltipWithContent,
+        },
+      },
+    });
+
+    const sonnetTooltip = wrapper.get(
+      '[data-test="dropdown-item-Sonnet"] [data-test="tooltip-content"]'
+    );
+    expect(sonnetTooltip.text()).toContain("Fast and capable");
+
+    expect(
+      wrapper.find('[data-test="dropdown-item-Haiku"] [data-test="tooltip-content"]').exists()
+    ).toBe(false);
+  });
 });

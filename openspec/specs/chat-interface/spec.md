@@ -741,6 +741,22 @@ agent 进程崩溃时（`agentUnavailable` 事件）SHALL 从 `promptCapabilitie
 - **THEN** 菜单按 group 分块渲染
 - **AND** 每个 group 显示自身 `name`，其下列出该 group 的所有项
 
+### Requirement: ConfigOptionItem 下拉菜单项的 description 展示
+
+`ConfigOptionItem` 渲染 `UDropdownMenu` 时，下拉菜单项默认只显示 `AcpSessionConfigOptionValueItem.name`；若该项存在 `description`，则在鼠标 hover 时于菜单项右侧通过 `UTooltip` 显示完整 description。
+
+#### Scenario: 有 description 的选项项 hover 显示 tooltip
+
+- **WHEN** 某 select option 的 value item 存在 `description`
+- **THEN** 下拉菜单中该项只显示 `name`
+- **AND** 鼠标 hover 时在该项右侧显示包含完整 `description` 的 tooltip
+
+#### Scenario: 无 description 的选项项不显示 tooltip
+
+- **WHEN** 某 select option 的 value item 不存在 `description`
+- **THEN** 下拉菜单中该项只显示 `name`
+- **AND** 不渲染 description tooltip
+
 ### Requirement: chat store 处理 config_options_update chunk
 
 `src/renderer/src/stores/chat.ts` 的 `streamSessionMessage.onChunk` SHALL 新增 `case "config_options_update"`，调用 `useSessionStore().setSessionConfigOptions(activeSession.id, data.options)` 把全集替换到 session 内存态字段 `Session.configOptions`。

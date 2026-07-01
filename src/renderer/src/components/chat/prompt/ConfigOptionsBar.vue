@@ -86,7 +86,7 @@ async function handleChange(
     leave-from-class="opacity-100 translate-y-0"
     leave-to-class="opacity-0 translate-y-1"
   >
-    <div v-if="hasConfigOptions" class="inline-flex items-center gap-1 min-w-0">
+    <div v-if="hasConfigOptions" class="inline-flex items-center gap-0.5 min-w-0">
       <ConfigOptionItem
         v-for="option in sortedOptions"
         :key="option.id"
