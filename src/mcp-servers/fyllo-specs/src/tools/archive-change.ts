@@ -30,7 +30,9 @@ const archiveChangeInputSchema = z.object({
   commitMessage: z
     .string()
     .optional()
-    .describe('Required when confirm is true. First line must match "type(scope): summary".'),
+    .describe(
+      "Required when confirm is true. The commit message first line must match \"type(scope): summary\", and the summary must based on the current proposal and the modified files in the worktree, rather than simply 'archive something'.."
+    ),
   includeInstruction: z
     .boolean()
     .optional()

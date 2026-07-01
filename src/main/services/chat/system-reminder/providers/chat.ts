@@ -1,5 +1,5 @@
 import template from "../templates/chat.txt?raw";
-import { formatFylloActionContractInstructions } from "@shared/constants/fyllo-action-contracts";
+import { formatFylloActionContractForPrompt } from "@shared/constants/fyllo-action-contracts";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
 
@@ -11,5 +11,5 @@ export async function resolveChatSystemReminder(
     return null;
   }
 
-  return [rendered, formatFylloActionContractInstructions()].join("\n\n");
+  return [rendered, formatFylloActionContractForPrompt()].join("\n\n");
 }

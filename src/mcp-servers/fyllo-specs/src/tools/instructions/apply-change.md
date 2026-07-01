@@ -1,10 +1,5 @@
 Implement tasks from an OpenSpec change using the provided `state`.
 
-**Input**: `targetPath` is required. It must be an absolute path to the main repo root or a
-registered git worktree for that repo. In P1, the agent should default to passing
-`$FYLLO_PROJECT_PATH` (the main repo root). `state.changeName` identifies the change being
-implemented.
-
 **Steps**
 
 1. **Check state**
@@ -29,7 +24,7 @@ implemented.
 
 3. **Show current progress**
 
-   Display:
+   Display(with user language):
    - Schema being used
    - Progress: "N/M tasks complete"
    - Remaining tasks overview
@@ -51,7 +46,7 @@ implemented.
 
 5. **On completion or pause, show status**
 
-   Display:
+   Display(with user language):
    - Tasks completed this session
    - Overall progress: "N/M tasks complete"
    - If all done: suggest archiving

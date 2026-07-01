@@ -40,11 +40,11 @@ workspace and returns it in `state.workspace.path`.
 
 3. **Show final status**
 
-   After all `applyRequires` artifacts are complete and `.openspec.yaml` has been written back with `status: draft`, summarize:
+   After all `applyRequires` artifacts are complete and `.openspec.yaml` has been written back with `status: draft`, summarize(with user language):
    - Change name and location
    - List of artifacts created with brief descriptions
    - "All artifacts created! Ready for implementation."
-   - Prompt: "Start implementing with the apply-change tool."
+   - Prompt: "Start implementing with the 'Apply Change' button, or simply tell me to proceed with this proposal."
 
 **Artifact Creation Guidelines**
 

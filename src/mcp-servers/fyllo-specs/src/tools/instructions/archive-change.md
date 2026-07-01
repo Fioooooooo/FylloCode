@@ -1,17 +1,5 @@
 Archive a completed change using the provided `state`.
 
-**Input**: `targetPath` is required. It must be the workspace where the archive stage is running:
-the main repo root for main-mode changes, or the registered linked worktree path for linked-mode
-changes. `state.changeName` identifies the change to archive.
-
-When calling with `confirm: true`, pass `commitMessage`. Its first line must match
-`type(scope): summary`.
-
-The commit message must be based on inspected evidence from the archive run: changed files,
-synced specs, archived artifacts, and `state.archive.archiveRawOutput` when present. Do not use a
-vague subject such as `archive <changeName>` or a summary that merely repeats the change name
-without describing the affected capability or archive/sync result.
-
 **Steps**
 
 1. **Check artifact completion**
@@ -72,7 +60,7 @@ without describing the affected capability or archive/sync result.
      instructions from `state.workspace.recovery`; the agent may continue only the bounded git
      finalization work described there.
 
-   Show archive completion summary including:
+   Show archive completion summary(with user language) including:
    - Change name
    - Archive location (`state.archive.archiveTarget`)
    - Whether specs were synced

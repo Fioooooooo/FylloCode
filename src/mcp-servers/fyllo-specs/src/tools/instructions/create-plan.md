@@ -1,30 +1,20 @@
-Create a lightweight session-scoped implementation plan.
+Create a session-scoped implementation plan.
 
 **Purpose**
 
-Use this tool only after the user asks for a plan, or after you recommend creating a plan and the user explicitly agrees. The Plan path is for complex work that does not change the behavior contract. If investigation shows the work changes requirements, public APIs, schemas, protocols, persistence formats, user-visible behavior, or ownership boundaries, stop and upgrade to a Proposal.
+From the moment you decide to create a plan, you need to thoroughly explore and devise the best approach to complete the task.
 
-From the moment you decide to create a plan until the user approves it, do not modify business code. Exploration, reading, and analysis are allowed.
+During this process, you may need to gather information, such as searching code repositories, reading documents, and conducting web searches. You can also ask users questions to better understand the task.
 
-Call `create-plan` with only `goal` and the agent-provided `slug` fragment. Do not pass a project path, workspace path, `targetPath`, or `includeInstruction`; the tool creates the plan file in the current Fyllo session and always returns this instruction with state.
+Once you have gathered enough information, you need to write a detailed task completion plan into `state.planPath`.
+
+If investigation shows the work changes requirements, public APIs, schemas, protocols, persistence formats, user-visible behavior, or ownership boundaries, stop and upgrade to a Proposal.
 
 **After the tool returns**
 
-1. Read `state.planPath`.
-2. Write a complete Markdown plan into that file. Keep the existing YAML frontmatter intact.
-3. Derive the full plan slug from the `state.planPath` filename by removing the `.md` extension.
-4. After the plan is written, output exactly one `plan.create` Fyllo action so the user can review it in FylloCode.
-
-The `plan.create` payload must contain only:
-
-```json
-{
-  "slug": "<slug derived from state.planPath filename>",
-  "goal": "<the goal value you passed to create-plan>"
-}
-```
-
-Never include `planPath`, `sessionId`, button labels, handlers, IPC channels, component names, or local filesystem paths in the Fyllo action payload. FylloCode resolves the plan from the current session and slug.
+1. Read `state.planPath`, it is a pre-generated markdown templated file with YAML frontmatter and some headings.
+2. To achieve the user's goals, you can make full use of the tools at your disposal to create a plan.
+3. After thorough research, write your complete plan into that file. Keep the existing YAML frontmatter intact and the existing headings.
 
 **Plan contents**
 
@@ -37,4 +27,6 @@ Keep these sections meaningful and concise:
 - 实施步骤/Steps
 - 验证方式/Verification
 
-After the user approves the plan and sends `我已确认规划方案：<slug>`, reread the latest plan file before implementation.
+**After plan written**
+
+Users will review it, provide feedback to you, or even modify the plan file themselves. After the user approves the plan, reread the latest plan file before implementation.

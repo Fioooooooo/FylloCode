@@ -27,7 +27,8 @@ export type FylloActionContract = {
 export const enabledFylloActionContracts = [
   {
     type: "task.create",
-    description: "Create a local task after the user confirms the action in FylloCode.",
+    description:
+      "Show the user a card to create a task; after the user confirms, a local task will be created.",
     payloadSchema: taskCreateFylloActionPayloadSchema,
     payloadFields: [
       {
@@ -50,15 +51,14 @@ export const enabledFylloActionContracts = [
   },
   {
     type: "plan.create",
-    description:
-      "Open the current chat session plan for review after the user confirms the action in FylloCode.",
+    description: "Show the user a card to review the plan.",
     payloadSchema: planCreateFylloActionPayloadSchema,
     payloadFields: [
       {
         name: "slug",
         type: "string",
         required: true,
-        description: "Required full plan slug in yyyy-MM-dd-agent-slug format.",
+        description: "Required full plan slug in yyyy-MM-dd-slug format.",
       },
       {
         name: "goal",
@@ -91,14 +91,16 @@ function formatPayloadFields(contract: FylloActionContract): string {
     .join("\n");
 }
 
-export function formatFylloActionContractInstructions(
+export function formatFylloActionContractForPrompt(
   contracts: readonly FylloActionContract[] = enabledFylloActionContracts
 ): string {
   if (contracts.length === 0) {
     return [
+      `<fyllo-action-definition>`,
       "## Fyllo Action Tags",
       "",
       "No Fyllo action types are currently enabled. Do not output `<fyllo-action>` tags.",
+      `</fyllo-action-definition>`,
     ].join("\n");
   }
 
@@ -124,14 +126,17 @@ export function formatFylloActionContractInstructions(
     .join("\n\n");
 
   return [
+    `<fyllo-action-definition>`,
     "## Fyllo Action Tags",
     "",
     'Use `<fyllo-action type="...">...</fyllo-action>` only in assistant-visible replies after the user and agent have agreed on a result that needs FylloCode-side confirmation.',
     "The only allowed attribute is `type`. Do not output `version`, `id`, `title`, `confirmLabel`, `cancelLabel`, `handler`, `ipcChannel`, component names, or any other attributes.",
     "The body must be a strict JSON object matching the enabled type schema. Do not use Markdown code fences, comments, trailing commas, arrays, strings, or bare text inside the tag.",
-    "FylloCode controls the UI and fixed confirm/cancel buttons. The agent must not define button labels, handlers, IPC channels, or arbitrary UI in attributes or payload.",
+    "FylloCode controls the UI and fixed confirm/cancel buttons. The agent must not define button labels, handlers, or arbitrary UI in attributes or payload.",
     `Enabled action types: ${enabledTypes}.`,
     "",
     contractInstructions,
+    "",
+    `</fyllo-action-definition>`,
   ].join("\n");
 }
