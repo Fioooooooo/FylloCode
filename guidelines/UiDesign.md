@@ -221,7 +221,41 @@ FylloCode 使用 Tailwind 默认 4px spacing scale，不新增自定义 spacing 
 - 局部覆盖：使用组件的 `ui` prop 或 `class` 属性；
 - 不要用 CSS 选择器从外部覆盖 Nuxt UI 组件内部样式
 
-### 7.1 Card（卡片）
+### 7.1 Global Overlay（全局遮罩）
+
+全局遮罩指 `UModal`、`USlideover` 以及未来类似全屏浮层组件的背景 overlay。遮罩目标是稳定压暗底层页面并建立层级，不制造明显毛玻璃或亮雾感。
+
+规则：
+
+- `UModal`、`USlideover` 这类全局 overlay 的默认视觉必须通过 `electron.vite.config.ts` 中的 `renderer.plugins.ui` 主题配置统一声明，不要在各业务组件里重复覆盖。
+- 全局 overlay 背景使用 `bg-black/45 dark:bg-black/60`。不要使用 `bg-slate-900/40` 作为全局遮罩；它在浅色页面上会与底层白色区域混合成偏亮灰蓝，容易显得发雾。
+- 全局 overlay 的轻微 blur 使用 `fyllo-overlay-blur`。该 class 在 `src/renderer/src/assets/main.css` 中维护，固定为 `-webkit-backdrop-filter: blur(2px)` 与 `backdrop-filter: blur(2px)`。
+- 不要在 `electron.vite.config.ts` 的 Nuxt UI 主题配置里使用 `backdrop-blur-[2px]` 这类 arbitrary utility；Tailwind 内容扫描不可靠地覆盖 Vite 配置中的 arbitrary class，可能导致 DOM 有 class 但最终 CSS 未生成。
+- 避免将全局 overlay 回退到 `backdrop-blur-sm`；Tailwind 默认 `sm` blur 强度为 8px，叠加浅色背景时容易出现过强的毛玻璃感。
+
+示例：
+
+```ts
+modal: {
+  slots: {
+    overlay: "fixed inset-0 fyllo-overlay-blur",
+  },
+  variants: {
+    overlay: {
+      true: {
+        overlay: "bg-black/45 dark:bg-black/60",
+      },
+    },
+  },
+},
+slideover: {
+  slots: {
+    overlay: "z-40 bg-black/45 dark:bg-black/60 fyllo-overlay-blur",
+  },
+},
+```
+
+### 7.2 Card（卡片）
 
 默认卡片样式由共享组件 `UiSurface.vue` 提供：
 
@@ -253,7 +287,7 @@ FylloCode 使用 Tailwind 默认 4px spacing scale，不新增自定义 spacing 
 - 卡片内部结构优先保持三段式：header（icon + title + action）、body、footer；密集列表可简化，但不要创造一次性布局。
 - 卡片间距统一为 `p-5`，密集列表可降为 `p-4`。
 
-### 7.2 Button
+### 7.3 Button
 
 - 按钮优先使用 Nuxt UI props 表达语义，不手写按钮背景色。
 - **Primary**：`color="primary"`，用于页面唯一主行动。
@@ -262,13 +296,13 @@ FylloCode 使用 Tailwind 默认 4px spacing scale，不新增自定义 spacing 
 - **Danger**：`color="error"`，只用于 destructive action。
 - 同一区域内避免多个并列 primary 按钮。
 
-### 7.3 Input / ChatPrompt
+### 7.4 Input / ChatPrompt
 
 - 输入框背景使用 `bg-elevated`，容器使用 `shadow-sm`。
 - focus ring 使用 `ring-primary/30`。
 - `UChatPrompt` footer 动作区使用 ghost 按钮，避免堆积彩色图标。
 
-### 7.4 Badge / Status
+### 7.5 Badge / Status
 
 - 状态 badge 优先使用 `variant="soft"`，避免 outline 造成的细碎边框。
 - 进行中/活跃态使用 `color="primary"`（teal）。
@@ -388,5 +422,5 @@ FylloCode 使用 Tailwind 默认 4px spacing scale，不新增自定义 spacing 
 ## 13. 维护
 
 - 当新增全局 UI 模式、调整 Design Token、改变 ActivityBar/AppHeader 视觉约定或修改动效语言时，必须同步更新本文档。
-- 当 `@nuxt/ui` 或 Tailwind 主题配置发生变更时，必须检查本文档中的 token 是否仍然有效，并更新示例代码。
+- 当 `@nuxt/ui` 或 Tailwind 主题配置发生变更时，必须检查本文档中的 token、全局 overlay 配置是否仍然有效，并更新示例代码。
 - 当新增页面或共享组件时，必须对照本文档的 Page Header、Card、Empty State 等模式进行审查。

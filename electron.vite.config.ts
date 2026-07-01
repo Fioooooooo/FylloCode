@@ -111,19 +111,19 @@ export default defineConfig(({ command }) => ({
           modal: {
             slots: {
               footer: "justify-end gap-2",
-              overlay: "fixed inset-0 backdrop-blur-sm",
+              overlay: "fixed inset-0 fyllo-overlay-blur",
             },
             variants: {
               overlay: {
                 true: {
-                  overlay: "bg-slate-900/40",
+                  overlay: "bg-black/45 dark:bg-black/60",
                 },
               },
             },
           },
           slideover: {
             slots: {
-              overlay: "z-40 backdrop-blur-sm bg-slate-900/40",
+              overlay: "z-40 bg-black/45 dark:bg-black/60 fyllo-overlay-blur",
               content: "z-50",
             },
           },

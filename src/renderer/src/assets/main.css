@@ -3,3 +3,8 @@
 
 @import "markstream-vue/index.css" layer(components);
 @import "katex/dist/katex.min.css";
+
+.fyllo-overlay-blur {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
