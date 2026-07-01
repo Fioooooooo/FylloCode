@@ -49,7 +49,7 @@ function closePreview(itemId: string): void {
         <template #default>
           <button
             type="button"
-            class="h-1 w-5 shrink-0 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-primary"
+            class="h-1 w-5 shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-primary"
             :class="isActive(item) ? 'bg-inverted/90 w-7' : 'bg-accented'"
             :aria-label="`定位到第 ${item.index} 条 user prompt`"
             :aria-current="isActive(item) ? 'true' : undefined"

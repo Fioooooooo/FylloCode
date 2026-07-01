@@ -33,26 +33,50 @@ const sidebarToggleLabel = computed(() =>
 const sidebarToggleIcon = computed(() =>
   props.sidebarCollapsed ? "i-lucide-panel-left-open" : "i-lucide-panel-left-close"
 );
+
+function handleCreateSession(): void {
+  sessionStore.beginDraftSession();
+  store.resetChatState();
+}
 </script>
 
 <template>
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
-      <div class="p-2 pb-0 shrink-0 flex items-center">
-        <UButton
-          :icon="sidebarToggleIcon"
-          size="sm"
-          color="neutral"
-          variant="ghost"
-          :title="sidebarToggleLabel"
-          :aria-label="sidebarToggleLabel"
-          :aria-expanded="String(!sidebarCollapsed)"
-          @click="emit('toggle-sidebar')"
-        />
-        <OriginTaskBanner />
-      </div>
+      <header class="p-2 pb-0 shrink-0 flex items-center">
+        <div class="flex flex-1 items-center gap-1">
+          <UButton
+            :icon="sidebarToggleIcon"
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            :title="sidebarToggleLabel"
+            :aria-label="sidebarToggleLabel"
+            :aria-expanded="String(!sidebarCollapsed)"
+            @click="emit('toggle-sidebar')"
+          />
+          <UButton
+            v-if="sidebarCollapsed"
+            icon="i-lucide-plus"
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            title="新建会话"
+            aria-label="新建会话"
+            @click="handleCreateSession"
+          />
+        </div>
 
-      <div class="relative flex-1 min-h-0">
+        <div class="flex flex-1 items-center justify-center min-w-0">
+          <OriginTaskBanner />
+        </div>
+
+        <div class="flex flex-1 items-center justify-end gap-1">
+          <!-- Right actions placeholder -->
+        </div>
+      </header>
+
+      <section class="relative flex-1 min-h-0 isolate">
         <ChatPromptTimeline
           class="absolute left-2 top-4 z-10"
           :scroll-container="messageScrollContainerRef"
@@ -82,13 +106,13 @@ const sidebarToggleIcon = computed(() =>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div>
+      <footer>
         <div class="max-w-3xl mx-auto">
           <ChatPromptPanel />
         </div>
-      </div>
+      </footer>
     </div>
 
     <div class="shrink-0 flex">
