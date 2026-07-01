@@ -264,6 +264,7 @@ describe("ChatContainer", () => {
 
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(false);
+    expect(wrapper.element.children).toHaveLength(1);
   });
 
   it("renders the event rail for non-draft sessions with agent agenda entries", async () => {
@@ -278,6 +279,7 @@ describe("ChatContainer", () => {
     const wrapper = mountContainer();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
+    expect(wrapper.element.children).toHaveLength(2);
   });
 
   it("renders the event rail for non-draft sessions with only pending Fyllo actions", async () => {
@@ -333,6 +335,7 @@ describe("ChatContainer", () => {
     const wrapper = mountContainer();
 
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(false);
+    expect(wrapper.element.children).toHaveLength(1);
   });
 
   it("keeps the prompt panel inside the conversation column", async () => {

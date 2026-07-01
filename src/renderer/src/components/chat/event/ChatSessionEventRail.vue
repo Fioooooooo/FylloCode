@@ -26,11 +26,14 @@ const {
 </script>
 
 <template>
-  <EventRailContent
-    v-if="showEventRail"
-    :agent-agenda-entries="agentAgendaEntries"
-    :session-proposals="sessionProposals"
-    :pending-action-items="pendingActionRailItems"
-    @locate-action="locateFylloAction"
-  />
+  <div v-if="showEventRail" class="shrink-0 flex">
+    <div class="flex-1 flex flex-col rounded-lg bg-default overflow-auto">
+      <EventRailContent
+        :agent-agenda-entries="agentAgendaEntries"
+        :session-proposals="sessionProposals"
+        :pending-action-items="pendingActionRailItems"
+        @locate-action="locateFylloAction"
+      />
+    </div>
+  </div>
 </template>

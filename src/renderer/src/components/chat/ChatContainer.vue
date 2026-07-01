@@ -44,7 +44,7 @@ function handleCreateSession(): void {
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
       <header class="p-2 pb-0 shrink-0 flex items-center">
-        <div class="flex flex-1 items-center gap-1">
+        <div class="flex w-1/5 shrink-0 items-center gap-1">
           <UButton
             :icon="sidebarToggleIcon"
             size="sm"
@@ -67,11 +67,11 @@ function handleCreateSession(): void {
           />
         </div>
 
-        <div class="flex flex-1 items-center justify-center min-w-0">
+        <div class="flex w-3/5 shrink-0 items-center justify-center min-w-0">
           <OriginTaskBanner />
         </div>
 
-        <div class="flex flex-1 items-center justify-end gap-1">
+        <div class="flex w-1/5 shrink-0 items-center justify-end gap-1">
           <!-- Right actions placeholder -->
         </div>
       </header>
@@ -115,10 +115,6 @@ function handleCreateSession(): void {
       </footer>
     </div>
 
-    <div class="shrink-0 flex">
-      <div class="flex-1 flex flex-col rounded-lg bg-default overflow-auto">
-        <ChatSessionEventRail :scroll-container="messageScrollContainerRef" />
-      </div>
-    </div>
+    <ChatSessionEventRail :scroll-container="messageScrollContainerRef" />
   </div>
 </template>

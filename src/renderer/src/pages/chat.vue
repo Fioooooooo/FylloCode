@@ -17,7 +17,7 @@ onMounted(() => {
 <template>
   <UDashboardGroup
     as="div"
-    class="relative inset-auto flex flex-1 min-h-0 min-w-0 overflow-hidden bg-elevated space-x-2"
+    class="relative inset-auto flex flex-1 min-h-0 min-w-0 overflow-hidden bg-elevated"
     unit="px"
     :persistent="false"
   >
@@ -26,6 +26,7 @@ onMounted(() => {
       v-model:collapsed="isSidebarCollapsed"
       collapsible
       class="h-full flex flex-col bg-default shrink-0 rounded-lg overflow-hidden"
+      :class="isSidebarCollapsed ? 'mr-0' : 'mr-2'"
       :resizable="false"
       :toggle="false"
       :default-size="260"
