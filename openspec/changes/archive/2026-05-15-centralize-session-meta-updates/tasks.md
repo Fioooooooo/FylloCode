@@ -1,5 +1,0 @@
-- [x] 1. 补充 OpenSpec 变更，明确 session meta 更新必须通过 session-store 的统一字段级 API，且不得覆盖未变更字段
-- [x] 2. 重构 `electron/main/infra/storage/session-store.ts`，提供 session meta 的创建与字段级更新入口，并补充对应单元测试
-- [x] 3. 调整 `electron/main/services/chat/chat-service.ts`、`electron/main/ipc/chat.ts`、`electron/main/services/chat/acp-session.ts` 使用新的 session-store API，删除分散的 `load -> merge -> save` 逻辑
-- [x] 4. 补充/更新 chat IPC 与 ACP session 测试，覆盖 `available_commands` 在后续 turn 中不被覆盖的回归场景
-- [x] 5. 运行定向测试与 OpenSpec 校验，确认持久化回归被修复

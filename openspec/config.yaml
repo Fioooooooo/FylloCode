@@ -1,7 +1,0 @@
-schema: spec-driven
-context: |
-  语言：中文（简体）
-  所有产出物必须用简体中文撰写。
-rules:
-  tasks:
-    - Evaluate whether this change should add or update local repository guidelines. If so, add a task in tasks.md that names the specific guideline file and what to change.
