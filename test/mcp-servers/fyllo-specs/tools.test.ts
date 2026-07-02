@@ -35,6 +35,14 @@ function initGitRepo(root: string): void {
   git(root, ["commit", "-m", "chore(test): initial"]);
 }
 
+function createGitOpenspecFixture(): string {
+  const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+  mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+  writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+  initGitRepo(root);
+  return root;
+}
+
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[name];
@@ -90,12 +98,16 @@ describe("tools", () => {
   const repoRoot = process.cwd();
 
   it("explore returns state", async () => {
+    const root = createGitOpenspecFixture();
     const prev = process.env.FYLLO_PROJECT_PATH;
-    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    process.env.FYLLO_PROJECT_PATH = root;
     try {
-      const text = await exploreTool({ targetPath: repoRoot });
+      const text = await exploreTool({ targetPath: root });
       expect(text).toContain("<tool_instruction>");
       expect(text).toContain("<state>");
+      const state = parseState(text);
+      expect(state).not.toHaveProperty("errors");
+      expect(state.activeChanges).toBeInstanceOf(Array);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
@@ -232,10 +244,11 @@ describe("tools", () => {
   });
 
   it("explore returns plain JSON when includeInstruction is false", async () => {
+    const root = createGitOpenspecFixture();
     const prev = process.env.FYLLO_PROJECT_PATH;
-    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    process.env.FYLLO_PROJECT_PATH = root;
     try {
-      const text = await exploreTool({ targetPath: repoRoot, includeInstruction: false });
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
       expect(text).not.toContain("<tool_instruction>");
       const state = JSON.parse(text);
       expect(state).toHaveProperty("activeChanges");
@@ -596,12 +609,13 @@ describe("tools", () => {
   });
 
   it("explore accepts the git project root targetPath", async () => {
+    const root = createGitOpenspecFixture();
     const prev = process.env.FYLLO_PROJECT_PATH;
-    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    process.env.FYLLO_PROJECT_PATH = root;
     try {
-      const text = await exploreTool({ targetPath: repoRoot, includeInstruction: false });
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
       const state = JSON.parse(text);
-      expect(state.projectRoot).toBe(repoRoot);
+      expect(state.projectRoot).toBe(root);
       expect(state.activeChanges).toBeInstanceOf(Array);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -609,12 +623,13 @@ describe("tools", () => {
   });
 
   it("explore accepts targetPath with trailing slash", async () => {
+    const root = createGitOpenspecFixture();
     const prev = process.env.FYLLO_PROJECT_PATH;
-    process.env.FYLLO_PROJECT_PATH = repoRoot;
+    process.env.FYLLO_PROJECT_PATH = root;
     try {
-      const text = await exploreTool({ targetPath: `${repoRoot}/`, includeInstruction: false });
+      const text = await exploreTool({ targetPath: `${root}/`, includeInstruction: false });
       const state = JSON.parse(text);
-      expect(state.projectRoot).toBe(repoRoot);
+      expect(state.projectRoot).toBe(root);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
