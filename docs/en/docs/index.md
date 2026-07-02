@@ -35,4 +35,4 @@ To contribute to the project, continue with the [Contributing Guide](/en/docs/co
 | Apply & Archive | The implementation stage inside an approved task boundary, followed by archiving decisions, results, spec updates, and guideline evolution. |
 | [lineage](/en/docs/guide/lineage) | A traceable path across the stages of one change, so archived outcomes can inform future tasks. |
 | fyllo-specs | The built-in MCP server that exposes OpenSpec-based project specifications and change workflows. |
-| fyllo-cortex | The built-in MCP server that currently provides guideline tools for maintaining engineering conventions. |
+| fyllo-cortex | The built-in MCP server that provides guidelines and lineage tools for maintaining conventions and tracing design decisions. |

@@ -58,7 +58,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 | **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                       |
 | **Full traceability**          | Task → Chat → Proposal → Apply & Archive — every step recorded as one lineage, from intent to execution                                               |
 | **Project overview**           | Each project opens to an overview page aggregating governance status, active changes, recent lineage threads, and spec/guideline evolution trends     |
-| **Self-evolving rules**        | `fyllo-cortex` currently ships the `guidelines` tool, which auto-updates project conventions after each task so agents always work from current rules |
+| **Self-evolving rules**        | `fyllo-cortex` maintains `guidelines`, injects their index into sessions, and prompts Agents to evaluate, repair, or create conventions at key stages |
 | **Writes back to dev systems** | Task results sync back to your existing project management tools — no new silos                                                                       |
 
 ---
@@ -100,8 +100,8 @@ customizable per project. The default is four structured artifacts:
 - `design.md` — Goals and Non-Goals, final decisions on open questions with justifications for rejected alternatives,
   change risks
 - `specs` — spec entries extracted from this change, written back to the project knowledge base
-- `tasks.md` — detailed task breakdown by file and function, with acceptance criteria, triggering guidelines
-  auto-evolution
+- `tasks.md` — detailed task breakdown by file and function, with acceptance criteria, including whether
+  guidelines need to be updated
 
 These four artifacts are the substance of the Proposal review — and the record that remains two months later when
 someone asks why the system was designed this way.
@@ -148,7 +148,7 @@ Before it writes any code, a FylloCode Agent has access to:
 - **Project specs** (from `fyllo-specs`: architecture constraints, naming conventions, restricted operations)
 - **Historical decision context** (why this module was designed this way, which directions were ruled out)
 - **Change history** (what problem was being solved the last time this area was touched)
-- **Evolving guidelines** (from `fyllo-cortex`, auto-updated after each task)
+- **Evolving guidelines** (from `fyllo-cortex`, continuously evaluated and maintained through the task flow)
 
 It knows **why** the project became what it is today — not just **what** it is.
 
@@ -159,9 +159,10 @@ It knows **why** the project became what it is today — not just **what** it is
 Sustaining a project over time means turning what the team learns in practice — mistakes made, conventions reached,
 recurring patterns — into structured context that agents can use directly in the next task.
 
-This is currently implemented through the `fyllo-cortex.guidelines` tool: during Chat and Proposal, the Agent considers
-whether the guidelines need updating; while applying, project conventions are automatically updated based on the task
-details — so agents always work from current rules, not a manually maintained document that drifts over time.
+This is currently implemented through `fyllo-cortex.guidelines` plus system reminders: new Chat / Apply sessions receive
+an index of `guidelines/**/*.md`; Chat, Proposal, Apply, Archive, and Project Health Check prompts ask Agents to decide
+whether guidelines should be initialized, created, or repaired. This keeps Agents grounded in current engineering
+conventions instead of a manually maintained document that drifts over time.
 
 This mechanism addresses one core problem: **how team engineering knowledge accumulates through Agent collaboration
 instead of being reset at the end of every session.**

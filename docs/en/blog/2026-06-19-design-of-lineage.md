@@ -181,6 +181,8 @@ I considered three options:
 | Add a lineage MCP tool | Clear semantics and separate responsibility | Extra tool schema wastes tokens and depends on the Agent remembering to call it | Rejected |
 | Extend `create-proposal` | Can reliably get `sessionId` and `changeId` | Lineage business logic must not be placed inside the MCP Server | Adopted as a variant |
 
+The rejected option here was a write/linking tool that Agents would have to call after proposal creation. The later `fyllo-cortex.lineage` tool is different: it is a read-only lookup tool for tracing existing code, commits, or proposals back to their design context.
+
 The first option looked most reasonable at first. Use engineering to solve an engineering problem. But tests showed that **ACP's `tool_call` shape is too loose for stable interception**.
 
 Different Agents send different parameters for the same tool. The only required fields are `toolCallId` and `title`. Claude Agent may use title `mcp__fyllo-specs__create-proposal`, Codex ACP may use `fyllo-specs/create-proposal`, and Gemini CLI may even split one tool call into two `toolCallId`s.

@@ -22,7 +22,7 @@ The four cards at the top answer "how governed is this project":
 | --- | --- |
 | Capability Specs | Number of specs under `openspec/specs/`, plus new specs added this month. |
 | Archived Proposals | Number of archived changes under `openspec/changes/archive/`, plus new archives added this month. |
-| Project Guidelines | Number of Markdown files under `guidelines/`, plus the latest update time. |
+| Project Guidelines | Number of top-level Markdown files under `guidelines/`, plus the latest update time. |
 | Lineage Coverage | Ratio of lineage subjects linked to tasks, plus total lineage count. |
 
 Lineage coverage counts whether a subject is linked to a task. A subject that started from Chat and later created a task is included. A higher value means more team changes enter the governance flow through explicit task anchors.
@@ -47,7 +47,7 @@ This is the entry point for seeing where a requirement currently is. See [Lineag
 Git history is used to show long-term trends in project rules:
 
 - **Spec growth**: weekly trend of spec count over the last 8 weeks, reflecting how fast behavior rules are being captured.
-- **Guideline evolution**: latest 5 updates under `guidelines/`, including file, time, and commit message.
+- **Guideline evolution**: latest 5 updated guideline files under `guidelines/`, including file, time, and commit message.
 
 ## Data Scope and Refreshing
 
