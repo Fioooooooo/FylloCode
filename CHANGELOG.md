@@ -4,6 +4,43 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.0-beta.2] - 2026-07-02
+
+这个 beta 版本继续收敛 Agent 工作流的提示契约和项目准则治理。Chat 与 Apply 阶段现在会自动注入项目 `guidelines/**/*.md` 索引，让 Agent 在修改前读取相关准则，而 `fyllo-cortex` 的 guidelines 工具改为专注维护准则。与此同时，本版本优化了 Plan、Proposal、健康检查和 Fyllo action 的提示边界，并补齐若干 Chat 与 Proposal 细节，让直接实现、Plan、Proposal、Apply 与 Archive 的衔接更明确。
+
+### 新增
+
+- Chat 与 Apply system reminder 新增 `<guidelines>` 项目准则索引注入；索引来自当前项目或 Apply worktree 的 `guidelines/**/*.md` frontmatter，并会转义尖括号避免用户文档提前闭合提示块
+- 新增共享的 guidelines 扫描入口，主进程提示注入与 `fyllo-cortex` MCP server 的 guidelines 状态读取复用同一套扫描逻辑
+- 健康检查 reminder 新增项目准则检查项：缺少、损坏或过期的准则会引导 Agent 通过 `fyllo-cortex` guidelines 工具直接维护，而不是进入 Proposal 流程
+- Slash Command 菜单新增基于命令描述和 hint 的搜索与 hover 详情展示；配置项下拉菜单也会在 hover 时展示选项描述
+- Proposal 详情新增更细的展示状态：实现完成后显示“可归档”，归档过程中显示“归档中”，避免仅用 applying 状态掩盖下一步动作
+
+### 调整
+
+- `fyllo-cortex` guidelines 工具从 `read`/`write` 改为 `init`/`create`/`update` 三种维护模式，并返回场景化 `<tool_instruction>` 与当前 `<state>`
+- `fyllo-cortex` guidelines 作者契约改为模块化 instruction：frontmatter 与质量规则作为硬要求，正文结构改为 rules、map、playbook 三种默认骨架
+- Chat 与 Apply system reminder 改为使用 reminder 注入的准则索引，Archive reminder 则明确在归档前通过 `fyllo-cortex` 维护准则；Agent 不再需要为了读取索引而重复调用工具
+- Plan 创建、Proposal 创建、Apply 与 Archive 的 MCP instruction 进一步收敛：要求按用户语言反馈进度，Plan 审阅后重新读取最新文件，并引导用户通过 FylloCode 的 Apply Change 入口继续
+- 健康检查 reminder 改为先写入当前 `healthScore`，再按需维护项目准则；只有评分维度需要工程配置改进或 project-health 规约缺失/过期时才创建 Proposal
+- ACP session plan 事件在共享类型和 UI 命名中统一改为 agenda，Chat 事件轨组件与测试随之更新
+- 文档站和 README 刷新了 `fyllo-cortex`、Overview、Plan/SDD 工作流与 Loop Engineering 相关内容，并补齐中英文页面
+- 项目自身的历史 OpenSpec 与 guidelines 资料被清理，用于验证现有项目从空准则/空规约状态接入时的体验
+
+### 修复
+
+- 修复 Proposal 归档按钮在 run meta 不属于当前 proposal 或正在归档时仍可能展示为可用的问题
+- 修复 Proposal 详情 header 只显示基础状态，无法区分实现完成待归档与归档中的问题
+- 修复 `fyllo-cortex` guidelines 扫描在读取单个文件失败时可能导致整个扫描失败的问题；现在会在对应条目上返回 `parseError`
+- 修复 `fyllo-cortex` guidelines frontmatter 含 UTF-8 BOM 时解析不稳定的问题
+- 修复 `fyllo-cortex` lineage 与 guidelines 在缺少 `FYLLO_PROJECT_PATH` 时无法一致回退到当前工作目录的问题
+- 修复 Chat 布局、全局 overlay 样式、prompt timeline 视觉与 Proposal 归档状态显示的若干细节问题
+
+### 备注
+
+- `fyllo-cortex` MCP server 升级到 `0.4.0`。这是 breaking change：`guidelines` 的 `read`/`write` 模式已移除，调用方需要改用 `init`、`create` 或 `update`。
+- `fyllo-specs` MCP server 升级到 `0.6.1`，主要更新 Plan、Proposal、Apply 与 Archive 的 Agent instruction，不新增 tool。
+
 ## [0.14.0-beta.1] - 2026-06-30
 
 这个 beta 版本引入 session-scoped Plan 工作流，用于承接不改变外部契约、但需要调研和方案取舍的复杂任务。Chat 现在可以生成、审阅、编辑并批准轻量计划，批准记录会进入 lineage，并通过新的 `fyllo-specs` MCP tool 与 Fyllo action 串联。与此同时，Chat 阅读体验补齐了 prompt 时间线、消息复制和会话侧栏折叠，Proposal 详情也会在打开时刷新元数据，减少旧状态干扰。

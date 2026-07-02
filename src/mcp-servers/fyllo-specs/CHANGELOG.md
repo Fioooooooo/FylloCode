@@ -4,6 +4,14 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.6.1] - 2026-07-02
+
+### Changed
+
+- Refined `create-plan` instructions so agents research and write the plan file before returning it for user review, and reread the latest file after approval.
+- Refined `create-proposal`, `apply-change`, and `archive-change` instructions to report progress in the user's language and point users back to FylloCode's Apply Change flow.
+- Tightened `archive-change` commit-message guidance so confirmation commits are based on the proposal and actual worktree changes instead of vague archive summaries.
+
 ## [0.6.0] - 2026-06-30
 
 ### Added

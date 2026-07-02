@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.0-beta.2] - 2026-07-02
+
+This beta release tightens Agent workflow prompts and project guideline governance. Chat and Apply reminders now inject an index of project `guidelines/**/*.md` files so agents can read relevant conventions before making changes, while the `fyllo-cortex` guidelines tool is focused on maintaining those documents. The release also refines Plan, Proposal, health-check, and Fyllo action prompt boundaries, and improves several Chat and Proposal details so direct implementation, Plan, Proposal, Apply, and Archive flows connect more clearly.
+
+### Added
+
+- Chat and Apply system reminders now inject a `<guidelines>` project guideline index from the current project or Apply worktree `guidelines/**/*.md` frontmatter, with angle brackets escaped so user-authored documents cannot prematurely close the prompt block
+- Shared guideline scanning entry point used by both main-process prompt injection and the `fyllo-cortex` MCP server's guidelines state
+- Project guideline checks in the health-check reminder: missing, broken, or stale guidelines are handled directly through the `fyllo-cortex` guidelines tool instead of entering the Proposal flow
+- Slash Command menu search over command descriptions and hints, plus hover details; config-option dropdown entries can also show option descriptions on hover
+- More precise Proposal detail display states: completed apply runs show "ready to archive", and active archive operations show "archiving" instead of hiding the next action behind the generic applying state
+
+### Changed
+
+- `fyllo-cortex` guidelines tool changed from `read`/`write` to three maintenance modes: `init`, `create`, and `update`, returning scenario-specific `<tool_instruction>` content with the current `<state>`
+- `fyllo-cortex` guidelines authoring contract is now modular: frontmatter and quality rules are hard requirements, while document bodies use rules, map, or playbook skeletons as defaults
+- Chat and Apply system reminders now use the injected guidelines index, while the Archive reminder directs agents to maintain guidelines through `fyllo-cortex` before final archive; agents no longer need repeated tool calls just to rediscover the index
+- MCP instructions for Plan creation, Proposal creation, Apply, and Archive were tightened to report progress in the user's language, reread the latest Plan file after approval, and guide users back to FylloCode's Apply Change entry point
+- Health checks now write the current `healthScore` first, then maintain project guidelines as needed; a Proposal is created only when scoring dimensions need engineering configuration changes or the `project-health` spec is missing or stale
+- ACP session plan events are now named agenda in shared types and UI code, with Chat event-rail components and tests updated accordingly
+- Documentation and README content refreshed for `fyllo-cortex`, Overview, Plan/SDD workflow, and Loop Engineering across Chinese and English pages
+- The FylloCode repository's own historical OpenSpec and guidelines material was cleared to validate onboarding behavior for existing projects with no specs or guidelines yet
+
+### Fixed
+
+- Fixed the Proposal archive action appearing available when run metadata belongs to another proposal or an archive operation is already in progress
+- Fixed Proposal detail headers showing only the base status instead of distinguishing ready-to-archive and archiving states
+- Fixed `fyllo-cortex` guideline scanning so one unreadable file no longer fails the whole scan; the affected entry now reports `parseError`
+- Fixed unstable `fyllo-cortex` guideline frontmatter parsing when files include a UTF-8 BOM
+- Fixed `fyllo-cortex` lineage and guidelines project-root resolution so both consistently fall back to the current working directory when `FYLLO_PROJECT_PATH` is absent
+- Fixed several Chat layout, global overlay styling, prompt timeline visual, and Proposal archive-status display details
+
+### Notes
+
+- `fyllo-cortex` MCP server is now `0.4.0`. This is a breaking change: `guidelines` `read`/`write` modes were removed; callers must use `init`, `create`, or `update`.
+- `fyllo-specs` MCP server is now `0.6.1`, updating Agent instructions for Plan, Proposal, Apply, and Archive without adding new tools.
+
 ## [0.14.0-beta.1] - 2026-06-30
 
 This beta release introduces a session-scoped Plan workflow for complex work that needs investigation and trade-off review but does not change external contracts. Chat can now create, review, edit, and approve lightweight plans, with approvals recorded in lineage and connected through the new `fyllo-specs` MCP tool and Fyllo action. Chat also gains a prompt timeline, message copy and timestamps, collapsible session sidebar, and fresher Proposal metadata when details are opened.
