@@ -8,6 +8,7 @@ import type {
 } from "@shared/types/lineage";
 import type { ProposalStatus } from "@shared/types/proposal";
 import { runGit } from "./git";
+import { resolveProjectRoot } from "./project-root";
 
 // ── DTO ───────────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ async function findArchiveDir(projectPath: string, changeId: string): Promise<st
 async function resolveProposalLocation(
   changeId: string
 ): Promise<{ status: ProposalStatus | null; proposalPath: string | null }> {
-  const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
+  const projectPath = resolveProjectRoot();
 
   const mainPath = join(projectPath, "openspec", "changes", changeId, ".openspec.yaml");
   try {
@@ -292,7 +293,7 @@ export async function traceLineageByFile(
   filePath: string,
   lineRange?: string
 ): Promise<LineageResponseDto[]> {
-  const projectPath = getRequiredEnv("FYLLO_PROJECT_PATH");
+  const projectPath = resolveProjectRoot();
 
   const args = lineRange
     ? ["log", "--format=%H", `-L`, `${lineRange}:${filePath}`]

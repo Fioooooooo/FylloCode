@@ -4,6 +4,24 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [0.4.0] - 2026-07-02
+
+### Changed
+
+- **Breaking**: `guidelines` tool modes changed from `read`/`write` to scenario-oriented `init`/`create`/`update`:
+  - `init`: bootstrap guidelines for a project that has none (requires no extra input).
+  - `create`: add a new guideline document for an unwritten convention (requires `topic`).
+  - `update`: repair an existing document that is stale or conflicts with repository facts (requires `path`, scoped to `guidelines/**/*.md`).
+- Responses now follow the fyllo-specs convention: `<tool_instruction>` (scenario-specific authoring guidance) plus `<state>` (current guidelines index, `AGENTS.md` index status for init/create, target frontmatter for update). `includeInstruction: false` returns state JSON only, for follow-up re-checks.
+- Authoring contract rewritten and modularized: frontmatter contract and quality rules are hard requirements (MUST); document body structure is now three archetype skeletons (rules / map / playbook) offered as defaults (SHOULD); the per-topic MUST checklists were removed.
+- Tool description rewritten to be trigger-oriented and to steer agents away from calling the tool for reads.
+- Guideline scanning tolerates UTF-8 BOM frontmatter and degrades unreadable files to per-entry `parseError` instead of failing the whole scan.
+- Project root now resolves via `FYLLO_PROJECT_PATH` (falling back to cwd), consistently across `guidelines` and `lineage`.
+
+### Removed
+
+- `guidelines` `mode=read` — the guidelines index is now injected into Chat/Apply session reminders by the FylloCode main process, which reuses the same scanner.
+
 ## [0.3.1] - 2026-06-30
 
 ### Changed

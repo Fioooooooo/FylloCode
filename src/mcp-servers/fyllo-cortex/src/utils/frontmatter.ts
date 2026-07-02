@@ -21,7 +21,8 @@ export function parseFrontmatter(content: string): {
   data: Record<string, unknown> | null;
   parseError?: string;
 } {
-  const match = FRONTMATTER_RE.exec(content);
+  const normalized = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  const match = FRONTMATTER_RE.exec(normalized);
   if (!match) {
     return { data: null };
   }

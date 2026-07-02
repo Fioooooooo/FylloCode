@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Dirent } from "node:fs";
-import type { GuidelineEntry } from "../types";
+import type { GuidelineEntry } from "../types/guideline";
 import { parseFrontmatter } from "./frontmatter";
 
 type RecursiveDirent = Dirent & {
@@ -27,28 +27,52 @@ function guidelinePath(guidelinesRoot: string, entry: RecursiveDirent): string {
   return path.relative(path.dirname(guidelinesRoot), absolutePath).replace(/\\/g, "/");
 }
 
+function summarizeReadError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export type GuidelineMetadata = Pick<GuidelineEntry, "name" | "description" | "keywords"> & {
+  parseError?: string;
+};
+
+export function extractGuidelineMetadata(content: string, fallbackName: string): GuidelineMetadata {
+  const { data, parseError } = parseFrontmatter(content);
+
+  const metadata: GuidelineMetadata = {
+    name: nonEmptyString(data?.name) ?? fallbackName,
+    description: nonEmptyString(data?.description),
+    keywords: stringArray(data?.keywords),
+  };
+
+  if (parseError) {
+    metadata.parseError = parseError;
+  }
+
+  return metadata;
+}
+
 async function buildGuidelineEntry(
   guidelinesRoot: string,
   entry: RecursiveDirent
 ): Promise<GuidelineEntry> {
   const relativePath = guidelinePath(guidelinesRoot, entry);
   const absolutePath = path.join(path.dirname(guidelinesRoot), relativePath);
-  const content = await readFile(absolutePath, "utf8");
-  const { data, parseError } = parseFrontmatter(content);
   const stem = path.basename(entry.name, ".md");
 
-  const guidelineEntry: GuidelineEntry = {
-    path: relativePath,
-    name: nonEmptyString(data?.name) ?? stem,
-    description: nonEmptyString(data?.description),
-    keywords: stringArray(data?.keywords),
-  };
-
-  if (parseError) {
-    guidelineEntry.parseError = parseError;
+  let content: string;
+  try {
+    content = await readFile(absolutePath, "utf8");
+  } catch (error) {
+    return {
+      path: relativePath,
+      name: stem,
+      description: null,
+      keywords: null,
+      parseError: summarizeReadError(error),
+    };
   }
 
-  return guidelineEntry;
+  return { path: relativePath, ...extractGuidelineMetadata(content, stem) };
 }
 
 export async function scanGuidelines(projectRoot: string): Promise<GuidelineEntry[]> {

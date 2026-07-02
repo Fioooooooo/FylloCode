@@ -7,11 +7,11 @@ import {
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types";
+import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types/guideline";
 import { registerTools } from "../../../src/mcp-servers/fyllo-cortex/src/tools";
 
 async function createToolClient(): Promise<{
@@ -86,8 +86,35 @@ function expectTextContent(result: CallToolResult): string {
   return content.text;
 }
 
-function parseReadPayload(text: string): { guidelines: GuidelineEntry[] } {
-  return JSON.parse(text) as { guidelines: GuidelineEntry[] };
+type GuidelinesState = {
+  mode?: string;
+  guidelinesRoot?: string;
+  reason?: string;
+  topic?: string;
+  guidelines?: GuidelineEntry[];
+  agentsFile?: { path: string; exists: boolean; hasGuidelinesIndex: boolean };
+  target?: {
+    path: string;
+    exists: boolean;
+    name: string | null;
+    description: string | null;
+    keywords: string[] | null;
+    parseError?: string;
+  };
+  errors?: Array<{ type: string; message: string }>;
+};
+
+function parseGuidelinesState(text: string): GuidelinesState {
+  const match = /<state>\n([\s\S]*?)\n<\/state>/.exec(text);
+  return JSON.parse(match ? (match[1] ?? "") : text) as GuidelinesState;
+}
+
+function setEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
 }
 
 // ── Helpers for lineage fixtures ────────────────────────────────────────────
@@ -222,7 +249,7 @@ describe("fyllo-cortex tools", () => {
           type: "object",
           properties: {
             mode: {
-              enum: ["read", "write"],
+              enum: ["init", "create", "update"],
             },
           },
           required: ["mode"],
@@ -247,14 +274,67 @@ describe("fyllo-cortex tools", () => {
   });
 
   describe("guidelines tool", () => {
-    it("returns a tool_instruction block when mode=write", async () => {
+    it("returns tool_instruction and state for mode=init", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
       const { client, close } = await createToolClient();
+
       try {
-        const result = await callGuidelines(client, { mode: "write" });
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, { mode: "init" });
         const text = expectTextContent(result);
 
         expect(text).toContain("<tool_instruction>");
-        expect(text).not.toContain("<state>");
+        expect(text).toContain("<state>");
+
+        const state = parseGuidelinesState(text);
+        expect(state.mode).toBe("init");
+        expect(state.guidelinesRoot).toBe("guidelines");
+        expect(state.guidelines).toEqual([]);
+        expect(state.agentsFile).toEqual({
+          path: "AGENTS.md",
+          exists: false,
+          hasGuidelinesIndex: false,
+        });
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("omits the instruction when includeInstruction is false", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+        const text = expectTextContent(result);
+
+        expect(text).not.toContain("<tool_instruction>");
+        expect(parseGuidelinesState(text).mode).toBe("init");
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("fails when mode=create lacks topic", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await expectGuidelinesCallToFail(client, { mode: "create" });
+      } finally {
+        await close();
+      }
+    });
+
+    it("fails when mode=update lacks path", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await expectGuidelinesCallToFail(client, { mode: "update" });
       } finally {
         await close();
       }
@@ -269,8 +349,8 @@ describe("fyllo-cortex tools", () => {
       }
     });
 
-    it("returns guideline entries when mode=read", async () => {
-      const originalCwd = process.cwd();
+    it("returns guideline entries in create state", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
       const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
       const guidelinesDir = join(tmpDir, "guidelines");
       const frontendDir = join(guidelinesDir, "frontend");
@@ -303,15 +383,20 @@ describe("fyllo-cortex tools", () => {
           ].join("\n")
         );
 
-        process.chdir(tmpDir);
-        const result = await callGuidelines(client, { mode: "read" });
-        const payload = parseReadPayload(expectTextContent(result));
-        const paths = payload.guidelines.map((entry) => entry.path);
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, {
+          mode: "create",
+          topic: "Routing",
+          includeInstruction: false,
+        });
+        const payload = parseGuidelinesState(expectTextContent(result));
+        expect(payload.topic).toBe("Routing");
+        const paths = (payload.guidelines ?? []).map((entry) => entry.path);
 
         expect(paths).toEqual([...paths].sort());
         expect(paths).toContain("guidelines/frontend/Routing.md");
 
-        const byPath = new Map(payload.guidelines.map((entry) => [entry.path, entry]));
+        const byPath = new Map((payload.guidelines ?? []).map((entry) => [entry.path, entry]));
         expect(byPath.get("guidelines/A.md")).toMatchObject({
           path: "guidelines/A.md",
           name: "Architecture",
@@ -327,23 +412,224 @@ describe("fyllo-cortex tools", () => {
         expect(byPath.get("guidelines/Bad.md")?.parseError).toEqual(expect.any(String));
         expect(byPath.get("guidelines/Bad.md")?.parseError).not.toBe("");
       } finally {
-        process.chdir(originalCwd);
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
         await close();
         await rm(tmpDir, { recursive: true, force: true });
       }
     });
 
-    it("returns empty array when guidelines directory missing", async () => {
-      const originalCwd = process.cwd();
+    it("returns empty guidelines when the directory is missing", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
       const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
       const { client, close } = await createToolClient();
 
       try {
-        process.chdir(tmpDir);
-        const result = await callGuidelines(client, { mode: "read" });
-        expect(parseReadPayload(expectTextContent(result))).toEqual({ guidelines: [] });
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+        expect(parseGuidelinesState(expectTextContent(result)).guidelines).toEqual([]);
       } finally {
-        process.chdir(originalCwd);
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("parses frontmatter in files with a UTF-8 BOM", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const guidelinesDir = join(tmpDir, "guidelines");
+      const { client, close } = await createToolClient();
+
+      try {
+        await mkdir(guidelinesDir, { recursive: true });
+        await writeFile(
+          join(guidelinesDir, "Bom.md"),
+          "\uFEFF" + ["---", 'name: "Bom"', 'description: "bom"', "---", "# Bom"].join("\n")
+        );
+
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+        const payload = parseGuidelinesState(expectTextContent(result));
+
+        expect(payload.guidelines).toHaveLength(1);
+        expect(payload.guidelines?.[0]).toMatchObject({
+          path: "guidelines/Bom.md",
+          name: "Bom",
+          description: "bom",
+        });
+        expect(payload.guidelines?.[0]?.parseError).toBeUndefined();
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+      "reports unreadable files without failing the scan",
+      async () => {
+        const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+        const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+        const guidelinesDir = join(tmpDir, "guidelines");
+        const lockedPath = join(guidelinesDir, "Locked.md");
+        const { client, close } = await createToolClient();
+
+        try {
+          await mkdir(guidelinesDir, { recursive: true });
+          await writeFile(join(guidelinesDir, "Ok.md"), "# Ok\n");
+          await writeFile(lockedPath, "# Locked\n");
+          await chmod(lockedPath, 0o000);
+
+          process.env.FYLLO_PROJECT_PATH = tmpDir;
+          const result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+          const payload = parseGuidelinesState(expectTextContent(result));
+
+          const byPath = new Map((payload.guidelines ?? []).map((entry) => [entry.path, entry]));
+          expect(byPath.get("guidelines/Ok.md")).toEqual({
+            path: "guidelines/Ok.md",
+            name: "Ok",
+            description: null,
+            keywords: null,
+          });
+          expect(byPath.get("guidelines/Locked.md")).toMatchObject({
+            path: "guidelines/Locked.md",
+            name: "Locked",
+            description: null,
+            keywords: null,
+            parseError: expect.any(String),
+          });
+        } finally {
+          setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+          await chmod(lockedPath, 0o644).catch(() => {});
+          await close();
+          await rm(tmpDir, { recursive: true, force: true });
+        }
+      }
+    );
+
+    it("detects an existing AGENTS.md guidelines index", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+
+        await writeFile(join(tmpDir, "AGENTS.md"), "# Project\n\nNo index yet.\n");
+        let result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+        expect(parseGuidelinesState(expectTextContent(result)).agentsFile).toEqual({
+          path: "AGENTS.md",
+          exists: true,
+          hasGuidelinesIndex: false,
+        });
+
+        await writeFile(
+          join(tmpDir, "AGENTS.md"),
+          "# Project\n\n## Project Guidelines Index\n\n- **Testing** - [Testing](guidelines/Testing.md)\n"
+        );
+        result = await callGuidelines(client, { mode: "init", includeInstruction: false });
+        expect(parseGuidelinesState(expectTextContent(result)).agentsFile).toEqual({
+          path: "AGENTS.md",
+          exists: true,
+          hasGuidelinesIndex: true,
+        });
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns target frontmatter for mode=update", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const guidelinesDir = join(tmpDir, "guidelines");
+      const { client, close } = await createToolClient();
+
+      try {
+        await mkdir(guidelinesDir, { recursive: true });
+        await writeFile(
+          join(guidelinesDir, "Testing.md"),
+          [
+            "---",
+            'name: "Testing"',
+            'description: "test rules"',
+            'keywords: ["vitest"]',
+            "---",
+            "# Testing",
+          ].join("\n")
+        );
+
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, {
+          mode: "update",
+          path: "guidelines/Testing.md",
+          reason: "stale verification commands",
+          includeInstruction: false,
+        });
+        const state = parseGuidelinesState(expectTextContent(result));
+
+        expect(state.reason).toBe("stale verification commands");
+        expect(state.target).toEqual({
+          path: "guidelines/Testing.md",
+          exists: true,
+          name: "Testing",
+          description: "test rules",
+          keywords: ["vitest"],
+        });
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("reports a missing update target", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        const result = await callGuidelines(client, {
+          mode: "update",
+          path: "guidelines/Nope.md",
+          includeInstruction: false,
+        });
+        const state = parseGuidelinesState(expectTextContent(result));
+
+        expect(state.target).toEqual({
+          path: "guidelines/Nope.md",
+          exists: false,
+          name: null,
+          description: null,
+          keywords: null,
+        });
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects update paths outside guidelines/", async () => {
+      const originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_PROJECT_PATH = tmpDir;
+        for (const badPath of ["../secrets.md", "guidelines/../package.json", "src/notes.md"]) {
+          const result = await callGuidelines(client, {
+            mode: "update",
+            path: badPath,
+            includeInstruction: false,
+          });
+          const state = parseGuidelinesState(expectTextContent(result));
+          expect(state.errors?.[0]?.type).toBe("InvalidTargetPath");
+        }
+      } finally {
+        setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
         await close();
         await rm(tmpDir, { recursive: true, force: true });
       }
