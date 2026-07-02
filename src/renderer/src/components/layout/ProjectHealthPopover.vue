@@ -72,21 +72,23 @@ async function startHealthCheck(): Promise<void> {
     @update:open="open = $event"
   >
     <template #default>
-      <UButton
-        data-test="project-health-button"
-        variant="ghost"
-        color="neutral"
-        class="w-5.5 h-5.5 rounded-full border border-default flex items-center justify-center p-0"
-        style="-webkit-app-region: no-drag"
-        aria-label="项目健康度"
-        @click="handleIconClick"
-      >
-        <UIcon
-          data-test="project-health-icon"
-          name="i-lucide-heart-pulse"
-          :class="['w-4 h-4 transition-colors', iconColorClass]"
-        />
-      </UButton>
+      <UTooltip text="健康检查" :disable-hoverable-content="true" :ignore-non-keyboard-focus="true">
+        <UButton
+          data-test="project-health-button"
+          variant="ghost"
+          color="neutral"
+          class="w-5.5 h-5.5 rounded-full border border-default flex items-center justify-center p-0"
+          style="-webkit-app-region: no-drag"
+          aria-label="项目健康度"
+          @click="handleIconClick"
+        >
+          <UIcon
+            data-test="project-health-icon"
+            name="i-lucide-heart-pulse"
+            :class="['w-4 h-4 transition-colors', iconColorClass]"
+          />
+        </UButton>
+      </UTooltip>
     </template>
 
     <template #content>
