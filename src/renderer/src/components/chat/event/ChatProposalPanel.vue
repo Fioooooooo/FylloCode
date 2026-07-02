@@ -8,7 +8,11 @@ import {
   useSessionStore,
   useWorkflowStore,
 } from "@renderer/stores";
-import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
+import {
+  getProposalDisplayStatus,
+  proposalDisplayStatusConfig,
+} from "@renderer/utils/proposal-display-status";
+import type { ProposalMeta } from "@shared/types/proposal";
 
 defineProps<{
   proposals: ProposalMeta[];
@@ -24,23 +28,6 @@ const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
 
 const projectId = computed(() => projectStore.currentProject?.id ?? "");
-type ProposalDisplayStatus = ProposalStatus | "archiveReady" | "archiving";
-
-const statusConfig: Record<
-  ProposalDisplayStatus,
-  {
-    label: string;
-    color: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
-    variant: "soft" | "outline" | "subtle";
-  }
-> = {
-  creating: { label: "创建中", color: "primary", variant: "soft" },
-  draft: { label: "草稿", color: "neutral", variant: "soft" },
-  applying: { label: "实施中", color: "primary", variant: "soft" },
-  archiveReady: { label: "可归档", color: "warning", variant: "soft" },
-  archiving: { label: "归档中", color: "warning", variant: "soft" },
-  archived: { label: "已归档", color: "neutral", variant: "outline" },
-};
 
 function buildWorkflowMenuItems(proposal: ProposalMeta) {
   return [
@@ -49,30 +36,6 @@ function buildWorkflowMenuItems(proposal: ProposalMeta) {
       onSelect: () => startApply(proposal, template.id),
     })),
   ];
-}
-
-function canArchive(proposal: ProposalMeta): boolean {
-  return (
-    proposal.status === "applying" &&
-    !proposalRunStore.isArchiving &&
-    proposalRunStore.runMeta?.status === "done" &&
-    proposalRunStore.runMeta?.changeId === proposal.id
-  );
-}
-
-function isArchivingProposal(proposal: ProposalMeta): boolean {
-  return (
-    proposal.status === "applying" &&
-    proposalRunStore.isArchiving &&
-    proposalRunStore.runMeta?.changeId === proposal.id
-  );
-}
-
-function getDisplayStatus(proposal: ProposalMeta): ProposalDisplayStatus {
-  if (isArchivingProposal(proposal)) {
-    return "archiving";
-  }
-  return canArchive(proposal) ? "archiveReady" : proposal.status;
 }
 
 function findArchivedProposal(previousChangeId: string): ProposalMeta | null {
@@ -165,18 +128,48 @@ function viewDetail(proposal: ProposalMeta): void {
             <p class="text-xs text-muted truncate">{{ proposal.id }}</p>
           </div>
           <UBadge
-            :color="statusConfig[getDisplayStatus(proposal)].color"
-            :variant="statusConfig[getDisplayStatus(proposal)].variant"
+            :color="
+              proposalDisplayStatusConfig[
+                getProposalDisplayStatus(
+                  proposal,
+                  proposalRunStore.runMeta,
+                  proposalRunStore.isArchiving
+                )
+              ].color
+            "
+            :variant="
+              proposalDisplayStatusConfig[
+                getProposalDisplayStatus(
+                  proposal,
+                  proposalRunStore.runMeta,
+                  proposalRunStore.isArchiving
+                )
+              ].variant
+            "
             size="sm"
             class="shrink-0"
           >
-            {{ statusConfig[getDisplayStatus(proposal)].label }}
+            {{
+              proposalDisplayStatusConfig[
+                getProposalDisplayStatus(
+                  proposal,
+                  proposalRunStore.runMeta,
+                  proposalRunStore.isArchiving
+                )
+              ].label
+            }}
           </UBadge>
         </div>
 
         <div class="flex items-center justify-end gap-2">
           <UButton
-            v-if="getDisplayStatus(proposal) !== 'creating'"
+            v-if="
+              getProposalDisplayStatus(
+                proposal,
+                proposalRunStore.runMeta,
+                proposalRunStore.isArchiving
+              ) !== 'creating'
+            "
             size="xs"
             color="neutral"
             variant="ghost"
@@ -204,7 +197,13 @@ function viewDetail(proposal: ProposalMeta): void {
           </UDropdownMenu>
 
           <UButton
-            v-if="getDisplayStatus(proposal) === 'archiveReady'"
+            v-if="
+              getProposalDisplayStatus(
+                proposal,
+                proposalRunStore.runMeta,
+                proposalRunStore.isArchiving
+              ) === 'archiveReady'
+            "
             size="xs"
             color="neutral"
             icon="i-lucide-archive"

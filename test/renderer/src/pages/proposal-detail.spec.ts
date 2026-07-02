@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 const proposalsValue = shallowRef<ProposalMeta[]>([]);
 let proposalStoreErrorValue: string | null = null;
 let runMetaValue: ApplyRunMeta | null = null;
+let isArchivingValue = false;
 let isStreamingValue = false;
 let messagesValue: unknown[] = [];
 
@@ -63,6 +64,9 @@ vi.mock("@renderer/stores/proposal-run", () => ({
     },
     get isStreaming() {
       return isStreamingValue;
+    },
+    get isArchiving() {
+      return isArchivingValue;
     },
     startRun: mocks.startRun,
     startArchive: mocks.startArchive,
@@ -185,6 +189,7 @@ describe("ProposalDetailSlideover", () => {
     proposalsValue.value = [buildProposal()];
     proposalStoreErrorValue = null;
     runMetaValue = null;
+    isArchivingValue = false;
     isStreamingValue = false;
     messagesValue = [];
     mockSuccessfulReads();
@@ -343,5 +348,31 @@ describe("ProposalDetailSlideover", () => {
       "proposal.md"
     );
     expect(proposalApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "2026-06-22-change-1");
+  });
+
+  it("does not show archive button when the done run belongs to another proposal", async () => {
+    proposalsValue.value = [
+      buildProposal({
+        status: "applying",
+      }),
+    ];
+    runMetaValue = {
+      runId: "run-1",
+      changeId: "other-change",
+      workflowId: "workflow-1",
+      stages: [],
+      currentStageIndex: 0,
+      stageAcpSessionIds: {},
+      status: "done",
+      startedAt: "2026-06-12T00:00:00.000Z",
+      updatedAt: "2026-06-12T00:00:00.000Z",
+    };
+
+    const wrapper = mountSlideover();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("实现中");
+    expect(wrapper.text()).not.toContain("可归档");
+    expect(wrapper.findAll("button").some((button) => button.text() === "归档")).toBe(false);
   });
 });

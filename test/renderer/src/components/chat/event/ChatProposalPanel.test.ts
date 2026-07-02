@@ -131,6 +131,28 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.text()).toContain("归档");
   });
 
+  it("does not show archive-ready state when the done run belongs to another proposal", () => {
+    runMetaValue = {
+      runId: "run-1",
+      changeId: "other-change",
+      workflowId: "wf-1",
+      stages: [],
+      currentStageIndex: 0,
+      stageAcpSessionIds: {},
+      status: "done",
+      startedAt: "2026-06-18T00:00:00.000Z",
+      updatedAt: "2026-06-18T00:00:00.000Z",
+    };
+
+    const wrapper = mount(ChatProposalPanel, {
+      props: { proposals: [makeProposal("applying")] },
+    });
+
+    expect(wrapper.text()).toContain("实现中");
+    expect(wrapper.text()).not.toContain("可归档");
+    expect(wrapper.find('[data-test="archive-button"]').exists()).toBe(false);
+  });
+
   it("keeps view detail before other action buttons", () => {
     runMetaValue = {
       runId: "run-1",

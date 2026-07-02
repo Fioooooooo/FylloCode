@@ -13,6 +13,7 @@ import { useProjectStore } from "@renderer/stores/project";
 import { useProposalRunStore } from "@renderer/stores/proposal-run";
 import { useProposalStore } from "@renderer/stores/proposal";
 import { useWorkflowStore } from "@renderer/stores/workflow";
+import { canArchiveProposal } from "@renderer/utils/proposal-display-status";
 import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
@@ -67,8 +68,10 @@ const currentProposal = computed<ProposalMeta | null>(() => {
 });
 
 const canArchive = computed(() => {
-  return (
-    currentProposal.value?.status === "applying" && proposalRunStore.runMeta?.status === "done"
+  return canArchiveProposal(
+    currentProposal.value,
+    proposalRunStore.runMeta,
+    proposalRunStore.isArchiving
   );
 });
 
@@ -367,6 +370,7 @@ onMounted(() => {
             :workflow-menu-items="workflowMenuItems"
             :workflow-store-loading="workflowStore.isLoading"
             :run-meta="proposalRunStore.runMeta"
+            :is-archiving="proposalRunStore.isArchiving"
             :is-streaming="proposalRunStore.isStreaming"
             :can-archive="canArchive"
             :refreshing-meta="refreshingMeta"

@@ -10,7 +10,11 @@ export interface DropdownMenuItem {
 
 <script setup lang="ts">
 import { computed } from "vue";
-import type { ApplyRunMeta, ProposalMeta, ProposalStatus } from "@shared/types/proposal";
+import {
+  getProposalDisplayStatus,
+  proposalDisplayStatusConfig,
+} from "@renderer/utils/proposal-display-status";
+import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
 
 const props = defineProps<{
   proposal: ProposalMeta | null;
@@ -18,6 +22,7 @@ const props = defineProps<{
   workflowMenuItems: DropdownMenuItem[][];
   workflowStoreLoading: boolean;
   runMeta: ApplyRunMeta | null;
+  isArchiving: boolean;
   isStreaming: boolean;
   canArchive: boolean;
   refreshingMeta: boolean;
@@ -30,23 +35,12 @@ defineEmits<{
   archive: [];
 }>();
 
-const statusConfig: Record<
-  ProposalStatus,
-  {
-    label: string;
-    color: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
-    variant: "soft" | "outline" | "subtle";
-  }
-> = {
-  creating: { label: "创建中", color: "primary", variant: "soft" },
-  draft: { label: "草稿", color: "neutral", variant: "soft" },
-  applying: { label: "实施中", color: "primary", variant: "soft" },
-  archived: { label: "已归档", color: "neutral", variant: "outline" },
-};
-
 const isApplying = computed(() => props.proposal?.status === "applying" && Boolean(props.runMeta));
 const canViewRunHistory = computed(
   () => props.proposal?.status === "archived" || props.proposal?.status === "applying"
+);
+const displayStatus = computed(() =>
+  getProposalDisplayStatus(props.proposal, props.runMeta, props.isArchiving)
 );
 
 function getStageIndex(): number {
@@ -69,10 +63,11 @@ function getStageCount(): number {
         <h1 class="text-xl font-semibold text-highlighted">{{ proposal.title }}</h1>
         <div class="flex items-center gap-2 shrink-0 mt-0.5">
           <UBadge
-            :color="statusConfig[proposal.status].color"
-            :variant="statusConfig[proposal.status].variant"
+            v-if="displayStatus"
+            :color="proposalDisplayStatusConfig[displayStatus].color"
+            :variant="proposalDisplayStatusConfig[displayStatus].variant"
           >
-            {{ statusConfig[proposal.status].label }}
+            {{ proposalDisplayStatusConfig[displayStatus].label }}
           </UBadge>
           <div :class="isStreaming ? 'pointer-events-none opacity-60' : ''">
             <UDropdownMenu

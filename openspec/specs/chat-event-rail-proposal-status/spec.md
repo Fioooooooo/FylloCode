@@ -71,8 +71,8 @@ TBD - created by archiving change chat-event-rail-proposal-status. Update Purpos
 `ChatProposalPanel` SHALL 从 `ProposalMeta.status` 与当前匹配的 `ApplyRunMeta.status` 派生卡片展示态：
 
 - `creating`：显示 badge “创建中”
-- `draft`：显示 badge “草稿”
-- `applying` 且没有匹配的 done apply run：显示 badge “实施中”
+- `draft`：显示 badge “已创建”
+- `applying` 且没有匹配的 done apply run：显示 badge “实现中”
 - `applying` 且 `proposalRunStore.runMeta.changeId === proposal.id` 且 `proposalRunStore.runMeta.status === "done"`：显示 badge “可归档”
 - `applying` 且 `proposalRunStore.isArchiving === true` 且 `proposalRunStore.runMeta.changeId === proposal.id`：显示 badge “归档中”
 - `archived`：显示 badge “已归档”
@@ -81,13 +81,13 @@ TBD - created by archiving change chat-event-rail-proposal-status. Update Purpos
 
 - **GIVEN** 用户处于 `session-1`，该 session 已关联一个 `draft` proposal
 - **WHEN** `ChatSessionEventRail` 渲染
-- **THEN** rail SHALL 展示该 proposal 的标题、状态 badge 为“草稿”，并提供“开始实现”按钮
+- **THEN** rail SHALL 展示该 proposal 的标题、状态 badge 为“已创建”，并提供“开始实现”按钮
 
 #### Scenario: proposal 状态实时更新
 
 - **GIVEN** `ChatSessionEventRail` 已展示一个 `draft` proposal
 - **WHEN** renderer 收到 `proposal:statusChanged` 事件，payload 中 `status` 变为 `applying`
-- **THEN** rail 中对应 proposal 的状态 badge SHALL 立即更新为“实施中”，且“开始实现”按钮消失
+- **THEN** rail 中对应 proposal 的状态 badge SHALL 立即更新为“实现中”，且“开始实现”按钮消失
 
 #### Scenario: apply run 完成后显示可归档
 
