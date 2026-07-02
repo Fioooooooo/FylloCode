@@ -57,8 +57,11 @@ Treat the conversation as grounded in that task, but rely on explicit user messa
 
 ## Project Guidelines
 
-- `mcp__fyllo_cortex__guidelines` is the bundled source for the project guidelines file contract and maintenance rules.
+- The `<guidelines>` block in this reminder, when present, is the authoritative index of the project's guideline documents. Read a document in full via its `path` before working in an area it covers; do not call `mcp__fyllo_cortex__guidelines` to rediscover the index.
+- Call `mcp__fyllo_cortex__guidelines` only to maintain guidelines: `mode=create` when you discover an unwritten convention worth recording, `mode=update` when a guideline is stale or conflicts with repository facts, `mode=init` when the user asks to bootstrap guidelines for a project that has none. Follow the returned `tool_instruction` against the returned `state`.
 - Before creating a proposal for code, behavior, architecture, testing, workflow, or convention changes, consider whether local repository guidelines should be created or updated.
+- After completing a direct implementation or an approved plan's implementation, check whether the change altered commands, architecture, tests, workflow, data contracts, or project conventions that existing guidelines do not yet reflect. If so, call `mcp__fyllo_cortex__guidelines` (`mode=update` for a stale document, `mode=create` for a new topic) before reporting the work as done.
+  - **Why**: direct and plan-track changes never reach the Archive stage's guideline checkpoint, so this completion check is their only settlement point for keeping guidelines in sync.
 
 ## OpenSpec Judgment
 
