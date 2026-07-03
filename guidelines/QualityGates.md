@@ -6,23 +6,24 @@ keywords: [quality, lint, typecheck, format, ci, hooks]
 
 # Quality Gates
 
-## Scope
+## 范围
 
-- Covered: root quality scripts, TypeScript strictness, ESLint/Prettier configuration, git hooks, and GitHub Actions CI.
-- Not covered: test file placement and Vitest project details; see `guidelines/Testing.md`.
+- 覆盖：根目录质量脚本、TypeScript 严格性、ESLint/Prettier 配置、git hooks 和 GitHub Actions CI。
+- 不覆盖：测试文件位置和 Vitest project 细节；见 `guidelines/Testing.md`。
 
-## Rules
+## 规则
 
-- MUST use pnpm 10+ and Node.js 22+ for project commands. Evidence: `package.json` `engines`, `packageManager`, and `CONTRIBUTING.md`.
-- MUST run type checking through `pnpm typecheck`, which executes both `typecheck:node` (`tsc --noEmit -p tsconfig.node.json`) and `typecheck:web` (`vue-tsc --noEmit -p tsconfig.web.json`). Evidence: `package.json`.
-- MUST preserve strict TypeScript checking. The project inherits `strict: true` from `@electron-toolkit/tsconfig/tsconfig.json`, and both `tsconfig.node.json` and `tsconfig.web.json` override `noImplicitAny: true`; do not disable strict sub-options without a proposal.
-- MUST keep linting on the configured ESLint flat config. `pnpm lint` runs `eslint --cache .`, and `eslint.config.mjs` includes `@electron-toolkit/eslint-config-ts` `recommendedTypeChecked`, `eslint-plugin-vue` `flat/recommended`, Prettier compatibility, and local boundary rules.
-- MUST keep formatting on Prettier. `pnpm format` runs `prettier --write .`, with formatting options in `.prettierrc` and exclusions in `.prettierignore`.
-- MUST keep git hooks installed through `simple-git-hooks`. `package.json` runs `simple-git-hooks` in `postinstall`, and `.git/hooks/pre-commit` invokes `npx lint-staged`.
-- MUST keep pre-commit checks meaningful. `lint-staged` runs `eslint --cache --fix` and `prettier --write` for JS/TS/Vue files, and `prettier --write` for JSON/Markdown/HTML/CSS.
-- MUST keep CI blocking on quality failures. `.github/workflows/ci.yml` triggers on pushes and pull requests to `main` and runs `pnpm test`, `pnpm lint`, and `pnpm typecheck` without `continue-on-error`.
+- MUST 使用 pnpm 10+ 和 Node.js 22+ 执行项目命令。证据：`package.json` 的 `engines`、`packageManager` 和 `CONTRIBUTING.md`。
+- MUST 通过 `pnpm typecheck` 运行类型检查；该命令委托给 `typecheck:node`（`tsc --noEmit -p tsconfig.node.json --composite false`）和 `typecheck:web`（`vue-tsc --noEmit -p tsconfig.web.json --composite false`）。证据：`package.json`。
+- MUST 保持严格 TypeScript 检查。项目从 `@electron-toolkit/tsconfig/tsconfig.json` 继承 `strict: true`，并且 `tsconfig.node.json` 与 `tsconfig.web.json` 都覆盖了 `noImplicitAny: true`；没有 proposal 时不得关闭 strict 子选项。
+- MUST 保持 lint 基于已配置的 ESLint flat config。`pnpm lint` 运行 `eslint --cache .`，`eslint.config.mjs` 包含 `@electron-toolkit/eslint-config-ts` 的 `recommendedTypeChecked`、`eslint-plugin-vue` 的 `flat/recommended`、Prettier 兼容配置和本地边界规则。
+- MUST 保持格式化基于 Prettier。`pnpm format` 运行 `prettier --write .`，格式选项位于 `.prettierrc`，排除项位于 `.prettierignore`。
+- MUST 通过 `simple-git-hooks` 安装 git hooks。`package.json` 在 `postinstall` 中运行 `simple-git-hooks`，配置 `pre-commit` 调用 `npx lint-staged`，并配置 `commit-msg` 调用 `node scripts/validate-commit-msg.mjs "$1"`。证据：`package.json`、`.git/hooks/pre-commit`、`.git/hooks/commit-msg`。
+- MUST 保持 pre-commit 检查有实际意义。`lint-staged` 对 JS/TS/Vue 文件运行 `eslint --cache --fix` 和 `prettier --write`，对 JSON/Markdown/HTML/CSS 运行 `prettier --write`。
+- MUST 保持提交信息符合仓库验证格式：header 为 `type(scope): summary`，可选正文必须与 header 之间用空行分隔，并且非空正文行以 `- ` 开头；允许生成式 header：`Merge`、`Revert` 和 `Squashed commit of the following:`。证据：`scripts/validate-commit-msg.mjs`、`test/main/scripts/validate-commit-msg.spec.mjs`。
+- MUST 保持 CI 在质量失败时阻塞。`.github/workflows/ci.yml` 在 push 到 `main` 和针对 `main` 的 pull request 时触发，并运行 `pnpm test`、`pnpm lint` 和 `pnpm typecheck`，且不使用 `continue-on-error`。
 
-## Verification
+## 验证
 
 ```bash
 pnpm lint
@@ -31,8 +32,8 @@ pnpm test
 pnpm test:coverage
 ```
 
-Use `pnpm format` only when formatting changes are intended.
+只有在确实需要格式化改动时才运行 `pnpm format`。
 
-## Staleness Signals
+## 失效信号
 
-- Re-check this document when `package.json`, any `tsconfig*.json`, `eslint.config.mjs`, `.prettierrc`, `.prettierignore`, `.github/workflows/*.yml`, or git hook tooling changes.
+- 当 `package.json`、任何 `tsconfig*.json`、`eslint.config.mjs`、`.prettierrc`、`.prettierignore`、`.github/workflows/*.yml`、`scripts/validate-commit-msg.mjs` 或 git hook 工具链发生变化时，重新检查本文档。

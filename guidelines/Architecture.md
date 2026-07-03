@@ -1,44 +1,45 @@
 ---
 name: Architecture
-description: Governs Electron process boundaries, source layout, and enforced import directions.
-keywords: [architecture, electron, boundaries, imports]
+description: Governs the top-level Electron architecture, process split, source layout, and guideline routing.
+keywords: [architecture, electron, process, layout, boundaries]
 ---
 
 # Architecture
 
-## Overview
+## 概览
 
-FylloCode is an Electron + Vue 3 + TypeScript desktop app. Runtime code is split by process and ownership:
+FylloCode 是一个 Electron + Vue 3 + TypeScript 桌面应用。总体架构按 Electron 进程、跨进程契约和内置 MCP server 拆分；本文档只记录顶层边界和阅读入口，进程内部细节由更窄的 guideline 约束。
 
-- `src/main/` owns Electron main-process startup, IPC registration, services, infrastructure, and domain helpers.
-- `src/preload/` owns contextBridge-facing APIs and preload type declarations.
-- `src/renderer/` owns the Vue 3 renderer app.
-- `src/shared/` owns cross-process types, schemas, constants, and error contracts.
-- `src/mcp-servers/` owns bundled MCP servers.
+主要请求路径：
 
-Evidence: `AGENTS.md`, `electron.vite.config.ts`, `tsconfig.node.json`, `tsconfig.web.json`.
+- Renderer UI 调用 `src/renderer/src/api/**` wrapper。
+- Renderer wrapper 通过 `window.api` 调用 `src/preload/api/**` 暴露的 contextBridge API。
+- Preload 通过 shared channel 调用 `src/main/ipc/**` handler。
+- Main handler 编排 `src/main/services/**`，由 services 使用 `src/main/domain/**` 和 `src/main/infra/**`。
+- 跨进程类型、channel、schema 和错误契约放在 `src/shared/**`。
 
-## Areas & Ownership
+证据：`AGENTS.md`、`electron.vite.config.ts`、`tsconfig.node.json`、`tsconfig.web.json`、`src/preload/index.ts`、`src/main/ipc/index.ts`。
 
-| Directory / Module    | Owns                                                         | Key entry points                                              |
-| --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
-| `src/main/bootstrap/` | Electron app lifecycle and window creation                   | `src/main/bootstrap/index.ts`, `src/main/bootstrap/window.ts` |
-| `src/main/ipc/`       | IPC handler registration and IPC response wrapping           | `src/main/ipc/index.ts`, `src/main/ipc/_kit/wrap-handler.ts`  |
-| `src/main/services/`  | Main-process use-case orchestration                          | `src/main/services/**`                                        |
-| `src/main/infra/`     | Filesystem, process, storage, MCP, path, and OS capabilities | `src/main/infra/**`                                           |
-| `src/main/domain/`    | Pure domain knowledge and helpers                            | `src/main/domain/**`                                          |
-| `src/preload/`        | Renderer-safe API exposure                                   | `src/preload/index.ts`, `src/preload/api/**`                  |
-| `src/renderer/src/`   | Vue UI, stores, pages, components, and renderer API wrappers | `src/renderer/src/**`                                         |
-| `src/shared/`         | Cross-process channels, schemas, constants, and contracts    | `src/shared/**`                                               |
+## 区域与所有权
 
-## Boundaries
+| 目录 / 模块        | 负责内容                                               | 细节 guideline                  |
+| ------------------ | ------------------------------------------------------ | ------------------------------- |
+| `src/main/`        | Electron 主进程启动、IPC handler、服务、领域和基础设施 | `guidelines/MainProcess.md`     |
+| `src/preload/`     | contextBridge API 暴露和 preload 类型声明              | `guidelines/MainProcess.md`     |
+| `src/renderer/`    | Vue renderer 应用、页面、store、组件和 renderer API    | `guidelines/RendererProcess.md` |
+| `src/shared/`      | 跨进程 channel、schema、类型、常量和错误契约           | `guidelines/MainProcess.md`     |
+| `src/mcp-servers/` | 内置 MCP server                                        | `guidelines/MainProcess.md`     |
+| `test/`            | 与 `src/` 镜像的测试                                   | `guidelines/Testing.md`         |
+| `guidelines/`      | 项目工程约定                                           | 本文档及各专题 guideline        |
+| `openspec/specs/`  | 行为契约                                               | OpenSpec specs                  |
 
-- MUST keep Electron/Vite entry points aligned with `electron.vite.config.ts`: main builds from `src/main/index.ts`, preload from `src/preload/index.ts`, renderer from `src/renderer/index.html`.
-- MUST use configured aliases instead of deep relative traversal across major areas: `@main`, `@preload`, `@renderer`, `@shared`, and `@test` are declared in `tsconfig.node.json`, `tsconfig.web.json`, `electron.vite.config.ts`, and `vitest.config.mts`.
-- MUST route main-process IPC handlers through `_kit` helpers for validation and response normalization. Existing handlers validate shared schemas and return via `wrapHandler` (evidence: `src/main/ipc/settings.ts`, `src/main/ipc/_kit/wrap-handler.ts`).
-- MUST respect ESLint import boundary guards in `eslint.config.mjs`: `src/mcp-servers/**` must not depend on Electron or `@main/*`; `src/main/domain/**` must stay free of Electron, filesystem, path, process spawning, services, infra, IPC, and bootstrap imports; `src/main/infra/**` must not depend on services or IPC.
-- MUST use `cross-spawn` for process creation instead of value-importing `spawn` or `spawnSync` from `child_process`; this is enforced in `eslint.config.mjs`.
+## 边界
 
-## Staleness Signals
+- MUST 保持 Electron/Vite 入口与 `electron.vite.config.ts` 一致：main 从 `src/main/index.ts` 构建，preload 从 `src/preload/index.ts` 构建，renderer 从 `src/renderer/index.html` 构建。
+- MUST 在跨主要区域导入时使用已配置的 alias，避免深层相对路径穿透：`@main`、`@preload`、`@renderer`、`@shared` 和 `@test` 声明在 `tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts` 和 `vitest.config.mts` 中。
+- MUST 按专题读取更窄的 guideline：主进程、preload、IPC、services、domain、infra 和 MCP server 变更先读 `guidelines/MainProcess.md`；renderer 路由、store、bootstrap 和 API wrapper 变更先读 `guidelines/RendererProcess.md`；UI/UX 视觉和交互变更先读 `guidelines/UiDesign.md`。
+- MUST 将行为契约变更交给 OpenSpec proposal，不在 guideline 中直接改写用户可见行为要求。证据：`openspec/specs/project-health/spec.md`、`openspec/specs/task-linked-conversations/spec.md`。
 
-- Re-check this document when `electron.vite.config.ts`, any `tsconfig*.json`, `eslint.config.mjs`, or top-level `src/` ownership changes.
+## 失效信号
+
+- 当顶层目录职责、Electron/Vite 入口、alias 配置、OpenSpec 行为契约位置或 guideline 划分方式发生变化时，重新检查本文档。

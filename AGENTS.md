@@ -57,7 +57,10 @@ pnpm test:coverage    # 生成覆盖率报告
 ## Project Guidelines Index
 
 - **Architecture** - [Architecture](guidelines/Architecture.md)
+- **MainProcess** - [MainProcess](guidelines/MainProcess.md)
 - **Quality Gates** - [Quality Gates](guidelines/QualityGates.md)
+- **RendererProcess** - [RendererProcess](guidelines/RendererProcess.md)
 - **Testing** - [Testing](guidelines/Testing.md)
+- **UiDesign** - [UiDesign](guidelines/UiDesign.md)
 
 Coding Agents must read the relevant guideline documents before changing covered areas.
