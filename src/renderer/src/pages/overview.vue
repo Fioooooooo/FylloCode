@@ -29,7 +29,9 @@ watch(
       <div class="flex flex-col gap-6">
         <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div class="space-y-1">
-            <span class="text-[11px] font-medium uppercase tracking-wider text-muted">
+            <span
+              class="text-[11px] font-medium uppercase tracking-wider text-primary-600 dark:text-primary-400"
+            >
               Overview
             </span>
             <h1 class="text-xl font-semibold tracking-tight text-highlighted">项目概览</h1>
@@ -42,25 +44,43 @@ watch(
         </div>
       </div>
 
-      <div v-if="overviewStore.loading" class="space-y-6" data-test="overview-loading-skeleton">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-4">
-          <div
-            v-for="item in 4"
-            :key="`stat-${item}`"
-            class="rounded-lg bg-elevated px-4 py-3 xl:px-5 xl:py-4"
-          >
-            <USkeleton class="h-3 w-16 rounded" />
-            <USkeleton class="mt-3 h-8 w-20 rounded" />
-            <USkeleton class="mt-2 h-3 w-24 rounded" />
+      <div
+        v-if="overviewStore.loading"
+        class="grid grid-cols-1 gap-6 xl:grid-cols-12"
+        data-test="overview-loading-skeleton"
+      >
+        <div class="space-y-6 xl:col-span-8">
+          <section class="space-y-3">
+            <div class="flex items-center justify-between">
+              <USkeleton class="h-4 w-24 rounded" />
+              <USkeleton class="h-3 w-16 rounded" />
+            </div>
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <USkeleton v-for="item in 2" :key="`change-${item}`" class="h-28 rounded-lg" />
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <div class="flex items-center justify-between">
+              <USkeleton class="h-4 w-24 rounded" />
+              <USkeleton class="h-3 w-16 rounded" />
+            </div>
+            <div class="space-y-2.5">
+              <USkeleton v-for="item in 3" :key="`lineage-${item}`" class="h-24 rounded-lg" />
+            </div>
+          </section>
+        </div>
+
+        <div class="space-y-6 xl:col-span-4">
+          <div class="rounded-lg bg-elevated p-5">
+            <USkeleton class="h-3 w-20 rounded" />
+            <USkeleton class="mt-4 h-16 w-16 rounded-full" />
+            <div class="mt-5 grid grid-cols-2 gap-2">
+              <USkeleton v-for="item in 4" :key="`stat-${item}`" class="h-16 rounded-lg" />
+            </div>
           </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <USkeleton v-for="item in 2" :key="`change-${item}`" class="h-28 rounded-lg" />
-        </div>
-
-        <div class="space-y-2.5">
-          <USkeleton v-for="item in 3" :key="`lineage-${item}`" class="h-24 rounded-lg" />
+          <USkeleton class="h-52 rounded-lg" />
+          <USkeleton class="h-56 rounded-lg" />
         </div>
       </div>
 
@@ -74,15 +94,23 @@ watch(
         </div>
       </div>
 
-      <template v-else-if="overviewStore.data">
-        <OverviewStatsBar :stats="overviewStore.data.stats" />
+      <div
+        v-else-if="overviewStore.data"
+        class="grid grid-cols-1 gap-6 xl:grid-cols-12"
+        data-test="overview-content-grid"
+      >
+        <div class="space-y-6 xl:col-span-8" data-test="overview-dynamic-column">
+          <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
 
-        <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
+          <OverviewRecentLineages :lineages="overviewStore.data.recentLineages" />
+        </div>
 
-        <OverviewRecentLineages :lineages="overviewStore.data.recentLineages" />
+        <div class="space-y-6 xl:col-span-4" data-test="overview-governance-column">
+          <OverviewStatsBar :stats="overviewStore.data.stats" />
 
-        <OverviewGovernance :governance="overviewStore.data.governance" />
-      </template>
+          <OverviewGovernance :governance="overviewStore.data.governance" />
+        </div>
+      </div>
     </div>
   </div>
 </template>

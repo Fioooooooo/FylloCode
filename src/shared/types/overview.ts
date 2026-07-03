@@ -1,4 +1,6 @@
-export type OverviewChangeStage = "drafting" | "proposal" | "applying";
+import type { ProposalStatus } from "./proposal";
+
+export type ActiveChangeStatus = Exclude<ProposalStatus, "archived">;
 
 export type OverviewStats = {
   specsCount: number;
@@ -17,7 +19,7 @@ export type ActiveChange = {
   createdAt: string | null;
   taskTitle: string | null;
   taskRef: string | null;
-  stage: OverviewChangeStage;
+  status: ActiveChangeStatus;
 };
 
 export type RecentLineage = {

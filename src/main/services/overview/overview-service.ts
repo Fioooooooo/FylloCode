@@ -8,7 +8,6 @@ import {
 } from "@main/services/lineage/lineage-service";
 import type {
   ActiveChange,
-  OverviewChangeStage,
   ProjectOverview,
   RecentLineage,
   SpecsGrowthBucket,
@@ -23,23 +22,15 @@ type TaskLinkedStats = {
   total: number;
 };
 
-function mapStage(status: ProposalMeta["status"]): OverviewChangeStage {
-  switch (status) {
-    case "creating":
-      return "drafting";
-    case "draft":
-      return "proposal";
-    case "applying":
-      return "applying";
-    default:
-      logger.warn(`[overview] unknown proposal status ${status}; falling back to drafting`);
-      return "drafting";
-  }
+type ActiveProposalMeta = ProposalMeta & { status: ActiveChange["status"] };
+
+function isActiveProposal(proposal: ProposalMeta): proposal is ActiveProposalMeta {
+  return proposal.status !== "archived";
 }
 
 async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]> {
   const proposals = await readProposalFiles(projectPath);
-  const activeProposals = proposals.filter((proposal) => proposal.status !== "archived");
+  const activeProposals = proposals.filter(isActiveProposal);
 
   return Promise.all(
     activeProposals.map(async (proposal) => {
@@ -57,7 +48,7 @@ async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]
         createdAt: proposal.date || null,
         taskTitle: projection?.task?.snapshot.title ?? null,
         taskRef: projection?.task?.ref ?? null,
-        stage: mapStage(proposal.status),
+        status: proposal.status,
       };
     })
   );

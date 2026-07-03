@@ -116,12 +116,6 @@ describe("overview-service", () => {
         date: "2026-06-03T00:00:00.000Z",
       },
       {
-        id: "unknown-change",
-        title: "Unknown Change",
-        status: "reviewing",
-        date: "2026-06-04T00:00:00.000Z",
-      },
-      {
         id: "archived-change",
         title: "Archived Change",
         status: "archived",
@@ -260,31 +254,23 @@ describe("overview-service", () => {
       expect.objectContaining({
         id: "creating-change",
         title: "Creating Change",
-        stage: "drafting",
+        status: "creating",
         taskRef: "yunxiao:ABC-1",
         taskTitle: "Implement overview data",
       }),
-      expect.objectContaining({ id: "draft-change", title: "Draft Change", stage: "proposal" }),
+      expect.objectContaining({ id: "draft-change", title: "Draft Change", status: "draft" }),
       expect.objectContaining({
         id: "applying-change",
         title: "Applying Change",
-        stage: "applying",
-      }),
-      expect.objectContaining({
-        id: "unknown-change",
-        title: "Unknown Change",
-        stage: "drafting",
+        status: "applying",
       }),
       expect.objectContaining({
         id: "no-commit",
         title: "No Commit",
-        stage: "proposal",
+        status: "draft",
       }),
     ]);
     expect(overview.activeChanges.map((change) => change.id)).not.toContain("archived-change");
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      "[overview] unknown proposal status reviewing; falling back to drafting"
-    );
     expect(mocks.buildArchiveCommitIndex).toHaveBeenCalledWith("/repo", [
       "old-change",
       "no-commit",

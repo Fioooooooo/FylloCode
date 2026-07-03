@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { overviewApi } from "@renderer/api/overview";
 import OverviewPage from "@renderer/pages/overview.vue";
 import { useProjectStore } from "@renderer/stores/project";
+import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
 import type { ProjectOverview } from "@shared/types/overview";
 import type { ProjectInfo } from "@shared/types/project";
 
@@ -59,7 +60,7 @@ function overview(): ProjectOverview {
         createdAt: new Date().toISOString(),
         taskTitle: "项目概览页真实数据",
         taskRef: "local:task-1",
-        stage: "applying",
+        status: "applying",
       },
     ],
     recentLineages: [
@@ -142,7 +143,7 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("overview failed");
   });
 
-  it("renders overview sections from IPC data", async () => {
+  it("renders overview sections from IPC data grouped by dynamic work and governance", async () => {
     vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
       ok: true,
       data: overview(),
@@ -153,12 +154,39 @@ describe("overview page", () => {
 
     expect(wrapper.text()).toContain("项目概览");
     expect(wrapper.text()).toContain("实时项目数据");
-    expect(wrapper.text()).toContain("74");
-    expect(wrapper.text()).toContain("进行中");
-    expect(wrapper.text()).toContain("Add Project Overview Page");
-    expect(wrapper.text()).toContain("最近脉络");
-    expect(wrapper.text()).toContain("abc123a");
-    expect(wrapper.text()).toContain("治理演化");
+
+    const dynamicColumn = wrapper.get('[data-test="overview-dynamic-column"]');
+    expect(dynamicColumn.text()).toContain("进行中");
+    expect(dynamicColumn.text()).toContain("Add Project Overview Page");
+    expect(dynamicColumn.text()).toContain(proposalDisplayStatusConfig.applying.label);
+    expect(dynamicColumn.text()).toContain("最近脉络");
+    expect(dynamicColumn.text()).toContain("abc123a");
+    expect(wrapper.get('[data-test="overview-lineage-timeline"]').classes()).toContain("isolate");
+    expect(wrapper.findAll('[data-test="overview-lineage-timeline-node"]')).toHaveLength(2);
+    const [taskLineageMeta, chatLineageMeta] = wrapper.findAll(
+      '[data-test="overview-lineage-meta"]'
+    );
+    expect(taskLineageMeta!.text().trim().startsWith("2 sessions")).toBe(true);
+    expect(taskLineageMeta!.text()).not.toContain("local:task-1");
+    expect(chatLineageMeta!.text().trim().startsWith("1 sessions")).toBe(true);
+    expect(chatLineageMeta!.text()).not.toContain("自由讨论");
+
+    const governanceColumn = wrapper.get('[data-test="overview-governance-column"]');
+    expect(governanceColumn.text()).toContain("治理健康");
+    expect(governanceColumn.text()).toContain("演进追溯覆盖");
+    expect(governanceColumn.text()).toContain("基于 38 条项目脉络统计");
+    expect(governanceColumn.text()).toContain("能力规约");
+    expect(governanceColumn.text()).toContain("归档提案");
+    expect(governanceColumn.text()).toContain("项目准则");
+    expect(governanceColumn.text()).toContain("规约增长");
+    expect(governanceColumn.text()).toContain("准则演化");
+    expect(wrapper.find('[data-test="overview-governance-health"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="overview-stat-card-lineages"]').exists()).toBe(false);
+    expect(
+      wrapper.find('[data-test="overview-stat-card-guidelines"] [data-icon-name]').exists()
+    ).toBe(false);
+    expect(wrapper.find('[data-test="overview-specs-growth"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="overview-guideline-evolution"]').exists()).toBe(true);
   });
 
   it("uses the active change title for display and id for slideover opening", async () => {
@@ -170,8 +198,14 @@ describe("overview page", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Add Project Overview Page");
-    expect(wrapper.text()).not.toContain("add-project-overview-page");
+    const activeChanges = wrapper.get('[data-test="overview-active-changes"]');
+    expect(activeChanges.text()).toContain("Add Project Overview Page");
+    expect(activeChanges.text()).toContain("项目概览页真实数据");
+    expect(activeChanges.text()).not.toContain("add-project-overview-page");
+    expect(activeChanges.text()).not.toContain("local:task-1");
+    expect(wrapper.get('[data-test="overview-active-change-meta"]').classes()).toContain(
+      "items-end"
+    );
 
     await wrapper.get('[data-test="overview-active-changes"] button').trigger("click");
 
@@ -205,9 +239,7 @@ describe("overview page", () => {
     expect(routerMock.push).toHaveBeenCalledWith("/proposal");
 
     routerMock.push.mockClear();
-    for (const key of ["guidelines", "lineages"]) {
-      await wrapper.get(`[data-test="overview-stat-card-${key}"]`).trigger("click");
-    }
+    await wrapper.get('[data-test="overview-stat-card-guidelines"]').trigger("click");
 
     expect(routerMock.push).not.toHaveBeenCalled();
   });

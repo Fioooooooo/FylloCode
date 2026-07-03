@@ -4,9 +4,9 @@ import { overviewApi } from "@renderer/api/overview";
 import { useProjectStore } from "@renderer/stores/project";
 import type {
   ActiveChange,
+  ActiveChangeStatus,
   GovernanceEvolution,
   GuidelineChange,
-  OverviewChangeStage,
   OverviewStats,
   ProjectOverview,
   RecentLineage,
@@ -15,9 +15,9 @@ import type {
 
 export type {
   ActiveChange,
+  ActiveChangeStatus,
   GovernanceEvolution,
   GuidelineChange,
-  OverviewChangeStage,
   OverviewStats,
   ProjectOverview,
   RecentLineage,
