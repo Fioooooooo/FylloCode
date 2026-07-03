@@ -4,6 +4,17 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.7.0] - 2026-07-03
+
+### Changed
+
+- `create-proposal` instructions now carry the guidelines drafting rule directly, so every proposal gets the trigger regardless of the project's `openspec/config.yaml` content: decide while drafting `tasks.md`, add a concrete guideline task or nothing, and never add evaluate/confirm placeholder tasks.
+- Rewrote the default guidelines rule seeded into `openspec/config.yaml`: the create-or-update decision must be made while drafting `tasks.md`, producing either a concrete guideline task (target document + exact change) or nothing — placeholder tasks that merely evaluate or confirm whether guidelines need updating are explicitly forbidden.
+
+### Removed
+
+- `createChange` no longer augments an existing `openspec/config.yaml` with the default guidelines rule. An existing config is treated as user-owned and is never rewritten; defaults are seeded only when the file is first created.
+
 ## [0.6.1] - 2026-07-02
 
 ### Changed

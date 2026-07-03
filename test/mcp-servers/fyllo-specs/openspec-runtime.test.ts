@@ -86,35 +86,8 @@ describe("openspec-runtime", () => {
     }
   });
 
-  it("preserves an existing config byte-for-byte when default guidelines rule is present", async () => {
+  it("leaves an existing config byte-for-byte untouched even without the default guidelines rule", async () => {
     const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-preserve-"));
-    const configPath = join(root, "openspec", "config.yaml");
-    const originalConfig = [
-      "schema: spec-driven",
-      "context: |",
-      "  custom project context",
-      "rules:",
-      "  tasks:",
-      `    - ${GUIDELINES_TASKS_RULE_EN}`,
-      "",
-    ].join("\n");
-
-    mkdirSync(join(root, "openspec"), { recursive: true });
-    writeFileSync(configPath, originalConfig, "utf8");
-
-    try {
-      await createChange(root, "preserved-change");
-
-      expect(readFileSync(configPath, "utf8")).toBe(originalConfig);
-      expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
-      expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("augments an existing config when default guidelines rule is missing", async () => {
-    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-config-augment-"));
     const configPath = join(root, "openspec", "config.yaml");
     const originalConfig = [
       "schema: spec-driven",
@@ -130,25 +103,11 @@ describe("openspec-runtime", () => {
     writeFileSync(configPath, originalConfig, "utf8");
 
     try {
-      await createChange(root, "augmented-change");
+      await createChange(root, "preserved-change");
 
-      const updated = readFileSync(configPath, "utf8");
-      expect(updated).toContain(GUIDELINES_TASKS_RULE_EN);
-
-      const { load } = await import("js-yaml");
-      const doc = load(updated) as {
-        schema?: string;
-        context?: string;
-        rules?: { proposal?: string[]; tasks?: string[] };
-      };
-      expect(doc.schema).toBe("spec-driven");
-      expect(doc.context).toContain("custom project context");
-      expect(doc.rules?.proposal).toEqual(["Keep proposals under 500 words"]);
-      expect(doc.rules?.tasks).toEqual([GUIDELINES_TASKS_RULE_EN]);
-
-      const afterFirstAugment = readFileSync(configPath, "utf8");
-      await createChange(root, "augmented-change-second-run");
-      expect(readFileSync(configPath, "utf8")).toBe(afterFirstAugment);
+      expect(readFileSync(configPath, "utf8")).toBe(originalConfig);
+      expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
+      expect(existsSync(join(root, "openspec", "specs"))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

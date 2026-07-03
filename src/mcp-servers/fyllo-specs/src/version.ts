@@ -1,1 +1,1 @@
-export const FYLLO_SPECS_SERVER_VERSION = "0.6.1";
+export const FYLLO_SPECS_SERVER_VERSION = "0.7.0";

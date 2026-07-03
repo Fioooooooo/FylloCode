@@ -65,6 +65,7 @@ The agents that later implement this proposal will start fresh — they will NOT
   - Existing patterns, modules, or utilities to reuse — name them explicitly
   - Acceptance criteria so the implementer knows when the task is done
 - Avoid hand-wave verbs like "improve X", "refactor Y", "handle edge cases". Replace them with concrete operations against named code locations.
+- While drafting `tasks.md`, decide whether this change requires creating or updating repository guidelines (`guidelines/**/*.md`). If it does, add a concrete task naming the target guideline document and the exact change. If it does not, add nothing: never add a task that merely evaluates, confirms, or re-checks whether guidelines need updating.
 - Capture decisions made in this conversation (e.g. chose library A over B, picked schema X over Y) and the rationale in the appropriate artifact. A future implementer cannot reconstruct that from the codebase alone.
 
 **Self-check before marking any artifact `done`**: imagine handing it to an engineer who has never seen this codebase or this conversation. Could they execute it without asking questions? If not, the artifact is not yet `done` — add the missing detail.
