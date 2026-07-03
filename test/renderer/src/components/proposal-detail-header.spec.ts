@@ -31,19 +31,24 @@ function buildRunMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
   };
 }
 
+const defaultProps = {
+  changeId: "proposal-1",
+  workflowMenuItems: [],
+  workflowStoreLoading: false,
+  runMeta: null,
+  isArchiving: false,
+  isStreaming: false,
+  canArchive: false,
+  refreshingMeta: false,
+} satisfies Omit<InstanceType<typeof ProposalDetailHeader>["$props"], "proposal">;
+
 describe("ProposalDetailHeader", () => {
   it("shows a run-history button for archived proposals", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("archived"),
+        ...defaultProps,
         changeId: "2026-05-07-proposal-1",
-        workflowMenuItems: [],
-        workflowStoreLoading: false,
-        runMeta: null,
-        isArchiving: false,
-        isStreaming: false,
-        canArchive: false,
-        refreshingMeta: false,
       },
     });
 
@@ -58,14 +63,9 @@ describe("ProposalDetailHeader", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("applying"),
-        changeId: "proposal-1",
-        workflowMenuItems: [],
-        workflowStoreLoading: false,
+        ...defaultProps,
         runMeta: buildRunMeta(),
-        isArchiving: false,
-        isStreaming: false,
         canArchive: true,
-        refreshingMeta: false,
       },
     });
 
@@ -76,14 +76,9 @@ describe("ProposalDetailHeader", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("applying"),
-        changeId: "proposal-1",
-        workflowMenuItems: [],
-        workflowStoreLoading: false,
+        ...defaultProps,
         runMeta: buildRunMeta({ status: "running", workflowId: "archive" }),
         isArchiving: true,
-        isStreaming: false,
-        canArchive: false,
-        refreshingMeta: false,
       },
     });
 
@@ -95,18 +90,24 @@ describe("ProposalDetailHeader", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("applying"),
-        changeId: "proposal-1",
-        workflowMenuItems: [],
-        workflowStoreLoading: false,
+        ...defaultProps,
         runMeta: buildRunMeta({ changeId: "other-proposal" }),
-        isArchiving: false,
-        isStreaming: false,
-        canArchive: false,
-        refreshingMeta: false,
       },
     });
 
     expect(wrapper.text()).toContain("实现中");
     expect(wrapper.text()).not.toContain("可归档");
+  });
+
+  it("renders the workflow menu inside the detail slideover overlay", () => {
+    const wrapper = mount(ProposalDetailHeader, {
+      props: {
+        proposal: buildProposal("draft"),
+        ...defaultProps,
+        workflowMenuItems: [[{ label: "Workflow 1", onSelect: () => undefined }]],
+      },
+    });
+
+    expect(wrapper.get('div[portal="false"]').text()).toContain("开始实现");
   });
 });

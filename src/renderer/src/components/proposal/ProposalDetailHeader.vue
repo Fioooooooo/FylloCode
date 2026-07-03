@@ -74,6 +74,7 @@ function getStageCount(): number {
               v-if="proposal.status === 'draft'"
               :items="workflowMenuItems"
               :loading="workflowStoreLoading"
+              :portal="false"
             >
               <UButton
                 size="xs"
