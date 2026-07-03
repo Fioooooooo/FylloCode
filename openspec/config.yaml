@@ -6,7 +6,7 @@ context: |
 
 rules:
   tasks:
-    - Evaluate whether this change should add or update local repository guidelines. If so, add a task in tasks.md that names the specific guideline file and what to change.
+    - While drafting `tasks.md`, decide whether this change requires creating or updating repository guidelines (`guidelines/**/*.md`). If it does, add a concrete task naming the target guideline document and the exact change. If it does not, add nothing: never add a task that merely evaluates, confirms, or re-checks whether guidelines need updating.
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
