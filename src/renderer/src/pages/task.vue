@@ -5,13 +5,20 @@ import { useToast } from "@nuxt/ui/composables";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
+import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
 import { lineageApi } from "@renderer/api/lineage";
 import { useChatStore } from "@renderer/stores/chat";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSessionStore } from "@renderer/stores/session";
 import { useTaskStore } from "@renderer/stores/task";
 import { buildSourceDisplay, getTaskDescriptionPlainText } from "@renderer/utils/task";
-import type { LineageTaskRef, LineageTaskSnapshot } from "@shared/types/lineage";
+import type { LinkedSessionEntry } from "@renderer/components/task/TaskCard.vue";
+import type { Session } from "@shared/types/chat";
+import type {
+  LineageSessionLink,
+  LineageTaskRef,
+  LineageTaskSnapshot,
+} from "@shared/types/lineage";
 import type {
   CreateLocalTaskInput,
   TaskItem,
@@ -20,17 +27,26 @@ import type {
   UpdateTaskInput,
 } from "@shared/types/task";
 
+interface TaskLinkState {
+  links: LineageSessionLink[];
+  loading: boolean;
+  failed: boolean;
+}
+
 const router = useRouter();
 const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 const taskStore = useTaskStore();
 const toast = useToast();
+const { openChatSession } = useOpenChatSession();
 
 const showCreateTaskModal = ref(false);
 const showDetailModal = ref(false);
 const activeDetailTask = ref<TaskItem | null>(null);
 const selectedSource = ref<TaskSource>("local");
+const taskLinkState = ref<Map<LineageTaskRef, TaskLinkState>>(new Map());
+let linkedConversationBatchId = 0;
 
 const statusItems: Array<{ label: string; value: TaskStatus }> = [
   { label: "打开", value: "open" },
@@ -40,6 +56,10 @@ const statusItems: Array<{ label: string; value: TaskStatus }> = [
 const sourceTabs = computed(() => taskStore.sourceTabs);
 const visibleTasks = computed(() => taskStore.filteredTasks);
 const isLocalSource = computed(() => selectedSource.value === "local");
+
+function buildTaskRef(task: TaskItem): LineageTaskRef {
+  return `${task.source}:${task.id}` as LineageTaskRef;
+}
 
 function buildTaskPrompt(task: TaskItem): string {
   const sourceDisplay = buildSourceDisplay(task);
@@ -133,7 +153,7 @@ async function startChatFromTask(task: TaskItem): Promise<void> {
     return;
   }
 
-  const taskRef = `${task.source}:${task.id}` as LineageTaskRef;
+  const taskRef = buildTaskRef(task);
   const snapshot: LineageTaskSnapshot = {
     ref: taskRef,
     snapshot: JSON.parse(JSON.stringify(task)) as TaskItem,
@@ -159,6 +179,85 @@ async function startChatFromTask(task: TaskItem): Promise<void> {
   await router.push("/chat");
 }
 
+function getLinkedSessionEntries(task: TaskItem): LinkedSessionEntry[] {
+  const ref = buildTaskRef(task);
+  const state = taskLinkState.value.get(ref);
+  if (!state || state.links.length === 0) {
+    return [];
+  }
+
+  return state.links.map((link) => {
+    const session = sessionStore.sessions.find((item: Session) => item.id === link.sessionId);
+    if (session) {
+      return {
+        sessionId: link.sessionId,
+        title: session.title,
+        updatedAt: session.updatedAt,
+        status: session.status,
+      };
+    }
+
+    return {
+      sessionId: link.sessionId,
+      title: link.sessionId,
+      createdAt: new Date(link.createdAt),
+    };
+  });
+}
+
+async function handleOpenSession(sessionId: string): Promise<void> {
+  await openChatSession(sessionId);
+}
+
+async function loadLinkedConversations(): Promise<void> {
+  const projectId = projectStore.currentProject?.id;
+  if (!projectId) {
+    taskLinkState.value = new Map();
+    return;
+  }
+
+  const tasks = visibleTasks.value;
+  const currentRefs = new Set(tasks.map(buildTaskRef));
+  const nextState = new Map(taskLinkState.value);
+
+  for (const ref of nextState.keys()) {
+    if (!currentRefs.has(ref)) {
+      nextState.delete(ref);
+    }
+  }
+
+  linkedConversationBatchId += 1;
+  const batchId = linkedConversationBatchId;
+
+  await Promise.all(
+    tasks.map(async (task) => {
+      const ref = buildTaskRef(task);
+      const existing = nextState.get(ref);
+      nextState.set(ref, { links: existing?.links ?? [], loading: true, failed: false });
+
+      try {
+        const result = await lineageApi.getByTask(projectId, ref);
+        if (batchId !== linkedConversationBatchId) {
+          return;
+        }
+
+        const links = result.ok && result.data ? result.data.links : [];
+        nextState.set(ref, { links, loading: false, failed: !(result.ok && result.data) });
+      } catch {
+        if (batchId !== linkedConversationBatchId) {
+          return;
+        }
+
+        nextState.set(ref, { links: existing?.links ?? [], loading: false, failed: true });
+      }
+    })
+  );
+
+  if (batchId === linkedConversationBatchId) {
+    taskLinkState.value = nextState;
+  }
+}
+
 watch(
   () => projectStore.currentProject?.id,
   () => {
@@ -166,6 +265,14 @@ watch(
     activeDetailTask.value = null;
     showDetailModal.value = false;
     void loadCurrentSource();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [projectStore.currentProject?.id, visibleTasks.value.map((task) => task.id)] as const,
+  () => {
+    void loadLinkedConversations();
   },
   { immediate: true }
 );
@@ -245,8 +352,10 @@ watch(
             v-for="task in visibleTasks"
             :key="task.id"
             :task="task"
+            :linked-sessions="getLinkedSessionEntries(task)"
             @view-detail="handleViewDetail"
             @start-discussion="startChatFromTask"
+            @open-session="handleOpenSession"
             @delete="handleDeleteTask"
           />
         </div>

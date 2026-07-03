@@ -2,7 +2,20 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { reactive } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaskPage from "@renderer/pages/task.vue";
+import type { Session } from "@shared/types/chat";
 import type { TaskItem, TaskStatus } from "@shared/types/task";
+
+const { ensureTaskSubjectMock } = vi.hoisted(() => ({
+  ensureTaskSubjectMock: vi.fn(),
+}));
+const { getByTaskMock } = vi.hoisted(() => ({
+  getByTaskMock: vi.fn(),
+}));
+const { openChatSessionMock } = vi.hoisted(() => ({
+  openChatSessionMock: vi.fn<(sessionId: string) => Promise<void>>(),
+}));
+
+const sessions = reactive<Session[]>([]);
 
 type VisibleTaskSource = "local" | "yunxiao";
 
@@ -38,9 +51,6 @@ const sendMessageMock = vi.fn();
 const pushMock = vi.fn();
 const beginDraftSessionMock = vi.fn();
 const toastAddMock = vi.fn();
-const { ensureTaskSubjectMock } = vi.hoisted(() => ({
-  ensureTaskSubjectMock: vi.fn(),
-}));
 
 const taskStore = reactive<TaskStoreStub>({
   tasks: [] as TaskItem[],
@@ -85,6 +95,7 @@ vi.mock("@renderer/stores/chat", () => ({
 
 vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
+    sessions,
     beginDraftSession: beginDraftSessionMock,
   }),
 }));
@@ -92,7 +103,14 @@ vi.mock("@renderer/stores/session", () => ({
 vi.mock("@renderer/api/lineage", () => ({
   lineageApi: {
     ensureTaskSubject: ensureTaskSubjectMock,
+    getByTask: getByTaskMock,
   },
+}));
+
+vi.mock("@renderer/composables/useOpenChatSession", () => ({
+  useOpenChatSession: () => ({
+    openChatSession: openChatSessionMock,
+  }),
 }));
 
 vi.mock("vue-router", () => ({
@@ -110,9 +128,10 @@ vi.mock("@nuxt/ui/composables", async () => {
 });
 
 const taskCardStub = {
-  props: ["task"],
+  props: ["task", "linkedSessions"],
+  emits: ["start-discussion", "open-session"],
   template:
-    '<div data-test="task-card">{{ task.title }}<button type="button" data-test="start-discussion" @click="$emit(\'start-discussion\', task)">讨论</button></div>',
+    '<div data-test="task-card">{{ task.title }}<button type="button" data-test="start-discussion" @click="$emit(\'start-discussion\', task)">讨论</button><button v-if="(linkedSessions ?? []).length > 0" type="button" data-test="linked-session-trigger" @click="$emit(\'open-session\', linkedSessions[0].sessionId)">{{ linkedSessions.length }} 个对话</button></div>',
 };
 
 const createTaskModalStub = {
@@ -142,6 +161,8 @@ describe("task page", () => {
         updatedAt: "2026-06-09T00:00:00.000Z",
       },
     });
+    getByTaskMock.mockResolvedValue({ ok: true, data: { links: [] } });
+    openChatSessionMock.mockResolvedValue(undefined);
     sendMessageMock.mockResolvedValue(undefined);
     pushMock.mockResolvedValue(undefined);
     projectStore.currentProject = { id: "project-1" };
@@ -157,6 +178,7 @@ describe("task page", () => {
     taskStore.tasks = [];
     taskStore.tasksBySource = [];
     taskStore.filteredTasks = [];
+    sessions.length = 0;
   });
 
   function mountPage(): VueWrapper {
@@ -383,7 +405,7 @@ describe("task page", () => {
     loadTaskDetailMock.mockResolvedValue(detailTask);
 
     const taskCardViewDetailStub = {
-      props: ["task"],
+      props: ["task", "linkedSessions"],
       template:
         '<button type="button" data-test="view-detail" @click="$emit(\'view-detail\', task)">{{ task.title }}</button>',
     };
@@ -430,7 +452,7 @@ describe("task page", () => {
     taskStore.detailErrorMessage = "详情加载失败";
 
     const taskCardViewDetailStub = {
-      props: ["task"],
+      props: ["task", "linkedSessions"],
       template:
         '<button type="button" data-test="view-detail" @click="$emit(\'view-detail\', task)">{{ task.title }}</button>',
     };
@@ -451,5 +473,131 @@ describe("task page", () => {
 
     expect(wrapper.get('[data-test="detail-modal"]').text()).toContain("云效任务");
     expect(wrapper.text()).not.toContain("boom");
+  });
+
+  it("shows linked conversation trigger when a task has linked sessions", async () => {
+    const task = {
+      id: "task-linked",
+      projectId: "project-1",
+      title: "已关联任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    getByTaskMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        subjectId: "subject-linked",
+        origin: "task" as const,
+        task: null,
+        links: [
+          {
+            sessionId: "session-1",
+            createdAt: "2026-06-09T00:00:00.000Z",
+            proposals: [],
+            plans: [],
+          },
+        ],
+      },
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(getByTaskMock).toHaveBeenCalledWith("project-1", "local:task-linked");
+    expect(wrapper.text()).toContain("1 个对话");
+    expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(true);
+  });
+
+  it("hides linked conversation trigger when a task has no linked sessions", async () => {
+    const task = {
+      id: "task-no-link",
+      projectId: "project-1",
+      title: "无关联任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    getByTaskMock.mockResolvedValueOnce({ ok: true, data: { links: [] } });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("个对话");
+    expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(false);
+  });
+
+  it("does not block the task list when linked conversation query fails", async () => {
+    const task = {
+      id: "task-fail-link",
+      projectId: "project-1",
+      title: "关联查询失败任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    getByTaskMock.mockRejectedValueOnce(new Error("network error"));
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("关联查询失败任务");
+    expect(taskStore.error).toBeNull();
+    expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(false);
+  });
+
+  it("opens the linked session when the trigger is clicked", async () => {
+    const task = {
+      id: "task-open-session",
+      projectId: "project-1",
+      title: "打开关联会话",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    getByTaskMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        subjectId: "subject-open",
+        origin: "task" as const,
+        task: null,
+        links: [
+          {
+            sessionId: "session-target",
+            createdAt: "2026-06-09T00:00:00.000Z",
+            proposals: [],
+            plans: [],
+          },
+        ],
+      },
+    });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="linked-session-trigger"]').trigger("click");
+    await flushPromises();
+
+    expect(openChatSessionMock).toHaveBeenCalledWith("session-target");
   });
 });

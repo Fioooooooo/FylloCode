@@ -28,6 +28,9 @@ const resetChatState = vi.fn(() => {
 const cancelStream = vi.fn();
 const ensureSessionOriginTaskInfo = vi.fn(async () => undefined);
 const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
+const { openChatSessionMock } = vi.hoisted(() => ({
+  openChatSessionMock: vi.fn<(sessionId: string) => Promise<void>>(),
+}));
 
 vi.mock("@renderer/composables/useConfirmDialog", () => ({
   useConfirmDialog: () => confirmDialogMock,
@@ -62,6 +65,12 @@ vi.mock("@renderer/stores/acp-agents", () => ({
     get icons() {
       return iconsRef.value;
     },
+  }),
+}));
+
+vi.mock("@renderer/composables/useOpenChatSession", () => ({
+  useOpenChatSession: () => ({
+    openChatSession: openChatSessionMock,
   }),
 }));
 
@@ -106,6 +115,11 @@ describe("SessionItem", () => {
     cancelStream.mockClear();
     ensureSessionOriginTaskInfo.mockClear();
     confirmDialogMock.mockReset();
+    openChatSessionMock.mockReset();
+    openChatSessionMock.mockImplementation(async (sessionId: string) => {
+      resetChatState();
+      await selectSession(sessionId);
+    });
   });
 
   it("clears transient view state without stopping streams after switching sessions", async () => {
@@ -136,6 +150,7 @@ describe("SessionItem", () => {
     expect(chatStatusRef.value).toBe("ready");
     expect(streamErrorRef.value).toBeNull();
     expect(activeSessionIdRef.value).toBe("session-2");
+    expect(openChatSessionMock).toHaveBeenCalledWith("session-2");
   });
 
   it("renders agent icon when the session agent has a matching icon", () => {

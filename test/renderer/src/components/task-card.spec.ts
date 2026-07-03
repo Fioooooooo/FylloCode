@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import TaskCard from "@renderer/components/task/TaskCard.vue";
+import TaskCard, { type LinkedSessionEntry } from "@renderer/components/task/TaskCard.vue";
 import type { TaskItem } from "@shared/types/task";
 
 const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
@@ -21,6 +21,16 @@ function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
     labels: [{ id: "label-1", name: "P1" }],
     createdAt: new Date("2026-05-13T08:00:00.000Z"),
     updatedAt: new Date("2026-05-13T08:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function buildLinkedSession(overrides: Partial<LinkedSessionEntry> = {}): LinkedSessionEntry {
+  return {
+    sessionId: "session-1",
+    title: "关联会话 1",
+    updatedAt: new Date("2026-05-13T10:00:00.000Z"),
+    status: "ended",
     ...overrides,
   };
 }
@@ -146,5 +156,70 @@ describe("TaskCard", () => {
 
     expect(wrapper.text()).toContain("富文本描述");
     expect(wrapper.text()).not.toContain("<p>");
+  });
+
+  it("shows the linked conversation count when linked sessions exist", async () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+        linkedSessions: [buildLinkedSession(), buildLinkedSession({ sessionId: "session-2" })],
+      },
+    });
+
+    expect(wrapper.text()).toContain("2 个对话");
+    expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(true);
+  });
+
+  it("hides the linked conversation trigger when there are no linked sessions", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+      },
+    });
+
+    expect(wrapper.text()).not.toContain("个对话");
+    expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(false);
+  });
+
+  it("renders linked session items in the popover and emits open-session on click", async () => {
+    const sessions = [
+      buildLinkedSession(),
+      buildLinkedSession({ sessionId: "session-2", title: "关联会话 2" }),
+    ];
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+        linkedSessions: sessions,
+      },
+    });
+
+    const vm = wrapper.vm as unknown as { linkedConversationsOpen: boolean };
+    vm.linkedConversationsOpen = true;
+    await wrapper.vm.$nextTick();
+
+    const list = wrapper.find('[data-test="linked-session-list"]');
+    expect(list.exists()).toBe(true);
+    expect(list.find('[data-test="linked-session-item-session-1"]').text()).toContain("关联会话 1");
+    expect(list.find('[data-test="linked-session-item-session-2"]').text()).toContain("关联会话 2");
+
+    await list.get('[data-test="linked-session-item-session-2"]').trigger("click");
+
+    expect(wrapper.emitted("open-session")).toEqual([["session-2"]]);
+  });
+
+  it("falls back to sessionId when the linked session title is empty", async () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+        linkedSessions: [buildLinkedSession({ title: "", sessionId: "orphan-session" })],
+      },
+    });
+
+    const vm = wrapper.vm as unknown as { linkedConversationsOpen: boolean };
+    vm.linkedConversationsOpen = true;
+    await wrapper.vm.$nextTick();
+
+    const item = wrapper.find('[data-test="linked-session-item-orphan-session"]');
+    expect(item.text()).toContain("orphan-session");
   });
 });

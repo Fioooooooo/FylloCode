@@ -2,17 +2,17 @@
 import { computed, nextTick, ref, toRef } from "vue";
 import { useSessionStore } from "@renderer/stores/session";
 import type { Session } from "@shared/types/chat";
-import { useChatStore } from "@renderer/stores";
 import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
+import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
 
 const props = defineProps<{
   session: Session;
 }>();
 
 const sessionStore = useSessionStore();
-const chatStore = useChatStore();
+const { openChatSession } = useOpenChatSession();
 const acpAgentsStore = useAcpAgentsStore();
 const confirmDialog = useConfirmDialog();
 
@@ -81,8 +81,7 @@ function formatTime(date: Date): string {
 }
 
 async function handleSelect(): Promise<void> {
-  chatStore.resetChatState();
-  await sessionStore.selectSession(session.value.id);
+  await openChatSession(session.value.id);
 }
 
 function startTitleEdit(): void {

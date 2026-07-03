@@ -1,5 +1,15 @@
+<script lang="ts">
+export interface LinkedSessionEntry {
+  sessionId: string;
+  title: string;
+  updatedAt?: Date;
+  createdAt?: Date;
+  status?: "running" | "ended";
+}
+</script>
+
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { getTaskDescriptionSummary } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
@@ -7,15 +17,18 @@ import type { TaskItem } from "@shared/types/task";
 
 const props = defineProps<{
   task: TaskItem;
+  linkedSessions?: LinkedSessionEntry[];
 }>();
 
 const emit = defineEmits<{
   "start-discussion": [task: TaskItem];
   "view-detail": [task: TaskItem];
+  "open-session": [sessionId: string];
   delete: [task: TaskItem];
 }>();
 
 const confirmDialog = useConfirmDialog();
+const linkedConversationsOpen = ref(false);
 
 const externalUrl = computed(() => {
   if (props.task.source === "local") {
@@ -27,6 +40,8 @@ const externalUrl = computed(() => {
 });
 
 const descriptionSummary = computed(() => getTaskDescriptionSummary(props.task));
+const linkedSessions = computed(() => props.linkedSessions ?? []);
+const linkedSessionCount = computed(() => linkedSessions.value.length);
 
 async function handleDelete(): Promise<void> {
   const confirmed = await confirmDialog({
@@ -45,6 +60,20 @@ async function handleDelete(): Promise<void> {
 
 function handleViewDetail(): void {
   emit("view-detail", props.task);
+}
+
+function handleOpenSession(sessionId: string): void {
+  linkedConversationsOpen.value = false;
+  emit("open-session", sessionId);
+}
+
+function formatEntryTime(entry: LinkedSessionEntry): string {
+  const date = entry.updatedAt ?? entry.createdAt;
+  if (!date) {
+    return "";
+  }
+
+  return timeAgo(date);
 }
 </script>
 
@@ -97,6 +126,44 @@ function handleViewDetail(): void {
         >
           发起讨论
         </UButton>
+
+        <UPopover
+          v-if="linkedSessionCount > 0"
+          v-model:open="linkedConversationsOpen"
+          :content="{ align: 'start', side: 'top', sideOffset: 6 }"
+          :ui="{ content: 'w-60 p-2' }"
+        >
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            icon="i-lucide-messages-square"
+            data-test="linked-session-trigger"
+            @click.stop
+          >
+            {{ linkedSessionCount }} 个对话
+          </UButton>
+
+          <template #content>
+            <div class="flex flex-col gap-1" data-test="linked-session-list">
+              <button
+                v-for="entry in linkedSessions"
+                :key="entry.sessionId"
+                type="button"
+                class="w-full text-left rounded-md px-2 py-1.5 transition-colors hover:bg-elevated"
+                :data-test="`linked-session-item-${entry.sessionId}`"
+                @click.stop="handleOpenSession(entry.sessionId)"
+              >
+                <div class="truncate text-sm font-medium text-highlighted">
+                  {{ entry.title || entry.sessionId }}
+                </div>
+                <div v-if="formatEntryTime(entry)" class="text-xs text-muted">
+                  {{ formatEntryTime(entry) }}
+                </div>
+              </button>
+            </div>
+          </template>
+        </UPopover>
 
         <UButton
           v-if="externalUrl"
