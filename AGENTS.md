@@ -53,3 +53,11 @@ pnpm test             # 运行所有测试（单次）
 pnpm test:watch       # 测试监听模式
 pnpm test:coverage    # 生成覆盖率报告
 ```
+
+## Project Guidelines Index
+
+- **Architecture** - [Architecture](guidelines/Architecture.md)
+- **Quality Gates** - [Quality Gates](guidelines/QualityGates.md)
+- **Testing** - [Testing](guidelines/Testing.md)
+
+Coding Agents must read the relevant guideline documents before changing covered areas.
