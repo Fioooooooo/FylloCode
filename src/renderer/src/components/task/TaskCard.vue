@@ -24,7 +24,7 @@ const emit = defineEmits<{
   "start-discussion": [task: TaskItem];
   "view-detail": [task: TaskItem];
   "open-session": [sessionId: string];
-  delete: [task: TaskItem];
+  close: [task: TaskItem];
 }>();
 
 const confirmDialog = useConfirmDialog();
@@ -42,20 +42,23 @@ const externalUrl = computed(() => {
 const descriptionSummary = computed(() => getTaskDescriptionSummary(props.task));
 const linkedSessions = computed(() => props.linkedSessions ?? []);
 const linkedSessionCount = computed(() => linkedSessions.value.length);
+const showCloseButton = computed(
+  () => props.task.source === "local" && props.task.status === "open"
+);
 
-async function handleDelete(): Promise<void> {
+async function handleClose(): Promise<void> {
   const confirmed = await confirmDialog({
-    title: "删除任务",
-    description: "确认删除这条本地任务吗？删除后无法恢复。",
-    confirmLabel: "删除",
-    confirmColor: "error",
+    title: "关闭任务？",
+    description: `任务「${props.task.title}」会移到“关闭”列表，可在关闭 tab 中重新打开。`,
+    confirmLabel: "关闭任务",
+    confirmColor: "neutral",
   });
 
   if (!confirmed) {
     return;
   }
 
-  emit("delete", props.task);
+  emit("close", props.task);
 }
 
 function handleViewDetail(): void {
@@ -181,14 +184,14 @@ function formatEntryTime(entry: LinkedSessionEntry): string {
       </div>
 
       <UButton
-        v-if="task.source === 'local'"
+        v-if="showCloseButton"
         color="neutral"
         variant="ghost"
         size="sm"
-        icon="i-lucide-trash-2"
-        title="删除任务"
-        class="text-muted transition-colors hover:bg-error/10 hover:text-error"
-        @click.stop="void handleDelete()"
+        icon="i-lucide-circle-check"
+        aria-label="关闭任务"
+        title="关闭任务"
+        @click.stop="void handleClose()"
       />
     </div>
   </UiSurface>

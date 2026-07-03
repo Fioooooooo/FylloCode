@@ -68,7 +68,7 @@ describe("TaskCard", () => {
     expect(wrapper.emitted("view-detail")).toBeUndefined();
   });
 
-  it("does not emit view-detail when clicking delete", async () => {
+  it("does not emit view-detail when clicking close", async () => {
     confirmDialogMock.mockResolvedValue(false);
 
     const wrapper = mount(TaskCard, {
@@ -77,12 +77,23 @@ describe("TaskCard", () => {
       },
     });
 
-    await wrapper.get('button[title="删除任务"]').trigger("click");
+    await wrapper.get('button[title="关闭任务"]').trigger("click");
 
     expect(wrapper.emitted("view-detail")).toBeUndefined();
   });
 
-  it("opens a confirm dialog before deleting and emits delete on confirm", async () => {
+  it("shows close button for open local tasks and no delete button", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask(),
+      },
+    });
+
+    expect(wrapper.find('button[title="关闭任务"]').exists()).toBe(true);
+    expect(wrapper.find('button[title="删除任务"]').exists()).toBe(false);
+  });
+
+  it("opens a confirm dialog before closing and emits close on confirm", async () => {
     const task = buildTask();
     confirmDialogMock.mockResolvedValue(true);
 
@@ -92,18 +103,18 @@ describe("TaskCard", () => {
       },
     });
 
-    await wrapper.get('button[title="删除任务"]').trigger("click");
+    await wrapper.get('button[title="关闭任务"]').trigger("click");
 
     expect(confirmDialogMock).toHaveBeenCalledWith({
-      title: "删除任务",
-      description: "确认删除这条本地任务吗？删除后无法恢复。",
-      confirmLabel: "删除",
-      confirmColor: "error",
+      title: "关闭任务？",
+      description: "任务「修复登录失败」会移到“关闭”列表，可在关闭 tab 中重新打开。",
+      confirmLabel: "关闭任务",
+      confirmColor: "neutral",
     });
-    expect(wrapper.emitted("delete")).toEqual([[task]]);
+    expect(wrapper.emitted("close")).toEqual([[task]]);
   });
 
-  it("does not emit delete when the confirm dialog is cancelled", async () => {
+  it("does not emit close when the confirm dialog is cancelled", async () => {
     confirmDialogMock.mockResolvedValue(false);
 
     const wrapper = mount(TaskCard, {
@@ -112,9 +123,39 @@ describe("TaskCard", () => {
       },
     });
 
-    await wrapper.get('button[title="删除任务"]').trigger("click");
+    await wrapper.get('button[title="关闭任务"]').trigger("click");
 
-    expect(wrapper.emitted("delete")).toBeUndefined();
+    expect(wrapper.emitted("close")).toBeUndefined();
+  });
+
+  it("hides close and delete buttons for closed local tasks", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask({ status: "closed" }),
+      },
+    });
+
+    expect(wrapper.find('button[title="关闭任务"]').exists()).toBe(false);
+    expect(wrapper.find('button[title="删除任务"]').exists()).toBe(false);
+  });
+
+  it("hides close and delete buttons for non-local tasks", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask({
+          source: "yunxiao",
+          sourceMeta: {
+            source: "yunxiao",
+            url: "https://devops.aliyun.com/projex/project/space-1/task/102",
+            key: "YX-102",
+            issueType: "任务",
+          },
+        }),
+      },
+    });
+
+    expect(wrapper.find('button[title="关闭任务"]').exists()).toBe(false);
+    expect(wrapper.find('button[title="删除任务"]').exists()).toBe(false);
   });
 
   it("shows source button for yunxiao tasks when sourceMeta.url exists", () => {

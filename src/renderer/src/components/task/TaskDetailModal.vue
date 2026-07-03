@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { buildSourceDisplay } from "@renderer/utils/task";
 import { timeAgo } from "@renderer/utils/time";
 import type {
@@ -20,7 +21,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:open": [value: boolean];
   save: [{ taskId: string; updates: UpdateTaskInput }];
+  delete: [task: TaskItem];
 }>();
+
+const confirmDialog = useConfirmDialog();
 
 const statusItems: Array<{ label: string; value: TaskStatus }> = [
   { label: "打开", value: "open" },
@@ -125,6 +129,25 @@ function submit(): void {
       status: status.value,
     },
   });
+}
+
+async function handleDelete(): Promise<void> {
+  if (!props.task || !isLocalTask.value) {
+    return;
+  }
+
+  const confirmed = await confirmDialog({
+    title: "删除任务？",
+    description: `任务「${props.task.title}」将被永久删除，且不可恢复。`,
+    confirmLabel: "删除任务",
+    confirmColor: "error",
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
+  emit("delete", props.task);
 }
 
 watch(
@@ -244,8 +267,23 @@ watch(
       </template>
 
       <template v-else>
-        <UButton variant="ghost" color="neutral" @click="cancelEditing">取消</UButton>
-        <UButton color="primary" :disabled="!canSave" @click="submit">保存</UButton>
+        <div class="flex w-full items-center justify-between gap-3">
+          <UButton
+            v-if="isLocalTask"
+            variant="ghost"
+            color="error"
+            icon="i-lucide-trash-2"
+            data-test="delete-task-button"
+            @click="void handleDelete()"
+          >
+            删除任务
+          </UButton>
+
+          <div class="flex items-center gap-3">
+            <UButton variant="ghost" color="neutral" @click="cancelEditing">取消</UButton>
+            <UButton color="primary" :disabled="!canSave" @click="submit">保存</UButton>
+          </div>
+        </div>
       </template>
     </template>
   </UModal>

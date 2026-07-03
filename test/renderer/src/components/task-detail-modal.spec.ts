@@ -1,7 +1,13 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
 import type { TaskItem } from "@shared/types/task";
+
+const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
+
+vi.mock("@renderer/composables/useConfirmDialog", () => ({
+  useConfirmDialog: () => confirmDialogMock,
+}));
 
 const editorStub = {
   template:
@@ -40,13 +46,24 @@ function mountModal(task: TaskItem, props?: Record<string, unknown>): ReturnType
   });
 }
 
+async function enterEditMode(wrapper: ReturnType<typeof mount>): Promise<void> {
+  const editButton = wrapper.findAll("button").find((node) => node.text().includes("编辑"));
+  await editButton?.trigger("click");
+  await wrapper.vm.$nextTick();
+}
+
 describe("TaskDetailModal", () => {
+  beforeEach(() => {
+    confirmDialogMock.mockReset();
+  });
+
   it("opens local tasks in view mode by default", () => {
     const wrapper = mountModal(buildTask());
 
     expect(wrapper.text()).toContain("任务详情");
     expect(wrapper.text()).toContain("编辑");
     expect(wrapper.find("input").exists()).toBe(false);
+    expect(wrapper.find('[data-test="delete-task-button"]').exists()).toBe(false);
   });
 
   it("does not render edit button for external tasks", () => {
@@ -58,6 +75,46 @@ describe("TaskDetailModal", () => {
     );
 
     expect(wrapper.text()).not.toContain("编辑");
+    expect(wrapper.find('[data-test="delete-task-button"]').exists()).toBe(false);
+  });
+
+  it("shows delete button in edit mode for local tasks", async () => {
+    const wrapper = mountModal(buildTask());
+
+    await enterEditMode(wrapper);
+
+    const deleteButton = wrapper.find('[data-test="delete-task-button"]');
+    expect(deleteButton.exists()).toBe(true);
+    expect(deleteButton.text()).toContain("删除任务");
+  });
+
+  it("opens a confirm dialog before deleting and emits delete on confirm", async () => {
+    const task = buildTask();
+    confirmDialogMock.mockResolvedValue(true);
+
+    const wrapper = mountModal(task);
+    await enterEditMode(wrapper);
+
+    await wrapper.get('[data-test="delete-task-button"]').trigger("click");
+
+    expect(confirmDialogMock).toHaveBeenCalledWith({
+      title: "删除任务？",
+      description: "任务「修复登录失败」将被永久删除，且不可恢复。",
+      confirmLabel: "删除任务",
+      confirmColor: "error",
+    });
+    expect(wrapper.emitted("delete")).toEqual([[task]]);
+  });
+
+  it("does not emit delete when the confirm dialog is cancelled", async () => {
+    confirmDialogMock.mockResolvedValue(false);
+
+    const wrapper = mountModal(buildTask());
+    await enterEditMode(wrapper);
+
+    await wrapper.get('[data-test="delete-task-button"]').trigger("click");
+
+    expect(wrapper.emitted("delete")).toBeUndefined();
   });
 
   it("prefills fields when entering edit mode", async () => {

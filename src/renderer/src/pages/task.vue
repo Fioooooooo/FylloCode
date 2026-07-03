@@ -104,8 +104,19 @@ async function handleCreateTask(input: CreateLocalTaskInput): Promise<void> {
   await loadCurrentSource();
 }
 
+async function handleCloseTask(task: TaskItem): Promise<void> {
+  await taskStore.updateTask(task.id, { status: "closed" });
+}
+
 async function handleDeleteTask(task: TaskItem): Promise<void> {
-  await taskStore.deleteTask(task.id);
+  try {
+    await taskStore.deleteTask(task.id);
+    showDetailModal.value = false;
+    taskStore.resetDetailState();
+    activeDetailTask.value = null;
+  } catch {
+    // taskStore 已经持有错误状态，弹窗保持编辑态即可
+  }
 }
 
 async function handleViewDetail(task: TaskItem): Promise<void> {
@@ -356,7 +367,7 @@ watch(
             @view-detail="handleViewDetail"
             @start-discussion="startChatFromTask"
             @open-session="handleOpenSession"
-            @delete="handleDeleteTask"
+            @close="handleCloseTask"
           />
         </div>
       </div>
@@ -373,6 +384,7 @@ watch(
       taskStore.detailErrorTaskId === activeDetailTask?.id ? taskStore.detailErrorMessage : null
     "
     @save="handleSaveDetail"
+    @delete="handleDeleteTask"
     @update:open="handleDetailOpenChange"
   />
 </template>

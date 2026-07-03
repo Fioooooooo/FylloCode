@@ -129,9 +129,9 @@ vi.mock("@nuxt/ui/composables", async () => {
 
 const taskCardStub = {
   props: ["task", "linkedSessions"],
-  emits: ["start-discussion", "open-session"],
+  emits: ["start-discussion", "open-session", "view-detail", "close"],
   template:
-    '<div data-test="task-card">{{ task.title }}<button type="button" data-test="start-discussion" @click="$emit(\'start-discussion\', task)">讨论</button><button v-if="(linkedSessions ?? []).length > 0" type="button" data-test="linked-session-trigger" @click="$emit(\'open-session\', linkedSessions[0].sessionId)">{{ linkedSessions.length }} 个对话</button></div>',
+    '<div data-test="task-card">{{ task.title }}<button type="button" data-test="start-discussion" @click="$emit(\'start-discussion\', task)">讨论</button><button v-if="(linkedSessions ?? []).length > 0" type="button" data-test="linked-session-trigger" @click="$emit(\'open-session\', linkedSessions[0].sessionId)">{{ linkedSessions.length }} 个对话</button><button type="button" data-test="view-detail" @click="$emit(\'view-detail\', task)" /><button type="button" data-test="close-task" @click="$emit(\'close\', task)" /></div>',
 };
 
 const createTaskModalStub = {
@@ -142,9 +142,9 @@ const createTaskModalStub = {
 
 const taskDetailModalStub = {
   props: ["open", "task", "error", "detailLoading", "detailError"],
-  emits: ["update:open", "save"],
+  emits: ["update:open", "save", "delete"],
   template:
-    '<div data-test="detail-modal">{{ task?.title }}|{{ detailLoading ? "loading" : "idle" }}|{{ detailError || "" }}</div>',
+    '<div><div data-test="detail-modal">{{ task?.title }}|{{ detailLoading ? "loading" : "idle" }}|{{ detailError || "" }}</div><button type="button" data-test="delete-task" @click="$emit(\'delete\', task)" /></div>',
 };
 
 describe("task page", () => {
@@ -599,5 +599,105 @@ describe("task page", () => {
     await flushPromises();
 
     expect(openChatSessionMock).toHaveBeenCalledWith("session-target");
+  });
+
+  it("closes a local task when TaskCard emits close", async () => {
+    const task = {
+      id: "task-close",
+      projectId: "project-1",
+      title: "待关闭任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    updateTaskMock.mockResolvedValueOnce({ ...task, status: "closed" });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="close-task"]').trigger("click");
+    await flushPromises();
+
+    expect(updateTaskMock).toHaveBeenCalledWith("task-close", { status: "closed" });
+  });
+
+  it("deletes a local task when TaskDetailModal emits delete and clears detail state", async () => {
+    const task = {
+      id: "task-delete",
+      projectId: "project-1",
+      title: "待删除任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    deleteTaskMock.mockResolvedValueOnce(undefined);
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="view-detail"]').trigger("click");
+    await flushPromises();
+    expect((wrapper.vm as unknown as { showDetailModal: boolean }).showDetailModal).toBe(true);
+    expect(
+      (wrapper.vm as unknown as { activeDetailTask: TaskItem | null }).activeDetailTask?.id
+    ).toBe("task-delete");
+
+    const resetDetailCallsBefore = taskStore.resetDetailState.mock.calls.length;
+
+    await wrapper.get('[data-test="delete-task"]').trigger("click");
+    await flushPromises();
+
+    expect(deleteTaskMock).toHaveBeenCalledWith("task-delete");
+    expect((wrapper.vm as unknown as { showDetailModal: boolean }).showDetailModal).toBe(false);
+    expect(
+      (wrapper.vm as unknown as { activeDetailTask: TaskItem | null }).activeDetailTask
+    ).toBeNull();
+    expect(taskStore.resetDetailState.mock.calls.length).toBe(resetDetailCallsBefore + 1);
+  });
+
+  it("keeps the detail modal open when deleting a task fails", async () => {
+    const task = {
+      id: "task-delete-fail",
+      projectId: "project-1",
+      title: "删除失败任务",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      createdAt: new Date("2026-05-10T08:00:00.000Z"),
+      updatedAt: new Date("2026-05-10T08:00:00.000Z"),
+    } satisfies TaskItem;
+    taskStore.filteredTasks = [task];
+    deleteTaskMock.mockRejectedValueOnce(new Error("delete failed"));
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="view-detail"]').trigger("click");
+    await flushPromises();
+    expect((wrapper.vm as unknown as { showDetailModal: boolean }).showDetailModal).toBe(true);
+
+    const resetDetailCallsBefore = taskStore.resetDetailState.mock.calls.length;
+
+    await wrapper.get('[data-test="delete-task"]').trigger("click");
+    await flushPromises();
+
+    expect(deleteTaskMock).toHaveBeenCalledWith("task-delete-fail");
+    expect((wrapper.vm as unknown as { showDetailModal: boolean }).showDetailModal).toBe(true);
+    expect(
+      (wrapper.vm as unknown as { activeDetailTask: TaskItem | null }).activeDetailTask?.id
+    ).toBe("task-delete-fail");
+    expect(taskStore.resetDetailState.mock.calls.length).toBe(resetDetailCallsBefore);
   });
 });
