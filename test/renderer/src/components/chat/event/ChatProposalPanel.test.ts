@@ -77,6 +77,14 @@ function makeProposal(
   };
 }
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe("ChatProposalPanel", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -248,6 +256,29 @@ describe("ChatProposalPanel", () => {
     await wrapper.get('[data-test="view-detail-button"]').trigger("click");
 
     expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
+  });
+
+  it("syncs the session proposal from the current proposal store after detail closes", async () => {
+    const close = deferred();
+    const latestProposal = makeProposal("applying", { doneTasks: 2, totalTasks: 3 });
+    mocks.openProposalDetail.mockReturnValueOnce(close.promise);
+    proposalStoreProposalsValue = [latestProposal];
+
+    const wrapper = mount(ChatProposalPanel, {
+      props: { proposals: [makeProposal("draft", { doneTasks: 1, totalTasks: 3 })] },
+    });
+
+    await wrapper.get('[data-test="view-detail-button"]').trigger("click");
+
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
+    expect(mocks.upsertSessionProposal).not.toHaveBeenCalled();
+
+    close.resolve();
+    await flushPromises();
+
+    expect(mocks.loadProposals).not.toHaveBeenCalled();
+    expect(mocks.removeSessionProposal).not.toHaveBeenCalled();
+    expect(mocks.upsertSessionProposal).toHaveBeenCalledWith("session-1", latestProposal);
   });
 
   it("shows proposal summary, relative time, and task progress instead of change id", () => {

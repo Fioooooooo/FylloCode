@@ -40,7 +40,7 @@ function buildWorkflowMenuItems(proposal: ProposalMeta) {
   ];
 }
 
-function findArchivedProposal(previousChangeId: string): ProposalMeta | null {
+function findLatestProposal(previousChangeId: string): ProposalMeta | null {
   return (
     proposalStore.proposals.find((proposal) => proposal.id === previousChangeId) ??
     proposalStore.proposals.find(
@@ -79,7 +79,7 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
   await proposalStore.loadProposals();
 
   const sessionId = sessionStore.activeSession?.id;
-  const nextProposal = findArchivedProposal(previousChangeId);
+  const nextProposal = findLatestProposal(previousChangeId);
   if (!sessionId || !nextProposal) {
     return;
   }
@@ -90,8 +90,22 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
   sessionStore.upsertSessionProposal(sessionId, nextProposal);
 }
 
-function viewDetail(proposal: ProposalMeta): void {
-  void openProposalDetail(proposal.id);
+function syncSessionProposalFromStore(previousChangeId: string): void {
+  const sessionId = sessionStore.activeSession?.id;
+  const nextProposal = findLatestProposal(previousChangeId);
+  if (!sessionId || !nextProposal) {
+    return;
+  }
+
+  if (nextProposal.id !== previousChangeId) {
+    sessionStore.removeSessionProposal(sessionId, previousChangeId);
+  }
+  sessionStore.upsertSessionProposal(sessionId, nextProposal);
+}
+
+async function viewDetail(proposal: ProposalMeta): Promise<void> {
+  await openProposalDetail(proposal.id);
+  syncSessionProposalFromStore(proposal.id);
 }
 
 function proposalSummary(proposal: ProposalMeta): string {
@@ -116,8 +130,7 @@ function hasTaskProgress(proposal: ProposalMeta): boolean {
 }
 
 function taskProgressLabel(proposal: ProposalMeta): string {
-  // return `${proposal.doneTasks}/${proposal.totalTasks} tasks`;
-  return `${proposal.totalTasks} tasks`;
+  return `${proposal.doneTasks}/${proposal.totalTasks} tasks`;
 }
 </script>
 
