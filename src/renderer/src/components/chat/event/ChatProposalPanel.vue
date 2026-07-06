@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
+import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
+import { timeAgo } from "@renderer/utils/time";
 import {
   useProjectStore,
   useProposalStore,
@@ -91,6 +93,32 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
 function viewDetail(proposal: ProposalMeta): void {
   void openProposalDetail(proposal.id);
 }
+
+function proposalSummary(proposal: ProposalMeta): string {
+  return proposal.why.trim();
+}
+
+function createdDateLabel(proposal: ProposalMeta): string {
+  if (!proposal.date) {
+    return "未知时间";
+  }
+
+  const date = new Date(proposal.date);
+  if (Number.isNaN(date.getTime())) {
+    return proposal.date;
+  }
+
+  return timeAgo(date);
+}
+
+function hasTaskProgress(proposal: ProposalMeta): boolean {
+  return proposal.totalTasks > 0;
+}
+
+function taskProgressLabel(proposal: ProposalMeta): string {
+  // return `${proposal.doneTasks}/${proposal.totalTasks} tasks`;
+  return `${proposal.totalTasks} tasks`;
+}
 </script>
 
 <template>
@@ -125,40 +153,63 @@ function viewDetail(proposal: ProposalMeta): void {
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium text-highlighted truncate">{{ proposal.title }}</p>
-            <p class="text-xs text-muted truncate">{{ proposal.id }}</p>
           </div>
-          <UBadge
-            :color="
-              proposalDisplayStatusConfig[
-                getProposalDisplayStatus(
-                  proposal,
-                  proposalRunStore.runMeta,
-                  proposalRunStore.isArchiving
-                )
-              ].color
-            "
-            :variant="
-              proposalDisplayStatusConfig[
-                getProposalDisplayStatus(
-                  proposal,
-                  proposalRunStore.runMeta,
-                  proposalRunStore.isArchiving
-                )
-              ].variant
-            "
-            size="sm"
-            class="shrink-0"
-          >
-            {{
-              proposalDisplayStatusConfig[
-                getProposalDisplayStatus(
-                  proposal,
-                  proposalRunStore.runMeta,
-                  proposalRunStore.isArchiving
-                )
-              ].label
-            }}
-          </UBadge>
+          <div class="flex shrink-0 items-center gap-2">
+            <UBadge
+              :color="
+                proposalDisplayStatusConfig[
+                  getProposalDisplayStatus(
+                    proposal,
+                    proposalRunStore.runMeta,
+                    proposalRunStore.isArchiving
+                  )
+                ].color
+              "
+              :variant="
+                proposalDisplayStatusConfig[
+                  getProposalDisplayStatus(
+                    proposal,
+                    proposalRunStore.runMeta,
+                    proposalRunStore.isArchiving
+                  )
+                ].variant
+              "
+              size="sm"
+            >
+              {{
+                proposalDisplayStatusConfig[
+                  getProposalDisplayStatus(
+                    proposal,
+                    proposalRunStore.runMeta,
+                    proposalRunStore.isArchiving
+                  )
+                ].label
+              }}
+            </UBadge>
+            <ProposalWorktreeBadge :worktree-path="proposal.worktreePath" />
+          </div>
+        </div>
+
+        <p
+          v-if="proposalSummary(proposal)"
+          class="line-clamp-2 text-xs leading-relaxed text-muted"
+          data-test="chat-proposal-summary"
+        >
+          {{ proposalSummary(proposal) }}
+        </p>
+
+        <div
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted"
+          data-test="chat-proposal-meta"
+        >
+          <span class="inline-flex min-w-0 items-center gap-1">
+            <UIcon name="i-lucide-calendar" class="size-3 shrink-0" />
+            <span class="truncate">{{ createdDateLabel(proposal) }}</span>
+          </span>
+          <span v-if="hasTaskProgress(proposal)" class="inline-flex items-center gap-1">
+            <UIcon name="i-lucide-check-square" class="size-3 shrink-0" />
+            <span>{{ taskProgressLabel(proposal) }}</span>
+          </span>
         </div>
 
         <div class="flex items-center justify-end gap-2">

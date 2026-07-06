@@ -61,6 +61,7 @@ function overview(): ProjectOverview {
         taskTitle: "项目概览页真实数据",
         taskRef: "local:task-1",
         status: "applying",
+        worktreePath: "/tmp/project-1/.worktrees/add-project-overview-page",
       },
     ],
     recentLineages: [
@@ -203,6 +204,12 @@ describe("overview page", () => {
     expect(activeChanges.text()).toContain("项目概览页真实数据");
     expect(activeChanges.text()).not.toContain("add-project-overview-page");
     expect(activeChanges.text()).not.toContain("local:task-1");
+    expect(activeChanges.find('[data-test="proposal-worktree-badge"]').exists()).toBe(true);
+    expect(
+      activeChanges
+        .find('[aria-label="Linked worktree: /tmp/project-1/.worktrees/add-project-overview-page"]')
+        .exists()
+    ).toBe(true);
     expect(wrapper.get('[data-test="overview-active-change-meta"]').classes()).toContain(
       "items-end"
     );

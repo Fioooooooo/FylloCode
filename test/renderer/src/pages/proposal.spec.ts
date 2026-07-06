@@ -68,34 +68,54 @@ describe("proposal list page", () => {
     ];
   });
 
-  it("loads proposals on mount and keeps summary metadata visible", () => {
+  it("loads proposals on mount and renders the full list", () => {
     const wrapper = mount(ProposalPage);
 
     expect(mocks.loadProposals).toHaveBeenCalledOnce();
     expect(wrapper.text()).toContain("变更提案");
     expect(wrapper.text()).toContain("Change 1");
-    expect(wrapper.text()).toContain("3");
-    expect(wrapper.text()).toContain("worktree");
+    expect(wrapper.text()).toContain("Change 2");
+    expect(wrapper.text()).toContain("Change 3");
+  });
+
+  it("aligns the page header with the proposal list width", () => {
+    const wrapper = mount(ProposalPage);
+
+    expect(wrapper.get('[data-test="proposal-page-header"]').classes()).toEqual(
+      expect.arrayContaining(["mx-auto", "max-w-3xl"])
+    );
+    expect(wrapper.get('[data-test="proposal-page-content"]').classes()).toEqual(
+      expect.arrayContaining(["mx-auto", "max-w-3xl"])
+    );
+  });
+
+  it("does not render stats cards or status tabs", () => {
+    const wrapper = mount(ProposalPage);
+
+    expect(wrapper.find('[data-test="proposal-stats-cards"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="tab-all"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="tab-applying"]').exists()).toBe(false);
   });
 
   it("opens proposal detail slideover when a card is clicked", async () => {
     const wrapper = mount(ProposalPage);
 
     await wrapper
-      .findAll("button")
+      .findAll('[data-test="proposal-list-item"]')
       .find((button) => button.text().includes("Change 1"))
       ?.trigger("click");
 
     expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
   });
 
-  it("filters proposals by status without changing card metadata", async () => {
+  it("shows linked worktree indicator for proposals with a worktree path", () => {
     const wrapper = mount(ProposalPage);
 
-    await wrapper.get('[data-test="tab-applying"]').trigger("click");
+    const items = wrapper.findAll('[data-test="proposal-list-item"]');
+    const applyingItem = items.find((item) => item.text().includes("Change 2"));
+    const draftItem = items.find((item) => item.text().includes("Change 1"));
 
-    expect(wrapper.text()).toContain("Change 2");
-    expect(wrapper.text()).not.toContain("Change 1");
-    expect(wrapper.text()).toContain("worktree");
+    expect(applyingItem!.find('[data-test="proposal-worktree-badge"]').exists()).toBe(true);
+    expect(draftItem!.find('[data-test="proposal-worktree-badge"]').exists()).toBe(false);
   });
 });

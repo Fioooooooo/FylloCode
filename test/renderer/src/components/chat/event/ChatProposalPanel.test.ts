@@ -250,6 +250,83 @@ describe("ChatProposalPanel", () => {
     expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
   });
 
+  it("shows proposal summary, relative time, and task progress instead of change id", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T12:00:00.000Z"));
+    try {
+      const wrapper = mount(ChatProposalPanel, {
+        props: {
+          proposals: [
+            makeProposal("draft", {
+              id: "internal-change-id",
+              why: "Make proposal cards easier to scan.",
+              doneTasks: 2,
+              totalTasks: 5,
+              date: "2026-07-06T10:00:00.000Z",
+            }),
+          ],
+        },
+      });
+
+      expect(wrapper.get('[data-test="chat-proposal-summary"]').text()).toContain(
+        "Make proposal cards easier to scan."
+      );
+      expect(wrapper.get('[data-test="chat-proposal-meta"]').text()).toContain("2 小时前");
+      expect(wrapper.get('[data-test="chat-proposal-meta"]').text()).toContain("2/5 tasks");
+      expect(wrapper.text()).not.toContain("创建于");
+      expect(wrapper.text()).not.toContain("internal-change-id");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps relative time visible and omits empty summary and zero task progress", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T12:00:00.000Z"));
+    try {
+      const wrapper = mount(ChatProposalPanel, {
+        props: {
+          proposals: [
+            makeProposal("draft", {
+              why: "",
+              totalTasks: 0,
+              doneTasks: 0,
+              date: "2026-07-06T11:00:00.000Z",
+            }),
+          ],
+        },
+      });
+
+      expect(wrapper.find('[data-test="chat-proposal-summary"]').exists()).toBe(false);
+      expect(wrapper.get('[data-test="chat-proposal-meta"]').text()).toContain("1 小时前");
+      expect(wrapper.get('[data-test="chat-proposal-meta"]').text()).not.toContain("创建于");
+      expect(wrapper.get('[data-test="chat-proposal-meta"]').text()).not.toContain("0/0 tasks");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows linked worktree indicator and path when proposal has worktreePath", () => {
+    const wrapper = mount(ChatProposalPanel, {
+      props: {
+        proposals: [makeProposal("draft", { worktreePath: "/tmp/project/.worktrees/change-1" })],
+      },
+    });
+
+    expect(wrapper.find('[data-test="proposal-worktree-badge"]').exists()).toBe(true);
+    expect(
+      wrapper.find('[aria-label="Linked worktree: /tmp/project/.worktrees/change-1"]').exists()
+    ).toBe(true);
+  });
+
+  it("does not show linked worktree indicator when proposal has no worktreePath", () => {
+    const wrapper = mount(ChatProposalPanel, {
+      props: { proposals: [makeProposal("draft")] },
+    });
+
+    expect(wrapper.find('[data-test="proposal-worktree-badge"]').exists()).toBe(false);
+  });
+
   it("refreshes proposals and replaces the old applying item after archive succeeds", async () => {
     const archivedProposal = makeProposal("archived", { id: "2026-06-22-change-1" });
     proposalStoreProposalsValue = [archivedProposal];

@@ -49,6 +49,7 @@ async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]
         taskTitle: projection?.task?.snapshot.title ?? null,
         taskRef: projection?.task?.ref ?? null,
         status: proposal.status,
+        worktreePath: proposal.worktreePath,
       };
     })
   );

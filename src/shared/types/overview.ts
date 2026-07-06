@@ -20,6 +20,7 @@ export type ActiveChange = {
   taskTitle: string | null;
   taskRef: string | null;
   status: ActiveChangeStatus;
+  worktreePath?: string;
 };
 
 export type RecentLineage = {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { timeAgo } from "@renderer/utils/time";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
@@ -69,14 +70,17 @@ function openChange(changeId: string): void {
             class="flex shrink-0 flex-col items-end gap-2 text-right"
             data-test="overview-active-change-meta"
           >
-            <UBadge
-              :color="proposalDisplayStatusConfig[change.status].color"
-              :variant="proposalDisplayStatusConfig[change.status].variant"
-              size="sm"
-              class="font-normal"
-            >
-              {{ proposalDisplayStatusConfig[change.status].label }}
-            </UBadge>
+            <div class="flex items-center gap-2">
+              <UBadge
+                :color="proposalDisplayStatusConfig[change.status].color"
+                :variant="proposalDisplayStatusConfig[change.status].variant"
+                size="sm"
+                class="font-normal"
+              >
+                {{ proposalDisplayStatusConfig[change.status].label }}
+              </UBadge>
+              <ProposalWorktreeBadge :worktree-path="change.worktreePath" />
+            </div>
             <span class="text-xs text-muted">{{ createdLabel(change) }}</span>
           </div>
         </div>

@@ -114,6 +114,7 @@ describe("overview-service", () => {
         title: "Applying Change",
         status: "applying",
         date: "2026-06-03T00:00:00.000Z",
+        worktreePath: "/tmp/project/.worktrees/applying-change",
       },
       {
         id: "archived-change",
@@ -263,6 +264,7 @@ describe("overview-service", () => {
         id: "applying-change",
         title: "Applying Change",
         status: "applying",
+        worktreePath: "/tmp/project/.worktrees/applying-change",
       }),
       expect.objectContaining({
         id: "no-commit",
