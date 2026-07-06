@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -12,6 +12,7 @@ import {
 } from "../../../src/mcp-servers/fyllo-specs/src/runtime-openspec";
 import { GUIDELINES_TASKS_RULE_EN } from "../../../src/mcp-servers/fyllo-specs/src/runtime-openspec/create-change";
 import { buildSpawnArgs } from "../../../src/mcp-servers/fyllo-specs/src/runtime-openspec/spawner";
+import * as spawner from "../../../src/mcp-servers/fyllo-specs/src/runtime-openspec/spawner";
 import {
   loadApplyState,
   parseTaskCheckboxes,
@@ -214,5 +215,92 @@ describe("openspec-runtime", () => {
     expect(existsSync(join(fixtureRoot, "openspec", "changes", "sample-change")) || true).toBe(
       true
     );
+  });
+
+  it("overwrites created and sets status to creating when generated yaml already has created", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T07:05:27.509Z"));
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-created-overwrite-"));
+    const changeDir = join(root, "openspec", "changes", "overwrite-change");
+    const yamlFile = join(changeDir, ".openspec.yaml");
+
+    const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
+      mkdirSync(changeDir, { recursive: true });
+      writeFileSync(
+        yamlFile,
+        "schema: spec-driven\ncreated: 2020-01-01T00:00:00.000Z\nstatus: proposed\ncontext: test\n",
+        "utf8"
+      );
+      return "";
+    });
+
+    try {
+      await createChange(root, "overwrite-change");
+
+      const written = readFileSync(yamlFile, "utf8");
+      expect(written).toContain("created: 2026-07-06T07:05:27.509Z\n");
+      expect(written).not.toContain("created: '2026-07-06T07:05:27.509Z'");
+      expect(written).toContain("status: creating");
+      expect(written.indexOf("created:")).toBeLessThan(written.indexOf("status:"));
+      expect(written).toContain("context: test");
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("adds created and sets status to creating when generated yaml lacks created", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T07:05:27.509Z"));
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-created-add-"));
+    const changeDir = join(root, "openspec", "changes", "add-change");
+    const yamlFile = join(changeDir, ".openspec.yaml");
+
+    const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
+      mkdirSync(changeDir, { recursive: true });
+      writeFileSync(yamlFile, "schema: spec-driven\nstatus: proposed\ncontext: test\n", "utf8");
+      return "";
+    });
+
+    try {
+      await createChange(root, "add-change");
+
+      const written = readFileSync(yamlFile, "utf8");
+      expect(written).toContain("created: 2026-07-06T07:05:27.509Z\n");
+      expect(written).not.toContain("created: '2026-07-06T07:05:27.509Z'");
+      expect(written).toContain("status: creating");
+      expect(written.indexOf("created:")).toBeLessThan(written.indexOf("status:"));
+      expect(written).toContain("context: test");
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves existing change untouched and skips CLI spawn", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-existing-"));
+    const changeDir = join(root, "openspec", "changes", "existing-change");
+    const yamlFile = join(changeDir, ".openspec.yaml");
+    const originalYaml =
+      "schema: spec-driven\ncreated: 2020-01-01T00:00:00.000Z\nstatus: proposed\n";
+
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(yamlFile, originalYaml, "utf8");
+
+    const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
+      throw new Error("should not be called");
+    });
+
+    try {
+      await createChange(root, "existing-change");
+
+      expect(readFileSync(yamlFile, "utf8")).toBe(originalYaml);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
