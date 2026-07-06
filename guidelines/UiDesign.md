@@ -58,7 +58,8 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 
 ### 页面模式
 
-- MUST 让列表、看板、设置类页面使用统一 page header：eyebrow 使用 `text-[11px] font-medium uppercase tracking-wider text-muted`，h1 使用 `text-xl font-semibold tracking-tight text-highlighted`，description 使用 `text-sm text-muted`，头部和内容保持 `gap-6` 或 `space-y-6`。证据：`src/renderer/src/pages/overview.vue`、`src/renderer/src/pages/integration.vue`。
+- MUST 让列表、看板、概览和侧栏导览类页面说明区优先使用 `src/renderer/src/components/shared/PageHeader.vue`。`PageHeader` 只接受 `eyebrow`、`title`、`description` 文案 props，不提供 slot 或局部 class、style、layout props；右侧状态或操作由页面级 header 布局组合。其视觉基准为 eyebrow `text-[11px] font-medium uppercase tracking-wider text-primary-600 dark:text-primary-400`、h1 `text-xl font-semibold tracking-tight text-highlighted`、description `text-sm text-muted`，头部和内容保持 `gap-6` 或 `space-y-6`。证据：`src/renderer/src/components/shared/PageHeader.vue`、`src/renderer/src/pages/overview.vue`、`src/renderer/src/pages/task.vue`、`src/renderer/src/pages/specs.vue`、`src/renderer/src/pages/guidelines.vue`。
+- SHOULD 不给沉浸式工作区、reader/detail 主内容面板或纯空状态页面硬补 `PageHeader`；这类页面可保留属于当前 pane 的局部 header 或直接使用 `AppEmptyState.vue`。证据：`src/renderer/src/pages/chat.vue`、`src/renderer/src/pages/workflow.vue`、`src/renderer/src/pages/specs.vue`、`src/renderer/src/pages/cron.vue`。
 - MUST 让设置类左侧垂直导航使用 `w-65 bg-default rounded-lg`；未选中项使用 `hover:bg-elevated`，当前项使用左侧 3px teal indicator 加 `bg-primary/15 text-primary`。证据：`src/renderer/src/pages/settings.vue`。
 - MUST 保持 ActivityBar 只显示图标和 tooltip。按钮容器使用 `size-10 rounded-lg`，图标使用 `size-5`，激活态使用左侧 3px teal indicator 加 `bg-primary/15 text-primary`。证据：`src/renderer/src/components/layout/ActivityBar.vue`。
 - MUST 保持 AppHeader 的 35px 高度和三栏布局。项目切换器使用 pill 形态和 `bg-elevated hover:bg-accented transition-colors`，右侧 icon button 使用 `size-6` 容器和 `size-4` 图标，并保留 `-webkit-app-region: drag` / `no-drag` 分区。证据：`src/renderer/src/components/layout/AppHeader.vue`。
@@ -74,6 +75,7 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 
 ## 示例
 
+- ✅ `src/renderer/src/components/shared/PageHeader.vue`：共享页面说明区的 eyebrow、标题和描述文案结构。
 - ✅ `src/renderer/src/components/shared/UiSurface.vue`：共享卡片 surface 的默认视觉和 interactive 状态。
 - ✅ `src/renderer/src/components/shared/AppEmptyState.vue`：共享空状态结构、图标层级和可选主操作。
 - ✅ `src/renderer/src/components/layout/ActivityBar.vue`：全局导航的图标、tooltip、active indicator 和状态颜色。

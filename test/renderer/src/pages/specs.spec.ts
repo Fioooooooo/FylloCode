@@ -131,6 +131,8 @@ describe("specs page", () => {
     await wrapper.vm.$nextTick();
 
     expect(specsApi.getSpecsBrowser).toHaveBeenCalledWith("project-1");
+    expect(wrapper.text()).toContain("Specs");
+    expect(wrapper.text()).toContain("浏览当前项目的 OpenSpec 能力规约。");
     expect(wrapper.find('[data-test="specs-loading-skeleton"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="specs-detail-loading"]').exists()).toBe(true);
   });

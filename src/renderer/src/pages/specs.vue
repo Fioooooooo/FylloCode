@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useDark } from "@vueuse/core";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProjectStore } from "@renderer/stores/project";
 import { useSpecsStore } from "@renderer/stores/specs";
@@ -90,38 +91,48 @@ function scrollToRequirement(index: number): void {
 <template>
   <div class="flex flex-1 overflow-hidden bg-elevated space-x-2" data-test="specs-page">
     <aside class="h-full w-65 shrink-0 overflow-hidden rounded-lg bg-default">
-      <div class="h-full overflow-y-auto p-2">
-        <div v-if="specsStore.loading" class="space-y-2" data-test="specs-loading-skeleton">
-          <div v-for="item in 8" :key="item" class="rounded-lg bg-elevated/70 px-2.5 py-2">
-            <USkeleton class="h-4 w-36 rounded" />
-            <USkeleton class="mt-2 h-3 w-full rounded" />
-          </div>
+      <div class="flex h-full flex-col">
+        <div class="border-b border-default/50 px-4 py-3">
+          <PageHeader
+            eyebrow="Specs"
+            title="能力规约"
+            description="当前项目的 OpenSpec 能力规约。"
+          />
         </div>
 
-        <div v-else-if="specs.length > 0" class="space-y-1" data-test="specs-list">
-          <UiSurface
-            v-for="spec in specs"
-            :key="spec.id"
-            as="button"
-            variant="flat"
-            interactive
-            padding="none"
-            class="w-full px-2.5 py-2 text-left"
-            :class="
-              selectedSpec?.id === spec.id
-                ? '!bg-primary/15 text-primary ring-1 ring-primary/15'
-                : 'text-default hover:bg-elevated'
-            "
-            data-test="specs-list-item"
-            @click="selectSpec(spec.id)"
-          >
-            <div class="min-w-0 space-y-0.5">
-              <p class="truncate text-sm font-medium text-highlighted">{{ spec.id }}</p>
-              <p class="truncate text-xs leading-relaxed text-muted">
-                {{ spec.purpose || "未声明 Purpose" }}
-              </p>
+        <div class="min-h-0 flex-1 overflow-y-auto p-2">
+          <div v-if="specsStore.loading" class="space-y-2" data-test="specs-loading-skeleton">
+            <div v-for="item in 8" :key="item" class="rounded-lg bg-elevated/70 px-2.5 py-2">
+              <USkeleton class="h-4 w-36 rounded" />
+              <USkeleton class="mt-2 h-3 w-full rounded" />
             </div>
-          </UiSurface>
+          </div>
+
+          <div v-else-if="specs.length > 0" class="space-y-1" data-test="specs-list">
+            <UiSurface
+              v-for="spec in specs"
+              :key="spec.id"
+              as="button"
+              variant="flat"
+              interactive
+              padding="none"
+              class="w-full px-2.5 py-2 text-left"
+              :class="
+                selectedSpec?.id === spec.id
+                  ? '!bg-primary/15 text-primary ring-1 ring-primary/15'
+                  : 'text-default hover:bg-elevated'
+              "
+              data-test="specs-list-item"
+              @click="selectSpec(spec.id)"
+            >
+              <div class="min-w-0 space-y-0.5">
+                <p class="truncate text-sm font-medium text-highlighted">{{ spec.id }}</p>
+                <p class="truncate text-xs leading-relaxed text-muted">
+                  {{ spec.purpose || "未声明 Purpose" }}
+                </p>
+              </div>
+            </UiSurface>
+          </div>
         </div>
       </div>
     </aside>

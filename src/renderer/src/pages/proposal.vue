@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { useProposalStore } from "@renderer/stores/proposal";
@@ -68,11 +69,11 @@ onMounted(() => {
 <template>
   <div class="flex-1 overflow-y-auto bg-default">
     <div class="max-w-3xl mx-auto px-6 py-8 space-y-6">
-      <div class="space-y-1">
-        <span class="text-[11px] font-medium uppercase tracking-wider text-muted">Proposals</span>
-        <h1 class="text-xl font-semibold tracking-tight text-highlighted">变更提案</h1>
-        <p class="text-sm text-muted">管理 OpenSpec 变更提案，追踪实现进度。</p>
-      </div>
+      <PageHeader
+        eyebrow="Proposals"
+        title="变更提案"
+        description="管理 OpenSpec 变更提案，追踪实现进度。"
+      />
 
       <div class="grid grid-cols-3 gap-4">
         <UiSurface v-for="stat in stats" :key="stat.key" padding="sm">

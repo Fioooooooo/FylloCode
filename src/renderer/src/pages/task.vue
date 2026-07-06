@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
@@ -293,12 +294,13 @@ watch(
   <div class="flex flex-1 overflow-hidden bg-default">
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-5xl mx-auto px-6 py-8 space-y-6">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div class="space-y-1">
-            <span class="text-[11px] font-medium uppercase tracking-wider text-muted">Tasks</span>
-            <h1 class="text-xl font-semibold tracking-tight text-highlighted">任务看板</h1>
-            <p class="text-sm text-muted">集中查看任务，并快速发起 AI 讨论。</p>
-          </div>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <PageHeader
+            eyebrow="Tasks"
+            title="任务看板"
+            description="集中查看任务，并快速发起 AI 讨论。"
+          />
+
           <UButton
             v-if="isLocalSource"
             color="primary"

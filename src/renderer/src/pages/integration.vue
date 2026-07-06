@@ -3,6 +3,7 @@ import { computed, onMounted, watch } from "vue";
 import { useProjectStore } from "@renderer/stores/project";
 import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
 import ProviderStageSection from "@renderer/components/integration/ProviderStageSection.vue";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 
 const projectStore = useProjectStore();
 const integrationProvidersStore = useIntegrationProvidersStore();
@@ -30,15 +31,11 @@ watch(
 <template>
   <div class="flex-1 overflow-y-auto bg-default">
     <div class="max-w-6xl mx-auto px-6 py-8 space-y-8">
-      <div class="space-y-1">
-        <span class="text-[11px] font-medium uppercase tracking-wider text-muted"
-          >Integrations</span
-        >
-        <h1 class="text-xl font-semibold tracking-tight text-highlighted">集成</h1>
-        <p class="text-sm text-muted">
-          为当前项目挂载各阶段需要的 provider 资源。连接与凭证管理统一在设置页处理。
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Integrations"
+        title="集成"
+        description="为当前项目挂载各阶段需要的 provider 资源。连接与凭证管理统一在设置页处理。"
+      />
 
       <UInput v-model="searchQuery" placeholder="搜索 provider…" size="sm" class="w-full sm:w-96">
         <template #leading>

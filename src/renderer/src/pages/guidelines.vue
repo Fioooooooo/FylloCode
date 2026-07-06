@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useDark } from "@vueuse/core";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useGuidelinesStore } from "@renderer/stores/guidelines";
 import { useProjectStore } from "@renderer/stores/project";
@@ -85,9 +86,7 @@ function guidelineFileName(path: string): string {
     <div class="h-full w-72 shrink-0 overflow-hidden rounded-lg bg-default">
       <div class="flex h-full flex-col">
         <div class="border-b border-default/50 px-4 py-3">
-          <p class="text-[11px] font-medium uppercase tracking-wider text-muted">Guidelines</p>
-          <h1 class="mt-1 text-xl font-semibold tracking-tight text-highlighted">项目准则</h1>
-          <p class="mt-1 text-sm text-muted">浏览当前项目的工程准则。</p>
+          <PageHeader eyebrow="Guidelines" title="项目准则" description="当前项目的工程准则。" />
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto p-2">

@@ -4,6 +4,7 @@ import OverviewActiveChanges from "@renderer/components/overview/OverviewActiveC
 import OverviewGovernance from "@renderer/components/overview/OverviewGovernance.vue";
 import OverviewRecentLineages from "@renderer/components/overview/OverviewRecentLineages.vue";
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
+import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import { useOverviewStore } from "@renderer/stores/overview";
 import { useProjectStore } from "@renderer/stores/project";
 
@@ -26,21 +27,16 @@ watch(
 <template>
   <div class="flex-1 overflow-y-auto bg-default">
     <div class="mx-auto max-w-6xl space-y-6 px-6 py-8">
-      <div class="flex flex-col gap-6">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div class="space-y-1">
-            <span
-              class="text-[11px] font-medium uppercase tracking-wider text-primary-600 dark:text-primary-400"
-            >
-              Overview
-            </span>
-            <h1 class="text-xl font-semibold tracking-tight text-highlighted">项目概览</h1>
-            <p class="text-sm text-muted">治理状态、活跃工作和最近脉络。</p>
-          </div>
-          <div class="inline-flex items-center gap-2 text-xs text-muted">
-            <span class="inline-flex size-2 rounded-full bg-success" />
-            实时项目数据
-          </div>
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <PageHeader
+          eyebrow="Overview"
+          title="项目概览"
+          description="治理状态、活跃工作和最近脉络。"
+        />
+
+        <div class="inline-flex items-center gap-2 text-xs text-muted">
+          <span class="inline-flex size-2 rounded-full bg-success" />
+          实时项目数据
         </div>
       </div>
 
