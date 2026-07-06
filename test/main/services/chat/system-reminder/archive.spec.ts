@@ -109,6 +109,20 @@ describe("archive system-reminder template", () => {
     expect(reminder).not.toContain("branch -d proposal/foo_bar");
   });
 
+  it("directs the commit subject to describe the proposal delivery, not archive actions", () => {
+    const reminder = renderSystemReminderTemplate(archiveTemplate, createContext());
+
+    expect(reminder).toContain(
+      "The commit subject (first line) MUST follow `type(scope): summary` and MUST describe the proposal's delivered change"
+    );
+    expect(reminder).toContain("Archive/sync details");
+    expect(reminder).toContain("must not dominate the subject");
+    expect(reminder).toContain(
+      "MUST use `type(scope): summary` for the commit subject** and accurately describe the proposal's delivered change"
+    );
+    expect(reminder).toContain("Archive/sync actions may appear as optional body bullets");
+  });
+
   it("returns null and warns when any field contains angle brackets", () => {
     const reminder = renderSystemReminderTemplate(
       archiveTemplate,

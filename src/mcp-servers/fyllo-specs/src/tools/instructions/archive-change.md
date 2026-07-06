@@ -91,8 +91,10 @@ All artifacts complete. All tasks complete.
   `state.workspace.recovery.required === "agent"`, continue only from the returned recovery state.
 - If `state.archive.ok === false`, do not run git finalization commands and do not move archive files
   manually.
-- Commit messages must describe the real archive/sync change based on changed files, synced specs,
-  archived artifacts, or `archiveRawOutput`; vague `archive <changeName>` summaries are not allowed.
+- The commit subject must describe the proposal's delivered change (for example, `feat(scope): summary`).
+  Archive/sync facts (synced specs, archived artifacts, etc.) may appear as optional body bullets or in
+  the final archive summary, but they must not dominate the subject. Vague `archive <changeName>`
+  subjects are not allowed.
 - Don't block archive on warnings — just inform and confirm
 - If `state.archive.conflicts` is non-empty, do NOT proceed with `confirm: true` — report the conflict instead
 - If `state.archive.archiveRawOutput` is available, prefer it over inference when describing the actual archive result

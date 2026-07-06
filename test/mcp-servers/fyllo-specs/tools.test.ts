@@ -1005,7 +1005,7 @@ describe("tools", () => {
         changeName: "test-archive",
         targetPath: root,
         confirm: true,
-        commitMessage: "chore(specs): archive test archive",
+        commitMessage: "chore(specs): add test-archive design and tasks",
       });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();
@@ -1077,7 +1077,7 @@ describe("tools", () => {
         changeName: "test-sync-spec",
         targetPath: root,
         confirm: true,
-        commitMessage: "chore(specs): archive synced spec",
+        commitMessage: "chore(specs): update test-cap specification",
       });
       const state = parseState(text);
       expect(state.errors).toBeUndefined();

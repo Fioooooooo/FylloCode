@@ -40,7 +40,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath: root,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.mode).toBe("main");
@@ -58,7 +58,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath: root,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.mode).toBe("main");
@@ -81,7 +81,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.mode).toBe("linked");
@@ -112,7 +112,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.ok).toBe(true);
@@ -149,7 +149,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.ok).toBe(false);
@@ -184,7 +184,7 @@ describe("fyllo-specs runtime", () => {
       mainProjectPath: root,
       workspacePath,
       changeName: "sample-change",
-      commitMessage: "chore(specs): archive sample change",
+      commitMessage: "chore(specs): add sample change content",
     });
 
     expect(result.ok).toBe(false);

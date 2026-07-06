@@ -31,10 +31,10 @@ Your job is to keep the archive result, the spec state, and the commit history m
 
 ## Commit Rules
 
-- The commit subject (first line) MUST follow `type(scope): summary`.
-- Below the subject you may add a short bullet list summarizing the key actions of this archive / sync, e.g. `- synced specs`, `- archived change`.
-- `type`, `scope`, `summary`, and any optional bullets must accurately reflect what was archived and synced. No vague phrasing — the format and semantics must be precise and reviewable.
-- The archive tool commits the workspace finalization. The commit message you pass must accurately describe this change.
+- The commit subject (first line) MUST follow `type(scope): summary` and MUST describe the proposal's delivered change.
+- Archive/sync details (for example, `- synced specs`, `- archived change`) may appear as optional body bullets below the subject, or in the final archive summary, but must not dominate the subject.
+- `type`, `scope`, and `summary` must be precise and reviewable. No vague phrasing.
+- The archive tool commits the workspace finalization. The commit message you pass must accurately describe the delivered change.
 
 ## Behavioral Constraints
 
@@ -70,7 +70,7 @@ The following constraints MUST NOT be violated in the Archive stage. If bypassin
 - **MUST use `mcp__fyllo_specs__archive-change` as the primary stage tool** for the archive action.
 - **MUST default to `Sync now` for delta specs.** Skip sync only with explicit user acceptance of the risk.
 - **MUST stop on archive path conflicts.** Never force through.
-- **MUST use `type(scope): summary` for the commit subject** and accurately describe the archive/sync actions.
+- **MUST use `type(scope): summary` for the commit subject** and accurately describe the proposal's delivered change. Archive/sync actions may appear as optional body bullets.
 - **MUST inspect `state.archive` and `state.workspace` separately** and report which part failed.
 - **MUST NOT manually run git commit / merge / worktree cleanup commands before `archive-change`.** After `state.archive.ok === true`, `state.workspace.ok === false`, and `state.workspace.recovery.required === "agent"`, bounded git recovery from `state.workspace.recovery` is allowed.
 - **MUST NOT run git finalization commands when `state.archive.ok === false`.** Report the archive error or conflict instead.
