@@ -4,6 +4,8 @@ export type {
   ArchiveWorkspaceRecovery,
   FinalizeArchiveWorkspaceResult,
   PrepareProposalWorkspaceResult,
+  ReadableWorkspaceInfo,
+  ReadableWorkspacesResult,
   WorkspaceInfo,
   WorkspaceMode,
   WorkspaceRuntimeError,
@@ -11,3 +13,4 @@ export type {
 export { formatCommand, runGit, runGitCompositeStep, runGitStep } from "./git";
 export { prepareProposalWorkspace } from "./prepare-proposal-workspace";
 export { finalizeArchiveWorkspace } from "./finalize-archive-workspace";
+export { listReadableWorkspaces } from "./list-workspaces";

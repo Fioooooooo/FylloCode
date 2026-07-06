@@ -5,6 +5,16 @@ export interface WorkspaceInfo {
   path: string;
 }
 
+export interface ReadableWorkspaceInfo {
+  mode: WorkspaceMode;
+  path: string;
+}
+
+export interface ReadableWorkspacesResult {
+  workspaces: ReadableWorkspaceInfo[];
+  warnings: string[];
+}
+
 export type ArchiveGitStep =
   | "commit"
   | "merge-to-main"

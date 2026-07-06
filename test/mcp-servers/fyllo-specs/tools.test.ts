@@ -6,7 +6,15 @@ import {
   ErrorCode,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import spawn from "cross-spawn";
@@ -655,6 +663,180 @@ describe("tools", () => {
       );
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
+  it("explore returns linked worktree active changes from main repo root", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const changeName = "linked-explore-change";
+      await createProposalTool({
+        changeName,
+        targetPath: root,
+        workspaceMode: "linked",
+        includeInstruction: false,
+      });
+
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
+      const state = JSON.parse(text);
+      const linkedPath = join(root, ".worktrees", changeName);
+      const change = state.activeChanges.find((c: { name: string }) => c.name === changeName);
+      expect(change).toBeDefined();
+      expect(change.workspacePath).toBe(realpathSync.native(linkedPath));
+      expect(change.workspaceMode).toBe("linked");
+      expect(change).not.toHaveProperty("worktreePath");
+      expect(state.warnings).toEqual([]);
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("explore returns main workspace active changes with main workspace metadata", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const changeName = "main-explore-change";
+      await createProposalTool({
+        changeName,
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
+      const state = JSON.parse(text);
+      const change = state.activeChanges.find((c: { name: string }) => c.name === changeName);
+      expect(change).toBeDefined();
+      expect(change.workspacePath).toBe(realpathSync.native(root));
+      expect(change.workspaceMode).toBe("main");
+      expect(change).not.toHaveProperty("worktreePath");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("explore prefers linked worktree when main and linked share a change name", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const changeName = "dup-explore-change";
+      await createProposalTool({
+        changeName,
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+      await createProposalTool({
+        changeName,
+        targetPath: root,
+        workspaceMode: "linked",
+        includeInstruction: false,
+      });
+
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
+      const state = JSON.parse(text);
+      const matches = state.activeChanges.filter((c: { name: string }) => c.name === changeName);
+      expect(matches).toHaveLength(1);
+      expect(matches[0].workspacePath).toBe(
+        realpathSync.native(join(root, ".worktrees", changeName))
+      );
+      expect(matches[0].workspaceMode).toBe("linked");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("explore resolves currentChange from linked worktree when targetPath is main root", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const changeName = "linked-current-change";
+      await createProposalTool({
+        changeName,
+        targetPath: root,
+        workspaceMode: "linked",
+        includeInstruction: false,
+      });
+
+      const text = await exploreTool({
+        targetPath: root,
+        changeName,
+        includeInstruction: false,
+      });
+      const state = JSON.parse(text);
+      expect(state.currentChange).toBeDefined();
+      expect(state.currentChange.changeName).toBe(changeName);
+      expect(state.currentChange.workspacePath).toBe(
+        realpathSync.native(join(root, ".worktrees", changeName))
+      );
+      expect(state.currentChange.workspaceMode).toBe("linked");
+      expect(state.currentChange).toHaveProperty("applyRequires");
+      expect(state.currentChange).toHaveProperty("artifacts");
+      expect(state.currentChange).toHaveProperty("schemaName");
+      expect(state.currentChange).not.toHaveProperty("worktreePath");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
+    }
+  });
+
+  it("explore returns warnings and readable changes when one workspace list fails", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    initGitRepo(root);
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    const prevCli = process.env.FYLLO_OPENSPEC_CLI_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    process.env.FYLLO_OPENSPEC_CLI_PATH = cliPath;
+    try {
+      const mainChangeName = "main-fine-change";
+      await createProposalTool({
+        changeName: mainChangeName,
+        targetPath: root,
+        workspaceMode: "main",
+        includeInstruction: false,
+      });
+
+      const brokenWorktreePath = join(root, ".worktrees", "broken-no-openspec");
+      git(root, ["worktree", "add", brokenWorktreePath]);
+
+      const text = await exploreTool({ targetPath: root, includeInstruction: false });
+      const state = JSON.parse(text);
+      expect(state.activeChanges.map((c: { name: string }) => c.name)).toContain(mainChangeName);
+      expect(state.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining(brokenWorktreePath)])
+      );
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+      restoreEnv("FYLLO_OPENSPEC_CLI_PATH", prevCli);
     }
   });
 

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
-import { listChanges, computeStatus } from "../runtime-openspec";
+import { listWorkspaceChanges, computeStatus } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
 
 const exploreInputSchema = z.object({
@@ -38,14 +38,29 @@ export async function exploreTool(input: z.input<typeof exploreInputSchema>): Pr
     }
 
     const projectRoot = result.resolved!;
-    const activeChanges = await listChanges(projectRoot);
+    const { activeChanges, warnings } = await listWorkspaceChanges(projectRoot);
+
+    const matchingChange = input.changeName
+      ? activeChanges.find((change) => change.name === input.changeName)
+      : undefined;
+
+    const currentChangeWorkspacePath = matchingChange?.workspacePath ?? projectRoot;
+    const currentChangeWorkspaceMode = matchingChange?.workspaceMode ?? "main";
+
     const currentChange = input.changeName
-      ? await computeStatus(projectRoot, input.changeName)
+      ? {
+          changeName: input.changeName,
+          workspacePath: currentChangeWorkspacePath,
+          workspaceMode: currentChangeWorkspaceMode,
+          ...(await computeStatus(currentChangeWorkspacePath, input.changeName)),
+        }
       : null;
+
     return {
       projectRoot,
       activeChanges,
       currentChange,
+      warnings,
     };
   });
 }

@@ -6,6 +6,11 @@ export interface ChangeSummary {
   status: string;
 }
 
+export interface WorkspaceAwareChangeSummary extends ChangeSummary {
+  workspacePath: string;
+  workspaceMode: "main" | "linked";
+}
+
 export interface ArtifactStatus {
   id: string;
   outputPath: string;

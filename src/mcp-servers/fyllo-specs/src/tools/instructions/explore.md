@@ -86,9 +86,10 @@ You have full context of the OpenSpec system. Use it naturally, don't force it.
 
 The `state` injected by the MCP tool already contains everything you need:
 
-- `state.activeChanges` — list of active changes with name, status, and progress
-- `state.currentChange` — full status of the change named in the tool call (if any)
+- `state.activeChanges` — list of active changes with name, status, progress, and workspace metadata
+- `state.currentChange` — full status of the change named in the tool call (if any), including workspace metadata
 - `state.projectRoot` — absolute path to the project root
+- `state.warnings` — non-fatal workspace scan warnings (empty array when none)
 
 Do not invoke the OpenSpec CLI directly. All change data is provided through `state`.
 
@@ -103,11 +104,13 @@ Think freely. When insights crystallize, you might offer:
 
 If `state.activeChanges` has entries, or the user mentions a specific change:
 
-1. **Read existing artifacts for context** — they live under `state.projectRoot`:
-   - `openspec/changes/<name>/proposal.md`
-   - `openspec/changes/<name>/design.md`
-   - `openspec/changes/<name>/tasks.md`
+1. **Read existing artifacts for context** — use the change's `workspacePath` as the root:
+   - `<workspacePath>/openspec/changes/<name>/proposal.md`
+   - `<workspacePath>/openspec/changes/<name>/design.md`
+   - `<workspacePath>/openspec/changes/<name>/tasks.md`
    - etc.
+
+   When continuing with `apply-change` or `archive-change`, pass the same `workspacePath` as `targetPath`. Do not default to `state.projectRoot` unless the change explicitly has `workspaceMode: "main"` and `workspacePath` equals `state.projectRoot`.
 
 2. **Reference them naturally in conversation**
    - "Your design mentions using Redis, but we just realized SQLite fits better..."

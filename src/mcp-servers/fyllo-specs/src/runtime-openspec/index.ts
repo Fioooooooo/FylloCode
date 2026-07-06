@@ -1,8 +1,15 @@
-export type { ArchiveResult, ArtifactStatus, ChangeSummary, InstructionPayload } from "./types";
+export type {
+  ArchiveResult,
+  ArtifactStatus,
+  ChangeSummary,
+  InstructionPayload,
+  WorkspaceAwareChangeSummary,
+} from "./types";
 export { OpenspecArchiveNotConfirmedError, OpenspecCliError, OpenspecTimeoutError } from "./types";
 export { resolveOpenspecCli } from "./resolve-cli";
 export { spawnOpenspec } from "./spawner";
 export { listChanges } from "./list";
+export { listWorkspaceChanges } from "./list-workspace-changes";
 export { computeStatus } from "./status";
 export { getInstructions } from "./instructions";
 export { createChange } from "./create-change";
