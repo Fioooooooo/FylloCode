@@ -41,7 +41,7 @@ function openChange(changeId: string): void {
       v-if="props.changes.length === 0"
       icon="i-lucide-file-pen"
       title="暂无进行中的提案"
-      description="创建一个 proposal 或从任务发起讨论，开始推进工作。"
+      description="选择任务发起讨论，或从对话直接开始，以推进工作。"
       compact
     />
 

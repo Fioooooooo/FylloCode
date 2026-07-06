@@ -30,16 +30,18 @@ const governanceMeta = computed(() =>
 const ringStyle = computed(() => {
   const percent = Math.min(100, Math.max(0, taskLinkedPercent.value ?? 0));
   return {
-    background: `conic-gradient(rgb(255 255 255 / 0.96) ${percent * 3.6}deg, rgb(255 255 255 / 0.22) 0deg)`,
+    background: `conic-gradient(from -90deg, var(--overview-health-ring-progress) ${percent * 3.6}deg, var(--overview-health-ring-track) 0deg)`,
   };
 });
 
 type StatCardKey = "specs" | "archives" | "guidelines";
+type StatRoute = "/specs" | "/proposal" | "/guidelines";
 
 type StatCard = {
   key: StatCardKey;
   label: string;
   value: string;
+  route: StatRoute;
 };
 
 const cards = computed<StatCard[]>(() => [
@@ -47,113 +49,102 @@ const cards = computed<StatCard[]>(() => [
     key: "specs",
     label: "能力规约",
     value: String(props.stats.specsCount),
+    route: "/specs",
   },
   {
     key: "archives",
     label: "归档提案",
     value: String(props.stats.archiveCount),
+    route: "/proposal",
   },
   {
     key: "guidelines",
     label: "项目准则",
     value: String(props.stats.guidelinesCount),
+    route: "/guidelines",
   },
 ]);
 
-function isInteractiveCard(key: StatCardKey): boolean {
-  return key === "specs" || key === "archives" || key === "guidelines";
-}
-
-function openSpecs(): void {
-  void router.push("/specs");
-}
-
-function openArchives(): void {
-  void router.push("/proposal");
-}
-
-function openGuidelines(): void {
-  void router.push("/guidelines");
-}
-
-function openCard(key: StatCardKey): void {
-  if (key === "specs") {
-    openSpecs();
-    return;
-  }
-
-  if (key === "archives") {
-    openArchives();
-    return;
-  }
-
-  if (key === "guidelines") {
-    openGuidelines();
-  }
+function openCard(route: StatRoute): void {
+  void router.push(route);
 }
 </script>
 
 <template>
   <section
-    class="relative overflow-hidden rounded-lg bg-gradient-to-br from-teal-500 via-teal-500 to-teal-600 p-5 text-white before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-black/10 dark:from-cyan-800 dark:via-teal-800 dark:to-cyan-900"
+    class="overview-health-card relative overflow-hidden rounded-lg bg-gradient-to-br from-teal-500 via-teal-500 to-teal-600 p-5 text-white before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-black/10 dark:from-cyan-800 dark:via-teal-800 dark:to-cyan-900"
     data-test="overview-stats"
     data-test-section="overview-governance-health"
   >
     <div class="relative flex items-center gap-4" data-test="overview-governance-health">
-      <div
-        class="flex size-16 shrink-0 items-center justify-center rounded-full"
-        :style="ringStyle"
-        aria-hidden="true"
-      >
+      <div class="relative size-[92px] shrink-0 rounded-full" :style="ringStyle" aria-hidden="true">
         <div
-          class="flex size-12 items-center justify-center rounded-full bg-teal-700 dark:bg-teal-950"
+          class="overview-health-ring-core absolute inset-[13px] flex items-center justify-center rounded-full"
         >
-          <span class="text-lg font-semibold tracking-tight">{{ taskLinkedValue }}</span>
+          <span class="overview-health-ring-value text-xl font-bold tracking-tight">
+            {{ taskLinkedValue }}
+          </span>
         </div>
       </div>
 
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold tracking-wide text-white/90">治理健康</p>
-        <h2 class="mt-1 text-lg font-semibold leading-7 text-white">
+        <p class="text-sm font-semibold tracking-wide text-white/85 dark:text-teal-100/90">
+          治理健康
+        </p>
+        <h2 class="mt-1 text-lg font-bold leading-7 text-white">
           {{ governanceSummary }}
         </h2>
-        <p class="mt-1 text-xs text-white/70">{{ governanceMeta }}</p>
+        <p class="mt-1 text-xs text-white/75 dark:text-teal-100/70">{{ governanceMeta }}</p>
       </div>
     </div>
 
-    <div class="relative mt-5 grid grid-cols-3 gap-2">
-      <component
-        :is="isInteractiveCard(card.key) ? 'button' : 'div'"
+    <div class="relative mt-5 h-px bg-white/15 dark:bg-teal-300/15" />
+
+    <div class="relative mt-4 grid grid-cols-3 gap-2.5">
+      <button
         v-for="card in cards"
         :key="card.key"
-        :type="isInteractiveCard(card.key) ? 'button' : undefined"
-        :class="[
-          'rounded-md px-1 py-1 text-center text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
-          isInteractiveCard(card.key) ? 'cursor-pointer hover:text-white/80' : '',
-        ]"
-        :data-test="
-          isInteractiveCard(card.key)
-            ? `overview-${card.key}-card`
-            : `overview-stat-card-${card.key}`
-        "
-        @click="openCard(card.key)"
+        type="button"
+        class="cursor-pointer rounded-xl bg-white/10 px-2 py-2 text-center text-white transition-colors duration-150 hover:bg-white/[.17] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 dark:bg-teal-300/10 dark:hover:bg-teal-300/20 dark:focus-visible:ring-teal-300/50"
+        :data-test="`overview-${card.key}-card`"
+        @click="openCard(card.route)"
       >
-        <div class="flex min-w-0 flex-col items-center gap-1.5">
-          <p
-            class="flex min-w-0 items-center justify-center gap-1 text-center text-[11px] leading-4 text-white/75"
+        <span class="flex min-w-0 flex-col items-center gap-1.5">
+          <span
+            class="flex max-w-full items-center justify-center gap-1 text-[11px] leading-4 text-white/[.88] dark:text-teal-100/[.72]"
           >
             <span class="truncate">{{ card.label }}</span>
-            <UIcon
-              v-if="isInteractiveCard(card.key)"
-              name="i-lucide-arrow-up-right"
-              class="size-3 shrink-0 text-white/75"
-            />
-          </p>
-          <p class="text-center text-lg font-semibold leading-6 tracking-tight text-white">
+            <span class="text-white/70 dark:text-teal-300" aria-hidden="true">›</span>
+          </span>
+          <span class="text-center text-lg font-bold leading-6 tracking-tight text-white">
             {{ card.value }}
-          </p>
-        </div>
-      </component>
+          </span>
+        </span>
+      </button>
     </div>
   </section>
 </template>
+
+<style scoped>
+.overview-health-card {
+  --overview-health-ring-progress: #99f6e4;
+  --overview-health-ring-track: rgb(255 255 255 / 0.2);
+  --overview-health-ring-core: rgb(15 118 110);
+  --overview-health-ring-text: #ffffff;
+}
+
+.dark .overview-health-card {
+  --overview-health-ring-progress: #2dd4bf;
+  --overview-health-ring-track: rgb(255 255 255 / 0.12);
+  --overview-health-ring-core: rgb(19 78 74);
+  --overview-health-ring-text: #eafbf6;
+}
+
+.overview-health-ring-core {
+  background: var(--overview-health-ring-core);
+}
+
+.overview-health-ring-value {
+  color: var(--overview-health-ring-text);
+}
+</style>

@@ -85,7 +85,7 @@ function formatCount(value: number): string {
 
       <div
         v-if="props.governance.specsGrowth.length > 0"
-        class="mt-5 flex h-32 items-end gap-1.5"
+        class="mt-4 flex h-24 items-end gap-1.5"
         aria-label="规约增长柱状图"
       >
         <div
@@ -99,7 +99,7 @@ function formatCount(value: number): string {
           >
             {{ bucket.cumulativeCount }}
           </span>
-          <div class="flex h-24 w-full items-end rounded-t-sm bg-muted/20">
+          <div class="flex h-16 w-full items-end rounded-t-sm bg-muted/20">
             <div
               :class="[
                 'w-full rounded-t-sm transition-opacity duration-150 group-hover:opacity-90',
@@ -119,7 +119,7 @@ function formatCount(value: number): string {
         description="近 8 周没有可展示的规约增长数据。"
       />
 
-      <div class="mt-4 flex items-center justify-between text-xs text-muted">
+      <div class="mt-3 flex items-center justify-between text-xs text-muted">
         <span>{{ startLabel }}</span>
         <span v-if="props.governance.specsGrowth.length > 0">
           累计 {{ props.governance.specsGrowth.at(-1)?.cumulativeCount ?? 0 }}

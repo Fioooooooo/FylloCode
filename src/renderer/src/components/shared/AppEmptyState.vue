@@ -35,7 +35,7 @@ const emit = defineEmits<{
       {{ title }}
     </h3>
 
-    <p class="text-sm text-muted mt-1 max-w-xs">
+    <p class="text-sm text-muted mt-1 max-w-sm">
       {{ description }}
     </p>
 

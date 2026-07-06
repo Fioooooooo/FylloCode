@@ -183,7 +183,7 @@ describe("overview page", () => {
     expect(wrapper.find('[data-test="overview-governance-health"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-stat-card-lineages"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="overview-guidelines-card"] [data-icon-name]').exists()).toBe(
-      true
+      false
     );
     expect(wrapper.find('[data-test="overview-specs-growth"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-guideline-evolution"]').exists()).toBe(true);
