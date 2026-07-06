@@ -61,7 +61,7 @@ const cards = computed<StatCard[]>(() => [
 ]);
 
 function isInteractiveCard(key: StatCardKey): boolean {
-  return key === "specs" || key === "archives";
+  return key === "specs" || key === "archives" || key === "guidelines";
 }
 
 function openSpecs(): void {
@@ -72,6 +72,10 @@ function openArchives(): void {
   void router.push("/proposal");
 }
 
+function openGuidelines(): void {
+  void router.push("/guidelines");
+}
+
 function openCard(key: StatCardKey): void {
   if (key === "specs") {
     openSpecs();
@@ -80,6 +84,11 @@ function openCard(key: StatCardKey): void {
 
   if (key === "archives") {
     openArchives();
+    return;
+  }
+
+  if (key === "guidelines") {
+    openGuidelines();
   }
 }
 </script>

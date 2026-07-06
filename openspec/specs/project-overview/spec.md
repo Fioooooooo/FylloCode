@@ -73,6 +73,7 @@ TBD - created by archiving change optimize-overview-layout. Update Purpose after
 - **THEN** 治理健康 SHALL 使用现有 `OverviewStats` 数据展示项目治理摘要
 - **AND** 治理健康 SHALL 突出展示溯源覆盖率，覆盖率由 `taskLinkedRatio` 派生
 - **AND** 治理健康 SHALL 囊括能力规约数量、归档提案数量、项目准则数量和溯源覆盖信息
+- **AND** 项目准则数量 SHALL 按 `guidelines/**/*.md` 递归统计
 
 #### Scenario: Existing stat navigation remains available
 
@@ -80,6 +81,8 @@ TBD - created by archiving change optimize-overview-layout. Update Purpose after
 - **THEN** 系统 SHALL 导航到 `/specs`
 - **AND** 当用户点击治理健康中的归档提案入口
 - **THEN** 系统 SHALL 导航到 `/proposal`
+- **AND** 当用户点击治理健康中的项目准则入口
+- **THEN** 系统 SHALL 导航到 `/guidelines`
 
 #### Scenario: Governance evolution content remains visible
 

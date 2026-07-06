@@ -182,9 +182,9 @@ describe("overview page", () => {
     expect(governanceColumn.text()).toContain("准则演化");
     expect(wrapper.find('[data-test="overview-governance-health"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-stat-card-lineages"]').exists()).toBe(false);
-    expect(
-      wrapper.find('[data-test="overview-stat-card-guidelines"] [data-icon-name]').exists()
-    ).toBe(false);
+    expect(wrapper.find('[data-test="overview-guidelines-card"] [data-icon-name]').exists()).toBe(
+      true
+    );
     expect(wrapper.find('[data-test="overview-specs-growth"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-guideline-evolution"]').exists()).toBe(true);
   });
@@ -239,8 +239,12 @@ describe("overview page", () => {
     expect(routerMock.push).toHaveBeenCalledWith("/proposal");
 
     routerMock.push.mockClear();
-    await wrapper.get('[data-test="overview-stat-card-guidelines"]').trigger("click");
+    const guidelinesCard = wrapper.get('[data-test="overview-guidelines-card"]');
+    expect(guidelinesCard.element.tagName).toBe("BUTTON");
 
-    expect(routerMock.push).not.toHaveBeenCalled();
+    await guidelinesCard.trigger("click");
+
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    expect(routerMock.push).toHaveBeenCalledWith("/guidelines");
   });
 });

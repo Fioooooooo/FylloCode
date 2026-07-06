@@ -12,6 +12,7 @@ import { taskApi } from "./api/task";
 import { lineageApi } from "./api/lineage";
 import { overviewApi } from "./api/overview";
 import { specsApi } from "./api/specs";
+import { guidelinesApi } from "./api/guidelines";
 
 const api = {
   app: appApi,
@@ -26,6 +27,7 @@ const api = {
   lineage: lineageApi,
   overview: overviewApi,
   specs: specsApi,
+  guidelines: guidelinesApi,
 };
 
 if (process.contextIsolated) {

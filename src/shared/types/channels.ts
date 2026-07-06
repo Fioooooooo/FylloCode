@@ -79,6 +79,10 @@ export const SpecsChannels = {
   getSpecsBrowser: "specs:getSpecsBrowser",
 } as const;
 
+export const GuidelinesChannels = {
+  getBrowser: "guidelines:getBrowser",
+} as const;
+
 export const IntegrationChannels = {
   getConnections: "integration:getConnections",
   connect: "integration:connect",

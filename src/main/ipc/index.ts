@@ -11,6 +11,7 @@ import { registerTaskHandlers } from "./task";
 import { registerLineageHandlers } from "./lineage";
 import { registerOverviewHandlers } from "./overview";
 import { registerSpecsHandlers } from "./specs";
+import { registerGuidelinesHandlers } from "./guidelines";
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -23,6 +24,7 @@ export function registerAllHandlers(): void {
   registerLineageHandlers();
   registerOverviewHandlers();
   registerSpecsHandlers();
+  registerGuidelinesHandlers();
   registerIntegrationHandlers();
   registerAcpAgentHandlers();
   registerSettingsHandlers();

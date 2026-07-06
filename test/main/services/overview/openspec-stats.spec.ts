@@ -2,6 +2,10 @@ import { promises as fs } from "fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { countArchives, countGuidelines, countSpecs } from "@main/services/overview/openspec-stats";
 
+const mocks = vi.hoisted(() => ({
+  scanGuidelines: vi.fn(),
+}));
+
 vi.mock("fs", async () => {
   const actual = await vi.importActual<typeof import("fs")>("fs");
   return {
@@ -12,6 +16,10 @@ vi.mock("fs", async () => {
     },
   };
 });
+
+vi.mock("@main/infra/guidelines/scan-guidelines", () => ({
+  scanGuidelines: mocks.scanGuidelines,
+}));
 
 type MockDirent = {
   name: string;
@@ -34,9 +42,24 @@ describe("overview openspec stats", () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-12T08:00:00.000Z"));
+    mocks.scanGuidelines.mockResolvedValue([
+      { path: "guidelines/IPC.md", name: "IPC", description: null, keywords: null },
+      {
+        path: "guidelines/MainProcess.md",
+        name: "MainProcess",
+        description: null,
+        keywords: null,
+      },
+      {
+        path: "guidelines/frontend/Routing.md",
+        name: "Routing",
+        description: null,
+        keywords: null,
+      },
+    ]);
   });
 
-  it("counts specs, archives, current-month archives, and markdown guidelines", async () => {
+  it("counts specs, archives, current-month archives, and recursive markdown guidelines", async () => {
     vi.mocked(fs.readdir).mockImplementation(
       async (targetPath: Parameters<typeof fs.readdir>[0]) => {
         switch (String(targetPath)) {
@@ -53,13 +76,6 @@ describe("overview openspec stats", () => {
               dirent("2026-05-30-old", "directory"),
               dirent("README.md", "file"),
             ] as never;
-          case "/tmp/project/guidelines":
-            return [
-              dirent("IPC.md", "file"),
-              dirent("MainProcess.md", "file"),
-              dirent("draft.txt", "file"),
-              dirent("archive", "directory"),
-            ] as never;
           default:
             throw new Error(`unexpected path ${String(targetPath)}`);
         }
@@ -68,11 +84,13 @@ describe("overview openspec stats", () => {
 
     await expect(countSpecs(projectPath)).resolves.toBe(2);
     await expect(countArchives(projectPath)).resolves.toEqual({ total: 3, thisMonth: 2 });
-    await expect(countGuidelines(projectPath)).resolves.toBe(2);
+    await expect(countGuidelines(projectPath)).resolves.toBe(3);
+    expect(mocks.scanGuidelines).toHaveBeenCalledWith(projectPath);
   });
 
   it("returns zero counts when directories are missing", async () => {
     vi.mocked(fs.readdir).mockRejectedValue(new Error("ENOENT"));
+    mocks.scanGuidelines.mockRejectedValue(new Error("ENOENT"));
 
     await expect(countSpecs(projectPath)).resolves.toBe(0);
     await expect(countArchives(projectPath)).resolves.toEqual({ total: 0, thisMonth: 0 });

@@ -52,6 +52,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/guidelines': RouteRecordInfo<
+      '/guidelines',
+      '/guidelines',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/integration': RouteRecordInfo<
       '/integration',
       '/integration',
@@ -133,6 +140,14 @@ declare module 'vue-router/auto-routes' {
     'src/pages/cron.vue': {
       routes:
         | '/cron'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/guidelines.vue': {
+      routes:
+        | '/guidelines'
       views:
         | never
       pathParamNames:

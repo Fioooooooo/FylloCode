@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import { join } from "path";
+import { scanGuidelines } from "@main/infra/guidelines/scan-guidelines";
 
 export type ArchiveCounts = {
   total: number;
@@ -39,8 +40,7 @@ export async function countArchives(projectPath: string): Promise<ArchiveCounts>
 
 export async function countGuidelines(projectPath: string): Promise<number> {
   try {
-    const entries = await fs.readdir(join(projectPath, "guidelines"), { withFileTypes: true });
-    return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).length;
+    return (await scanGuidelines(projectPath)).length;
   } catch {
     return 0;
   }
