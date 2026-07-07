@@ -592,5 +592,22 @@ describe("acp-process-pool", () => {
 
       expect(probeHandler).not.toHaveBeenCalled();
     });
+
+    it("keeps a newer pendingProbeHandler when clearing an older one", async () => {
+      const { getOrStartProcess, setPendingProbeHandler, clearPendingProbeHandler } =
+        await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+      const oldHandler = vi.fn();
+      const currentHandler = vi.fn();
+      setPendingProbeHandler("claude-acp", oldHandler);
+      setPendingProbeHandler("claude-acp", currentHandler);
+      clearPendingProbeHandler("claude-acp", oldHandler);
+
+      const notification = { sessionId: "sess-1", update: { sessionUpdate: "x" } };
+      await mocks.capturedClient!.sessionUpdate(notification);
+
+      expect(oldHandler).not.toHaveBeenCalled();
+      expect(currentHandler).toHaveBeenCalledWith(notification);
+    });
   });
 });

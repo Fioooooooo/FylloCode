@@ -25,6 +25,8 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - MUST 将 renderer 对 preload API 的访问封装在 `src/renderer/src/api/<capability>.ts` wrapper 中。组件、composable 和 store 应导入这些 wrapper，而不是直接调用 `window.api`。证据：`src/renderer/src/api/settings.ts`、`src/renderer/src/stores/settings.ts`。
 - SHOULD 将可复用异步状态和跨组件 UI 状态放在 `src/renderer/src/stores/` 下的 Pinia setup store 中。除非数据确实只属于局部交互，页面和组件应聚焦展示与本地交互状态。证据：`src/renderer/src/stores/settings.ts`、`src/renderer/src/stores/task.ts`、`src/renderer/src/pages/task.vue`。
 - MUST 在可用时让 renderer API wrapper 基于 shared 契约或 preload API 类型进行类型约束，并保留 preload API 返回的标准 `IpcResponse<T>` 流程。证据：`src/renderer/src/api/settings.ts`、`src/preload/index.d.ts`、`src/shared/types/ipc.ts`。
+- MUST 通过 `src/renderer/src/api/window.ts` 和 `useProjectStore().bootstrapWindowProject()` 绑定当前窗口的项目上下文。当前项目应来自 main 进程返回的 `WindowContext`；组件打开项目或文件夹时调用 project store 的 `openProjectWindow()` / `openFolderWindow()`，不要在组件中直接替换 `currentProject`。证据：`src/renderer/src/api/window.ts`、`src/renderer/src/stores/project.ts`、`src/renderer/src/bootstrap/tasks/projects.ts`、`src/renderer/src/components/welcome/WelcomeView.vue`、`src/renderer/src/components/layout/AppHeader.vue`。
+- MUST 在项目窗口上下文不可用、项目不存在或路径缺失时展示页面级错误状态，并清空当前项目会话状态，避免继续渲染过期项目数据。证据：`src/renderer/src/stores/project.ts`、`src/renderer/src/pages/index.vue`。
 
 ### Bootstrap
 

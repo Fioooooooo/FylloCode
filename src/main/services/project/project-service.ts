@@ -14,7 +14,7 @@ import {
 } from "@main/infra/storage/project-store";
 import { ipcError } from "@main/ipc/_kit/errors";
 
-async function pathExists(targetPath: string): Promise<boolean> {
+export async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await fs.access(targetPath);
     return true;
@@ -30,15 +30,25 @@ async function toProjectInfoWithPathStatus(meta: ProjectMeta): Promise<ProjectIn
 
 export async function listProjects(): Promise<ProjectInfo[]> {
   const metas = await listProjectMetas();
-  return metas
-    .sort((a, b) => new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime())
-    .map((meta) => toProjectInfo(meta));
+  return Promise.all(
+    metas
+      .sort((a, b) => new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime())
+      .map((meta) => toProjectInfoWithPathStatus(meta))
+  );
 }
 
 export async function getProject(id: string): Promise<ProjectInfo | null> {
   const meta = await loadProject(id);
   if (!meta) return null;
   return toProjectInfoWithPathStatus(meta);
+}
+
+export async function getRequiredProject(id: string): Promise<ProjectInfo> {
+  const project = await getProject(id);
+  if (!project) {
+    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${id}`);
+  }
+  return project;
 }
 
 export async function updateProject(input: {
@@ -75,6 +85,24 @@ export async function updateProject(input: {
 
 export async function removeProject(id: string): Promise<void> {
   await deleteProjectStore(id);
+}
+
+export async function touchProjectLastOpened(id: string): Promise<ProjectInfo> {
+  const existing = await loadProject(id);
+  if (!existing) {
+    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${id}`);
+  }
+
+  const nextMeta = createProjectMeta({
+    id: existing.id,
+    name: existing.name,
+    path: existing.path,
+    healthScore: existing.healthScore,
+    createdAt: new Date(existing.createdAt),
+    lastOpenedAt: new Date(),
+  });
+  await saveProject(nextMeta);
+  return toProjectInfoWithPathStatus(nextMeta);
 }
 
 export async function adoptExistingFolder(projectPath: string): Promise<ProjectInfo> {

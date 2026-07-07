@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
 import { ChatChannels, ChatProbeChannels, ChatStreamChannels } from "@shared/types/channels";
 import type { Message } from "@shared/types/chat";
@@ -43,8 +42,8 @@ import {
   closeProbe,
   ensureProbe,
   setProbeConfigOption,
+  takeProbeFor,
 } from "@main/services/chat/session-probe-service";
-import { sessionProbeRegistry } from "@main/services/chat/session-probe-registry";
 import { sessionProbeBus } from "@main/services/chat/session-probe-bus";
 import { sessionRegistry } from "@main/services/chat/session-registry";
 import {
@@ -63,21 +62,19 @@ import {
 import { toMessageChunk } from "@main/services/chat/session-event-mapper";
 import logger from "@main/infra/logger";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
+import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
-let probeBroadcastWindow: BrowserWindow | null = null;
+let probeBroadcastManager: ProjectWindowManager | null = null;
 let probeBroadcastSubscribed = false;
 
-export function setupProbeBroadcast(mainWindow: BrowserWindow): void {
-  probeBroadcastWindow = mainWindow;
+export function setupProbeBroadcast(manager: ProjectWindowManager): void {
+  probeBroadcastManager = manager;
   if (probeBroadcastSubscribed) {
     return;
   }
 
   sessionProbeBus.onUpdate((payload) => {
-    if (probeBroadcastWindow?.isDestroyed()) {
-      return;
-    }
-    probeBroadcastWindow?.webContents.send(ChatProbeChannels.update, payload);
+    probeBroadcastManager?.sendToProject(payload.projectId, ChatProbeChannels.update, payload);
   });
   probeBroadcastSubscribed = true;
 }
@@ -210,14 +207,14 @@ export function registerChatHandlers(): void {
     wrapHandler(async () => {
       const form = validate(probeEnsureInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
-      return ensureProbe(form.agentId, projectPath);
+      return ensureProbe(form.projectId, form.agentId, projectPath);
     })
   );
 
   ipcMain.handle(ChatProbeChannels.close, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeCloseInputSchema, input);
-      await closeProbe(form.agentId);
+      await closeProbe(form.projectId, form.agentId);
     })
   );
 
@@ -263,7 +260,7 @@ export function registerChatHandlers(): void {
         }
         let presetAcpSessionId: string | undefined;
         if (acpSessionId) {
-          const probeEntry = sessionProbeRegistry.takeFor(agentId, acpSessionId);
+          const probeEntry = await takeProbeFor(projectId, agentId, acpSessionId);
           if (!probeEntry) {
             sink.sendError(
               IpcErrorCodes.VALIDATION_ERROR,
@@ -329,7 +326,7 @@ export function registerChatHandlers(): void {
         return driveAcpStream({
           session,
           owner: "chat",
-          registryKey: sessionId,
+          registryKey: `${projectId}:${sessionId}`,
           output: sink,
           logTag: "chat",
           start: () => session.start(prompt),
@@ -411,8 +408,8 @@ export function registerChatHandlers(): void {
 
   ipcMain.handle(ChatStreamChannels.streamCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { sessionId } = validate(streamCancelInputSchema, input);
-      sessionRegistry.cancel("chat", sessionId);
+      const { projectId, sessionId } = validate(streamCancelInputSchema, input);
+      sessionRegistry.cancel("chat", `${projectId}:${sessionId}`);
     })
   );
 }

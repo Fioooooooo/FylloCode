@@ -2,6 +2,7 @@
 import { computed, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import WelcomeView from "@renderer/components/welcome/WelcomeView.vue";
+import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import { useProjectStore } from "@renderer/stores/project";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { activityBarItems } from "@renderer/config/activity-bar";
@@ -34,9 +35,26 @@ watchEffect(() => {
     void goToDefault();
   }
 });
+
+async function openLauncher(): Promise<void> {
+  await projectStore.openLauncherWindow();
+}
 </script>
 
 <template>
-  <WelcomeView v-if="!projectStore.hasCurrentProject" />
+  <div
+    v-if="projectStore.projectContextError"
+    class="flex-1 flex items-center justify-center bg-default"
+  >
+    <AppEmptyState
+      icon="i-lucide-folder-x"
+      title="无法打开项目"
+      :description="projectStore.projectContextError.message"
+      action-label="打开启动窗口"
+      action-icon="i-lucide-rocket"
+      @action="openLauncher"
+    />
+  </div>
+  <WelcomeView v-else-if="!projectStore.hasCurrentProject" />
   <RouterView v-else />
 </template>

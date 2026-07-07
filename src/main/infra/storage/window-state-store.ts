@@ -9,12 +9,22 @@ export interface MainWindowState {
   isMaximized: boolean;
 }
 
+export type WindowStateKey = { role: "launcher" } | { role: "project"; projectId: string };
+
 function mainWindowStateDir(): string {
   return getDataSubPath("window-state");
 }
 
 function mainWindowStatePath(): string {
   return join(mainWindowStateDir(), "main-window.json");
+}
+
+function windowStatePath(key: WindowStateKey): string {
+  if (key.role === "launcher") {
+    return join(mainWindowStateDir(), "launcher.json");
+  }
+
+  return join(mainWindowStateDir(), "projects", `${key.projectId}.json`);
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -44,8 +54,12 @@ function isValidMainWindowState(value: unknown): value is MainWindowState {
 }
 
 export function loadMainWindowState(): MainWindowState | null {
+  return readWindowStateFile(mainWindowStatePath());
+}
+
+function readWindowStateFile(filePath: string): MainWindowState | null {
   try {
-    const content = readFileSync(mainWindowStatePath(), "utf8");
+    const content = readFileSync(filePath, "utf8");
     const parsed = JSON.parse(content) as unknown;
     return isValidMainWindowState(parsed) ? parsed : null;
   } catch {
@@ -55,4 +69,18 @@ export function loadMainWindowState(): MainWindowState | null {
 
 export function saveMainWindowState(state: MainWindowState): void {
   writeFileAtomicSync(mainWindowStatePath(), JSON.stringify(state, null, 2));
+}
+
+export function loadWindowState(key: WindowStateKey): MainWindowState | null {
+  const state = readWindowStateFile(windowStatePath(key));
+
+  if (state || key.role !== "launcher") {
+    return state;
+  }
+
+  return loadMainWindowState();
+}
+
+export function saveWindowState(key: WindowStateKey, state: MainWindowState): void {
+  writeFileAtomicSync(windowStatePath(key), JSON.stringify(state, null, 2));
 }

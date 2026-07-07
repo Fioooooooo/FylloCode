@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import {
@@ -18,21 +17,23 @@ import {
 } from "@main/services/proposal/proposal-service";
 import { proposalStatusService } from "@main/services/proposal/proposal-status-service";
 import { loadProject } from "@main/infra/storage/project-store";
+import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
-let proposalStatusBroadcastWindow: BrowserWindow | null = null;
+let proposalStatusBroadcastManager: ProjectWindowManager | null = null;
 let proposalStatusBroadcastSubscribed = false;
 
-export function setupProposalStatusBroadcast(mainWindow: BrowserWindow): void {
-  proposalStatusBroadcastWindow = mainWindow;
+export function setupProposalStatusBroadcast(manager: ProjectWindowManager): void {
+  proposalStatusBroadcastManager = manager;
   if (proposalStatusBroadcastSubscribed) {
     return;
   }
 
   proposalStatusService.onStatusChanged((payload) => {
-    if (proposalStatusBroadcastWindow?.isDestroyed()) {
-      return;
-    }
-    proposalStatusBroadcastWindow?.webContents.send(ProposalChannels.statusChanged, payload);
+    proposalStatusBroadcastManager?.sendToProject(
+      payload.projectId,
+      ProposalChannels.statusChanged,
+      payload
+    );
   });
   proposalStatusBroadcastSubscribed = true;
 }
@@ -66,7 +67,7 @@ export function registerProposalHandlers(): void {
       if (!project) {
         throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
       }
-      proposalStatusService.watchProposal(project.path, changeId, sessionId);
+      proposalStatusService.watchProposal(projectId, project.path, changeId, sessionId);
     })
   );
 }

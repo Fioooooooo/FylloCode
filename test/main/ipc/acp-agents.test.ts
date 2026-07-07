@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -11,6 +12,11 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
+const acpEventMocks = vi.hoisted(() => ({
+  serviceListeners: new Map<string, (payload: unknown) => void>(),
+  agentUnavailableListener: null as ((payload: { agentId: string; reason: string }) => void) | null,
+}));
+
 vi.mock("@main/services/acp-agent/acp-agent-service", () => ({
   detectAgentStatusesForced: vi.fn(),
   ensureAgent: vi.fn(),
@@ -21,11 +27,17 @@ vi.mock("@main/services/acp-agent/acp-agent-service", () => ({
   reloadAgentRegistry: vi.fn(),
   saveCustomAgents: vi.fn(),
   uninstallAgentById: vi.fn(),
-  onAgentServiceEvent: vi.fn(() => () => undefined),
+  onAgentServiceEvent: vi.fn((event: string, listener: (payload: unknown) => void) => {
+    acpEventMocks.serviceListeners.set(event, listener);
+    return vi.fn();
+  }),
 }));
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
-  onAgentUnavailable: vi.fn(() => () => undefined),
+  onAgentUnavailable: vi.fn((listener: (payload: { agentId: string; reason: string }) => void) => {
+    acpEventMocks.agentUnavailableListener = listener;
+    return vi.fn();
+  }),
 }));
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({
@@ -39,7 +51,7 @@ vi.mock("@main/infra/storage/custom-agent-config-store", () => ({
 import { ipcMain } from "electron";
 import { AcpAgentChannels } from "@shared/types/channels";
 import { saveCustomAgents } from "@main/services/acp-agent/acp-agent-service";
-import { registerAcpAgentHandlers } from "@main/ipc/acp-agents";
+import { registerAcpAgentHandlers, setupAgentEventBroadcast } from "@main/ipc/acp-agents";
 
 const mockedSaveCustomAgents = vi.mocked(saveCustomAgents);
 const mockedIpcMainHandle = vi.mocked(ipcMain.handle);
@@ -47,6 +59,8 @@ const mockedIpcMainHandle = vi.mocked(ipcMain.handle);
 describe("registerAcpAgentHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    acpEventMocks.serviceListeners.clear();
+    acpEventMocks.agentUnavailableListener = null;
     registerAcpAgentHandlers();
   });
 
@@ -74,5 +88,24 @@ describe("registerAcpAgentHandlers", () => {
 
     await expect(handler({}, config)).resolves.toEqual({ ok: true, data: undefined });
     expect(mockedSaveCustomAgents).toHaveBeenCalledWith(config);
+  });
+
+  it("broadcasts global agent events to every active window through the manager", () => {
+    const manager = {
+      sendToAll: vi.fn(),
+    } as unknown as ProjectWindowManager;
+
+    setupAgentEventBroadcast(manager);
+
+    acpEventMocks.serviceListeners.get("registryUpdated")?.({ agents: [] });
+    acpEventMocks.agentUnavailableListener?.({ agentId: "codex", reason: "crashed" });
+
+    expect(manager.sendToAll).toHaveBeenCalledWith(AcpAgentChannels.registryUpdated, {
+      agents: [],
+    });
+    expect(manager.sendToAll).toHaveBeenCalledWith(AcpAgentChannels.agentUnavailable, {
+      agentId: "codex",
+      reason: "crashed",
+    });
   });
 });

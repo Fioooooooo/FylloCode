@@ -339,9 +339,9 @@ export function setPendingProbeHandler(agentId: string, handler: SessionUpdateHa
 }
 
 /** Remove the probe fallback handler so it does not leak after probe close. */
-export function clearPendingProbeHandler(agentId: string): void {
+export function clearPendingProbeHandler(agentId: string, handler?: SessionUpdateHandler): void {
   const entry = pool.get(agentId);
-  if (entry) {
+  if (entry && (handler === undefined || entry.pendingProbeHandler === handler)) {
     entry.pendingProbeHandler = undefined;
   }
 }

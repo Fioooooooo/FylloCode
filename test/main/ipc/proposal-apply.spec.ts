@@ -286,7 +286,7 @@ describe("registerProposalApplyHandlers", () => {
       expect.objectContaining({ id: "stage-assistant-cancel", role: "assistant" })
     );
     expect(mocks.sessionCancel).toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("apply", "run-1");
+    expect(mocks.unregister).toHaveBeenCalledWith("apply", "project-1:run-1");
   });
 
   it("does not persist the stage message twice across error then cancel", async () => {
@@ -315,6 +315,22 @@ describe("registerProposalApplyHandlers", () => {
     });
     // 1 user message + 1 assistant message; cancel's flush returns null, no third append.
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels apply stage streams by project and run id", async () => {
+    const resultA = await handler(ProposalChannels.stageStreamCancel)(
+      {},
+      { projectId: "project-a", runId: "same-run" }
+    );
+    const resultB = await handler(ProposalChannels.stageStreamCancel)(
+      {},
+      { projectId: "project-b", runId: "same-run" }
+    );
+
+    expect(resultA).toEqual({ ok: true, data: undefined });
+    expect(resultB).toEqual({ ok: true, data: undefined });
+    expect(mocks.cancel).toHaveBeenCalledWith("apply", "project-a:same-run");
+    expect(mocks.cancel).toHaveBeenCalledWith("apply", "project-b:same-run");
   });
 
   it("persists archive meta, user message, assistant message, and done status", async () => {

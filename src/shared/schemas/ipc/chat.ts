@@ -142,6 +142,7 @@ export const streamMessageInputSchema = z.object({
 });
 
 export const streamCancelInputSchema = z.object({
+  projectId: z.string().min(1),
   sessionId: z.string().min(1),
 });
 
@@ -183,10 +184,12 @@ export const probeEnsureInputSchema = z.object({
 });
 
 export const probeCloseInputSchema = z.object({
+  projectId: z.string().min(1),
   agentId: z.string().min(1),
 });
 
 const probeSetConfigOptionBaseSchema = z.object({
+  projectId: z.string().min(1),
   agentId: z.string().min(1),
   configId: z.string().min(1),
 });

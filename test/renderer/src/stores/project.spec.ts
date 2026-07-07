@@ -2,6 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useProjectStore } from "@renderer/stores/project";
 import { projectApi } from "@renderer/api/project";
+import { windowApi } from "@renderer/api/window";
+
+const sessionMocks = vi.hoisted(() => ({
+  clearSessions: vi.fn(),
+  loadSessions: vi.fn(),
+}));
+
+vi.mock("@renderer/stores/session", () => ({
+  useSessionStore: vi.fn(() => sessionMocks),
+}));
 
 vi.mock("@renderer/api/project", () => ({
   projectApi: {
@@ -10,6 +20,15 @@ vi.mock("@renderer/api/project", () => ({
     update: vi.fn(),
     remove: vi.fn(),
     openFolder: vi.fn(),
+  },
+}));
+
+vi.mock("@renderer/api/window", () => ({
+  windowApi: {
+    getContext: vi.fn(),
+    openProject: vi.fn(),
+    openFolder: vi.fn(),
+    openLauncher: vi.fn(),
   },
 }));
 
@@ -22,6 +41,17 @@ vi.mock("@nuxt/ui/composables", async () => {
     useToast: vi.fn(() => ({ add: mockToastAdd })),
   };
 });
+
+function projectInfo(id: string, name = `Project ${id}`) {
+  return {
+    id,
+    name,
+    path: `/tmp/${id}`,
+    metaPath: `/tmp/${id}-meta.json`,
+    createdAt: "2026-04-19T08:00:00.000Z" as unknown as Date,
+    lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
+  };
+}
 
 describe("useProjectStore", () => {
   beforeEach(() => {
@@ -84,20 +114,129 @@ describe("useProjectStore", () => {
     expect(store.projects).toHaveLength(1);
   });
 
-  it("does not activate a recent project when the project path is missing", async () => {
+  it("keeps launcher context without setting currentProject during bootstrap", async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(windowApi.getContext).mockResolvedValue({
+      ok: true,
+      data: { windowId: 1, role: "launcher", projectId: null },
+    });
+
+    const store = useProjectStore();
+    await store.bootstrapWindowProject();
+
+    expect(store.windowContext).toEqual({ windowId: 1, role: "launcher", projectId: null });
+    expect(store.currentProject).toBeNull();
+    expect(sessionMocks.loadSessions).not.toHaveBeenCalled();
+  });
+
+  it("binds the project context during bootstrap", async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(windowApi.getContext).mockResolvedValue({
+      ok: true,
+      data: { windowId: 2, role: "project", projectId: "a" },
+    });
+    vi.mocked(projectApi.getById).mockResolvedValue({ ok: true, data: projectInfo("a") });
+
+    const store = useProjectStore();
+    await store.bootstrapWindowProject();
+
+    expect(store.currentProject?.id).toBe("a");
+    expect(sessionMocks.loadSessions).toHaveBeenCalledWith("a");
+  });
+
+  it("sets projectContextError when a project window points to a missing project", async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(windowApi.getContext).mockResolvedValue({
+      ok: true,
+      data: { windowId: 2, role: "project", projectId: "missing" },
+    });
+    vi.mocked(projectApi.getById).mockResolvedValue({ ok: true, data: null });
+
+    const store = useProjectStore();
+    await store.bootstrapWindowProject();
+
+    expect(store.currentProject).toBeNull();
+    expect(store.projectContextError).toEqual(
+      expect.objectContaining({ code: "PROJECT_NOT_FOUND" })
+    );
+    expect(sessionMocks.clearSessions).toHaveBeenCalled();
+  });
+
+  it("sets projectContextError when a project window points to a missing path", async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(windowApi.getContext).mockResolvedValue({
+      ok: true,
+      data: { windowId: 2, role: "project", projectId: "a" },
+    });
     vi.mocked(projectApi.getById).mockResolvedValue({
       ok: true,
+      data: { ...projectInfo("a"), pathMissing: true },
+    });
+
+    const store = useProjectStore();
+    await store.bootstrapWindowProject();
+
+    expect(store.currentProject).toBeNull();
+    expect(store.projectContextError).toEqual(
+      expect.objectContaining({ code: "PROJECT_PATH_MISSING" })
+    );
+    expect(sessionMocks.clearSessions).toHaveBeenCalled();
+  });
+
+  it("does not change currentProject when a project window opens another project", async () => {
+    const store = useProjectStore();
+    store.currentProject = {
+      ...projectInfo("a", "Project A"),
+      createdAt: new Date("2026-04-19T08:00:00.000Z"),
+      lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+    };
+    vi.mocked(windowApi.openProject).mockResolvedValue({
+      ok: true,
       data: {
-        id: "missing",
-        name: "Missing Project",
-        path: "/tmp/missing",
-        metaPath: "/tmp/missing-meta.json",
-        createdAt: "2026-04-20T08:00:00.000Z" as unknown as Date,
-        lastOpenedAt: "2026-04-30T08:00:00.000Z" as unknown as Date,
-        pathMissing: true,
+        status: "created",
+        project: projectInfo("b", "Project B"),
+        context: { windowId: 3, role: "project", projectId: "b" },
       },
     });
 
+    const result = await store.openProjectWindow("b");
+
+    expect(result).toBeNull();
+    expect(store.currentProject?.id).toBe("a");
+    expect(store.projects.map((project) => project.id)).toContain("b");
+  });
+
+  it("binds currentProject when the launcher is reused for a project", async () => {
+    vi.mocked(windowApi.openProject).mockResolvedValue({
+      ok: true,
+      data: {
+        status: "bound-current",
+        project: projectInfo("a", "Project A"),
+        context: { windowId: 1, role: "project", projectId: "a" },
+      },
+    });
+
+    const store = useProjectStore();
+    const result = await store.openProjectWindow("a");
+
+    expect(result?.id).toBe("a");
+    expect(store.currentProject?.id).toBe("a");
+    expect(store.windowContext).toEqual({ windowId: 1, role: "project", projectId: "a" });
+  });
+
+  it("opens a launcher window through the window API", async () => {
+    vi.mocked(windowApi.openLauncher).mockResolvedValue({
+      ok: true,
+      data: { context: { windowId: 4, role: "launcher", projectId: null } },
+    });
+
+    const store = useProjectStore();
+    await store.openLauncherWindow();
+
+    expect(windowApi.openLauncher).toHaveBeenCalled();
+  });
+
+  it("does not activate a recent project when the project path is missing", async () => {
     const store = useProjectStore();
     const result = await store.openRecentProject({
       id: "missing",
@@ -105,6 +244,7 @@ describe("useProjectStore", () => {
       path: "/tmp/missing",
       createdAt: new Date("2026-04-20T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
+      pathMissing: true,
     });
 
     expect(result).toBeNull();
@@ -115,6 +255,7 @@ describe("useProjectStore", () => {
       })
     );
     expect(projectApi.update).not.toHaveBeenCalled();
+    expect(windowApi.openProject).not.toHaveBeenCalled();
   });
 
   it("removes a recent project through the IPC API", async () => {

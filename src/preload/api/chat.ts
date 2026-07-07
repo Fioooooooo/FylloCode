@@ -10,12 +10,13 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 type ProbeConfigOptionInput = {
+  projectId: string;
   agentId: string;
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
 };
-type ProbeUpdatePayload = { agentId: string; snapshot: ProbeSnapshot | null };
+type ProbeUpdatePayload = { projectId: string; agentId: string; snapshot: ProbeSnapshot | null };
 export interface StreamCallbacks {
   onChunk: (data: MessageChunkData) => void;
   onDone: (data: { totalTokens: number }) => void;
@@ -24,6 +25,7 @@ export interface StreamCallbacks {
 
 interface PendingChatStream {
   sessionId: string;
+  projectId: string;
   callbacks: StreamCallbacks;
   port: MessagePort | null;
   cancelled: boolean;
@@ -167,6 +169,7 @@ export const chatApi = {
     const streamId = createStreamId();
     pendingChatStreams.set(streamId, {
       sessionId,
+      projectId,
       callbacks,
       port: null,
       cancelled: false,
@@ -203,7 +206,7 @@ export const chatApi = {
       }
 
       pending.cancelled = true;
-      void ipcRenderer.invoke(ChatStreamChannels.streamCancel, { sessionId });
+      void ipcRenderer.invoke(ChatStreamChannels.streamCancel, { projectId, sessionId });
       closePort(pending.port);
       pendingChatStreams.delete(streamId);
     };
@@ -255,7 +258,7 @@ export const chatApi = {
     return ipcRenderer.invoke(ChatProbeChannels.ensure, input);
   },
 
-  probeClose(input: { agentId: string }): Promise<IpcResponse<void>> {
+  probeClose(input: { projectId: string; agentId: string }): Promise<IpcResponse<void>> {
     return ipcRenderer.invoke(ChatProbeChannels.close, input);
   },
 

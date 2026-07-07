@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   captureMainWindowState,
   DEFAULT_MAIN_WINDOW_SIZE,
@@ -103,6 +103,75 @@ describe("window helpers", () => {
     it("rejects malformed input", () => {
       expect(isSafeExternalUrl("not a url")).toBe(false);
       expect(isSafeExternalUrl("")).toBe(false);
+    });
+  });
+
+  it("uses the provided state key when creating and saving a window", async () => {
+    vi.resetModules();
+
+    const stateKey = { role: "project" as const, projectId: "project-a" };
+    const loadWindowState = vi.fn(() => ({
+      bounds: { x: 123, y: 100, width: 1200, height: 740 },
+      isMaximized: false,
+    }));
+    const saveWindowState = vi.fn();
+    const eventHandlers = new Map<string, () => void>();
+    const browserWindow = {
+      webContents: {
+        setWindowOpenHandler: vi.fn(),
+        on: vi.fn(),
+        getURL: vi.fn(() => "http://localhost:5173/"),
+      },
+      on: vi.fn((event: string, handler: () => void) => {
+        eventHandlers.set(event, handler);
+      }),
+      maximize: vi.fn(),
+      show: vi.fn(),
+      isMaximized: vi.fn(() => false),
+      getBounds: vi.fn(() => ({ x: 123, y: 100, width: 1200, height: 740 })),
+      getNormalBounds: vi.fn(() => ({ x: 0, y: 0, width: 0, height: 0 })),
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+    };
+    const BrowserWindow = vi.fn(function BrowserWindowMock() {
+      return browserWindow;
+    });
+
+    vi.doMock("@main/infra/storage/window-state-store", () => ({
+      loadWindowState,
+      saveWindowState,
+    }));
+    vi.doMock("electron", () => ({
+      BrowserWindow,
+      screen: {
+        getPrimaryDisplay: vi.fn(() => ({
+          id: 1,
+          workArea: { x: 0, y: 0, width: 1440, height: 900 },
+        })),
+        getAllDisplays: vi.fn(() => []),
+      },
+      shell: { openExternal: vi.fn() },
+    }));
+
+    const { createFylloWindow } = await import("@main/bootstrap/window");
+
+    createFylloWindow({ stateKey });
+
+    expect(loadWindowState).toHaveBeenCalledWith(stateKey);
+    expect(BrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 123,
+        y: 100,
+        width: 1200,
+        height: 740,
+      })
+    );
+
+    eventHandlers.get("close")?.();
+
+    expect(saveWindowState).toHaveBeenCalledWith(stateKey, {
+      bounds: { x: 123, y: 100, width: 1200, height: 740 },
+      isMaximized: false,
     });
   });
 });

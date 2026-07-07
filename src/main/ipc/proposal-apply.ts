@@ -143,7 +143,7 @@ export function registerProposalApplyHandlers(): void {
         return driveAcpStream({
           session,
           owner: "apply",
-          registryKey: form.runId,
+          registryKey: `${form.projectId}:${form.runId}`,
           output: sink,
           logTag: "proposal-apply",
           start: async () => {
@@ -192,8 +192,8 @@ export function registerProposalApplyHandlers(): void {
 
   ipcMain.handle(ProposalChannels.stageStreamCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { runId } = validate(stageStreamCancelInputSchema, input);
-      sessionRegistry.cancel("apply", runId);
+      const { projectId, runId } = validate(stageStreamCancelInputSchema, input);
+      sessionRegistry.cancel("apply", `${projectId}:${runId}`);
     })
   );
 

@@ -20,6 +20,7 @@ export interface StreamCallbacks {
 }
 
 type ProbeConfigOptionInput = {
+  projectId: string;
   agentId: string;
   configId: string;
   type: "select" | "boolean";
@@ -116,7 +117,7 @@ export const chatApi = {
     return window.api.chat.probeEnsure(input);
   },
 
-  probeClose(input: { agentId: string }): Promise<IpcResponse<void>> {
+  probeClose(input: { projectId: string; agentId: string }): Promise<IpcResponse<void>> {
     return window.api.chat.probeClose(input);
   },
 
@@ -125,7 +126,11 @@ export const chatApi = {
   },
 
   onProbeUpdate(
-    handler: (payload: { agentId: string; snapshot: ProbeSnapshot | null }) => void
+    handler: (payload: {
+      projectId: string;
+      agentId: string;
+      snapshot: ProbeSnapshot | null;
+    }) => void
   ): () => void {
     return window.api.chat.onProbeUpdate(handler);
   },

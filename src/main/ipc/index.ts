@@ -12,9 +12,11 @@ import { registerLineageHandlers } from "./lineage";
 import { registerOverviewHandlers } from "./overview";
 import { registerSpecsHandlers } from "./specs";
 import { registerGuidelinesHandlers } from "./guidelines";
+import { registerWindowHandlers } from "./window";
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
+  registerWindowHandlers();
   registerChatHandlers();
   registerProjectHandlers();
   registerProposalHandlers();

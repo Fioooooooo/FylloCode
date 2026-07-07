@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcMain } from "electron";
 import { ProposalChannels } from "@shared/types/channels";
 import type { IpcResponse } from "@shared/types/ipc";
+import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
 const mocks = vi.hoisted(() => ({
   loadProject: vi.fn(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   readProposalFile: vi.fn(),
   getProposalSpecDeltas: vi.fn(),
   watchProposal: vi.fn(),
+  statusChangedListener: null as ((payload: unknown) => void) | null,
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -18,6 +20,10 @@ vi.mock("@main/infra/storage/project-store", () => ({
 vi.mock("@main/services/proposal/proposal-status-service", () => ({
   proposalStatusService: {
     watchProposal: mocks.watchProposal,
+    onStatusChanged: vi.fn((listener: (payload: unknown) => void) => {
+      mocks.statusChangedListener = listener;
+      return vi.fn();
+    }),
   },
 }));
 
@@ -27,11 +33,12 @@ vi.mock("@main/services/proposal/proposal-service", () => ({
   getProposalSpecDeltas: mocks.getProposalSpecDeltas,
 }));
 
-import { registerProposalHandlers } from "@main/ipc/proposal";
+import { registerProposalHandlers, setupProposalStatusBroadcast } from "@main/ipc/proposal";
 
 describe("registerProposalHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.statusChangedListener = null;
   });
 
   function handler(
@@ -58,8 +65,37 @@ describe("registerProposalHandlers", () => {
     );
 
     expect(mocks.loadProject).toHaveBeenCalledWith("project-1");
-    expect(mocks.watchProposal).toHaveBeenCalledWith("/tmp/project", "change-1", "session-1");
+    expect(mocks.watchProposal).toHaveBeenCalledWith(
+      "project-1",
+      "/tmp/project",
+      "change-1",
+      "session-1"
+    );
     expect(result).toEqual({ ok: true, data: undefined });
+  });
+
+  it("routes proposal status updates to the matching project window", () => {
+    const manager = {
+      sendToProject: vi.fn(),
+    } as unknown as ProjectWindowManager;
+
+    setupProposalStatusBroadcast(manager);
+    expect(mocks.statusChangedListener).toBeTypeOf("function");
+
+    mocks.statusChangedListener?.({
+      projectId: "project-1",
+      changeId: "change-1",
+      sessionId: "session-1",
+      projectPath: "/tmp/project",
+      status: "draft",
+      updatedAt: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(manager.sendToProject).toHaveBeenCalledWith(
+      "project-1",
+      ProposalChannels.statusChanged,
+      expect.objectContaining({ projectId: "project-1", changeId: "change-1" })
+    );
   });
 
   it("rejects watch when project is not found", async () => {

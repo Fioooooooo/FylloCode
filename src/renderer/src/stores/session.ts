@@ -299,6 +299,10 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
   async function handleProposalStatusChanged(payload: ProposalStatusChangedPayload): Promise<void> {
     try {
+      if (payload.projectId !== useProjectStore().currentProject?.id) {
+        return;
+      }
+
       if (payload.removed) {
         removeSessionProposal(payload.sessionId, payload.changeId);
         return;
@@ -590,8 +594,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     const next = new Map(draftProbeByAgent.value);
     next.delete(agentId);
     draftProbeByAgent.value = next;
+    const projectId = useProjectStore().currentProject?.id;
+    if (!projectId) {
+      return;
+    }
+
     try {
-      await chatApi.probeClose({ agentId });
+      await chatApi.probeClose({ projectId, agentId });
     } catch {
       // close is best-effort; local draft state has already been cleared.
     }
@@ -614,6 +623,11 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     type: "select" | "boolean";
     value: string | boolean;
   }): Promise<void> {
+    const projectId = useProjectStore().currentProject?.id;
+    if (!projectId) {
+      throw new Error("Project is required to set draft config options");
+    }
+
     const entry = draftProbeByAgent.value.get(input.agentId);
     const target = entry?.configOptions.find((option) => option.id === input.configId);
     if (!entry || !target) {
@@ -632,7 +646,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     chatStore.markConfigOptionPending(input.configId);
 
     try {
-      const result = await chatApi.probeSetConfigOption(input);
+      const result = await chatApi.probeSetConfigOption({ ...input, projectId });
       if (!result.ok) {
         throw new Error(result.error.message || result.error.code);
       }
@@ -662,7 +676,11 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function subscribeProbeUpdates(): () => void {
-    return chatApi.onProbeUpdate(({ agentId, snapshot }) => {
+    return chatApi.onProbeUpdate(({ projectId, agentId, snapshot }) => {
+      if (projectId !== useProjectStore().currentProject?.id) {
+        return;
+      }
+
       applyProbeUpdate(agentId, snapshot);
     });
   }

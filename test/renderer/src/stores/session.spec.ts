@@ -509,6 +509,15 @@ describe("useSessionStore", () => {
   });
 
   it("closeDraftProbe clears local state before awaiting IPC", async () => {
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
@@ -523,10 +532,22 @@ describe("useSessionStore", () => {
 
     expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
     await promise;
-    expect(mocks.probeClose).toHaveBeenCalledWith({ agentId: "claude-code" });
+    expect(mocks.probeClose).toHaveBeenCalledWith({
+      projectId: "project-1",
+      agentId: "claude-code",
+    });
   });
 
   it("setDraftConfigOption optimistically updates and clears pending", async () => {
+    const projectStore = useProjectStore();
+    projectStore.currentProject = {
+      id: "project-1",
+      name: "Project",
+      path: "/tmp/project",
+      metaPath: "/tmp/project/meta.json",
+      createdAt: new Date(),
+      lastOpenedAt: new Date(),
+    };
     const store = useSessionStore();
     const chatStore = useChatStore();
     store.applyProbeUpdate("claude-code", {
@@ -563,6 +584,7 @@ describe("useSessionStore", () => {
     await promise;
     expect(chatStore.pendingConfigIds.has("model")).toBe(false);
     expect(mocks.probeSetConfigOption).toHaveBeenCalledWith({
+      projectId: "project-1",
       agentId: "claude-code",
       configId: "model",
       type: "select",
@@ -877,6 +899,7 @@ describe("useSessionStore", () => {
     store.activeSessionId = "session-1";
 
     proposalMocks.statusHandler?.({
+      projectId: "project-1",
       sessionId: "session-1",
       changeId: "change-1",
       projectPath: "/tmp/project",
@@ -910,6 +933,7 @@ describe("useSessionStore", () => {
     store.activeSessionId = "session-1";
 
     proposalMocks.statusHandler?.({
+      projectId: "project-1",
       sessionId: "session-1",
       changeId: "change-1",
       projectPath: "/tmp/project",

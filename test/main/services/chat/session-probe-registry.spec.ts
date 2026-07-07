@@ -7,6 +7,7 @@ import {
 
 function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
   return {
+    projectId: "project-1",
     agentId: "claude-code",
     status: "ready",
     fylloSessionId: "session-probe",
@@ -20,9 +21,7 @@ function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
 
 describe("session-probe-registry", () => {
   afterEach(() => {
-    for (const key of sessionProbeRegistry.keys()) {
-      sessionProbeRegistry.delete(key);
-    }
+    sessionProbeRegistry.clear();
   });
 
   it("toProbeSnapshot maps availableCommands and fylloSessionId", () => {
@@ -41,11 +40,30 @@ describe("session-probe-registry", () => {
     const entry = makeEntry({
       availableCommands: [{ name: "review", description: "Review" }],
     });
-    sessionProbeRegistry.set("claude-code", entry);
+    sessionProbeRegistry.set("project-1", "claude-code", entry);
 
-    expect(sessionProbeRegistry.get("claude-code")?.availableCommands).toEqual([
+    expect(sessionProbeRegistry.get("project-1", "claude-code")?.availableCommands).toEqual([
       { name: "review", description: "Review" },
     ]);
+  });
+
+  it("keeps entries for the same agent isolated by project", () => {
+    const projectAEntry = makeEntry({
+      projectId: "project-a",
+      acpSessionId: "acp-a",
+      availableCommands: [{ name: "a", description: "Project A" }],
+    });
+    const projectBEntry = makeEntry({
+      projectId: "project-b",
+      acpSessionId: "acp-b",
+      availableCommands: [{ name: "b", description: "Project B" }],
+    });
+
+    sessionProbeRegistry.set("project-a", "claude-code", projectAEntry);
+    sessionProbeRegistry.set("project-b", "claude-code", projectBEntry);
+
+    expect(sessionProbeRegistry.get("project-a", "claude-code")?.acpSessionId).toBe("acp-a");
+    expect(sessionProbeRegistry.get("project-b", "claude-code")?.acpSessionId).toBe("acp-b");
   });
 
   it("takeFor returns the entry with availableCommands when acpSessionId matches", () => {
@@ -53,12 +71,12 @@ describe("session-probe-registry", () => {
       acpSessionId: "acp-x",
       availableCommands: [{ name: "plan", description: "Plan" }],
     });
-    sessionProbeRegistry.set("claude-code", entry);
+    sessionProbeRegistry.set("project-1", "claude-code", entry);
 
-    const taken = sessionProbeRegistry.takeFor("claude-code", "acp-x");
+    const taken = sessionProbeRegistry.takeFor("project-1", "claude-code", "acp-x");
 
     expect(taken?.availableCommands).toEqual([{ name: "plan", description: "Plan" }]);
     expect(taken?.fylloSessionId).toBe("session-probe");
-    expect(sessionProbeRegistry.get("claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
   });
 });

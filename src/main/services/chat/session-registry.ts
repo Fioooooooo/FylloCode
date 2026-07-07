@@ -53,6 +53,20 @@ export const sessionRegistry = {
     }
   },
 
+  cancelProject(projectId: string): void {
+    const keyPrefix = `${projectId}:`;
+
+    for (const [k, entry] of byOwnerKey) {
+      if (!entry.key.startsWith(keyPrefix)) continue;
+      try {
+        entry.session.cancel();
+      } catch (err) {
+        logger.warn(`[session-registry] cancel ${k} failed`, err);
+      }
+      byOwnerKey.delete(k);
+    }
+  },
+
   cancelAll(): void {
     for (const [k, entry] of byOwnerKey) {
       try {

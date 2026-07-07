@@ -8,7 +8,7 @@ import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { runAllMigrations } from "@main/migrations";
 import { disposeAll } from "./lifecycle";
-import { createMainWindow } from "./window";
+import { projectWindowManager } from "./project-window-manager";
 import logger from "@main/infra/logger";
 
 let shuttingDown = false;
@@ -29,18 +29,18 @@ export function startApp(): void {
     registerAllHandlers();
     void initBuiltInWorkflows();
 
-    const mainWindow = createMainWindow();
-    setupProbeBroadcast(mainWindow);
-    setupAgentEventBroadcast(mainWindow);
-    setupProposalStatusBroadcast(mainWindow);
+    setupProbeBroadcast(projectWindowManager);
+    setupAgentEventBroadcast(projectWindowManager);
+    setupProposalStatusBroadcast(projectWindowManager);
+    projectWindowManager.openLauncherWindow();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        const reopenedWindow = createMainWindow();
-        setupProbeBroadcast(reopenedWindow);
-        setupAgentEventBroadcast(reopenedWindow);
-        setupProposalStatusBroadcast(reopenedWindow);
+        projectWindowManager.openLauncherWindow();
+        return;
       }
+
+      projectWindowManager.focusLastActiveWindow();
     });
   });
 

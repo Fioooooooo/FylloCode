@@ -5,7 +5,7 @@ export function registerProjectsTask(): void {
   onFylloBootstrap({
     name: "projects",
     async run({ pinia }) {
-      await useProjectStore(pinia).ensureLoaded();
+      await useProjectStore(pinia).bootstrapWindowProject();
     },
   });
 }

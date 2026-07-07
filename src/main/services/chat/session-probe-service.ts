@@ -18,11 +18,71 @@ import type { ProbeEntry } from "./session-probe-registry";
 import { sessionProbeRegistry, toProbeSnapshot } from "./session-probe-registry";
 import { sessionProbeBus } from "./session-probe-bus";
 
+type AgentProcessEntry = Awaited<ReturnType<typeof getOrStartProcess>>;
+type ProbeNotificationHandler = (notification: SessionNotification) => void;
+
 export interface SetProbeConfigOptionInput {
+  projectId: string;
   agentId: string;
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
+}
+
+const probeHandlersByKey = new Map<string, ProbeNotificationHandler>();
+const probeStartTailsByAgent = new Map<string, Promise<void>>();
+
+function probeKey(projectId: string, agentId: string): string {
+  return `${projectId}::${agentId}`;
+}
+
+async function runSerializedProbeStart<T>(agentId: string, task: () => Promise<T>): Promise<T> {
+  const previousTail = probeStartTailsByAgent.get(agentId) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const currentTail = previousTail
+    .catch(() => undefined)
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseCurrent = resolve;
+        })
+    );
+
+  probeStartTailsByAgent.set(agentId, currentTail);
+  await previousTail.catch(() => undefined);
+
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+    if (probeStartTailsByAgent.get(agentId) === currentTail) {
+      probeStartTailsByAgent.delete(agentId);
+    }
+  }
+}
+
+function detachProbeFallback(projectId: string, agentId: string): ProbeNotificationHandler | null {
+  const key = probeKey(projectId, agentId);
+  const handler = probeHandlersByKey.get(key) ?? null;
+  probeHandlersByKey.delete(key);
+  if (handler) {
+    clearPendingProbeHandler(agentId, handler);
+  } else {
+    clearPendingProbeHandler(agentId);
+  }
+  return handler;
+}
+
+async function clearProbeSessionHandler(agentId: string, acpSessionId: string): Promise<void> {
+  try {
+    const processEntry = await getProcess(agentId);
+    processEntry.sessionHandlers.delete(acpSessionId);
+  } catch (error: unknown) {
+    logger.warn(
+      `[chat-probe] failed to clear probe session handler for agent=${agentId} acp=${acpSessionId}`,
+      error
+    );
+  }
 }
 
 function normalizeError(error: unknown): { code: string; message: string } {
@@ -38,16 +98,18 @@ function normalizeIpcErrorCode(code: string | undefined): IpcErrorCode {
   return code && knownCodes.includes(code) ? (code as IpcErrorCode) : IpcErrorCodes.ACP_ERROR;
 }
 
-function emitUpdate(agentId: string, snapshot: ProbeSnapshot | null): void {
-  sessionProbeBus.emitUpdate({ agentId, snapshot });
+function emitUpdate(projectId: string, agentId: string, snapshot: ProbeSnapshot | null): void {
+  sessionProbeBus.emitUpdate({ projectId, agentId, snapshot });
 }
 
 function setFailedEntry(
+  projectId: string,
   agentId: string,
   error: unknown,
   fylloSessionId = newSessionId()
 ): ProbeEntry {
   const entry: ProbeEntry = {
+    projectId,
     agentId,
     status: "failed",
     fylloSessionId,
@@ -57,8 +119,8 @@ function setFailedEntry(
     error: normalizeError(error),
     startedAt: Date.now(),
   };
-  sessionProbeRegistry.set(agentId, entry);
-  emitUpdate(agentId, toProbeSnapshot(entry));
+  sessionProbeRegistry.set(projectId, agentId, entry);
+  emitUpdate(projectId, agentId, toProbeSnapshot(entry));
   return entry;
 }
 
@@ -69,25 +131,27 @@ function setFailedEntry(
  * window never carries them. On a command update it normalizes the commands,
  * patches the current registry entry, and broadcasts the new snapshot.
  */
-function createProbeHandler(agentId: string): (notification: SessionNotification) => void {
+function createProbeHandler(
+  projectId: string,
+  agentId: string
+): (notification: SessionNotification) => void {
   return (notification: SessionNotification): void => {
     if (notification.update.sessionUpdate !== "available_commands_update") {
       return;
     }
-    const entry = sessionProbeRegistry.get(agentId);
+    const entry = sessionProbeRegistry.get(projectId, agentId);
     if (!entry) {
       return;
     }
     entry.availableCommands = normalizeAvailableCommands(notification.update);
-    sessionProbeRegistry.set(agentId, entry);
-    emitUpdate(agentId, toProbeSnapshot(entry));
+    sessionProbeRegistry.set(projectId, agentId, entry);
+    emitUpdate(projectId, agentId, toProbeSnapshot(entry));
   };
 }
 
-async function getConnection(agentId: string): Promise<ClientSideConnection> {
+async function getProcess(agentId: string): Promise<AgentProcessEntry> {
   try {
-    const entry = await getOrStartProcess(agentId);
-    return entry.connection;
+    return await getOrStartProcess(agentId);
   } catch (error: unknown) {
     const e = error as Error & { code?: string };
     throw ipcError(
@@ -99,8 +163,17 @@ async function getConnection(agentId: string): Promise<ClientSideConnection> {
   }
 }
 
-export async function ensureProbe(agentId: string, projectPath: string): Promise<ProbeSnapshot> {
-  const existing = sessionProbeRegistry.get(agentId);
+async function getConnection(agentId: string): Promise<ClientSideConnection> {
+  const entry = await getProcess(agentId);
+  return entry.connection;
+}
+
+export async function ensureProbe(
+  projectId: string,
+  agentId: string,
+  projectPath: string
+): Promise<ProbeSnapshot> {
+  const existing = sessionProbeRegistry.get(projectId, agentId);
   if (existing?.status === "ready") {
     return toProbeSnapshot(existing);
   }
@@ -109,6 +182,7 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
   }
 
   const startingEntry: ProbeEntry = {
+    projectId,
     agentId,
     status: "starting",
     fylloSessionId: newSessionId(),
@@ -117,11 +191,13 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
     availableCommands: [],
     startedAt: Date.now(),
   };
-  sessionProbeRegistry.set(agentId, startingEntry);
+  sessionProbeRegistry.set(projectId, agentId, startingEntry);
 
   const inflightEnsure = (async (): Promise<ProbeEntry> => {
+    const probeHandler = createProbeHandler(projectId, agentId);
+    probeHandlersByKey.set(probeKey(projectId, agentId), probeHandler);
     try {
-      const connection = await getConnection(agentId);
+      const processEntry = await getProcess(agentId);
       const mcpServers = getBundledMcpServers({
         projectPath,
         fylloSessionId: startingEntry.fylloSessionId,
@@ -129,13 +205,29 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
         ...spec,
         env: toAcpMcpServerEnv(spec.env),
       }));
-      // Register the probe handler BEFORE newSession: claude-acp pushes
-      // available_commands_update via setTimeout(0) right after newSession
-      // returns, so the handler must already be in place to catch it.
-      setPendingProbeHandler(agentId, createProbeHandler(agentId));
-      const response = await connection.newSession({ cwd: projectPath, mcpServers });
-      const current = sessionProbeRegistry.get(agentId);
+      const response = await runSerializedProbeStart(agentId, async () => {
+        // Register the probe handler BEFORE newSession: claude-acp pushes
+        // available_commands_update via setTimeout(0) right after newSession
+        // returns, so the handler must already be in place to catch it. Probe
+        // starts are serialized per agent because fallback notifications do not
+        // have a known session handler until newSession returns.
+        setPendingProbeHandler(agentId, probeHandler);
+        try {
+          const createdSession = await processEntry.connection.newSession({
+            cwd: projectPath,
+            mcpServers,
+          });
+          processEntry.sessionHandlers.set(createdSession.sessionId, probeHandler);
+          clearPendingProbeHandler(agentId, probeHandler);
+          return createdSession;
+        } catch (error: unknown) {
+          detachProbeFallback(projectId, agentId);
+          throw error;
+        }
+      });
+      const current = sessionProbeRegistry.get(projectId, agentId);
       const readyEntry: ProbeEntry = {
+        projectId,
         agentId,
         status: "ready",
         fylloSessionId: startingEntry.fylloSessionId,
@@ -147,11 +239,12 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
         availableCommands: current?.availableCommands ?? [],
         startedAt: startingEntry.startedAt,
       };
-      sessionProbeRegistry.set(agentId, readyEntry);
-      emitUpdate(agentId, toProbeSnapshot(readyEntry));
+      sessionProbeRegistry.set(projectId, agentId, readyEntry);
+      emitUpdate(projectId, agentId, toProbeSnapshot(readyEntry));
       return readyEntry;
     } catch (error: unknown) {
-      const failedEntry = setFailedEntry(agentId, error, startingEntry.fylloSessionId);
+      detachProbeFallback(projectId, agentId);
+      const failedEntry = setFailedEntry(projectId, agentId, error, startingEntry.fylloSessionId);
       throw ipcError(
         normalizeIpcErrorCode(failedEntry.error?.code),
         failedEntry.error?.message ?? "Failed to ensure probe"
@@ -163,28 +256,71 @@ export async function ensureProbe(agentId: string, projectPath: string): Promise
   return toProbeSnapshot(await inflightEnsure);
 }
 
-export async function closeProbe(agentId: string): Promise<void> {
-  const entry = sessionProbeRegistry.delete(agentId);
+export async function closeProbe(projectId: string, agentId: string): Promise<void> {
+  const entry = sessionProbeRegistry.delete(projectId, agentId);
   // Always clear the probe fallback handler so it does not leak after close,
   // even when no ready session exists to close.
-  clearPendingProbeHandler(agentId);
-  emitUpdate(agentId, null);
+  detachProbeFallback(projectId, agentId);
+  emitUpdate(projectId, agentId, null);
   if (!entry || entry.status !== "ready" || entry.acpSessionId === null) {
     return;
   }
 
   try {
-    const connection = await getConnection(agentId);
-    await connection.closeSession({ sessionId: entry.acpSessionId });
+    const processEntry = await getProcess(agentId);
+    processEntry.sessionHandlers.delete(entry.acpSessionId);
+    await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
   } catch (error: unknown) {
     logger.error(`[chat-probe] closeSession failed for agent=${agentId}`, error);
   }
 }
 
+export async function closeProjectProbes(projectId: string): Promise<void> {
+  const entries = sessionProbeRegistry.deleteProject(projectId);
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      detachProbeFallback(entry.projectId, entry.agentId);
+      if (entry.status !== "ready" || entry.acpSessionId === null) {
+        return;
+      }
+
+      try {
+        const processEntry = await getProcess(entry.agentId);
+        processEntry.sessionHandlers.delete(entry.acpSessionId);
+        await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
+      } catch (error: unknown) {
+        logger.error(
+          `[chat-probe] closeSession failed for project=${projectId} agent=${entry.agentId}`,
+          error
+        );
+      }
+    })
+  );
+}
+
+export async function takeProbeFor(
+  projectId: string,
+  agentId: string,
+  expectedAcpSessionId: string
+): Promise<ProbeEntry | null> {
+  const entry = sessionProbeRegistry.takeFor(projectId, agentId, expectedAcpSessionId);
+  if (!entry) {
+    return null;
+  }
+
+  detachProbeFallback(projectId, agentId);
+  if (entry.acpSessionId) {
+    await clearProbeSessionHandler(agentId, entry.acpSessionId);
+  }
+
+  return entry;
+}
+
 export async function setProbeConfigOption(
   input: SetProbeConfigOptionInput
 ): Promise<ProbeSnapshot> {
-  const entry = sessionProbeRegistry.get(input.agentId);
+  const entry = sessionProbeRegistry.get(input.projectId, input.agentId);
   if (!entry || entry.status !== "ready" || entry.acpSessionId === null) {
     throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "probe 未就绪");
   }
@@ -226,18 +362,26 @@ export async function setProbeConfigOption(
 
   entry.configOptions = normalizeAcpSessionConfigOptions(response.configOptions);
   const snapshot = toProbeSnapshot(entry);
-  emitUpdate(input.agentId, snapshot);
+  emitUpdate(input.projectId, input.agentId, snapshot);
   return snapshot;
 }
 
-export function getProbeSnapshot(agentId: string): ProbeSnapshot | null {
-  const entry = sessionProbeRegistry.get(agentId);
+export function getProbeSnapshot(projectId: string, agentId: string): ProbeSnapshot | null {
+  const entry = sessionProbeRegistry.get(projectId, agentId);
   return entry ? toProbeSnapshot(entry) : null;
 }
 
 onAgentUnavailable(({ agentId }) => {
-  const removed = sessionProbeRegistry.delete(agentId);
-  if (removed) {
-    emitUpdate(agentId, null);
+  for (const key of sessionProbeRegistry.keys()) {
+    const [projectId, entryAgentId] = key.split("::", 2);
+    if (!projectId || entryAgentId !== agentId) {
+      continue;
+    }
+
+    const removed = sessionProbeRegistry.delete(projectId, agentId);
+    if (removed) {
+      detachProbeFallback(projectId, agentId);
+      emitUpdate(projectId, agentId, null);
+    }
   }
 });

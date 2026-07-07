@@ -13,8 +13,10 @@ import { lineageApi } from "./api/lineage";
 import { overviewApi } from "./api/overview";
 import { specsApi } from "./api/specs";
 import { guidelinesApi } from "./api/guidelines";
+import { windowApi } from "./api/window";
 
 const api = {
+  window: windowApi,
   app: appApi,
   chat: chatApi,
   project: projectApi,

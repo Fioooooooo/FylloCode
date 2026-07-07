@@ -4,7 +4,7 @@ import type { FSWatcher } from "fs";
 import { join } from "path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { Disposable } from "@main/bootstrap/lifecycle";
-import { mcpEventsDir } from "@main/infra/storage/project-paths";
+import { encodeProjectPath, mcpEventsDir } from "@main/infra/storage/project-paths";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { createTestTempRoot } from "@test/main/test-temp-root";
 
@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   },
   watch: vi.fn(),
   watchCallbacks: [] as WatchCallback[],
-  watcherCloseFns: [] as ReturnType<typeof vi.fn>[],
+  watcherCloseFns: [] as Array<{ path: string; close: ReturnType<typeof vi.fn> }>,
 }));
 
 vi.mock("fs", async (importOriginal) => {
@@ -56,7 +56,10 @@ vi.mock("@main/infra/logger", () => ({
   default: mocks.logger,
 }));
 
-import { ensureLineageEventConsumer } from "@main/services/lineage/mcp-event-consumer";
+import {
+  disposeProject,
+  ensureLineageEventConsumer,
+} from "@main/services/lineage/mcp-event-consumer";
 
 type WatchCallback = () => void;
 
@@ -104,7 +107,7 @@ describe("lineage mcp event consumer", () => {
     mocks.ensureChatSubject.mockResolvedValue({ id: "chat-subject" });
     mocks.watch.mockImplementation(((_path, listener) => {
       const close = vi.fn();
-      mocks.watcherCloseFns.push(close);
+      mocks.watcherCloseFns.push({ path: String(_path), close });
       if (typeof listener === "function") {
         mocks.watchCallbacks.push(() => listener("rename", "event.json"));
       }
@@ -141,7 +144,12 @@ describe("lineage mcp event consumer", () => {
     });
     expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-1");
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
-    expect(mocks.watchProposal).toHaveBeenCalledWith(projectPath, "change-1", "session-1");
+    expect(mocks.watchProposal).toHaveBeenCalledWith(
+      encodeProjectPath(projectPath),
+      projectPath,
+      "change-1",
+      "session-1"
+    );
   });
 
   it("consumes residual plan events on startup without chat fallback", async () => {
@@ -236,6 +244,29 @@ describe("lineage mcp event consumer", () => {
 
     mocks.disposable?.dispose();
 
-    expect(mocks.watcherCloseFns[0]).toHaveBeenCalledTimes(1);
+    expect(mocks.watcherCloseFns[0]?.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes only the requested project watcher on project dispose", async () => {
+    const projectA = createTestTempRoot("fyllo-lineage-project-a-");
+    const projectB = createTestTempRoot("fyllo-lineage-project-b-");
+
+    ensureLineageEventConsumer(projectA);
+    ensureLineageEventConsumer(projectB);
+    await vi.waitFor(() => {
+      expect(mocks.watcherCloseFns).toHaveLength(2);
+    });
+
+    disposeProject(projectA);
+
+    const projectAClose = mocks.watcherCloseFns.find(
+      (watcher) => watcher.path === mcpEventsDir(projectA)
+    )?.close;
+    const projectBClose = mocks.watcherCloseFns.find(
+      (watcher) => watcher.path === mcpEventsDir(projectB)
+    )?.close;
+
+    expect(projectAClose).toHaveBeenCalledTimes(1);
+    expect(projectBClose).not.toHaveBeenCalled();
   });
 });

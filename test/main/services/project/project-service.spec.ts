@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectMeta } from "@shared/types/project";
 
 const mocks = vi.hoisted(() => ({
+  listProjectMetas: vi.fn(),
   loadProject: vi.fn(),
   saveProject: vi.fn(),
   pathExists: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock("@main/infra/storage/project-store", async () => {
   );
   return {
     ...actual,
+    listProjects: mocks.listProjectMetas,
     loadProject: mocks.loadProject,
     saveProject: mocks.saveProject,
   };
@@ -29,7 +31,11 @@ vi.mock("fs", async () => {
   };
 });
 
-import { adoptExistingFolder, updateProject } from "@main/services/project/project-service";
+import {
+  adoptExistingFolder,
+  listProjects as listProjectInfos,
+  updateProject,
+} from "@main/services/project/project-service";
 
 function existingMeta(overrides: Partial<ProjectMeta> = {}): ProjectMeta {
   return {
@@ -46,7 +52,39 @@ function existingMeta(overrides: Partial<ProjectMeta> = {}): ProjectMeta {
 describe("project-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.listProjectMetas.mockResolvedValue([]);
     mocks.pathExists.mockResolvedValue(undefined);
+  });
+
+  describe("listProjects", () => {
+    it("returns projects with pathMissing omitted when paths exist", async () => {
+      mocks.listProjectMetas.mockResolvedValue([existingMeta()]);
+      mocks.pathExists.mockResolvedValue(undefined);
+
+      const projects = await listProjectInfos();
+
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toMatchObject({
+        id: "encoded",
+        path: "/tmp/project",
+        pathMissing: undefined,
+      });
+      expect(mocks.pathExists).toHaveBeenCalledWith("/tmp/project");
+    });
+
+    it("returns projects with pathMissing when paths are missing", async () => {
+      mocks.listProjectMetas.mockResolvedValue([existingMeta()]);
+      mocks.pathExists.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
+
+      const projects = await listProjectInfos();
+
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toMatchObject({
+        id: "encoded",
+        path: "/tmp/project",
+        pathMissing: true,
+      });
+    });
   });
 
   describe("adoptExistingFolder", () => {

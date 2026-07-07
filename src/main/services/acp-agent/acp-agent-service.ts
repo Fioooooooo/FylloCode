@@ -30,9 +30,9 @@ import logger from "@main/infra/logger";
 
 /**
  * Service-layer event bus for agent registry/status/install updates. The
- * service emits; the ipc layer (acp-agents.ts) owns the BrowserWindow and
- * forwards these to the renderer. Keeps services free of Electron window
- * APIs — same pattern as the process pool's agentUnavailable event.
+ * service emits; the ipc fanout layer (acp-agents.ts) forwards these to every
+ * active renderer window. Keeps services free of Electron window APIs — same
+ * pattern as the process pool's agentUnavailable event.
  */
 const agentServiceEvents = new EventEmitter();
 

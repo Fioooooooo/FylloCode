@@ -1,5 +1,4 @@
 import { ipcMain } from "electron";
-import type { BrowserWindow } from "electron";
 import { AcpAgentChannels } from "@shared/types/channels";
 import {
   ensureAgentInputSchema,
@@ -24,44 +23,41 @@ import {
 import { onAgentUnavailable } from "@main/infra/process/acp-process-pool";
 import { loadCache } from "@main/infra/storage/agent-capability-store";
 import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
+import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
-let agentEventWindow: BrowserWindow | null = null;
+let agentEventManager: ProjectWindowManager | null = null;
 let agentEventSubscribed = false;
 
 /**
  * 将 acp-process-pool（infra）与 acp-agent-service（services）发出的事件
- * 转发到渲染进程。下层只发事件、不持有 BrowserWindow；窗口发送统一留在
- * ipc 层（与 chat 的 setupProbeBroadcast 同一模式）。重开窗口时更新目标
- * 引用，订阅只挂一次。
+ * 转发到所有活跃渲染进程。下层只发事件、不持有 BrowserWindow；窗口 fanout
+ * 统一通过 ProjectWindowManager 完成，订阅只挂一次。
  */
-export function setupAgentEventBroadcast(mainWindow: BrowserWindow): void {
-  agentEventWindow = mainWindow;
+export function setupAgentEventBroadcast(manager: ProjectWindowManager): void {
+  agentEventManager = manager;
   if (agentEventSubscribed) {
     return;
   }
   agentEventSubscribed = true;
 
-  const sendToWindow = (channel: string, payload: unknown): void => {
-    if (agentEventWindow?.isDestroyed()) {
-      return;
-    }
-    agentEventWindow?.webContents.send(channel, payload);
+  const sendToWindows = (channel: string, payload: unknown): void => {
+    agentEventManager?.sendToAll(channel, payload);
   };
 
   onAgentUnavailable(({ agentId, reason }) => {
-    sendToWindow(AcpAgentChannels.agentUnavailable, { agentId, reason });
+    sendToWindows(AcpAgentChannels.agentUnavailable, { agentId, reason });
   });
   onAgentServiceEvent("registryUpdated", (registry) => {
-    sendToWindow(AcpAgentChannels.registryUpdated, registry);
+    sendToWindows(AcpAgentChannels.registryUpdated, registry);
   });
   onAgentServiceEvent("statusUpdated", (statuses) => {
-    sendToWindow(AcpAgentChannels.statusUpdated, statuses);
+    sendToWindows(AcpAgentChannels.statusUpdated, statuses);
   });
   onAgentServiceEvent("installProgress", (progress) => {
-    sendToWindow(AcpAgentChannels.installProgress, progress);
+    sendToWindows(AcpAgentChannels.installProgress, progress);
   });
   onAgentServiceEvent("uninstallProgress", (progress) => {
-    sendToWindow(AcpAgentChannels.uninstallProgress, progress);
+    sendToWindows(AcpAgentChannels.uninstallProgress, progress);
   });
 }
 

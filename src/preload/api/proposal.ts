@@ -85,7 +85,10 @@ export const proposalApi = {
     });
 
     return () => {
-      void ipcRenderer.invoke(ProposalChannels.stageStreamCancel, { runId: input.runId });
+      void ipcRenderer.invoke(ProposalChannels.stageStreamCancel, {
+        projectId: input.projectId,
+        runId: input.runId,
+      });
     };
   },
 

@@ -11,11 +11,13 @@ import type { lineageApi } from "./api/lineage";
 import type { overviewApi } from "./api/overview";
 import type { specsApi } from "./api/specs";
 import type { guidelinesApi } from "./api/guidelines";
+import type { windowApi } from "./api/window";
 
 type SettingsApi = typeof settingsApi;
 type ChatApi = typeof chatApi;
 
 export interface AppApi {
+  window: typeof windowApi;
   app: typeof appApi;
   chat: ChatApi;
   project: typeof projectApi;

@@ -26,7 +26,7 @@ const dropdownItems = computed(() => {
       label: "打开项目",
       icon: "i-lucide-folder-open",
       onSelect: async () => {
-        const project = await projectStore.openFolder();
+        const project = await projectStore.openFolderWindow();
         if (project) {
           await goToDefault();
         }

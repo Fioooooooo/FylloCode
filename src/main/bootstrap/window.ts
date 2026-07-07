@@ -2,9 +2,10 @@ import { shell, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "path";
 import { is, platform } from "@electron-toolkit/utils";
 import {
-  loadMainWindowState,
-  saveMainWindowState,
+  loadWindowState,
+  saveWindowState,
   type MainWindowState,
+  type WindowStateKey,
 } from "@main/infra/storage/window-state-store";
 import icon from "../../../resources/icon.png?asset";
 
@@ -22,6 +23,18 @@ interface MainWindowStateSnapshotSource {
   isMaximized(): boolean;
   getBounds(): Rectangle;
   getNormalBounds(): Rectangle;
+}
+
+interface WindowStateApplyTarget {
+  isMaximized(): boolean;
+  maximize(): void;
+  unmaximize(): void;
+  setBounds(bounds: Rectangle): void;
+}
+
+export interface CreateFylloWindowOptions {
+  stateKey: WindowStateKey;
+  getStateKey?: () => WindowStateKey;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -136,8 +149,35 @@ export function captureMainWindowState(mainWindow: MainWindowStateSnapshotSource
   };
 }
 
-export function createMainWindow(): BrowserWindow {
-  const resolvedState = resolveMainWindowState(loadMainWindowState(), getCurrentWorkAreas());
+export function resolveFylloWindowState(stateKey: WindowStateKey): MainWindowState {
+  return resolveMainWindowState(loadWindowState(stateKey), getCurrentWorkAreas());
+}
+
+function getCurrentStateKey(options: CreateFylloWindowOptions): WindowStateKey {
+  return options.getStateKey?.() ?? options.stateKey;
+}
+
+export function applyFylloWindowState(
+  mainWindow: WindowStateApplyTarget,
+  stateKey: WindowStateKey
+): MainWindowState {
+  const resolvedState = resolveFylloWindowState(stateKey);
+
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  }
+
+  mainWindow.setBounds(resolvedState.bounds);
+
+  if (resolvedState.isMaximized) {
+    mainWindow.maximize();
+  }
+
+  return resolvedState;
+}
+
+export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWindow {
+  const resolvedState = resolveFylloWindowState(options.stateKey);
 
   const mainWindow = new BrowserWindow({
     x: resolvedState.bounds.x,
@@ -170,7 +210,7 @@ export function createMainWindow(): BrowserWindow {
   });
 
   mainWindow.on("close", () => {
-    saveMainWindowState(captureMainWindowState(mainWindow));
+    saveWindowState(getCurrentStateKey(options), captureMainWindowState(mainWindow));
   });
 
   // Open external links in the system browser, but only for http/https. The
@@ -205,4 +245,8 @@ export function createMainWindow(): BrowserWindow {
   }
 
   return mainWindow;
+}
+
+export function createMainWindow(): BrowserWindow {
+  return createFylloWindow({ stateKey: { role: "launcher" } });
 }

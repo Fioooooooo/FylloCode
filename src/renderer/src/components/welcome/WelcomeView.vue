@@ -10,7 +10,7 @@ const projectStore = useProjectStore();
 const iconUrl = `${import.meta.env.BASE_URL}icon.svg`;
 
 async function handleOpenFolder(): Promise<void> {
-  const project = await projectStore.openFolder();
+  const project = await projectStore.openFolderWindow();
   if (project) {
     await goToDefault();
   }

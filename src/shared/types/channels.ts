@@ -33,6 +33,13 @@ export const ProjectChannels = {
   openFolder: "project:openFolder",
 } as const;
 
+export const WindowChannels = {
+  getContext: "window:getContext",
+  openProject: "window:openProject",
+  openFolder: "window:openFolder",
+  openLauncher: "window:openLauncher",
+} as const;
+
 export const ProposalChannels = {
   list: "proposal:list",
   readFile: "proposal:readFile",

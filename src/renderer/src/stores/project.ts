@@ -2,8 +2,15 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import { projectApi } from "@renderer/api/project";
+import { windowApi } from "@renderer/api/window";
 import { useSessionStore } from "./session";
 import type { ProjectInfo, RecentProject } from "@shared/types/project";
+import type { WindowContext } from "@shared/types/window";
+
+interface ProjectContextError {
+  code: string;
+  message: string;
+}
 
 function normalizeProject(project: ProjectInfo): ProjectInfo {
   return {
@@ -34,6 +41,8 @@ export const useProjectStore = defineStore("project", () => {
 
   const projects = ref<ProjectInfo[]>([]);
   const currentProject = ref<ProjectInfo | null>(null);
+  const windowContext = ref<WindowContext | null>(null);
+  const projectContextError = ref<ProjectContextError | null>(null);
   const isLoaded = ref(false);
   let loadPromise: Promise<void> | null = null;
   const hasCurrentProject = computed(() => currentProject.value !== null);
@@ -51,6 +60,14 @@ export const useProjectStore = defineStore("project", () => {
     if (project) {
       await sessionStore.loadSessions(project.id);
     }
+  }
+
+  async function bindCurrentProject(project: ProjectInfo): Promise<ProjectInfo> {
+    const normalized = normalizeProject(project);
+    projectContextError.value = null;
+    upsertProject(normalized);
+    await setCurrentProject(normalized);
+    return normalized;
   }
 
   function replaceProjects(items: ProjectInfo[]): void {
@@ -73,13 +90,6 @@ export const useProjectStore = defineStore("project", () => {
     projects.value = sortByLastOpened(projects.value);
   }
 
-  async function activateProject(project: ProjectInfo): Promise<ProjectInfo> {
-    const normalized = normalizeProject(project);
-    upsertProject(normalized);
-    await setCurrentProject(normalized);
-    return normalized;
-  }
-
   function clearCurrentProject(): void {
     currentProject.value = null;
     useSessionStore().clearSessions();
@@ -89,6 +99,14 @@ export const useProjectStore = defineStore("project", () => {
     toast.add({
       title: "项目目录不存在",
       description: `${project.name}: ${project.path}`,
+      color: "error",
+    });
+  }
+
+  function notifyWindowOpenError(message: string): void {
+    toast.add({
+      title: "无法打开项目窗口",
+      description: message,
       color: "error",
     });
   }
@@ -123,75 +141,121 @@ export const useProjectStore = defineStore("project", () => {
     await loadProjects();
   }
 
-  async function openFolder(): Promise<ProjectInfo | null> {
-    const result = await projectApi.openFolder();
+  async function bootstrapWindowProject(): Promise<void> {
+    await loadProjects();
+
+    const contextResult = await windowApi.getContext();
+    if (!contextResult.ok) {
+      projectContextError.value = contextResult.error;
+      clearCurrentProject();
+      return;
+    }
+
+    windowContext.value = contextResult.data;
+
+    if (contextResult.data.role === "launcher") {
+      projectContextError.value = null;
+      clearCurrentProject();
+      return;
+    }
+
+    const result = await projectApi.getById(contextResult.data.projectId);
     if (!result.ok) {
-      throw new Error(result.error.message);
+      projectContextError.value = result.error;
+      clearCurrentProject();
+      return;
     }
 
     if (!result.data) {
-      return null;
+      projectContextError.value = {
+        code: "PROJECT_NOT_FOUND",
+        message: `Project not found: ${contextResult.data.projectId}`,
+      };
+      clearCurrentProject();
+      return;
     }
 
     const project = normalizeProject(result.data);
     if (project.pathMissing) {
-      notifyMissingProject(project);
+      projectContextError.value = {
+        code: "PROJECT_PATH_MISSING",
+        message: `Project path is missing: ${project.path}`,
+      };
+      clearCurrentProject();
+      return;
+    }
+
+    await bindCurrentProject(project);
+  }
+
+  async function openProjectWindow(projectId: string): Promise<ProjectInfo | null> {
+    const result = await windowApi.openProject(projectId);
+    if (!result.ok) {
+      if (result.error.code === "PROJECT_PATH_MISSING") {
+        notifyWindowOpenError(result.error.message);
+        return null;
+      }
+      throw new Error(result.error.message);
+    }
+
+    const openedProject = normalizeProject(result.data.project);
+    upsertProject(openedProject);
+
+    if (result.data.status !== "bound-current") {
       return null;
     }
 
-    return await activateProject(project);
+    windowContext.value = result.data.context;
+    return bindCurrentProject(openedProject);
+  }
+
+  async function openFolderWindow(): Promise<ProjectInfo | null> {
+    const result = await windowApi.openFolder();
+    if (!result.ok) {
+      if (result.error.code === "PROJECT_PATH_MISSING") {
+        notifyWindowOpenError(result.error.message);
+        return null;
+      }
+      throw new Error(result.error.message);
+    }
+
+    if (result.data.status === "cancelled") {
+      return null;
+    }
+
+    const openedProject = normalizeProject(result.data.project);
+    upsertProject(openedProject);
+
+    if (result.data.status !== "bound-current") {
+      return null;
+    }
+
+    windowContext.value = result.data.context;
+    return bindCurrentProject(openedProject);
+  }
+
+  async function openLauncherWindow(): Promise<void> {
+    const result = await windowApi.openLauncher();
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+  }
+
+  async function openFolder(): Promise<ProjectInfo | null> {
+    return openFolderWindow();
   }
 
   async function openRecentProject(project: RecentProject): Promise<ProjectInfo | null> {
-    const result = await projectApi.getById(project.id);
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
-
-    if (!result.data) {
-      return null;
-    }
-
-    const nextProject = normalizeProject(result.data);
-    if (nextProject.pathMissing) {
-      notifyMissingProject(nextProject);
-      return null;
-    }
-
-    const updated = await projectApi.update(nextProject.id, {
-      lastOpenedAt: new Date(),
-    });
-    if (!updated.ok) {
-      throw new Error(updated.error.message);
-    }
-
-    return await activateProject(updated.data);
-  }
-
-  async function switchProject(projectId: string): Promise<ProjectInfo | null> {
-    const result = await projectApi.getById(projectId);
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
-
-    if (!result.data) {
-      return null;
-    }
-
-    const project = normalizeProject(result.data);
     if (project.pathMissing) {
       notifyMissingProject(project);
       return null;
     }
 
-    const updated = await projectApi.update(project.id, {
-      lastOpenedAt: new Date(),
-    });
-    if (!updated.ok) {
-      throw new Error(updated.error.message);
-    }
+    return openProjectWindow(project.id);
+  }
 
-    return await activateProject(updated.data);
+  async function switchProject(projectId: string): Promise<ProjectInfo | null> {
+    return openProjectWindow(projectId);
   }
 
   async function refreshCurrentProject(): Promise<void> {
@@ -237,14 +301,21 @@ export const useProjectStore = defineStore("project", () => {
     projects,
     recentProjects,
     currentProject,
+    windowContext,
+    projectContextError,
     hasCurrentProject,
     isLoaded,
     setCurrentProject,
+    bindCurrentProject,
     clearCurrentProject,
+    bootstrapWindowProject,
     loadProjects,
     ensureLoaded,
     openFolder,
+    openFolderWindow,
+    openLauncherWindow,
     openRecentProject,
+    openProjectWindow,
     switchProject,
     refreshCurrentProject,
     removeRecentProject,

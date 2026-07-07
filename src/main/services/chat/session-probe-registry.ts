@@ -3,6 +3,7 @@ import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 
 export interface ProbeEntry {
+  projectId: string;
   agentId: string;
   status: ProbeStatus;
   fylloSessionId: string;
@@ -17,31 +18,52 @@ export interface ProbeEntry {
 class SessionProbeRegistry {
   private readonly entries = new Map<string, ProbeEntry>();
 
-  get(agentId: string): ProbeEntry | undefined {
-    return this.entries.get(agentId);
+  get(projectId: string, agentId: string): ProbeEntry | undefined {
+    return this.entries.get(this.entryKey(projectId, agentId));
   }
 
-  set(agentId: string, entry: ProbeEntry): void {
-    this.entries.set(agentId, entry);
+  set(projectId: string, agentId: string, entry: ProbeEntry): void {
+    this.entries.set(this.entryKey(projectId, agentId), entry);
   }
 
-  delete(agentId: string): ProbeEntry | undefined {
-    const entry = this.entries.get(agentId);
-    this.entries.delete(agentId);
+  delete(projectId: string, agentId: string): ProbeEntry | undefined {
+    const key = this.entryKey(projectId, agentId);
+    const entry = this.entries.get(key);
+    this.entries.delete(key);
     return entry;
   }
 
-  takeFor(agentId: string, expectedAcpSessionId: string): ProbeEntry | null {
-    const entry = this.entries.get(agentId);
+  takeFor(projectId: string, agentId: string, expectedAcpSessionId: string): ProbeEntry | null {
+    const key = this.entryKey(projectId, agentId);
+    const entry = this.entries.get(key);
     if (!entry || entry.acpSessionId !== expectedAcpSessionId) {
       return null;
     }
-    this.entries.delete(agentId);
+    this.entries.delete(key);
     return entry;
+  }
+
+  deleteProject(projectId: string): ProbeEntry[] {
+    const removed: ProbeEntry[] = [];
+    for (const [key, entry] of this.entries) {
+      if (entry.projectId === projectId) {
+        this.entries.delete(key);
+        removed.push(entry);
+      }
+    }
+    return removed;
+  }
+
+  clear(): void {
+    this.entries.clear();
   }
 
   keys(): string[] {
     return [...this.entries.keys()];
+  }
+
+  private entryKey(projectId: string, agentId: string): string {
+    return `${projectId}::${agentId}`;
   }
 }
 

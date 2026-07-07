@@ -2,7 +2,7 @@ import * as nodeFs from "fs";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
-import { mcpEventsDir } from "@main/infra/storage/project-paths";
+import { encodeProjectPath, mcpEventsDir } from "@main/infra/storage/project-paths";
 import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
@@ -94,7 +94,12 @@ async function consumeEventFile(
     }
 
     if (event.tool === "create-proposal") {
-      proposalStatusService.watchProposal(projectPath, event.changeId, event.sessionId);
+      proposalStatusService.watchProposal(
+        encodeProjectPath(projectPath),
+        projectPath,
+        event.changeId,
+        event.sessionId
+      );
     }
 
     await fs.unlink(filePath);
@@ -185,6 +190,17 @@ export function ensureLineageEventConsumer(projectPath: string): void {
   };
   consumers.set(projectPath, state);
   void startConsumer(projectPath, state);
+}
+
+export function disposeProject(projectPath: string): void {
+  const state = consumers.get(projectPath);
+  if (!state) {
+    return;
+  }
+
+  state.closed = true;
+  state.watcher?.close();
+  consumers.delete(projectPath);
 }
 
 function dispose(): void {

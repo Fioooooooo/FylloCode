@@ -27,6 +27,7 @@ export const stageStreamInputSchema = z.object({
 });
 
 export const stageStreamCancelInputSchema = z.object({
+  projectId: z.string().min(1),
   runId: z.string().min(1),
 });
 

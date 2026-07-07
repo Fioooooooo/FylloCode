@@ -10,48 +10,85 @@ import logger from "@main/infra/logger";
 
 interface WatchedProposal {
   watcher: FSWatcher;
+  projectId: string;
   projectPath: string;
-  sessionId: string;
+  sessionIds: Set<string>;
   changeId: string;
   currentStatus: ProposalStatus;
   watchedPath: string;
 }
 
+interface PendingWatch {
+  projectId: string;
+  projectPath: string;
+  changeId: string;
+  sessionIds: Set<string>;
+  cancelled: boolean;
+}
+
 class ProposalStatusService {
   private readonly watches = new Map<string, WatchedProposal>();
+  private readonly pendingWatches = new Map<string, PendingWatch>();
   private readonly listeners = new Set<(payload: ProposalStatusChangedPayload) => void>();
 
-  watchProposal(projectPath: string, changeId: string, sessionId: string): void {
-    if (this.watches.has(changeId)) {
-      this.unwatchProposal(changeId);
+  watchProposal(projectId: string, projectPath: string, changeId: string, sessionId: string): void {
+    const key = this.watchKey(projectPath, changeId);
+    const watched = this.watches.get(key);
+    if (watched) {
+      watched.sessionIds.add(sessionId);
+      this.emitForSession(watched, sessionId, { status: watched.currentStatus });
+      return;
     }
 
-    void this.startWatch(projectPath, changeId, sessionId);
+    const pending = this.pendingWatches.get(key);
+    if (pending) {
+      pending.sessionIds.add(sessionId);
+      return;
+    }
+
+    const pendingWatch: PendingWatch = {
+      projectId,
+      projectPath,
+      changeId,
+      sessionIds: new Set([sessionId]),
+      cancelled: false,
+    };
+    this.pendingWatches.set(key, pendingWatch);
+    void this.startWatch(key, pendingWatch).finally(() => {
+      this.pendingWatches.delete(key);
+    });
   }
 
-  private async startWatch(
-    projectPath: string,
-    changeId: string,
-    sessionId: string
-  ): Promise<void> {
+  private async startWatch(key: string, pending: PendingWatch): Promise<void> {
+    const { projectId, projectPath, changeId, sessionIds } = pending;
     const resolved = await resolveChangeDirAnywhere(projectPath, changeId);
+    if (pending.cancelled || this.pendingWatches.get(key) !== pending) {
+      return;
+    }
+
     if (!resolved) {
-      this.emit({
-        changeId,
-        sessionId,
-        projectPath,
-        status: "draft",
-        updatedAt: new Date().toISOString(),
-        removed: true,
-      });
+      for (const sessionId of sessionIds) {
+        this.emit({
+          projectId,
+          changeId,
+          sessionId,
+          projectPath,
+          status: "draft",
+          updatedAt: new Date().toISOString(),
+          removed: true,
+        });
+      }
       return;
     }
 
     const watchedPath = join(resolved.dir, ".openspec.yaml");
     const currentStatus = (await this.readStatus(watchedPath)) ?? "draft";
+    if (pending.cancelled || this.pendingWatches.get(key) !== pending) {
+      return;
+    }
 
     const watcher = watch(watchedPath, () => {
-      void this.handleWatchEvent(changeId);
+      void this.handleWatchEvent(this.watchKey(projectPath, changeId));
     });
     watcher.on("error", (error: unknown) => {
       logger.warn(`[proposal-status] watcher error for ${changeId}`, error);
@@ -59,21 +96,16 @@ class ProposalStatusService {
 
     const watched: WatchedProposal = {
       watcher,
+      projectId,
       projectPath,
-      sessionId,
+      sessionIds: new Set(sessionIds),
       changeId,
       currentStatus,
       watchedPath,
     };
-    this.watches.set(changeId, watched);
+    this.watches.set(key, watched);
 
-    this.emit({
-      changeId,
-      sessionId,
-      projectPath,
-      status: currentStatus,
-      updatedAt: new Date().toISOString(),
-    });
+    this.emitForAllSessions(watched, { status: currentStatus });
   }
 
   private async readStatus(watchedPath: string): Promise<ProposalStatus | null> {
@@ -84,8 +116,8 @@ class ProposalStatusService {
     return parseYamlStatus(content);
   }
 
-  private async handleWatchEvent(changeId: string): Promise<void> {
-    const watched = this.watches.get(changeId);
+  private async handleWatchEvent(key: string): Promise<void> {
+    const watched = this.watches.get(key);
     if (!watched) {
       return;
     }
@@ -94,28 +126,15 @@ class ProposalStatusService {
     if (status !== null) {
       if (status !== watched.currentStatus) {
         watched.currentStatus = status;
-        this.emit({
-          changeId: watched.changeId,
-          sessionId: watched.sessionId,
-          projectPath: watched.projectPath,
-          status,
-          updatedAt: new Date().toISOString(),
-        });
+        this.emitForAllSessions(watched, { status });
       }
       return;
     }
 
-    const resolved = await resolveChangeDirAnywhere(watched.projectPath, changeId);
+    const resolved = await resolveChangeDirAnywhere(watched.projectPath, watched.changeId);
     if (!resolved) {
-      this.emit({
-        changeId: watched.changeId,
-        sessionId: watched.sessionId,
-        projectPath: watched.projectPath,
-        status: watched.currentStatus,
-        updatedAt: new Date().toISOString(),
-        removed: true,
-      });
-      this.unwatchProposal(changeId);
+      this.emitForAllSessions(watched, { status: watched.currentStatus, removed: true });
+      this.unwatchByKey(key);
       return;
     }
 
@@ -124,38 +143,84 @@ class ProposalStatusService {
 
     watched.watcher.close();
     const newWatcher = watch(newWatchedPath, () => {
-      void this.handleWatchEvent(changeId);
+      void this.handleWatchEvent(key);
     });
     newWatcher.on("error", (error: unknown) => {
-      logger.warn(`[proposal-status] watcher error for ${changeId}`, error);
+      logger.warn(`[proposal-status] watcher error for ${watched.changeId}`, error);
     });
     watched.watcher = newWatcher;
     watched.watchedPath = newWatchedPath;
 
     if (status !== watched.currentStatus) {
       watched.currentStatus = status;
-      this.emit({
-        changeId: watched.changeId,
-        sessionId: watched.sessionId,
-        projectPath: watched.projectPath,
-        status,
-        updatedAt: new Date().toISOString(),
-      });
+      this.emitForAllSessions(watched, { status });
     }
   }
 
-  unwatchProposal(changeId: string): void {
-    const watched = this.watches.get(changeId);
+  unwatchProposal(projectPath: string, changeId: string, sessionId?: string): void {
+    const key = this.watchKey(projectPath, changeId);
+    if (!sessionId) {
+      const pending = this.pendingWatches.get(key);
+      if (pending) {
+        pending.cancelled = true;
+        this.pendingWatches.delete(key);
+      }
+      this.unwatchByKey(key);
+      return;
+    }
+
+    const pending = this.pendingWatches.get(key);
+    if (pending) {
+      pending.sessionIds.delete(sessionId);
+      if (pending.sessionIds.size === 0) {
+        pending.cancelled = true;
+        this.pendingWatches.delete(key);
+      }
+      return;
+    }
+
+    const watched = this.watches.get(key);
+    if (!watched) {
+      return;
+    }
+
+    watched.sessionIds.delete(sessionId);
+    if (watched.sessionIds.size === 0) {
+      this.unwatchByKey(key);
+    }
+  }
+
+  unwatchProject(projectPath: string): void {
+    for (const [key, pending] of this.pendingWatches) {
+      if (pending.projectPath === projectPath) {
+        pending.cancelled = true;
+        this.pendingWatches.delete(key);
+      }
+    }
+
+    for (const [key, watched] of this.watches) {
+      if (watched.projectPath === projectPath) {
+        this.unwatchByKey(key);
+      }
+    }
+  }
+
+  private unwatchByKey(key: string): void {
+    const watched = this.watches.get(key);
     if (!watched) {
       return;
     }
     watched.watcher.close();
-    this.watches.delete(changeId);
+    this.watches.delete(key);
   }
 
   unwatchAll(): void {
-    for (const [changeId] of this.watches) {
-      this.unwatchProposal(changeId);
+    for (const pending of this.pendingWatches.values()) {
+      pending.cancelled = true;
+    }
+    this.pendingWatches.clear();
+    for (const [key] of this.watches) {
+      this.unwatchByKey(key);
     }
   }
 
@@ -174,6 +239,37 @@ class ProposalStatusService {
         logger.warn("[proposal-status] listener error", error);
       }
     }
+  }
+
+  private emitForSession(
+    watched: WatchedProposal,
+    sessionId: string,
+    event: Pick<ProposalStatusChangedPayload, "status"> &
+      Partial<Pick<ProposalStatusChangedPayload, "removed">>
+  ): void {
+    this.emit({
+      projectId: watched.projectId,
+      changeId: watched.changeId,
+      sessionId,
+      projectPath: watched.projectPath,
+      status: event.status,
+      updatedAt: new Date().toISOString(),
+      ...(event.removed ? { removed: true } : {}),
+    });
+  }
+
+  private emitForAllSessions(
+    watched: WatchedProposal,
+    event: Pick<ProposalStatusChangedPayload, "status"> &
+      Partial<Pick<ProposalStatusChangedPayload, "removed">>
+  ): void {
+    for (const sessionId of watched.sessionIds) {
+      this.emitForSession(watched, sessionId, event);
+    }
+  }
+
+  private watchKey(projectPath: string, changeId: string): string {
+    return `${projectPath}::${changeId}`;
   }
 }
 
