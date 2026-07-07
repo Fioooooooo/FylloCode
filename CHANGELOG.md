@@ -4,6 +4,47 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.0] - 2026-07-07
+
+这个正式版本将 0.14 beta 周期中的 Plan 工作流、项目准则治理和治理视图优化收束为稳定发布。Chat 现在可以在直接实现、Plan 和 Proposal 之间更清晰地分流，Overview、Proposal、Task 与准则浏览页也形成了更完整的项目治理入口。内置 MCP server 同步升级，`fyllo-specs` 补齐 linked worktree 场景下的探索与归档指引，`fyllo-cortex` 的 guidelines 工具则专注于准则维护。
+
+### 新增
+
+- 新增 session-scoped Plan 工作流：Agent 可创建轻量 plan，用户可在应用内审阅、编辑、保存和批准，批准记录会进入 lineage，并通过 `plan.create` Fyllo action 串联回当前 Chat session
+- 新增 `/guidelines` 只读项目准则浏览页，可从 Overview 的「项目准则」统计卡进入，按 `guidelines/**/*.md` 递归展示准则列表、frontmatter 元数据、正文、空状态和错误状态
+- Chat 新增用户 prompt 时间线、消息复制按钮、发送时间展示和会话侧栏折叠，让长会话定位、复制与阅读更稳定
+- 任务看板新增任务关联会话入口，可从任务卡查看并打开相关 Chat session；本地任务也新增更明确的关闭任务快捷操作
+- Proposal、Overview 和 Chat EventRail 统一展示 linked worktree indicator，并在 hover/focus 时展示对应 worktree 路径
+- 新增 `project-health`、`guidelines-browser`、`local-task-actions`、`task-linked-conversations`、`proposal-browser`、`fyllo-specs-explore` 等 OpenSpec 能力规约，用于沉淀本轮治理与工作流行为契约
+
+### 调整
+
+- Chat system reminder 改为直接实现、Plan、Proposal 三级分流，并在 Chat 与 Apply 阶段自动注入项目 `guidelines/**/*.md` 索引，减少 Agent 修改前重复发现准则的成本
+- Overview 改为更清晰的动态/静态双区结构，进行中提案、最近脉络、治理健康、规约增长和准则演化的层级更明确
+- `/proposal` 页面简化为完整 proposal 列表入口，移除重复的顶部统计、状态 tabs 和本地筛选，同时保留详情 Slideover
+- 本地任务操作从“卡片直接删除”调整为“卡片关闭任务、详情编辑弹窗中删除任务”，降低日常收尾时误删任务的风险
+- `fyllo-specs` 的 `create-plan`、`create-proposal`、`apply-change`、`archive-change` 指引进一步收敛，要求按用户语言反馈进度、在 Plan 批准后重读文件，并把准则维护任务写得更具体
+- `fyllo-specs explore` 现在能发现 main workspace 和 registered linked worktree 中的 active change，并在 state 中返回 workspace metadata 和非致命 warning
+- `fyllo-specs create-proposal` 现在为新 OpenSpec change 写入准确的 ISO `created` 时间戳；`archive-change` 的提交信息指引改为强调 proposal 的实际交付内容，而不是归档动作本身
+- `fyllo-cortex` guidelines 工具从 `read`/`write` 改为 `init`/`create`/`update` 三种维护模式，并返回场景化 `<tool_instruction>` 与当前 `<state>`
+- 项目自身的 guidelines、OpenSpec baseline、README 与文档站内容进行了同步整理，覆盖 Overview、Plan/SDD 工作流、Loop Engineering 和 MCP server 参考资料
+
+### 修复
+
+- 修复 Proposal 详情关闭后 Chat EventRail proposal 状态可能不同步的问题
+- 修复 Proposal 详情 header 无法区分实现完成待归档、归档中和基础状态的问题，并修复重新打开后元数据可能显示旧任务数量、状态或日期的问题
+- 修复 Proposal workflow 菜单可能溢出 Slideover，以及 Proposal overlay 层级低于任务来源横幅的问题
+- 修复 Proposal 归档按钮在 run meta 不属于当前 proposal 或正在归档时仍可能展示为可用的问题
+- 修复 `fyllo-cortex` guidelines 扫描在单个文件读取失败、UTF-8 BOM frontmatter 或缺少 `FYLLO_PROJECT_PATH` 时的降级与回退问题
+- 修复 shell tooltip hover 配置影响范围过宽的问题，并修复若干 Chat 布局、全局 overlay、prompt timeline 与归档状态显示细节
+
+### 备注
+
+- 应用版本升级到 `0.14.0`。
+- `fyllo-specs` MCP server 升级到 `0.8.0`，覆盖 Plan tool、worktree-aware explore、准确 change 创建时间、create-proposal 准则任务规则和 archive commit 指引。
+- `fyllo-cortex` MCP server 升级到 `0.4.0`。这是 breaking change：`guidelines` 的 `read`/`write` 模式已移除，调用方需要改用 `init`、`create` 或 `update`。
+- 本地 lineage session link 新增 `plans` 字段。既有数据会按空数组读取，不需要手动迁移。
+
 ## [0.14.0-beta.2] - 2026-07-02
 
 这个 beta 版本继续收敛 Agent 工作流的提示契约和项目准则治理。Chat 与 Apply 阶段现在会自动注入项目 `guidelines/**/*.md` 索引，让 Agent 在修改前读取相关准则，而 `fyllo-cortex` 的 guidelines 工具改为专注维护准则。与此同时，本版本优化了 Plan、Proposal、健康检查和 Fyllo action 的提示边界，并补齐若干 Chat 与 Proposal 细节，让直接实现、Plan、Proposal、Apply 与 Archive 的衔接更明确。

@@ -4,6 +4,18 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.8.0] - 2026-07-07
+
+### Added
+
+- `explore` now discovers active changes across both the main workspace and registered linked worktrees when called from the project root, returning `workspaceMode`, `workspacePath`, and non-fatal workspace scan warnings in state.
+- `create-proposal` now writes an accurate ISO `created` timestamp into the generated OpenSpec change `.openspec.yaml`, replacing the default midnight timestamp produced by the OpenSpec CLI.
+
+### Changed
+
+- `explore` now resolves `currentChange` against the workspace that actually owns the requested change, and its instructions tell agents to read artifacts from that `workspacePath` and pass the same path to `apply-change` or `archive-change`.
+- `archive-change` commit-message guidance now requires the subject to describe the proposal's delivered work, based on the proposal, modified files, and completed tasks. Archive/sync facts may be mentioned in the body or summary, but should not dominate the commit subject.
+
 ## [0.7.0] - 2026-07-03
 
 ### Changed

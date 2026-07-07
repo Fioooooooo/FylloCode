@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.0] - 2026-07-07
+
+This stable release consolidates the 0.14 beta cycle around session-scoped planning, project guideline governance, and clearer project governance views. Chat now has a more explicit split between direct implementation, Plan, and Proposal flows, while Overview, Proposal, Task, and the new Guidelines browser form a fuller operating surface for project governance. The bundled MCP servers are updated as well: `fyllo-specs` now handles linked-worktree exploration and archive guidance more accurately, and `fyllo-cortex` focuses its guidelines tool on maintenance workflows.
+
+### Added
+
+- Session-scoped Plan workflow: agents can create lightweight plans, users can review, edit, save, and approve them in-app, approvals are recorded in lineage, and `plan.create` Fyllo actions connect them back to the current Chat session
+- Read-only `/guidelines` project guidelines browser, reachable from the Overview Guidelines stat card, showing recursive `guidelines/**/*.md` entries, frontmatter metadata, document bodies, empty states, and error states
+- Chat user prompt timeline, message copy actions, sent-time display, and collapsible session sidebar for more stable navigation and reading in long conversations
+- Task board entries for linked Chat sessions, allowing users to inspect and reopen conversations related to a task; local tasks also gain a clearer close-task card action
+- Unified linked-worktree indicators across Proposal, Overview, and Chat EventRail, with the related worktree path shown on hover or focus
+- New OpenSpec capabilities for `project-health`, `guidelines-browser`, `local-task-actions`, `task-linked-conversations`, `proposal-browser`, `fyllo-specs-explore`, and related governance/workflow contracts introduced during the release
+
+### Changed
+
+- Chat system reminders now use a three-lane decision model: direct implementation, Plan, and Proposal. Chat and Apply stages also inject a project `guidelines/**/*.md` index so agents spend less effort rediscovering repository conventions before making changes
+- Overview now uses a clearer dynamic/static two-area structure, making active proposals, recent lineage, governance health, spec growth, and guideline evolution easier to scan
+- `/proposal` is simplified into a complete proposal-list entry point, removing duplicate stats, status tabs, and local filtering while keeping the detail Slideover
+- Local task actions now distinguish routine closing from permanent deletion: task cards close open tasks, and deletion lives inside the task detail edit dialog
+- `fyllo-specs` instructions for `create-plan`, `create-proposal`, `apply-change`, and `archive-change` were tightened to report progress in the user's language, reread approved plans, and write concrete guideline-maintenance tasks
+- `fyllo-specs explore` now discovers active changes in both the main workspace and registered linked worktrees, returning workspace metadata and non-fatal warnings in state
+- `fyllo-specs create-proposal` now writes an accurate ISO `created` timestamp for new OpenSpec changes; `archive-change` guidance now emphasizes the proposal's delivered work instead of archive mechanics in commit subjects
+- `fyllo-cortex` guidelines tool changed from `read`/`write` to three maintenance modes: `init`, `create`, and `update`, returning scenario-specific `<tool_instruction>` content and current `<state>`
+- FylloCode's own guidelines, OpenSpec baseline, README, and documentation site were refreshed for Overview, Plan/SDD workflows, Loop Engineering, and MCP server references
+
+### Fixed
+
+- Fixed Chat EventRail proposal state not always refreshing after Proposal details close
+- Fixed Proposal detail headers failing to distinguish ready-to-archive, archiving, and base states, and fixed stale task counts, statuses, or dates after reopening details
+- Fixed Proposal workflow menus escaping the Slideover and Proposal overlays stacking below the task origin banner
+- Fixed Proposal archive actions appearing available when run metadata belongs to another proposal or an archive operation is already in progress
+- Fixed `fyllo-cortex` guideline scanning fallback behavior for unreadable files, UTF-8 BOM frontmatter, and missing `FYLLO_PROJECT_PATH`
+- Fixed shell tooltip hover options applying too broadly, plus several Chat layout, global overlay, prompt timeline, and archive-status display details
+
+### Notes
+
+- The application version is now `0.14.0`.
+- `fyllo-specs` MCP server is now `0.8.0`, covering the Plan tool, worktree-aware explore, accurate change creation timestamps, create-proposal guideline task rules, and archive commit guidance.
+- `fyllo-cortex` MCP server is now `0.4.0`. This is a breaking change: `guidelines` `read`/`write` modes were removed; callers must use `init`, `create`, or `update`.
+- Local lineage session links now include a `plans` field. Existing data is read as an empty plans array and does not require manual migration.
+
 ## [0.14.0-beta.2] - 2026-07-02
 
 This beta release tightens Agent workflow prompts and project guideline governance. Chat and Apply reminders now inject an index of project `guidelines/**/*.md` files so agents can read relevant conventions before making changes, while the `fyllo-cortex` guidelines tool is focused on maintaining those documents. The release also refines Plan, Proposal, health-check, and Fyllo action prompt boundaries, and improves several Chat and Proposal details so direct implementation, Plan, Proposal, Apply, and Archive flows connect more clearly.
