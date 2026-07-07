@@ -14,6 +14,7 @@ keywords: [quality, lint, typecheck, format, ci, hooks]
 ## 规则
 
 - MUST 使用 pnpm 10+ 和 Node.js 22+ 执行项目命令。证据：`package.json` 的 `engines`、`packageManager` 和 `CONTRIBUTING.md`。
+- MUST 使用与 `.nvmrc` 和 `pnpm-lock.yaml` 一致的本地环境执行项目命令；当当前 worktree 环境尚未准备好或需要修复时，使用 `sh scripts/prepare-worktree-env.sh`。该脚本按 `.nvmrc` 切换 Node 版本，并在依赖缺失、锁文件不一致或 `node_modules` 为软链时通过 `pnpm install --frozen-lockfile` 按锁文件安装依赖；具体执行节奏见 `AGENTS.md`。证据：`.nvmrc`、`scripts/prepare-worktree-env.sh`、`AGENTS.md`。
 - MUST 通过 `pnpm typecheck` 运行类型检查；该命令委托给 `typecheck:node`（`tsc --noEmit -p tsconfig.node.json --composite false`）和 `typecheck:web`（`vue-tsc --noEmit -p tsconfig.web.json --composite false`）。证据：`package.json`。
 - MUST 保持严格 TypeScript 检查。项目从 `@electron-toolkit/tsconfig/tsconfig.json` 继承 `strict: true`，并且 `tsconfig.node.json` 与 `tsconfig.web.json` 都覆盖了 `noImplicitAny: true`；没有 proposal 时不得关闭 strict 子选项。
 - MUST 保持 lint 基于已配置的 ESLint flat config。`pnpm lint` 运行 `eslint --cache .`，`eslint.config.mjs` 包含 `@electron-toolkit/eslint-config-ts` 的 `recommendedTypeChecked`、`eslint-plugin-vue` 的 `flat/recommended`、Prettier 兼容配置和本地边界规则。
@@ -36,4 +37,4 @@ pnpm test:coverage
 
 ## 失效信号
 
-- 当 `package.json`、任何 `tsconfig*.json`、`eslint.config.mjs`、`.prettierrc`、`.prettierignore`、`.github/workflows/*.yml`、`scripts/validate-commit-msg.mjs` 或 git hook 工具链发生变化时，重新检查本文档。
+- 当 `package.json`、任何 `tsconfig*.json`、`eslint.config.mjs`、`.prettierrc`、`.prettierignore`、`.github/workflows/*.yml`、`scripts/prepare-worktree-env.sh`、`scripts/validate-commit-msg.mjs` 或 git hook 工具链发生变化时，重新检查本文档。

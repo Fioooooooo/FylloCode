@@ -54,6 +54,18 @@ pnpm test:watch       # 测试监听模式
 pnpm test:coverage    # 生成覆盖率报告
 ```
 
+## Worktree 环境准备
+
+在本次 Agent 会话中，如果当前 worktree 尚未验证过本地环境，且需要运行项目命令，先运行一次：
+
+```shell
+sh scripts/prepare-worktree-env.sh
+```
+
+该脚本会定位当前 worktree 根目录，按 `.nvmrc` 切换 Node 版本，并在依赖缺失、锁文件不一致或 `node_modules` 为软链时按 `pnpm-lock.yaml` 安装依赖。
+
+同一会话、同一 worktree 中，脚本成功后无需重复执行；只有切换到另一个 worktree、Node/pnpm 命令不可用、`pnpm-lock.yaml` 变化，或怀疑依赖目录不完整时才需要重新运行。
+
 ## Project Guidelines Index
 
 - **Architecture** - [Architecture](guidelines/Architecture.md)
