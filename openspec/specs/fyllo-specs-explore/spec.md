@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change make-explore-worktree-aware. Update Purpose after archive.
+定义 `fyllo-specs` Explore 阶段如何发现 main workspace 与 linked worktree 中的 active changes、current change 和扫描警告，并向 agent 暴露足够的 workspace metadata 来选择正确的后续工作区。
 
 ## Requirements
 

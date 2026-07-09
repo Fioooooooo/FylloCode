@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-created-timestamp-to-openspec-change. Update Purpose after archive.
+定义 OpenSpec change 创建时的 metadata 写入规则，确保新建 change 具有稳定的 `created` 时间戳和 `status` 字段顺序，同时避免覆盖已经存在的 change metadata。
 
 ## Requirements
 

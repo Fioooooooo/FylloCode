@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change show-task-linked-conversations. Update Purpose after archive.
+定义任务看板与会话 lineage 的连接行为，使任务卡可以展示、展开并打开关联会话，同时保持任务列表错误隔离和现有 `/chat` 路由模型兼容。
 
 ## Requirements
 

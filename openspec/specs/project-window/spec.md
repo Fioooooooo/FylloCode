@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-project-windows. Update Purpose after archive.
+定义 launcher window 与 project window 的生命周期、项目上下文所有权、项目作用域事件隔离、stream cancellation、窗口状态持久化、文件夹打开和项目删除时的窗口行为。
 
 ## Requirements
 

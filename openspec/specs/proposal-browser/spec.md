@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change simplify-proposal-page-worktree-indicators. Update Purpose after archive.
+定义 `/proposal` 页面作为当前项目 proposal 完整列表入口的行为，包括列表展示、详情打开、空状态、linked worktree 标识，以及避免用本地统计或状态 tabs 隐藏完整 proposal 集合。
 
 ## Requirements
 

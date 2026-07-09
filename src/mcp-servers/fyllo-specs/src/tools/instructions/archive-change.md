@@ -44,7 +44,30 @@ Archive a completed change using the provided `state`.
    `rebase-onto-main`, retries the fast-forward merge as `merge-to-main-retry`, then continues
    cleanup.
 
-5. **Display summary**
+5. **Check generated spec Purpose**
+
+   After `confirm: true` returns, inspect any main specs created by this archive run before showing
+   the final archive summary. Limit this check to specs whose `## Purpose` still contains the
+   OpenSpec skeleton text for the current change:
+   `TBD - created by archiving change <change-name>. Update Purpose after archive.`
+
+   For each matching `openspec/specs/<capability>/spec.md`, replace the skeleton Purpose with a
+   concise description of the capability's responsibility, behavior boundary, and primary contract
+   source. Derive the wording from the proposal, delta spec requirements, or the synced main spec
+   requirements.
+
+   Do not delete the `## Purpose` section. The final Purpose content must be non-empty, specific to
+   the current spec, substantive rather than a generic placeholder or template sentence, and at least
+   50 characters long.
+
+   The replacement Purpose must not contain `TBD`, `created by archiving change`, the change name, or
+   archive/sync process details. Do not rewrite unrelated historical specs or existing hand-written
+   Purpose sections.
+
+   If any main spec created by this archive still contains the skeleton Purpose, do not claim the
+   archive is complete. Report the remaining file path(s) and the required Purpose update instead.
+
+6. **Display summary**
 
    If `state.archive.archiveRawOutput` is non-null, read it and use it as the primary source for what
    the archive command actually did.
@@ -64,6 +87,7 @@ Archive a completed change using the provided `state`.
    - Change name
    - Archive location (`state.archive.archiveTarget`)
    - Whether specs were synced
+   - Purpose placeholder check result for any main specs created by this archive
    - Any important messages, warnings, or sync details surfaced in `state.archive.archiveRawOutput`
    - Workspace mode/path and git finalization status
    - Failed workspace step, recovery kind, and remaining recovery steps when recovery is required

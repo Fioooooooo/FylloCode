@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change optimize-overview-layout. Update Purpose after archive.
+定义项目概览页的信息架构和状态边界，使 overview 能清晰区分动态工作与静态治理，并保留 active proposal、recent lineage、治理健康、加载失败和空数据等关键展示行为。
 
 ## Requirements
 

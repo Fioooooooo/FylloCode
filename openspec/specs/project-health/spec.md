@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change health-check-establish-project-health-spec. Update Purpose after archive.
+Defines the minimum enforceable project-health baseline for static analysis, tests, and repository process controls so agents can audit whether the codebase has meaningful quality gates before reporting or updating health status.
 
 ## Requirements
 

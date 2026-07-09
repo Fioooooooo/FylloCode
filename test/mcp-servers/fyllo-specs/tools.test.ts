@@ -944,6 +944,50 @@ describe("tools", () => {
     }
   });
 
+  it("archive-change instruction requires updating generated spec Purpose placeholders", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
+    const changeDir = join(root, "openspec", "changes", "test-purpose-instruction");
+    mkdirSync(changeDir, { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    writeFileSync(
+      join(changeDir, ".openspec.yaml"),
+      "schema: spec-driven\nstatus: applying\n",
+      "utf8"
+    );
+    writeFileSync(join(changeDir, "tasks.md"), "- [x] done\n", "utf8");
+
+    const prev = process.env.FYLLO_PROJECT_PATH;
+    process.env.FYLLO_PROJECT_PATH = root;
+    try {
+      const text = await archiveChangeTool({
+        changeName: "test-purpose-instruction",
+        targetPath: root,
+      });
+
+      expect(text).toContain("<tool_instruction>");
+      expect(text).toContain("Check generated spec Purpose");
+      expect(text).toContain("main specs created by this archive run");
+      expect(text).toContain(
+        "TBD - created by archiving change <change-name>. Update Purpose after archive."
+      );
+      expect(text).toContain("responsibility, behavior boundary");
+      expect(text).toContain("primary contract");
+      expect(text).toContain("proposal, delta spec requirements, or the synced main spec");
+      expect(text).toContain("Do not delete the `## Purpose` section");
+      expect(text).toContain("must be non-empty");
+      expect(text).toContain("specific to");
+      expect(text).toContain("substantive rather than a generic placeholder");
+      expect(text).toContain("at least");
+      expect(text).toContain("50 characters long");
+      expect(text).toContain("must not contain `TBD`, `created by archiving change`");
+      expect(text).toContain("do not claim the");
+      expect(text).toContain("archive is complete");
+      expect(text).toContain("Purpose placeholder check result");
+    } finally {
+      restoreEnv("FYLLO_PROJECT_PATH", prev);
+    }
+  });
+
   it("archive-change rejects invalid commitMessage before archiving", async () => {
     const root = mkdtempSync(join(tmpdir(), "fyllo-open-spec-"));
     const changeDir = join(root, "openspec", "changes", "test-invalid-message");

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-guidelines-browser-page. Update Purpose after archive.
+定义项目准则浏览能力的数据契约和页面行为，使 renderer 可以读取当前项目 `guidelines/**/*.md` 的元数据与正文，并向用户展示可浏览、可检索且具备明确加载/失败/空状态的 guidelines 视图。
 
 ## Requirements
 

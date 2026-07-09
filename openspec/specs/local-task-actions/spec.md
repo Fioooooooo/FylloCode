@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change optimize-local-task-actions. Update Purpose after archive.
+定义本地任务在任务看板和编辑 modal 中的快捷操作边界，使打开状态任务优先提供可恢复的关闭流程，并将永久删除入口限制在更明确的编辑上下文中。
 
 ## Requirements
 

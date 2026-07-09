@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change domain-first-architecture-refactor. Update Purpose after archive.
+记录 FylloCode domain-first 架构的跨层行为契约，用于约束 preload API 形状、IPC channel 命名、shared contract 分组、main service 跨领域入口、renderer store 边界、lint guard，以及重构期间必须保持的业务语义和本地持久化兼容性。
 
 ## Requirements
 
