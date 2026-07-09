@@ -21,6 +21,7 @@ import {
   loadSessionMeta,
   patchSessionMeta,
   saveSessionMeta,
+  sessionMessagesPath,
   updateSessionOriginTaskRef,
 } from "@main/infra/storage/session-store";
 import { sessionsDir } from "@main/infra/storage/project-paths";
@@ -53,6 +54,13 @@ afterEach(() => {
 });
 
 describe("session-store", () => {
+  it("keeps session meta and messages under projects/<encoded>/sessions", () => {
+    expect(sessionMetaPath()).toBe(`${tempRoot}/projects/tmp-project/sessions/session-1.json`);
+    expect(sessionMessagesPath(projectPath, "session-1")).toBe(
+      `${tempRoot}/projects/tmp-project/sessions/session-1.messages.jsonl`
+    );
+  });
+
   it("round-trips available commands with the snake_case storage key", async () => {
     await saveSessionMeta(
       projectPath,

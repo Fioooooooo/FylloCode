@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ProjectHealthPopover from "@renderer/components/layout/ProjectHealthPopover.vue";
-import { useChatStore } from "@renderer/stores/chat";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore } from "@renderer/stores/session/chat";
+import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useSessionStore } from "@renderer/stores/session/session";
 import type { ProjectInfo } from "@shared/types/project";
 
 const routerPush = vi.fn();

@@ -9,7 +9,7 @@ import type { FylloActionStateStatus } from "@shared/types/fyllo-action";
 const activeSessionRef = ref<Session | null>(null);
 const activeSessionIdRef = ref<string | null>(null);
 
-vi.mock("@renderer/stores", () => ({
+vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () =>
     reactive({
       activeSession: computed(() => activeSessionRef.value),

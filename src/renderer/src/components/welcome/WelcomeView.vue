@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import ProjectList from "@renderer/components/welcome/ProjectList.vue";
 import type { RecentProject } from "@shared/types/project";

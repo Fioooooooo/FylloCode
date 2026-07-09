@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useSessionStore } from "@renderer/stores/session";
-import { useChatStore } from "@renderer/stores";
+import { useChatStore, useSessionStore } from "@renderer/stores";
 import SessionItem from "./SessionItem.vue";
 
 const sessionStore = useSessionStore();

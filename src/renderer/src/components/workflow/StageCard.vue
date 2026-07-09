@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import { useAcpAgentsStore } from "@renderer/stores";
 import type { WorkflowStage, WorkflowStageType } from "@shared/types/workflow";
 
 type StageBadgeColor = "primary" | "info" | "success" | "warning" | "neutral";

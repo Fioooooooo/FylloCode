@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { activityBarItems } from "@renderer/config/activity-bar";
 
 const route = useRoute();

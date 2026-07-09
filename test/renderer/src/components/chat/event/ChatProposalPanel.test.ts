@@ -26,8 +26,11 @@ vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores", () => ({
+vi.mock("@renderer/stores/workspace", () => ({
   useProjectStore: () => ({ currentProject: { id: "project-1" } }),
+}));
+
+vi.mock("@renderer/stores/automation", () => ({
   useWorkflowStore: () => ({
     get customTemplates() {
       return customTemplatesValue;
@@ -37,6 +40,9 @@ vi.mock("@renderer/stores", () => ({
     },
     fetchTemplates: mocks.fetchTemplates,
   }),
+}));
+
+vi.mock("@renderer/stores/proposal", () => ({
   useProposalRunStore: () => ({
     get runMeta() {
       return runMetaValue;
@@ -53,6 +59,9 @@ vi.mock("@renderer/stores", () => ({
     },
     loadProposals: mocks.loadProposals,
   }),
+}));
+
+vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     activeSession: { id: "session-1" },
     upsertSessionProposal: mocks.upsertSessionProposal,

@@ -1,36 +1,53 @@
-import type { appApi } from "./api/app";
-import type { chatApi } from "./api/chat";
-import type { projectApi } from "./api/project";
-import type { proposalApi } from "./api/proposal";
-import type { integrationApi } from "./api/integration";
-import type { acpAgentsApi } from "./api/acp-agents";
-import type { settingsApi } from "./api/settings";
-import type { workflowApi } from "./api/workflow";
-import type { taskApi } from "./api/task";
-import type { lineageApi } from "./api/lineage";
-import type { overviewApi } from "./api/overview";
-import type { specsApi } from "./api/specs";
-import type { guidelinesApi } from "./api/guidelines";
-import type { windowApi } from "./api/window";
-
-type SettingsApi = typeof settingsApi;
-type ChatApi = typeof chatApi;
+import type { acpAgentsApi } from "./api/platform/acp-agents";
+import type { appApi } from "./api/platform/app";
+import type { providersApi } from "./api/platform/providers";
+import type { releaseApi } from "./api/platform/release";
+import type { settingsApi } from "./api/platform/settings";
+import type { projectApi } from "./api/workspace/project";
+import type { windowApi } from "./api/workspace/window";
+import type { chatApi } from "./api/session/chat";
+import type { proposalArchiveApi } from "./api/proposal/archive";
+import type { proposalApplyApi } from "./api/proposal/apply";
+import type { proposalBrowserApi } from "./api/proposal/browser";
+import type { projectIntegrationApi } from "./api/automation/project-integration";
+import type { taskApi } from "./api/automation/task";
+import type { workflowApi } from "./api/automation/workflow";
+import type { guidelinesApi } from "./api/insight/guidelines";
+import type { lineageApi } from "./api/insight/lineage";
+import type { overviewApi } from "./api/insight/overview";
+import type { specsApi } from "./api/insight/specs";
 
 export interface AppApi {
-  window: typeof windowApi;
-  app: typeof appApi;
-  chat: ChatApi;
-  project: typeof projectApi;
-  proposal: typeof proposalApi;
-  integration: typeof integrationApi;
-  acpAgents: typeof acpAgentsApi;
-  settings: SettingsApi;
-  workflow: typeof workflowApi;
-  task: typeof taskApi;
-  lineage: typeof lineageApi;
-  overview: typeof overviewApi;
-  specs: typeof specsApi;
-  guidelines: typeof guidelinesApi;
+  platform: {
+    app: typeof appApi;
+    settings: typeof settingsApi;
+    release: typeof releaseApi;
+    acpAgents: typeof acpAgentsApi;
+    providers: typeof providersApi;
+  };
+  workspace: {
+    project: typeof projectApi;
+    window: typeof windowApi;
+  };
+  session: {
+    chat: typeof chatApi;
+  };
+  proposal: {
+    browser: typeof proposalBrowserApi;
+    apply: typeof proposalApplyApi;
+    archive: typeof proposalArchiveApi;
+  };
+  insight: {
+    overview: typeof overviewApi;
+    specs: typeof specsApi;
+    guidelines: typeof guidelinesApi;
+    lineage: typeof lineageApi;
+  };
+  automation: {
+    workflow: typeof workflowApi;
+    task: typeof taskApi;
+    projectIntegration: typeof projectIntegrationApi;
+  };
 }
 
 declare global {

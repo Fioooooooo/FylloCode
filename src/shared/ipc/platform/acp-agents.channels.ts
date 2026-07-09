@@ -1,0 +1,18 @@
+export const PlatformAcpAgentChannels = {
+  getRegistry: "platform:acp-agents:getRegistry",
+  refreshRegistry: "platform:acp-agents:refreshRegistry",
+  getIcons: "platform:acp-agents:getIcons",
+  detectStatus: "platform:acp-agents:detectStatus",
+  detectStatusForced: "platform:acp-agents:detectStatusForced",
+  install: "platform:acp-agents:install",
+  uninstall: "platform:acp-agents:uninstall",
+  ensureAgent: "platform:acp-agents:ensureAgent",
+  loadCapabilitiesCache: "platform:acp-agents:loadCapabilitiesCache",
+  loadCustomAgents: "platform:acp-agents:loadCustomAgents",
+  saveCustomAgents: "platform:acp-agents:saveCustomAgents",
+  registryUpdated: "platform:acp-agents:registryUpdated",
+  statusUpdated: "platform:acp-agents:statusUpdated",
+  installProgress: "platform:acp-agents:installProgress",
+  uninstallProgress: "platform:acp-agents:uninstallProgress",
+  agentUnavailable: "platform:acp-agents:event:agentUnavailable",
+} as const;

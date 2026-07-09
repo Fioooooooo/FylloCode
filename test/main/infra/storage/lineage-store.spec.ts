@@ -102,6 +102,16 @@ afterEach(() => {
 });
 
 describe("lineage-store", () => {
+  it("keeps lineage index and subject files under projects/<encoded>/lineage", async () => {
+    await writeSubject(projectPath, subject());
+    await writeIndex(projectPath, index());
+
+    expect(subjectFilePath()).toBe(
+      `${tempRoot}/projects/tmp-project/lineage/subjects/subject-1.json`
+    );
+    expect(indexFilePath()).toBe(`${tempRoot}/projects/tmp-project/lineage/index.json`);
+  });
+
   it("round-trips subjects and index files under lineage paths", async () => {
     await writeSubject(projectPath, subject());
     await writeIndex(projectPath, index());

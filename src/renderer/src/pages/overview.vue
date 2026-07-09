@@ -5,8 +5,7 @@ import OverviewGovernance from "@renderer/components/overview/OverviewGovernance
 import OverviewRecentLineages from "@renderer/components/overview/OverviewRecentLineages.vue";
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
-import { useOverviewStore } from "@renderer/stores/overview";
-import { useProjectStore } from "@renderer/stores/project";
+import { useOverviewStore, useProjectStore } from "@renderer/stores";
 
 const projectStore = useProjectStore();
 const overviewStore = useOverviewStore();

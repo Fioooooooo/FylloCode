@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { onUnmounted, reactive, watch } from "vue";
-import { chatApi } from "@renderer/api/chat";
+import { chatApi } from "@renderer/api/session/chat";
 import { getFilePartUrl, isUserImagePart } from "@renderer/utils/chat-message-parts";
 
 type MessagePart = UIMessage["parts"][number];

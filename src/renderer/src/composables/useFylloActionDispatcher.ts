@@ -1,4 +1,3 @@
-import { lineageApi } from "@renderer/api/lineage";
 import { createPlanCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/plan-create";
 import { createTaskCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/task-create";
 import type {
@@ -7,8 +6,7 @@ import type {
   FylloActionDispatchHandlerMap,
 } from "@renderer/composables/fyllo-action-handlers/types";
 import { usePlanSlideover } from "@renderer/composables/usePlanSlideover";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
+import { useLineageStore, useProjectStore, useSessionStore } from "@renderer/stores";
 import type {
   FylloActionHandlerResult,
   FylloActionPayloadByType,
@@ -35,10 +33,11 @@ export function useFylloActionDispatcher(): {
 } {
   const projectStore = useProjectStore();
   const sessionStore = useSessionStore();
+  const lineageStore = useLineageStore();
   const { openPlanReview } = usePlanSlideover();
   const handlers = {
     "task.create": createTaskCreateActionHandler({
-      createSessionTask: lineageApi.createSessionTask,
+      createSessionTask: lineageStore.createSessionTask,
       setSessionOriginTaskRef: sessionStore.setSessionOriginTaskRef,
     }),
     "plan.create": createPlanCreateActionHandler({

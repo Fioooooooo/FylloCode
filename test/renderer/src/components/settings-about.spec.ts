@@ -3,15 +3,21 @@ import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsAbout from "@renderer/components/settings/SettingsAbout.vue";
-import { settingsApi } from "@renderer/api/settings";
+import { releaseApi } from "@renderer/api/platform/release";
+import { settingsApi } from "@renderer/api/platform/settings";
 import type { AppAboutInfo } from "@shared/types/settings";
 
-vi.mock("@renderer/api/settings", () => ({
+vi.mock("@renderer/api/platform/settings", () => ({
   settingsApi: {
     getAppInfo: vi.fn(),
-    checkLatestRelease: vi.fn(),
     get: vi.fn(),
     update: vi.fn(),
+  },
+}));
+
+vi.mock("@renderer/api/platform/release", () => ({
+  releaseApi: {
+    checkLatestRelease: vi.fn(),
   },
 }));
 
@@ -146,7 +152,7 @@ describe("SettingsAbout", () => {
       ok: true,
       data: aboutInfoFixture,
     });
-    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+    vi.mocked(releaseApi.checkLatestRelease).mockResolvedValue({
       ok: true,
       data: {
         status: "update-available",
@@ -164,7 +170,7 @@ describe("SettingsAbout", () => {
     await wrapper.find('[data-test="release-check-button"]').trigger("click");
     await flushPromises();
 
-    expect(settingsApi.checkLatestRelease).toHaveBeenCalledTimes(1);
+    expect(releaseApi.checkLatestRelease).toHaveBeenCalledTimes(1);
     expect(wrapper.find('[data-test="release-check-update-available"]').text()).toContain("v0.9.1");
     expect(wrapper.find('[data-test="release-check-open-release"]').attributes("href")).toBe(
       "https://github.com/Fioooooooo/FylloCode/releases/tag/v0.9.1"
@@ -175,13 +181,13 @@ describe("SettingsAbout", () => {
 
   it("shows the release check loading state without clearing app info", async () => {
     let resolveRelease:
-      | ((value: Awaited<ReturnType<typeof settingsApi.checkLatestRelease>>) => void)
+      | ((value: Awaited<ReturnType<typeof releaseApi.checkLatestRelease>>) => void)
       | undefined;
     vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
       ok: true,
       data: aboutInfoFixture,
     });
-    vi.mocked(settingsApi.checkLatestRelease).mockImplementation(
+    vi.mocked(releaseApi.checkLatestRelease).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveRelease = resolve;
@@ -214,7 +220,7 @@ describe("SettingsAbout", () => {
       ok: true,
       data: aboutInfoFixture,
     });
-    vi.mocked(settingsApi.checkLatestRelease).mockResolvedValue({
+    vi.mocked(releaseApi.checkLatestRelease).mockResolvedValue({
       ok: true,
       data: {
         status: "up-to-date",
@@ -240,7 +246,7 @@ describe("SettingsAbout", () => {
       ok: true,
       data: aboutInfoFixture,
     });
-    vi.mocked(settingsApi.checkLatestRelease)
+    vi.mocked(releaseApi.checkLatestRelease)
       .mockResolvedValueOnce({
         ok: false,
         error: { code: "RELEASE_CHECK_FAILED", message: "network unavailable" },
@@ -267,7 +273,7 @@ describe("SettingsAbout", () => {
     await wrapper.find('[data-test="release-check-button"]').trigger("click");
     await flushPromises();
 
-    expect(settingsApi.checkLatestRelease).toHaveBeenCalledTimes(2);
+    expect(releaseApi.checkLatestRelease).toHaveBeenCalledTimes(2);
     expect(wrapper.find('[data-test="release-check-up-to-date"]').exists()).toBe(true);
   });
 });

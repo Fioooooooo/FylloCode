@@ -13,28 +13,19 @@ const streamErrorRef = ref<{ code: string; message: string } | null>(null);
 const persistSessionActionStateMock = vi.hoisted(() => vi.fn());
 const scrollIntoViewMock = vi.fn();
 
-vi.mock("@renderer/stores/chat", () => ({
+vi.mock("@renderer/stores", () => ({
   useChatStore: () => ({
     sendMessage: vi.fn(),
     cancelStream: vi.fn(),
+    resetChatState: vi.fn(),
   }),
-}));
-
-vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     activeSessionId: computed(() => activeSessionIdRef.value),
     isLoadingMessages: computed(() => isLoadingMessagesRef.value),
     getSessionProposals: () => [],
     persistSessionActionState: persistSessionActionStateMock,
-  }),
-}));
-
-vi.mock("@renderer/stores", () => ({
-  useSessionStore: () => ({
-    activeSession: computed(() => activeSessionRef.value),
-    activeSessionId: computed(() => activeSessionIdRef.value),
-    getSessionProposals: () => [],
+    beginDraftSession: vi.fn(),
   }),
 }));
 

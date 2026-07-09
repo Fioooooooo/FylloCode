@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
-import { useProjectStore } from "@renderer/stores/project";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useProjectStore, useIntegrationProvidersStore } from "@renderer/stores";
 import ProviderStageSection from "@renderer/components/integration/ProviderStageSection.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 

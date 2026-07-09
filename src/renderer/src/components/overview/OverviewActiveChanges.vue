@@ -5,7 +5,7 @@ import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktre
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
-import type { ActiveChange } from "@renderer/stores/overview";
+import type { ActiveChange } from "@renderer/stores";
 
 const props = defineProps<{
   changes: ActiveChange[];

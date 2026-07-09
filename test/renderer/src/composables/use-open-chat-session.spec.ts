@@ -21,13 +21,13 @@ vi.mock("vue-router", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/chat", () => ({
+vi.mock("@renderer/stores/session/chat", () => ({
   useChatStore: () => ({
     resetChatState: resetChatStateMock,
   }),
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     selectSession: selectSessionMock,
   }),

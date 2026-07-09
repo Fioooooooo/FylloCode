@@ -5,8 +5,7 @@ import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSpecsStore } from "@renderer/stores/specs";
+import { useProjectStore, useSpecsStore } from "@renderer/stores";
 
 const isDark = useDark();
 const projectStore = useProjectStore();

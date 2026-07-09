@@ -1,4 +1,4 @@
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import { useAcpAgentsStore } from "@renderer/stores";
 import { onFylloBootstrap } from "../core";
 
 export function registerAcpAgentsTask(): void {

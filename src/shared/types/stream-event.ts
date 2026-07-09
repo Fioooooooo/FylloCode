@@ -4,7 +4,7 @@ import type { AcpAvailableCommand, AgendaEntry } from "./chat";
 /**
  * 跨进程同构的流式内容事件子集。
  *
- * 主进程的 `SessionEvent`（@main/domain/chat/session-events）与跨进程的
+ * 主进程的 `SessionEvent`（@main/domain/session/chat/session-events）与跨进程的
  * `MessageChunkData`（@shared/types/ipc）都以此为公共基底：
  * - `SessionEvent = StreamContentEvent | <主进程控制流变体>`（done/error/session_id_resolved）
  * - `MessageChunkData = StreamContentEvent | <渲染态变体>`（user_message/status）

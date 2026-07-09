@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
-import { useChatStore } from "@renderer/stores/chat";
+import { useChatStore } from "@renderer/stores";
 
 const chatStore = useChatStore();
 const { streamError } = storeToRefs(chatStore);

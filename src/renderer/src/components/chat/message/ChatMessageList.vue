@@ -6,7 +6,7 @@ import ChatMessageActions from "../actions/ChatMessageActions.vue";
 import AssistantMessage from "./AssistantMessage.vue";
 import UserMessage from "./UserMessage.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore } from "@renderer/stores";
 
 const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
@@ -60,7 +60,7 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
         ui: { content: 'flex flex-col items-end' },
       }"
       :assistant="{
-        ui: { body: 'min-w-[70%]' },
+        ui: { body: 'w-full' },
       }"
       :ui="{ indicator: '*:bg-accented' }"
     >

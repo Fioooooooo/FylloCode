@@ -9,16 +9,16 @@ const currentProject = vi.hoisted(() => ({
   value: { id: "project-1" } as { id: string } | null,
 }));
 
-vi.mock("@renderer/stores/task", () => ({
+vi.mock("@renderer/stores/automation/task", () => ({
   useTaskStore: () => ({
     createTask: createTaskMock,
   }),
 }));
 
-vi.mock("@renderer/api/lineage", () => ({
-  lineageApi: {
+vi.mock("@renderer/stores/insight/lineage", () => ({
+  useLineageStore: () => ({
     createSessionTask: createSessionTaskMock,
-  },
+  }),
 }));
 
 vi.mock("@renderer/composables/usePlanSlideover", () => ({
@@ -27,7 +27,7 @@ vi.mock("@renderer/composables/usePlanSlideover", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => ({
     get currentProject() {
       return currentProject.value;
@@ -35,7 +35,7 @@ vi.mock("@renderer/stores/project", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     setSessionOriginTaskRef: setSessionOriginTaskRefMock,
   }),

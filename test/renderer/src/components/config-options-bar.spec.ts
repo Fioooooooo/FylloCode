@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount } from "@vue/test-utils";
-import { useChatStore } from "@renderer/stores/chat";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore } from "@renderer/stores/session/chat";
+import { useSessionStore } from "@renderer/stores/session/session";
 import ConfigOptionsBar from "@renderer/components/chat/prompt/ConfigOptionsBar.vue";
 import type { Session } from "@shared/types/chat";
 

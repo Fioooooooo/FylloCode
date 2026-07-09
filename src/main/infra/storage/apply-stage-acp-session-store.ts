@@ -1,5 +1,5 @@
 import logger from "@main/infra/logger";
-import type { AcpSessionStore } from "@main/domain/chat/acp-session-store";
+import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
 import {
   loadApplyRunMeta,
   updateApplyRunStageAcpSessionId,

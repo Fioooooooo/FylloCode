@@ -22,7 +22,7 @@ const projectStoreMock = vi.hoisted(() => ({
   openRecentProject: vi.fn(),
 }));
 
-vi.mock("@renderer/api/app", () => ({
+vi.mock("@renderer/api/platform/app", () => ({
   appApi: {
     openDevTools: vi.fn().mockResolvedValue({ ok: true }),
   },
@@ -34,7 +34,7 @@ vi.mock("@renderer/composables/useDefaultAppRoute", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => projectStoreMock,
 }));
 

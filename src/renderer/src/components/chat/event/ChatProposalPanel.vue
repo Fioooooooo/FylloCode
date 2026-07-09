@@ -4,11 +4,11 @@ import { useProposalDetailSlideover } from "@renderer/composables/useProposalDet
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import { timeAgo } from "@renderer/utils/time";
 import {
-  useProjectStore,
-  useProposalStore,
-  useProposalRunStore,
-  useSessionStore,
   useWorkflowStore,
+  useProjectStore,
+  useProposalRunStore,
+  useProposalStore,
+  useSessionStore,
 } from "@renderer/stores";
 import {
   getProposalDisplayStatus,

@@ -1,142 +1,70 @@
-// Request-response channels: domain:action
-export const ChatChannels = {
-  listSessions: "chat:listSessions",
-  createSession: "chat:createSession",
-  updateSession: "chat:updateSession",
-  removeSession: "chat:removeSession",
-  loadMessages: "chat:loadMessages",
-  persistMessage: "chat:persistMessage",
-  saveAttachment: "chat:saveAttachment",
-  readAttachmentDataUrl: "chat:readAttachmentDataUrl",
-  setConfigOption: "chat:setConfigOption",
-  setActionState: "chat:setActionState",
-} as const;
+import { PlatformSettingsChannels } from "@shared/ipc/platform/settings.channels";
+import { PlatformReleaseChannels } from "@shared/ipc/platform/release.channels";
+import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
+import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
+import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 
-export const ChatStreamChannels = {
-  streamMessage: "chat:stream:message",
-  streamPort: "chat:stream:port",
-  streamCancel: "chat:stream:cancel",
-} as const;
+export {
+  PlatformAppChannels,
+  PlatformAppChannels as AppChannels,
+} from "@shared/ipc/platform/app.channels";
+export { PlatformSettingsChannels, PlatformReleaseChannels };
+export {
+  PlatformAcpAgentChannels,
+  PlatformAcpAgentChannels as AcpAgentChannels,
+} from "@shared/ipc/platform/acp-agents.channels";
+export { PlatformProvidersChannels } from "@shared/ipc/platform/providers.channels";
+export {
+  WorkspaceProjectChannels,
+  WorkspaceProjectChannels as ProjectChannels,
+} from "@shared/ipc/workspace/project.channels";
+export {
+  WorkspaceWindowChannels,
+  WorkspaceWindowChannels as WindowChannels,
+} from "@shared/ipc/workspace/window.channels";
+export {
+  SessionChatChannels,
+  SessionChatChannels as ChatChannels,
+  SessionChatProbeChannels,
+  SessionChatProbeChannels as ChatProbeChannels,
+  SessionChatStreamChannels,
+  SessionChatStreamChannels as ChatStreamChannels,
+} from "@shared/ipc/session/chat.channels";
+export { ProposalBrowserChannels, ProposalApplyChannels, ProposalArchiveChannels };
+export {
+  InsightOverviewChannels,
+  InsightOverviewChannels as OverviewChannels,
+} from "@shared/ipc/insight/overview.channels";
+export {
+  InsightSpecsChannels,
+  InsightSpecsChannels as SpecsChannels,
+} from "@shared/ipc/insight/specs.channels";
+export {
+  InsightGuidelinesChannels,
+  InsightGuidelinesChannels as GuidelinesChannels,
+} from "@shared/ipc/insight/guidelines.channels";
+export {
+  InsightLineageChannels,
+  InsightLineageChannels as LineageChannels,
+} from "@shared/ipc/insight/lineage.channels";
+export {
+  AutomationWorkflowChannels,
+  AutomationWorkflowChannels as WorkflowChannels,
+} from "@shared/ipc/automation/workflow.channels";
+export {
+  AutomationTaskChannels,
+  AutomationTaskChannels as TaskChannels,
+} from "@shared/ipc/automation/task.channels";
+export { AutomationProjectIntegrationChannels } from "@shared/ipc/automation/project-integration.channels";
+export { IntegrationChannels } from "@shared/ipc/integration.compat";
 
-export const ChatProbeChannels = {
-  ensure: "chat:probe:ensure",
-  close: "chat:probe:close",
-  setConfigOption: "chat:probe:setConfigOption",
-  update: "chat:probe:update",
-} as const;
-
-export const ProjectChannels = {
-  list: "project:list",
-  getById: "project:getById",
-  update: "project:update",
-  remove: "project:remove",
-  openFolder: "project:openFolder",
-} as const;
-
-export const WindowChannels = {
-  getContext: "window:getContext",
-  openProject: "window:openProject",
-  openFolder: "window:openFolder",
-  openLauncher: "window:openLauncher",
+export const SettingsChannels = {
+  ...PlatformSettingsChannels,
+  checkLatestRelease: PlatformReleaseChannels.checkLatestRelease,
 } as const;
 
 export const ProposalChannels = {
-  list: "proposal:list",
-  readFile: "proposal:readFile",
-  getSpecDeltas: "proposal:getSpecDeltas",
-  apply: "proposal:apply",
-  stageStream: "proposal:stageStream",
-  stageStreamPort: "proposal:stageStream:port",
-  stageStreamCancel: "proposal:stageStream:cancel",
-  archive: "proposal:archive",
-  archivePort: "proposal:archive:port",
-  archiveCancel: "proposal:archive:cancel",
-  loadRun: "proposal:loadRun",
-  loadRunMessages: "proposal:loadRunMessages",
-  loadArchive: "proposal:loadArchive",
-  loadArchiveMessages: "proposal:loadArchiveMessages",
-  statusChanged: "proposal:statusChanged",
-  watch: "proposal:watch",
-} as const;
-
-export const TaskChannels = {
-  get: "task:get",
-  list: "task:list",
-  create: "task:create",
-  update: "task:update",
-  delete: "task:delete",
-} as const;
-
-export const LineageChannels = {
-  ensureTaskSubject: "lineage:ensureTaskSubject",
-  linkTaskSession: "lineage:linkTaskSession",
-  getByTask: "lineage:getByTask",
-  getBySession: "lineage:getBySession",
-  createSessionTask: "lineage:createSessionTask",
-  readPlan: "lineage:readPlan",
-  savePlanBody: "lineage:savePlanBody",
-  approvePlan: "lineage:approvePlan",
-} as const;
-
-export const OverviewChannels = {
-  getProjectOverview: "overview:getProjectOverview",
-} as const;
-
-export const SpecsChannels = {
-  getSpecsBrowser: "specs:getSpecsBrowser",
-} as const;
-
-export const GuidelinesChannels = {
-  getBrowser: "guidelines:getBrowser",
-} as const;
-
-export const IntegrationChannels = {
-  getConnections: "integration:getConnections",
-  connect: "integration:connect",
-  disconnect: "integration:disconnect",
-  providersList: "integrations:providers:list",
-  providersConnect: "integrations:providers:connect",
-  providersDisconnect: "integrations:providers:disconnect",
-  providersProbe: "integrations:providers:probe",
-  providersListResources: "integrations:providers:listResources",
-  projectGet: "integrations:project:get",
-  projectSet: "integrations:project:set",
-} as const;
-
-export const SettingsChannels = {
-  get: "settings:get",
-  getAppInfo: "settings:getAppInfo",
-  checkLatestRelease: "settings:checkLatestRelease",
-  update: "settings:update",
-} as const;
-
-export const AppChannels = {
-  openDevTools: "app:openDevTools",
-  reportRendererError: "app:reportRendererError",
-  getUserDataPath: "app:getUserDataPath",
-} as const;
-
-export const WorkflowChannels = {
-  list: "workflow:list",
-  save: "workflow:save",
-  delete: "workflow:delete",
-} as const;
-
-export const AcpAgentChannels = {
-  getRegistry: "acp:getRegistry",
-  refreshRegistry: "acp:refreshRegistry",
-  getIcons: "acp:getIcons",
-  detectStatus: "acp:detectStatus",
-  detectStatusForced: "acp:detectStatusForced",
-  install: "acp:install",
-  uninstall: "acp:uninstall",
-  ensureAgent: "acp:ensureAgent",
-  loadCapabilitiesCache: "acp:loadCapabilitiesCache",
-  loadCustomAgents: "acp:loadCustomAgents",
-  saveCustomAgents: "acp:saveCustomAgents",
-  registryUpdated: "acp:registryUpdated",
-  statusUpdated: "acp:statusUpdated",
-  installProgress: "acp:installProgress",
-  uninstallProgress: "acp:uninstallProgress",
-  agentUnavailable: "acp:event:agentUnavailable",
+  ...ProposalBrowserChannels,
+  ...ProposalApplyChannels,
+  ...ProposalArchiveChannels,
 } as const;

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useChatStore } from "@renderer/stores/chat";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore, useSessionStore } from "@renderer/stores";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import ChatMessageSkeleton from "@renderer/components/chat/message/ChatMessageSkeleton.vue";
 import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";

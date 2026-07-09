@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { rmSync } from "fs";
+import { readFileSync } from "fs";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -15,6 +16,7 @@ vi.mock("@main/infra/paths", () => ({
 
 import {
   clearCredentials,
+  credentialPath,
   loadCredentials,
   saveCredentials,
 } from "@main/infra/storage/provider-credential-store";
@@ -41,6 +43,10 @@ afterEach(() => {
 });
 
 describe("provider credential store", () => {
+  it("keeps provider credentials under integrations/credentials", () => {
+    expect(credentialPath("yunxiao")).toBe(`${tempRoot}/integrations/credentials/yunxiao.json`);
+  });
+
   it("round-trips provider credentials", () => {
     saveCredentials("yunxiao", {
       "x-yunxiao-token": "token-1234",
@@ -58,6 +64,25 @@ describe("provider credential store", () => {
 });
 
 describe("provider connection store", () => {
+  it("keeps provider connections in integrations/connections.json", () => {
+    saveConnection({
+      providerId: "yunxiao",
+      state: "connected",
+      accountName: "demo@example.com",
+      connectedAt: "2026-05-13T00:00:00.000Z",
+      credentialPreview: { "x-yunxiao-token": "toke****1234" },
+    });
+
+    expect(
+      JSON.parse(readFileSync(`${tempRoot}/integrations/connections.json`, "utf8"))
+    ).toMatchObject({
+      yunxiao: {
+        providerId: "yunxiao",
+        state: "connected",
+      },
+    });
+  });
+
   it("persists connections by providerId", () => {
     saveConnection({
       providerId: "yunxiao",

@@ -36,7 +36,7 @@ vi.mock("@renderer/composables/useConfirmDialog", () => ({
   useConfirmDialog: () => confirmDialogMock,
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores", () => ({
   useSessionStore: () => ({
     get activeSessionId() {
       return activeSessionIdRef.value;
@@ -49,18 +49,12 @@ vi.mock("@renderer/stores/session", () => ({
     deleteSession,
     ensureSessionOriginTaskInfo,
   }),
-}));
-
-vi.mock("@renderer/stores", () => ({
   useChatStore: () => ({
     chatStatus: computed(() => chatStatusRef.value),
     streamError: computed(() => streamErrorRef.value),
     resetChatState,
     cancelStream,
   }),
-}));
-
-vi.mock("@renderer/stores/acp-agents", () => ({
   useAcpAgentsStore: () => ({
     get icons() {
       return iconsRef.value;

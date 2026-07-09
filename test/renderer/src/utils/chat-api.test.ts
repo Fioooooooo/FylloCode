@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { chatApi } from "@renderer/api/chat";
+import { chatApi } from "@renderer/api/session/chat";
 
 const chatBridge = {
   listSessions: vi.fn(),
@@ -20,7 +20,9 @@ describe("chatApi", () => {
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
-        chat: chatBridge,
+        session: {
+          chat: chatBridge,
+        },
       },
     });
   });

@@ -49,11 +49,11 @@ const projectStore = {
   currentProject: null,
 };
 
-vi.mock("@renderer/stores/workflow", () => ({
+vi.mock("@renderer/stores/automation/workflow", () => ({
   useWorkflowStore: vi.fn(() => workflowStore),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: vi.fn(() => projectStore),
 }));
 

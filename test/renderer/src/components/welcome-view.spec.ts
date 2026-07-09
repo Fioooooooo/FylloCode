@@ -20,7 +20,7 @@ vi.mock("@renderer/composables/useDefaultAppRoute", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => projectStoreMock,
 }));
 

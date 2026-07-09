@@ -38,13 +38,13 @@ describe("makeStreamChannel", () => {
 
     const result = makeStreamChannel({
       event: { sender: { postMessage } } as never,
-      portChannel: "chat:stream:port",
+      portChannel: "session:chat:stream:port",
       logTag: "test",
       onReady: () => ({ start: vi.fn(), cancel: vi.fn() }),
     });
 
     expect(result).toEqual({ ok: true, data: null });
-    expect(postMessage).toHaveBeenCalledWith("chat:stream:port", null, [mocks.port2]);
+    expect(postMessage).toHaveBeenCalledWith("session:chat:stream:port", null, [mocks.port2]);
   });
 
   it("posts a custom port payload when provided", async () => {
@@ -53,13 +53,13 @@ describe("makeStreamChannel", () => {
 
     makeStreamChannel({
       event: { sender: { postMessage } } as never,
-      portChannel: "chat:stream:port",
+      portChannel: "session:chat:stream:port",
       portPayload: { streamId: "stream-1" },
       logTag: "test",
       onReady: () => ({ start: vi.fn(), cancel: vi.fn() }),
     });
 
-    expect(postMessage).toHaveBeenCalledWith("chat:stream:port", { streamId: "stream-1" }, [
+    expect(postMessage).toHaveBeenCalledWith("session:chat:stream:port", { streamId: "stream-1" }, [
       mocks.port2,
     ]);
   });

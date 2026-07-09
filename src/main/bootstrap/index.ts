@@ -1,10 +1,10 @@
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
-import { setupProbeBroadcast } from "@main/ipc/chat";
-import { setupAgentEventBroadcast } from "@main/ipc/acp-agents";
-import { setupProposalStatusBroadcast } from "@main/ipc/proposal";
-import { initBuiltInWorkflows } from "@main/services/workflow/built-in-loader";
+import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
+import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
+import { setupProbeBroadcast } from "@main/ipc/session/chat";
+import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { runAllMigrations } from "@main/migrations";
 import { disposeAll } from "./lifecycle";

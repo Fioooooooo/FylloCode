@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore } from "@renderer/stores";
 import type { TaskSource } from "@shared/types/task";
 
 const sessionStore = useSessionStore();

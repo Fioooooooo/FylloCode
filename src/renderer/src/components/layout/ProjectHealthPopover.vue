@@ -3,9 +3,7 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables";
 import { buildHealthCheckReminder } from "@renderer/constants/health-check-reminder";
-import { useChatStore } from "@renderer/stores/chat";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore, useProjectStore, useSessionStore } from "@renderer/stores";
 
 const router = useRouter();
 const toast = useToast();

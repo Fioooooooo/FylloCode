@@ -8,21 +8,21 @@ const approvePlanMock = vi.hoisted(() => vi.fn());
 const sendMessageMock = vi.hoisted(() => vi.fn());
 const activeSessionId = vi.hoisted(() => ({ value: "session-1" as string | null }));
 
-vi.mock("@renderer/api/lineage", () => ({
-  lineageApi: {
+vi.mock("@renderer/stores/insight/lineage", () => ({
+  useLineageStore: () => ({
     readPlan: readPlanMock,
     savePlanBody: savePlanBodyMock,
     approvePlan: approvePlanMock,
-  },
+  }),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => ({
     currentProject: { id: "project-1" },
   }),
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     get activeSessionId() {
       return activeSessionId.value;
@@ -30,7 +30,7 @@ vi.mock("@renderer/stores/session", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/chat", () => ({
+vi.mock("@renderer/stores/session/chat", () => ({
   useChatStore: () => ({
     sendMessage: sendMessageMock,
   }),

@@ -2,7 +2,7 @@
 import { toRef } from "vue";
 import { storeToRefs } from "pinia";
 import { usePromptTimeline } from "@renderer/composables/usePromptTimeline";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore } from "@renderer/stores";
 import ChatPromptTimelineNav from "@renderer/components/chat/timeline/ChatPromptTimelineNav.vue";
 
 const props = defineProps<{

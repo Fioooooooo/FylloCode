@@ -3,7 +3,7 @@ import { nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsIntegrationProviders from "@renderer/components/settings/SettingsIntegrationProviders.vue";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useIntegrationProvidersStore } from "@renderer/stores/platform/providers";
 
 const route = reactive<{ query: Record<string, string | undefined> }>({
   query: {},

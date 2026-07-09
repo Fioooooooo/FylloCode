@@ -12,7 +12,7 @@ TBD - created by archiving change optimize-overview-layout. Update Purpose after
 
 #### Scenario: Loaded overview data is grouped by information type
 
-- **WHEN** 用户打开 overview 页面且 `overview:getProjectOverview` 返回项目概览数据
+- **WHEN** 用户打开 overview 页面且 `insight:overview:getProjectOverview` 返回项目概览数据
 - **THEN** 页面 SHALL 展示动态数据区域，包含进行中的提案和最近脉络
 - **AND** 页面 SHALL 展示静态治理区域，包含治理健康、规约增长和准则演化
 - **AND** 页面 SHALL NOT 将所有内容按单一瀑布流顺序无分组堆叠展示
@@ -38,14 +38,14 @@ TBD - created by archiving change optimize-overview-layout. Update Purpose after
 
 #### Scenario: Active proposal status uses proposal model
 
-- **WHEN** `overview:getProjectOverview` 返回 `activeChanges`
+- **WHEN** `insight:overview:getProjectOverview` 返回 `activeChanges`
 - **THEN** 每个 active change SHALL 暴露 proposal 的非归档状态，取值为 `creating`、`draft` 或 `applying`
 - **AND** 系统 SHALL NOT 将这些状态映射为 overview 专属的 `drafting` 或 `proposal`
 - **AND** 状态为 `archived` 的 proposal SHALL NOT 出现在 `activeChanges` 中
 
 #### Scenario: Active proposal linked worktree metadata remains available
 
-- **WHEN** `overview:getProjectOverview` 返回的 active change 对应一个使用 linked worktree 的 proposal
+- **WHEN** `insight:overview:getProjectOverview` 返回的 active change 对应一个使用 linked worktree 的 proposal
 - **THEN** 该 active change SHALL 暴露与 proposal metadata 一致的 `worktreePath`
 - **AND** 系统 SHALL 复用该 `worktreePath` 展示 overview active proposal 卡片的 linked worktree indicator
 

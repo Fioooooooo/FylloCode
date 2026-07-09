@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { timeAgo } from "@renderer/utils/time";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
-import type { GovernanceEvolution, SpecsGrowthBucket } from "@renderer/stores/overview";
+import type { GovernanceEvolution, SpecsGrowthBucket } from "@renderer/stores";
 
 const props = defineProps<{
   governance: GovernanceEvolution;

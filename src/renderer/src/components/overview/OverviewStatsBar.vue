@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import type { OverviewStats } from "@renderer/stores/overview";
+import type { OverviewStats } from "@renderer/stores";
 
 const props = defineProps<{
   stats: OverviewStats;

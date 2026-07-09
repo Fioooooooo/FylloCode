@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   readAttachmentDataUrlInputSchema,
   saveAttachmentInputSchema,
-} from "@shared/schemas/ipc/chat";
+} from "@shared/ipc/session/chat.schemas";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");

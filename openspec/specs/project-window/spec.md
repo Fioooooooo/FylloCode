@@ -91,7 +91,7 @@ TBD - created by archiving change add-project-windows. Update Purpose after arch
 
 - **WHEN** 项目 A 和项目 B 同时使用同一个 agent 创建 draft probe
 - **THEN** 项目 A 的 probe registry entry SHALL NOT 覆盖项目 B 的 probe registry entry
-- **AND** 项目 A 的 `chat:probe:update` SHALL 只发送给项目 A 的 project window
+- **AND** 项目 A 的 `session:chat:probe:update` SHALL 只发送给项目 A 的 project window
 - **AND** 项目 B 的 project window SHALL NOT 应用项目 A 的 probe update
 
 #### Scenario: Proposal status watcher is project scoped

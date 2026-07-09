@@ -1,5 +1,5 @@
 import { nextTick, ref, watch, type ComponentPublicInstance, type Ref } from "vue";
-import { useChatStore } from "@renderer/stores/chat";
+import { useChatStore } from "@renderer/stores";
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import {

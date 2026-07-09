@@ -1,35 +1,55 @@
 import { contextBridge } from "electron";
 import log from "electron-log/renderer";
-import { appApi } from "./api/app";
-import { chatApi } from "./api/chat";
-import { projectApi } from "./api/project";
-import { proposalApi } from "./api/proposal";
-import { integrationApi } from "./api/integration";
-import { acpAgentsApi } from "./api/acp-agents";
-import { settingsApi } from "./api/settings";
-import { workflowApi } from "./api/workflow";
-import { taskApi } from "./api/task";
-import { lineageApi } from "./api/lineage";
-import { overviewApi } from "./api/overview";
-import { specsApi } from "./api/specs";
-import { guidelinesApi } from "./api/guidelines";
-import { windowApi } from "./api/window";
+import { acpAgentsApi } from "./api/platform/acp-agents";
+import { appApi } from "./api/platform/app";
+import { providersApi } from "./api/platform/providers";
+import { releaseApi } from "./api/platform/release";
+import { settingsApi } from "./api/platform/settings";
+import { projectApi } from "./api/workspace/project";
+import { windowApi } from "./api/workspace/window";
+import { chatApi } from "./api/session/chat";
+import { proposalArchiveApi } from "./api/proposal/archive";
+import { proposalApplyApi } from "./api/proposal/apply";
+import { proposalBrowserApi } from "./api/proposal/browser";
+import { projectIntegrationApi } from "./api/automation/project-integration";
+import { taskApi } from "./api/automation/task";
+import { workflowApi } from "./api/automation/workflow";
+import { guidelinesApi } from "./api/insight/guidelines";
+import { lineageApi } from "./api/insight/lineage";
+import { overviewApi } from "./api/insight/overview";
+import { specsApi } from "./api/insight/specs";
 
 const api = {
-  window: windowApi,
-  app: appApi,
-  chat: chatApi,
-  project: projectApi,
-  proposal: proposalApi,
-  integration: integrationApi,
-  acpAgents: acpAgentsApi,
-  settings: settingsApi,
-  workflow: workflowApi,
-  task: taskApi,
-  lineage: lineageApi,
-  overview: overviewApi,
-  specs: specsApi,
-  guidelines: guidelinesApi,
+  platform: {
+    app: appApi,
+    settings: settingsApi,
+    release: releaseApi,
+    acpAgents: acpAgentsApi,
+    providers: providersApi,
+  },
+  workspace: {
+    project: projectApi,
+    window: windowApi,
+  },
+  session: {
+    chat: chatApi,
+  },
+  proposal: {
+    browser: proposalBrowserApi,
+    apply: proposalApplyApi,
+    archive: proposalArchiveApi,
+  },
+  insight: {
+    overview: overviewApi,
+    specs: specsApi,
+    guidelines: guidelinesApi,
+    lineage: lineageApi,
+  },
+  automation: {
+    workflow: workflowApi,
+    task: taskApi,
+    projectIntegration: projectIntegrationApi,
+  },
 };
 
 if (process.contextIsolated) {

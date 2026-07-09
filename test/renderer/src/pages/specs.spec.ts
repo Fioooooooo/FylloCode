@@ -1,13 +1,13 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { specsApi } from "@renderer/api/specs";
+import { specsApi } from "@renderer/api/insight/specs";
 import SpecsPage from "@renderer/pages/specs.vue";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores/workspace/project";
 import type { ProjectInfo } from "@shared/types/project";
 import type { SpecsBrowserOverview } from "@shared/types/specs";
 
-vi.mock("@renderer/api/specs", () => ({
+vi.mock("@renderer/api/insight/specs", () => ({
   specsApi: {
     getSpecsBrowser: vi.fn(),
   },
@@ -47,7 +47,7 @@ function specsOverview(): SpecsBrowserOverview {
         requirementGroups: [
           {
             title: "概览数据聚合通道",
-            body: "系统 SHALL 提供 `overview:getProjectOverview` IPC 通道。",
+            body: "系统 SHALL 提供 `insight:overview:getProjectOverview` IPC 通道。",
             scenarios: [
               {
                 title: "成功返回完整概览",
@@ -156,7 +156,9 @@ describe("specs page", () => {
     expect(wrapper.text()).toContain("3");
     expect(wrapper.findAll('[data-test="specs-requirement-index-item"]')).toHaveLength(2);
     expect(wrapper.text()).toContain("概览数据聚合通道");
-    expect(wrapper.text()).toContain("系统 SHALL 提供 `overview:getProjectOverview` IPC 通道。");
+    expect(wrapper.text()).toContain(
+      "系统 SHALL 提供 `insight:overview:getProjectOverview` IPC 通道。"
+    );
     expect(wrapper.findAll('[data-test="specs-scenario"]')).toHaveLength(3);
     expect(wrapper.text()).toContain("成功返回完整概览");
     expect(wrapper.text()).toContain("- **WHEN** renderer 调用 IPC");

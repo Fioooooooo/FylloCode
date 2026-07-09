@@ -12,7 +12,7 @@ let proposalsValue: ProposalMeta[] = [];
 let loadingValue = false;
 let errorValue: string | null = null;
 
-vi.mock("@renderer/stores/proposal", () => ({
+vi.mock("@renderer/stores/proposal/browser", () => ({
   useProposalStore: () => ({
     get proposals() {
       return proposalsValue;

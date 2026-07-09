@@ -1,4 +1,4 @@
-import type { AcpSessionStore } from "@main/domain/chat/acp-session-store";
+import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
 import { loadSessionMeta, upsertSessionMeta } from "@main/infra/storage/session-store";
 
 const DEFAULT_TOKEN_USAGE = { used: 0, size: 0 };

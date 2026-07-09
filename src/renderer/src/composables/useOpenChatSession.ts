@@ -1,7 +1,6 @@
 import { nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useChatStore } from "@renderer/stores/chat";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore, useSessionStore } from "@renderer/stores";
 
 export interface UseOpenChatSessionReturn {
   openChatSession: (sessionId: string) => Promise<void>;

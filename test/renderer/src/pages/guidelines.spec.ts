@@ -1,13 +1,13 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { guidelinesApi } from "@renderer/api/guidelines";
+import { guidelinesApi } from "@renderer/api/insight/guidelines";
 import GuidelinesPage from "@renderer/pages/guidelines.vue";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores/workspace/project";
 import type { GuidelinesBrowserOverview } from "@shared/types/guidelines";
 import type { ProjectInfo } from "@shared/types/project";
 
-vi.mock("@renderer/api/guidelines", () => ({
+vi.mock("@renderer/api/insight/guidelines", () => ({
   guidelinesApi: {
     getBrowser: vi.fn(),
   },

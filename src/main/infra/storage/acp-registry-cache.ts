@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { net } from "electron";
 import type { AcpRegistry, AcpRegistryCache } from "@shared/types/acp-agent";
-import { resolveAgentKind } from "@main/domain/acp/agent-kind-map";
+import { resolveAgentKind } from "@main/domain/platform/acp-agent/agent-kind-map";
 import { getDataSubPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
 import { invalidateChangedIcons } from "./acp-icon-cache";

@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { lineageApi } from "@renderer/api/lineage";
-import { useChatStore } from "@renderer/stores/chat";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
+import { useLineageStore, useChatStore, useProjectStore, useSessionStore } from "@renderer/stores";
 import type { PlanDocument } from "@shared/types/lineage";
 
 export type PlanSlideoverMode = "review" | "readonly";
@@ -27,6 +24,7 @@ const emit = defineEmits<{
 const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
+const lineageStore = useLineageStore();
 
 const planDocument = ref<PlanDocument | null>(null);
 const body = ref("");
@@ -65,7 +63,7 @@ async function loadPlan(): Promise<void> {
   loaded.value = false;
 
   try {
-    const result = await lineageApi.readPlan(getProjectId(), {
+    const result = await lineageStore.readPlan(getProjectId(), {
       sessionId: props.sessionId,
       slug: props.slug,
     });
@@ -85,7 +83,7 @@ async function loadPlan(): Promise<void> {
 }
 
 async function saveSnapshot(snapshot: string): Promise<void> {
-  const result = await lineageApi.savePlanBody(getProjectId(), {
+  const result = await lineageStore.savePlanBody(getProjectId(), {
     sessionId: props.sessionId,
     slug: props.slug,
     body: snapshot,
@@ -168,7 +166,7 @@ async function approve(): Promise<void> {
     }
     await saveNow();
 
-    const result = await lineageApi.approvePlan(getProjectId(), {
+    const result = await lineageStore.approvePlan(getProjectId(), {
       sessionId: props.sessionId,
       slug: props.slug,
     });

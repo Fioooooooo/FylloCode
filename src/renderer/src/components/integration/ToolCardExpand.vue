@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from "vue";
 import type { IntegrationTool } from "@shared/types/integration";
-import { useIntegrationStore } from "@renderer/stores/integration";
+import { useIntegrationStore } from "@renderer/stores";
 
 const props = defineProps<{
   tool: IntegrationTool;

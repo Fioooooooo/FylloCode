@@ -10,6 +10,54 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 const typeCheckedSourceFiles = ["**/*.{ts,mts,tsx,vue}"];
+const serviceDomains = ["platform", "workspace", "session", "proposal", "insight", "automation"];
+
+/**
+ * @typedef {import("eslint").Linter.Config} EslintConfig
+ */
+
+/**
+ * @param {string} sourceDomain
+ * @param {string[]} blockedDomains
+ * @returns {EslintConfig}
+ */
+function serviceDomainImportGuards(sourceDomain, blockedDomains) {
+  return {
+    files: [`src/main/services/${sourceDomain}/**/*.ts`],
+    ignores: [`src/main/services/${sourceDomain}/_public/**/*.ts`],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...blockedDomains.map((targetDomain) => ({
+          selector: `ImportDeclaration[source.value=/^@main\\/services\\/${targetDomain}\\/(?!_public(?:$|\\/))/]`,
+          message: `Cross-domain service imports must use @main/services/${targetDomain}/_public.`,
+        })),
+      ],
+    },
+  };
+}
+
+/**
+ * @param {string} sourceDomain
+ * @param {string[]} blockedDomains
+ * @returns {EslintConfig}
+ */
+function rendererStoreApiImportGuard(sourceDomain, blockedDomains) {
+  return {
+    files: [`src/renderer/src/stores/${sourceDomain}/**/*.{ts,vue}`],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: blockedDomains.map((targetDomain) => ({
+            group: [`@renderer/api/${targetDomain}`, `@renderer/api/${targetDomain}/**`],
+            message: `Renderer stores must call ${targetDomain} through a public store/facade, not its API wrapper.`,
+          })),
+        },
+      ],
+    },
+  };
+}
 
 let autoImportGlobals = {};
 try {
@@ -119,6 +167,68 @@ export default defineConfig(
     },
   },
 
+  // --- Domain-first renderer guards ---------------------------------------
+  {
+    files: ["src/renderer/src/**/*.{ts,vue}"],
+    ignores: ["src/renderer/src/api/**/*.{ts,vue}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[object.name='window'][property.name='api']",
+          message: "Renderer code must access preload through src/renderer/src/api/** wrappers.",
+        },
+      ],
+    },
+  },
+  ...serviceDomains.map((domain) =>
+    rendererStoreApiImportGuard(
+      domain,
+      serviceDomains.filter((candidate) => candidate !== domain)
+    )
+  ),
+  {
+    files: ["src/renderer/src/**/*.{ts,vue}"],
+    ignores: ["src/renderer/src/stores/**/*.{ts,vue}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@renderer/stores/*", "@renderer/stores/*/**"],
+              message: "Import renderer stores from the @renderer/stores root barrel.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/renderer/src/stores/**/*.{ts,vue}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@renderer/stores",
+              message:
+                "Renderer store modules must not import the root store barrel; import a target domain barrel or direct store module.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@renderer/stores/index", "@renderer/stores/index.*"],
+              message:
+                "Renderer store modules must not import the root store barrel; import a target domain barrel or direct store module.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // --- Main-process layering guard ----------------------------------------
   // Enforces dependency direction inside src/main/:
   //   ipc/      -> services/ only (plus shared + _kit)
@@ -179,25 +289,24 @@ export default defineConfig(
   },
   {
     files: ["src/main/ipc/**/*.ts"],
-    ignores: ["src/main/ipc/_kit/**/*.ts"],
+    ignores: [
+      "src/main/ipc/_kit/**/*.ts",
+      // Domain refactor TODO: these stream/storage handlers still own low-level
+      // port/runtime persistence glue. Keep exceptions explicit until that glue
+      // is moved behind service APIs.
+      "src/main/ipc/session/chat.ts",
+      "src/main/ipc/proposal/apply.ts",
+      "src/main/ipc/proposal/archive.ts",
+      "src/main/ipc/proposal/browser.ts",
+      "src/main/ipc/platform/acp-agents.ts",
+      "src/main/ipc/platform/providers.ts",
+      "src/main/ipc/insight/guidelines.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
-            {
-              // infra/logger is cross-cutting and exempt; everything else in infra
-              // must be accessed through a service.
-              // NOTE: the `!(logger)` extglob is NOT honoured by no-restricted-imports
-              // (it silently matches nothing), so this guard is currently inert. It can
-              // only be switched to an effective pattern once ipc/ handlers stop value-
-              // importing infra/storage directly (tracked under the stream-handler /
-              // pseudo-domain refactors). Until then, tightening it would red-line the
-              // existing chat.ts / proposal-apply.ts / acp-agents.ts / integration.ts.
-              group: ["@main/infra/!(logger)", "@main/infra/!(logger)/**"],
-              message: "ipc/ handlers must go through services/ (logger is the only exception)",
-              allowTypeImports: true,
-            },
             {
               group: ["@main/domain/*"],
               message: "ipc/ handlers must go through services/",
@@ -216,6 +325,50 @@ export default defineConfig(
               message: "ipc/ must not spawn processes directly",
             },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportDeclaration[source.value=/^@main\\/infra\\/(?!logger(?:$|\\/))/]",
+          message: "ipc/ handlers must access infra capabilities through services/.",
+        },
+      ],
+    },
+  },
+  ...serviceDomains.map((domain) =>
+    serviceDomainImportGuards(
+      domain,
+      serviceDomains.filter((candidate) => candidate !== domain)
+    )
+  ),
+  {
+    files: ["src/main/services/*/_public/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ExportAllDeclaration",
+          message:
+            "service/<domain>/_public must explicitly export stable methods; export * is forbidden.",
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value=/^@main\\/services\\/(platform|workspace|session|proposal|insight|automation)\\//]",
+          message: "service/<domain>/_public must not import another product domain service.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/main/services/*/*/_public/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Program",
+          message:
+            "Only service/<domain>/_public is allowed; area-level _public directories are forbidden.",
         },
       ],
     },

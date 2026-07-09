@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { proposalApi } from "@renderer/api/proposal";
+import { proposalBrowserApi } from "@renderer/api/proposal/browser";
 import ProposalDetailHeader, {
   type DropdownMenuItem,
 } from "@renderer/components/proposal/ProposalDetailHeader.vue";
@@ -9,10 +9,12 @@ import ProposalMarkdownContent, {
   type MarkdownTabValue,
 } from "@renderer/components/proposal/ProposalMarkdownContent.vue";
 import ProposalApplySidePanel from "@renderer/components/proposal/ProposalApplySidePanel.vue";
-import { useProjectStore } from "@renderer/stores/project";
-import { useProposalRunStore } from "@renderer/stores/proposal-run";
-import { useProposalStore } from "@renderer/stores/proposal";
-import { useWorkflowStore } from "@renderer/stores/workflow";
+import {
+  useProjectStore,
+  useProposalRunStore,
+  useProposalStore,
+  useWorkflowStore,
+} from "@renderer/stores";
 import { canArchiveProposal } from "@renderer/utils/proposal-display-status";
 import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
@@ -162,7 +164,7 @@ async function loadMarkdownFiles(requestId: number): Promise<void> {
     const results = await Promise.all(
       fileRequests.map(async (tab) => {
         const filename = tab.filename ?? "";
-        const result = await proposalApi.readFile(projectId, changeIdSnapshot, filename);
+        const result = await proposalBrowserApi.readFile(projectId, changeIdSnapshot, filename);
         if (!result.ok) {
           throw new Error(result.error.message);
         }
@@ -204,7 +206,7 @@ async function loadSpecDeltas(requestId: number): Promise<void> {
   specsError.value = null;
 
   try {
-    const result = await proposalApi.getSpecDeltas(projectId, changeIdSnapshot);
+    const result = await proposalBrowserApi.getSpecDeltas(projectId, changeIdSnapshot);
     if (!result.ok) {
       throw new Error(result.error.message);
     }

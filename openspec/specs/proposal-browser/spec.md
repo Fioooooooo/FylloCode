@@ -12,7 +12,7 @@ TBD - created by archiving change simplify-proposal-page-worktree-indicators. Up
 
 #### Scenario: Loaded proposal list is shown without local status filtering
 
-- **WHEN** 用户打开 `/proposal` 且 `proposal:list` 返回多个不同状态的 proposal
+- **WHEN** 用户打开 `/proposal` 且 `proposal:browser:list` 返回多个不同状态的 proposal
 - **THEN** 页面 SHALL 展示返回列表中的完整 proposal 集合
 - **AND** 页面 SHALL NOT 展示页面级 proposal 数量统计卡
 - **AND** 页面 SHALL NOT 展示用于按 proposal 状态过滤列表的 tabs
@@ -25,7 +25,7 @@ TBD - created by archiving change simplify-proposal-page-worktree-indicators. Up
 
 #### Scenario: Empty proposal list remains explicit
 
-- **WHEN** `/proposal` 页面加载成功且 `proposal:list` 返回空列表
+- **WHEN** `/proposal` 页面加载成功且 `proposal:browser:list` 返回空列表
 - **THEN** 页面 SHALL 展示 proposal 空状态
 - **AND** 空状态 SHALL NOT 说明用户需要切换筛选条件
 

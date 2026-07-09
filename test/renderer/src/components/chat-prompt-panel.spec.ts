@@ -4,7 +4,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
-import type { DraftProbeState } from "@renderer/stores/session";
+import type { DraftProbeState } from "@renderer/stores/session/session";
 
 const buttonStub = {
   inheritAttrs: false,
@@ -83,33 +83,33 @@ const promptCapabilitiesRef = ref({
 const createObjectUrl = vi.fn((file: File) => `blob:${file.name}`);
 const revokeObjectUrl = vi.fn();
 
-vi.mock("@renderer/stores/chat", () => ({
+vi.mock("@renderer/stores/session/chat", () => ({
   useChatStore: () => ({
     sendMessage,
     cancelStream,
   }),
 }));
 
-vi.mock("@renderer/api/chat", () => ({
+vi.mock("@renderer/api/session/chat", () => ({
   chatApi: {
     saveAttachment,
   },
 }));
 
-vi.mock("@renderer/stores/acp-agents", () => ({
+vi.mock("@renderer/stores/platform/acp-agents", () => ({
   useAcpAgentsStore: () => ({
     refreshCapabilities,
     getPromptCapabilities,
   }),
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => ({
     currentProject: { id: "project-1" },
   }),
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     draftAgentId: computed(() => draftAgentIdRef.value),

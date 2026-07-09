@@ -40,11 +40,11 @@ const projectStore = reactive<{
   },
 });
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => projectStore,
 }));
 
-vi.mock("@renderer/stores/integration.providers", () => ({
+vi.mock("@renderer/stores/platform/providers", () => ({
   useIntegrationProvidersStore: () => integrationProvidersStore,
 }));
 

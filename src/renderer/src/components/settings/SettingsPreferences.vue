@@ -2,7 +2,7 @@
 import { computed, watch } from "vue";
 import { useColorMode } from "@vueuse/core";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
-import { useSettingsStore } from "@renderer/stores/settings";
+import { useSettingsStore } from "@renderer/stores";
 import type {
   ThemeMode,
   AgentMode,

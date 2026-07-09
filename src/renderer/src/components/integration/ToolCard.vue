@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import type { IntegrationTool } from "@shared/types/integration";
-import { useIntegrationStore } from "@renderer/stores/integration";
+import { useIntegrationStore } from "@renderer/stores";
 import ToolCardExpand from "./ToolCardExpand.vue";
 
 const props = defineProps<{

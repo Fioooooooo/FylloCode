@@ -1,4 +1,4 @@
-import type { AcpSessionStore } from "@main/domain/chat/acp-session-store";
+import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
 import {
   loadArchiveRunMeta,
   updateArchiveRunAcpSessionId,

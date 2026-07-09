@@ -1,4 +1,4 @@
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { onFylloBootstrap } from "../core";
 
 export function registerProjectsTask(): void {

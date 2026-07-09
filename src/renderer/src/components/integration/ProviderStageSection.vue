@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useIntegrationProvidersStore } from "@renderer/stores";
 import type {
   IntegrationCategory,
   ProjectIntegrationConfig,

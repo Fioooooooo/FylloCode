@@ -1,33 +1,15 @@
-import { registerAppHandlers } from "./app";
-import { registerChatHandlers } from "./chat";
-import { registerProjectHandlers } from "./project";
-import { registerProposalHandlers } from "./proposal";
-import { registerProposalApplyHandlers } from "./proposal-apply";
-import { registerIntegrationHandlers } from "./integration";
-import { registerAcpAgentHandlers } from "./acp-agents";
-import { registerSettingsHandlers } from "./settings";
-import { registerWorkflowHandlers } from "./workflow";
-import { registerTaskHandlers } from "./task";
-import { registerLineageHandlers } from "./lineage";
-import { registerOverviewHandlers } from "./overview";
-import { registerSpecsHandlers } from "./specs";
-import { registerGuidelinesHandlers } from "./guidelines";
-import { registerWindowHandlers } from "./window";
+import { registerAutomationIpcHandlers } from "./automation";
+import { registerInsightIpcHandlers } from "./insight";
+import { registerPlatformIpcHandlers } from "./platform";
+import { registerProposalIpcHandlers } from "./proposal";
+import { registerSessionIpcHandlers } from "./session";
+import { registerWorkspaceIpcHandlers } from "./workspace";
 
 export function registerAllHandlers(): void {
-  registerAppHandlers();
-  registerWindowHandlers();
-  registerChatHandlers();
-  registerProjectHandlers();
-  registerProposalHandlers();
-  registerProposalApplyHandlers();
-  registerWorkflowHandlers();
-  registerTaskHandlers();
-  registerLineageHandlers();
-  registerOverviewHandlers();
-  registerSpecsHandlers();
-  registerGuidelinesHandlers();
-  registerIntegrationHandlers();
-  registerAcpAgentHandlers();
-  registerSettingsHandlers();
+  registerPlatformIpcHandlers();
+  registerWorkspaceIpcHandlers();
+  registerSessionIpcHandlers();
+  registerProposalIpcHandlers();
+  registerAutomationIpcHandlers();
+  registerInsightIpcHandlers();
 }

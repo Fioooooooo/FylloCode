@@ -6,7 +6,7 @@ import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import ChatToolGroup from "./ChatToolGroup.vue";
 import { getToolIcon, getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore } from "@renderer/stores";
 import type { FylloActionState } from "@shared/types/fyllo-action";
 
 type MessagePart = UIMessage["parts"][number];

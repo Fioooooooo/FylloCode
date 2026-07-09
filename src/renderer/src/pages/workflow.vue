@@ -3,8 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useToast } from "@nuxt/ui/composables";
 import WorkflowDetail from "@renderer/components/workflow/WorkflowDetail.vue";
 import WorkflowSidebar from "@renderer/components/workflow/WorkflowSidebar.vue";
-import { useProjectStore } from "@renderer/stores/project";
-import { useWorkflowStore } from "@renderer/stores/workflow";
+import { useProjectStore, useWorkflowStore } from "@renderer/stores";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
 type CurrentView = "empty" | "template-editor";

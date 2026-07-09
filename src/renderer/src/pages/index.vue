@@ -3,7 +3,7 @@ import { computed, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import WelcomeView from "@renderer/components/welcome/WelcomeView.vue";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { activityBarItems } from "@renderer/config/activity-bar";
 

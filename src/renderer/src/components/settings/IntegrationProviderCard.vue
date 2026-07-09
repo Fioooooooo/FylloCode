@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import type { Provider, ProviderConnection, ProviderCredentials } from "@shared/types/integration";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useIntegrationProvidersStore } from "@renderer/stores";
 
 const props = defineProps<{
   provider: Provider & { connection: ProviderConnection | null };

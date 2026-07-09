@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, toRef } from "vue";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore, useAcpAgentsStore } from "@renderer/stores";
 import type { Session } from "@shared/types/chat";
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
 import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";

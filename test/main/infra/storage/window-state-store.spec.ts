@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const { tempRoot } = await vi.hoisted(async () => {
@@ -29,6 +29,21 @@ afterEach(() => {
 });
 
 describe("window-state-store", () => {
+  it("keeps window state files under the legacy window-state directory", () => {
+    const state = {
+      bounds: { x: 10, y: 20, width: 1100, height: 700 },
+      isMaximized: false,
+    };
+
+    saveMainWindowState(state);
+    saveWindowState({ role: "launcher" }, state);
+    saveWindowState({ role: "project", projectId: "project-a" }, state);
+
+    expect(existsSync(`${tempRoot}/window-state/main-window.json`)).toBe(true);
+    expect(existsSync(`${tempRoot}/window-state/launcher.json`)).toBe(true);
+    expect(existsSync(`${tempRoot}/window-state/projects/project-a.json`)).toBe(true);
+  });
+
   it("returns null when the state file does not exist", () => {
     expect(loadMainWindowState()).toBeNull();
   });

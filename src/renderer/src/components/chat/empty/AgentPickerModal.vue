@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import { useAcpAgentsStore } from "@renderer/stores";
 import AgentPickerCard from "./AgentPickerCard.vue";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
 

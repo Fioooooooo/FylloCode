@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
-import { useSessionStore } from "@renderer/stores/session";
+import { useAcpAgentsStore, useSessionStore } from "@renderer/stores";
 import AgentPickerModal from "./AgentPickerModal.vue";
 import InstalledAgentTile from "./InstalledAgentTile.vue";
 import MoreAgentsTile from "./MoreAgentsTile.vue";

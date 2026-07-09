@@ -59,7 +59,7 @@ describe("resource registry", () => {
     ]);
 
     const { listProviderResources } =
-      await import("@main/services/integration/provider-resource-service");
+      await import("@main/services/platform/providers/provider-resource-service");
     const resources = await listProviderResources({
       providerId: "yunxiao",
       resourceType: "projex-project",
@@ -93,7 +93,7 @@ describe("resource registry", () => {
     mocks.listPipelines.mockRejectedValue(new Error("service unavailable"));
 
     const { listProviderResources } =
-      await import("@main/services/integration/provider-resource-service");
+      await import("@main/services/platform/providers/provider-resource-service");
 
     await expect(
       listProviderResources({
@@ -116,7 +116,7 @@ describe("resource registry", () => {
     );
 
     const { listProviderResources } =
-      await import("@main/services/integration/provider-resource-service");
+      await import("@main/services/platform/providers/provider-resource-service");
 
     await expect(
       listProviderResources({

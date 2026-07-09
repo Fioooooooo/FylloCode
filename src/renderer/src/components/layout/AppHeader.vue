@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { appApi } from "@renderer/api/app";
+import { appApi } from "@renderer/api/platform/app";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { useColorMode } from "@vueuse/core";
 import type { RecentProject } from "@shared/types/project";
 import ProjectHealthPopover from "./ProjectHealthPopover.vue";

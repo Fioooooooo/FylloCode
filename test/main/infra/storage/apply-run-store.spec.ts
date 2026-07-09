@@ -26,6 +26,8 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  archiveMessagesPath,
+  archiveRunMetaPath,
   applyRunDir,
   appendArchiveMessage,
   loadApplyRunMeta,
@@ -33,6 +35,7 @@ import {
   loadArchiveRunMeta,
   saveApplyRunMeta,
   saveArchiveRunMeta,
+  stageMessagesPath,
   updateApplyRunStageAcpSessionId,
   updateArchiveRunAcpSessionId,
 } from "@main/infra/storage/apply-run-store";
@@ -78,6 +81,21 @@ afterEach(() => {
 });
 
 describe("apply-run-store archive storage", () => {
+  it("keeps apply/archive runs under projects/<encoded>/apply-runs", () => {
+    expect(applyRunDir("/tmp/project", "change-1")).toBe(
+      `${tempRoot}/projects/tmp-project/apply-runs/change-1`
+    );
+    expect(stageMessagesPath("/tmp/project", "change-1", 2)).toBe(
+      `${tempRoot}/projects/tmp-project/apply-runs/change-1/stage-2.messages.jsonl`
+    );
+    expect(archiveRunMetaPath("/tmp/project", "change-1")).toBe(
+      `${tempRoot}/projects/tmp-project/apply-runs/change-1/archive.json`
+    );
+    expect(archiveMessagesPath("/tmp/project", "change-1")).toBe(
+      `${tempRoot}/projects/tmp-project/apply-runs/change-1/archive.messages.jsonl`
+    );
+  });
+
   it("returns empty archive data when files do not exist", async () => {
     await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toBeNull();
     await expect(loadArchiveMessages("/tmp/project", "change-1")).resolves.toEqual([]);

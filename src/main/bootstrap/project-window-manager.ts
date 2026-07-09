@@ -273,11 +273,11 @@ async function cleanupProjectRuntimeForWindow(
     { proposalStatusService },
     { disposeProject: disposeLineageEventConsumerProject },
   ] = await Promise.all([
-    import("@main/services/project/project-service"),
-    import("@main/services/chat/session-probe-service"),
-    import("@main/services/chat/session-registry"),
-    import("@main/services/proposal/proposal-status-service"),
-    import("@main/services/lineage/mcp-event-consumer"),
+    import("@main/services/workspace/project/project-service"),
+    import("@main/services/session/chat/session-probe-service"),
+    import("@main/services/session/chat/session-registry"),
+    import("@main/services/proposal/browser/proposal-status-service"),
+    import("@main/services/insight/lineage/mcp-event-consumer"),
   ]);
 
   await closeProjectProbes(projectId);

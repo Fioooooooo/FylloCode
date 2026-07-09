@@ -4,7 +4,7 @@ import type { ToasterProps, TooltipProps } from "@nuxt/ui";
 import ActivityBar from "@renderer/components/layout/ActivityBar.vue";
 import AppHeader from "@renderer/components/layout/AppHeader.vue";
 import AppLayout from "@renderer/layouts/AppLayout.vue";
-import { useSessionStore } from "@renderer/stores/session";
+import { useSessionStore } from "@renderer/stores";
 
 const toasterOptions: ToasterProps = {
   position: "top-center",

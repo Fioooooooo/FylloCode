@@ -1,9 +1,9 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { overviewApi } from "@renderer/api/overview";
+import { overviewApi } from "@renderer/api/insight/overview";
 import OverviewPage from "@renderer/pages/overview.vue";
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores/workspace/project";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
 import type { ProjectOverview } from "@shared/types/overview";
 import type { ProjectInfo } from "@shared/types/project";
@@ -16,7 +16,7 @@ const slideoverMock = vi.hoisted(() => ({
   openProposalDetail: vi.fn(),
 }));
 
-vi.mock("@renderer/api/overview", () => ({
+vi.mock("@renderer/api/insight/overview", () => ({
   overviewApi: {
     getProjectOverview: vi.fn(),
   },

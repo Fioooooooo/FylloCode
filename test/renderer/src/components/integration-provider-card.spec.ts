@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import IntegrationProviderCard from "@renderer/components/settings/IntegrationProviderCard.vue";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useIntegrationProvidersStore } from "@renderer/stores/platform/providers";
 
 describe("IntegrationProviderCard", () => {
   beforeEach(() => {

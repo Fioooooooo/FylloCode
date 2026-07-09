@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import ChatContainer from "@renderer/components/chat/ChatContainer.vue";
 import ChatSidebar from "@renderer/components/chat/ChatSidebar.vue";
-import { useSessionStore, useWorkflowStore } from "@renderer/stores";
+import { useWorkflowStore, useSessionStore } from "@renderer/stores";
 
 const sessionStore = useSessionStore();
 const workflowStore = useWorkflowStore();

@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import IntegrationProviderCard from "./IntegrationProviderCard.vue";
-import { useIntegrationProvidersStore } from "@renderer/stores/integration.providers";
+import { useIntegrationProvidersStore } from "@renderer/stores";
 
 const route = useRoute();
 const integrationProvidersStore = useIntegrationProvidersStore();

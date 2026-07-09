@@ -7,10 +7,13 @@ const stores = vi.hoisted(() => ({
   fetchTemplates: vi.fn(),
 }));
 
-vi.mock("@renderer/stores", () => ({
+vi.mock("@renderer/stores/session", () => ({
   useSessionStore: () => ({
     beginDraftSession: stores.beginDraftSession,
   }),
+}));
+
+vi.mock("@renderer/stores/automation", () => ({
   useWorkflowStore: () => ({
     fetchTemplates: stores.fetchTemplates,
   }),

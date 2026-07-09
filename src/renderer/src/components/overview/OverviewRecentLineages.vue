@@ -2,7 +2,7 @@
 import { timeAgo } from "@renderer/utils/time";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
-import type { RecentLineage } from "@renderer/stores/overview";
+import type { RecentLineage } from "@renderer/stores";
 
 const props = defineProps<{
   lineages: RecentLineage[];

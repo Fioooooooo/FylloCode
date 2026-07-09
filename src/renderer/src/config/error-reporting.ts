@@ -1,5 +1,5 @@
 import type { App as VueApp, ComponentPublicInstance } from "vue";
-import { appApi } from "@renderer/api/app";
+import { appApi } from "@renderer/api/platform/app";
 import type { RendererErrorReport, RendererErrorSource } from "@shared/types/app";
 
 const MAX_MESSAGE_LENGTH = 8000;

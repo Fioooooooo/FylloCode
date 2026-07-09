@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useMonaco } from "stream-monaco";
 import { useToast } from "@nuxt/ui/composables";
-import { useAcpAgentsStore } from "@renderer/stores/acp-agents";
+import { useAcpAgentsStore } from "@renderer/stores";
 import type { AcpCustomAgentsJson } from "@shared/types/acp-agent";
 import AgentCard from "./AgentCard.vue";
 

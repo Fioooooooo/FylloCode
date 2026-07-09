@@ -5,7 +5,7 @@ import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
-import { useProposalStore } from "@renderer/stores/proposal";
+import { useProposalStore } from "@renderer/stores";
 import type { ProposalStatus } from "@shared/types/proposal";
 
 const store = useProposalStore();

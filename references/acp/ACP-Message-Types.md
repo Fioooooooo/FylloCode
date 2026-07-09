@@ -198,7 +198,7 @@ ContentBlock 出现在 `agent_message_chunk`、`user_message_chunk`、`agent_tho
 
 ## ChatPromptPart 到 ContentBlock 映射
 
-FylloCode 的 `chat:stream:message` IPC 接收 `ChatPromptPart[]`，主进程在 `AcpSession` 中转换为 ACP `ContentBlock[]`：
+FylloCode 的 `session:chat:stream:message` IPC 接收 `ChatPromptPart[]`，主进程在 `AcpSession` 中转换为 ACP `ContentBlock[]`：
 
 | ChatPromptPart                  | ACP ContentBlock                                 | 说明                                    |
 | ------------------------------- | ------------------------------------------------ | --------------------------------------- |

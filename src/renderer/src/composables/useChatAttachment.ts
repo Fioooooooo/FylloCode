@@ -1,9 +1,8 @@
 import { computed, onBeforeUnmount, ref, type ComputedRef, type Ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
-import { chatApi } from "@renderer/api/chat";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
+import { chatApi } from "@renderer/api/session/chat";
+import { useProjectStore, useSessionStore } from "@renderer/stores";
 import {
   createChatPromptAttachment,
   revokeChatPromptAttachmentPreview,

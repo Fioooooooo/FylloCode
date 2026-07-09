@@ -2,11 +2,11 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
-import { chatApi } from "@renderer/api/chat";
+import { chatApi } from "@renderer/api/session/chat";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 
-vi.mock("@renderer/api/chat", () => ({
+vi.mock("@renderer/api/session/chat", () => ({
   chatApi: {
     readAttachmentDataUrl: vi.fn(),
   },

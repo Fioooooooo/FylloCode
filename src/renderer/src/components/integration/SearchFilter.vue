@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { FilterOption } from "@shared/types/integration";
-import { useIntegrationStore } from "@renderer/stores/integration";
-import { useProjectStore } from "@renderer/stores/project";
+import { useIntegrationStore, useProjectStore } from "@renderer/stores";
 
 const integrationStore = useIntegrationStore();
 const projectStore = useProjectStore();

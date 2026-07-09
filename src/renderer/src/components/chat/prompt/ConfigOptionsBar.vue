@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useChatStore } from "@renderer/stores/chat";
-import { useSessionStore } from "@renderer/stores/session";
+import { useChatStore, useSessionStore } from "@renderer/stores";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import ConfigOptionItem from "./ConfigOptionItem.vue";
 

@@ -2,7 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { shallowRef } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProposalDetailSlideover from "@renderer/components/proposal/ProposalDetailSlideover.vue";
-import { proposalApi } from "@renderer/api/proposal";
+import { proposalBrowserApi } from "@renderer/api/proposal/browser";
 import type { ApplyRunMeta, ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
@@ -21,20 +21,20 @@ let isArchivingValue = false;
 let isStreamingValue = false;
 let messagesValue: unknown[] = [];
 
-vi.mock("@renderer/api/proposal", () => ({
-  proposalApi: {
+vi.mock("@renderer/api/proposal/browser", () => ({
+  proposalBrowserApi: {
     readFile: vi.fn(),
     getSpecDeltas: vi.fn(),
   },
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => ({
     currentProject: { id: "project-1" },
   }),
 }));
 
-vi.mock("@renderer/stores/proposal", () => ({
+vi.mock("@renderer/stores/proposal/browser", () => ({
   useProposalStore: () => ({
     get proposals() {
       return proposalsValue.value;
@@ -46,7 +46,7 @@ vi.mock("@renderer/stores/proposal", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workflow", () => ({
+vi.mock("@renderer/stores/automation/workflow", () => ({
   useWorkflowStore: () => ({
     customTemplates: [{ id: "workflow-1", name: "Workflow 1" }],
     isLoading: false,
@@ -54,7 +54,7 @@ vi.mock("@renderer/stores/workflow", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/proposal-run", () => ({
+vi.mock("@renderer/stores/proposal/run", () => ({
   useProposalRunStore: () => ({
     get runMeta() {
       return runMetaValue;
@@ -135,11 +135,16 @@ function specOverview(): ProposalSpecDeltaOverview {
 }
 
 function mockSuccessfulReads(): void {
-  vi.mocked(proposalApi.readFile).mockImplementation(async (_projectId, changeId, filename) => ({
+  vi.mocked(proposalBrowserApi.readFile).mockImplementation(
+    async (_projectId: string, changeId: string, filename: string) => ({
+      ok: true,
+      data: filename === "design.md" ? null : `# ${filename} for ${changeId}`,
+    })
+  );
+  vi.mocked(proposalBrowserApi.getSpecDeltas).mockResolvedValue({
     ok: true,
-    data: filename === "design.md" ? null : `# ${filename} for ${changeId}`,
-  }));
-  vi.mocked(proposalApi.getSpecDeltas).mockResolvedValue({ ok: true, data: specOverview() });
+    data: specOverview(),
+  });
 }
 
 function deferred(): {
@@ -180,8 +185,8 @@ describe("ProposalDetailSlideover", () => {
     mocks.startArchive.mockReset();
     mocks.resumeRun.mockReset();
     mocks.resumeArchive.mockReset();
-    vi.mocked(proposalApi.readFile).mockReset();
-    vi.mocked(proposalApi.getSpecDeltas).mockReset();
+    vi.mocked(proposalBrowserApi.readFile).mockReset();
+    vi.mocked(proposalBrowserApi.getSpecDeltas).mockReset();
 
     mocks.loadProposals.mockResolvedValue(undefined);
     mocks.fetchTemplates.mockResolvedValue(undefined);
@@ -253,8 +258,12 @@ describe("ProposalDetailSlideover", () => {
     expect(wrapper.text()).toContain("Change 1");
     expect(wrapper.text()).toContain("1/2 tasks");
     expect(wrapper.find('[data-test="proposal-meta-refreshing"]').exists()).toBe(false);
-    expect(proposalApi.readFile).toHaveBeenCalledWith("project-1", "change-1", "proposal.md");
-    expect(proposalApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "change-1");
+    expect(proposalBrowserApi.readFile).toHaveBeenCalledWith(
+      "project-1",
+      "change-1",
+      "proposal.md"
+    );
+    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "change-1");
   });
 
   it("renders Specs tab with proposal capability deltas", async () => {
@@ -292,7 +301,7 @@ describe("ProposalDetailSlideover", () => {
   });
 
   it("shows Specs error without hiding markdown tabs", async () => {
-    vi.mocked(proposalApi.getSpecDeltas).mockResolvedValue({
+    vi.mocked(proposalBrowserApi.getSpecDeltas).mockResolvedValue({
       ok: false,
       error: { code: "UNKNOWN_ERROR", message: "specs failed" },
     });
@@ -342,12 +351,15 @@ describe("ProposalDetailSlideover", () => {
 
     expect(mocks.startArchive).toHaveBeenCalledWith("project-1", "change-1");
     expect(mocks.loadProposals).toHaveBeenCalled();
-    expect(proposalApi.readFile).toHaveBeenCalledWith(
+    expect(proposalBrowserApi.readFile).toHaveBeenCalledWith(
       "project-1",
       "2026-06-22-change-1",
       "proposal.md"
     );
-    expect(proposalApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "2026-06-22-change-1");
+    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith(
+      "project-1",
+      "2026-06-22-change-1"
+    );
   });
 
   it("does not show archive button when the done run belongs to another proposal", async () => {

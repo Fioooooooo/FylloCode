@@ -175,7 +175,7 @@ function createStreamState(port: MessagePortMain, logTag: string): StreamState {
     }
   };
 
-  const state: StreamState = {
+  return {
     started: false,
     pendingError: null,
     get finalised() {
@@ -196,6 +196,4 @@ function createStreamState(port: MessagePortMain, logTag: string): StreamState {
       closed = true;
     },
   };
-
-  return state;
 }

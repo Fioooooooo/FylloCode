@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   reportRendererError: vi.fn(() => Promise.resolve({ ok: true, data: undefined })),
 }));
 
-vi.mock("@renderer/api/app", () => ({
+vi.mock("@renderer/api/platform/app", () => ({
   appApi: {
     reportRendererError: mocks.reportRendererError,
   },

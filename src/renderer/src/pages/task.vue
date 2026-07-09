@@ -7,19 +7,9 @@ import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
-import { lineageApi } from "@renderer/api/lineage";
-import { useChatStore } from "@renderer/stores/chat";
-import { useProjectStore } from "@renderer/stores/project";
-import { useSessionStore } from "@renderer/stores/session";
-import { useTaskStore } from "@renderer/stores/task";
-import { buildSourceDisplay, getTaskDescriptionPlainText } from "@renderer/utils/task";
+import { useProjectStore, useTaskStore } from "@renderer/stores";
 import type { LinkedSessionEntry } from "@renderer/components/task/TaskCard.vue";
-import type { Session } from "@shared/types/chat";
-import type {
-  LineageSessionLink,
-  LineageTaskRef,
-  LineageTaskSnapshot,
-} from "@shared/types/lineage";
+import type { LineageSessionLink, LineageTaskRef } from "@shared/types/lineage";
 import type {
   CreateLocalTaskInput,
   TaskItem,
@@ -36,8 +26,6 @@ interface TaskLinkState {
 
 const router = useRouter();
 const projectStore = useProjectStore();
-const sessionStore = useSessionStore();
-const chatStore = useChatStore();
 const taskStore = useTaskStore();
 const toast = useToast();
 const { openChatSession } = useOpenChatSession();
@@ -59,26 +47,7 @@ const visibleTasks = computed(() => taskStore.filteredTasks);
 const isLocalSource = computed(() => selectedSource.value === "local");
 
 function buildTaskRef(task: TaskItem): LineageTaskRef {
-  return `${task.source}:${task.id}` as LineageTaskRef;
-}
-
-function buildTaskPrompt(task: TaskItem): string {
-  const sourceDisplay = buildSourceDisplay(task);
-  const descriptionText = getTaskDescriptionPlainText(task.description);
-  const url =
-    task.source !== "local" && "url" in task.sourceMeta && task.sourceMeta.url
-      ? ` (${task.sourceMeta.url})`
-      : "";
-
-  const sections = [`**来源**: ${sourceDisplay}${url}`, `**标题**: ${task.title}`];
-
-  if (descriptionText) {
-    sections.push("", "**描述**:", descriptionText);
-  }
-
-  sections.push("", "请帮我规划这个任务的方案");
-
-  return sections.join("\n");
+  return taskStore.buildTaskRef(task);
 }
 
 async function loadCurrentSource(source: TaskSource = selectedSource.value): Promise<void> {
@@ -160,35 +129,16 @@ function handleDetailOpenChange(open: boolean): void {
 }
 
 async function startChatFromTask(task: TaskItem): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
-  if (!projectId) {
-    return;
-  }
-
-  const taskRef = buildTaskRef(task);
-  const snapshot: LineageTaskSnapshot = {
-    ref: taskRef,
-    snapshot: JSON.parse(JSON.stringify(task)) as TaskItem,
-    capturedAt: new Date().toISOString(),
-  };
-
   try {
-    const result = await lineageApi.ensureTaskSubject(projectId, snapshot);
-    if (!result.ok) {
-      throw new Error(result.error.message || result.error.code);
-    }
+    await taskStore.startDiscussionFromTask(task);
+    await router.push("/chat");
   } catch (error: unknown) {
     toast.add({
       title: "发起讨论失败",
       description: error instanceof Error ? error.message : String(error),
       color: "error",
     });
-    return;
   }
-
-  sessionStore.beginDraftSession();
-  await chatStore.sendMessage([{ type: "text", text: buildTaskPrompt(task) }], { taskRef });
-  await router.push("/chat");
 }
 
 function getLinkedSessionEntries(task: TaskItem): LinkedSessionEntry[] {
@@ -198,23 +148,7 @@ function getLinkedSessionEntries(task: TaskItem): LinkedSessionEntry[] {
     return [];
   }
 
-  return state.links.map((link) => {
-    const session = sessionStore.sessions.find((item: Session) => item.id === link.sessionId);
-    if (session) {
-      return {
-        sessionId: link.sessionId,
-        title: session.title,
-        updatedAt: session.updatedAt,
-        status: session.status,
-      };
-    }
-
-    return {
-      sessionId: link.sessionId,
-      title: link.sessionId,
-      createdAt: new Date(link.createdAt),
-    };
-  });
+  return taskStore.getLinkedSessionEntries(state.links);
 }
 
 async function handleOpenSession(sessionId: string): Promise<void> {
@@ -248,7 +182,7 @@ async function loadLinkedConversations(): Promise<void> {
       nextState.set(ref, { links: existing?.links ?? [], loading: true, failed: false });
 
       try {
-        const result = await lineageApi.getByTask(projectId, ref);
+        const result = await taskStore.getTaskLineage(projectId, ref);
         if (batchId !== linkedConversationBatchId) {
           return;
         }

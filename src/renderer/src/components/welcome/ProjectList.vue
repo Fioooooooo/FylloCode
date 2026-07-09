@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useProjectStore } from "@renderer/stores/project";
+import { useProjectStore } from "@renderer/stores";
 import { timeAgo } from "@renderer/utils/time";
 import type { RecentProject } from "@shared/types/project";
 

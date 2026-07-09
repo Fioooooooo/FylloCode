@@ -2,6 +2,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { reactive } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaskPage from "@renderer/pages/task.vue";
+import { buildSourceDisplay, getTaskDescriptionPlainText } from "@renderer/utils/task";
 import type { Session } from "@shared/types/chat";
 import type { TaskItem, TaskStatus } from "@shared/types/task";
 
@@ -39,6 +40,17 @@ type TaskStoreStub = {
   createTask: typeof createTaskMock;
   updateTask: typeof updateTaskMock;
   deleteTask: typeof deleteTaskMock;
+  buildTaskRef: typeof buildTaskRefStub;
+  ensureTaskSubject: typeof ensureTaskSubjectMock;
+  getTaskLineage: typeof getByTaskMock;
+  startDiscussionFromTask: typeof startDiscussionFromTaskMock;
+  getLinkedSessionEntries: (links: Array<{ sessionId: string; createdAt: string }>) => Array<{
+    sessionId: string;
+    title: string;
+    updatedAt?: Date;
+    createdAt?: Date;
+    status?: "running" | "ended";
+  }>;
   resetDetailState: ReturnType<typeof vi.fn>;
 };
 
@@ -47,10 +59,52 @@ const loadTaskDetailMock = vi.fn();
 const createTaskMock = vi.fn();
 const updateTaskMock = vi.fn();
 const deleteTaskMock = vi.fn();
+const startDiscussionFromTaskMock = vi.fn(startDiscussionFromTaskStub);
 const sendMessageMock = vi.fn();
 const pushMock = vi.fn();
 const beginDraftSessionMock = vi.fn();
 const toastAddMock = vi.fn();
+
+function buildTaskRefStub(task: TaskItem): `${TaskItem["source"]}:${string}` {
+  return `${task.source}:${task.id}`;
+}
+
+function buildTaskPromptStub(task: TaskItem): string {
+  const sourceDisplay = buildSourceDisplay(task);
+  const descriptionText = getTaskDescriptionPlainText(task.description);
+  const url =
+    task.source !== "local" && "url" in task.sourceMeta && task.sourceMeta.url
+      ? ` (${task.sourceMeta.url})`
+      : "";
+  const sections = [`**来源**: ${sourceDisplay}${url}`, `**标题**: ${task.title}`];
+
+  if (descriptionText) {
+    sections.push("", "**描述**:", descriptionText);
+  }
+
+  sections.push("", "请帮我规划这个任务的方案");
+  return sections.join("\n");
+}
+
+async function startDiscussionFromTaskStub(task: TaskItem): Promise<void> {
+  const projectId = projectStore.currentProject?.id;
+  if (!projectId) {
+    return;
+  }
+
+  const taskRef = buildTaskRefStub(task);
+  const result = await ensureTaskSubjectMock(projectId, {
+    ref: taskRef,
+    snapshot: JSON.parse(JSON.stringify(task)) as TaskItem,
+    capturedAt: new Date().toISOString(),
+  });
+  if (!result.ok) {
+    throw new Error(result.error.message || result.error.code);
+  }
+
+  beginDraftSessionMock();
+  await sendMessageMock([{ type: "text", text: buildTaskPromptStub(task) }], { taskRef });
+}
 
 const taskStore = reactive<TaskStoreStub>({
   tasks: [] as TaskItem[],
@@ -72,6 +126,28 @@ const taskStore = reactive<TaskStoreStub>({
   createTask: createTaskMock,
   updateTask: updateTaskMock,
   deleteTask: deleteTaskMock,
+  buildTaskRef: buildTaskRefStub,
+  ensureTaskSubject: ensureTaskSubjectMock,
+  getTaskLineage: getByTaskMock,
+  startDiscussionFromTask: startDiscussionFromTaskMock,
+  getLinkedSessionEntries: (links) =>
+    links.map((link) => {
+      const session = sessions.find((item) => item.id === link.sessionId);
+      if (session) {
+        return {
+          sessionId: link.sessionId,
+          title: session.title,
+          updatedAt: session.updatedAt,
+          status: session.status,
+        };
+      }
+
+      return {
+        sessionId: link.sessionId,
+        title: link.sessionId,
+        createdAt: new Date(link.createdAt),
+      };
+    }),
   resetDetailState: vi.fn(),
 });
 
@@ -79,32 +155,25 @@ const projectStore = reactive({
   currentProject: { id: "project-1" } as { id: string } | null,
 });
 
-vi.mock("@renderer/stores/task", () => ({
+vi.mock("@renderer/stores/automation/task", () => ({
   useTaskStore: () => taskStore,
 }));
 
-vi.mock("@renderer/stores/project", () => ({
+vi.mock("@renderer/stores/workspace/project", () => ({
   useProjectStore: () => projectStore,
 }));
 
-vi.mock("@renderer/stores/chat", () => ({
+vi.mock("@renderer/stores/session/chat", () => ({
   useChatStore: () => ({
     sendMessage: sendMessageMock,
   }),
 }));
 
-vi.mock("@renderer/stores/session", () => ({
+vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     sessions,
     beginDraftSession: beginDraftSessionMock,
   }),
-}));
-
-vi.mock("@renderer/api/lineage", () => ({
-  lineageApi: {
-    ensureTaskSubject: ensureTaskSubjectMock,
-    getByTask: getByTaskMock,
-  },
 }));
 
 vi.mock("@renderer/composables/useOpenChatSession", () => ({
