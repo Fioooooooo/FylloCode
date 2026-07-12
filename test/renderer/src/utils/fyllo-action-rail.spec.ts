@@ -39,10 +39,11 @@ function makeSession(options: {
 }
 
 function handledActionState(
-  status: FylloActionStateStatus
+  status: FylloActionStateStatus,
+  type: NonNullable<Session["actionStates"]>[string]["type"] = "task.create"
 ): NonNullable<Session["actionStates"]>[string] {
   return {
-    type: "task.create",
+    type,
     status,
     updatedAt: "2026-05-12T00:00:00.000Z",
   };
@@ -89,6 +90,31 @@ describe("collectPendingFylloActionRailItems", () => {
     expect(collectPendingFylloActionRailItems(session).map((item) => item.summary)).toEqual([
       "A",
       "B",
+    ]);
+  });
+
+  it("collects knowledge.flag rail actions with candidate summary and context paths", () => {
+    const session = makeSession({
+      messages: [
+        assistantTextMessage(
+          [
+            '<fyllo-action type="knowledge.flag">',
+            '{"summary":"markstream-vue theme subscriptions must stay outside leaf instances.","contextPaths":["src/renderer/src/components/chat/MessageMarkdown.vue"]}',
+            "</fyllo-action>",
+          ].join("")
+        ),
+      ],
+    });
+
+    expect(collectPendingFylloActionRailItems(session)).toEqual([
+      {
+        actionId: "chat:session-1:0:0:0",
+        type: "knowledge.flag",
+        title: "发现可沉淀知识",
+        icon: "i-lucide-bookmark-plus",
+        summary: "markstream-vue theme subscriptions must stay outside leaf instances.",
+        contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
+      },
     ]);
   });
 

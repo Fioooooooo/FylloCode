@@ -6,6 +6,7 @@ import type {
 
 export interface FylloActionDispatchContext {
   sessionId?: string | null;
+  actionId?: string | null;
 }
 
 export interface FylloActionHandlerRuntime {

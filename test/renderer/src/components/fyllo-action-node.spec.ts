@@ -94,10 +94,107 @@ describe("FylloActionNode", () => {
       {
         title: "补齐错误处理",
       },
-      { sessionId: "session-1" }
+      { sessionId: "session-1", actionId: "chat:session-1:3:0:0" }
     );
     expect(persistActionState).toHaveBeenCalledWith("chat:session-1:3:0:0", {
       type: "task.create",
+      status: "succeeded",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("routes knowledge.flag through the generic dispatcher with action id context", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mount(FylloActionNode, {
+      props: {
+        node: {
+          raw: '<fyllo-action type="knowledge.flag">{"summary":"Theme subscriptions are expensive.","contextPaths":["src/renderer/src/components/chat/MessageMarkdown.vue"]}</fyllo-action>',
+          attrs: {
+            type: "knowledge.flag",
+          },
+          content:
+            '{"summary":"Theme subscriptions are expensive.","contextPaths":["src/renderer/src/components/chat/MessageMarkdown.vue"]}',
+        },
+      },
+      global: {
+        provide: {
+          [fylloActionHostContextKey as symbol]: {
+            sessionId: "session-1",
+            messageIndex: 4,
+            partIndex: 0,
+            resolveActionOrdinal: () => 0,
+            getActionState: () => undefined,
+            persistActionState,
+          },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("发现可沉淀知识");
+    expect(wrapper.text()).toContain("Theme subscriptions are expensive.");
+
+    await buttonByText(wrapper, "沉淀知识").trigger("click");
+    await flushPromises();
+
+    expect(dispatchMock).toHaveBeenCalledWith(
+      "knowledge.flag",
+      {
+        summary: "Theme subscriptions are expensive.",
+        contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
+      },
+      { sessionId: "session-1", actionId: "chat:session-1:4:0:0" }
+    );
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:4:0:0", {
+      type: "knowledge.flag",
+      status: "succeeded",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("routes knowledge.review by entry name through the generic dispatcher", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mount(FylloActionNode, {
+      props: {
+        node: {
+          raw: '<fyllo-action type="knowledge.review">{"name":"markstream-vue-theme-subscription","summary":"Review saved markdown."}</fyllo-action>',
+          attrs: {
+            type: "knowledge.review",
+          },
+          content:
+            '{"name":"markstream-vue-theme-subscription","summary":"Review saved markdown."}',
+        },
+      },
+      global: {
+        provide: {
+          [fylloActionHostContextKey as symbol]: {
+            sessionId: "session-1",
+            messageIndex: 5,
+            partIndex: 0,
+            resolveActionOrdinal: () => 0,
+            getActionState: () => undefined,
+            persistActionState,
+          },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("审阅知识");
+    expect(wrapper.text()).toContain("markstream-vue-theme-subscription");
+    expect(wrapper.text()).toContain("Review saved markdown.");
+
+    await buttonByText(wrapper, "审阅知识").trigger("click");
+    await flushPromises();
+
+    expect(dispatchMock).toHaveBeenCalledWith(
+      "knowledge.review",
+      {
+        name: "markstream-vue-theme-subscription",
+        summary: "Review saved markdown.",
+      },
+      { sessionId: "session-1", actionId: "chat:session-1:5:0:0" }
+    );
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:5:0:0", {
+      type: "knowledge.review",
       status: "succeeded",
       updatedAt: expect.any(String),
     });

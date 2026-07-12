@@ -1,4 +1,9 @@
 import { z } from "zod";
+import type {
+  KnowledgeFlagActionPayload,
+  KnowledgeReviewActionPayload,
+} from "@shared/types/knowledge";
+import { knowledgeEntryNameSchema, projectRelativePathSchema } from "@shared/schemas/knowledge";
 
 export const taskCreateFylloActionPayloadSchema = z.strictObject({
   title: z.string().min(1),
@@ -20,10 +25,31 @@ export const planCreateFylloActionPayloadSchema = z.strictObject({
   goal: z.string().min(1),
 });
 
+export const knowledgeFlagFylloActionPayloadSchema: z.ZodType<KnowledgeFlagActionPayload> =
+  z.strictObject({
+    summary: z
+      .string()
+      .min(1)
+      .max(500)
+      .refine((summary) => summary.trim().length > 0, "summary must not be blank"),
+    contextPaths: z.array(projectRelativePathSchema).max(20).optional(),
+  });
+
+export const knowledgeReviewFylloActionPayloadSchema: z.ZodType<KnowledgeReviewActionPayload> =
+  z.strictObject({
+    name: knowledgeEntryNameSchema,
+    summary: z
+      .string()
+      .min(1)
+      .max(500)
+      .refine((summary) => summary.trim().length > 0, "summary must not be blank")
+      .optional(),
+  });
+
 export const fylloActionStateStatusSchema = z.enum(["succeeded", "failed", "cancelled"]);
 
 export const fylloActionStateSchema = z.strictObject({
-  type: z.enum(["task.create", "plan.create"]),
+  type: z.enum(["task.create", "plan.create", "knowledge.flag", "knowledge.review"]),
   status: fylloActionStateStatusSchema,
   updatedAt: z.string().datetime(),
 });

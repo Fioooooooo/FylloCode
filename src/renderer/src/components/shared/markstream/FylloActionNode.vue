@@ -61,17 +61,22 @@ function confirmReadyAction(): Promise<FylloActionHandlerResult> {
     });
   }
 
-  return dispatchFylloAction(parseResult.value.type, parseResult.value.payload, {
+  const context: { sessionId?: string | null; actionId?: string | null } = {
     sessionId: hostContext?.sessionId,
-  });
+  };
+  if (actionId.value) {
+    context.actionId = actionId.value;
+  }
+
+  return dispatchFylloAction(parseResult.value.type, parseResult.value.payload, context);
 }
 
-function persistActionState(state: FylloActionState): Promise<void> {
-  if (!actionId.value || !hostContext?.persistActionState) {
+function persistActionState(targetActionId: string, state: FylloActionState): Promise<void> {
+  if (!hostContext?.persistActionState) {
     return Promise.resolve();
   }
 
-  return hostContext.persistActionState(actionId.value, state);
+  return hostContext.persistActionState(targetActionId, state);
 }
 </script>
 

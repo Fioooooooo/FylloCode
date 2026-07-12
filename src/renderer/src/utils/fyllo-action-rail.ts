@@ -1,5 +1,9 @@
 import { getFylloActionDefinition } from "@renderer/config/fyllo-actions";
-import { buildChatFylloActionId, parseFylloActionNode } from "@renderer/utils/fyllo-action";
+import {
+  buildChatFylloActionId,
+  collectFylloActionSources,
+  parseFylloActionNode,
+} from "@renderer/utils/fyllo-action";
 import type { Session } from "@shared/types/chat";
 import type { FylloActionReadyParseResult, FylloActionType } from "@shared/types/fyllo-action";
 
@@ -9,36 +13,11 @@ export interface PendingFylloActionRailItem {
   title: string;
   icon: string;
   summary?: string;
+  contextPaths?: string[];
 }
-
-interface ParsedFylloActionSource {
-  attrs: Record<string, string>;
-  content: string;
-  loading: boolean;
-}
-
-const fylloActionTagPattern = /<fyllo-action\b([^>]*)>([\s\S]*?)(<\/fyllo-action>|$)/g;
-const fylloActionAttrPattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+)))?/g;
 
 function hasActionState(session: Session, actionId: string): boolean {
   return Object.prototype.hasOwnProperty.call(session.actionStates ?? {}, actionId);
-}
-
-function parseFylloActionAttrs(rawAttrs: string): Record<string, string> {
-  return Object.fromEntries(
-    Array.from(rawAttrs.matchAll(fylloActionAttrPattern), (match) => [
-      match[1],
-      match[2] ?? match[3] ?? match[4] ?? "",
-    ])
-  );
-}
-
-function collectFylloActionSources(source: string): ParsedFylloActionSource[] {
-  return Array.from(source.matchAll(fylloActionTagPattern), (match) => ({
-    attrs: parseFylloActionAttrs(match[1] ?? ""),
-    content: match[2] ?? "",
-    loading: match[3] !== "</fyllo-action>",
-  }));
 }
 
 function isAssistantTextPart(
@@ -49,12 +28,19 @@ function isAssistantTextPart(
 }
 
 function getActionSummary(parseResult: FylloActionReadyParseResult): string | undefined {
-  switch (parseResult.type) {
-    case "task.create":
-      return getFylloActionDefinition("task.create").getSummary?.(parseResult.payload);
-    case "plan.create":
-      return getFylloActionDefinition("plan.create").getSummary?.(parseResult.payload);
+  return getFylloActionDefinition(parseResult.type).getSummary?.(parseResult.payload as never) as
+    | string
+    | undefined;
+}
+
+function getKnowledgeFlagContextPaths(
+  parseResult: FylloActionReadyParseResult
+): string[] | undefined {
+  if (parseResult.type !== "knowledge.flag") {
+    return undefined;
   }
+
+  return parseResult.payload.contextPaths;
 }
 
 export function collectPendingFylloActionRailItems(
@@ -99,6 +85,7 @@ export function collectPendingFylloActionRailItems(
           title: definition.title,
           icon: definition.icon,
           summary: getActionSummary(parseResult),
+          contextPaths: getKnowledgeFlagContextPaths(parseResult),
         });
       });
     });

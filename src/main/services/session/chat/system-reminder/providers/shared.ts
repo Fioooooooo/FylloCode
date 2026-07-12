@@ -16,6 +16,10 @@ const ALLOWED_VARIABLES = [
 const ALLOWED_VARIABLE_SET = new Set<string>(ALLOWED_VARIABLES);
 type AllowedVariable = (typeof ALLOWED_VARIABLES)[number];
 
+export function escapeAngleBrackets(value: string): string {
+  return value.replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+}
+
 function sanitizeValue(
   ctx: SystemReminderContext,
   field: string,

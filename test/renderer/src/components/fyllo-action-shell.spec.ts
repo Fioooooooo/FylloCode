@@ -10,6 +10,7 @@ import type {
 } from "@shared/types/fyllo-action";
 
 const taskCreateDefinition = getFylloActionDefinition("task.create");
+const knowledgeFlagDefinition = getFylloActionDefinition("knowledge.flag");
 
 function readyResult(overrides: Partial<FylloActionParseResult> = {}): FylloActionParseResult {
   return {
@@ -21,6 +22,19 @@ function readyResult(overrides: Partial<FylloActionParseResult> = {}): FylloActi
     },
     ...overrides,
   } as FylloActionParseResult;
+}
+
+function payloadLabel(payload: FylloActionPayload): string {
+  if ("title" in payload) {
+    return payload.title;
+  }
+  if ("slug" in payload) {
+    return payload.slug;
+  }
+  if ("name" in payload) {
+    return payload.name;
+  }
+  return payload.summary;
 }
 
 function mountShell(
@@ -38,11 +52,7 @@ function mountShell(
     },
     slots: {
       default: ({ payload }: { payload: FylloActionPayload }) =>
-        h(
-          "div",
-          { "data-test": "action-body" },
-          `typed body: ${"title" in payload ? payload.title : payload.slug}`
-        ),
+        h("div", { "data-test": "action-body" }, `typed body: ${payloadLabel(payload)}`),
     },
   });
 }
@@ -70,6 +80,28 @@ describe("FylloActionShell", () => {
 
     expect(wrapper.get('[data-test="action-body"]').text()).toContain("补齐错误处理");
     expect(buttonByText(wrapper, "确认").exists()).toBe(true);
+    expect(buttonByText(wrapper, "取消").exists()).toBe(true);
+  });
+
+  it("renders knowledge.flag as an ordinary confirm action", () => {
+    const wrapper = mountShell(
+      {
+        status: "ready",
+        type: "knowledge.flag",
+        payload: {
+          summary: "markstream-vue theme subscriptions must stay outside leaf instances.",
+          contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
+        },
+      },
+      vi.fn(),
+      {
+        definition: knowledgeFlagDefinition,
+      }
+    );
+
+    expect(wrapper.text()).toContain("发现可沉淀知识");
+    expect(wrapper.text()).toContain("markstream-vue theme subscriptions");
+    expect(buttonByText(wrapper, "沉淀知识").exists()).toBe(true);
     expect(buttonByText(wrapper, "取消").exists()).toBe(true);
   });
 
@@ -173,7 +205,34 @@ describe("FylloActionShell", () => {
     await buttonByText(wrapper, "确认").trigger("click");
     await flushPromises();
 
-    expect(persistActionState).toHaveBeenCalledWith({
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:0:0:0", {
+      type: "task.create",
+      status: "succeeded",
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("persists additional completed action ids after a successful confirm", async () => {
+    const persistActionState = vi.fn().mockResolvedValue(undefined);
+    const confirmHandler = vi.fn<() => Promise<FylloActionHandlerResult>>().mockResolvedValue({
+      outcome: "succeeded",
+      completedActionIds: ["chat:session-1:0:0:0", "chat:session-1:0:0:1"],
+    });
+    const wrapper = mountShell(readyResult(), confirmHandler, {
+      actionId: "chat:session-1:0:0:0",
+      persistActionState,
+    });
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(persistActionState).toHaveBeenCalledTimes(2);
+    expect(persistActionState).toHaveBeenNthCalledWith(1, "chat:session-1:0:0:0", {
+      type: "task.create",
+      status: "succeeded",
+      updatedAt: expect.any(String),
+    });
+    expect(persistActionState).toHaveBeenNthCalledWith(2, "chat:session-1:0:0:1", {
       type: "task.create",
       status: "succeeded",
       updatedAt: expect.any(String),
@@ -197,7 +256,7 @@ describe("FylloActionShell", () => {
     await buttonByText(wrapper, "确认").trigger("click");
     await flushPromises();
 
-    expect(persistActionState).toHaveBeenCalledWith({
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:0:0:0", {
       type: "task.create",
       status: "failed",
       updatedAt: expect.any(String),
@@ -214,7 +273,7 @@ describe("FylloActionShell", () => {
     await buttonByText(wrapper, "取消").trigger("click");
     await flushPromises();
 
-    expect(persistActionState).toHaveBeenCalledWith({
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:0:0:0", {
       type: "task.create",
       status: "cancelled",
       updatedAt: expect.any(String),

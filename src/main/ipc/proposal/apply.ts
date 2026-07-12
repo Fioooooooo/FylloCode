@@ -112,6 +112,7 @@ export function registerProposalApplyHandlers(): void {
           session,
           owner: "apply",
           registryKey: `${form.projectId}:${form.runId}`,
+          messageSessionId: fylloSessionId,
           output: sink,
           logTag: "proposal-apply",
           start: async () => {

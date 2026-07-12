@@ -241,12 +241,10 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
     const status = rawState.status;
     const updatedAt = rawState.updatedAt;
     const contract = typeof type === "string" ? getFylloActionContract(type) : undefined;
-    if (
-      typeof type !== "string" ||
-      !contract ||
-      !isActionStateStatus(status) ||
-      typeof updatedAt !== "string"
-    ) {
+    if (typeof type !== "string" || !contract || contract.interaction !== "confirm") {
+      return [];
+    }
+    if (!isActionStateStatus(status) || typeof updatedAt !== "string") {
       return [];
     }
 

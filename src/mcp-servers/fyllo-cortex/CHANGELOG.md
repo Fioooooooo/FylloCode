@@ -4,6 +4,13 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+
+- Added the `knowledge` tool with `capture`, `update`, `retire`, and `audit` modes. Responses include authoring instructions plus state derived from `FYLLO_PROJECT_DATA_DIR/knowledge`.
+- Knowledge tool state now returns `knowledgeRoot`; agents write or update markdown entries there before emitting `knowledge.review` with a `name` payload for user review.
+
 ## [0.4.0] - 2026-07-02
 
 ### Changed

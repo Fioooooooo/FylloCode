@@ -1,3 +1,5 @@
+import { createKnowledgeFlagActionHandler } from "@renderer/composables/fyllo-action-handlers/knowledge-flag";
+import { createKnowledgeReviewActionHandler } from "@renderer/composables/fyllo-action-handlers/knowledge-review";
 import { createPlanCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/plan-create";
 import { createTaskCreateActionHandler } from "@renderer/composables/fyllo-action-handlers/task-create";
 import type {
@@ -6,7 +8,8 @@ import type {
   FylloActionDispatchHandlerMap,
 } from "@renderer/composables/fyllo-action-handlers/types";
 import { usePlanSlideover } from "@renderer/composables/usePlanSlideover";
-import { useLineageStore, useProjectStore, useSessionStore } from "@renderer/stores";
+import { useKnowledgeReviewSlideover } from "@renderer/composables/useKnowledgeReviewSlideover";
+import { useChatStore, useLineageStore, useProjectStore, useSessionStore } from "@renderer/stores";
 import type {
   FylloActionHandlerResult,
   FylloActionPayloadByType,
@@ -33,8 +36,10 @@ export function useFylloActionDispatcher(): {
 } {
   const projectStore = useProjectStore();
   const sessionStore = useSessionStore();
+  const chatStore = useChatStore();
   const lineageStore = useLineageStore();
   const { openPlanReview } = usePlanSlideover();
+  const { openKnowledgeReview } = useKnowledgeReviewSlideover();
   const handlers = {
     "task.create": createTaskCreateActionHandler({
       createSessionTask: lineageStore.createSessionTask,
@@ -42,6 +47,14 @@ export function useFylloActionDispatcher(): {
     }),
     "plan.create": createPlanCreateActionHandler({
       openPlanReview,
+    }),
+    "knowledge.flag": createKnowledgeFlagActionHandler({
+      getChatStatus: () => chatStore.chatStatus,
+      getActiveSession: () => sessionStore.activeSession,
+      sendMessage: chatStore.sendMessage,
+    }),
+    "knowledge.review": createKnowledgeReviewActionHandler({
+      openKnowledgeReview,
     }),
   } satisfies FylloActionDispatchHandlerMap;
 

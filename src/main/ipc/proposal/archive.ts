@@ -139,6 +139,7 @@ export function registerProposalArchiveHandlers(): void {
           session,
           owner: "archive",
           registryKey: sessionKey,
+          messageSessionId: fylloSessionId,
           output: sink,
           logTag: "proposal-archive",
           start: () => session.start([{ type: "text", text: prompt }]),

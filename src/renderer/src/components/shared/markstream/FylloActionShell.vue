@@ -19,7 +19,7 @@ const props = defineProps<{
   confirmHandler: () => Promise<FylloActionHandlerResult>;
   actionId?: string | null;
   persistedState?: FylloActionState;
-  persistActionState?: (state: FylloActionState) => Promise<void>;
+  persistActionState?: (actionId: string, state: FylloActionState) => Promise<void>;
   isDark?: boolean;
   customId?: string;
   indexKey?: number | string;
@@ -158,17 +158,38 @@ const invalidMessage = computed(() =>
   props.parseResult.status === "invalid" ? props.parseResult.error.message : ""
 );
 
-async function persistExecutionStatus(status: FylloActionStateStatus): Promise<void> {
-  if (props.parseResult.status !== "ready" || !props.actionId || !props.persistActionState) {
+function getActionIdsToPersist(extraActionIds: string[] = []): string[] {
+  return Array.from(
+    new Set(
+      [props.actionId, ...extraActionIds].filter(
+        (actionId): actionId is string => typeof actionId === "string" && actionId.length > 0
+      )
+    )
+  );
+}
+
+async function persistExecutionStatus(
+  status: FylloActionStateStatus,
+  extraActionIds: string[] = []
+): Promise<void> {
+  const persistActionState = props.persistActionState;
+  if (props.parseResult.status !== "ready" || !persistActionState) {
     return;
   }
 
+  const actionIds = getActionIdsToPersist(extraActionIds);
+  if (actionIds.length === 0) {
+    return;
+  }
+
+  const state: FylloActionState = {
+    type: props.parseResult.type,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+
   try {
-    await props.persistActionState({
-      type: props.parseResult.type,
-      status,
-      updatedAt: new Date().toISOString(),
-    });
+    await Promise.all(actionIds.map((actionId) => persistActionState(actionId, state)));
     statePersistenceError.value = null;
   } catch (error) {
     statePersistenceError.value = error instanceof Error ? error.message : String(error);
@@ -188,7 +209,7 @@ async function handleConfirm(): Promise<void> {
 
     if (result.outcome === "succeeded") {
       executionStatus.value = "succeeded";
-      await persistExecutionStatus("succeeded");
+      await persistExecutionStatus("succeeded", result.completedActionIds);
       return;
     }
 

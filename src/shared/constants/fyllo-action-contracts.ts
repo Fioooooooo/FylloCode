@@ -1,5 +1,7 @@
 import type { z } from "zod";
 import {
+  knowledgeFlagFylloActionPayloadSchema,
+  knowledgeReviewFylloActionPayloadSchema,
   planCreateFylloActionPayloadSchema,
   taskCreateFylloActionPayloadSchema,
 } from "@shared/schemas/fyllo-action";
@@ -15,6 +17,8 @@ export interface FylloActionPayloadFieldContract {
 type FylloActionContractBase<Type extends FylloActionType> = {
   type: Type;
   description: string;
+  presentation: "inline" | "rail";
+  interaction: "passive" | "confirm";
   payloadSchema: z.ZodType<FylloActionPayloadByType[Type]>;
   payloadFields: readonly FylloActionPayloadFieldContract[];
   examplePayload: FylloActionPayloadByType[Type];
@@ -29,6 +33,8 @@ export const enabledFylloActionContracts = [
     type: "task.create",
     description:
       "Show the user a card to create a task; after the user confirms, a local task will be created.",
+    presentation: "inline",
+    interaction: "confirm",
     payloadSchema: taskCreateFylloActionPayloadSchema,
     payloadFields: [
       {
@@ -52,6 +58,8 @@ export const enabledFylloActionContracts = [
   {
     type: "plan.create",
     description: "Show the user a card to review the plan.",
+    presentation: "inline",
+    interaction: "confirm",
     payloadSchema: planCreateFylloActionPayloadSchema,
     payloadFields: [
       {
@@ -70,6 +78,58 @@ export const enabledFylloActionContracts = [
     examplePayload: {
       slug: "2026-06-29-refactor-chat-store",
       goal: "Review the multi-file implementation plan before code changes.",
+    },
+  },
+  {
+    type: "knowledge.flag",
+    description:
+      "Show a knowledge candidate in the session rail; when the user confirms, FylloCode starts durable knowledge capture.",
+    presentation: "rail",
+    interaction: "confirm",
+    payloadSchema: knowledgeFlagFylloActionPayloadSchema,
+    payloadFields: [
+      {
+        name: "summary",
+        type: "string",
+        required: true,
+        description: "Required concise summary of knowledge that may be worth retaining.",
+      },
+      {
+        name: "contextPaths",
+        type: "string[]",
+        required: false,
+        description: "Optional project-relative files or directories that support the candidate.",
+      },
+    ],
+    examplePayload: {
+      summary:
+        "Message markdown theme subscriptions are expensive when each text part creates an instance.",
+      contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
+    },
+  },
+  {
+    type: "knowledge.review",
+    description: "Show the user a card to review a durable knowledge markdown file from disk.",
+    presentation: "rail",
+    interaction: "confirm",
+    payloadSchema: knowledgeReviewFylloActionPayloadSchema,
+    payloadFields: [
+      {
+        name: "name",
+        type: "string",
+        required: true,
+        description: "Required knowledge entry file name without the .md suffix.",
+      },
+      {
+        name: "summary",
+        type: "string",
+        required: false,
+        description: "Optional concise summary to show in the review card.",
+      },
+    ],
+    examplePayload: {
+      name: "markstream-vue-theme-subscription",
+      summary: "Review the retained guidance for MessageMarkdown theme subscriptions.",
     },
   },
 ] as const satisfies readonly FylloActionContract[];
@@ -112,6 +172,8 @@ export function formatFylloActionContractForPrompt(
         "",
         contract.description,
         "",
+        `Presentation: ${contract.presentation}. Interaction: ${contract.interaction}.`,
+        "",
         "Payload schema: strict JSON object. Do not include unknown fields.",
         formatPayloadFields(contract),
         "",
@@ -132,6 +194,7 @@ export function formatFylloActionContractForPrompt(
     'Use `<fyllo-action type="...">...</fyllo-action>` only in assistant-visible replies after the user and agent have agreed on a result that needs FylloCode-side confirmation.',
     "The only allowed attribute is `type`. Do not output `version`, `id`, `title`, `confirmLabel`, `cancelLabel`, `handler`, `ipcChannel`, component names, or any other attributes.",
     "The body must be a strict JSON object matching the enabled type schema. Do not use Markdown code fences, comments, trailing commas, arrays, strings, or bare text inside the tag.",
+    "When payload text needs literal angle brackets, encode them as `\\u003c` and `\\u003e` inside JSON strings.",
     "FylloCode controls the UI and fixed confirm/cancel buttons. The agent must not define button labels, handlers, or arbitrary UI in attributes or payload.",
     `Enabled action types: ${enabledTypes}.`,
     "",

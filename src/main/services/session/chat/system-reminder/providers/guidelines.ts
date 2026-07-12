@@ -1,12 +1,7 @@
 import logger from "@main/infra/logger";
 import { scanGuidelines, type GuidelineEntry } from "@main/infra/guidelines/scan-guidelines";
 import type { SystemReminderContext } from "../types";
-
-// Guideline frontmatter is user-authored text; escape angle brackets so a crafted
-// value cannot close the <guidelines> section. The escaped form stays valid JSON.
-function escapeAngleBrackets(json: string): string {
-  return json.replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
-}
+import { escapeAngleBrackets } from "./shared";
 
 export async function resolveGuidelinesSection(ctx: SystemReminderContext): Promise<string | null> {
   const workspaceRoot = ctx.worktreePath || ctx.projectPath;

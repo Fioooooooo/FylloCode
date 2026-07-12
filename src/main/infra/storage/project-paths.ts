@@ -38,6 +38,10 @@ export function mcpEventsDir(projectPath: string): string {
   return join(projectDir(projectPath), "mcp-events");
 }
 
+export function knowledgeDir(projectPath: string): string {
+  return join(projectDir(projectPath), "knowledge");
+}
+
 export function lineageDir(projectPath: string): string {
   return join(projectDir(projectPath), "lineage");
 }

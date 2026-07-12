@@ -82,6 +82,28 @@ function makePendingActionSession(): Session {
   return session;
 }
 
+function makePendingKnowledgeFlagSession(): Session {
+  const session = makeSession();
+  session.messages = [
+    {
+      id: "message-1",
+      role: "assistant",
+      metadata: { sessionId: session.id, createdAt: new Date("2026-05-12T00:00:00.000Z") },
+      parts: [
+        {
+          type: "text",
+          text: [
+            '<fyllo-action type="knowledge.flag">',
+            '{"summary":"Theme subscriptions are expensive.","contextPaths":["src/renderer/src/components/chat/MessageMarkdown.vue"]}',
+            "</fyllo-action>",
+          ].join(""),
+        },
+      ],
+    } as Session["messages"][number],
+  ];
+  return session;
+}
+
 function actionState(status: FylloActionStateStatus): NonNullable<Session["actionStates"]>[string] {
   return {
     type: "task.create",
@@ -133,6 +155,17 @@ describe("ChatSessionEventRail", () => {
     expect(wrapper.text()).toContain("待处理操作");
     expect(wrapper.text()).toContain("创建任务");
     expect(wrapper.text()).toContain("补齐错误处理");
+  });
+
+  it("renders pending knowledge flags without a rail capture action", () => {
+    activeSessionRef.value = makePendingKnowledgeFlagSession();
+    activeSessionIdRef.value = activeSessionRef.value.id;
+
+    const wrapper = mountEventRail();
+
+    expect(wrapper.text()).toContain("发现可沉淀知识");
+    expect(wrapper.text()).toContain("Theme subscriptions are expensive.");
+    expect(wrapper.findAll("button")).toHaveLength(3);
   });
 
   it.each(["cancelled", "failed"] as const)(

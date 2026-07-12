@@ -1,4 +1,11 @@
-export type FylloActionType = "task.create" | "plan.create";
+import type {
+  KnowledgeFlagActionPayload,
+  KnowledgeReviewActionPayload,
+} from "@shared/types/knowledge";
+
+export type FylloActionType = "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review";
+
+export type FylloConfirmActionType = FylloActionType;
 
 export interface TaskCreateActionPayload {
   title: string;
@@ -13,6 +20,8 @@ export interface PlanCreateActionPayload {
 export interface FylloActionPayloadByType {
   "task.create": TaskCreateActionPayload;
   "plan.create": PlanCreateActionPayload;
+  "knowledge.flag": KnowledgeFlagActionPayload;
+  "knowledge.review": KnowledgeReviewActionPayload;
 }
 
 export type FylloActionPayload<T extends FylloActionType = FylloActionType> =
@@ -59,6 +68,7 @@ export type FylloActionParseResult =
 export type FylloActionHandlerResult =
   | {
       outcome: "succeeded";
+      completedActionIds?: string[];
     }
   | {
       outcome: "failed";
@@ -74,7 +84,9 @@ export type FylloActionHandlerResult =
 export type FylloActionStateStatus = "succeeded" | "failed" | "cancelled";
 
 export interface FylloActionState {
-  type: FylloActionType;
+  type: FylloConfirmActionType;
   status: FylloActionStateStatus;
   updatedAt: string;
 }
+
+export type { KnowledgeFlagActionPayload, KnowledgeReviewActionPayload };

@@ -41,9 +41,17 @@
 
 #### Scenario: Platform and insight channels use owner domains
 
-- **WHEN** 系统定义 settings、release、overview、specs、guidelines 或 lineage 相关 IPC channel
+- **WHEN** 系统定义 settings、release、overview、specs、guidelines、lineage 或 knowledge 相关 IPC channel
 - **THEN** settings/release channel SHALL 使用 `platform:<area>:*`
-- **AND** overview/specs/guidelines/lineage channel SHALL 使用 `insight:<area>:*`
+- **AND** overview/specs/guidelines/lineage/knowledge channel SHALL 使用 `insight:<area>:*`
+
+#### Scenario: Knowledge review document channels are under insight knowledge
+
+- **WHEN** 系统定义 knowledge review 文档读取、文档保存、browser state 或 maintenance 相关 IPC channel
+- **THEN** 对应 channel SHALL 使用 `insight:knowledge:*` 前缀
+- **AND** preload SHALL 通过 `window.api.insight.knowledge.<action>()` 暴露 renderer 可调用 API
+- **AND** renderer wrapper SHALL 位于 `src/renderer/src/api/insight/knowledge.ts`
+- **AND** 系统 SHALL NOT 将 knowledge review 文档读写 channel 放入 `insight:lineage:*`
 
 ### Requirement: Shared and transport contracts are domain grouped
 

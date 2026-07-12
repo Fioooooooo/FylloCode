@@ -13,6 +13,7 @@ import type { projectIntegrationApi } from "./api/automation/project-integration
 import type { taskApi } from "./api/automation/task";
 import type { workflowApi } from "./api/automation/workflow";
 import type { guidelinesApi } from "./api/insight/guidelines";
+import type { knowledgeApi } from "./api/insight/knowledge";
 import type { lineageApi } from "./api/insight/lineage";
 import type { overviewApi } from "./api/insight/overview";
 import type { specsApi } from "./api/insight/specs";
@@ -42,6 +43,7 @@ export interface AppApi {
     specs: typeof specsApi;
     guidelines: typeof guidelinesApi;
     lineage: typeof lineageApi;
+    knowledge: typeof knowledgeApi;
   };
   automation: {
     workflow: typeof workflowApi;

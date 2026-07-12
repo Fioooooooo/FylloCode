@@ -66,13 +66,14 @@ export function driveAcpStream(args: {
   session: AcpSession;
   owner: SessionOwner;
   registryKey: string;
+  messageSessionId: string;
   output: StreamOutput;
   hooks: AcpStreamHooks;
   logTag: string;
   start: () => Promise<void>;
 }): { start: () => Promise<void>; cancel: () => void } {
-  const { session, owner, registryKey, output, hooks, logTag } = args;
-  const assembler = new MessageAssembler(registryKey);
+  const { session, owner, registryKey, messageSessionId, output, hooks, logTag } = args;
+  const assembler = new MessageAssembler(messageSessionId);
 
   const persistAssembledMessage = async (): Promise<void> => {
     try {

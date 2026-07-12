@@ -13,6 +13,11 @@ import { join } from "node:path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types/guideline";
 import { registerTools } from "../../../src/mcp-servers/fyllo-cortex/src/tools";
+import {
+  serializeKnowledgeEntry,
+  sha256,
+} from "../../../src/mcp-servers/fyllo-cortex/src/utils/knowledge";
+import type { KnowledgeEntryDraft } from "../../../src/shared/types/knowledge";
 
 async function createToolClient(): Promise<{
   client: Client;
@@ -50,12 +55,34 @@ async function callLineage(client: Client, args: Record<string, unknown>): Promi
   );
 }
 
+async function callKnowledge(
+  client: Client,
+  args: Record<string, unknown>
+): Promise<CallToolResult> {
+  return client.request(
+    { method: "tools/call", params: { name: "knowledge", arguments: args } },
+    CallToolResultSchema
+  );
+}
+
 async function expectLineageCallToFail(
   client: Client,
   args: Record<string, unknown>
 ): Promise<void> {
   try {
     const result = await callLineage(client, args);
+    expect(result.isError).toBe(true);
+  } catch (error) {
+    expect(error).toBeTruthy();
+  }
+}
+
+async function expectKnowledgeCallToFail(
+  client: Client,
+  args: Record<string, unknown>
+): Promise<void> {
+  try {
+    const result = await callKnowledge(client, args);
     expect(result.isError).toBe(true);
   } catch (error) {
     expect(error).toBeTruthy();
@@ -109,12 +136,70 @@ function parseGuidelinesState(text: string): GuidelinesState {
   return JSON.parse(match ? (match[1] ?? "") : text) as GuidelinesState;
 }
 
+type KnowledgeState = {
+  mode?: string;
+  knowledgeRoot?: string;
+  reason?: string;
+  index?: {
+    entries: Array<{
+      name: string;
+      description: string;
+      type: string;
+      path: string;
+      status: string;
+      contentHash: string;
+    }>;
+    errors: Array<{ path: string; type: string; message: string }>;
+  };
+  target?: {
+    name: string;
+    exists: boolean;
+    path?: string;
+    content?: string;
+    contentHash?: string;
+    status?: string;
+    parseError?: string;
+  };
+  approximateRenderedIndexTokens?: number;
+  errors?: Array<{ type: string; message: string }>;
+};
+
+function parseKnowledgeState(text: string): KnowledgeState {
+  const match = /<state>\n([\s\S]*?)\n<\/state>/.exec(text);
+  return JSON.parse(match ? (match[1] ?? "") : text) as KnowledgeState;
+}
+
 function setEnv(name: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[name];
   } else {
     process.env[name] = value;
   }
+}
+
+function makeKnowledgeEntry(overrides: Partial<KnowledgeEntryDraft> = {}): KnowledgeEntryDraft {
+  return {
+    name: "renderer-theme-subscription",
+    description: "Read before changing renderer markdown theme subscriptions",
+    type: "project",
+    createdAt: "2026-07-11T00:00:00.000Z",
+    updatedAt: "2026-07-11T00:00:00.000Z",
+    source: {
+      kind: "session",
+      sessionId: "session-1",
+      actionId: "chat:session-1:0:0:0",
+    },
+    body: "Theme subscriptions should stay outside leaf markdown instances.",
+    ...overrides,
+  };
+}
+
+async function writeKnowledgeFixture(dataDir: string, entry: KnowledgeEntryDraft): Promise<string> {
+  const root = join(dataDir, "knowledge");
+  await mkdir(root, { recursive: true });
+  const content = serializeKnowledgeEntry(entry);
+  await writeFile(join(root, `${entry.name}.md`), content, "utf8");
+  return content;
 }
 
 // ── Helpers for lineage fixtures ────────────────────────────────────────────
@@ -232,7 +317,7 @@ async function gitCommitFile(
 
 describe("fyllo-cortex tools", () => {
   describe("tools/list", () => {
-    it("lists guidelines and lineage tools", async () => {
+    it("lists guidelines, knowledge, and lineage tools", async () => {
       const { client, close } = await createToolClient();
       try {
         const result = await client.request(
@@ -240,9 +325,9 @@ describe("fyllo-cortex tools", () => {
           ListToolsResultSchema
         );
 
-        expect(result.tools).toHaveLength(2);
+        expect(result.tools).toHaveLength(3);
         const names = result.tools.map((t) => t.name).sort();
-        expect(names).toEqual(["guidelines", "lineage"]);
+        expect(names).toEqual(["guidelines", "knowledge", "lineage"]);
 
         const guidelinesTool = result.tools.find((t) => t.name === "guidelines");
         expect(guidelinesTool?.inputSchema).toMatchObject({
@@ -267,6 +352,236 @@ describe("fyllo-cortex tools", () => {
           required: ["mode"],
           additionalProperties: false,
         });
+
+        const knowledgeTool = result.tools.find((t) => t.name === "knowledge");
+        expect(knowledgeTool?.inputSchema).toMatchObject({
+          type: "object",
+          properties: {
+            mode: {
+              enum: ["capture", "update", "retire", "audit"],
+            },
+          },
+          required: ["mode"],
+          additionalProperties: false,
+        });
+      } finally {
+        await close();
+      }
+    });
+  });
+
+  describe("knowledge tool", () => {
+    let originalDataDir: string | undefined;
+    let originalProjectPath: string | undefined;
+    let tmpDataDir: string;
+    let tmpProjectPath: string;
+
+    beforeEach(async () => {
+      originalDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
+      originalProjectPath = process.env.FYLLO_PROJECT_PATH;
+      tmpDataDir = await mkdtemp(join(tmpdir(), "fyllo-knowledge-data-"));
+      tmpProjectPath = await mkdtemp(join(tmpdir(), "fyllo-knowledge-project-"));
+      process.env.FYLLO_PROJECT_DATA_DIR = tmpDataDir;
+      process.env.FYLLO_PROJECT_PATH = tmpProjectPath;
+    });
+
+    afterEach(async () => {
+      process.env.FYLLO_PROJECT_DATA_DIR = originalDataDir;
+      process.env.FYLLO_PROJECT_PATH = originalProjectPath;
+      await rm(tmpDataDir, { recursive: true, force: true });
+      await rm(tmpProjectPath, { recursive: true, force: true });
+    });
+
+    it("returns tool_instruction and state for mode=capture", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        const content = await writeKnowledgeFixture(tmpDataDir, makeKnowledgeEntry());
+        const result = await callKnowledge(client, { mode: "capture" });
+        const text = expectTextContent(result);
+
+        expect(text).toContain("<tool_instruction>");
+        expect(text).toContain("<state>");
+        expect(text).toContain("Write each accepted entry directly");
+        expect(text).toContain('{"name":"<name>"');
+        const state = parseKnowledgeState(text);
+        expect(state.mode).toBe("capture");
+        expect(state.knowledgeRoot).toBe(join(tmpDataDir, "knowledge"));
+        expect(state.index?.entries).toHaveLength(1);
+        expect(state.index?.entries[0]).toMatchObject({
+          name: "renderer-theme-subscription",
+          description: "Read before changing renderer markdown theme subscriptions",
+          type: "project",
+          path: "renderer-theme-subscription.md",
+          status: "active",
+          contentHash: sha256(content),
+        });
+      } finally {
+        await close();
+      }
+    });
+
+    it("instructs agents to write markdown before emitting name-based review actions", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await writeKnowledgeFixture(tmpDataDir, makeKnowledgeEntry());
+
+        const capture = expectTextContent(await callKnowledge(client, { mode: "capture" }));
+        expect(capture).toContain("Write each accepted entry directly");
+        expect(capture).toContain('{"name":"<name>"');
+        expect(capture).not.toContain("capture` items");
+
+        const update = expectTextContent(
+          await callKnowledge(client, {
+            mode: "update",
+            name: "renderer-theme-subscription",
+            reason: "stale evidence",
+          })
+        );
+        expect(update).toContain("revise the full markdown directly on disk");
+        expect(update).toContain('{"name":"<name>"');
+        expect(update).not.toContain("expectedContentHash");
+
+        const retire = expectTextContent(
+          await callKnowledge(client, {
+            mode: "retire",
+            name: "renderer-theme-subscription",
+            reason: "obsolete evidence",
+          })
+        );
+        expect(retire).toContain("Delete the target file");
+        expect(retire).not.toContain("retire` item");
+      } finally {
+        await close();
+      }
+    });
+
+    it("omits instruction when includeInstruction is false", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        const result = await callKnowledge(client, {
+          mode: "capture",
+          includeInstruction: false,
+        });
+        const text = expectTextContent(result);
+
+        expect(text).not.toContain("<tool_instruction>");
+        expect(parseKnowledgeState(text)).toMatchObject({
+          mode: "capture",
+          knowledgeRoot: join(tmpDataDir, "knowledge"),
+          index: { entries: [], errors: [] },
+        });
+      } finally {
+        await close();
+      }
+    });
+
+    it("returns target content for mode=update and mode=retire", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        const content = await writeKnowledgeFixture(tmpDataDir, makeKnowledgeEntry());
+
+        for (const mode of ["update", "retire"] as const) {
+          const result = await callKnowledge(client, {
+            mode,
+            name: "renderer-theme-subscription",
+            reason: "stale implementation evidence",
+            includeInstruction: false,
+          });
+          const state = parseKnowledgeState(expectTextContent(result));
+
+          expect(state.reason).toBe("stale implementation evidence");
+          expect(state.target).toMatchObject({
+            name: "renderer-theme-subscription",
+            exists: true,
+            path: "renderer-theme-subscription.md",
+            content,
+            contentHash: sha256(content),
+            status: "active",
+          });
+        }
+      } finally {
+        await close();
+      }
+    });
+
+    it("returns missing target and parse errors", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        const root = join(tmpDataDir, "knowledge");
+        await mkdir(root, { recursive: true });
+        await writeFile(join(root, "broken-entry.md"), "---\nname: [\n---\nbody", "utf8");
+
+        const missing = await callKnowledge(client, {
+          mode: "update",
+          name: "missing-entry",
+          reason: "check missing",
+          includeInstruction: false,
+        });
+        expect(parseKnowledgeState(expectTextContent(missing)).target).toEqual({
+          name: "missing-entry",
+          exists: false,
+        });
+
+        const broken = await callKnowledge(client, {
+          mode: "update",
+          name: "broken-entry",
+          reason: "repair parse error",
+          includeInstruction: false,
+        });
+        expect(parseKnowledgeState(expectTextContent(broken)).target).toMatchObject({
+          name: "broken-entry",
+          exists: true,
+          path: "broken-entry.md",
+          parseError: expect.any(String),
+        });
+      } finally {
+        await close();
+      }
+    });
+
+    it("audit returns index status and approximate rendered token count", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await mkdir(join(tmpProjectPath, "src"), { recursive: true });
+        await writeFile(join(tmpProjectPath, "src", "example.ts"), "export const value = 1;\n");
+        await writeKnowledgeFixture(
+          tmpDataDir,
+          makeKnowledgeEntry({
+            anchors: [
+              {
+                kind: "file",
+                file: "src/example.ts",
+                hash: "b".repeat(64),
+              },
+            ],
+            source: undefined,
+          })
+        );
+
+        const result = await callKnowledge(client, {
+          mode: "audit",
+          includeInstruction: false,
+        });
+        const state = parseKnowledgeState(expectTextContent(result));
+
+        expect(state.mode).toBe("audit");
+        expect(state.index?.entries[0]).toMatchObject({
+          name: "renderer-theme-subscription",
+          status: "suspect",
+        });
+        expect(state.approximateRenderedIndexTokens).toEqual(expect.any(Number));
+        expect(state.approximateRenderedIndexTokens ?? 0).toBeGreaterThan(0);
+      } finally {
+        await close();
+      }
+    });
+
+    it("validates mode-specific required fields", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await expectKnowledgeCallToFail(client, { mode: "update", name: "entry" });
+        await expectKnowledgeCallToFail(client, { mode: "retire", reason: "stale" });
+        await expectKnowledgeCallToFail(client, { mode: "capture", unexpected: true });
       } finally {
         await close();
       }

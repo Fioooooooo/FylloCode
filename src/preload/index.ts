@@ -15,6 +15,7 @@ import { projectIntegrationApi } from "./api/automation/project-integration";
 import { taskApi } from "./api/automation/task";
 import { workflowApi } from "./api/automation/workflow";
 import { guidelinesApi } from "./api/insight/guidelines";
+import { knowledgeApi } from "./api/insight/knowledge";
 import { lineageApi } from "./api/insight/lineage";
 import { overviewApi } from "./api/insight/overview";
 import { specsApi } from "./api/insight/specs";
@@ -44,6 +45,7 @@ const api = {
     specs: specsApi,
     guidelines: guidelinesApi,
     lineage: lineageApi,
+    knowledge: knowledgeApi,
   },
   automation: {
     workflow: workflowApi,

@@ -337,6 +337,7 @@ export function registerChatHandlers(): void {
           session,
           owner: "chat",
           registryKey: `${projectId}:${sessionId}`,
+          messageSessionId: sessionId,
           output: sink,
           logTag: "chat",
           start: () => session.start(prompt),

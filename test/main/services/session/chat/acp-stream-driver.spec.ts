@@ -51,6 +51,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "chat",
       registryKey: "s1",
+      messageSessionId: "s1",
       output,
       logTag: "test",
       start: async () => {},
@@ -62,6 +63,38 @@ describe("driveAcpStream", () => {
     expect(output.chunks).toEqual([{ kind: "text_delta", text: "hi" }]);
   });
 
+  it("persists assistant messages with the message session id instead of the registry key", async () => {
+    const session = createFakeSession();
+    const output = createOutput();
+    const persisted: unknown[] = [];
+    driveAcpStream({
+      session,
+      owner: "chat",
+      registryKey: "project-1:session-1",
+      messageSessionId: "session-1",
+      output,
+      logTag: "test",
+      start: async () => {},
+      hooks: {
+        persistMessage: async (message) => {
+          persisted.push(message);
+        },
+      },
+    });
+
+    expect(sessionRegistry.get("chat", "project-1:session-1")).toBe(session);
+    session.emit("event", { kind: "text_delta", text: "hi" } satisfies SessionEvent);
+    session.emit("event", { kind: "done", totalTokens: 1 } satisfies SessionEvent);
+    await flush();
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]).toMatchObject({
+      role: "assistant",
+      metadata: { sessionId: "session-1" },
+      parts: [{ type: "text", text: "hi" }],
+    });
+  });
+
   it("never forwards control events itself; delegates to onControlEvent", () => {
     const session = createFakeSession();
     const output = createOutput();
@@ -70,6 +103,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "apply",
       registryKey: "s2",
+      messageSessionId: "s2",
       output,
       logTag: "test",
       start: async () => {},
@@ -98,6 +132,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "chat",
       registryKey: "s3",
+      messageSessionId: "s3",
       output,
       logTag: "test",
       start: async () => {},
@@ -126,6 +161,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "chat",
       registryKey: "s4",
+      messageSessionId: "s4",
       output,
       logTag: "test",
       start: async () => {},
@@ -150,6 +186,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "archive",
       registryKey: "s5",
+      messageSessionId: "s5",
       output,
       logTag: "test",
       start: async () => {},
@@ -168,6 +205,7 @@ describe("driveAcpStream", () => {
       session,
       owner: "apply",
       registryKey: "s6",
+      messageSessionId: "s6",
       output,
       logTag: "test",
       start: async () => {},
