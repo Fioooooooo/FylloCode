@@ -71,6 +71,7 @@ sh scripts/prepare-worktree-env.sh
 - **Architecture** - [Architecture](guidelines/Architecture.md)
 - **MainProcess** - [MainProcess](guidelines/MainProcess.md)
 - **Quality Gates** - [Quality Gates](guidelines/QualityGates.md)
+- **Renderer Feature Architecture** - [Renderer Feature Architecture](guidelines/RendererFeatures.md)
 - **RendererProcess** - [RendererProcess](guidelines/RendererProcess.md)
 - **Testing** - [Testing](guidelines/Testing.md)
 - **UiDesign** - [UiDesign](guidelines/UiDesign.md)
