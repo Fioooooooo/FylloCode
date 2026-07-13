@@ -16,6 +16,7 @@ export type ProposalFileLocation = {
 };
 
 export function toTitleCase(input: string): string {
+  // Convert a kebab/snake case string to a title-case display string.
   return input
     .split(/[-_]/)
     .filter(Boolean)
@@ -24,6 +25,8 @@ export function toTitleCase(input: string): string {
 }
 
 export function stripArchivePrefix(changeId: string): string {
+  // Archived change directory names are prefixed with `yyyy-MM-dd-`; remove it to get the
+  // canonical change id used elsewhere.
   return changeId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
 }
 
@@ -38,6 +41,8 @@ export function parseYamlCreated(content: string): string {
 }
 
 export function parseWhySummary(content: string): string {
+  // Extract the first paragraph under the `## Why` heading, ignoring lists and stopping at
+  // the next heading. Used to render a short summary in the proposal list.
   const whyMatch = content.match(/^\s*##\s+Why\s*$/m);
   if (!whyMatch) {
     return "";
@@ -204,6 +209,8 @@ function byCreatedDesc(left: ProposalMeta, right: ProposalMeta): number {
 export async function readProposalFiles(projectPath: string): Promise<ProposalMeta[]> {
   const baseChangesDir = join(projectPath, "openspec", "changes");
   try {
+    // Collect proposals from the main worktree, the archive, and any linked worktrees.
+    // Later sources overwrite earlier ones so worktree previews take precedence.
     const fromMain = await readActiveDir(baseChangesDir);
     const fromArchive = await readArchiveDir(join(baseChangesDir, "archive"));
     const fromWorktrees = await readWorktreesActiveDirs(join(projectPath, ".worktrees"));

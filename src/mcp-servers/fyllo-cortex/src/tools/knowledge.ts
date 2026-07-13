@@ -122,6 +122,7 @@ function indexDto(index: KnowledgeIndex): KnowledgeIndexDto {
   };
 }
 
+// 粗略估算渲染后的 index token 数，用于 audit 模式下让 agent 决定是否需要分批处理。
 function approximateTokenCount(value: unknown): number {
   return Math.ceil(JSON.stringify(value).length / 4);
 }

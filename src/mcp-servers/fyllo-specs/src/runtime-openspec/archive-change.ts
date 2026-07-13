@@ -7,6 +7,8 @@ import { spawnOpenspec } from "./spawner";
 import { OpenspecArchiveNotConfirmedError } from "./types";
 import type { ArchiveResult } from "./types";
 
+// 归档目录以日期为前缀，保证多次归档同一 changeId 也不会冲突，
+// 同时与 renderer 侧 stripArchiveProposalIdPrefix 的约定一致。
 function archiveTargetPath(projectRoot: string, name: string): string {
   return join(
     projectRoot,

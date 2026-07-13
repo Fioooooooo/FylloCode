@@ -32,6 +32,8 @@ function readWorkflow(source: string): RawWorkflow | null {
 }
 
 function writeWorkflow(document: RawWorkflow): string {
+  // lineWidth: -1 prevents js-yaml from wrapping long strings;
+  // noRefs: true inlines repeated nodes so the output is self-contained.
   return dump(document, {
     indent: 2,
     lineWidth: -1,
@@ -72,6 +74,12 @@ function createStageId(type: WorkflowStageType, stages: RawStage[]): string {
   return nextId;
 }
 
+/**
+ * Provide imperative operations to mutate a workflow YAML string ref.
+ *
+ * Reads/parse the YAML on every operation and writes it back, keeping the source string
+ * as the single source of truth.
+ */
 export function useWorkflowEditor(source: WritableStringRef): UseWorkflowEditorReturn {
   function write(document: RawWorkflow): void {
     source.value = writeWorkflow(document);

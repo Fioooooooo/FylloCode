@@ -42,6 +42,8 @@ function getPrimaryText(parts: ChatPromptPart[]): string {
 
 function buildFallbackSessionTitle(parts: ChatPromptPart[]): string {
   const content = getPrimaryText(parts);
+  // 任务创建类 prompt 常带有结构化标题行（如 "**标题**: xxx"），优先提取它作为会话列表标题，
+  // 而不是把整段消息截断显示。
   const taskTitle = content.match(/^\*\*标题\*\*:\s*(.+)$/m)?.[1]?.trim();
   if (taskTitle) {
     return Array.from(taskTitle).slice(0, FALLBACK_SESSION_TITLE_MAX_LENGTH).join("");
@@ -225,6 +227,8 @@ export const useChatStore = defineStore("chat", () => {
       sessionId: activeSession.id,
     });
 
+    // 按 chunk 类型分发：内容类交给 assembler 渲染；控制类直接更新 session 元数据。
+    // 若当前 run 已被新 run 取代或取消，则忽略后续 chunk，避免旧流污染新消息。
     const sessionId = activeSession.id;
     const cancel = chatApi.streamMessage(
       activeSession.id,
@@ -342,6 +346,8 @@ export const useChatStore = defineStore("chat", () => {
     let streamOptions: { acpSessionId?: string } = {};
     let streamRunId: number;
 
+    // Draft state: there is no active session yet. Create one, optionally carrying over a
+    // ready probe session so the user does not have to wait for the agent to initialize again.
     if (!activeSession) {
       const draftAgentIdSnapshot = sessionStore.draftAgentId;
       if (!draftAgentIdSnapshot) {
@@ -356,6 +362,8 @@ export const useChatStore = defineStore("chat", () => {
       streamRunId = beginDraftStreamRun();
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
       const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
+      // 从 draft probe 复用已就绪的 ACP session，避免用户等待重新初始化。
+      // 深克隆防止新会话对 draft probe 状态的修改产生副作用。
       const carryProbe =
         probeBeforeCreate?.status === "ready" &&
         probeBeforeCreate.acpSessionId &&
@@ -474,6 +482,7 @@ export const useChatStore = defineStore("chat", () => {
       throw new Error(`Config option not found: ${input.configId}`);
     }
 
+    // 乐观更新本地值以让 UI 即时响应；后端调用失败时回滚到前值。
     const previousValue = target.currentValue;
     if (target.type === "select" && typeof input.value === "string") {
       target.currentValue = input.value;

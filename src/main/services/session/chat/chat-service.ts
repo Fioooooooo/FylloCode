@@ -29,6 +29,8 @@ export async function resolveProjectPath(projectId: string): Promise<string> {
   return project.path;
 }
 
+// SessionMeta 只保存元数据，返回给 renderer 的 Session 默认 status 为 "ended"。
+// 实际运行状态由当前是否关联活跃 AcpSession 决定，不在持久化层维护。
 export function toSession(meta: SessionMeta, projectId: string): Session {
   return {
     id: meta.sessionId,
@@ -56,6 +58,8 @@ export async function listSessions(projectId: string): Promise<Session[]> {
     .map((meta) => toSession(meta, projectId));
 }
 
+// 创建会话元数据。允许调用方传入 fylloSessionId 以复用已有会话 id（如 probe 提升为 chat），
+// 或传入 acpSessionId/taskRef 以在首次启动时跳过 session 恢复流程。
 export async function createSession(input: {
   projectId: string;
   title: string;
@@ -117,6 +121,7 @@ export async function updateSession(input: {
   return toSession(nextMeta, input.projectId);
 }
 
+// 以函数式 patch 更新 actionStates，避免并发读写导致旧状态覆盖新状态。
 export async function setSessionActionState(input: {
   projectId: string;
   sessionId: string;

@@ -11,6 +11,8 @@ type MutableScenarioGroup = Omit<SpecScenarioGroup, "body"> & {
 
 type ParserSection = "none" | "purpose" | "requirement" | "scenario";
 
+// Headings are case-insensitive. Requirement/Scenario headings support both English and Chinese
+// labels and capture the title after the colon.
 const purposeHeadingRegex = /^##\s+Purpose\s*:?$/i;
 const requirementHeadingRegex = /^###\s+(?:Requirement|要求)\s*[:：]\s*(.+?)\s*$/i;
 const scenarioHeadingRegex = /^####\s+(?:Scenario|场景)\s*[:：]\s*(.+?)\s*$/i;
@@ -53,7 +55,9 @@ export function parseSpecMarkdown(
   let currentRequirement: MutableRequirementGroup | null = null;
   let currentScenario: MutableScenarioGroup | null = null;
 
+  // Normalize line endings so the parser only has to handle `\n`.
   for (const line of content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")) {
+    // Top-level `# ` title is ignored; the document title comes from the spec file name.
     if (/^#\s+/.test(line)) {
       continue;
     }
@@ -80,6 +84,7 @@ export function parseSpecMarkdown(
 
     const scenarioMatch = line.match(scenarioHeadingRegex);
     if (scenarioMatch) {
+      // A scenario must belong to a requirement; orphan scenarios are dropped.
       if (!currentRequirement) {
         section = "none";
         currentScenario = null;
@@ -95,6 +100,7 @@ export function parseSpecMarkdown(
       continue;
     }
 
+    // Any other `## ` heading ends the current purpose/requirement/scenario block.
     if (/^##\s+/.test(line)) {
       section = "none";
       currentRequirement = null;

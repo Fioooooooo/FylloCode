@@ -33,6 +33,7 @@ import { makeStreamChannel } from "../_kit/stream-channel";
 import { wrapHandler } from "../_kit/wrap-handler";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
 
+// Archive uses the last completed apply stage's agent to generate the final archive commit.
 export function registerProposalArchiveHandlers(): void {
   ipcMain.handle(ProposalArchiveChannels.archive, (event, input: unknown) => {
     const form = validate(archiveInputSchema, input);

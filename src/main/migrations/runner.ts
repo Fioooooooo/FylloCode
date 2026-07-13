@@ -32,6 +32,9 @@ export async function runMigrations(migrations: Migration[]): Promise<void> {
     const isNewInstall = !projectsExists && !installedExists;
 
     if (isNewInstall) {
+      // Fresh install: there is no legacy data to migrate, so baseline to the latest migration
+      // and skip everything. This avoids running potentially expensive or destructive migrations
+      // against an empty data directory.
       const lastMigration = migrations[migrations.length - 1];
       const newStore: MigrationStore = {
         executed: [],
@@ -40,7 +43,8 @@ export async function runMigrations(migrations: Migration[]): Promise<void> {
       await writeMigrationStore(migrationsPath, newStore);
       return;
     }
-    // 老用户升级：不设 baselineId，继续执行所有迁移
+    // Existing install upgrading from a version before the migration store existed:
+    // do not set a baseline so every migration gets a chance to run.
   }
 
   for (const migration of migrations) {

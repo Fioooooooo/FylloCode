@@ -116,6 +116,8 @@ export function useChatPrompt(options: {
     });
   }
 
+  // 监听"/"键：只有在行首输入时才弹出命令菜单。keydown 记录意图，input/keyup 真正打开菜单，
+  // 因为此时 textarea 的 value 已经包含"/"，便于后续替换命令名。
   function handlePromptKeydown(event: KeyboardEvent): void {
     if (event.key !== "/" || !hasAvailableCommands.value) {
       return;

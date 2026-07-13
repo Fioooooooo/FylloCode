@@ -54,6 +54,7 @@ export const sessionRegistry = {
   },
 
   cancelProject(projectId: string): void {
+    // archive owner 的 key 形如 "projectId:changeId"，按 projectId 前缀批量取消。
     const keyPrefix = `${projectId}:`;
 
     for (const [k, entry] of byOwnerKey) {

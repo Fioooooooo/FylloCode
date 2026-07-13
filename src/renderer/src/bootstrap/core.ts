@@ -18,6 +18,7 @@ export function onFylloBootstrap(task: FylloBootstrapTask): void {
 }
 
 export async function runBootstrapTasks(context: FylloBootstrapContext): Promise<void> {
+  // 每个任务独立失败，避免一个启动任务报错阻塞其他初始化工作。
   await Promise.allSettled(
     tasks.map(async (task) => {
       try {

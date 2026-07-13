@@ -160,6 +160,9 @@ function stripArchiveProposalIdPrefix(proposalId: string): string {
   return proposalId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
 }
 
+// Archived proposals are stored with a date prefix (e.g. 2026-07-13-change-id),
+// while live lineage links still reference the bare change id. Match both forms
+// so sessions correctly surface archived proposal cards after a restart.
 function isProposalLinkedToChangeId(proposal: ProposalMeta, changeId: string): boolean {
   return proposal.id === changeId || stripArchiveProposalIdPrefix(proposal.id) === changeId;
 }
@@ -344,6 +347,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     return unsubscribeStatusChanged;
   }
 
+  // Hydrate the session's proposal list from lineage links on first activation.
+  // This is only a fallback: the real-time status subscription normally drives updates.
   async function backfillSessionProposals(sessionId: string): Promise<void> {
     const existing = sessionProposals.value[sessionId];
     if (existing && existing.length > 0) {
@@ -413,6 +418,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftAgentId.value = agentId;
   }
 
+  // Update the local session copy's mutable metadata without replacing messages,
+  // so optimistic UI state (scroll position, partial message streaming) survives
+  // a server round-trip.
   function mergeSessionMeta(nextSession: Session): Session | null {
     const session = sessions.value.find((item) => item.id === nextSession.id);
     if (!session) {

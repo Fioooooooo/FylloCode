@@ -55,6 +55,7 @@ export const useIntegrationStore = defineStore("integration", () => {
 
   // Helpers
   function resolveConnectionId(toolId: string): string {
+    // Multiple yunxiao-flavored tools (e.g. yunxiao-project, yunxiao-task) share one backend connection.
     if (toolId.startsWith("yunxiao-")) return "yunxiao";
     return toolId;
   }
@@ -102,6 +103,7 @@ export const useIntegrationStore = defineStore("integration", () => {
     toolId: string,
     credentials: Record<string, string>
   ): Promise<boolean> {
+    // Placeholder: real credential validation is not wired yet; just simulate a brief check.
     void credentials;
     testingConnectionId.value = toolId;
     await new Promise<void>((resolve) => setTimeout(resolve, 1000));
@@ -114,6 +116,7 @@ export const useIntegrationStore = defineStore("integration", () => {
     await loadConnections();
   }
 
+  // Placeholder: simulates an OAuth flow locally without a backend redirect.
   async function simulateOAuthConnect(toolId: string): Promise<boolean> {
     const tool = allTools.value.find((t) => t.id === toolId);
     if (!tool || tool.comingSoon) return false;

@@ -36,6 +36,8 @@ const renderItems = computed<RenderItem[]>(() => {
   let toolRun: ToolRenderEntry[] = [];
 
   function flushToolRun(): void {
+    // Group two or more consecutive tool parts into a single `ChatToolGroup`;
+    // a lone tool part is rendered individually.
     if (toolRun.length >= 2) {
       const first = toolRun[0];
       const last = toolRun[toolRun.length - 1];

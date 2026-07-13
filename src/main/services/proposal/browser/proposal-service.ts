@@ -5,6 +5,7 @@ import { ipcError } from "@main/ipc/_kit/errors";
 import { readProposalFiles, readChangeFile } from "@main/infra/proposal/openspec-reader";
 import { getProposalSpecDeltas as readProposalSpecDeltas } from "./proposal-spec-delta-service";
 
+// 该层仅做 projectId → projectPath 的解析与错误包装，实际文件扫描在 openspec-reader。
 export async function listProposals(projectId: string): Promise<ProposalMeta[]> {
   const project = await loadProject(projectId);
   if (!project) {

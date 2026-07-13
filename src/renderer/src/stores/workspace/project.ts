@@ -141,6 +141,7 @@ export const useProjectStore = defineStore("project", () => {
     await loadProjects();
   }
 
+  // 根据 main 进程返回的窗口上下文绑定当前项目；launcher 窗口不绑定项目。
   async function bootstrapWindowProject(): Promise<void> {
     await loadProjects();
 
@@ -188,6 +189,8 @@ export const useProjectStore = defineStore("project", () => {
     await bindCurrentProject(project);
   }
 
+  // 打开项目窗口。只有当 main 选择复用当前窗口（bound-current）时才在 renderer 侧
+  // 切换当前项目；否则新窗口由自己的 renderer 进程处理。
   async function openProjectWindow(projectId: string): Promise<ProjectInfo | null> {
     const result = await windowApi.openProject(projectId);
     if (!result.ok) {

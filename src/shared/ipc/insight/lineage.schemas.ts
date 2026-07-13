@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { LineageTaskRef, LineageTaskSnapshot } from "@shared/types/lineage";
 
+// Task reference format: `<source>:<id>`, e.g. `local:task-123` or `yunxiao:ABC-123`.
+// Sources are limited to the TaskSource values supported by the lineage service.
 const taskRefPattern = /^(local|yunxiao|github):.+$/;
 
 export const lineageTaskRefSchema = z.custom<LineageTaskRef>(
@@ -13,6 +15,8 @@ const taskSnapshotObjectSchema = z.custom<LineageTaskSnapshot["snapshot"]>(
   { message: "snapshot must be an object" }
 );
 
+// Plan slug format: `yyyy-MM-dd-slug-word`, e.g. `2026-07-11-add-knowledge-tool`.
+// Kept in sync with src/shared/schemas/fyllo-action.ts.
 const fullPlanSlugPattern = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
 
 export const lineagePlanSlugSchema = z
@@ -25,6 +29,8 @@ export const lineagePlanSlugSchema = z
     "plan slug must not contain path separators, dots, or whitespace"
   );
 
+// sessionId is used as a directory name under `data/projects/<encoded>/sessions`,
+// so it must be a safe path segment.
 const lineagePlanSessionIdSchema = z
   .string()
   .min(1)

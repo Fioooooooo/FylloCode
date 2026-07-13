@@ -61,6 +61,8 @@ export function parseStageType(value: unknown): WorkflowStageType {
     return value as WorkflowStageType;
   }
 
+  // Historical aliases: older workflow files used "apply" / "archive" before the
+  // canonical names "proposal-apply" / "proposal-archive" were introduced.
   if (value === "apply") {
     return "proposal-apply";
   }
@@ -72,6 +74,12 @@ export function parseStageType(value: unknown): WorkflowStageType {
   return "custom";
 }
 
+/**
+ * Parse a workflow YAML document into a normalized `ParsedWorkflow`.
+ *
+ * The parser is defensive: missing or malformed fields fall back to safe defaults rather
+ * than throwing, so the workflow editor can still render a broken file.
+ */
 export function parseWorkflowYaml(source: string, fallbackName = "新工作流"): ParsedWorkflow {
   try {
     const document = load(source) as RawWorkflow | null;

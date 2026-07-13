@@ -10,6 +10,12 @@ export interface UIMessageAssembler {
   setMessages: (nextMessages: UIMessage<MessageMeta>[]) => void;
 }
 
+/**
+ * Incrementally build `UIMessage` objects from a stream of `MessageChunkData`.
+ *
+ * Tracks the currently active assistant message and the active text/reasoning part indices
+ * so that consecutive deltas append to the same part instead of creating new ones.
+ */
 export function useUIMessageAssembler(
   initialMessages?: Ref<UIMessage<MessageMeta>[]>,
   options: { sessionId?: string | (() => string) } = {}
@@ -24,6 +30,7 @@ export function useUIMessageAssembler(
       return;
     }
 
+    // Mark the streaming reasoning part as done when switching to another part type.
     const message = messages.value.find((item) => item.id === activeAssistantId);
     const part = message?.parts[activeReasoningPartIdx];
     if (part?.type === "reasoning" && part.state !== "done") {
@@ -56,6 +63,7 @@ export function useUIMessageAssembler(
     toolKind: string | undefined
   ): DynamicToolUIPart["toolMetadata"] {
     const existing = prev?.toolMetadata;
+    // Prefer the existing toolKind once set; only overwrite if we did not have one before.
     if (typeof existing?.toolKind === "string" && existing.toolKind.length > 0) {
       return existing;
     }

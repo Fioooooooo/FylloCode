@@ -247,6 +247,8 @@ describe("lineage-store", () => {
   });
 
   it("serializes concurrent writes to the same subject file", async () => {
+    // Track how many temp-file writes overlap for the same subject. The lineage store uses
+    // a per-file write lock, so concurrent `writeSubject` calls must not write simultaneously.
     const realWriteFile = fsPromises.writeFile.bind(fsPromises);
     let activeWrites = 0;
     let maxConcurrentWrites = 0;
@@ -284,6 +286,8 @@ describe("lineage-store", () => {
   });
 
   it("writes index files through a temp file followed by rename", async () => {
+    // Verify the atomic-write strategy: index data is written to a temp file first, then
+    // renamed into place so readers never see a partially written index.
     const realWriteFile = fsPromises.writeFile.bind(fsPromises);
     const realRename = fsPromises.rename.bind(fsPromises);
     const writePaths: string[] = [];

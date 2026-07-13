@@ -74,5 +74,6 @@ sh scripts/prepare-worktree-env.sh
 - **RendererProcess** - [RendererProcess](guidelines/RendererProcess.md)
 - **Testing** - [Testing](guidelines/Testing.md)
 - **UiDesign** - [UiDesign](guidelines/UiDesign.md)
+- **CodeComments** - [Code Comments](guidelines/CodeComments.md)
 
 Coding Agents must read the relevant guideline documents before changing covered areas.

@@ -18,6 +18,9 @@ interface WatchedProposal {
   watchedPath: string;
 }
 
+// Tracks a watch that is starting up asynchronously. Used to deduplicate concurrent
+// watch requests for the same proposal and to make cancellation safe before the watcher
+// has been created.
 interface PendingWatch {
   projectId: string;
   projectPath: string;
@@ -33,6 +36,8 @@ class ProposalStatusService {
 
   watchProposal(projectId: string, projectPath: string, changeId: string, sessionId: string): void {
     const key = this.watchKey(projectPath, changeId);
+
+    // Already watching: just add the session and immediately emit the current status.
     const watched = this.watches.get(key);
     if (watched) {
       watched.sessionIds.add(sessionId);
@@ -40,12 +45,14 @@ class ProposalStatusService {
       return;
     }
 
+    // Watch is starting but the file watcher hasn't been created yet: deduplicate.
     const pending = this.pendingWatches.get(key);
     if (pending) {
       pending.sessionIds.add(sessionId);
       return;
     }
 
+    // First request for this proposal: register a pending watch and start resolving the path.
     const pendingWatch: PendingWatch = {
       projectId,
       projectPath,
@@ -122,6 +129,7 @@ class ProposalStatusService {
       return;
     }
 
+    // Fast path: the proposal file still exists at the watched path.
     let status = await this.readStatus(watched.watchedPath);
     if (status !== null) {
       if (status !== watched.currentStatus) {
@@ -131,6 +139,8 @@ class ProposalStatusService {
       return;
     }
 
+    // The file disappeared from the watched path. It may have been archived/unarchived,
+    // so try to find it elsewhere in the project. If it cannot be found, treat as removed.
     const resolved = await resolveChangeDirAnywhere(watched.projectPath, watched.changeId);
     if (!resolved) {
       this.emitForAllSessions(watched, { status: watched.currentStatus, removed: true });
@@ -138,6 +148,7 @@ class ProposalStatusService {
       return;
     }
 
+    // Found at a new location: migrate the watcher and emit any status change.
     const newWatchedPath = join(resolved.dir, ".openspec.yaml");
     status = (await this.readStatus(newWatchedPath)) ?? "draft";
 

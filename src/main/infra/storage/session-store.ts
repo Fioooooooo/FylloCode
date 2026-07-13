@@ -52,6 +52,8 @@ function isSessionMetaRecord(value: unknown): value is SessionMetaRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+// 当 JSON.parse 失败时，尝试从文件内容中提取一个完整的顶层 JSON 对象。
+// 这能修复一些由进程崩溃导致文件尾部损坏的场景，而不是直接丢失整个 session 元数据。
 function extractLeadingJsonObject(content: string): string | null {
   let start = -1;
   let depth = 0;
@@ -135,6 +137,8 @@ function parseSessionMetaRecordContent(content: string): {
   }
 }
 
+// 按 session 文件串行化写入：并发 patch 可能来自 UI 状态更新与 ACP 事件处理，
+// 队列可避免后写覆盖前写的 race condition。
 async function withSessionMetaWriteLock<T>(
   projectPath: string,
   sessionId: string,

@@ -7,6 +7,13 @@ export type LineageIndexEntries = Pick<
 
 const EMPTY_INDEX_UPDATED_AT = new Date(0).toISOString();
 
+/**
+ * Derive the inverse lookup entries for a single subject.
+ *
+ * The lineage index is a derived view: it maps task refs, session ids, proposal change ids,
+ * and commit hashes back to the subject that owns them. This lets callers find a subject
+ * without scanning every subject file.
+ */
 export function deriveIndexEntries(subject: Subject): LineageIndexEntries {
   const tasks: Record<string, string> = {};
   const sessions: Record<string, string> = {};
@@ -45,6 +52,12 @@ function latestUpdatedAt(subjects: Subject[]): string {
   return latest;
 }
 
+/**
+ * Build a complete lineage index from all subjects in the project.
+ *
+ * The index version is bumped manually when the format changes. `updatedAt` is the most
+ * recent `subject.updatedAt`, so callers can compare the index freshness with subject files.
+ */
 export function buildIndexFromSubjects(subjects: Subject[]): LineageIndex {
   const index: LineageIndex = {
     version: 1,

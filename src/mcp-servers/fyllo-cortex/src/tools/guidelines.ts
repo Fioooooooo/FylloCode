@@ -72,6 +72,7 @@ type TargetState = {
   parseError?: string;
 };
 
+// 检查 AGENTS.md 是否已链接到 guidelines 目录，用于 init/create 模式给出修复建议。
 const AGENTS_GUIDELINES_LINK_RE = /\]\(guidelines\/[^)]+\.md\)/;
 
 function isEnoent(error: unknown): boolean {

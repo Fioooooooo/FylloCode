@@ -22,6 +22,7 @@ export function buildSubject(
 }
 
 export function upsertSessionLink(subject: Subject, sessionId: string, now: string): Subject {
+  // Return the same reference when nothing changes so callers can detect mutations by reference equality.
   if (subject.links.some((link) => link.sessionId === sessionId)) {
     return subject;
   }
@@ -48,6 +49,7 @@ export function appendProposal(
   now: string
 ): Subject {
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
+  // Idempotent: a proposal is recorded only once per session link.
   if (!targetLink || targetLink.proposals.some((proposal) => proposal.changeId === changeId)) {
     return subject;
   }
@@ -79,6 +81,7 @@ export function appendPlan(
   now: string
 ): Subject {
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
+  // Idempotent: a plan is recorded only once per session link.
   if (!targetLink || targetLink.plans.some((plan) => plan.slug === slug)) {
     return subject;
   }
@@ -113,6 +116,8 @@ export function attachProposalCommitHash(
     return subject;
   }
 
+  // Attach the commit hash to the first matching proposal that does not already have one.
+  // Once a commit hash is set it is immutable, so return the same reference if unchanged.
   let changed = false;
   const links = subject.links.map((link) => ({
     ...link,
@@ -149,6 +154,7 @@ export function attachProposalCommitHash(
 }
 
 export function attachTask(subject: Subject, taskSnapshot: LineageTaskSnapshot): Subject {
+  // Idempotent: only update if the task reference actually changed.
   if (subject.task?.ref === taskSnapshot.ref) {
     return subject;
   }

@@ -1,6 +1,8 @@
 import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
 
+// Windows reserved characters that are invalid in file names (excluding backslash, which is
+// handled separately as a path separator).
 const WINDOWS_INVALID_FILENAME_CHAR_PATTERN = /[<>:"|?*]/g;
 
 function replaceControlCharacters(value: string): string {
@@ -12,6 +14,13 @@ function replaceControlCharacters(value: string): string {
 /**
  * Encode a project filesystem path into a directory-safe identifier.
  * Used as the directory name under `data/projects/<encoded>`.
+ *
+ * Transformation order matters:
+ * 1. Strip leading `/` so absolute POSIX paths become relative.
+ * 2. Strip Windows drive letter colons (`C:`) before replacing separators.
+ * 3. Replace all `/` and `\` with `-` so nested paths flatten safely.
+ * 4. Replace Windows-invalid filename characters.
+ * 5. Replace control characters (code point < 32) to avoid invisible/dangerous names.
  */
 export function encodeProjectPath(projectPath: string): string {
   const encoded = projectPath

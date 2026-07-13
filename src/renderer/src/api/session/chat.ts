@@ -6,6 +6,8 @@ import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
 
+// Renderer-side wrapper for session:chat IPC. Keeps components/composables free of direct
+// window.api usage and provides a typed, normalized surface.
 type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
 
 export interface StreamError {

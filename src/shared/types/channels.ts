@@ -4,6 +4,8 @@ import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
 import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
 import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 
+// Aggregate all IPC channel constants into a single barrel, exposing both the new
+// domain-prefixed names and the older short aliases for backward compatibility.
 export {
   PlatformAppChannels,
   PlatformAppChannels as AppChannels,

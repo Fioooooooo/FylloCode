@@ -134,6 +134,8 @@ export const enabledFylloActionContracts = [
   },
 ] as const satisfies readonly FylloActionContract[];
 
+// Validates a Fyllo action type name such as `task.create` or `knowledge.flag`.
+// Format: lower-case kebab segments joined by dots, at least two segments.
 export function isValidFylloActionTypeName(value: string): boolean {
   return /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/.test(value);
 }
@@ -143,6 +145,7 @@ export function getFylloActionContract(type: string): FylloActionContract | unde
 }
 
 function formatPayloadFields(contract: FylloActionContract): string {
+  // Render each schema field as a prompt-friendly bullet with requirement level and type.
   return contract.payloadFields
     .map((field) => {
       const requirement = field.required ? "required" : "optional";
@@ -151,9 +154,14 @@ function formatPayloadFields(contract: FylloActionContract): string {
     .join("\n");
 }
 
+/**
+ * Build the `<fyllo-action-definition>` prompt fragment that tells the model which
+ * Fyllo action types are enabled, their schemas, examples, and output constraints.
+ */
 export function formatFylloActionContractForPrompt(
   contracts: readonly FylloActionContract[] = enabledFylloActionContracts
 ): string {
+  // When no actions are enabled, emit a clear prohibition to prevent model hallucination.
   if (contracts.length === 0) {
     return [
       `<fyllo-action-definition>`,
@@ -164,6 +172,7 @@ export function formatFylloActionContractForPrompt(
     ].join("\n");
   }
 
+  // Build one instruction block per enabled action type: description, schema, example.
   const enabledTypes = contracts.map((contract) => contract.type).join(", ");
   const contractInstructions = contracts
     .map((contract) =>
@@ -187,6 +196,7 @@ export function formatFylloActionContractForPrompt(
     )
     .join("\n\n");
 
+  // Assemble the global constraints followed by the per-type instructions.
   return [
     `<fyllo-action-definition>`,
     "## Fyllo Action Tags",

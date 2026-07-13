@@ -72,9 +72,21 @@ export interface AcpSessionOpts {
   presetAcpSessionId?: string;
 }
 
+/**
+ * Manages one turn of an ACP-backed chat session.
+ *
+ * Responsibilities:
+ * - Acquire or reuse an ACP agent process.
+ * - Resolve the ACP session id (preset → resume → load → new session fallback).
+ * - Inject system reminders and history reminders when a fresh session is created.
+ * - Dispatch the prompt and forward `SessionEvent`s to listeners.
+ * - Handle cancellation and per-turn cleanup.
+ */
 export class AcpSession extends EventEmitter {
   private acpSessionId: string | null = null;
   private cancelled = false;
+  // Track ACP session ids we have already cancelled to avoid duplicate cancel() calls
+  // when the user cancels around the moment a session id is resolved.
   private readonly cancelledAcpSessionIds = new Set<string>();
   private readonly recoveryContext: RecoveryContext;
   private readonly presetAcpSessionId?: string;
@@ -184,6 +196,10 @@ export class AcpSession extends EventEmitter {
     this.throwIfCancelled("before start flow");
     this.assertPromptCapabilities(context.entry.initializeResponse, parts);
 
+    // Start-flow priority:
+    // 1. Use a caller-provided preset session id (e.g. a probe session promoted to chat).
+    // 2. Try to continue the persisted ACP session directly.
+    // 3. Recover via resume → load → new session fallback.
     if (this.presetAcpSessionId !== undefined) {
       await this.runPresetFlow(context, parts);
       return;
@@ -213,6 +229,8 @@ export class AcpSession extends EventEmitter {
       return;
     }
 
+    // A preset session id bypasses resume/load/new recovery. This is used when a session id
+    // has already been established externally (e.g. a probe session reused for the chat turn).
     this.acpSessionId = acpSessionId;
     logger.info(`${this.logPrefix(acpSessionId)} using preset ACP session`);
     await this.opts.sessionStore.loadAcpSessionId();
@@ -261,6 +279,8 @@ export class AcpSession extends EventEmitter {
       return false;
     }
 
+    // Try to continue the previous ACP session with a direct prompt. If the session is gone,
+    // fall back to recovery instead of failing immediately.
     this.acpSessionId = persistedSessionId;
     logger.info(`${this.logPrefix(persistedSessionId)} attempting direct prompt`);
     this.throwIfCancelled("before direct prompt");
@@ -472,6 +492,7 @@ export class AcpSession extends EventEmitter {
       `${this.logPrefix(persistedSessionId)} recovery capabilities; resume=${resumeSupported}; load=${loadSupported}; hasPersistedHistory=${this.recoveryContext.hasPersistedHistory}`
     );
 
+    // Recovery priority: resume (cheapest, no replay) → load (replays history) → new session.
     if (persistedSessionId && resumeSupported) {
       try {
         this.throwIfCancelled("before resumeSession");
@@ -508,6 +529,8 @@ export class AcpSession extends EventEmitter {
     if (persistedSessionId && loadSupported) {
       try {
         this.throwIfCancelled("before loadSession");
+        // When we already have persisted history in FylloCode, suppress the ACP loadSession replay
+        // to avoid duplicating historical events. Count how many events were suppressed for diagnostics.
         runtimeState.suppressReplay = this.recoveryContext.hasPersistedHistory;
         runtimeState.suppressedReplayEvents = 0;
         this.acpSessionId = persistedSessionId;
@@ -586,6 +609,8 @@ export class AcpSession extends EventEmitter {
     fylloSessionId: string;
     agentId: string;
   }): Promise<TextUIPart[]> {
+    // Reminders are only injected when a brand-new ACP session is created. Resumed/loaded sessions
+    // already carry the agent's internal context, so injecting reminders again would duplicate them.
     if (!args.createdNewSession) {
       return [];
     }
@@ -648,6 +673,8 @@ export class AcpSession extends EventEmitter {
   }): Promise<unknown> {
     this.throwIfCancelled("before prompt dispatch");
 
+    // Register a handler that maps ACP sessionUpdate notifications to our internal SessionEvent
+    // stream. Drop replay events when suppression is active (see loadSession recovery).
     const sessionHandler = (notification: SessionNotification): void => {
       if (this.cancelled) {
         return;
@@ -694,6 +721,8 @@ export class AcpSession extends EventEmitter {
     }
   }
 
+  // 将 renderer 侧 ChatPromptPart 转换为 ACP 协议 PromptPart。
+  // image 类型从本地 file:// URL 读取并 base64 编码；读取失败映射为中文业务错误。
   private async toAcpPromptParts(parts: ChatPromptPart[]): Promise<PromptPart[]> {
     const promptParts: PromptPart[] = [];
     for (const part of parts) {

@@ -43,6 +43,12 @@ function getKnowledgeFlagContextPaths(
   return parseResult.payload.contextPaths;
 }
 
+/**
+ * Walk through all assistant text parts in a session and collect Fyllo actions that have
+ * not yet been acted upon (no action state persisted).
+ *
+ * The resulting items are displayed in the session rail so the user can confirm them.
+ */
 export function collectPendingFylloActionRailItems(
   session: Session | null
 ): PendingFylloActionRailItem[] {

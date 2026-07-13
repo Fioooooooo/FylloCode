@@ -28,6 +28,8 @@ export type ProposalOriginProjection = {
   proposal: LineageProposalLink;
 };
 
+// Projections are returned to callers that may mutate the result; clone the nested
+// arrays so the underlying Subject in the lineage store stays immutable.
 function cloneSessionLink(link: LineageSessionLink): LineageSessionLink {
   return {
     ...link,

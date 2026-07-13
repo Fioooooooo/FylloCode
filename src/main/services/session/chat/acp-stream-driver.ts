@@ -49,6 +49,8 @@ export interface AcpStreamHooks {
   doneFailureCode?: IpcErrorCode;
 }
 
+// 需要进入 MessageAssembler 并转发为 stream chunk 的内容类事件。
+// 控制类事件（session_id_resolved / done / error / usage 等）走 switch 分支单独处理。
 const CONTENT_KINDS = new Set([
   "text_delta",
   "reasoning_delta",

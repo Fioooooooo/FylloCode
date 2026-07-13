@@ -6,6 +6,8 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import type { PlanDocument, PlanDocumentStatus } from "@shared/types/lineage";
 
+// Plan slug format: `yyyy-MM-dd-slug-word`, e.g. `2026-07-11-add-knowledge-tool`.
+// Duplicated from the schema layer because this module validates slugs before file IO.
 const fullPlanSlugPattern = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
 
 type ParsedPlan = {
@@ -63,6 +65,8 @@ function planPath(projectPath: string, sessionId: string, slug: string): string 
   const filePath = path.join(dir, `${slug}.md`);
   const resolvedDir = path.resolve(dir);
   const resolvedFile = path.resolve(filePath);
+  // Defensive check: a slug containing `..` or separators should already be rejected,
+  // but resolve and compare to guarantee no path traversal escapes the plans directory.
   if (path.dirname(resolvedFile) !== resolvedDir) {
     throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "plan path escapes the session plans dir");
   }
@@ -123,6 +127,7 @@ async function readPlanFile(filePath: string, slug: string): Promise<ParsedPlan>
 }
 
 async function writePlanFile(filePath: string, content: string): Promise<void> {
+  // Write to a temp file and rename atomically so concurrent readers never see a partial plan.
   const tempPath = `${filePath}.${process.pid}.tmp`;
   try {
     await fs.writeFile(tempPath, content, "utf8");

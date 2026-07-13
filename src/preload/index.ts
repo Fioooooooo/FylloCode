@@ -61,6 +61,7 @@ if (process.contextIsolated) {
     log.error("[preload] failed to expose contextBridge APIs", error);
   }
 } else {
+  // Fallback for environments where contextIsolation is disabled.
   // @ts-ignore (define in dts)
   window.api = api;
 }

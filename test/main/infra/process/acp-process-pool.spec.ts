@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
       return null;
     }
 
+    // Match the same platform/arch key priority used by the real resolver.
     const archMap: Record<string, string> = { arm64: "aarch64", x64: "x86_64" };
     const arch = archMap[process.arch] ?? process.arch;
     const keys = [
@@ -69,6 +70,8 @@ vi.mock("@agentclientprotocol/sdk", () => ({
   }),
 }));
 
+// Minimal child-process stand-in used to test process lifecycle and signal handling
+// without actually spawning processes.
 interface FakeChild extends EventEmitter {
   pid: number;
   stdout: PassThrough;
@@ -105,6 +108,7 @@ function createFakeChild(pid = 12345): FakeChild {
 }
 
 function setPlatform(platform: NodeJS.Platform): void {
+  // `process.platform` is normally read-only; override it for platform-specific tests.
   Object.defineProperty(process, "platform", { value: platform, configurable: true });
 }
 

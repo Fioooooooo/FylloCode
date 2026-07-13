@@ -29,7 +29,18 @@ export interface ParsedFylloActionSource {
   loading: boolean;
 }
 
+// Matches a `<fyllo-action type="...">...</fyllo-action>` tag.
+// Capture groups:
+//   [1] raw attribute string between `<fyllo-action` and `>`
+//   [2] body content between the opening and closing tag
+//   [3] closing tag text (`</fyllo-action>` or end-of-string `$`). `$` indicates a
+//       streaming tag that has not been closed yet, which the parser treats as loading.
 const fylloActionTagPattern = /<fyllo-action\b([^>]*)>([\s\S]*?)(<\/fyllo-action>|$)/g;
+
+// Matches individual attributes inside the raw `<fyllo-action ...>` tag.
+// Supports `name`, `name="value"`, `name='value'`, and unquoted `name=value`.
+// Capture groups 2/3/4 are the three possible value forms; the consumer falls back
+// through them to obtain the attribute value.
 const fylloActionAttrPattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+)))?/g;
 
 export function buildChatFylloActionId(input: ChatFylloActionIdInput): string {
@@ -78,6 +89,7 @@ function formatValidationIssues(issues: Array<{ path: PropertyKey[]; message: st
 }
 
 function parseFylloActionAttrs(rawAttrs: string): Record<string, string> {
+  // match[1] is the attribute name; match[2..4] are the three quoted/unquoted value forms.
   return Object.fromEntries(
     Array.from(rawAttrs.matchAll(fylloActionAttrPattern), (match) => [
       match[1],
@@ -90,6 +102,7 @@ export function collectFylloActionSources(source: string): ParsedFylloActionSour
   return Array.from(source.matchAll(fylloActionTagPattern), (match) => ({
     attrs: parseFylloActionAttrs(match[1] ?? ""),
     content: match[2] ?? "",
+    // A tag whose closing `</fyllo-action>` has not arrived yet is still streaming.
     loading: match[3] !== "</fyllo-action>",
   }));
 }
@@ -100,6 +113,8 @@ export function parseFylloActionNode(node: FylloActionMarkdownNode): FylloAction
   const rawType = attrEntries.find(([name]) => name === "type")?.[1];
   const type = typeof rawType === "string" ? rawType : undefined;
 
+  // The contract only allows the `type` attribute; reject anything else so that
+  // future extensions (e.g. version/id) are not silently misinterpreted.
   if (extraAttrs.length > 0) {
     return invalid("unexpected_attribute", "Only the type attribute is allowed.", {
       type,
@@ -107,6 +122,7 @@ export function parseFylloActionNode(node: FylloActionMarkdownNode): FylloAction
     });
   }
 
+  // A loading node has not received its payload yet; defer validation until closed.
   if (node.loading === true) {
     return {
       status: "pending",

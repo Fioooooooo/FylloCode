@@ -56,6 +56,8 @@ export function usePromptTimeline(options: UsePromptTimelineInput): {
     }
 
     const containerRect = container.getBoundingClientRect();
+    // Anchor the activation line at 35% of the viewport so the active timeline
+    // item reflects what the user is currently reading rather than the top edge.
     const activationLine = containerRect.top + containerRect.height * 0.35;
     let closestItemId: string | null = null;
     let closestDistance = Number.POSITIVE_INFINITY;
@@ -77,6 +79,8 @@ export function usePromptTimeline(options: UsePromptTimelineInput): {
     activePromptTimelineItemId.value = closestItemId ?? items[0]?.id ?? null;
   }
 
+  // Re-bind the passive scroll listener whenever the scroll container changes.
+  // The previous listener is always removed first to avoid leaks during swaps.
   function bindScrollListener(): void {
     removeScrollListener?.();
     removeScrollListener = null;

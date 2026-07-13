@@ -26,6 +26,8 @@ const customHtmlTags = computed(() =>
 let registeredCustomId: string | null = null;
 let actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
 
+// Provide host context to nested FylloActionNode components so they can resolve their
+// ordinal position and read/persist action state without prop drilling through markstream-vue.
 provide(fylloActionHostContextKey, {
   get sessionId() {
     return props.actionContext?.sessionId ?? "";
@@ -70,6 +72,8 @@ function registerFylloActionComponents(): void {
 watch(
   () => [props.id, props.enableActions] as const,
   () => {
+    // A new message id or action enablement change means the rendered content identity changed.
+    // Rebuild the ordinal resolver and re-register the custom component with markstream-vue.
     actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
     removeRegisteredCustomComponents();
     registerFylloActionComponents();

@@ -21,6 +21,9 @@ type MutableScenarioGroup = Omit<ProposalSpecDeltaScenarioGroup, "body"> & {
 
 type ParserSection = "none" | "purpose" | "requirement" | "scenario";
 
+// Markdown parser for proposal spec deltas.
+// Section state machine: none → purpose → (delta type) → requirement → scenario.
+// Headings must match these patterns exactly; body lines are accumulated under the current section.
 const deltaTypes: ProposalSpecDeltaType[] = ["ADDED", "MODIFIED", "REMOVED", "RENAMED"];
 const purposeHeadingRegex = /^##\s+Purpose\s*:?$/i;
 const deltaHeadingRegex = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/i;

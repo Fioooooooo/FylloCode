@@ -68,6 +68,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
   },
 ];
 
+// 运行期断言：必须有且仅有一个默认 activity item，保证无项目时始终有稳定的回落页面。
 const defaults = activityBarItems.filter((i) => i.isDefault);
 
 if (import.meta.env.DEV || import.meta.env.VITEST) {

@@ -32,6 +32,9 @@ interface FylloActionSource {
   content: string;
 }
 
+// Matches `<fyllo-action>` tags to extract their raw text and body content.
+// Unlike the parser in @shared/utils/fyllo-action.ts, this regex does not capture
+// attributes because the renderer only needs to map rendered nodes back to ordinal positions.
 const fylloActionTagPattern = /<fyllo-action\b[^>]*>([\s\S]*?)(?:<\/fyllo-action>|$)/g;
 
 function collectActionSources(source: string): FylloActionSource[] {
@@ -41,6 +44,14 @@ function collectActionSources(source: string): FylloActionSource[] {
   }));
 }
 
+/**
+ * Create a resolver that maps a rendered Fyllo action node back to its ordinal position
+ * within the original assistant message source.
+ *
+ * The resolver is needed because MarkStream renders nodes incrementally: a node may first
+ * appear as a partial/raw string and later stabilize with its final content. We match by
+ * raw text first, then by trimmed content, and finally fall back to the next unused ordinal.
+ */
 export function createFylloActionOrdinalResolver(
   source: string
 ): (node: FylloActionOrdinalNode) => number {
@@ -56,6 +67,7 @@ export function createFylloActionOrdinalResolver(
         return false;
       }
 
+      // Prefer matching by raw rendered text; tolerate partial matches during streaming.
       if (raw && (raw === sourceItem.raw || sourceItem.raw.includes(raw))) {
         return true;
       }
@@ -68,6 +80,8 @@ export function createFylloActionOrdinalResolver(
       return matchedIndex;
     }
 
+    // No source match: allocate the smallest unused ordinal so that late-rendered nodes
+    // still get a stable identity for action state.
     while (claimed.has(fallbackOrdinal)) {
       fallbackOrdinal += 1;
     }

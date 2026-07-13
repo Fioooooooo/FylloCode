@@ -1,9 +1,14 @@
 import { z } from "zod";
 import type { KnowledgeEntryDraft } from "@shared/types/knowledge";
 
+// Knowledge entry identifiers use kebab-case, start with alphanumeric, and are used as filenames.
 const knowledgeEntryNamePattern = /^[a-z0-9][a-z0-9-]*$/;
+
+// SHA-256 hex digest, used for package resolution digests and file anchors.
 const sha256Pattern = /^[a-f0-9]{64}$/;
 
+// Security-focused schema for project-relative paths: reject absolute paths, home-relative
+// paths, parent traversal, NUL bytes, backslashes, and leading/trailing whitespace.
 export const projectRelativePathSchema = z
   .string()
   .min(1)
@@ -70,6 +75,8 @@ const knowledgeLineageSourceSchema = z
       .regex(/^[a-f0-9]{7,64}$/)
       .optional(),
   })
+  // A lineage source may link to a subject, a proposal, or a commit, but it must
+  // reference at least one so the entry can be traced back to a concrete lineage node.
   .superRefine((source, context) => {
     if (!source.subjectId && !source.proposalId && !source.commitHash) {
       context.addIssue({

@@ -62,8 +62,9 @@ async function computeTaskLinkedRatio(projectPath: string): Promise<TaskLinkedSt
     return { ratio: 0, total: 0 };
   }
 
+  // Count subjects that have an associated task snapshot, regardless of origin.
+  // A chat-origin subject that later gets a task backfilled should still count as linked.
   return {
-    // 关联率按"已关联任务"统计而非起源：chat 起源补建任务后应计入，起源不可改写
     ratio: subjects.filter((subject) => subject.task !== null).length / total,
     total,
   };
@@ -97,6 +98,7 @@ function resolveLineageStatus(
 
 async function computeRecentLineages(projectPath: string): Promise<RecentLineage[]> {
   const allProposals = await readProposalFiles(projectPath);
+  // Proposal ids in lineage are stripped of archive prefixes; map statuses using the same key.
   const statusMap = new Map<string, ProposalStatus>(
     allProposals.map((p) => [stripArchivePrefix(p.id), p.status])
   );
@@ -126,6 +128,9 @@ async function computeRecentLineages(projectPath: string): Promise<RecentLineage
       missingChangeIds,
     };
   });
+
+  // For proposals without an explicit commit hash, look up the archive directory naming
+  // (which encodes the commit hash) and persist the discovered hash back to lineage.
   const missingChangeIds = Array.from(
     new Set(lineageStates.flatMap((state) => state.missingChangeIds))
   );

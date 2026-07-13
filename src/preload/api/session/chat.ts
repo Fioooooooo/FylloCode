@@ -207,6 +207,7 @@ export const chatApi = {
         });
       });
 
+    // Cancel handler: notify main to stop streaming and close the MessagePort.
     return () => {
       const pending = pendingChatStreams.get(streamId);
       if (!pending || pending.cancelled) {

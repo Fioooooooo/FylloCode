@@ -23,7 +23,13 @@ import type {
 type JsonRecord = Record<string, unknown>;
 
 const LINEAGE_INDEX_VERSION = 1 as const;
+
+// Per-file write queues: serialize all writes to the same lineage file so that concurrent
+// updates never interleave or produce torn writes. The lock is implemented as a promise
+// chain rather than a mutex to keep the API async and simple.
 const lineageWriteQueues = new Map<string, Promise<void>>();
+
+// Monotonic counter for temp file names during atomic writes.
 let lineageTempWriteCounter = 0;
 
 function subjectPath(projectPath: string, subjectId: string): string {
@@ -317,6 +323,8 @@ function normalizeIndex(value: unknown): LineageIndex | null {
 }
 
 async function withLineageWriteLock<T>(filePath: string, task: () => Promise<T>): Promise<T> {
+  // Chain a new promise behind any in-flight write for this file. The `current` promise
+  // resolves when this task finishes, releasing the next queued writer.
   const previous = lineageWriteQueues.get(filePath) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => {
@@ -325,11 +333,14 @@ async function withLineageWriteLock<T>(filePath: string, task: () => Promise<T>)
   const queued = previous.catch(() => undefined).then(() => current);
   lineageWriteQueues.set(filePath, queued);
 
+  // Wait for the previous writer before starting; failures in the previous task must not
+  // block this one.
   await previous.catch(() => undefined);
   try {
     return await task();
   } finally {
     release();
+    // Clean up the queue only if no newer writer has already replaced our entry.
     if (lineageWriteQueues.get(filePath) === queued) {
       lineageWriteQueues.delete(filePath);
     }
@@ -337,6 +348,8 @@ async function withLineageWriteLock<T>(filePath: string, task: () => Promise<T>)
 }
 
 async function writeLineageFile(filePath: string, content: string): Promise<void> {
+  // Write to a unique temp file and rename atomically. Concurrent readers never see a
+  // partial file, and the per-file write lock ensures temp names never collide.
   const tempPath = `${filePath}.${process.pid}.${lineageTempWriteCounter}.tmp`;
   lineageTempWriteCounter += 1;
   try {

@@ -11,6 +11,15 @@ import {
 import type { AcpPromptCapabilities } from "@shared/types/acp-agent";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 
+/**
+ * Manage user-selected file attachments for the chat prompt.
+ *
+ * Responsibilities:
+ * - Read selected files as base64 data URLs.
+ * - Ensure a session exists (creating a draft session if needed) before persisting.
+ * - Persist attachments through the chat IPC API and produce prompt parts that respect
+ *   the current agent's capabilities (image vs. embedded context / resource_link).
+ */
 export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapabilities>>): {
   attachments: Ref<ChatPromptAttachment[]>;
   hasPendingAttachments: ComputedRef<boolean>;
@@ -29,6 +38,8 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   const hasPendingAttachments = computed(
     () => isSavingAttachments.value || attachments.value.some((attachment) => !attachment.uri)
   );
+  // 根据当前 agent 的能力决定附件类型：图片走 image part，其他文件走 resource_link；
+  // 若 agent 不支持对应能力则静默跳过该附件。
   const attachmentParts = computed<ChatPromptPart[]>(() => {
     const parts: ChatPromptPart[] = [];
     for (const attachment of attachments.value) {
@@ -91,6 +102,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
       return { projectId, sessionId: active.id };
     }
 
+    // No active session yet: create a draft session so the attachment has somewhere to live.
     const agentId = draftAgentId.value;
     if (!agentId) {
       toast.add({

@@ -6,6 +6,8 @@ export function isCursorAtLineStart(text: string, cursor: number): boolean {
   return /^[ \t]*$/.test(linePrefix);
 }
 
+// 将命令名插入输入框：slash 触发时替换已有的"/"前缀；按钮触发时在光标处插入，
+// 必要时前置空格以避免与已有文本粘连。
 export function applyCommandSelection(options: {
   currentValue: string;
   selectionStart: number;

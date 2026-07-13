@@ -19,6 +19,7 @@ import { proposalStatusService } from "@main/services/proposal/browser/proposal-
 import { loadProject } from "@main/infra/storage/project-store";
 import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
 
+// 状态广播依赖 ProjectWindowManager 按 projectId fanout；延迟订阅保证 service 初始化顺序无关。
 let proposalStatusBroadcastManager: ProjectWindowManager | null = null;
 let proposalStatusBroadcastSubscribed = false;
 

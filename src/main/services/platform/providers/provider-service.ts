@@ -81,6 +81,8 @@ export async function connectProvider(
     );
   }
 
+  // Preserve previously stored fields (e.g. organizationId) so reconnecting does not
+  // reset context that the user has already configured.
   const currentCredentials = loadCredentials(providerId);
   saveCredentials(providerId, credentials);
 

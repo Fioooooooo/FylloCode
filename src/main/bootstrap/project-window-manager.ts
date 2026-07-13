@@ -76,6 +76,11 @@ export class ProjectWindowManager {
     return this.getLauncherContext(launcherWindow);
   }
 
+  // Project window lifecycle strategy:
+  // 1. Reuse an existing project window if one is already open.
+  // 2. If the source window is the launcher, convert it in-place (bind) rather than opening
+  //    a second window, preserving the user's window position and reducing window churn.
+  // 3. Otherwise create a fresh project window.
   openProjectWindow(projectId: string, sourceWebContents?: WebContents): ProjectWindowOpenResult {
     const existing = this.getUsableWindow(this.projectWindows.get(projectId) ?? null);
     if (existing) {

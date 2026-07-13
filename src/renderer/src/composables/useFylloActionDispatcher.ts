@@ -27,6 +27,13 @@ function getDispatchHandler<Type extends FylloActionType>(
   return handlers[type] as FylloActionDispatchHandler<Type>;
 }
 
+/**
+ * Compose the Fyllo action handler map for the current project/session context.
+ *
+ * Each enabled action type gets a handler wired with the stores/composables it needs.
+ * `dispatchFylloAction` catches handler errors and normalizes them to a failed result so
+ * the UI can show the error without unmounting.
+ */
 export function useFylloActionDispatcher(): {
   dispatchFylloAction: <Type extends FylloActionType>(
     type: Type,

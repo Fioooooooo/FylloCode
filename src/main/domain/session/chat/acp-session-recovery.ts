@@ -74,6 +74,8 @@ export function promptErrorMessage(error: unknown): string {
 export function isSessionMissingError(error: unknown): boolean {
   const candidate = error as PromptErrorLike | undefined;
   const code = candidate?.code;
+  // ACP agents report a missing session through a mix of JSON-RPC codes and text messages.
+  // Recognise the common variants so recovery can fall back to creating a new session.
   if (code === -32002 || code === "RESOURCE_NOT_FOUND" || code === "resource_not_found") {
     return true;
   }
@@ -110,6 +112,8 @@ export function buildHistoryReminder(
     transcript.push(`${message.role}: ${messageText}`);
   }
 
+  // Drop the last message if it is identical to the current prompt. This happens when the
+  // persisted history already includes the turn being sent; re-injecting it would duplicate.
   while (transcript.length > 0 && transcript[transcript.length - 1] === `user: ${currentPrompt}`) {
     transcript.pop();
   }
@@ -127,6 +131,9 @@ export function buildHistoryReminder(
 }
 
 export function shouldSuppressDuringReplay(event: SessionEvent): boolean {
+  // During loadSession replay, the ACP server resends historical content events. We already
+  // have those messages persisted locally, so suppress them. Control/runtime events that
+  // affect current UI state (commands, session info, config, agenda) are allowed through.
   switch (event.kind) {
     case "available_commands_update":
     case "session_info_update":

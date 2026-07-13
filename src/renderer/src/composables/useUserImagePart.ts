@@ -10,6 +10,12 @@ function getFilePartMediaType(part: MessagePart): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Resolve user image parts into previewable data URLs.
+ *
+ * Caches results per message-part and re-fetches when the part URL changes.
+ * Non-file:// URLs are returned as-is; file:// URLs are read through the IPC API.
+ */
 export function useUserImagePart(options: {
   messageId: () => string;
   parts: () => MessagePart[];

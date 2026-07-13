@@ -30,6 +30,8 @@ const definition = computed(() =>
 const actionComponent = computed(() => definition.value?.component ?? null);
 
 const actionId = computed(() => {
+  // A stable action ID requires the host context (session + message/part indices) and a resolved
+  // ordinal. Missing any piece means the action cannot be persisted or restored, so return null.
   if (
     parseResult.value.status !== "ready" ||
     !hostContext ||

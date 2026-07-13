@@ -16,6 +16,7 @@ import type {
   KnowledgeEntryFrontmatter,
 } from "@shared/types/knowledge";
 
+// 匹配 knowledge entry 的 YAML frontmatter，允许可选的 BOM 与 CRLF 换行。
 const FRONTMATTER_RE = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const DEFAULT_URL_MAX_AGE_DAYS = 90;
 
@@ -76,6 +77,7 @@ export function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+// 对普通对象按键排序后序列化，使相同内容的 pnpm-lock 解析结果得到稳定哈希。
 function toStableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(toStableJsonValue);
@@ -247,6 +249,8 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+// 原子写入 knowledge entry：先写唯一命名的临时文件再 rename，避免并发读写看到半成品。
+// expectedContentHash 用于 update 时的乐观并发控制，防止覆盖用户或另一轮会话的写入。
 export async function writeKnowledgeEntry(
   knowledgeRoot: string,
   entry: KnowledgeEntryDraft,

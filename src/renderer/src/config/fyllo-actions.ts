@@ -29,6 +29,7 @@ export type FylloActionDefinition = {
   [Type in FylloActionType]: FylloActionDefinitionBase<Type>;
 }[FylloActionType];
 
+// 每个 renderer 侧 action 定义必须在 shared contract 中存在对应项，防止 UI 暴露未经验证的 action。
 function assertContractEnabled<Type extends FylloActionType>(type: Type): Type {
   if (!getFylloActionContract(type)) {
     throw new Error(`Fyllo action renderer definition has no shared contract: ${type}`);

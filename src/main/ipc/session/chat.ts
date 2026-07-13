@@ -73,6 +73,8 @@ import type { ProjectWindowManager } from "@main/bootstrap/project-window-manage
 let probeBroadcastManager: ProjectWindowManager | null = null;
 let probeBroadcastSubscribed = false;
 
+// Wire probe lifecycle updates from the main-process bus to all project windows.
+// Called once during bootstrap after the window manager is available.
 export function setupProbeBroadcast(manager: ProjectWindowManager): void {
   probeBroadcastManager = manager;
   if (probeBroadcastSubscribed) {
@@ -235,7 +237,7 @@ export function registerChatHandlers(): void {
     })
   );
 
-  // Streaming: create MessagePort via stream-channel kit
+  // Streaming: create a MessagePort-based stream channel and drive the ACP session.
   ipcMain.handle(SessionChatStreamChannels.streamMessage, (event, input: unknown) => {
     const {
       sessionId,
@@ -258,6 +260,8 @@ export function registerChatHandlers(): void {
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
         }
+
+        // Load the originating task title so the system reminder can contextualize the chat.
         let taskTitle: string | undefined;
         if (meta?.originTaskRef) {
           try {
@@ -268,6 +272,9 @@ export function registerChatHandlers(): void {
             logger.warn("[chat] failed to load task title for system reminder", error);
           }
         }
+        // If the renderer provided a probe ACP session id, take ownership of it and copy its
+        // config/commands into the chat session meta. Otherwise the chat session will recover
+        // or create its own ACP session.
         let presetAcpSessionId: string | undefined;
         if (acpSessionId) {
           const probeEntry = await takeProbeFor(projectId, agentId, acpSessionId);
@@ -315,6 +322,8 @@ export function registerChatHandlers(): void {
           },
           ...(presetAcpSessionId ? { presetAcpSessionId } : {}),
         });
+        // Serialize session meta updates so they never overwrite each other when multiple
+        // control events arrive in quick succession.
         let sessionMetaPersist = Promise.resolve();
         const enqueueSessionMetaPersist = (
           update: Parameters<typeof patchSessionMeta>[2],
@@ -344,6 +353,8 @@ export function registerChatHandlers(): void {
           hooks: {
             persistMessage: (message) => appendMessage(projectPath, sessionId, message),
             onControlEvent: (ev, output) => {
+              // Control events update session meta and/or forward renderer-visible chunks.
+              // agenda_update is runtime-only and intentionally not persisted.
               switch (ev.kind) {
                 case "usage_update": {
                   const chunk = toMessageChunk(ev);

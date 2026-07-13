@@ -40,6 +40,8 @@ export function registerProposalApplyHandlers(): void {
     })
   );
 
+  // Stage stream: each stage gets its own AcpSession, persisted messages, and run meta update.
+  // Recovery uses the persisted stage messages as history so resuming a stage does not lose context.
   ipcMain.handle(ProposalApplyChannels.stageStream, (event, input: unknown) => {
     const form = validate(stageStreamInputSchema, input);
 

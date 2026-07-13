@@ -73,6 +73,7 @@ export const useTaskStore = defineStore("task", () => {
   const availableSources = ref<TaskSource[]>(["local"]);
   const projectIntegration = ref<ProjectIntegrationConfig | null>(null);
 
+  // 动态 tab：local 始终存在；当项目接入 yunxiao projex 项目后追加云效 tab。
   const sourceTabs = computed<TaskSourceTab[]>(() => {
     return availableSources.value.map((source) =>
       source === "local" ? baseSourceTabs[0] : { label: "云效", value: "yunxiao" }
@@ -100,6 +101,7 @@ export const useTaskStore = defineStore("task", () => {
     return `${task.source}:${task.id}` as LineageTaskRef;
   }
 
+  // 把任务信息格式化为发给 agent 的第一条用户消息文本。
   function buildTaskPrompt(task: TaskItem): string {
     const sourceDisplay = buildSourceDisplay(task);
     const descriptionText = getTaskDescriptionPlainText(task.description);

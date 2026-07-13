@@ -53,6 +53,8 @@ export async function updateChangeStatus(
 }
 
 export function getCompletedApplyStageIndex(runMeta: ApplyRunMeta): number {
+  // currentStageIndex points to the stage that is *about* to run. Scan backwards from the
+  // previous stage to find the most recently completed `proposal-apply` stage.
   const completedUntil = Math.min(runMeta.currentStageIndex, runMeta.stages.length) - 1;
   for (let index = completedUntil; index >= 0; index -= 1) {
     if (runMeta.stages[index]?.type === "proposal-apply") {

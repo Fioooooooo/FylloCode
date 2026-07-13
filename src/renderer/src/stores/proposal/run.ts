@@ -87,6 +87,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     };
   }
 
+  // 将 ArchiveRunMeta 投影为 ApplyRunMeta 视图，使 archive 阶段能复用阶段流 UI 组件。
   function buildArchiveRunMetaView(meta: ArchiveRunMeta): ApplyRunMeta {
     const stage: WorkflowStage = {
       id: "archive",
@@ -144,6 +145,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
             return;
           }
 
+          // 当前阶段完成后自动推进到下一阶段；所有阶段完成则标记 run 为 done。
           const nextIndex = stageIndex + 1;
           runMeta.value = {
             ...current,

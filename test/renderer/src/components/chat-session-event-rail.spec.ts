@@ -117,6 +117,8 @@ describe("ChatSessionEventRail", () => {
     setActivePinia(createPinia());
     activeSessionRef.value = null;
     activeSessionIdRef.value = null;
+    // happy-dom does not implement CSS.escape, but the component uses it to build a
+    // selector for scrolling to a Fyllo action anchor.
     vi.stubGlobal("CSS", {
       escape: (value: string) => value,
     });

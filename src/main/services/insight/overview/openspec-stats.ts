@@ -8,6 +8,7 @@ export type ArchiveCounts = {
 };
 
 function currentMonthPrefix(): string {
+  // `yyyy-MM` prefix used to match archive directory names like `2026-07-11-change-slug`.
   return new Date().toISOString().slice(0, 7);
 }
 

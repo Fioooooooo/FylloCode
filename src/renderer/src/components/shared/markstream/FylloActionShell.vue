@@ -33,6 +33,8 @@ const executionStatus = ref<ExecutionStatus>("ready");
 const executionError = ref<string | null>(null);
 const statePersistenceError = ref<string | null>(null);
 
+// Stable string signatures used to reset execution state whenever the underlying
+// action content or persisted state changes (e.g. during streaming or re-rendering).
 const parseSignature = computed(() => {
   const result = props.parseResult;
   if (result.status === "ready") {
@@ -159,6 +161,8 @@ const invalidMessage = computed(() =>
 );
 
 function getActionIdsToPersist(extraActionIds: string[] = []): string[] {
+  // Some handlers (e.g. knowledge.flag) may need to mark additional related actions as completed
+  // along with the primary action. Deduplicate to avoid redundant persistence calls.
   return Array.from(
     new Set(
       [props.actionId, ...extraActionIds].filter(

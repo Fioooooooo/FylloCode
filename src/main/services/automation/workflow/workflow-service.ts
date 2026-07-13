@@ -86,6 +86,8 @@ export async function listWorkflows(projectId?: string): Promise<WorkflowListRes
     ? await readWorkflowDirectory(projectWorkflowDirectory, "custom")
     : [];
 
+  // Built-in templates live in the user directory (so they can be customized) but are
+  // reported with source "built-in". Custom templates take precedence in display order.
   const builtInTemplates = userTemplates
     .filter((template) => builtInFileNames.has(toWorkflowFileName(template.id)))
     .map((template) => ({ ...template, source: "built-in" as const }));

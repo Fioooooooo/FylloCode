@@ -10,6 +10,8 @@ export const taskCreateFylloActionPayloadSchema = z.strictObject({
   description: z.string().optional(),
 });
 
+// Plan slug format: `yyyy-MM-dd-slug-word`, e.g. `2026-07-11-add-knowledge-tool`.
+// Kept in sync with src/shared/ipc/insight/lineage.schemas.ts and src/main/services/insight/lineage/plan.ts.
 const fullPlanSlugPattern = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
 
 export const planCreateFylloActionPayloadSchema = z.strictObject({
@@ -17,6 +19,8 @@ export const planCreateFylloActionPayloadSchema = z.strictObject({
     .string()
     .min(1)
     .regex(fullPlanSlugPattern)
+    // Slugs are used as file/directory names; reject characters that would break paths
+    // or allow traversal, even though the regex already limits the alphabet.
     .refine(
       (slug) =>
         !slug.includes("/") && !slug.includes("\\") && !slug.includes(".") && !/\s/.test(slug),

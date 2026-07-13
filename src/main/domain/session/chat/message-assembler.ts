@@ -2,6 +2,12 @@ import { generateId, type DynamicToolUIPart, type UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import type { SessionEvent } from "./session-events";
 
+/**
+ * Incrementally assemble a single assistant `UIMessage` from a stream of `SessionEvent`s.
+ *
+ * The assembler tracks which text/reasoning part is currently receiving deltas so that
+ * consecutive deltas of the same kind append to the same part rather than creating new ones.
+ */
 export class MessageAssembler {
   private currentMessage: UIMessage<MessageMeta> | null = null;
   private activeTextPartIdx = -1;

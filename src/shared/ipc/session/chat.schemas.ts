@@ -5,11 +5,18 @@ import { lineageTaskRefSchema } from "@shared/ipc/insight/lineage.schemas";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Estimate the decoded byte length of a base64 string without actually decoding it.
+ *
+ * Used to reject oversized attachments before spending memory on `Buffer.from`.
+ * Returns `null` if the input is not well-formed base64.
+ */
 function getBase64DecodedByteLength(value: string): number | null {
   const normalized = value.replace(/\s/g, "");
   if (normalized.length === 0 || normalized.length % 4 !== 0) {
     return null;
   }
+  // Allow base64 alphabet plus up to two padding characters at the end.
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
     return null;
   }

@@ -34,6 +34,8 @@ const PAGE = 1;
 const PER_PAGE = 20;
 const WORKITEM_URL_PREFIX = "https://devops.aliyun.com/projex/project";
 
+// Yunxiao status ids that represent "open / not done" for each workitem category.
+// These are Projex API-specific identifiers, not display names.
 const STATUS_IDS_BY_CATEGORY: Record<YunxiaoCategory, string[]> = {
   Req: [
     "100005",
@@ -166,6 +168,8 @@ function buildLabels(workitem: Workitem, issueType: YunxiaoIssueType): TaskLabel
   ];
 }
 
+// Yunxiao API returns category information in multiple shapes depending on endpoint;
+// fall back to workitem type name heuristics (and Chinese labels) when explicit ids are absent.
 function resolveCategory(workitem: Workitem): YunxiaoCategory {
   if (
     workitem.categoryId === "Req" ||

@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Conventional commit header: type(scope): summary
+//   type    : lowercase, may contain hyphens
+//   scope   : lowercase, may contain digits, dots, slashes, or hyphens
+//   summary : must start with a non-whitespace character
 const conventionalHeaderPattern = /^[a-z][a-z0-9-]*\([a-z0-9][a-z0-9./-]*\): \S.*$/;
 const allowedGeneratedHeaderPatterns = [
   /^Merge\b/,
@@ -64,6 +68,8 @@ export function validateCommitMessage(message) {
     (line) => line.trim() !== "" && !line.startsWith("- ")
   );
 
+  // Line numbers reported to the user are 1-based and include the header line and the
+  // required blank line before the body, hence +3 (header + blank + 0-based index).
   if (invalidBodyLineIndex !== -1) {
     return invalid(`Body line ${invalidBodyLineIndex + 3} must start with "- ".`);
   }

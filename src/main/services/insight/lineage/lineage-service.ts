@@ -53,6 +53,7 @@ function emptyIndex(updatedAt: string): LineageIndex {
 }
 
 async function readWritableIndex(projectPath: string, updatedAt: string): Promise<LineageIndex> {
+  // Return the existing index, or rebuild it from subjects if it is missing/corrupt.
   return (await readIndex(projectPath)) ?? rebuildIndex(projectPath, updatedAt);
 }
 
@@ -60,6 +61,8 @@ function removeSubjectEntries(
   entries: Record<string, string>,
   subjectId: string
 ): Record<string, string> {
+  // Strip all entries that point to this subject before re-adding the current ones.
+  // This keeps the index consistent when a subject's keys change (e.g. a new commit hash).
   return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== subjectId));
 }
 
@@ -92,6 +95,8 @@ async function writeSubjectWithIndex(
   subject: Subject,
   currentIndex: LineageIndex
 ): Promise<void> {
+  // Persist the subject file first, then update the derived index. The index can always be
+  // rebuilt from subjects, so subject integrity takes priority.
   await writeSubject(projectPath, subject);
   await writeIndex(projectPath, mergeSubjectIntoIndex(currentIndex, subject));
 }
@@ -117,6 +122,9 @@ async function projectFromIndex<T>(
   selectSubjectId: (index: LineageIndex) => string | undefined,
   project: (subject: Subject) => T | null
 ): Promise<T | null> {
+  // Look up the subject id in the index, read the subject file, and project the requested view.
+  // If the subject file is missing while the index still references it, rebuild the index
+  // (which removes stale references) and retry once.
   let index = await readQueryIndex(projectPath);
   let subjectId = selectSubjectId(index);
   if (!subjectId) {
@@ -303,6 +311,7 @@ export async function createSessionTask(
   projectPath: string,
   input: CreateSessionTaskInput
 ): Promise<TaskItem> {
+  // 1. Create the actual task through the automation service.
   const task = await createTask(
     projectPath,
     {
@@ -320,6 +329,8 @@ export async function createSessionTask(
     capturedAt: nowIso(),
   };
 
+  // 2. Bind the new task to the session's lineage subject.
+  // 3. Update the session meta so the chat UI can show the originating task.
   try {
     const existingSubject = await getBySession(projectPath, input.sessionId);
     const subjectId =

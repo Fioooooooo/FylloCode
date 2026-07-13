@@ -8,6 +8,7 @@ async function isGitRepo(projectPath: string): Promise<boolean> {
   return result.exitCode === 0 && result.stdout.trim() === "true";
 }
 
+// 自动把 .worktrees/ 加入 .gitignore，避免 linked workspace 目录被误提交到主仓库。
 function ensureWorktreesIgnored(mainProjectPath: string): void {
   const gitignorePath = path.join(mainProjectPath, ".gitignore");
   const line = ".worktrees/";
