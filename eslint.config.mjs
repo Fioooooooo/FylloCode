@@ -6,6 +6,7 @@ import vueParser from "vue-eslint-parser";
 import { createRequire } from "module";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import rendererFeatureBoundaries from "./scripts/eslint-rules/renderer-feature-boundaries.mjs";
 
 const require = createRequire(import.meta.url);
 const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
@@ -84,6 +85,11 @@ export default defineConfig(
   {
     plugins: {
       "@typescript-eslint": tseslint.plugin,
+      "renderer-features": {
+        rules: {
+          boundaries: rendererFeatureBoundaries,
+        },
+      },
     },
   },
   ...tseslint.configs.recommendedTypeChecked.map((config) => ({
@@ -226,6 +232,12 @@ export default defineConfig(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/renderer/src/**/*.{ts,mts,tsx,vue}"],
+    rules: {
+      "renderer-features/boundaries": "error",
     },
   },
 
