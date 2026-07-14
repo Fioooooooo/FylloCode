@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change stabilize-fyllo-action-architecture. Update Purpose after archive.
+定义会话提醒的聚合边界：通过 `getSessionAttention` 纯函数与 `useSessionAttention` composable 从 `Session` 派生 attentionCount，当前由 Fyllo Action 担任唯一 contributor，约定 `SessionItem` badge 的显示规则、aria-label、与 running pulse 的共存约束，以及共享状态谓词的复用要求。
 
 ## Requirements
 

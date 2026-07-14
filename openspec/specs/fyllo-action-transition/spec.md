@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change stabilize-fyllo-action-architecture. Update Purpose after archive.
+定义 Fyllo Action 从 `ready` 到终态的命令式迁移契约：包括 `succeed`/`fail`/`cancel` 命令、Main 权威状态机、revision CAS、批量 `transitionActions` 原子更新，以及 `fail` 错误信息的持久化，使 Renderer 能区分业务副作用失败与状态同步失败。
 
 ## Requirements
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change stabilize-fyllo-action-architecture. Update Purpose after archive.
+定义注入到 system-reminder 的 `<fyllo-action-contract>` 静态契约：基于 shared registry 穷举生成 Action type 描述、字段约束与 JSON 示例，要求示例可解析、单字段异常不导致整份契约丢失，并约定 payload 中尖括号的编码方式。
 
 ## Requirements
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change stabilize-fyllo-action-architecture. Update Purpose after archive.
+定义 Fyllo Action `ready` 状态与 Renderer 向 Main 注册的 IPC 契约：包括幂等注册、sender project 与 session 归属校验、`safeSessionIdSchema`、带版本 envelope 的持久化，以及未知 Action type 的过滤策略，使应用重启后能在不打开会话的情况下恢复未处理 Action 的提醒数量。
 
 ## Requirements
 
