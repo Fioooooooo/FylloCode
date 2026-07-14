@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildChatFylloActionId,
-  collectFylloActionSources,
-  parseFylloActionNode,
-} from "@shared/utils/fyllo-action";
+import { collectFylloActionSources, parseFylloActionNode } from "@shared/fyllo-action/parser";
+import { buildChatFylloActionId } from "@shared/fyllo-action/identity";
 
 describe("shared Fyllo action tag utilities", () => {
   it("builds stable chat action ids", () => {

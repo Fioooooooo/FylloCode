@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
-import {
-  enabledFylloActionContracts,
-  getFylloActionContract,
-} from "@shared/constants/fyllo-action-contracts";
+import { fylloActionContracts, getFylloActionContract } from "@shared/fyllo-action/registry";
 import {
   fylloActionStateSchema,
   knowledgeFlagFylloActionPayloadSchema,
   knowledgeReviewFylloActionPayloadSchema,
   planCreateFylloActionPayloadSchema,
   taskCreateFylloActionPayloadSchema,
-} from "@shared/schemas/fyllo-action";
+} from "@shared/fyllo-action/schemas";
 import { knowledgeEntryDraftSchema } from "@shared/schemas/knowledge";
 
 describe("Fyllo action shared schemas", () => {
@@ -42,7 +39,7 @@ describe("Fyllo action shared schemas", () => {
   });
 
   it("registers knowledge flag and review action contracts with rail presentation", () => {
-    expect(enabledFylloActionContracts.map((contract) => contract.type)).toEqual([
+    expect(Object.values(fylloActionContracts).map((contract) => contract.type)).toEqual([
       "task.create",
       "plan.create",
       "knowledge.flag",
@@ -83,6 +80,26 @@ describe("Fyllo action shared schemas", () => {
       knowledgeFlagFylloActionPayloadSchema.safeParse({
         summary: "Valid summary",
         unexpected: true,
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects knowledge.flag summaries that span multiple lines", () => {
+    expect(
+      knowledgeFlagFylloActionPayloadSchema.safeParse({
+        summary: "line\nbreak",
+      }).success
+    ).toBe(false);
+
+    expect(
+      knowledgeFlagFylloActionPayloadSchema.safeParse({
+        summary: "carriage\rreturn",
+      }).success
+    ).toBe(false);
+
+    expect(
+      knowledgeFlagFylloActionPayloadSchema.safeParse({
+        summary: "CRLF\r\npair",
       }).success
     ).toBe(false);
   });
@@ -157,11 +174,13 @@ describe("Fyllo action shared schemas", () => {
       fylloActionStateSchema.parse({
         type: "knowledge.flag",
         status: "succeeded",
+        revision: 1,
         updatedAt: "2026-07-11T00:00:00.000Z",
       })
     ).toEqual({
       type: "knowledge.flag",
       status: "succeeded",
+      revision: 1,
       updatedAt: "2026-07-11T00:00:00.000Z",
     });
 
@@ -169,11 +188,13 @@ describe("Fyllo action shared schemas", () => {
       fylloActionStateSchema.parse({
         type: "knowledge.review",
         status: "succeeded",
+        revision: 1,
         updatedAt: "2026-07-11T00:00:00.000Z",
       })
     ).toEqual({
       type: "knowledge.review",
       status: "succeeded",
+      revision: 1,
       updatedAt: "2026-07-11T00:00:00.000Z",
     });
 
@@ -181,6 +202,7 @@ describe("Fyllo action shared schemas", () => {
       fylloActionStateSchema.safeParse({
         type: "unknown.action",
         status: "succeeded",
+        revision: 1,
         updatedAt: "2026-07-11T00:00:00.000Z",
       }).success
     ).toBe(false);

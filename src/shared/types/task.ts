@@ -56,6 +56,8 @@ export interface TaskItem {
   assignee?: TaskUser;
   /** Write-once: set only by insight:lineage:createSessionTask when chat creates a local task. */
   originSessionId?: string;
+  /** Idempotency key: set when the task is created from a fyllo-action so duplicates can be detected. */
+  actionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

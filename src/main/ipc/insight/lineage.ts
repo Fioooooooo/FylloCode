@@ -63,6 +63,7 @@ export function registerLineageHandlers(): void {
         sessionId: form.sessionId,
         title: form.title,
         description: form.description,
+        actionId: form.actionId,
       });
     })
   );

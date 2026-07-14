@@ -2,7 +2,6 @@ export * from "./acp-agent";
 export * from "./channels";
 export * from "./chat";
 export * from "./chat-agent";
-export * from "./fyllo-action";
 export * from "./integration";
 export * from "./ipc";
 export * from "./lineage";

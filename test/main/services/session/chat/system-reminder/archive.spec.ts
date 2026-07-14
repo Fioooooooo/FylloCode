@@ -123,7 +123,7 @@ describe("archive system-reminder template", () => {
     expect(reminder).toContain("Archive/sync actions may appear as optional body bullets");
   });
 
-  it("returns null and warns when any field contains angle brackets", () => {
+  it("encodes angle brackets instead of dropping the reminder", () => {
     const reminder = renderSystemReminderTemplate(
       archiveTemplate,
       createContext({
@@ -131,9 +131,10 @@ describe("archive system-reminder template", () => {
       })
     );
 
-    expect(reminder).toBeNull();
+    expect(reminder).not.toBeNull();
+    expect(reminder).toContain("foo\\u003cbar\\u003e");
     expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
+      "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "archive",
         field: "changeId",

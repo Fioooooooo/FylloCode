@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   probeEnsure: vi.fn(),
   probeClose: vi.fn(),
   probeSetConfigOption: vi.fn(),
-  setActionState: vi.fn(),
   onProbeUpdate: vi.fn(),
   getByTask: vi.fn(),
   getBySession: vi.fn(),
@@ -51,7 +50,6 @@ vi.mock("@renderer/api/session/chat", () => ({
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
     setConfigOption: vi.fn(),
-    setActionState: mocks.setActionState,
     probeEnsure: mocks.probeEnsure,
     probeClose: mocks.probeClose,
     probeSetConfigOption: mocks.probeSetConfigOption,
@@ -116,18 +114,6 @@ describe("useSessionStore", () => {
           },
         ],
         availableCommands: [],
-      },
-    });
-    mocks.setActionState.mockResolvedValue({
-      ok: true,
-      data: {
-        actionStates: {
-          "chat:session-1:0:0:0": {
-            type: "task.create",
-            status: "succeeded",
-            updatedAt: "2026-06-08T00:00:00.000Z",
-          },
-        },
       },
     });
     mocks.onProbeUpdate.mockReturnValue(vi.fn());
@@ -442,28 +428,18 @@ describe("useSessionStore", () => {
     expect(store.sessions[1]?.agentAgenda).toBeUndefined();
   });
 
-  it("persistSessionActionState updates memory immediately and merges IPC result", async () => {
+  it("persistSessionActionState updates memory immediately", async () => {
     const store = useSessionStore();
     store.sessions = [session()];
     const state = {
       type: "task.create" as const,
       status: "succeeded" as const,
+      revision: 1,
       updatedAt: "2026-06-08T00:00:00.000Z",
     };
 
-    const promise = store.persistSessionActionState("session-1", "chat:session-1:0:0:0", state);
+    await store.persistSessionActionState("session-1", "chat:session-1:0:0:0", state);
 
-    expect(store.sessions[0]?.actionStates).toEqual({
-      "chat:session-1:0:0:0": state,
-    });
-    await promise;
-
-    expect(mocks.setActionState).toHaveBeenCalledWith({
-      projectId: "project-1",
-      sessionId: "session-1",
-      actionId: "chat:session-1:0:0:0",
-      state,
-    });
     expect(store.sessions[0]?.actionStates).toEqual({
       "chat:session-1:0:0:0": state,
     });

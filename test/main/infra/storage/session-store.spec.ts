@@ -2,6 +2,7 @@ import { mkdirSync, promises as fsPromises, readFileSync, rmSync, writeFileSync 
 import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
+import type { FylloActionState } from "@shared/fyllo-action/protocol";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -34,7 +35,10 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
     agentId: "claude-acp",
     title: "Session",
     turnCount: 0,
-    tokenUsage: { used: 0, size: 0 },
+    tokenUsage: { used: 0, size: 0, cost: undefined },
+    available_commands: undefined,
+    configOptions: undefined,
+    actionStates: undefined,
     createdAt: "2026-05-14T00:00:00.000Z",
     updatedAt: "2026-05-14T00:00:00.000Z",
     ...overrides,
@@ -141,6 +145,7 @@ describe("session-store", () => {
           "chat:session-1:0:0:0": {
             type: "task.create",
             status: "succeeded",
+            revision: 1,
             updatedAt: "2026-06-08T00:00:00.000Z",
           },
         },
@@ -155,12 +160,17 @@ describe("session-store", () => {
       meta({
         available_commands: [{ name: "review", description: "Review code" }],
         actionStates: {
-          "chat:session-1:0:0:0": {
-            type: "task.create",
-            status: "succeeded",
-            updatedAt: "2026-06-08T00:00:00.000Z",
+          version: 1,
+          records: {
+            "chat:session-1:0:0:0": {
+              type: "task.create",
+              status: "succeeded",
+              revision: 1,
+              updatedAt: "2026-06-08T00:00:00.000Z",
+              error: undefined,
+            },
           },
-        },
+        } as unknown as Record<string, FylloActionState>,
       })
     );
   });
@@ -182,9 +192,9 @@ describe("session-store", () => {
             status: "cancelled",
             updatedAt: "2026-06-08T00:00:00.000Z",
           },
-          invalidStatus: {
+          invalidJson: {
             type: "task.create",
-            status: "ready",
+            status: "unknown",
             updatedAt: "2026-06-08T00:00:00.000Z",
           },
         },
@@ -196,12 +206,17 @@ describe("session-store", () => {
       meta({
         sessionId: "session-2",
         actionStates: {
-          valid: {
-            type: "task.create",
-            status: "cancelled",
-            updatedAt: "2026-06-08T00:00:00.000Z",
+          version: 1,
+          records: {
+            valid: {
+              type: "task.create",
+              status: "cancelled",
+              revision: 0,
+              updatedAt: "2026-06-08T00:00:00.000Z",
+              error: undefined,
+            },
           },
-        },
+        } as unknown as Record<string, FylloActionState>,
       })
     );
   });

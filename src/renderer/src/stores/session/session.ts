@@ -9,7 +9,7 @@ import type {
   Session,
   TokenUsage,
 } from "@shared/types/chat";
-import type { FylloActionState } from "@shared/types/fyllo-action";
+import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { TaskSource } from "@shared/types/task";
@@ -518,17 +518,6 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     setSessionActionState(sessionId, actionId, state);
-    const result = await chatApi.setActionState({
-      projectId: session.projectId,
-      sessionId,
-      actionId,
-      state,
-    });
-    if (!result.ok) {
-      throw new Error(result.error.message || result.error.code);
-    }
-
-    session.actionStates = result.data.actionStates;
   }
 
   // agentAgenda 为运行时态：全量替换，不持久化。SerializedSession / normalizeSession /

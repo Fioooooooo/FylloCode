@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import MarkdownRender, { removeCustomComponents, setCustomComponents } from "markstream-vue";
 import { computed, onBeforeUnmount, provide, watch } from "vue";
-import FylloActionNode from "@renderer/components/shared/markstream/FylloActionNode.vue";
 import {
+  FylloActionNode as FeatureFylloActionNode,
   createFylloActionOrdinalResolver,
   fylloActionHostContextKey,
-  type FylloActionContextInput,
-} from "@renderer/components/shared/markstream/fyllo-action-context";
+  type FylloActionHostContextInput,
+} from "@renderer/features/fyllo-action";
 
 const fylloActionCustomHtmlTags = ["fyllo-action"] as const;
 
@@ -16,7 +16,7 @@ const props = defineProps<{
   isStreaming: boolean;
   isDark: boolean;
   enableActions?: boolean;
-  actionContext?: FylloActionContextInput;
+  actionContext?: FylloActionHostContextInput;
 }>();
 
 const customHtmlTags = computed(() =>
@@ -29,6 +29,9 @@ let actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
 // Provide host context to nested FylloActionNode components so they can resolve their
 // ordinal position and read/persist action state without prop drilling through markstream-vue.
 provide(fylloActionHostContextKey, {
+  get projectId() {
+    return props.actionContext?.projectId ?? "";
+  },
   get sessionId() {
     return props.actionContext?.sessionId ?? "";
   },
@@ -47,6 +50,12 @@ provide(fylloActionHostContextKey, {
   persistActionState(actionId, state) {
     return props.actionContext?.persistActionState?.(actionId, state) ?? Promise.resolve();
   },
+  transitionAction(input) {
+    return props.actionContext?.transitionAction?.(input) ?? Promise.resolve({} as never);
+  },
+  transitionActions(input) {
+    return props.actionContext?.transitionActions?.(input) ?? Promise.resolve([]);
+  },
 });
 
 function removeRegisteredCustomComponents(): void {
@@ -64,7 +73,7 @@ function registerFylloActionComponents(): void {
   }
 
   setCustomComponents(props.id, {
-    "fyllo-action": FylloActionNode,
+    "fyllo-action": FeatureFylloActionNode,
   });
   registeredCustomId = props.id;
 }

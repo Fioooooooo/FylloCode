@@ -27,7 +27,6 @@ describe("domain IPC channel constants", () => {
           "readAttachmentDataUrl": "session:chat:readAttachmentDataUrl",
           "removeSession": "session:chat:removeSession",
           "saveAttachment": "session:chat:saveAttachment",
-          "setActionState": "session:chat:setActionState",
           "setConfigOption": "session:chat:setConfigOption",
           "updateSession": "session:chat:updateSession",
         },

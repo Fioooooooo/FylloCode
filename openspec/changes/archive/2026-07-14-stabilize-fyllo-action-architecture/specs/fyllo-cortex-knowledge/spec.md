@@ -1,0 +1,186 @@
+# fyllo-cortex-knowledge Specification (Delta)
+
+## Purpose
+
+本文件是 `openspec/specs/fyllo-cortex-knowledge/spec.md` 的 delta，调整 `knowledge.flag` 和 `knowledge.review` Action 与新版 Fyllo Action 状态机、注册/transition IPC 的交互规则。
+
+## MODIFIED Requirements
+
+### Requirement: Knowledge flag action records low-cost candidates
+
+系统 SHALL 支持 `knowledge.flag` Fyllo Action，用于记录尚未审阅的 knowledge 候选。
+
+`knowledge.flag` payload SHALL 是严格 JSON object，包含必填 `summary` 和可选 `contextPaths`。`summary` SHALL 是一句话，说明候选事实以及为什么不可廉价推断；`summary` SHALL 拒绝 CR/LF。`contextPaths` SHALL 是项目相对路径数组。
+
+`knowledge.flag` SHALL 是 `presentation=rail`、`interaction=confirm` 的 action：它 SHALL 出现在 EventRail 中，但 EventRail SHALL 只提供展示和定位，不提供 capture、confirm 或沉淀操作按钮。inline Fyllo Action shell SHALL 通过普通确认/取消按钮提供操作。确认该 action SHALL 触发 capture 流程，取消该 action SHALL 通过 `transitionAction` 命令 `cancel` 更新 action state；两者都 SHALL NOT 直接写入 knowledge 文件。
+
+#### Scenario: Assistant emits a flag and continues working
+
+- **WHEN** assistant 在回复中输出合法 `<fyllo-action type="knowledge.flag">`
+- **THEN** renderer SHALL 能解析该 action
+- **AND** 该 action SHALL 像其他 confirm action 一样展示操作按钮，但不要求用户立即确认
+- **AND** assistant MAY 在同一回复中继续输出普通文本或继续执行后续工具调用
+- **AND** renderer SHALL 在该 action 进入 `ready` 后立即调用 `registerAction` 持久化 `ready` 状态
+
+#### Scenario: EventRail derives flags from renderer-parsed messages
+
+- **WHEN** 当前 active session 已加载的 assistant message 包含合法 `knowledge.flag`
+- **THEN** EventRail SHALL 通过 renderer 侧 Fyllo Action parsing 得到该 candidate
+- **AND** EventRail SHALL 使用 `requiresFylloActionAttention` 谓词过滤 pending flags
+- **AND** 系统 SHALL NOT 要求 main 为 `knowledge.flag` 写入专门的 session meta 投影
+- **AND** EventRail 的 candidate 范围 SHALL 以当前 active session 已加载消息为准
+
+#### Scenario: Invalid flag payload is ignored as a candidate
+
+- **WHEN** assistant 输出的 `knowledge.flag` payload 不符合 schema
+- **THEN** renderer SHALL 将该 inline action 按现有 invalid action 呈现或忽略为不可处理项
+- **AND** 该 action SHALL NOT 进入 EventRail pending action 列表
+- **AND** renderer SHALL NOT 调用 `registerAction`
+
+### Requirement: Users trigger capture by confirming knowledge flags
+
+系统 SHALL 在 Chat EventRail 中展示当前 active session 已加载消息里的未处理 knowledge flags，但 EventRail SHALL 保持只读列表形态，不提供 capture 操作按钮。
+
+确认任意 inline pending `knowledge.flag` action，SHALL 对当前已加载会话里的全部未处理 knowledge flags 组装一条 capture 用户消息。发送 SHALL 遵守 Chat prompt 的统一发送条件；assistant 正在回复时不得发送。
+
+发送成功后，系统 SHALL 通过 `transitionActions` IPC 将同批 pending knowledge flag actions 原子地标记为 `succeeded`；SHALL NOT 使用多个独立 `setActionState` 调用逐个更新。发送失败或 durable append 失败时，同批 flags SHALL 保持 `ready` 或 `failed` 状态，SHALL NOT 被标记为 `succeeded`。
+
+#### Scenario: EventRail shows pending flags
+
+- **WHEN** 当前 active session 已加载 assistant messages 中至少包含一个合法、未处理的 `knowledge.flag`
+- **THEN** EventRail SHALL 展示 knowledge flag 分组或条目
+- **AND** 每个条目 SHALL 展示 summary 或可读回退文本
+- **AND** EventRail 条目 SHALL NOT 展示 capture、confirm 或沉淀按钮
+
+#### Scenario: Inline capture trigger includes all pending flags
+
+- **WHEN** 用户确认当前会话任意 inline pending `knowledge.flag` action
+- **THEN** 系统 SHALL 发送一条 capture 用户消息
+- **AND** 该消息 SHALL 包含当前已加载会话中的所有 pending knowledge flags
+- **AND** 系统 SHALL NOT 只发送被点击的单个 flag
+- **AND** 发送成功后，系统 SHALL 调用 `transitionActions` 将该批 flags 全部更新为 `succeeded`
+- **AND** 该 batch transition SHALL 在一次 session meta patch 中原子完成
+- **AND** 系统 SHALL NOT 为 knowledge flags 新增专门的 session meta 投影字段
+
+#### Scenario: Capture message separates hidden instructions from visible text
+
+- **WHEN** 系统发送 knowledge capture 用户消息
+- **THEN** message parts SHALL 包含两个 text parts
+- **AND** 第一个 text part SHALL 是完整 `<system-reminder>...</system-reminder>`，并在 renderer 对话流中隐藏
+- **AND** 第一个 text part SHALL 提示 agent 调用 `mcp__fyllo_cortex__knowledge({ "mode": "capture" })` 获取 capture instruction
+- **AND** 第一个 text part SHALL 只携带候选 `summary` 和可选 `contextPaths`
+- **AND** 第一个 text part SHALL NOT 包含 Fyllo Action `actionId`
+- **AND** 第二个 text part SHALL 是用户可见的自然语言请求
+- **AND** 第二个 text part SHALL NOT 暴露 FylloCode 内部术语、tool 名、payload 或 action id
+
+#### Scenario: Inline flag confirmation triggers capture
+
+- **WHEN** 用户确认一个 inline `knowledge.flag` action
+- **THEN** 系统 SHALL 复用统一 capture trigger 逻辑发送 capture 用户消息
+- **AND** 该消息 SHALL 包含当前已加载会话中的所有 pending knowledge flags
+- **AND** 系统 SHALL NOT 直接写入、更新或删除 knowledge entry
+
+#### Scenario: Capture cannot start while assistant is responding
+
+- **WHEN** 当前 chat status 不是可发送状态
+- **THEN** inline flag confirmation SHALL 拒绝发送 capture 用户消息
+- **AND** 系统 SHALL NOT 创建新的 capture 用户消息
+- **AND** 系统 SHALL NOT 调用 `transitionActions`
+
+### Requirement: Knowledge review action opens raw markdown review
+
+系统 SHALL 支持 `knowledge.review` Fyllo Action，用于让用户审阅 agent 已写入或更新的 knowledge markdown 文件。
+
+`knowledge.review` payload SHALL 是严格 JSON object，包含：
+
+- 必填 `name`：kebab-case knowledge entry name，用于定位 `knowledge/<name>.md`；
+- 可选 `summary`：展示给用户的审阅摘要。
+
+Payload 中所有字符串 SHALL 不能通过字面 `</fyllo-action>` 截断 action tag；输出到 prompt contract 的说明 SHALL 要求 agent 将尖括号编码为 `\u003c` 和 `\u003e`。
+
+#### Scenario: Review opens raw markdown from disk
+
+- **WHEN** 用户确认一个 `name` 为 `markstream-vue-theme-subscription` 的 `knowledge.review`
+- **THEN** renderer SHALL 打开 knowledge review slideover
+- **AND** slideover SHALL 通过 `insight:knowledge:readEntry` 读取 `knowledge/markstream-vue-theme-subscription.md`
+- **AND** 编辑器 SHALL 展示该 markdown 文件的完整原文，包括 YAML frontmatter 和 body
+
+#### Scenario: Review saves raw markdown without frontmatter preprocessing
+
+- **WHEN** 用户在 knowledge review slideover 中修改文本
+- **THEN** renderer SHALL 通过 `insight:knowledge:saveEntry` 实时保存完整 markdown 原文
+- **AND** main SHALL NOT 解析、重组、排序或删除 frontmatter 字段
+- **AND** 保存路径 SHALL 只允许 `knowledge/<name>.md`
+
+#### Scenario: Review confirmation only completes action state
+
+- **WHEN** 用户在 knowledge review slideover 中点击确认
+- **THEN** slideover SHALL 先保存当前编辑器内容并等待保存完成
+- **AND** confirm handler SHALL 调用 `transitionAction` 命令 `succeed` 将该 review action 标记为 succeeded
+- **AND** main SHALL NOT 在确认阶段执行 capture、discard、update 或 retire operation
+
+#### Scenario: Missing review entry reports load error
+
+- **WHEN** 用户打开 `knowledge.review` 但目标 `knowledge/<name>.md` 不存在
+- **THEN** slideover SHALL 显示明确加载错误
+- **AND** 系统 SHALL NOT 创建空 entry 文件
+
+## ADDED Requirements
+
+### Requirement: Knowledge flag capture waits for durable message append
+
+系统 SHALL 在 capture 用户消息 durable append 成功后，才调用 `transitionActions` 将同批 knowledge flags 标记为 `succeeded`。
+
+knowledge flag handler SHALL 通过 dedicated port `sendMessageAndAwaitDurableAppend(parts): Promise<{ messageId: string }>` 发送 capture 用户消息；该 port 在消息被 durable append 到 session message store 后 resolve。未收到 durable append 确认前，同批 flags SHALL 保持 `ready` 状态。
+
+该 port 的实现可复用现有 `chatStore.sendMessage` 的内部发送逻辑，但 SHALL 向调用方暴露 durable append 完成信号；本次改动 SHALL NOT 改变 `sendMessage` 的公共签名，避免影响 task.create、plan confirm 等其他调用方。
+
+若 durable append 成功但 `transitionActions` 失败，系统 SHALL 保留明确的“消息已发送、状态待同步”恢复信息，并允许用户只重试状态同步。
+
+#### Scenario: Append succeeds then batch transition succeeds
+
+- **WHEN** capture 用户消息已 durable append
+- **AND** `transitionActions` 返回成功
+- **THEN** 同批 flags SHALL 全部变为 `succeeded`
+- **AND** attentionCount SHALL 一次性减少
+
+#### Scenario: Append fails before transition
+
+- **WHEN** capture 用户消息 durable append 失败
+- **THEN** 系统 SHALL 不调用 `transitionActions`
+- **AND** 同批 flags SHALL 保持 `ready`
+- **AND** 用户 SHALL 可重试 capture
+
+#### Scenario: Transition fails after append succeeds
+
+- **WHEN** capture 用户消息已 durable append
+- **AND** `transitionActions` 失败
+- **THEN** 系统 SHALL 显示“消息已发送、状态待同步”
+- **AND** 用户 SHALL 可只重试状态同步
+- **AND** 系统 SHALL NOT 重新发送 capture 用户消息
+
+### Requirement: Knowledge review autosave handles rejection and teardown
+
+knowledge review slideover 的后台 debounce save SHALL 消费 Promise rejection，将错误进入本地状态，SHALL NOT 产生未处理 rejection。
+
+用户点击显式确认或关闭 slideover 时，系统 SHALL await 当前保存并阻止带 dirty state 的销毁。
+
+slideover unmount 时，系统 SHALL flush debounce 内的 dirty 内容，或明确阻止未保存内容丢失。
+
+#### Scenario: Autosave fails in background
+
+- **WHEN** 后台 debounce save 失败
+- **THEN** 错误 SHALL 进入 slideover 本地错误状态
+- **AND** 控制台或全局 unhandled rejection handler SHALL 不报告该 rejection
+
+#### Scenario: User closes with dirty content
+
+- **WHEN** 用户关闭 slideover 时 debounce 内仍有未保存内容
+- **THEN** 系统 SHALL 先完成保存
+- **AND** 保存成功后 SHALL 才关闭 slideover
+
+#### Scenario: Component unmount flushes autosave
+
+- **WHEN** knowledge review slideover 组件 unmount
+- **THEN** 系统 SHALL flush 当前 debounce 保存
+- **AND** SHALL NOT 丢失未保存的编辑器内容

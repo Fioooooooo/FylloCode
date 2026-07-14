@@ -3,14 +3,14 @@ import { ref } from "vue";
 import ChatFylloActionPanel from "@renderer/components/chat/event/ChatFylloActionPanel.vue";
 import ChatAgentAgendaPanel from "@renderer/components/chat/event/ChatAgentAgendaPanel.vue";
 import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel.vue";
-import type { PendingFylloActionRailItem } from "@renderer/utils/fyllo-action-rail";
+import type { FylloActionRailContributorItem } from "@renderer/features/fyllo-action";
 import type { AgendaEntry } from "@shared/types/chat";
 import type { ProposalMeta } from "@shared/types/proposal";
 
 const props = defineProps<{
   agentAgendaEntries: AgendaEntry[];
   sessionProposals: ProposalMeta[];
-  pendingActionItems: PendingFylloActionRailItem[];
+  pendingActionItems: FylloActionRailContributorItem[];
 }>();
 
 const emit = defineEmits<{

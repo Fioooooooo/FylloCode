@@ -63,6 +63,8 @@ export interface CreateSessionTaskInput {
   sessionId: string;
   title: string;
   description?: string;
+  /** Idempotency key for fyllo-action task creation. */
+  actionId?: string;
 }
 
 export type PlanDocumentStatus = "draft" | "approved";

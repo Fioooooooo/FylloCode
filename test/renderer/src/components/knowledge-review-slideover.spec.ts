@@ -128,4 +128,118 @@ describe("KnowledgeReviewSlideover", () => {
     expect(wrapper.emitted("close")).toBeUndefined();
     expect(wrapper.text()).toContain("当前聊天会话已切换");
   });
+
+  it("surfaces autosave errors locally and keeps the slideover open", async () => {
+    vi.useFakeTimers();
+    saveEntryMock.mockResolvedValue({
+      ok: false,
+      error: { message: "autosave failed" },
+    });
+
+    const wrapper = await mountKnowledgeReview();
+    const edited = `${rawContent}\n\nextra line`;
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(edited);
+    await vi.advanceTimersByTimeAsync(700);
+    await flushPromises();
+
+    expect(saveEntryMock).toHaveBeenCalledWith("project-1", {
+      name: "markstream-vue-theme-subscription",
+      content: edited,
+    });
+    expect(wrapper.text()).toContain("autosave failed");
+    expect(wrapper.emitted("close")).toBeUndefined();
+  });
+
+  it("retries autosave after a failed save when the user keeps editing", async () => {
+    vi.useFakeTimers();
+    saveEntryMock
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { message: "first attempt failed" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          name: "markstream-vue-theme-subscription",
+          content: "",
+        },
+      });
+
+    const wrapper = await mountKnowledgeReview();
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(`${rawContent}\n\nfirst`);
+    await vi.advanceTimersByTimeAsync(700);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("first attempt failed");
+
+    const secondEdit = `${rawContent}\n\nsecond`;
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(secondEdit);
+    await vi.advanceTimersByTimeAsync(700);
+    await flushPromises();
+
+    expect(saveEntryMock).toHaveBeenLastCalledWith("project-1", {
+      name: "markstream-vue-theme-subscription",
+      content: secondEdit,
+    });
+    expect(wrapper.text()).not.toContain("first attempt failed");
+    expect(wrapper.text()).not.toContain("知识尚未沉淀");
+  });
+
+  it("flushes pending debounced edits on unmount", async () => {
+    const wrapper = await mountKnowledgeReview();
+    const edited = `${rawContent}\n\nflushed on unmount`;
+
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(edited);
+    wrapper.unmount();
+    await flushPromises();
+
+    expect(saveEntryMock).toHaveBeenCalledWith("project-1", {
+      name: "markstream-vue-theme-subscription",
+      content: edited,
+    });
+  });
+
+  it("keeps the slideover open when explicit close fails to save", async () => {
+    saveEntryMock.mockResolvedValue({
+      ok: false,
+      error: { message: "close save failed" },
+    });
+
+    const wrapper = await mountKnowledgeReview();
+    const edited = `${rawContent}\n\nclose edit`;
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(edited);
+    await flushPromises();
+
+    await buttonByText(wrapper, "关闭").trigger("click");
+    await flushPromises();
+
+    expect(saveEntryMock).toHaveBeenCalledWith("project-1", {
+      name: "markstream-vue-theme-subscription",
+      content: edited,
+    });
+    expect(wrapper.text()).toContain("close save failed");
+    expect(wrapper.emitted("close")).toBeUndefined();
+  });
+
+  it("keeps the slideover open when approval fails to save", async () => {
+    saveEntryMock.mockResolvedValue({
+      ok: false,
+      error: { message: "approve save failed" },
+    });
+
+    const wrapper = await mountKnowledgeReview();
+    const edited = `${rawContent}\n\napprove edit`;
+    await wrapper.get('[data-test="knowledge-body-editor"]').setValue(edited);
+    await flushPromises();
+
+    await buttonByText(wrapper, "确认").trigger("click");
+    await flushPromises();
+
+    expect(saveEntryMock).toHaveBeenCalledWith("project-1", {
+      name: "markstream-vue-theme-subscription",
+      content: edited,
+    });
+    expect(wrapper.text()).toContain("approve save failed");
+    expect(wrapper.emitted("close")).toBeUndefined();
+  });
 });

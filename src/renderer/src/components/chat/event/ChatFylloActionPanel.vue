@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PendingFylloActionRailItem } from "@renderer/utils/fyllo-action-rail";
+import type { FylloActionRailContributorItem } from "@renderer/features/fyllo-action";
 
 const props = defineProps<{
-  items: PendingFylloActionRailItem[];
+  items: FylloActionRailContributorItem[];
 }>();
 
 const emit = defineEmits<{

@@ -104,29 +104,6 @@ describe("resolveSystemReminder", () => {
     );
   });
 
-  it("returns null and logs a warning when a variable contains angle brackets", async () => {
-    const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
-
-    await expect(
-      resolveSystemReminder({
-        owner: "chat",
-        projectPath: "/tmp/<project>",
-        cwd: "/tmp/project",
-        fylloSessionId: "session-1",
-        agentId: "claude-acp",
-      })
-    ).resolves.toBeNull();
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
-      expect.objectContaining({
-        owner: "chat",
-        field: "projectPath",
-        fylloSessionId: "session-1",
-      })
-    );
-  });
-
   it("replaces allowed placeholders and preserves unknown placeholders", async () => {
     const { renderSystemReminderTemplate } =
       await import("@main/services/session/chat/system-reminder/providers/shared");
@@ -226,22 +203,22 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text).not.toContain("登录超时的完整复现步骤");
   });
 
-  it("returns null and logs a warning when taskRef contains angle brackets", async () => {
+  it("encodes angle brackets in taskRef instead of dropping the reminder", async () => {
     const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
 
-    await expect(
-      resolveSystemReminder({
-        owner: "chat",
-        projectPath: "/tmp/project",
-        cwd: "/tmp/project",
-        fylloSessionId: "session-1",
-        agentId: "claude-acp",
-        taskRef: "local:<bad>",
-      })
-    ).resolves.toBeNull();
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+      taskRef: "local:<bad>",
+    });
 
+    expect(reminder).not.toBeNull();
+    expect(reminder?.text).toContain("local:\\u003cbad\\u003e");
     expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
+      "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
         field: "taskRef",
@@ -250,23 +227,23 @@ describe("resolveSystemReminder", () => {
     );
   });
 
-  it("returns null and logs a warning when taskTitle contains angle brackets", async () => {
+  it("encodes angle brackets in taskTitle instead of dropping the reminder", async () => {
     const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
 
-    await expect(
-      resolveSystemReminder({
-        owner: "chat",
-        projectPath: "/tmp/project",
-        cwd: "/tmp/project",
-        fylloSessionId: "session-1",
-        agentId: "claude-acp",
-        taskRef: "local:task-1",
-        taskTitle: "bad<title>",
-      })
-    ).resolves.toBeNull();
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+      taskRef: "local:task-1",
+      taskTitle: "bad<title>",
+    });
 
+    expect(reminder).not.toBeNull();
+    expect(reminder?.text).toContain("bad\\u003ctitle\\u003e");
     expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
+      "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
         field: "taskTitle",
@@ -286,23 +263,17 @@ describe("resolveSystemReminder", () => {
       agentId: "claude-acp",
     });
 
-    expect(reminder?.text).toContain("## Fyllo Action Tags");
+    expect(reminder?.text).toContain("<fyllo-action-contract>");
+    expect(reminder?.text).toContain("</fyllo-action-contract>");
     expect(reminder?.text).toContain('<fyllo-action type="task.create">');
     expect(reminder?.text).toContain('<fyllo-action type="plan.create">');
     expect(reminder?.text).toContain("task.create");
     expect(reminder?.text).toContain("plan.create");
     expect(reminder?.text).toContain("title");
-    expect(reminder?.text).toContain("Required non-empty task title.");
     expect(reminder?.text).toContain("description");
-    expect(reminder?.text).toContain("Optional plain-text task description.");
     expect(reminder?.text).toContain("slug");
     expect(reminder?.text).toContain("goal");
-    expect(reminder?.text).toContain(
-      "Payload schema: strict JSON object. Do not include unknown fields."
-    );
-    expect(reminder?.text).toContain("The only allowed attribute is `type`.");
-    expect(reminder?.text).toContain("FylloCode controls the UI and fixed confirm/cancel buttons.");
-    expect(reminder?.text).toContain("confirmLabel");
+    expect(reminder?.text).toContain("Enabled action types:");
   });
 
   it("does not inject Fyllo action contracts into apply or archive reminders", async () => {
@@ -320,10 +291,8 @@ describe("resolveSystemReminder", () => {
         runId: "run-1",
       });
 
-      expect(reminder?.text).not.toContain("## Fyllo Action Tags");
-      expect(reminder?.text).not.toContain('<fyllo-action type="task.create">');
-      expect(reminder?.text).not.toContain('<fyllo-action type="plan.create">');
-      expect(reminder?.text).not.toContain("After `mcp__fyllo_specs__create-proposal` returns");
+      expect(reminder?.text).not.toContain("<fyllo-action-contract>");
+      expect(reminder?.text).not.toContain("</fyllo-action-contract>");
     }
   });
 });

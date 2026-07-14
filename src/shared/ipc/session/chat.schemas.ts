@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { chatPromptPartSchema } from "@shared/types/chat-prompt";
-import { fylloActionStateSchema } from "@shared/schemas/fyllo-action";
 import { lineageTaskRefSchema } from "@shared/ipc/insight/lineage.schemas";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -175,15 +174,6 @@ export const setConfigOptionInputSchema = z.discriminatedUnion("type", [
 ]);
 
 export type SetConfigOptionInput = z.infer<typeof setConfigOptionInputSchema>;
-
-export const setActionStateInputSchema = z.object({
-  projectId: z.string().min(1),
-  sessionId: z.string().min(1),
-  actionId: z.string().min(1),
-  state: fylloActionStateSchema,
-});
-
-export type SetActionStateInput = z.infer<typeof setActionStateInputSchema>;
 
 export const probeEnsureInputSchema = z.object({
   agentId: z.string().min(1),

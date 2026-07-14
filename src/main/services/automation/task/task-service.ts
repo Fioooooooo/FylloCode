@@ -10,7 +10,7 @@ import type {
 } from "@shared/types/task";
 import {
   loadTasks as loadTaskItems,
-  saveTasks as saveTaskItems,
+  updateTasks as updateTaskItems,
 } from "@main/infra/storage/task-store";
 import { newTaskId } from "@main/infra/ids";
 
@@ -21,6 +21,7 @@ const EMPTY_LOCAL_DESCRIPTION: TaskDescription = {
 
 interface CreateTaskOptions {
   originSessionId?: string;
+  actionId?: string;
 }
 
 export async function resolveTaskProjectPath(projectId: string): Promise<string> {
@@ -61,7 +62,17 @@ export async function createTask(
   input: CreateLocalTaskInput,
   options: CreateTaskOptions = {}
 ): Promise<TaskItem> {
-  const currentTasks = await loadTaskItems(projectPath);
+  // Fast read-only duplicate check: if a task with the same actionId already exists,
+  // return it immediately without generating a new id. The atomic update below still
+  // guards against duplicates that appear between this check and the write.
+  if (options.actionId) {
+    const currentTasks = await loadTaskItems(projectPath);
+    const existing = currentTasks.find((task) => task.actionId === options.actionId);
+    if (existing) {
+      return existing;
+    }
+  }
+
   const now = new Date();
   const projectId = encodeProjectPath(projectPath);
   const task: TaskItem = {
@@ -75,11 +86,30 @@ export async function createTask(
     labels: [],
     assignee: undefined,
     originSessionId: options.originSessionId,
+    actionId: options.actionId,
     createdAt: now,
     updatedAt: now,
   };
 
-  await saveTaskItems(projectPath, [...currentTasks, task]);
+  const nextTasks = await updateTaskItems(projectPath, (current) => {
+    if (options.actionId) {
+      const existing = current.find((item) => item.actionId === options.actionId);
+      if (existing) {
+        return current;
+      }
+    }
+    return [...current, task];
+  });
+
+  if (options.actionId) {
+    const existing = nextTasks.find(
+      (item) => item.actionId === options.actionId && item.id !== task.id
+    );
+    if (existing) {
+      return existing;
+    }
+  }
+
   return task;
 }
 
@@ -88,25 +118,29 @@ export async function updateTask(
   taskId: string,
   patch: UpdateTaskInput
 ): Promise<TaskItem> {
-  const currentTasks = await loadTaskItems(projectPath);
-  const index = currentTasks.findIndex((task) => task.id === taskId);
-  if (index === -1) {
-    throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
-  }
+  let nextTask: TaskItem | undefined;
 
-  const nextTask = applyPatch(currentTasks[index], patch);
-  const nextTasks = [...currentTasks];
-  nextTasks.splice(index, 1, nextTask);
-  await saveTaskItems(projectPath, nextTasks);
-  return nextTask;
+  await updateTaskItems(projectPath, (current) => {
+    const index = current.findIndex((task) => task.id === taskId);
+    if (index === -1) {
+      throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
+    }
+
+    nextTask = applyPatch(current[index], patch);
+    const nextTasks = [...current];
+    nextTasks.splice(index, 1, nextTask);
+    return nextTasks;
+  });
+
+  return nextTask!;
 }
 
 export async function deleteTask(projectPath: string, taskId: string): Promise<void> {
-  const currentTasks = await loadTaskItems(projectPath);
-  const nextTasks = currentTasks.filter((task) => task.id !== taskId);
-  if (nextTasks.length === currentTasks.length) {
-    throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
-  }
-
-  await saveTaskItems(projectPath, nextTasks);
+  await updateTaskItems(projectPath, (current) => {
+    const nextTasks = current.filter((task) => task.id !== taskId);
+    if (nextTasks.length === current.length) {
+      throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
+    }
+    return nextTasks;
+  });
 }

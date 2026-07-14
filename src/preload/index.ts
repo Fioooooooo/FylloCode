@@ -8,6 +8,7 @@ import { settingsApi } from "./api/platform/settings";
 import { projectApi } from "./api/workspace/project";
 import { windowApi } from "./api/workspace/window";
 import { chatApi } from "./api/session/chat";
+import { sessionActionApi } from "./api/session/action";
 import { proposalArchiveApi } from "./api/proposal/archive";
 import { proposalApplyApi } from "./api/proposal/apply";
 import { proposalBrowserApi } from "./api/proposal/browser";
@@ -34,6 +35,7 @@ const api = {
   },
   session: {
     chat: chatApi,
+    action: sessionActionApi,
   },
   proposal: {
     browser: proposalBrowserApi,

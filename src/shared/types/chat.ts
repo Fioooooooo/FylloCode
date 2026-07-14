@@ -1,7 +1,7 @@
 import type { UIMessage, ChatStatus } from "ai";
 import type { AcpSessionConfigOption } from "./acp-config";
 import type { ChatAgent } from "./chat-agent";
-import type { FylloActionState } from "./fyllo-action";
+import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "./lineage";
 
 export type { ChatStatus };

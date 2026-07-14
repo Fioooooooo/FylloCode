@@ -2,10 +2,10 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { sessionsDir } from "@main/infra/storage/project-paths";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
-import { getFylloActionContract } from "@shared/constants/fyllo-action-contracts";
+import { getFylloActionContract } from "@shared/fyllo-action/registry";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
-import type { FylloActionState, FylloActionStateStatus } from "@shared/types/fyllo-action";
+import type { FylloActionState, FylloActionStateStatus } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { UIMessage } from "ai";
 
@@ -228,7 +228,7 @@ function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined)
 }
 
 function isActionStateStatus(value: unknown): value is FylloActionStateStatus {
-  return value === "succeeded" || value === "failed" || value === "cancelled";
+  return value === "ready" || value === "succeeded" || value === "failed" || value === "cancelled";
 }
 
 function normalizeActionStates(value: unknown): Record<string, FylloActionState> | undefined {
@@ -236,7 +236,15 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
     return undefined;
   }
 
-  const entries = Object.entries(value).flatMap(([actionId, rawState]) => {
+  // Support versioned envelope: { version: 1, records: Record<string, FylloActionState> }
+  const rawRecords =
+    value.version === 1 && isSessionMetaRecord(value.records) ? value.records : value;
+
+  if (!isSessionMetaRecord(rawRecords)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(rawRecords).flatMap(([actionId, rawState]) => {
     if (actionId.length === 0 || !isSessionMetaRecord(rawState)) {
       return [];
     }
@@ -244,6 +252,8 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
     const type = rawState.type;
     const status = rawState.status;
     const updatedAt = rawState.updatedAt;
+    const revision = rawState.revision;
+    const error = rawState.error;
     const contract = typeof type === "string" ? getFylloActionContract(type) : undefined;
     if (typeof type !== "string" || !contract || contract.interaction !== "confirm") {
       return [];
@@ -258,7 +268,12 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
         {
           type: contract.type,
           status,
+          revision:
+            typeof revision === "number" && Number.isInteger(revision) && revision >= 0
+              ? revision
+              : 0,
           updatedAt,
+          error: typeof error === "string" ? error : undefined,
         },
       ] as const,
     ];
@@ -268,12 +283,15 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
 }
 
 function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
+  const normalizedActionStates = normalizeActionStates(raw.actionStates);
   return {
     ...raw,
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
     configOptions: Array.isArray(raw.configOptions) ? raw.configOptions : undefined,
-    actionStates: normalizeActionStates(raw.actionStates),
+    actionStates: normalizedActionStates
+      ? { version: 1, records: normalizedActionStates }
+      : undefined,
   };
 }
 

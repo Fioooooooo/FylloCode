@@ -75,6 +75,7 @@ export const createSessionTaskInputSchema = z.object({
   sessionId: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),
+  actionId: z.string().optional(),
 });
 
 export const readPlanInputSchema = z.object({

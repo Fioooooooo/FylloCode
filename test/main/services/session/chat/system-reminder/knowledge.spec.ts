@@ -78,11 +78,25 @@ afterEach(async () => {
 });
 
 describe("system-reminder knowledge section", () => {
-  it("omits the <knowledge> block when the app data knowledge directory is missing", async () => {
+  it("injects a fixed <knowledge> block when the app data knowledge directory is missing", async () => {
     const reminder = await resolveChatReminder();
 
-    expect(reminder).toEqual(expect.any(String));
-    expect(reminder).not.toContain(KNOWLEDGE_BLOCK_OPEN);
+    expect(reminder).toContain(KNOWLEDGE_BLOCK_OPEN);
+    expect(reminder).toContain("</knowledge>");
+    expect(reminder).toContain("knowledge.flag");
+  });
+
+  it("injects a fixed <knowledge> block when the knowledge index is empty", async () => {
+    await mkdir(knowledgeDir(projectDir), { recursive: true });
+
+    const reminder = await resolveChatReminder();
+
+    expect(reminder).toContain(KNOWLEDGE_BLOCK_OPEN);
+    expect(reminder).toContain("</knowledge>");
+    expect(reminder).toContain("knowledge.flag");
+    expect(reminder).not.toContain("project:");
+    expect(reminder).not.toContain("reference:");
+    expect(reminder).not.toContain("feedback:");
   });
 
   it("injects grouped knowledge index into chat reminders before action contracts", async () => {
@@ -157,7 +171,7 @@ describe("system-reminder knowledge section", () => {
 
     const knowledgeIndex = reminder.indexOf(KNOWLEDGE_BLOCK_OPEN);
     expect(knowledgeIndex).toBeGreaterThan(reminder.indexOf("</critical>"));
-    expect(knowledgeIndex).toBeLessThan(reminder.indexOf("## Fyllo Action Tags"));
+    expect(knowledgeIndex).toBeLessThan(reminder.indexOf("<fyllo-action-contract>"));
   });
 
   it("does not inject knowledge into archive reminders", async () => {

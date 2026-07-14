@@ -74,7 +74,7 @@ describe("system-reminder guidelines section", () => {
 
     const guidelinesIndex = reminder?.text.indexOf(GUIDELINES_BLOCK_OPEN) ?? -1;
     expect(guidelinesIndex).toBeGreaterThan(reminder?.text.indexOf("</critical>") ?? 0);
-    expect(guidelinesIndex).toBeLessThan(reminder?.text.indexOf("## Fyllo Action Tags") ?? 0);
+    expect(guidelinesIndex).toBeLessThan(reminder?.text.indexOf("<fyllo-action-contract>") ?? 0);
   });
 
   it("injects the <guidelines> block into apply reminders", async () => {

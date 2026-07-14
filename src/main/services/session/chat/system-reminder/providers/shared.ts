@@ -24,7 +24,7 @@ function sanitizeValue(
   ctx: SystemReminderContext,
   field: string,
   value: string | number | undefined
-): string | null {
+): string {
   if (value === undefined) return "";
 
   const text = String(value);
@@ -32,12 +32,12 @@ function sanitizeValue(
     return text;
   }
 
-  logger.warn("[system-reminder] rejected reminder variable", {
+  logger.warn("[system-reminder] encoding angle brackets in reminder variable", {
     owner: ctx.owner,
     field,
     fylloSessionId: ctx.fylloSessionId,
   });
-  return null;
+  return escapeAngleBrackets(text);
 }
 
 function getVariableValue(
@@ -73,11 +73,7 @@ export function renderSystemReminderTemplate(
   const sanitizedValues = {} as Record<AllowedVariable, string>;
 
   for (const field of ALLOWED_VARIABLES) {
-    const sanitized = sanitizeValue(ctx, field, getVariableValue(ctx, field) ?? undefined);
-    if (sanitized === null) {
-      return null;
-    }
-    sanitizedValues[field] = sanitized;
+    sanitizedValues[field] = sanitizeValue(ctx, field, getVariableValue(ctx, field) ?? undefined);
   }
 
   const renderedConditionals = template.replace(

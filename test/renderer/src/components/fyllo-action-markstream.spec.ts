@@ -34,7 +34,7 @@ vi.mock("markstream-vue", () => ({
   removeCustomComponents: markstreamMocks.removeCustomComponents,
 }));
 
-vi.mock("@renderer/components/shared/markstream/FylloActionNode.vue", () => ({
+vi.mock("@renderer/features/fyllo-action/ui/FylloActionNode.vue", () => ({
   default: {
     name: "FylloActionNode",
     template: "<div />",
@@ -134,6 +134,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
         enableActions: true,
         sessionId: "session-1",
         messageIndex: 0,
+        projectId: "project-1",
       },
       global: {
         plugins: [createPinia()],
@@ -148,7 +149,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
               actionContext: Object,
             },
             template:
-              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
+              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-project-id="actionContext?.projectId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
           },
           UChatReasoning: true,
           UChatTool: {

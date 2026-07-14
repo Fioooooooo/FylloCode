@@ -7,7 +7,12 @@ import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import ChatToolGroup from "./ChatToolGroup.vue";
 import { getToolIcon, getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
 import { useSessionStore } from "@renderer/stores";
-import type { FylloActionState } from "@shared/types/fyllo-action";
+import { sessionActionApi } from "@renderer/api/session/action";
+import type { FylloActionState } from "@shared/fyllo-action/protocol";
+import type {
+  TransitionFylloActionInput,
+  TransitionFylloActionsInput,
+} from "@shared/fyllo-action/protocol";
 
 type MessagePart = UIMessage["parts"][number];
 type ToolPart = DynamicToolUIPart | ToolUIPart<UITools>;
@@ -23,6 +28,7 @@ const props = defineProps<{
   sessionId?: string | null;
   messageIndex?: number;
   actionStates?: Record<string, FylloActionState>;
+  projectId?: string | null;
 }>();
 
 const sessionStore = useSessionStore();
@@ -82,6 +88,7 @@ function buildActionContext(partIndex: number) {
   if (
     !props.enableActions ||
     !props.sessionId ||
+    !props.projectId ||
     props.messageIndex === undefined ||
     props.messageIndex < 0
   ) {
@@ -89,12 +96,27 @@ function buildActionContext(partIndex: number) {
   }
 
   return {
+    projectId: props.projectId,
     sessionId: props.sessionId,
     messageIndex: props.messageIndex,
     partIndex,
     actionStates: props.actionStates,
     persistActionState: (actionId: string, state: FylloActionState) =>
       sessionStore.persistSessionActionState(props.sessionId!, actionId, state),
+    transitionAction: async (input: TransitionFylloActionInput) => {
+      const response = await sessionActionApi.transitionAction(input);
+      if (!response.ok) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    transitionActions: async (input: TransitionFylloActionsInput) => {
+      const response = await sessionActionApi.transitionActions(input);
+      if (!response.ok) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
   };
 }
 </script>

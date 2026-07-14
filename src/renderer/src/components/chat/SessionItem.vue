@@ -5,6 +5,7 @@ import type { Session } from "@shared/types/chat";
 import CustomAgentIcon from "@renderer/components/acp/CustomAgentIcon.vue";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
+import { useSessionAttention } from "@renderer/features/fyllo-action";
 
 const props = defineProps<{
   session: Session;
@@ -22,6 +23,7 @@ const TASK_SOURCE_LABELS: Record<string, string> = {
 };
 
 const session = toRef(props, "session");
+const { attentionCount, displayCount, hasAttention } = useSessionAttention(session);
 const active = computed(() => sessionStore.activeSessionId === session.value.id);
 const agentIcon = computed(() => acpAgentsStore.icons[session.value.agentId] ?? null);
 const originTaskSourceLabel = computed(() => {
@@ -176,6 +178,23 @@ function handleOriginTaskLeave(): void {
         data-test="session-agent-icon"
       />
       <CustomAgentIcon v-else class="h-full w-full" data-test="session-agent-icon-fallback" />
+
+      <UTooltip
+        v-if="hasAttention"
+        :text="`该会话有 ${attentionCount} 个待处理操作`"
+        :delay-duration="200"
+      >
+        <UBadge
+          color="primary"
+          variant="solid"
+          size="xs"
+          class="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px] leading-4"
+          :aria-label="`该会话有 ${attentionCount} 个待处理操作`"
+          data-test="session-attention-badge"
+        >
+          <span data-test="session-attention-count">{{ displayCount }}</span>
+        </UBadge>
+      </UTooltip>
     </div>
 
     <div class="min-w-0 flex-1">

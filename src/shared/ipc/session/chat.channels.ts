@@ -8,7 +8,6 @@ export const SessionChatChannels = {
   saveAttachment: "session:chat:saveAttachment",
   readAttachmentDataUrl: "session:chat:readAttachmentDataUrl",
   setConfigOption: "session:chat:setConfigOption",
-  setActionState: "session:chat:setActionState",
 } as const;
 
 export const SessionChatStreamChannels = {

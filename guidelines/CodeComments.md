@@ -65,7 +65,7 @@ keywords: [comments, documentation, readability, code-style]
 - ✅ `src/main/services/session/chat/message-assembler.ts:1` — 用简短注释说明该文件只是 `domain/` 的 re-export，避免 IPC handler 直接引用 domain 层。
 - ✅ `src/main/infra/storage/project-paths.ts:12` — 对 `encodeProjectPath` 使用 JSDoc，说明其用途与输出路径约定。
 - ✅ `test/main/services/session/chat/acp-stream-driver.spec.ts:14` — 对 `createFakeSession` helper 使用 JSDoc，说明其是用 EventEmitter 模拟的 AcpSession 替身。
-- ❌ `src/shared/utils/fyllo-action.ts:32` — 正则 `fylloActionTagPattern` 未说明匹配策略与边界处理，应补充注释。
+- ❌ `src/shared/fyllo-action/parser.ts:17` — 正则 `fylloActionTagPattern` 未说明匹配策略与边界处理，应补充注释。
 
 ## Verification
 

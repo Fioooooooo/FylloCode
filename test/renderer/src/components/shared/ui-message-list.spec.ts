@@ -3,6 +3,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/session/chat";
+import { useSessionStore } from "@renderer/stores";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 
@@ -140,12 +141,31 @@ function mockUserTextOverflow(isOverflowing: (text: string) => boolean): void {
   });
 }
 
+function createSession() {
+  return {
+    id: "session-1",
+    projectId: "project-1",
+    agentId: "claude-code",
+    title: "Session",
+    status: "ended" as const,
+    turnCount: 0,
+    tokenUsage: { used: 0, size: 0 },
+    createdAt: new Date("2026-05-08T00:00:00.000Z"),
+    updatedAt: new Date("2026-05-08T00:00:00.000Z"),
+    messages: [],
+  };
+}
+
 function mountList(
   messages: UIMessage<MessageMeta>[],
   status: ChatStatus = "ready",
   agentId?: string,
   type: "chat" | "side" = "chat"
 ): VueWrapper {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  useSessionStore().sessions = [createSession()];
+
   const chatMessagesStub = {
     props: ["messages", "status", "user", "assistant"],
     template:
@@ -173,7 +193,7 @@ function mountList(
       agentId,
     },
     global: {
-      plugins: [createPinia()],
+      plugins: [pinia],
       stubs: {
         MarkStream: {
           props: ["content", "isStreaming", "isDark", "enableActions", "actionContext"],

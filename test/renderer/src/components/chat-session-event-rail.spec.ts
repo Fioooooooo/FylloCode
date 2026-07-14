@@ -4,7 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatSessionEventRail from "@renderer/components/chat/event/ChatSessionEventRail.vue";
 import type { AgendaEntry, Session } from "@shared/types/chat";
-import type { FylloActionStateStatus } from "@shared/types/fyllo-action";
+import type { FylloActionStateStatus } from "@shared/fyllo-action/protocol";
 
 const activeSessionRef = ref<Session | null>(null);
 const activeSessionIdRef = ref<string | null>(null);
@@ -108,6 +108,7 @@ function actionState(status: FylloActionStateStatus): NonNullable<Session["actio
   return {
     type: "task.create",
     status,
+    revision: 1,
     updatedAt: "2026-05-12T00:00:00.000Z",
   };
 }

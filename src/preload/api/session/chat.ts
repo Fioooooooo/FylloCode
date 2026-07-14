@@ -7,7 +7,6 @@ import {
 } from "@shared/ipc/session/chat.channels";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, Session, Message } from "@shared/types/chat";
-import type { FylloActionState } from "@shared/types/fyllo-action";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
@@ -252,15 +251,6 @@ export const chatApi = {
     value: string | boolean;
   }): Promise<IpcResponse<{ configOptions: AcpSessionConfigOption[] }>> {
     return ipcRenderer.invoke(SessionChatChannels.setConfigOption, input);
-  },
-
-  setActionState(input: {
-    projectId: string;
-    sessionId: string;
-    actionId: string;
-    state: FylloActionState;
-  }): Promise<IpcResponse<{ actionStates: Record<string, FylloActionState> }>> {
-    return ipcRenderer.invoke(SessionChatChannels.setActionState, input);
   },
 
   probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>> {

@@ -64,15 +64,15 @@ describe("renderSystemReminderTemplate", () => {
     expect(reminder).toBe("main=/abs/myapp project=/abs/myapp");
   });
 
-  it("returns null and warns when worktreePath contains angle brackets", () => {
+  it("encodes angle brackets in worktreePath instead of dropping the reminder", () => {
     const reminder = renderSystemReminderTemplate("cwd={{worktreePath}}", {
       ...createContext({ owner: "apply" }),
       worktreePath: "/abs/<bad>",
     });
 
-    expect(reminder).toBeNull();
+    expect(reminder).toBe("cwd=/abs/\\u003cbad\\u003e");
     expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
+      "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "apply",
         field: "worktreePath",
@@ -81,15 +81,15 @@ describe("renderSystemReminderTemplate", () => {
     );
   });
 
-  it("returns null and warns when mainProjectPath contains angle brackets via projectPath", () => {
+  it("encodes angle brackets in mainProjectPath via projectPath instead of dropping the reminder", () => {
     const reminder = renderSystemReminderTemplate("main={{mainProjectPath}}", {
       ...createContext({ owner: "chat" }),
       projectPath: "/abs/project>",
     });
 
-    expect(reminder).toBeNull();
+    expect(reminder).toBe("main=/abs/project\\u003e");
     expect(logger.warn).toHaveBeenCalledWith(
-      "[system-reminder] rejected reminder variable",
+      "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
         field: "projectPath",

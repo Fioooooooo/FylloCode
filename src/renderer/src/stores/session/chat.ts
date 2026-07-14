@@ -207,11 +207,13 @@ export const useChatStore = defineStore("chat", () => {
     return userMessage;
   }
 
-  function persistMessage(sessionId: string, projectId: string, message: Message): void {
-    void chatApi
+  function persistMessage(sessionId: string, projectId: string, message: Message): Promise<void> {
+    return chatApi
       .persistMessage(sessionId, projectId, JSON.parse(JSON.stringify(message)) as Message)
+      .then(() => undefined)
       .catch((err: unknown) => {
         console.error("Failed to persist message:", err);
+        throw err;
       });
   }
 
@@ -324,13 +326,18 @@ export const useChatStore = defineStore("chat", () => {
     );
   }
 
-  async function sendMessage(
+  interface SendMessageOptions {
+    taskRef?: LineageTaskRef;
+    awaitDurableAppend?: boolean;
+  }
+
+  async function sendMessageCore(
     parts: ChatPromptPart[],
-    options?: { taskRef?: LineageTaskRef }
-  ): Promise<void> {
+    options: SendMessageOptions = {}
+  ): Promise<{ messageId?: string }> {
     const hasPromptContent = parts.some((part) => part.type !== "text" || part.text.trim());
     if (!hasPromptContent) {
-      return;
+      return {};
     }
 
     const sessionStore = useSessionStore();
@@ -339,7 +346,7 @@ export const useChatStore = defineStore("chat", () => {
     const projectIdSnapshot = projectStore.currentProject?.id ?? currentSession?.projectId;
 
     if (!projectIdSnapshot) {
-      return;
+      return {};
     }
 
     let activeSession = currentSession;
@@ -356,7 +363,7 @@ export const useChatStore = defineStore("chat", () => {
           description: "请先安装 Agent 后再开始新会话",
           color: "error",
         });
-        return;
+        return {};
       }
 
       streamRunId = beginDraftStreamRun();
@@ -389,7 +396,7 @@ export const useChatStore = defineStore("chat", () => {
           ...(carryProbe ?? {}),
         });
         if (!isCurrentDraftRun(streamRunId)) {
-          return;
+          return {};
         }
         activeSession = sessionStore.activeSession ?? createdSession;
         setSessionStreamState(activeSession.id, {
@@ -412,18 +419,30 @@ export const useChatStore = defineStore("chat", () => {
           description: error instanceof Error ? error.message : String(error),
           color: "error",
         });
-        return;
+        return {};
       }
     } else {
       streamRunId = beginSessionStreamRun(activeSession.id);
     }
 
     if (!isCurrentSessionRun(activeSession.id, streamRunId)) {
-      return;
+      return {};
     }
 
     const userMessage = queueUserMessage(activeSession, parts, sessionStore);
-    persistMessage(activeSession.id, projectIdSnapshot, userMessage);
+    const persistPromise = persistMessage(activeSession.id, projectIdSnapshot, userMessage).catch(
+      (err: unknown) => {
+        console.error("Failed to persist message:", err);
+        throw err;
+      }
+    );
+
+    if (options.awaitDurableAppend) {
+      await persistPromise;
+    } else {
+      persistPromise.catch(() => undefined);
+    }
+
     streamSessionMessage(
       activeSession,
       projectIdSnapshot,
@@ -432,6 +451,25 @@ export const useChatStore = defineStore("chat", () => {
       streamRunId,
       streamOptions
     );
+    return { messageId: userMessage.id };
+  }
+
+  async function sendMessage(
+    parts: ChatPromptPart[],
+    options?: { taskRef?: LineageTaskRef }
+  ): Promise<void> {
+    await sendMessageCore(parts, options);
+  }
+
+  async function sendMessageAndAwaitDurableAppend(
+    parts: ChatPromptPart[],
+    options?: { taskRef?: LineageTaskRef }
+  ): Promise<{ messageId: string }> {
+    const result = await sendMessageCore(parts, { ...options, awaitDurableAppend: true });
+    if (!result.messageId) {
+      throw new Error("Failed to send message: message was not appended.");
+    }
+    return { messageId: result.messageId };
   }
 
   function setMode(newMode: ModeType): void {
@@ -537,6 +575,7 @@ export const useChatStore = defineStore("chat", () => {
     markConfigOptionPending,
     clearConfigOptionPending,
     sendMessage,
+    sendMessageAndAwaitDurableAppend,
     setMode,
     resetChatState,
     cancelStream,

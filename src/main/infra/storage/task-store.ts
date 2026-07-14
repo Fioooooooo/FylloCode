@@ -31,6 +31,34 @@ interface PersistedTaskItem extends Omit<
 
 const TASK_STORE_VERSION = 1 as const;
 
+// Serialize read-modify-write operations per project so concurrent task edits do not
+// interleave loads and saves, which could lose updates.
+const projectWriteLocks = new Map<string, Promise<unknown>>();
+
+async function withProjectLock<T>(projectPath: string, fn: () => Promise<T>): Promise<T> {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  const previous = projectWriteLocks.get(projectPath);
+  const next = (previous ?? Promise.resolve()).then(() => gate);
+  projectWriteLocks.set(projectPath, next);
+
+  if (previous) {
+    await previous;
+  }
+
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (projectWriteLocks.get(projectPath) === next) {
+      projectWriteLocks.delete(projectPath);
+    }
+  }
+}
+
 export function tasksPath(projectPath: string): string {
   return join(getDataSubPath("projects"), encodeProjectPath(projectPath), "tasks", "tasks.json");
 }
@@ -182,6 +210,7 @@ function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | 
       typeof item.originSessionId === "string" && item.originSessionId
         ? item.originSessionId
         : undefined,
+    actionId: typeof item.actionId === "string" && item.actionId ? item.actionId : undefined,
     createdAt: toDate(item.createdAt),
     updatedAt: toDate(item.updatedAt),
   };
@@ -208,7 +237,7 @@ function normalizeDocument(raw: unknown, projectPath: string): TaskItem[] {
     .filter((task): task is TaskItem => task !== null);
 }
 
-export async function loadTasks(projectPath: string): Promise<TaskItem[]> {
+async function loadTasksUnlocked(projectPath: string): Promise<TaskItem[]> {
   try {
     const content = await fs.readFile(tasksPath(projectPath), "utf8");
     return normalizeDocument(JSON.parse(content) as unknown, projectPath);
@@ -217,11 +246,44 @@ export async function loadTasks(projectPath: string): Promise<TaskItem[]> {
   }
 }
 
-export async function saveTasks(projectPath: string, tasks: TaskItem[]): Promise<void> {
+async function saveTasksUnlocked(projectPath: string, tasks: TaskItem[]): Promise<void> {
   await ensureTasksDir(projectPath);
+  const targetPath = tasksPath(projectPath);
+  const tempPath = `${targetPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   const document: TaskStoreDocument = {
     version: TASK_STORE_VERSION,
     tasks: tasks.map((task) => serializeTaskItem(task)),
   };
-  await fs.writeFile(tasksPath(projectPath), JSON.stringify(document, null, 2), "utf8");
+
+  try {
+    await fs.writeFile(tempPath, JSON.stringify(document, null, 2), "utf8");
+    await fs.rename(tempPath, targetPath);
+  } catch (error) {
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      // Ignore cleanup errors so the original error is preserved.
+    }
+    throw error;
+  }
+}
+
+export async function loadTasks(projectPath: string): Promise<TaskItem[]> {
+  return withProjectLock(projectPath, () => loadTasksUnlocked(projectPath));
+}
+
+export async function saveTasks(projectPath: string, tasks: TaskItem[]): Promise<void> {
+  return withProjectLock(projectPath, () => saveTasksUnlocked(projectPath, tasks));
+}
+
+export async function updateTasks(
+  projectPath: string,
+  updater: (tasks: TaskItem[]) => TaskItem[]
+): Promise<TaskItem[]> {
+  return withProjectLock(projectPath, async () => {
+    const current = await loadTasksUnlocked(projectPath);
+    const next = updater(current);
+    await saveTasksUnlocked(projectPath, next);
+    return next;
+  });
 }

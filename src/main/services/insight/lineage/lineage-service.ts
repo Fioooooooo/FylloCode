@@ -321,7 +321,7 @@ export async function createSessionTask(
         content: input.description ?? "",
       },
     },
-    { originSessionId: input.sessionId }
+    { originSessionId: input.sessionId, actionId: input.actionId }
   );
   const taskSnapshot: LineageTaskSnapshot = {
     ref: `local:${task.id}`,

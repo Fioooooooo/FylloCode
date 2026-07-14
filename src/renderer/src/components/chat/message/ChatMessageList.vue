@@ -44,6 +44,22 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
 
   return sessionStore.sessions.find((session) => session.id === sessionId)?.actionStates;
 }
+
+function getMessageProjectId(message: UIMessage<MessageMeta>): string | undefined {
+  if (props.type !== "chat") {
+    return undefined;
+  }
+
+  const sessionId = getMessageSessionId(message);
+  if (sessionId) {
+    const session = sessionStore.sessions.find((s) => s.id === sessionId);
+    if (session) {
+      return session.projectId;
+    }
+  }
+
+  return sessionStore.activeSession?.projectId;
+}
 </script>
 
 <template>
@@ -78,6 +94,7 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
           :session-id="getMessageSessionId(message)"
           :message-index="getMessageIndex(message)"
           :action-states="getMessageActionStates(message)"
+          :project-id="getMessageProjectId(message)"
         />
       </template>
 

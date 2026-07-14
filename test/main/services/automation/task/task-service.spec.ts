@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   newTaskId: vi.fn(() => "task-generated"),
   loadTasks: vi.fn(),
   saveTasks: vi.fn(),
+  updateTasks: vi.fn(),
 }));
 
 vi.mock("@main/infra/ids", () => ({
@@ -15,6 +16,7 @@ vi.mock("@main/infra/ids", () => ({
 vi.mock("@main/infra/storage/task-store", () => ({
   loadTasks: mocks.loadTasks,
   saveTasks: mocks.saveTasks,
+  updateTasks: mocks.updateTasks,
 }));
 
 import {
@@ -46,6 +48,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-05-10T12:00:00.000Z"));
+
+  // Simulate the real updateTasks behavior using the mocked load/save primitives.
+  mocks.updateTasks.mockImplementation(async (_projectPath, updater) => {
+    const current = ((await mocks.loadTasks()) as TaskItem[]) ?? [];
+    const next = updater(current);
+    if (next !== current) {
+      await mocks.saveTasks(_projectPath, next);
+    }
+    return next;
+  });
 });
 
 afterEach(() => {
@@ -151,5 +163,33 @@ describe("task-service", () => {
       code: IpcErrorCodes.TASK_NOT_FOUND,
     });
     expect(mocks.saveTasks).not.toHaveBeenCalled();
+  });
+
+  it("returns existing task when actionId matches (idempotent creation)", async () => {
+    const existing = task({ id: "task-existing", actionId: "fyllo-action-1" });
+    mocks.loadTasks.mockResolvedValue([existing]);
+
+    const created = await createTask(
+      "/tmp/project",
+      { title: "New task" },
+      { actionId: "fyllo-action-1" }
+    );
+
+    expect(created).toBe(existing);
+    expect(mocks.newTaskId).not.toHaveBeenCalled();
+    expect(mocks.saveTasks).not.toHaveBeenCalled();
+  });
+
+  it("stores actionId on newly created tasks", async () => {
+    mocks.loadTasks.mockResolvedValue([]);
+
+    const created = await createTask(
+      "/tmp/project",
+      { title: "New task" },
+      { actionId: "fyllo-action-1" }
+    );
+
+    expect(created.actionId).toBe("fyllo-action-1");
+    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [created]);
   });
 });

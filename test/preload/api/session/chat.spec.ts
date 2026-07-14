@@ -207,29 +207,6 @@ describe("preload chatApi.streamMessage", () => {
     });
   });
 
-  it("invokes setActionState on the correct channel", async () => {
-    const { chatApi } = await import("@preload/api/session/chat");
-    const state = {
-      type: "task.create" as const,
-      status: "cancelled" as const,
-      updatedAt: "2026-06-08T00:00:00.000Z",
-    };
-
-    await chatApi.setActionState({
-      projectId: "p1",
-      sessionId: "s1",
-      actionId: "chat:s1:0:0:0",
-      state,
-    });
-
-    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.setActionState, {
-      projectId: "p1",
-      sessionId: "s1",
-      actionId: "chat:s1:0:0:0",
-      state,
-    });
-  });
-
   it("passes acpSessionId in streamMessage options", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useKnowledgeStore, useProjectStore, useSessionStore } from "@renderer/stores";
 import type { KnowledgeEntryDocument } from "@shared/types/knowledge";
 
@@ -28,7 +28,7 @@ const approving = ref(false);
 const saving = ref(false);
 const loaded = ref(false);
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let savePromise: Promise<void> | null = null;
+let savePromise: Promise<boolean> | null = null;
 
 const projectId = computed(() => projectStore.currentProject?.id ?? "");
 const dirty = computed(() => content.value !== lastSavedContent.value);
@@ -69,7 +69,7 @@ async function loadEntry(): Promise<void> {
   }
 }
 
-async function saveSnapshot(snapshot: string): Promise<void> {
+async function performSave(snapshot: string): Promise<void> {
   const result = await knowledgeStore.saveEntry(getProjectId(), {
     name: props.name,
     content: snapshot,
@@ -82,32 +82,40 @@ async function saveSnapshot(snapshot: string): Promise<void> {
   lastSavedContent.value = snapshot;
 }
 
-async function saveNow(): Promise<void> {
-  if (!loaded.value || content.value === lastSavedContent.value) {
-    return;
+async function saveNow(): Promise<boolean> {
+  if (!loaded.value || !dirty.value) {
+    return true;
   }
 
   if (savePromise) {
-    await savePromise;
+    try {
+      await savePromise;
+    } catch {
+      // The previous save already recorded its error in saveError.
+      // We still want to retry the latest content below.
+    }
   }
 
-  if (content.value === lastSavedContent.value) {
-    return;
+  if (!dirty.value) {
+    return true;
   }
 
   const snapshot = content.value;
   saving.value = true;
   saveError.value = null;
-  savePromise = saveSnapshot(snapshot)
+
+  savePromise = performSave(snapshot)
+    .then(() => true)
     .catch((error: unknown) => {
       saveError.value = getErrorMessage(error);
-      throw error;
+      return false;
     })
     .finally(() => {
       saving.value = false;
       savePromise = null;
     });
-  await savePromise;
+
+  return savePromise;
 }
 
 function scheduleSave(): void {
@@ -115,7 +123,10 @@ function scheduleSave(): void {
     clearTimeout(saveTimer);
   }
   saveTimer = setTimeout(() => {
-    void saveNow();
+    void saveNow().catch(() => {
+      // Rejection is already surfaced in saveError; do not let it escape
+      // the debounced autosave and become an unhandled promise rejection.
+    });
   }, 700);
 }
 
@@ -125,11 +136,9 @@ async function handleClose(): Promise<void> {
     saveTimer = null;
   }
 
-  try {
-    await saveNow();
+  const saved = await saveNow();
+  if (saved) {
     emit("close", { status: "dismissed" });
-  } catch {
-    // Keep the slideover open so the user can retry or copy unsaved edits.
   }
 }
 
@@ -138,29 +147,31 @@ async function approve(): Promise<void> {
     return;
   }
 
+  if (sessionStore.activeSessionId !== props.sessionId) {
+    saveError.value = "当前聊天会话已切换，无法确认该知识。";
+    return;
+  }
+
   approving.value = true;
   saveError.value = null;
 
   try {
-    if (sessionStore.activeSessionId !== props.sessionId) {
-      throw new Error("当前聊天会话已切换，无法确认该知识。");
-    }
-
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
-    await saveNow();
-    emit("close", { status: "approved" });
-  } catch (error: unknown) {
-    saveError.value = getErrorMessage(error);
+
+    const saved = await saveNow();
+    if (saved) {
+      emit("close", { status: "approved" });
+    }
   } finally {
     approving.value = false;
   }
 }
 
 watch(content, () => {
-  if (!loaded.value || content.value === lastSavedContent.value) {
+  if (!loaded.value || !dirty.value) {
     return;
   }
   scheduleSave();
@@ -170,9 +181,17 @@ onMounted(() => {
   void loadEntry();
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   if (saveTimer) {
     clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+
+  if (loaded.value && dirty.value) {
+    void saveNow().catch(() => {
+      // Component is unmounting; there is no UI left to surface the error.
+      // Swallow the rejection to avoid unhandled promise rejections.
+    });
   }
 });
 </script>
