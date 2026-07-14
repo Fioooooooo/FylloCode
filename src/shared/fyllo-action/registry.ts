@@ -15,52 +15,32 @@ export interface FylloActionPayloadFieldContract {
   description: string;
 }
 
-export interface FylloActionPromptContract {
+// The complete agent-facing surface of an action: prompt rendering reads only
+// this object, while the sibling top-level fields stay machine-facing.
+export interface FylloActionPromptContract<Type extends FylloActionType> {
   purpose: string;
   payloadFields: readonly FylloActionPayloadFieldContract[];
   constraints: readonly string[];
-  example: unknown;
+  example: Readonly<FylloActionPayloadByType[Type]>;
 }
 
 export interface FylloActionContract<Type extends FylloActionType> {
   type: Type;
-  description: string;
   presentation: "inline" | "rail";
   interaction: "confirm";
   payloadSchema: z.ZodType<FylloActionPayloadByType[Type]>;
-  payloadFields: readonly FylloActionPayloadFieldContract[];
-  examplePayload: Readonly<FylloActionPayloadByType[Type]>;
-  prompt: FylloActionPromptContract;
+  prompt: FylloActionPromptContract<Type>;
 }
 
 const contracts = {
   "task.create": {
     type: "task.create",
-    description:
-      "Show the user a card to create a task; after the user confirms, a local task will be created.",
     presentation: "inline",
     interaction: "confirm",
     payloadSchema: taskCreateFylloActionPayloadSchema,
-    payloadFields: [
-      {
-        name: "title",
-        type: "string",
-        required: true,
-        description: "Required non-empty task title.",
-      },
-      {
-        name: "description",
-        type: "string",
-        required: false,
-        description: "Optional plain-text task description.",
-      },
-    ],
-    examplePayload: {
-      title: "Add error handling",
-      description: "Capture the agreed follow-up.",
-    },
     prompt: {
-      purpose: "Create a local task after the user confirms.",
+      purpose:
+        "Propose a follow-up task the user can create with one click. The tag renders as an inline card in the chat transcript with fixed confirm/cancel buttons; confirming makes FylloCode create the local task and link this session to it. Do not create the task yourself or restate the payload in surrounding prose.",
       payloadFields: [
         { name: "title", type: "string", required: true, description: "Non-empty task title." },
         {
@@ -70,7 +50,10 @@ const contracts = {
           description: "Optional plain-text task description.",
         },
       ],
-      constraints: ["title must be non-empty."],
+      constraints: [
+        "title must be non-empty.",
+        "Emit at most one task.create per session; multiple task cards confuse the user.",
+      ],
       example: {
         title: "Add error handling",
         description: "Capture the agreed follow-up.",
@@ -79,30 +62,12 @@ const contracts = {
   },
   "plan.create": {
     type: "plan.create",
-    description: "Show the user a card to review the plan.",
     presentation: "inline",
     interaction: "confirm",
     payloadSchema: planCreateFylloActionPayloadSchema,
-    payloadFields: [
-      {
-        name: "slug",
-        type: "string",
-        required: true,
-        description: "Required full plan slug in yyyy-MM-dd-slug format.",
-      },
-      {
-        name: "goal",
-        type: "string",
-        required: true,
-        description: "Required one-sentence summary of what this plan aims to achieve.",
-      },
-    ],
-    examplePayload: {
-      slug: "2026-06-29-refactor-chat-store",
-      goal: "Review the multi-file implementation plan before code changes.",
-    },
     prompt: {
-      purpose: "Let the user review an implementation plan before coding.",
+      purpose:
+        "Hand a finished plan to the user for review. The tag renders as an inline card with fixed confirm/cancel buttons; confirming opens the plan document for this slug in FylloCode's review view, where the user reads and approves it. Do not paste the plan body into chat.",
       payloadFields: [
         {
           name: "slug",
@@ -120,6 +85,7 @@ const contracts = {
       constraints: [
         "slug must match yyyy-MM-dd-slug format.",
         "slug must not contain path separators, dots, or whitespace.",
+        "Emit only after the plan document is fully written, and only once per slug.",
       ],
       example: {
         slug: "2026-06-29-refactor-chat-store",
@@ -129,32 +95,12 @@ const contracts = {
   },
   "knowledge.flag": {
     type: "knowledge.flag",
-    description:
-      "Show a knowledge candidate in the session rail; when the user confirms, FylloCode starts durable knowledge capture.",
     presentation: "rail",
     interaction: "confirm",
     payloadSchema: knowledgeFlagFylloActionPayloadSchema,
-    payloadFields: [
-      {
-        name: "summary",
-        type: "string",
-        required: true,
-        description: "Required concise summary of knowledge that may be worth retaining.",
-      },
-      {
-        name: "contextPaths",
-        type: "string[]",
-        required: false,
-        description: "Optional project-relative files or directories that support the candidate.",
-      },
-    ],
-    examplePayload: {
-      summary:
-        "Message markdown theme subscriptions are expensive when each text part creates an instance.",
-      contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
-    },
     prompt: {
-      purpose: "Flag a concise knowledge candidate for later review and capture.",
+      purpose:
+        "Bookmark a reusable, hard-to-rediscover fact the moment it surfaces. The flag renders as a passive card and joins the session event rail; it does not block or prompt the user, so expect no immediate response. When the user later confirms any pending flag, FylloCode bundles all pending flags in the session into one capture request message, and you will be asked to write durable knowledge then. Flagging is not capture: emit it and continue your task.",
       payloadFields: [
         {
           name: "summary",
@@ -169,40 +115,27 @@ const contracts = {
           description: "Project-relative files or directories supporting the candidate.",
         },
       ],
-      constraints: ["summary must be a single line without CR/LF."],
+      constraints: [
+        "Emit at discovery time, then continue the current task; do not wait for the discussion to conclude.",
+        "summary must be a single line without CR/LF, stating the fact and why it is not cheap to rediscover.",
+        "Do not repeat an equivalent pending flag.",
+        "Do not include secrets, credentials, or personal data.",
+      ],
       example: {
         summary:
-          "Message markdown theme subscriptions are expensive when each text part creates an instance.",
-        contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
+          "Payment webhooks arrive out of order, so handlers must stay idempotent — the provider retries without sequencing guarantees.",
+        contextPaths: ["src/payments/webhook-handler.ts"],
       },
     },
   },
   "knowledge.review": {
     type: "knowledge.review",
-    description: "Show the user a card to review a durable knowledge markdown file from disk.",
     presentation: "rail",
     interaction: "confirm",
     payloadSchema: knowledgeReviewFylloActionPayloadSchema,
-    payloadFields: [
-      {
-        name: "name",
-        type: "string",
-        required: true,
-        description: "Required knowledge entry file name without the .md suffix.",
-      },
-      {
-        name: "summary",
-        type: "string",
-        required: false,
-        description: "Optional concise summary to show in the review card.",
-      },
-    ],
-    examplePayload: {
-      name: "markstream-vue-theme-subscription",
-      summary: "Review the retained guidance for MessageMarkdown theme subscriptions.",
-    },
     prompt: {
-      purpose: "Ask the user to review an existing knowledge markdown file.",
+      purpose:
+        "Ask the user to review a durable knowledge entry you just created or updated during capture. The tag renders as a card in the session rail; confirming opens the entry's markdown file from disk in FylloCode's review view. Do not paste the entry body into chat.",
       payloadFields: [
         {
           name: "name",
@@ -217,10 +150,13 @@ const contracts = {
           description: "Optional concise summary to show in the review card.",
         },
       ],
-      constraints: ["name must be a valid knowledge entry name."],
+      constraints: [
+        "name must be a valid knowledge entry name.",
+        "Emit only for entries actually created or updated during capture, one action per entry.",
+      ],
       example: {
-        name: "markstream-vue-theme-subscription",
-        summary: "Review the retained guidance for MessageMarkdown theme subscriptions.",
+        name: "payment-webhook-idempotency",
+        summary: "Review the retained guidance on out-of-order payment webhook handling.",
       },
     },
   },

@@ -9,19 +9,19 @@ export interface FylloActionPromptSection {
 function formatActionContract<Type extends FylloActionType>(
   contract: FylloActionContract<Type>
 ): string {
-  const example = JSON.stringify(contract.examplePayload, null, 2);
+  const example = JSON.stringify(contract.prompt.example, null, 2);
 
   return [
     `- ${contract.type}`,
     `  Purpose: ${contract.prompt.purpose}`,
     `  Required fields: ${
-      contract.payloadFields
+      contract.prompt.payloadFields
         .filter((f) => f.required)
         .map((f) => f.name)
         .join(", ") || "none"
     }`,
     `  Optional fields: ${
-      contract.payloadFields
+      contract.prompt.payloadFields
         .filter((f) => !f.required)
         .map((f) => f.name)
         .join(", ") || "none"
