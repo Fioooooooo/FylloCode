@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change harden-fyllo-action-markdown-parsing. Update Purpose after archive.
+定义 assistant Markdown 中 Fyllo Action 候选块的识别、流式提交、字面内容保留与稳定身份映射边界；本规范以 shared analyzer 的源码区间分析结果作为 renderer、pending action 与持久化状态关联的统一行为契约。
 
 ## Requirements
 
