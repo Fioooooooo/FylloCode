@@ -16,12 +16,15 @@ export function getSessionAttention(session: Session | null | undefined): number
     return 0;
   }
 
-  const persistedStates = Object.values(session.actionStates ?? {});
-  const persistedAttentionCount = persistedStates.filter((state) =>
-    requiresFylloActionAttention(state)
-  ).length;
+  const attentionActionIds = new Set(
+    Object.entries(session.actionStates ?? {})
+      .filter(([, state]) => requiresFylloActionAttention(state))
+      .map(([actionId]) => actionId)
+  );
 
-  const pendingCount = collectPendingFylloActions(session).length;
+  for (const action of collectPendingFylloActions(session)) {
+    attentionActionIds.add(action.actionId);
+  }
 
-  return persistedAttentionCount + pendingCount;
+  return attentionActionIds.size;
 }

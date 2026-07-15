@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
@@ -57,6 +57,31 @@ function assistantMessage(): UIMessage {
         text: '<fyllo-action type="task.create">{"title":"text"}</fyllo-action>',
       },
     ],
+  };
+}
+
+function actionContext() {
+  const registerAction = vi.fn().mockResolvedValue({
+    type: "task.create" as const,
+    status: "ready" as const,
+    revision: 1,
+    updatedAt: "2026-07-15T00:00:00.000Z",
+  });
+  const persistActionState = vi.fn().mockResolvedValue(undefined);
+
+  return {
+    context: {
+      projectId: "project-1",
+      sessionId: "session-1",
+      messageIndex: 2,
+      partIndex: 0,
+      registerAction,
+      persistActionState,
+      transitionAction: vi.fn(),
+      transitionActions: vi.fn(),
+    },
+    registerAction,
+    persistActionState,
   };
 }
 
@@ -124,6 +149,75 @@ describe("MarkStream Fyllo action integration", () => {
     wrapper.unmount();
 
     expect(markstreamMocks.removeCustomComponents).toHaveBeenCalledWith("message-1");
+  });
+
+  it("registers a closed ready action without waiting for confirmation", async () => {
+    const { context, registerAction, persistActionState } = actionContext();
+    const wrapper = mount(MarkStream, {
+      props: {
+        id: "message-1",
+        content: '<fyllo-action type="task.create">{"title":"ready"}',
+        isStreaming: true,
+        isDark: false,
+        enableActions: true,
+        actionContext: context,
+      },
+    });
+
+    await flushPromises();
+    expect(registerAction).not.toHaveBeenCalled();
+
+    await wrapper.setProps({
+      content: '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>',
+      isStreaming: false,
+    });
+    await flushPromises();
+
+    expect(registerAction).toHaveBeenCalledTimes(1);
+    expect(registerAction).toHaveBeenCalledWith({
+      projectId: "project-1",
+      sessionId: "session-1",
+      actionId: "chat:session-1:2:0:0",
+      type: "task.create",
+    });
+    expect(persistActionState).toHaveBeenCalledWith("chat:session-1:2:0:0", {
+      type: "task.create",
+      status: "ready",
+      revision: 1,
+      updatedAt: "2026-07-15T00:00:00.000Z",
+    });
+
+    await wrapper.setProps({ isStreaming: true });
+    await wrapper.setProps({ isStreaming: false });
+    await flushPromises();
+    expect(registerAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips ready registration when the action already has persisted state", async () => {
+    const { context, registerAction } = actionContext();
+    mount(MarkStream, {
+      props: {
+        id: "message-1",
+        content: '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>',
+        isStreaming: false,
+        isDark: false,
+        enableActions: true,
+        actionContext: {
+          ...context,
+          actionStates: {
+            "chat:session-1:2:0:0": {
+              type: "task.create",
+              status: "ready",
+              revision: 1,
+              updatedAt: "2026-07-15T00:00:00.000Z",
+            },
+          },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(registerAction).not.toHaveBeenCalled();
   });
 });
 

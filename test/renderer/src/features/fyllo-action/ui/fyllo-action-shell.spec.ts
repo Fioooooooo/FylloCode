@@ -176,6 +176,22 @@ describe("FylloActionShell", () => {
     expect(findButtonByText(wrapper, "取消")).toBeUndefined();
   });
 
+  it("keeps persisted cancelled state after runtime resets to ready", () => {
+    const wrapper = mountShell(readyResult(), {
+      executionStatus: "ready",
+      persistedState: {
+        type: "task.create",
+        status: "cancelled",
+        revision: 2,
+        updatedAt: "2026-07-15T02:40:24.457Z",
+      },
+    });
+
+    expect(wrapper.text()).toContain("已取消");
+    expect(findButtonByText(wrapper, "确认")).toBeUndefined();
+    expect(findButtonByText(wrapper, "取消")).toBeUndefined();
+  });
+
   it("rehydrates persisted succeeded state and disables confirm", () => {
     const wrapper = mountShell(readyResult(), {
       persistedState: {
@@ -218,6 +234,20 @@ describe("FylloActionShell", () => {
     await retryButton?.trigger("click");
 
     expect(wrapper.emitted("retrySync")).toHaveLength(1);
+  });
+
+  it("shows ready registration error without hiding action buttons", async () => {
+    const wrapper = mountShell(readyResult(), {
+      registrationError: "meta write failed",
+    });
+
+    expect(wrapper.text()).toContain("待处理状态保存失败");
+    expect(wrapper.text()).toContain("meta write failed");
+    expect(buttonByText(wrapper, "确认").exists()).toBe(true);
+    expect(buttonByText(wrapper, "取消").exists()).toBe(true);
+
+    await buttonByText(wrapper, "重试保存").trigger("click");
+    expect(wrapper.emitted("retryRegistration")).toHaveLength(1);
   });
 
   it("uses action definition labels and can hide cancel", () => {

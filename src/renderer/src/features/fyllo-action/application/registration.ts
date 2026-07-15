@@ -37,6 +37,8 @@ export function createFylloActionRegistrationController(
   persistActionState: PersistActionStatePort
 ): FylloActionRegistrationController {
   const inFlight = new Set<string>();
+  const attempted = new Set<string>();
+  const registered = new Set<string>();
   const registrationErrors = ref<Map<string, string>>(new Map());
 
   function setInFlight(actionId: string, value: boolean): void {
@@ -67,10 +69,11 @@ export function createFylloActionRegistrationController(
       return;
     }
 
-    if (inFlight.has(actionId)) {
+    if (inFlight.has(actionId) || attempted.has(actionId)) {
       return;
     }
 
+    attempted.add(actionId);
     setInFlight(actionId, true);
     setRegistrationError(actionId, null);
 
@@ -82,6 +85,7 @@ export function createFylloActionRegistrationController(
         type: parseResult.type,
       });
       await persistActionState(sessionId, actionId, state);
+      registered.add(actionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRegistrationError(actionId, message);
@@ -100,7 +104,7 @@ export function createFylloActionRegistrationController(
     actionId: string,
     type: "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review"
   ): Promise<void> {
-    if (inFlight.has(actionId)) {
+    if (inFlight.has(actionId) || registered.has(actionId)) {
       return;
     }
 
@@ -115,6 +119,7 @@ export function createFylloActionRegistrationController(
         type,
       });
       await persistActionState(sessionId, actionId, state);
+      registered.add(actionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRegistrationError(actionId, message);

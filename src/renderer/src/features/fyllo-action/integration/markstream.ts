@@ -1,10 +1,13 @@
 import FylloActionNode from "../ui/FylloActionNode.vue";
-import { analyzeFylloActionMarkdown } from "@shared/fyllo-action/parser";
+import { analyzeFylloActionMarkdown, parseFylloActionNode } from "@shared/fyllo-action/parser";
+import { buildChatFylloActionId } from "@shared/fyllo-action/identity";
 import type {
   FylloActionMarkdownAnalysis,
   FylloActionMarkdownOccurrence,
+  RegisterFylloActionInput,
   FylloActionState,
 } from "@shared/fyllo-action/protocol";
+import type { FylloActionRegistrationController } from "../application/registration";
 import type { NodeRendererProps } from "markstream-vue";
 
 export { FylloActionNode };
@@ -21,6 +24,7 @@ export interface FylloActionHostContextInput {
   messageIndex: number;
   partIndex: number;
   actionStates?: Record<string, FylloActionState>;
+  registerAction: (input: RegisterFylloActionInput) => Promise<FylloActionState>;
   persistActionState: (actionId: string, state: FylloActionState) => Promise<void>;
   transitionAction: (input: {
     projectId: string;
@@ -61,6 +65,42 @@ export interface PreparedFylloActionMarkdown {
   analysis: FylloActionMarkdownAnalysis;
   candidates: FylloActionMarkdownOccurrence[];
   placeholders: FylloActionLiteralPlaceholder[];
+}
+
+/**
+ * 将 shared Markdown analysis 中已经闭合且语义合法的 Action 注册到 Main。
+ * 注册直接消费 candidate 的 sourceOrdinal，避免等待 UI node 挂载后再重新推导身份。
+ */
+export async function registerPreparedFylloActions(
+  prepared: PreparedFylloActionMarkdown,
+  context: FylloActionHostContextInput,
+  controller: FylloActionRegistrationController
+): Promise<void> {
+  await Promise.all(
+    prepared.candidates.map(async (candidate) => {
+      const parseResult = parseFylloActionNode({
+        attrs: candidate.attrs,
+        content: candidate.body,
+        loading: !candidate.closed,
+        raw: candidate.raw,
+      });
+      if (parseResult.status !== "ready") {
+        return;
+      }
+
+      const actionId = buildChatFylloActionId({
+        sessionId: context.sessionId,
+        messageIndex: context.messageIndex,
+        partIndex: context.partIndex,
+        actionOrdinalInPart: candidate.sourceOrdinal,
+      });
+      if (context.actionStates?.[actionId]) {
+        return;
+      }
+
+      await controller.register(context.projectId, context.sessionId, actionId, parseResult);
+    })
+  );
 }
 
 type MarkstreamParseOptions = NonNullable<NodeRendererProps["parseOptions"]>;

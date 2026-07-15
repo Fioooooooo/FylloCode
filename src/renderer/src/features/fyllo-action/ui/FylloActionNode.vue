@@ -68,6 +68,9 @@ const actionId = computed(() => {
 const persistedState = computed(() =>
   actionId.value ? hostContext?.getActionState(actionId.value) : undefined
 );
+const registrationError = computed(() =>
+  actionId.value ? hostContext?.getRegistrationError(actionId.value) : undefined
+);
 
 const runtime = createFylloActionExecutionRuntime();
 
@@ -131,6 +134,13 @@ async function handleCancel(): Promise<void> {
 async function handleRetrySync(): Promise<void> {
   await controller.value?.retrySync();
 }
+
+async function handleRetryRegistration(): Promise<void> {
+  if (!hostContext || !actionId.value || parseResult.value.status !== "ready") {
+    return;
+  }
+  await hostContext.retryRegistration(actionId.value, parseResult.value.type);
+}
 </script>
 
 <template>
@@ -142,6 +152,7 @@ async function handleRetrySync(): Promise<void> {
     :index-key="props.indexKey"
     :action-id="actionId"
     :persisted-state="persistedState"
+    :registration-error="registrationError"
     :execution-status="runtime.status.value"
     :execution-error="runtime.executionError.value"
     :state-sync-error="runtime.stateSyncError.value"
@@ -149,6 +160,7 @@ async function handleRetrySync(): Promise<void> {
     @confirm="void handleConfirm()"
     @cancel="void handleCancel()"
     @retry-sync="void handleRetrySync()"
+    @retry-registration="void handleRetryRegistration()"
   >
     <component
       :is="actionComponent"

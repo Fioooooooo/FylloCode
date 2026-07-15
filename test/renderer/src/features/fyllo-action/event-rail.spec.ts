@@ -119,7 +119,7 @@ describe("collectPendingFylloActionRailItems", () => {
     ]);
   });
 
-  it("filters actions once any persisted action state exists", () => {
+  it("keeps persisted failed actions and filters resolved states", () => {
     const messages = [
       assistantTextMessage(
         [
@@ -140,6 +140,7 @@ describe("collectPendingFylloActionRailItems", () => {
     });
 
     expect(collectPendingFylloActionRailItems(session).map((item) => item.summary)).toEqual([
+      "Failed",
       "Still pending",
     ]);
   });
@@ -193,7 +194,7 @@ describe("collectPendingFylloActionRailItems", () => {
     ]);
   });
 
-  it("resolves existing persisted state after a literal occurrence", () => {
+  it("keeps an existing persisted ready state after a literal occurrence", () => {
     const literal = '示例：<fyllo-action type="task.create">{"title":"literal"}</fyllo-action>';
     const candidate = '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>';
     const session = makeSession({
@@ -203,6 +204,11 @@ describe("collectPendingFylloActionRailItems", () => {
       },
     });
 
-    expect(collectPendingFylloActionRailItems(session)).toEqual([]);
+    expect(collectPendingFylloActionRailItems(session)).toEqual([
+      expect.objectContaining({
+        actionId: "chat:session-1:0:0:1",
+        summary: "ready",
+      }),
+    ]);
   });
 });

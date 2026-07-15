@@ -4,6 +4,7 @@ export {
   createFylloActionOrdinalResolver,
   fylloActionMarkstreamCustomHtmlTags,
   prepareFylloActionMarkdown,
+  registerPreparedFylloActions,
   type FylloActionHostContextInput,
   type FylloActionLiteralPlaceholder,
   type FylloActionOrdinalNode,

@@ -2,6 +2,7 @@ import type { Session } from "@shared/types/chat";
 import type { FylloActionPayloadByType, FylloActionType } from "@shared/fyllo-action/protocol";
 import { analyzeFylloActionMarkdown, parseFylloActionNode } from "@shared/fyllo-action/parser";
 import { buildChatFylloActionId } from "@shared/fyllo-action/identity";
+import { requiresFylloActionAttention } from "./selectors";
 
 export type PendingFylloAction = {
   [Type in FylloActionType]: {
@@ -11,10 +12,6 @@ export type PendingFylloAction = {
   };
 }[FylloActionType];
 
-function hasPersistedState(session: Session, actionId: string): boolean {
-  return Object.prototype.hasOwnProperty.call(session.actionStates ?? {}, actionId);
-}
-
 function isAssistantTextPart(
   message: Session["messages"][number],
   part: Session["messages"][number]["parts"][number]
@@ -23,7 +20,8 @@ function isAssistantTextPart(
 }
 
 /**
- * 遍历会话中的 assistant text part，投影尚无持久化状态的 ready Action。
+ * 遍历会话中的 assistant text part，投影需要用户处理的 ready / failed Action。
+ * 未持久化的 ready Action 与已持久化且仍需 attention 的 Action 使用同一投影。
  * 返回值只包含 feature model；EventRail 等宿主展示字段由 integration 继续转换。
  */
 export function collectPendingFylloActions(session: Session | null): PendingFylloAction[] {
@@ -64,7 +62,8 @@ export function collectPendingFylloActions(session: Session | null): PendingFyll
           partIndex,
           actionOrdinalInPart: occurrence.sourceOrdinal,
         });
-        if (hasPersistedState(session, actionId)) {
+        const persistedState = session.actionStates?.[actionId];
+        if (persistedState && !requiresFylloActionAttention(persistedState)) {
           return;
         }
 

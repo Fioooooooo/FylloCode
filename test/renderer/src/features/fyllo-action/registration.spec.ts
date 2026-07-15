@@ -76,6 +76,17 @@ describe("FylloActionRegistrationController", () => {
     expect(persistActionState).toHaveBeenCalledTimes(1);
   });
 
+  it("does not register again after the ready state was persisted locally", async () => {
+    const { controller, registerAction, persistActionState } = setup();
+    registerAction.mockResolvedValue(makeReadyState());
+
+    await controller.register("project-1", "session-1", "action-1", makeReadyParseResult());
+    await controller.register("project-1", "session-1", "action-1", makeReadyParseResult());
+
+    expect(registerAction).toHaveBeenCalledTimes(1);
+    expect(persistActionState).toHaveBeenCalledTimes(1);
+  });
+
   it("records a registration error on failure and allows retry", async () => {
     const { controller, registerAction, persistActionState } = setup();
     registerAction
@@ -86,6 +97,9 @@ describe("FylloActionRegistrationController", () => {
 
     expect(controller.registrationErrors.value.get("action-1")).toBe("network error");
     expect(persistActionState).not.toHaveBeenCalled();
+
+    await controller.register("project-1", "session-1", "action-1", makeReadyParseResult());
+    expect(registerAction).toHaveBeenCalledTimes(1);
 
     await controller.retry("project-1", "session-1", "action-1", "task.create");
 

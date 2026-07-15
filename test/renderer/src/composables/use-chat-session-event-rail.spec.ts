@@ -49,8 +49,8 @@ function proposal(id: string): ProposalMeta {
   };
 }
 
-function pendingActionSession(): Session {
-  return session([
+function pendingActionSession(status?: "ready" | "failed"): Session {
+  const pending = session([
     message("assistant-1", "assistant", [
       {
         type: "text",
@@ -58,6 +58,17 @@ function pendingActionSession(): Session {
       },
     ]),
   ]);
+  if (status) {
+    pending.actionStates = {
+      "chat:session-1:0:0:0": {
+        type: "task.create",
+        status,
+        revision: 1,
+        updatedAt: "2026-07-15T00:00:00.000Z",
+      },
+    };
+  }
+  return pending;
 }
 
 function makeContainer(actionId: string): {
@@ -142,6 +153,16 @@ describe("useChatEventRail", () => {
     activeSessionId.value = null;
     expect(api.showEventRail.value).toBe(false);
   });
+
+  it.each(["ready", "failed"] as const)(
+    "keeps the event rail visible for a persisted %s action",
+    (status) => {
+      const { api } = mountEventRailHost(pendingActionSession(status));
+
+      expect(api.pendingActionRailItems.value).toHaveLength(1);
+      expect(api.showEventRail.value).toBe(true);
+    }
+  );
 
   it("scrolls to a Fyllo action anchor", async () => {
     const { api, messageScrollContainerRef } = mountEventRailHost(pendingActionSession());

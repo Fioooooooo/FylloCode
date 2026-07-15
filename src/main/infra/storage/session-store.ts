@@ -296,7 +296,11 @@ function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
 }
 
 function toSessionMeta(record: SessionMetaRecord): SessionMeta {
-  return normalizeSessionMetaRecord(record) as unknown as SessionMeta;
+  const normalizedRecord = normalizeSessionMetaRecord(record);
+  return {
+    ...normalizedRecord,
+    actionStates: normalizeActionStates(record.actionStates),
+  } as unknown as SessionMeta;
 }
 
 async function writeSessionMetaRecord(

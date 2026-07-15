@@ -11,9 +11,14 @@ import {
   createFylloActionOrdinalResolver,
   fylloActionMarkstreamCustomHtmlTags,
   prepareFylloActionMarkdown,
+  registerPreparedFylloActions,
   type FylloActionHostContextInput,
 } from "@renderer/features/fyllo-action/integration";
-import { fylloActionHostContextKey } from "@renderer/features/fyllo-action";
+import {
+  createFylloActionRegistrationController,
+  fylloActionHostContextKey,
+  type FylloActionRegistrationController,
+} from "@renderer/features/fyllo-action";
 
 const props = defineProps<{
   id: string;
@@ -38,9 +43,32 @@ const parseOptions = computed<NodeRendererProps["parseOptions"]>(() =>
 );
 
 let registeredCustomId: string | null = null;
+let registrationContextKey: string | null = null;
+let registrationController: FylloActionRegistrationController | null = null;
 let actionOrdinalResolver = createFylloActionOrdinalResolver(
   prepareFylloActionMarkdown(props.content).analysis
 );
+
+function getRegistrationController(
+  context: FylloActionHostContextInput
+): FylloActionRegistrationController {
+  const contextKey = JSON.stringify([
+    context.projectId,
+    context.sessionId,
+    context.messageIndex,
+    context.partIndex,
+  ]);
+  if (registrationController && registrationContextKey === contextKey) {
+    return registrationController;
+  }
+
+  registrationContextKey = contextKey;
+  registrationController = createFylloActionRegistrationController(
+    context.registerAction,
+    (_sessionId, actionId, state) => context.persistActionState(actionId, state)
+  );
+  return registrationController;
+}
 
 // 通过注入向嵌套 Action node 提供源码 ordinal 与状态端口，避免穿透 Markstream 逐层传参。
 provide(fylloActionHostContextKey, {
@@ -61,6 +89,21 @@ provide(fylloActionHostContextKey, {
   },
   getActionState(actionId) {
     return props.actionContext?.actionStates?.[actionId];
+  },
+  getRegistrationError(actionId) {
+    return registrationController?.registrationErrors.value.get(actionId);
+  },
+  retryRegistration(actionId, type) {
+    const context = props.actionContext;
+    if (!context) {
+      return Promise.resolve();
+    }
+    return getRegistrationController(context).retry(
+      context.projectId,
+      context.sessionId,
+      actionId,
+      type
+    );
   },
   persistActionState(actionId, state) {
     return props.actionContext?.persistActionState?.(actionId, state) ?? Promise.resolve();
@@ -108,6 +151,18 @@ watch(
     const analysis =
       preparedMarkdown.value?.analysis ?? prepareFylloActionMarkdown(props.content).analysis;
     actionOrdinalResolver = createFylloActionOrdinalResolver(analysis);
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [preparedMarkdown.value, props.actionContext, props.enableActions] as const,
+  ([prepared, context, enabled]) => {
+    if (!enabled || !prepared || !context) {
+      return;
+    }
+
+    void registerPreparedFylloActions(prepared, context, getRegistrationController(context));
   },
   { immediate: true }
 );

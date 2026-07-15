@@ -171,7 +171,7 @@ describe("ChatSessionEventRail", () => {
     expect(wrapper.findAll("button")).toHaveLength(3);
   });
 
-  it.each(["cancelled", "failed"] as const)(
+  it.each(["cancelled", "succeeded"] as const)(
     "removes pending Fyllo action items when action state becomes %s",
     async (status) => {
       const session = makePendingActionSession();
@@ -192,6 +192,21 @@ describe("ChatSessionEventRail", () => {
       expect(activeSessionRef.value.messages).toHaveLength(messageCount);
     }
   );
+
+  it("keeps failed Fyllo action items available for retry", async () => {
+    const session = makePendingActionSession();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountEventRail();
+    activeSessionRef.value.actionStates = {
+      "chat:session-1:0:0:0": actionState("failed"),
+    };
+    await nextTick();
+
+    expect(wrapper.find('[data-test="fyllo-action-rail-item"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("补齐错误处理");
+  });
 
   it("collapses and expands via the header and right-edge handle", async () => {
     activeSessionRef.value = makeSession(makeEntries());

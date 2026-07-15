@@ -1,5 +1,5 @@
 import type { InjectionKey } from "vue";
-import type { FylloActionState } from "@shared/fyllo-action/protocol";
+import type { FylloActionState, FylloActionType } from "@shared/fyllo-action/protocol";
 
 export interface FylloActionOrdinalNode {
   type?: string;
@@ -14,6 +14,8 @@ export interface FylloActionHostContext {
   partIndex: number;
   resolveActionOrdinal: (node: FylloActionOrdinalNode) => number | null;
   getActionState: (actionId: string) => FylloActionState | undefined;
+  getRegistrationError: (actionId: string) => string | undefined;
+  retryRegistration: (actionId: string, type: FylloActionType) => Promise<void>;
   persistActionState: (actionId: string, state: FylloActionState) => Promise<void>;
   transitionAction: (input: {
     projectId: string;

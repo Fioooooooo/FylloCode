@@ -1,4 +1,5 @@
 import { flushPromises, mount, type DOMWrapper, type VueWrapper } from "@vue/test-utils";
+import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import FylloActionNode from "@renderer/features/fyllo-action/ui/FylloActionNode.vue";
@@ -35,7 +36,11 @@ function buttonByText(wrapper: VueWrapper, text: string): DOMWrapper<HTMLButtonE
   return button as DOMWrapper<HTMLButtonElement>;
 }
 
-function createHostContext(persistActionState = vi.fn().mockResolvedValue(undefined)) {
+function createHostContext(
+  persistActionState = vi.fn().mockResolvedValue(undefined),
+  registrationError?: string,
+  retryRegistration = vi.fn().mockResolvedValue(undefined)
+) {
   return {
     projectId: "project-1",
     sessionId: "session-1",
@@ -43,6 +48,8 @@ function createHostContext(persistActionState = vi.fn().mockResolvedValue(undefi
     partIndex: 0,
     resolveActionOrdinal: () => 0,
     getActionState: () => undefined,
+    getRegistrationError: () => registrationError,
+    retryRegistration,
     persistActionState: persistActionState,
     transitionAction: transitionActionMock,
     transitionActions: transitionActionsMock,
@@ -160,6 +167,76 @@ describe("FylloActionNode", () => {
       revision: 2,
       updatedAt,
     });
+  });
+
+  it("keeps actions available and retries failed ready-state registration", async () => {
+    const retryRegistration = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mount(FylloActionNode, {
+      props: {
+        node: {
+          attrs: { type: "task.create" },
+          content: '{"title":"补齐错误处理"}',
+        },
+      },
+      global: {
+        provide: {
+          [fylloActionHostContextKey as symbol]: createHostContext(
+            undefined,
+            "meta write failed",
+            retryRegistration
+          ),
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("待处理状态保存失败");
+    expect(buttonByText(wrapper, "确认").exists()).toBe(true);
+    expect(buttonByText(wrapper, "取消").exists()).toBe(true);
+
+    await buttonByText(wrapper, "重试保存").trigger("click");
+    await flushPromises();
+
+    expect(retryRegistration).toHaveBeenCalledWith("chat:session-1:3:0:0", "task.create");
+  });
+
+  it("keeps the cancelled UI after the persisted state replaces runtime state", async () => {
+    const persistedState = ref();
+    const persistActionState = vi.fn(async (_actionId, state) => {
+      persistedState.value = state;
+    });
+    transitionActionMock.mockResolvedValue({
+      type: "task.create",
+      status: "cancelled",
+      revision: 2,
+      updatedAt: "2026-07-15T02:40:24.457Z",
+    });
+    const hostContext = {
+      ...createHostContext(persistActionState),
+      getActionState: () => persistedState.value,
+    };
+    const wrapper = mount(FylloActionNode, {
+      props: {
+        node: {
+          attrs: { type: "task.create" },
+          content: '{"title":"补齐错误处理"}',
+        },
+      },
+      global: {
+        provide: {
+          [fylloActionHostContextKey as symbol]: hostContext,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, "取消").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已取消");
+    expect(wrapper.findAll("button")).toHaveLength(0);
+    expect(persistActionState).toHaveBeenCalledWith(
+      "chat:session-1:3:0:0",
+      expect.objectContaining({ status: "cancelled" })
+    );
   });
 
   it("routes knowledge.flag through the generic dispatcher with action id context", async () => {

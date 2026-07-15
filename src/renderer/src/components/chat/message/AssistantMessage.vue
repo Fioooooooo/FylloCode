@@ -10,6 +10,7 @@ import { useSessionStore } from "@renderer/stores";
 import { sessionActionApi } from "@renderer/api/session/action";
 import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type {
+  RegisterFylloActionInput,
   TransitionFylloActionInput,
   TransitionFylloActionsInput,
 } from "@shared/fyllo-action/protocol";
@@ -101,6 +102,13 @@ function buildActionContext(partIndex: number) {
     messageIndex: props.messageIndex,
     partIndex,
     actionStates: props.actionStates,
+    registerAction: async (input: RegisterFylloActionInput) => {
+      const response = await sessionActionApi.registerAction(input);
+      if (!response.ok) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
     persistActionState: (actionId: string, state: FylloActionState) =>
       sessionStore.persistSessionActionState(props.sessionId!, actionId, state),
     transitionAction: async (input: TransitionFylloActionInput) => {

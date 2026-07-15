@@ -18,6 +18,7 @@ const props = defineProps<{
   definition: RendererActionDefinition | null;
   actionId?: string | null;
   persistedState?: FylloActionState;
+  registrationError?: string | null;
   executionStatus?: FylloActionExecutionStatus;
   executionError?: string | null;
   stateSyncError?: string | null;
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   confirm: [];
   cancel: [];
   retrySync: [];
+  retryRegistration: [];
 }>();
 
 defineSlots<{
@@ -38,12 +40,11 @@ defineSlots<{
 }>();
 
 const effectiveExecutionStatus = computed<FylloActionExecutionStatus>(() => {
-  if (props.executionStatus) {
+  if (props.executionStatus && props.executionStatus !== "ready") {
     return props.executionStatus;
   }
 
-  // When no runtime status is provided, derive a sensible default from the persisted state
-  // so the Shell rehydrates correctly when mounted outside an active controller.
+  // runtime 回到 ready 后由 Main 持久化状态接管展示，避免同步成功后又闪回待确认。
   if (
     props.parseResult.status === "ready" &&
     props.persistedState?.type === props.parseResult.type
@@ -200,6 +201,17 @@ const persistedError = computed(() => props.persistedState?.error);
 
         <p v-if="persistedError" class="text-xs leading-5 text-error">
           持久化错误：{{ persistedError }}
+        </p>
+
+        <p v-if="registrationError" class="text-xs leading-5 text-warning">
+          待处理状态保存失败：{{ registrationError }}
+          <button
+            type="button"
+            class="ml-1 underline hover:text-default"
+            @click="emit('retryRegistration')"
+          >
+            重试保存
+          </button>
         </p>
 
         <p v-if="stateSyncError" class="text-xs leading-5 text-warning">

@@ -2,7 +2,6 @@ import { mkdirSync, promises as fsPromises, readFileSync, rmSync, writeFileSync 
 import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
-import type { FylloActionState } from "@shared/fyllo-action/protocol";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -160,19 +159,64 @@ describe("session-store", () => {
       meta({
         available_commands: [{ name: "review", description: "Review code" }],
         actionStates: {
-          version: 1,
-          records: {
-            "chat:session-1:0:0:0": {
-              type: "task.create",
-              status: "succeeded",
-              revision: 1,
-              updatedAt: "2026-06-08T00:00:00.000Z",
-              error: undefined,
-            },
+          "chat:session-1:0:0:0": {
+            type: "task.create",
+            status: "succeeded",
+            revision: 1,
+            updatedAt: "2026-06-08T00:00:00.000Z",
+            error: undefined,
           },
-        } as unknown as Record<string, FylloActionState>,
+        },
       })
     );
+
+    const raw = JSON.parse(readFileSync(sessionMetaPath(), "utf8")) as Record<string, unknown>;
+    expect(raw.actionStates).toEqual({
+      version: 1,
+      records: {
+        "chat:session-1:0:0:0": {
+          type: "task.create",
+          status: "succeeded",
+          revision: 1,
+          updatedAt: "2026-06-08T00:00:00.000Z",
+        },
+      },
+    });
+  });
+
+  it("decodes a versioned actionStates envelope into the in-memory action map", async () => {
+    const actionId = "chat:session-1:1:1:0";
+    mkdirSync(dirname(sessionMetaPath()), { recursive: true });
+    writeFileSync(
+      sessionMetaPath(),
+      JSON.stringify({
+        ...meta(),
+        actionStates: {
+          version: 1,
+          records: {
+            [actionId]: {
+              type: "task.create",
+              status: "ready",
+              revision: 1,
+              updatedAt: "2026-07-15T02:40:24.457Z",
+            },
+          },
+        },
+      }),
+      "utf8"
+    );
+
+    const loaded = await loadSessionMeta(projectPath, "session-1");
+
+    expect(loaded?.actionStates?.[actionId]).toEqual({
+      type: "task.create",
+      status: "ready",
+      revision: 1,
+      updatedAt: "2026-07-15T02:40:24.457Z",
+      error: undefined,
+    });
+    expect(loaded?.actionStates).not.toHaveProperty("version");
+    expect(loaded?.actionStates).not.toHaveProperty("records");
   });
 
   it("normalizes invalid actionStates to undefined", async () => {
@@ -206,17 +250,14 @@ describe("session-store", () => {
       meta({
         sessionId: "session-2",
         actionStates: {
-          version: 1,
-          records: {
-            valid: {
-              type: "task.create",
-              status: "cancelled",
-              revision: 0,
-              updatedAt: "2026-06-08T00:00:00.000Z",
-              error: undefined,
-            },
+          valid: {
+            type: "task.create",
+            status: "cancelled",
+            revision: 0,
+            updatedAt: "2026-06-08T00:00:00.000Z",
+            error: undefined,
           },
-        } as unknown as Record<string, FylloActionState>,
+        },
       })
     );
   });
