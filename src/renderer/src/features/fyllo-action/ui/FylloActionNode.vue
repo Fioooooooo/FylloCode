@@ -25,7 +25,10 @@ const props = defineProps<{
 const hostContext = inject<FylloActionHostContext>(fylloActionHostContextKey);
 const { dispatchFylloAction } = useFylloActionDispatcher();
 
-const actionOrdinal = computed(() => hostContext?.resolveActionOrdinal(props.node) ?? null);
+const actionOrdinal = computed<number | null>(() => {
+  const ordinal = hostContext?.resolveActionOrdinal(props.node);
+  return typeof ordinal === "number" && ordinal >= 0 ? ordinal : null;
+});
 
 const parseResult = computed(() => parseFylloActionNode(props.node));
 

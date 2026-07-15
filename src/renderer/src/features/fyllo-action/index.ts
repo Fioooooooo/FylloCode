@@ -42,13 +42,7 @@ export {
   type FylloActionOrdinalNode,
 } from "./ui/fyllo-action-context";
 
-// Integration entries (host adapters). These are stable but not part of the default public API;
-// hosts should import them explicitly when assembling Markstream/EventRail.
-export {
-  FylloActionNode as MarkstreamFylloActionNode,
-  createFylloActionOrdinalResolver,
-  type FylloActionHostContextInput,
-} from "./integration/markstream";
+// 宿主 composition root 应显式导入 /integration 入口，根入口不暴露具体 adapter。
 export {
   collectFylloActionRailItems,
   type FylloActionRailContributorItem,

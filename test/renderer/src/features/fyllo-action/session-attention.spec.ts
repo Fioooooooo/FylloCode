@@ -157,6 +157,26 @@ describe("getSessionAttention", () => {
     expect(getSessionAttention(session)).toBe(1);
   });
 
+  it("does not count literal action syntax in explanatory prose", () => {
+    const session = makeSession({
+      messages: [
+        {
+          id: "msg-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: '用法是 <fyllo-action type="task.create">{"title":"x"}</fyllo-action>',
+            },
+          ],
+          metadata: { sessionId: "session-1", createdAt: new Date() },
+        },
+      ],
+    });
+
+    expect(getSessionAttention(session)).toBe(0);
+  });
+
   it("does not double-count actions that already have a persisted state", () => {
     const session = makeSession({
       actionStates: {

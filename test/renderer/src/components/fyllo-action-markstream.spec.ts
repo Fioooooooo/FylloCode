@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import AssistantMessage from "@renderer/components/chat/message/AssistantMessage.vue";
+import { fylloActionMarkstreamCustomHtmlTags } from "@renderer/features/fyllo-action/integration";
 import type { UIMessage } from "ai";
 
 const markstreamMocks = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ vi.mock("markstream-vue", () => ({
     props: [
       "customId",
       "customHtmlTags",
+      "parseOptions",
       "content",
       "final",
       "fade",
@@ -76,12 +78,12 @@ describe("MarkStream Fyllo action integration", () => {
     });
 
     expect(wrapper.get('[data-test="markdown-render"]').attributes("data-tags")).toBe(
-      "fyllo-action"
+      fylloActionMarkstreamCustomHtmlTags[0]
     );
     expect(markstreamMocks.setCustomComponents).toHaveBeenCalledWith(
       "message-1",
       expect.objectContaining({
-        "fyllo-action": expect.any(Object),
+        [fylloActionMarkstreamCustomHtmlTags[0]]: expect.any(Object),
       })
     );
   });
@@ -103,7 +105,7 @@ describe("MarkStream Fyllo action integration", () => {
     expect(markstreamMocks.setCustomComponents).toHaveBeenLastCalledWith(
       "message-2",
       expect.objectContaining({
-        "fyllo-action": expect.any(Object),
+        [fylloActionMarkstreamCustomHtmlTags[0]]: expect.any(Object),
       })
     );
   });

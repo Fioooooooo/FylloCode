@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import MarkdownRender, { removeCustomComponents, setCustomComponents } from "markstream-vue";
+import MarkdownRender, {
+  removeCustomComponents,
+  setCustomComponents,
+  type NodeRendererProps,
+} from "markstream-vue";
 import { computed, onBeforeUnmount, provide, watch } from "vue";
 import {
   FylloActionNode as FeatureFylloActionNode,
+  createFylloActionNodeTransformer,
   createFylloActionOrdinalResolver,
-  fylloActionHostContextKey,
+  fylloActionMarkstreamCustomHtmlTags,
+  prepareFylloActionMarkdown,
   type FylloActionHostContextInput,
-} from "@renderer/features/fyllo-action";
-
-const fylloActionCustomHtmlTags = ["fyllo-action"] as const;
+} from "@renderer/features/fyllo-action/integration";
+import { fylloActionHostContextKey } from "@renderer/features/fyllo-action";
 
 const props = defineProps<{
   id: string;
@@ -20,14 +25,24 @@ const props = defineProps<{
 }>();
 
 const customHtmlTags = computed(() =>
-  props.enableActions ? fylloActionCustomHtmlTags : undefined
+  props.enableActions ? fylloActionMarkstreamCustomHtmlTags : undefined
+);
+const preparedMarkdown = computed(() =>
+  props.enableActions ? prepareFylloActionMarkdown(props.content) : null
+);
+const renderContent = computed(() => preparedMarkdown.value?.content ?? props.content);
+const parseOptions = computed<NodeRendererProps["parseOptions"]>(() =>
+  preparedMarkdown.value
+    ? { postTransformNodes: createFylloActionNodeTransformer(preparedMarkdown.value) }
+    : undefined
 );
 
 let registeredCustomId: string | null = null;
-let actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
+let actionOrdinalResolver = createFylloActionOrdinalResolver(
+  prepareFylloActionMarkdown(props.content).analysis
+);
 
-// Provide host context to nested FylloActionNode components so they can resolve their
-// ordinal position and read/persist action state without prop drilling through markstream-vue.
+// 通过注入向嵌套 Action node 提供源码 ordinal 与状态端口，避免穿透 Markstream 逐层传参。
 provide(fylloActionHostContextKey, {
   get projectId() {
     return props.actionContext?.projectId ?? "";
@@ -73,7 +88,7 @@ function registerFylloActionComponents(): void {
   }
 
   setCustomComponents(props.id, {
-    "fyllo-action": FeatureFylloActionNode,
+    [fylloActionMarkstreamCustomHtmlTags[0]]: FeatureFylloActionNode,
   });
   registeredCustomId = props.id;
 }
@@ -81,11 +96,18 @@ function registerFylloActionComponents(): void {
 watch(
   () => [props.id, props.enableActions] as const,
   () => {
-    // A new message id or action enablement change means the rendered content identity changed.
-    // Rebuild the ordinal resolver and re-register the custom component with markstream-vue.
-    actionOrdinalResolver = createFylloActionOrdinalResolver(props.content);
     removeRegisteredCustomComponents();
     registerFylloActionComponents();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [props.content, props.enableActions] as const,
+  () => {
+    const analysis =
+      preparedMarkdown.value?.analysis ?? prepareFylloActionMarkdown(props.content).analysis;
+    actionOrdinalResolver = createFylloActionOrdinalResolver(analysis);
   },
   { immediate: true }
 );
@@ -99,7 +121,8 @@ onBeforeUnmount(() => {
   <MarkdownRender
     :custom-id="id"
     :custom-html-tags="customHtmlTags"
-    :content="content"
+    :content="renderContent"
+    :parse-options="parseOptions"
     :final="!isStreaming"
     :fade="false"
     :typewriter="isStreaming"

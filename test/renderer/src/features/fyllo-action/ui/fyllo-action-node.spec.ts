@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import FylloActionNode from "@renderer/features/fyllo-action/ui/FylloActionNode.vue";
 import type { FylloActionHandlerResult } from "@shared/fyllo-action/protocol";
-import { createFylloActionOrdinalResolver } from "@renderer/features/fyllo-action";
+import { analyzeFylloActionMarkdown } from "@shared/fyllo-action/parser";
+import {
+  createFylloActionOrdinalResolver,
+  fylloActionMarkstreamCustomHtmlTags,
+} from "@renderer/features/fyllo-action/integration";
 import { fylloActionHostContextKey } from "@renderer/features/fyllo-action/ui/fyllo-action-context";
 
 const dispatchMock = vi.hoisted(() => vi.fn());
@@ -238,14 +242,23 @@ describe("FylloActionNode", () => {
   });
 
   it("allocates action ordinals by source order, including repeated payloads", () => {
-    const resolveOrdinal = createFylloActionOrdinalResolver(
-      [
-        '<fyllo-action type="task.create">{"title":"A"}</fyllo-action>',
-        '<fyllo-action type="task.create">{"title":"A"}</fyllo-action>',
-      ].join("\n")
-    );
+    const source = [
+      '<fyllo-action type="task.create">{"title":"A"}</fyllo-action>',
+      '<fyllo-action type="task.create">{"title":"A"}</fyllo-action>',
+    ].join("\n\n");
+    const resolveOrdinal = createFylloActionOrdinalResolver(analyzeFylloActionMarkdown(source));
+    const firstNode = {
+      type: fylloActionMarkstreamCustomHtmlTags[0],
+      content: '{"title":"A"}',
+    };
 
-    expect(resolveOrdinal({ content: '{"title":"A"}' })).toBe(0);
-    expect(resolveOrdinal({ content: '{"title":"A"}' })).toBe(1);
+    expect(resolveOrdinal(firstNode)).toBe(0);
+    expect(resolveOrdinal(firstNode)).toBe(0);
+    expect(
+      resolveOrdinal({
+        type: fylloActionMarkstreamCustomHtmlTags[0],
+        content: '{"title":"A"}',
+      })
+    ).toBe(1);
   });
 });

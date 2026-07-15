@@ -1,6 +1,6 @@
 import type { Session } from "@shared/types/chat";
 import type { FylloActionPayloadByType, FylloActionType } from "@shared/fyllo-action/protocol";
-import { collectFylloActionSources, parseFylloActionNode } from "@shared/fyllo-action/parser";
+import { analyzeFylloActionMarkdown, parseFylloActionNode } from "@shared/fyllo-action/parser";
 import { buildChatFylloActionId } from "@shared/fyllo-action/identity";
 
 export type PendingFylloAction = {
@@ -23,11 +23,8 @@ function isAssistantTextPart(
 }
 
 /**
- * Walk through all assistant text parts in a session and collect Fyllo actions that have
- * not yet been acted upon (no persisted terminal state).
- *
- * The result is a feature-owned projection; callers such as EventRail integration add
- * presentation data (title/icon/summary) on top of it.
+ * 遍历会话中的 assistant text part，投影尚无持久化状态的 ready Action。
+ * 返回值只包含 feature model；EventRail 等宿主展示字段由 integration 继续转换。
  */
 export function collectPendingFylloActions(session: Session | null): PendingFylloAction[] {
   if (!session) {
@@ -46,8 +43,17 @@ export function collectPendingFylloActions(session: Session | null): PendingFyll
         return;
       }
 
-      collectFylloActionSources(part.text).forEach((source, actionOrdinalInPart) => {
-        const parseResult = parseFylloActionNode(source);
+      const analysis = analyzeFylloActionMarkdown(part.text);
+      analysis.occurrences.forEach((occurrence) => {
+        if (occurrence.disposition !== "candidate") {
+          return;
+        }
+
+        const parseResult = parseFylloActionNode({
+          attrs: occurrence.attrs,
+          content: occurrence.body,
+          loading: !occurrence.closed,
+        });
         if (parseResult.status !== "ready") {
           return;
         }
@@ -56,7 +62,7 @@ export function collectPendingFylloActions(session: Session | null): PendingFyll
           sessionId: session.id,
           messageIndex,
           partIndex,
-          actionOrdinalInPart,
+          actionOrdinalInPart: occurrence.sourceOrdinal,
         });
         if (hasPersistedState(session, actionId)) {
           return;

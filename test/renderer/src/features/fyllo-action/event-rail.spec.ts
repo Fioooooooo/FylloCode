@@ -79,7 +79,7 @@ describe("collectPendingFylloActionRailItems", () => {
           [
             '<fyllo-action type="task.create">{"title":"A"}</fyllo-action>',
             '<fyllo-action type="task.create">{"title":"B"}</fyllo-action>',
-          ].join("\n")
+          ].join("\n\n")
         ),
       ],
     });
@@ -127,7 +127,7 @@ describe("collectPendingFylloActionRailItems", () => {
           '<fyllo-action type="task.create">{"title":"Failed"}</fyllo-action>',
           '<fyllo-action type="task.create">{"title":"Cancelled"}</fyllo-action>',
           '<fyllo-action type="task.create">{"title":"Still pending"}</fyllo-action>',
-        ].join("\n")
+        ].join("\n\n")
       ),
     ];
     const session = makeSession({
@@ -151,9 +151,56 @@ describe("collectPendingFylloActionRailItems", () => {
           [
             '<fyllo-action type="task.create">{"title":""}</fyllo-action>',
             '<fyllo-action type="task.create">{"title":"Still streaming"}',
-          ].join("\n")
+          ].join("\n\n")
         ),
       ],
+    });
+
+    expect(collectPendingFylloActionRailItems(session)).toEqual([]);
+  });
+
+  it("excludes prose, inline-code, fenced, list, and blockquote literals", () => {
+    const example = '<fyllo-action type="task.create">{"title":"literal"}</fyllo-action>';
+    const session = makeSession({
+      messages: [
+        assistantTextMessage(
+          [
+            `用法是 ${example}`,
+            `\`${example}\``,
+            `\`\`\`text\n${example}\n\`\`\``,
+            `- ${example}`,
+            `> ${example}`,
+          ].join("\n\n")
+        ),
+      ],
+    });
+
+    expect(collectPendingFylloActionRailItems(session)).toEqual([]);
+  });
+
+  it("preserves a candidate ordinal after a literal occurrence", () => {
+    const literal = '示例：<fyllo-action type="task.create">{"title":"literal"}</fyllo-action>';
+    const candidate = '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>';
+    const session = makeSession({
+      messages: [assistantTextMessage([literal, candidate].join("\n\n"))],
+    });
+
+    expect(collectPendingFylloActionRailItems(session)).toEqual([
+      expect.objectContaining({
+        actionId: "chat:session-1:0:0:1",
+        summary: "ready",
+      }),
+    ]);
+  });
+
+  it("resolves existing persisted state after a literal occurrence", () => {
+    const literal = '示例：<fyllo-action type="task.create">{"title":"literal"}</fyllo-action>';
+    const candidate = '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>';
+    const session = makeSession({
+      messages: [assistantTextMessage([literal, candidate].join("\n\n"))],
+      actionStates: {
+        "chat:session-1:0:0:1": handledActionState("ready"),
+      },
     });
 
     expect(collectPendingFylloActionRailItems(session)).toEqual([]);

@@ -143,7 +143,31 @@ export interface ParsedFylloActionSource {
   loading: boolean;
 }
 
+export type FylloActionMarkdownDisposition = "candidate" | "literal";
+
+export type FylloActionMarkdownContext = "markdown" | "inline_code" | "fenced_code";
+
+export interface FylloActionMarkdownOccurrence {
+  start: number;
+  end: number;
+  openingTagEnd: number;
+  closingTagStart: number | null;
+  raw: string;
+  attrs: Record<string, string>;
+  body: string;
+  closed: boolean;
+  sourceOrdinal: number;
+  disposition: FylloActionMarkdownDisposition;
+  context: FylloActionMarkdownContext;
+}
+
+export interface FylloActionMarkdownAnalysis {
+  sourceLength: number;
+  occurrences: FylloActionMarkdownOccurrence[];
+}
+
 export interface FylloActionMarkdownNode {
+  type?: string;
   attrs?: Record<string, unknown> | [string, unknown][] | null;
   loading?: boolean;
   raw?: string;

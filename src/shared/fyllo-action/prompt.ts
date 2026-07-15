@@ -49,6 +49,8 @@ export function renderFylloActionPromptContract(): string {
     `- The body must be a strict JSON object matching the enabled type schema.`,
     `- Do not use Markdown code fences, comments, trailing commas, arrays, strings, or bare text inside the tag.`,
     `- When payload text needs literal angle brackets, encode them as \\u003c and \\u003e inside JSON strings.`,
+    `- Emit a real action only as a standalone top-level Markdown block with no explanatory text before the opening tag or after the closing tag.`,
+    `- When explaining the public tag syntax or showing a non-executable example, wrap it in inline code or a fenced code block.`,
     ``,
     `Enabled action types: ${enabledTypes}.`,
     ``,

@@ -18,8 +18,7 @@
 ## 公开入口
 
 - `@renderer/features/fyllo-action`：稳定公共 API，包括 selectors、`useSessionAttention`、`FylloActionShell`、`FylloActionNode` 等。
-- Markstream 装配入口：`@renderer/features/fyllo-action/integration/markstream`
-- EventRail contributor 入口：`@renderer/features/fyllo-action/integration/event-rail`
+- Markstream 与 EventRail 宿主装配入口：`@renderer/features/fyllo-action/integration`
 - Renderer UI override registry：`@renderer/features/fyllo-action/integration/renderer-registry`
 
 ## 四层结构
@@ -38,3 +37,10 @@
 - `ui` → `model`/`application` + shared types
 - `integration` → `ui`/`application`/`model` + 宿主（Markstream/EventRail）contract
 - feature 外部默认只从 `index.ts` 导入；host 装配可从 integration entry 导入。
+
+## Markstream 协议边界
+
+- public Action occurrence 的 candidate/literal 判定只来自 `@shared/fyllo-action/parser` 的源码 analysis，Markstream adapter 不再扫描独立正则。
+- adapter 只把已闭合的 standalone candidate 改写为 render-only internal tag；该 tag 不从 feature 根入口导出，也不是 agent-facing contract。
+- 代码区域外的 literal occurrence 通过 render-only placeholder 穿过 Markstream parsing，再由 `postTransformNodes` 使用原始源码还原；placeholder 不得出现在最终 AST、UI、消息或持久化状态中。
+- 未闭合 occurrence 始终作为 literal Markdown，不创建 Inline Action UI、registration 或 EventRail projection。

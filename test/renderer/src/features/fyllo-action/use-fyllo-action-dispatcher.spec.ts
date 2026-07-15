@@ -247,13 +247,9 @@ describe("useFylloActionDispatcher", () => {
             {
               type: "text",
               text: [
-                '<fyllo-action type="knowledge.flag">',
-                '{"summary":"First candidate","contextPaths":["src/one.ts"]}',
-                "</fyllo-action>",
-                '<fyllo-action type="knowledge.flag">',
-                '{"summary":"Second candidate"}',
-                "</fyllo-action>",
-              ].join(""),
+                '<fyllo-action type="knowledge.flag">{"summary":"First candidate","contextPaths":["src/one.ts"]}</fyllo-action>',
+                '<fyllo-action type="knowledge.flag">{"summary":"Second candidate"}</fyllo-action>',
+              ].join("\n\n"),
             },
           ],
         },
