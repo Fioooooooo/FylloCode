@@ -188,7 +188,7 @@ function handleOriginTaskLeave(): void {
           color="primary"
           variant="solid"
           size="xs"
-          class="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px] leading-4"
+          class="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px] leading-4 justify-center"
           :aria-label="`该会话有 ${attentionCount} 个待处理操作`"
           data-test="session-attention-badge"
         >
