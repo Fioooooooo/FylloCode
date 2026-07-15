@@ -100,7 +100,7 @@ const contracts = {
     payloadSchema: knowledgeFlagFylloActionPayloadSchema,
     prompt: {
       purpose:
-        "Bookmark a reusable, hard-to-rediscover fact the moment it surfaces. The flag renders as a passive card and joins the session event rail; it does not block or prompt the user, so expect no immediate response. When the user later confirms any pending flag, FylloCode bundles all pending flags in the session into one capture request message, and you will be asked to write durable knowledge then. Flagging is not capture: emit it and continue your task.",
+        "Bookmark a reusable, hard-to-rediscover fact the moment it surfaces. The flag renders as a passive card and joins the session event rail; it does not block or prompt the user, so expect no immediate response. When the user later confirms any pending flag, FylloCode bundles all pending flags in the session into one capture request message, and you will be asked to write durable knowledge then. Flagging is not capture: emit it as its own Markdown block, then continue your task after a blank line.",
       payloadFields: [
         {
           name: "summary",
@@ -116,7 +116,7 @@ const contracts = {
         },
       ],
       constraints: [
-        "Emit at discovery time, then continue the current task; do not wait for the discussion to conclude.",
+        "Emit at discovery time as a standalone block — do not wait for the discussion to conclude; if the response continues, leave a blank line after the closing tag before continuing the current task.",
         "summary must be a single line without CR/LF, stating the fact and why it is not cheap to rediscover.",
         "Do not repeat an equivalent pending flag.",
         "Do not include secrets, credentials, or personal data.",
@@ -135,7 +135,7 @@ const contracts = {
     payloadSchema: knowledgeReviewFylloActionPayloadSchema,
     prompt: {
       purpose:
-        "Ask the user to review a durable knowledge entry you just created or updated during capture. The tag renders as a card in the session rail; confirming opens the entry's markdown file from disk in FylloCode's review view. Do not paste the entry body into chat.",
+        "Ask the user to review a durable knowledge entry you just created or updated during capture. The tag renders as a card in the session rail and stays pending there until the user handles it; confirming opens the entry's markdown file from disk in FylloCode's review view, so a pending card always shows the latest saved content. Do not paste the entry body into chat.",
       payloadFields: [
         {
           name: "name",
@@ -153,6 +153,7 @@ const contracts = {
       constraints: [
         "name must be a valid knowledge entry name.",
         "Emit only for entries actually created or updated during capture, one action per entry.",
+        "Emit at most one review card per entry file: when revising an entry that already has a pending review card, save the file without emitting another — the existing card already opens the revised content.",
       ],
       example: {
         name: "payment-webhook-idempotency",

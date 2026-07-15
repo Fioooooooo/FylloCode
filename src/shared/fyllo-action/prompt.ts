@@ -28,10 +28,12 @@ function formatActionContract<Type extends FylloActionType>(
     }`,
     `  Constraints:`,
     ...contract.prompt.constraints.map((c) => `    - ${c}`),
-    `  Example:`,
-    `  <fyllo-action type="${contract.type}">`,
-    ...example.split("\n").map((line) => `  ${line}`),
-    `  </fyllo-action>`,
+    `  Executable output example (emit without Markdown fences and keep the surrounding blank lines):`,
+    ``,
+    `<fyllo-action type="${contract.type}">`,
+    ...example.split("\n"),
+    `</fyllo-action>`,
+    ``,
   ].join("\n");
 }
 
@@ -39,7 +41,7 @@ export function renderFylloActionPromptContract(): string {
   const contracts = Object.values(fylloActionContracts);
   const enabledTypes = contracts.map((contract) => contract.type).join(", ");
 
-  const actionContracts = contracts.map((contract) => formatActionContract(contract)).join("\n\n");
+  const actionContracts = contracts.map((contract) => formatActionContract(contract)).join("\n");
 
   return [
     `<fyllo-action-contract>`,
@@ -49,7 +51,9 @@ export function renderFylloActionPromptContract(): string {
     `- The body must be a strict JSON object matching the enabled type schema.`,
     `- Do not use Markdown code fences, comments, trailing commas, arrays, strings, or bare text inside the tag.`,
     `- When payload text needs literal angle brackets, encode them as \\u003c and \\u003e inside JSON strings.`,
-    `- Emit a real action only as a standalone top-level Markdown block with no explanatory text before the opening tag or after the closing tag.`,
+    `- Emit a real action only as a standalone top-level Markdown block starting at the beginning of a line; indenting it four or more spaces turns it into a code block.`,
+    `- If prose precedes the action, insert a blank line (two newline characters) before the opening tag; never append the opening tag to a prose line.`,
+    `- After the closing tag, either end the response or insert a blank line before continuing; never append further text to the closing-tag line.`,
     `- When explaining the public tag syntax or showing a non-executable example, wrap it in inline code or a fenced code block.`,
     ``,
     `Enabled action types: ${enabledTypes}.`,
