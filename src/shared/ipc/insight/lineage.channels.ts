@@ -3,6 +3,7 @@ export const InsightLineageChannels = {
   linkTaskSession: "insight:lineage:linkTaskSession",
   getByTask: "insight:lineage:getByTask",
   getBySession: "insight:lineage:getBySession",
+  getBrowser: "insight:lineage:getBrowser",
   createSessionTask: "insight:lineage:createSessionTask",
   readPlan: "insight:lineage:readPlan",
   savePlanBody: "insight:lineage:savePlanBody",

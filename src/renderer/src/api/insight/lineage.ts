@@ -1,6 +1,7 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
   CreateSessionTaskInput,
+  LineageBrowserData,
   LineageTaskRef,
   LineageTaskSnapshot,
   PlanDocument,
@@ -11,6 +12,10 @@ import type {
 import type { TaskItem } from "@shared/types/task";
 
 export const lineageApi = {
+  getBrowser(projectId: string): Promise<IpcResponse<LineageBrowserData>> {
+    return window.api.insight.lineage.getBrowser(projectId);
+  },
+
   ensureTaskSubject(
     projectId: string,
     snapshot: LineageTaskSnapshot

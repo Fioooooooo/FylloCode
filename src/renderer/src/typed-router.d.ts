@@ -73,6 +73,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/lineage': RouteRecordInfo<
+      '/lineage',
+      '/lineage',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/overview': RouteRecordInfo<
       '/overview',
       '/overview',
@@ -171,6 +178,14 @@ declare module 'vue-router/auto-routes' {
     'src/pages/knowledge.vue': {
       routes:
         | '/knowledge'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/lineage.vue': {
+      routes:
+        | '/lineage'
       views:
         | never
       pathParamNames:

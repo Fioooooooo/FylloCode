@@ -70,6 +70,10 @@ export const getBySessionInputSchema = z.object({
   sessionId: z.string().min(1),
 });
 
+export const getBrowserInputSchema = z.object({
+  projectId: z.string().min(1),
+});
+
 export const createSessionTaskInputSchema = z.object({
   projectId: z.string().min(1),
   sessionId: z.string().min(1),

@@ -52,4 +52,14 @@ describe("preload lineageApi", () => {
       slug: "2026-06-29-plan-a",
     });
   });
+
+  it("invokes the browser channel with the project id", async () => {
+    const { lineageApi } = await import("@preload/api/insight/lineage");
+
+    await lineageApi.getBrowser("project-1");
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(LineageChannels.getBrowser, {
+      projectId: "project-1",
+    });
+  });
 });

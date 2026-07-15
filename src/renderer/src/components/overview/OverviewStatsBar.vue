@@ -38,8 +38,8 @@ const ringStyle = computed(() => {
   };
 });
 
-type StatCardKey = "specs" | "archives" | "guidelines" | "knowledge";
-type StatRoute = "/specs" | "/proposal" | "/guidelines" | "/knowledge";
+type StatCardKey = "lineage" | "specs" | "archives" | "guidelines" | "knowledge";
+type StatRoute = "/lineage" | "/specs" | "/proposal" | "/guidelines" | "/knowledge";
 
 type StatCard = {
   key: StatCardKey;
@@ -91,6 +91,12 @@ const cards = computed<StatCard[]>(() => [
     value: knowledgeValue.value,
     meta: knowledgeMeta.value,
     route: "/knowledge",
+  },
+  {
+    key: "lineage",
+    label: "工作脉络",
+    value: String(props.stats.totalSubjects),
+    route: "/lineage",
   },
 ]);
 

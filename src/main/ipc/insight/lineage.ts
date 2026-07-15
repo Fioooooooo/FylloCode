@@ -4,6 +4,7 @@ import {
   approvePlanInputSchema,
   createSessionTaskInputSchema,
   ensureTaskSubjectInputSchema,
+  getBrowserInputSchema,
   getByTaskInputSchema,
   getBySessionInputSchema,
   linkTaskSessionInputSchema,
@@ -18,6 +19,7 @@ import {
   getBySession,
   linkTaskSession,
 } from "@main/services/insight/lineage/lineage-service";
+import { getLineageBrowser } from "@main/services/insight/lineage/browser";
 import { approvePlan, readPlan, savePlanBody } from "@main/services/insight/lineage/plan";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
@@ -52,6 +54,14 @@ export function registerLineageHandlers(): void {
       const form = validate(getBySessionInputSchema, input);
       const projectPath = await resolveProjectPath(form.projectId);
       return getBySession(projectPath, form.sessionId);
+    })
+  );
+
+  ipcMain.handle(InsightLineageChannels.getBrowser, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const form = validate(getBrowserInputSchema, input);
+      const projectPath = await resolveProjectPath(form.projectId);
+      return getLineageBrowser(projectPath);
     })
   );
 

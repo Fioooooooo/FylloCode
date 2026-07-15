@@ -1,4 +1,5 @@
 import type { TaskItem, TaskSource } from "@shared/types/task";
+import type { ProposalStatus } from "@shared/types/proposal";
 
 export type LineageOrigin = "task" | "chat";
 
@@ -84,4 +85,45 @@ export type LineageIndex = {
   proposals: Record<string, string>;
   commitHashes: Record<string, string>;
   updatedAt: string;
+};
+
+export type LineageBrowserStatus = "applying" | "planned" | "completed" | "discussion";
+
+export type LineageBrowserPlan = {
+  slug: string;
+  createdAt: string;
+  goal: string | null;
+  status: PlanDocumentStatus | null;
+};
+
+export type LineageBrowserProposal = {
+  changeId: string;
+  createdAt: string;
+  commitHash: string | null;
+  title: string | null;
+  status: ProposalStatus | null;
+};
+
+export type LineageBrowserSession = {
+  sessionId: string;
+  title: string;
+  agentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  plans: LineageBrowserPlan[];
+  proposals: LineageBrowserProposal[];
+};
+
+export type LineageBrowserEntry = {
+  subjectId: string;
+  origin: LineageOrigin;
+  task: LineageTaskSnapshot | null;
+  status: LineageBrowserStatus;
+  createdAt: string;
+  updatedAt: string;
+  sessions: LineageBrowserSession[];
+};
+
+export type LineageBrowserData = {
+  entries: LineageBrowserEntry[];
 };

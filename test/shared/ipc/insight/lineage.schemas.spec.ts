@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ensureTaskSubjectInputSchema,
+  getBrowserInputSchema,
   getByTaskInputSchema,
   linkTaskSessionInputSchema,
 } from "@shared/ipc/insight/lineage.schemas";
@@ -58,5 +59,17 @@ describe("lineage ipc schemas", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("accepts browser input and strips unrelated fields", () => {
+    expect(getBrowserInputSchema.parse({ projectId: "project-1", unrelated: "ignored" })).toEqual({
+      projectId: "project-1",
+    });
+  });
+
+  it("rejects invalid browser project ids", () => {
+    expect(getBrowserInputSchema.safeParse({ projectId: "" }).success).toBe(false);
+    expect(getBrowserInputSchema.safeParse({ projectId: 42 }).success).toBe(false);
+    expect(getBrowserInputSchema.safeParse({}).success).toBe(false);
   });
 });

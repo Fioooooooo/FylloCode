@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   linkTaskSession: vi.fn(),
   getByTask: vi.fn(),
   getBySession: vi.fn(),
+  getLineageBrowser: vi.fn(),
   createSessionTask: vi.fn(),
   readPlan: vi.fn(),
   savePlanBody: vi.fn(),
@@ -34,12 +35,17 @@ vi.mock("@main/services/insight/lineage/plan", () => ({
   approvePlan: mocks.approvePlan,
 }));
 
+vi.mock("@main/services/insight/lineage/browser", () => ({
+  getLineageBrowser: mocks.getLineageBrowser,
+}));
+
 import { registerLineageHandlers } from "@main/ipc/insight/lineage";
 
 describe("registerLineageHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.getLineageBrowser.mockResolvedValue({ entries: [] });
     mocks.readPlan.mockResolvedValue({
       slug: "2026-06-29-plan-a",
       goal: "Need review",
@@ -89,6 +95,31 @@ describe("registerLineageHandlers", () => {
     expect(result).toEqual({
       ok: true,
       data: expect.objectContaining({ slug: "2026-06-29-plan-a" }),
+    });
+  });
+
+  it("loads the lineage browser through a resolved project path", async () => {
+    const result = await handler(LineageChannels.getBrowser)({}, { projectId: "project-1" });
+
+    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
+    expect(mocks.getLineageBrowser).toHaveBeenCalledWith("/tmp/project");
+    expect(result).toEqual({ ok: true, data: { entries: [] } });
+  });
+
+  it("validates browser input and wraps service failures", async () => {
+    const invalid = await handler(LineageChannels.getBrowser)({}, { projectId: "" });
+
+    expect(invalid).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(mocks.getLineageBrowser).not.toHaveBeenCalled();
+
+    mocks.getLineageBrowser.mockRejectedValueOnce(new Error("browser failed"));
+    const failed = await handler(LineageChannels.getBrowser)({}, { projectId: "project-1" });
+    expect(failed).toEqual({
+      ok: false,
+      error: expect.objectContaining({ message: "browser failed" }),
     });
   });
 

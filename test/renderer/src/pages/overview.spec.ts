@@ -218,6 +218,7 @@ describe("overview page", () => {
     expect(governanceColumn.text()).toContain("治理健康");
     expect(governanceColumn.text()).toContain("演进追溯覆盖");
     expect(governanceColumn.text()).toContain("基于 38 条项目脉络统计");
+    expect(governanceColumn.text()).toContain("工作脉络");
     expect(governanceColumn.text()).toContain("能力规约");
     expect(governanceColumn.text()).toContain("归档提案");
     expect(governanceColumn.text()).toContain("项目准则");
@@ -227,13 +228,23 @@ describe("overview page", () => {
     expect(governanceColumn.text()).toContain("规约增长");
     expect(governanceColumn.text()).toContain("准则演化");
     expect(wrapper.find('[data-test="overview-governance-health"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="overview-stat-card-lineages"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="overview-lineage-value"]').text()).toBe("38");
     expect(wrapper.find('[data-test="overview-guidelines-card"] [data-icon-name]').exists()).toBe(
       false
     );
     const governanceEntryGrid = wrapper.get('[data-test="overview-governance-entry-grid"]');
     expect(governanceEntryGrid.classes()).toContain("grid-cols-3");
-    expect(governanceEntryGrid.findAll("button")).toHaveLength(4);
+    expect(governanceEntryGrid.findAll("button")).toHaveLength(5);
+    expect(
+      governanceEntryGrid.findAll("button").map((button) => button.attributes("data-test"))
+    ).toEqual([
+      "overview-specs-card",
+      "overview-archives-card",
+      "overview-guidelines-card",
+      "overview-knowledge-card",
+      "overview-lineage-card",
+    ]);
+    expect(governanceEntryGrid.find('[data-test="overview-lineage-card"]').exists()).toBe(true);
     expect(governanceEntryGrid.find('[data-test="overview-knowledge-card"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-specs-growth"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-guideline-evolution"]').exists()).toBe(true);
@@ -277,6 +288,15 @@ describe("overview page", () => {
 
     const wrapper = mountPage();
     await flushPromises();
+
+    const lineageCard = wrapper.get('[data-test="overview-lineage-card"]');
+    expect(lineageCard.element.tagName).toBe("BUTTON");
+
+    await lineageCard.trigger("click");
+    expect(routerMock.push).toHaveBeenCalledTimes(1);
+    expect(routerMock.push).toHaveBeenCalledWith("/lineage");
+
+    routerMock.push.mockClear();
 
     const specsCard = wrapper.get('[data-test="overview-specs-card"]');
     expect(specsCard.element.tagName).toBe("BUTTON");
