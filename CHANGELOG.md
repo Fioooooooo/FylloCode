@@ -4,6 +4,42 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.1] - 2026-07-15
+
+这个版本让 FylloCode 可以同时承载多个项目窗口，并补齐项目级 durable knowledge 从发现、沉淀、审阅到浏览清理的完整路径。Fyllo Action 的状态持久化、执行幂等性和 Markdown 识别边界也得到系统性加固；底层跨进程结构迁移到 domain-first 架构，为后续能力扩展建立更清晰的所有权边界。
+
+### 新增
+
+- 新增一项目一窗口模型与无项目 launcher：重复打开同一项目会聚焦已有窗口，从项目窗口打开其他项目不会替换当前上下文，并分别保存 launcher 与各项目窗口的位置和最大化状态
+- 新增项目级 durable knowledge 工作流：Agent 可通过 `knowledge.flag` 标记高价值信息，由用户触发批量 capture，再通过 `knowledge.review` 审阅和编辑写入 app data 的 knowledge 文档
+- `fyllo-cortex` 新增 `knowledge` 工具，提供 `capture`、`update`、`retire`、`audit` 四种模式，并通过 file、package、URL anchor 将知识状态计算为 `active`、`suspect` 或 `unknown`
+- Overview 新增「知识沉淀」治理入口与独立 `/knowledge` 浏览页，支持按 project、reference、feedback 分组阅读完整 Markdown、查看状态和扫描异常，并在二次确认后删除单条知识
+- Fyllo Action 新增可持久化的 `ready` 状态、权威注册与命令式状态迁移，以及会话待处理数量 badge；应用重启后仍可恢复未处理 Action
+- 新增 `.nvmrc` 与 worktree 环境准备脚本，统一 Node 版本并按锁文件校验或安装依赖
+
+### 调整
+
+- 项目跨进程与模块结构迁移到 `platform`、`workspace`、`session`、`proposal`、`insight`、`automation` 六领域：preload API 使用 `window.api.<domain>.<area>`，IPC channel 使用 `<domain>:<area>:<action>`，并以 lint 约束 main service、renderer store 与 feature 的依赖方向
+- Fyllo Action 的 shared contract、main service 与 renderer feature 重新分层；Action 注册、状态迁移和副作用幂等性由主进程统一校验，任务创建和批量 knowledge flag 处理不会因状态同步重试而重复执行副作用
+- Fyllo Action 的 inline 渲染、EventRail 和 action identity 现在共享同一套源码分析；只有独占顶层 Markdown block 的完整标签可执行，inline code、代码块、列表、引用和解释文本中的示例保持普通 Markdown
+- 多窗口运行时按项目隔离 Chat probe、Proposal status watcher 与流式取消；ACP agent 等应用级事件则广播到所有活跃窗口
+- renderer feature 边界改由通用 ESLint 规则约束，并补充架构、注释、测试和工作区环境相关项目准则与文档
+- `fyllo-specs archive-change` 现在要求归档新增 capability 后补全生成 spec 的 `## Purpose`，仍有占位内容时不得宣告归档完成
+
+### 修复
+
+- 修复 Fyllo Action 在应用重启后丢失待处理状态、非法状态迁移覆盖权威状态，以及重试时可能重复创建业务对象的问题
+- 修复 Action 标签出现在 inline code、代码示例、列表、引用、普通说明或未闭合流式片段时被误识别，导致正文被吞掉、错误注册或 EventRail 与 inline 状态不一致的问题
+- 修复多项目同时运行时相同 `sessionId`、`changeId`、`runId` 或 agent key 可能互相覆盖、串发事件或误取消的问题
+- 修复 knowledge review 自动保存失败或组件卸载时可能丢失编辑，以及异常 knowledge 文件被静默隐藏的问题
+
+### 备注
+
+- 应用版本升级到 `0.14.1`。
+- `fyllo-cortex` MCP server 升级到 `0.5.0`，新增完整的 durable knowledge 工具与状态审计能力。
+- `fyllo-specs` MCP server 升级到 `0.8.1`，新增归档后 capability spec Purpose 占位检查要求。
+- **兼容性提示**：preload API root 与 IPC channel 已迁移到 domain-first 形状。依赖旧 `window.api.<area>` 或旧 channel 名称的自定义集成需要改用 `window.api.<domain>.<area>` 与 `<domain>:<area>:<action>`；本地持久化路径和数据格式保持兼容。
+
 ## [0.14.0] - 2026-07-07
 
 这个正式版本将 0.14 beta 周期中的 Plan 工作流、项目准则治理和治理视图优化收束为稳定发布。Chat 现在可以在直接实现、Plan 和 Proposal 之间更清晰地分流，Overview、Proposal、Task 与准则浏览页也形成了更完整的项目治理入口。内置 MCP server 同步升级，`fyllo-specs` 补齐 linked worktree 场景下的探索与归档指引，`fyllo-cortex` 的 guidelines 工具则专注于准则维护。

@@ -4,7 +4,7 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
-## [Unreleased]
+## [0.5.0] - 2026-07-15
 
 ### Added
 

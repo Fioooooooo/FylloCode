@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.1] - 2026-07-15
+
+This release lets FylloCode keep multiple projects open in independent windows and completes the project-level durable knowledge path from discovery and capture through review, browsing, and cleanup. Fyllo Action persistence, execution idempotency, and Markdown recognition are hardened throughout, while the underlying cross-process structure moves to a domain-first architecture with clearer ownership boundaries for future capabilities.
+
+### Added
+
+- One-project-per-window behavior and a project-free launcher: reopening a project focuses its existing window, opening another project does not replace the current project context, and launcher/project window bounds and maximized state are persisted independently
+- Project-level durable knowledge workflow: agents can mark valuable findings with `knowledge.flag`, users can trigger batched capture, and `knowledge.review` opens the app-data knowledge document for review and editing
+- New `fyllo-cortex` `knowledge` tool with `capture`, `update`, `retire`, and `audit` modes, plus file, package, and URL anchor checks that classify entries as `active`, `suspect`, or `unknown`
+- Overview Knowledge summary and a dedicated `/knowledge` browser for grouped project, reference, and feedback entries, full Markdown reading, status and scan-error visibility, and confirmation-protected single-entry deletion
+- Persisted Fyllo Action `ready` state, authoritative registration and command-based transitions, plus per-session attention badges so unresolved Actions remain visible after an app restart
+- `.nvmrc` and a worktree environment preparation script that align the Node version and validate or install dependencies from the lockfile
+
+### Changed
+
+- Cross-process and module structure now follows six domains—`platform`, `workspace`, `session`, `proposal`, `insight`, and `automation`: preload APIs use `window.api.<domain>.<area>`, IPC channels use `<domain>:<area>:<action>`, and lint rules enforce main-service, renderer-store, and feature dependency direction
+- Fyllo Action shared contracts, main services, and renderer code are split into explicit layers; the main process now validates registration, transitions, and side-effect idempotency so task creation and batched knowledge-flag handling do not repeat business effects during state-sync retries
+- Inline Fyllo Action rendering, EventRail projection, and action identity now share one source analyzer; only complete tags in standalone top-level Markdown blocks are executable, while inline code, fenced code, lists, blockquotes, and explanatory examples stay literal Markdown
+- Multi-window runtimes isolate Chat probes, Proposal status watchers, and stream cancellation by project, while app-level ACP agent events fan out to every active window
+- Renderer feature boundaries are enforced by generic ESLint rules, with expanded project guidance for architecture, comments, testing, and worktree environment setup
+- `fyllo-specs archive-change` now requires generated capability specs to receive a substantive `## Purpose` before an archive can be reported as complete
+
+### Fixed
+
+- Fixed unresolved Fyllo Actions disappearing after restart, invalid transitions overwriting authoritative state, and retries potentially creating durable business objects more than once
+- Fixed Action tags in inline code, code examples, lists, blockquotes, normal prose, or incomplete streaming fragments being misrecognized and causing swallowed text, incorrect registration, or disagreement between Inline and EventRail state
+- Fixed matching `sessionId`, `changeId`, `runId`, or agent keys in concurrent projects potentially overwriting runtime state, leaking events, or cancelling work in another project
+- Fixed knowledge review edits potentially being lost after autosave rejection or component unmount, and malformed knowledge files being hidden instead of surfaced explicitly
+
+### Notes
+
+- The application version is now `0.14.1`.
+- `fyllo-cortex` MCP server is now `0.5.0`, adding the durable knowledge tool and status-audit workflow.
+- `fyllo-specs` MCP server is now `0.8.1`, adding the post-archive capability Purpose placeholder check.
+- **Compatibility note**: preload API roots and IPC channels have moved to the domain-first shape. Custom integrations using legacy `window.api.<area>` APIs or channel names must migrate to `window.api.<domain>.<area>` and `<domain>:<area>:<action>`; local storage paths and data formats remain compatible.
+
 ## [0.14.0] - 2026-07-07
 
 This stable release consolidates the 0.14 beta cycle around session-scoped planning, project guideline governance, and clearer project governance views. Chat now has a more explicit split between direct implementation, Plan, and Proposal flows, while Overview, Proposal, Task, and the new Guidelines browser form a fuller operating surface for project governance. The bundled MCP servers are updated as well: `fyllo-specs` now handles linked-worktree exploration and archive guidance more accurately, and `fyllo-cortex` focuses its guidelines tool on maintenance workflows.

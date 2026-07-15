@@ -4,6 +4,12 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.8.1] - 2026-07-15
+
+### Changed
+
+- `archive-change` instructions now require agents to replace OpenSpec-generated `## Purpose` placeholders in newly synced capability specs before reporting an archive as complete, and to include the check result in the final summary.
+
 ## [0.8.0] - 2026-07-07
 
 ### Added
