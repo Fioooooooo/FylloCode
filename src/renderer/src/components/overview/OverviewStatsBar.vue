@@ -5,6 +5,10 @@ import type { OverviewStats } from "@renderer/stores";
 
 const props = defineProps<{
   stats: OverviewStats;
+  knowledgeCount: number;
+  knowledgeAttentionCount: number;
+  knowledgeLoading: boolean;
+  knowledgeError: string | null;
 }>();
 
 const router = useRouter();
@@ -34,15 +38,33 @@ const ringStyle = computed(() => {
   };
 });
 
-type StatCardKey = "specs" | "archives" | "guidelines";
-type StatRoute = "/specs" | "/proposal" | "/guidelines";
+type StatCardKey = "specs" | "archives" | "guidelines" | "knowledge";
+type StatRoute = "/specs" | "/proposal" | "/guidelines" | "/knowledge";
 
 type StatCard = {
   key: StatCardKey;
   label: string;
   value: string;
+  meta?: string;
   route: StatRoute;
 };
+
+const knowledgeValue = computed(() => {
+  if (props.knowledgeLoading) {
+    return "正在加载…";
+  }
+  if (props.knowledgeError) {
+    return "暂不可用";
+  }
+  return String(props.knowledgeCount);
+});
+
+const knowledgeMeta = computed(() => {
+  if (!props.knowledgeLoading && !props.knowledgeError && props.knowledgeAttentionCount > 0) {
+    return `${props.knowledgeAttentionCount} 条需关注`;
+  }
+  return undefined;
+});
 
 const cards = computed<StatCard[]>(() => [
   {
@@ -62,6 +84,13 @@ const cards = computed<StatCard[]>(() => [
     label: "项目准则",
     value: String(props.stats.guidelinesCount),
     route: "/guidelines",
+  },
+  {
+    key: "knowledge",
+    label: "知识沉淀",
+    value: knowledgeValue.value,
+    meta: knowledgeMeta.value,
+    route: "/knowledge",
   },
 ]);
 
@@ -100,7 +129,7 @@ function openCard(route: StatRoute): void {
 
     <div class="relative mt-5 h-px bg-white/15 dark:bg-teal-300/15" />
 
-    <div class="relative mt-4 grid grid-cols-3 gap-2.5">
+    <div class="relative mt-4 grid grid-cols-3 gap-2.5" data-test="overview-governance-entry-grid">
       <button
         v-for="card in cards"
         :key="card.key"
@@ -116,8 +145,29 @@ function openCard(route: StatRoute): void {
             <span class="truncate">{{ card.label }}</span>
             <span class="text-white/70 dark:text-teal-300" aria-hidden="true">›</span>
           </span>
-          <span class="text-center text-lg font-bold leading-6 tracking-tight text-white">
-            {{ card.value }}
+          <span class="flex items-center justify-center gap-1">
+            <span
+              class="text-center text-lg font-bold leading-6 tracking-tight text-white"
+              :data-test="`overview-${card.key}-value`"
+            >
+              {{ card.value }}
+            </span>
+            <UTooltip
+              v-if="card.meta"
+              :text="card.meta"
+              :delay-duration="200"
+              :disable-hoverable-content="true"
+            >
+              <UIcon
+                name="i-lucide-circle-alert"
+                class="size-3.5 shrink-0 text-white/70 dark:text-teal-100/65"
+                aria-hidden="true"
+                data-test="overview-knowledge-meta-tip"
+              />
+            </UTooltip>
+            <span v-if="card.meta" class="sr-only" :data-test="`overview-${card.key}-meta`">
+              {{ card.meta }}
+            </span>
           </span>
         </span>
       </button>

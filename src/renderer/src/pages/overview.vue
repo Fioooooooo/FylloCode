@@ -1,22 +1,35 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { computed, watch } from "vue";
 import OverviewActiveChanges from "@renderer/components/overview/OverviewActiveChanges.vue";
 import OverviewGovernance from "@renderer/components/overview/OverviewGovernance.vue";
 import OverviewRecentLineages from "@renderer/components/overview/OverviewRecentLineages.vue";
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
-import { useOverviewStore, useProjectStore } from "@renderer/stores";
+import { useKnowledgeStore, useOverviewStore, useProjectStore } from "@renderer/stores";
 
 const projectStore = useProjectStore();
 const overviewStore = useOverviewStore();
+const knowledgeStore = useKnowledgeStore();
+
+const knowledgeCount = computed(
+  () => (knowledgeStore.data?.entries.length ?? 0) + (knowledgeStore.data?.errors.length ?? 0)
+);
+const knowledgeAttentionCount = computed(
+  () =>
+    (knowledgeStore.data?.entries.filter(
+      (entry) => entry.status === "suspect" || entry.status === "unknown"
+    ).length ?? 0) + (knowledgeStore.data?.errors.length ?? 0)
+);
 
 watch(
   () => projectStore.currentProject?.id,
   (projectId) => {
     if (projectId) {
       void overviewStore.load();
+      void knowledgeStore.load(projectId);
     } else {
       overviewStore.clear();
+      knowledgeStore.clear();
     }
   },
   { immediate: true }
@@ -101,7 +114,13 @@ watch(
         </div>
 
         <div class="space-y-6 xl:col-span-4" data-test="overview-governance-column">
-          <OverviewStatsBar :stats="overviewStore.data.stats" />
+          <OverviewStatsBar
+            :stats="overviewStore.data.stats"
+            :knowledge-count="knowledgeCount"
+            :knowledge-attention-count="knowledgeAttentionCount"
+            :knowledge-loading="knowledgeStore.loading"
+            :knowledge-error="knowledgeStore.error"
+          />
 
           <OverviewGovernance :governance="overviewStore.data.governance" />
         </div>

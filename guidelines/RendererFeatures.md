@@ -17,26 +17,28 @@ keywords: [renderer, features, architecture, boundaries, vue]
 
 ## Feature 准入与边界
 
+- MUST 只让具有复杂功能编排责任的能力进入 `features/**`。至少应存在以下一种准入信号：多个 UI/宿主入口需要共享同一状态投影或交互生命周期；独立状态机、持久化、重试或幂等流程；通过 port/contributor 协调其他 feature；第三方宿主或 overlay/integration 适配；已批准的复杂能力迁移。仅有一个 route、一个 domain store 和少量页面内交互不构成 feature 准入理由。（依据：用户确认的 feature 准入边界；复杂实例见 `src/renderer/src/features/fyllo-action/**`。）
+- MUST 让单页面、小规模能力继续使用 `src/renderer/src/pages/**`、`components/**`、`composables/**`、`utils/**` 与既有 domain store/API 的传统 renderer 结构；不得仅因它能被命名为一个用户能力、包含异步读取或拆出多个组件就创建 feature。现有 reader 页面模式见 `src/renderer/src/pages/guidelines.vue`、`src/renderer/src/pages/specs.vue`。（依据：用户确认的小功能落位规则。）
 - MUST 以可独立描述的用户能力或业务用例命名 feature，例如 `fyllo-action`、`workflow-editor`、`chat-composer`；不得以 `common`、`misc`、`helpers` 等无所有权名称建立 feature。（证据：`references/fyllo-action/README.md`；当前 `src/renderer/src/components/shared/**` 已承担真正的跨功能 UI 原语。）
-- MUST 让 feature 拥有自己的交互生命周期、用例编排或纯业务投影。单个通用组件、单个格式化函数、route wrapper、API wrapper 或 store 不得仅为目录一致性被包装成 feature。
+- MUST 让已准入的 feature 拥有自己的复杂交互生命周期、跨入口用例编排或被多个宿主复用的纯业务投影。单个通用组件、单个格式化函数、route wrapper、API wrapper、store 或仅服务一个页面的展示投影不得仅为目录一致性被包装成 feature。
 - MUST 在 feature 根目录提供 `README.md`，至少说明状态、范围、非范围、当前来源位置、目标边界和迁移触发条件。仅含 README 的目录表示已记录的未来方向，不表示功能已迁移或可从该目录导入。
 - MUST 默认通过 `features/<feature>/index.ts` 暴露已实现 feature 的公共 API。feature 外部不得深路径导入其 `model/`、`application/` 或 `ui/` 内部文件；确有 bundling、循环依赖或宿主注册需求时，可增加 README 明确列出的 integration entry point。
 - SHOULD 让 route 页面保持薄层，只负责路由参数、页面级布局和 feature 挂载。文件系统路由仍必须位于 `src/renderer/src/pages/`。（证据：`guidelines/RendererProcess.md` 的路由规则。）
 
 ## 复杂度自适应结构
 
-四层结构是复杂 feature 的完整形态，不是脚手架模板。MUST 只创建当前职责实际存在的层，不得为了目录对称创建空目录或无行为的转发文件。（依据：用户确认的 Renderer feature 演进方向；当前 `src/renderer/src/features/*/README.md` 是未迁移方向，不是四层空实现。）
+本节只用于已经通过上述复杂功能编排准入的 feature；目录结构可以适应实施阶段和职责复杂度，但不得反向用“可以根目录平铺”降低 feature 准入门槛。四层结构是复杂 feature 的完整形态，不是脚手架模板。MUST 只创建当前职责实际存在的层，不得为了目录对称创建空目录或无行为的转发文件。（依据：用户确认的 Renderer feature 演进方向与 feature 准入边界；当前 `src/renderer/src/features/*/README.md` 是未迁移方向，不是四层空实现。）
 
-| Feature 复杂度                                     | 推荐结构                                        |
+| 已准入 Feature 的当前形态                          | 推荐结构                                        |
 | -------------------------------------------------- | ----------------------------------------------- |
-| 很小，只有少量同职责文件                           | 根目录平铺，通过 `index.ts` 暴露公共入口        |
-| 以展示和纯投影为主                                 | `model/` + `ui/`                                |
-| 有交互生命周期或异步流程                           | `model/` + `application/` + `ui/`               |
+| 渐进迁移首切片，当前只有少量同职责文件             | 根目录平铺，通过 `index.ts` 暴露公共入口        |
+| 多入口复用的展示与纯投影                           | `model/` + `ui/`                                |
+| 有独立交互生命周期、状态机或异步流程               | `model/` + `application/` + `ui/`               |
 | 有宿主、第三方库、overlay、route 或跨 feature 装配 | 按需使用完整 `model/application/ui/integration` |
 
 - MUST 以“能否降低一次需求改动所跨越的目录和所有权数量”判断是否创建 feature；不得只以文件数量或页面名称判断。
 - SHOULD 在 feature 出现多个 UI 入口、明确状态机、持久化/重试/幂等、第三方宿主或跨 domain 副作用时使用完整分层。Fyllo Action 同时具备 streaming 生命周期、Action 状态、Inline/Rail/badge 多入口、Markstream 集成和 durable 副作用，因此采用完整四层。（证据：`references/fyllo-action/README.md`。）
-- SHOULD 让小 feature 保持可读的最小结构；当职责增长时再拆层。不得提前创建只有一个 re-export 或空 `index.ts` 的层级。
+- SHOULD 让已通过准入但仍处于渐进迁移首切片的 feature 保持可读的最小结构；当职责增长时再拆层。不得提前创建只有一个 re-export 或空 `index.ts` 的层级，也不得以该最小结构作为新建小型 feature 的理由。
 - MUST 将“是否创建 feature”和“feature 内是否使用四层”分开判断。不是所有页面块、组件或 composable 都应成为 feature。
 
 ## 四层语义

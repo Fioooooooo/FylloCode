@@ -3,8 +3,13 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { knowledgeEntryNameSchema } from "@shared/schemas/knowledge";
-import type { KnowledgeEntryDocument } from "@shared/types/knowledge";
+import type {
+  KnowledgeBrowserOverview,
+  KnowledgeEntryDeleteResult,
+  KnowledgeEntryDocument,
+} from "@shared/types/knowledge";
 import { ipcError } from "@main/ipc/_kit/errors";
+import { readKnowledgeIndex } from "@main/infra/storage/knowledge";
 import { knowledgeDir } from "@main/infra/storage/project-paths";
 
 export interface SaveKnowledgeEntryInput {
@@ -44,6 +49,42 @@ function resolveKnowledgeEntryPath(knowledgeRoot: string, name: string): string 
 
 function entryNotFound(name: string): Error {
   return ipcError(IpcErrorCodes.KNOWLEDGE_ENTRY_NOT_FOUND, `Knowledge entry not found: ${name}`);
+}
+
+function parseErrorEntryName(filePath: string): string | undefined {
+  if (path.basename(filePath) !== filePath || path.extname(filePath) !== ".md") {
+    return undefined;
+  }
+
+  const result = knowledgeEntryNameSchema.safeParse(path.basename(filePath, ".md"));
+  return result.success ? result.data : undefined;
+}
+
+export async function getKnowledgeBrowser(
+  projectPath: string,
+  options: KnowledgeDocumentServiceOptions = {}
+): Promise<KnowledgeBrowserOverview> {
+  const root = options.knowledgeRoot ?? knowledgeDir(projectPath);
+  const index = await readKnowledgeIndex(root, projectPath);
+
+  return {
+    entries: index.entries.map((entry) => ({
+      name: entry.name,
+      description: entry.description,
+      type: entry.type,
+      updatedAt: entry.updatedAt,
+      status: entry.status,
+    })),
+    errors: index.errors.map((error) => {
+      const name = parseErrorEntryName(error.path);
+      return {
+        path: error.path,
+        type: error.type,
+        message: error.message,
+        ...(name ? { name } : {}),
+      };
+    }),
+  };
 }
 
 export async function readKnowledgeEntry(
@@ -92,4 +133,25 @@ export async function saveKnowledgeEntry(
     name,
     content: input.content,
   };
+}
+
+export async function deleteKnowledgeEntry(
+  projectPath: string,
+  name: string,
+  options: KnowledgeDocumentServiceOptions = {}
+): Promise<KnowledgeEntryDeleteResult> {
+  const root = options.knowledgeRoot ?? knowledgeDir(projectPath);
+  const parsedName = parseKnowledgeEntryName(name);
+  const filePath = resolveKnowledgeEntryPath(root, parsedName);
+
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    if (isEnoent(error)) {
+      throw entryNotFound(parsedName);
+    }
+    throw error;
+  }
+
+  return { name: parsedName };
 }

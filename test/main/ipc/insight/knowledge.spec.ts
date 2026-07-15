@@ -5,8 +5,10 @@ import type { IpcResponse } from "@shared/types/ipc";
 
 const mocks = vi.hoisted(() => ({
   resolveProjectPath: vi.fn(),
+  getKnowledgeBrowser: vi.fn(),
   readKnowledgeEntry: vi.fn(),
   saveKnowledgeEntry: vi.fn(),
+  deleteKnowledgeEntry: vi.fn(),
 }));
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
@@ -14,8 +16,10 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
 }));
 
 vi.mock("@main/services/insight/knowledge/knowledge-document-service", () => ({
+  getKnowledgeBrowser: mocks.getKnowledgeBrowser,
   readKnowledgeEntry: mocks.readKnowledgeEntry,
   saveKnowledgeEntry: mocks.saveKnowledgeEntry,
+  deleteKnowledgeEntry: mocks.deleteKnowledgeEntry,
 }));
 
 import { registerKnowledgeHandlers } from "@main/ipc/insight/knowledge";
@@ -67,6 +71,18 @@ describe("registerKnowledgeHandlers", () => {
     });
   });
 
+  it("loads the knowledge browser for a resolved project", async () => {
+    registerKnowledgeHandlers();
+    mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.getKnowledgeBrowser.mockResolvedValue({ entries: [], errors: [] });
+
+    const result = await handler(KnowledgeChannels.getBrowser)({}, { projectId: "project-1" });
+
+    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
+    expect(mocks.getKnowledgeBrowser).toHaveBeenCalledWith("/tmp/project");
+    expect(result).toEqual({ ok: true, data: { entries: [], errors: [] } });
+  });
+
   it("saves raw knowledge markdown for a resolved project", async () => {
     registerKnowledgeHandlers();
     mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
@@ -109,5 +125,33 @@ describe("registerKnowledgeHandlers", () => {
     if (!result.ok) {
       expect(result.error.code).toBe("VALIDATION_ERROR");
     }
+  });
+
+  it("deletes a validated knowledge entry for a resolved project", async () => {
+    registerKnowledgeHandlers();
+    mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.deleteKnowledgeEntry.mockResolvedValue({ name: "entry-name" });
+
+    const result = await handler(KnowledgeChannels.deleteEntry)(
+      {},
+      { projectId: "project-1", name: "entry-name" }
+    );
+
+    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
+    expect(mocks.deleteKnowledgeEntry).toHaveBeenCalledWith("/tmp/project", "entry-name");
+    expect(result).toEqual({ ok: true, data: { name: "entry-name" } });
+  });
+
+  it("rejects invalid delete input before resolving the project", async () => {
+    registerKnowledgeHandlers();
+
+    const result = await handler(KnowledgeChannels.deleteEntry)(
+      {},
+      { projectId: "project-1", name: "../escape" }
+    );
+
+    expect(mocks.resolveProjectPath).not.toHaveBeenCalled();
+    expect(mocks.deleteKnowledgeEntry).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
   });
 });

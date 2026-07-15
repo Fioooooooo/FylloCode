@@ -74,7 +74,7 @@
 
 ### Requirement: Static governance area summarizes health and evolution
 
-系统 SHALL 在静态治理区域展示治理健康、规约增长和准则演化。
+系统 SHALL 在静态治理区域展示治理健康、知识沉淀、规约增长和准则演化。
 
 #### Scenario: Governance health summarizes existing stats
 
@@ -92,6 +92,25 @@
 - **THEN** 系统 SHALL 导航到 `/proposal`
 - **AND** 当用户点击治理健康中的项目准则入口
 - **THEN** 系统 SHALL 导航到 `/guidelines`
+- **AND** 当用户点击治理健康入口网格中的知识沉淀入口
+- **THEN** 系统 SHALL 导航到 `/knowledge`
+
+#### Scenario: Knowledge summary remains independently visible
+
+- **WHEN** knowledge browser index 成功加载
+- **THEN** 治理健康卡片 SHALL 在首个分隔线下以每排三个入口的网格展示治理入口
+- **AND** 知识沉淀 SHALL 与能力规约、归档提案和项目准则使用相同入口样式，并以不带单位的数字展示 browser index 中正常条目与扫描错误的总数
+- **AND** 当至少一个条目为 `suspect`、`unknown` 或存在扫描错误时，入口 SHALL 将这些条目与错误计入需要关注的数量，在数量后展示提示图标，并在用户悬停图标时通过 tooltip 展示“N 条需关注”文字提示
+- **AND** 提示图标对应的关注文案 SHALL 对辅助技术可用，且 SHALL NOT 作为额外可见行增加入口高度
+- **AND** 条目状态 SHALL NOT 只通过颜色表达
+
+#### Scenario: Knowledge summary loading or failure is isolated
+
+- **WHEN** knowledge browser index 正在加载或加载失败
+- **THEN** 知识沉淀入口 SHALL 分别展示加载状态或“暂不可用”状态
+- **AND** 入口 SHALL 继续允许用户导航到 `/knowledge` 查看详细状态
+- **AND** knowledge browser index 失败 SHALL NOT 让 overview 主数据进入页面级错误状态
+- **AND** SHALL NOT 隐藏进行中提案、最近脉络、规约增长或准则演化
 
 #### Scenario: Governance evolution content remains visible
 
