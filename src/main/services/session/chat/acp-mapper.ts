@@ -322,17 +322,17 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
       return event;
     }
 
-    case "session_info_update": {
-      const title = typeof update.title === "string" ? update.title.trim() : "";
-      if (!title) return null;
+    // case "session_info_update": {
+    // const title = typeof update.title === "string" ? update.title.trim() : "";
+    // if (!title) return null;
 
-      const event: SessionEvent = {
-        kind: "session_info_update",
-        title,
-      };
-      logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
-      return event;
-    }
+    // const event: SessionEvent = {
+    // kind: "session_info_update",
+    // title,
+    // };
+    // logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
+    // return event;
+    // }
 
     case "config_option_update": {
       const event: SessionEvent = {
