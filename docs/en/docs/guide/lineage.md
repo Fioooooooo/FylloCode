@@ -6,7 +6,7 @@ sidebar:
 
 # Lineage Traceability
 
-Lineage is the mechanism behind FylloCode's end-to-end traceability. A requirement is recorded from creation, discussion, planning, implementation, and archive as one traceable path. The [four-stage workflow](/en/docs/guide/workflow) defines how a change moves. Lineage records what actually happened across that path.
+Lineage is the mechanism behind FylloCode's end-to-end traceability. A requirement is recorded from creation, discussion, planning, implementation, and archive as one traceable path. The [three execution paths](/en/docs/guide/workflow) define how a change can move. Lineage records what actually happened across that path — whether it took the direct, Plan, or Proposal route.
 
 ## Core Concept: Subject
 
@@ -16,16 +16,16 @@ One trace in lineage is called a **subject**. A subject represents one requireme
 | --- | --- |
 | Origin | `task` or `chat`, recording whether the subject started from a task or directly from a chat. |
 | Task snapshot | The linked task reference and snapshot, including source such as local or an engineering system. Chat-origin subjects start empty. |
-| Links | All Chat sessions under this subject. Each session records the proposals it produced. |
+| Links | All Chat sessions under this subject. Each session records the Plans and Proposals it produced. |
 
-One subject can connect multiple sessions and multiple proposals. If the same task is discussed multiple times and produces multiple changes, they belong to the same subject.
+One subject can connect multiple sessions, Plans, and Proposals. If the same task is discussed multiple times and produces multiple changes, they belong to the same subject.
 
 ## How the Path Is Created
 
 ```text
-Task --start discussion--> Chat Session --create-proposal--> Proposal --> Apply & Archive
- |                              |                         |
- +----------- same lineage subject -----------------------+
+Task --start discussion--> Chat Session --> Plan / Proposal --> Apply & Archive
+ |                              |                              |
+ +------------- same lineage subject --------------------------+
 ```
 
 ### 1. Starting from a Task
@@ -40,9 +40,9 @@ When discussion starts directly from the [Chat page](/en/docs/features/chat), Fy
 
 If the conversation is only exploratory and does not produce a proposal, it is not counted as task-linked in lineage coverage.
 
-### 3. Proposal Auto-Linking
+### 3. Plan and Proposal Auto-Linking
 
-When an Agent creates a proposal through the `create-proposal` tool from `fyllo-specs`, the proposal changeId is automatically recorded on the subject of that session. No manual linking is required. The subject naturally records which plan the discussion produced.
+When an Agent creates a plan or a proposal through the `create-plan` or `create-proposal` tool from `fyllo-specs`, the resulting plan slug or proposal changeId is automatically recorded on the subject of that session. No manual linking is required, whether the discussion took the Plan path or the Proposal path. Direct implementation — which calls neither tool — leaves no such link; the subject keeps only the session itself.
 
 ### 4. Creating a Task Later
 
@@ -65,6 +65,7 @@ There is no database and no external upload. Data stays local with the project d
 
 - **Chat page**: source task banner that identifies which task the session belongs to.
 - **[Project Overview](/en/docs/features/overview)**: lineage coverage, recent subjects, and task lookup for active changes are based on lineage projections.
+- **[Work Lineage](/en/docs/features/lineage)**: browse every subject, filter by state, and inspect Plans, Proposals, and Commits along each Session.
 - **Archive traceability**: after a change is archived, FylloCode can trace from proposal back to session and task to answer "why did this change happen and what was discussed?"
 
 ## Why This Path Matters

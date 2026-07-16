@@ -26,10 +26,10 @@ Without shared engineering rules and cross-session consistency, team conventions
 
 FylloCode puts Agent coding tasks into a governable workflow:
 
-- Task collects the work item into one shared entry point, whether it comes from a team member or an engineering system.
+- Task collects the work item into one shared entry point, whether it was created directly or came from an engineering system.
 - Chat clarifies intent, inspects evidence, compares tradeoffs, and confirms decisions with the Agent.
-- Proposal turns decisions into rationale, design tradeoffs, and executable task breakdowns.
-- Apply & Archive executes approved tasks, then preserves change records, specs, and guidelines.
+- Depending on whether the change touches a contract, it goes straight to implementation, becomes a lightweight Plan, or turns into a Proposal with rationale, design tradeoffs, and an executable task breakdown.
+- Apply & Archive executes within the approved boundary, then preserves change records, guidelines, and spec updates when the contract changed.
 
 The path is connected by lineage, and the captured rules become the starting context for the next task.
 

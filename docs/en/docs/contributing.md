@@ -36,7 +36,7 @@ Recommended flow:
 1. Download the latest Release.
 2. Open the FylloCode repository as a project.
 3. Optionally describe the change in a Task.
-4. Use Chat to converge on a plan, then run Proposal -> Apply & Archive.
+4. Use Chat to converge on a plan, choose [direct implementation, Plan, or Proposal](/en/docs/guide/workflow) based on the change, then run Apply & Archive.
 5. Return to the repository to inspect the diff and verification results.
 
 ## Contribution Flow
@@ -97,6 +97,17 @@ Common types:
 - `test`
 
 Use a scope that matches the module or feature area, such as `overview`, `chat`, `proposal`, `specs`, `acp`, or `lineage`.
+
+## Maintainer Release Flow
+
+When preparing a FylloCode Release, give the Agent the exact target application version and use the repository's `prepare-release` skill. The workflow:
+
+1. Uses the latest relevant semantic-version tag through `HEAD` as the release range, then verifies archived specs, implementation, and tests.
+2. Audits Chinese and English documentation for every shipped change and updates both root changelogs and `package.json`.
+3. Versions `fyllo-specs` and `fyllo-cortex` independently from their own change boundaries.
+4. Prepares Chinese and English release notes and runs lint, type checking, and tests.
+
+Build and packaging commands require explicit authorization in the current conversation. The release commit, annotated tag, push, and GitHub Release publication are four separate approval checkpoints. A request to "prepare a release" does not authorize later transitions.
 
 ## License
 

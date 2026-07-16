@@ -15,7 +15,7 @@ The reason is that `electron-vite` [hot reload](https://electron-vite.org/guide/
 1. Download the latest Release.
 2. Open the FylloCode repository as a project.
 3. Describe the bug or change in a Task.
-4. Use Chat to converge on a plan, then run Proposal -> Apply & Archive.
+4. Use Chat to converge on a plan, choose [direct implementation, Plan, or Proposal](/en/docs/guide/workflow) based on the change, then run Apply & Archive.
 5. Return to the code repository to inspect the diff, test results, and archived content.
 
 ## When to Submit a PR Directly

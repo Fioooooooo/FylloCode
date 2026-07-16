@@ -56,7 +56,9 @@ Open Chat from the task context. Let the Agent analyze requirements, inspect cod
 
 ## Enter Proposal
 
-After the plan is confirmed in Chat, ask the Agent to create a proposal and capture the decision. A Proposal usually generates four artifacts:
+Once the plan is confirmed in Chat, the next step is choosing [direct implementation, Plan, or Proposal](/en/docs/guide/workflow), depending on whether the change touches a public API, schema, protocol, persistence format, user-visible behavior, or ownership boundary. For your first run, pick a change that triggers a Proposal so you experience the full review-and-archive value.
+
+After asking the Agent to create a proposal, it usually generates four artifacts:
 
 | Artifact | Purpose |
 | --- | --- |

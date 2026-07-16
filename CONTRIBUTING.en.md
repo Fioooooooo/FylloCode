@@ -81,6 +81,19 @@ Scope corresponds to the module or feature area — for example: `proposal`, `sp
 
 ---
 
+## Maintainer Release Flow
+
+When preparing a FylloCode Release, give the Agent the exact target application version and use the repository's `prepare-release` skill. The workflow:
+
+1. Uses the latest relevant semantic-version tag through `HEAD` as the release range, then verifies archived specs, implementation, and tests.
+2. Audits Chinese and English documentation for every shipped change and updates `CHANGELOG.md`, `CHANGELOG.en.md`, and `package.json`.
+3. Versions `fyllo-specs` and `fyllo-cortex` independently from their own change boundaries instead of synchronizing them with the application version.
+4. Prepares Chinese and English release notes and runs `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+`pnpm build`, documentation builds, and packaging commands require explicit authorization in the current conversation. The release commit, annotated tag, push, and GitHub Release publication are four separate approval checkpoints. A request to "prepare a release" does not authorize later transitions.
+
+---
+
 ## License
 
 Contributions are licensed under the repository's [MIT](LICENSE).

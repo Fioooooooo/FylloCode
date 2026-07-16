@@ -36,7 +36,7 @@ FylloCode 自身也在用 FylloCode 开发。参与贡献时，推荐使用 Rele
 1. 下载最新 Release
 2. 打开 FylloCode 仓库作为项目
 3. （可选）在 Task 中描述你要做的改动
-4. 在对话里和 Agent 收敛方案，再走 Proposal → Apply & Archive
+4. 在对话里和 Agent 收敛方案，按[改动性质选择直接实现、Plan 还是 Proposal](/docs/guide/workflow)，再走 Apply & Archive
 5. 回到代码仓库检查 diff 和验证结果
 
 ## 提交流程
@@ -97,6 +97,17 @@ type(scope): summary
 - `test`
 
 scope 对应模块或功能区域，例如 `overview`、`chat`、`proposal`、`specs`、`acp`、`lineage` 等。
+
+## 维护者发版
+
+准备 FylloCode Release 时，向 Agent 提供精确的目标应用版本，并使用仓库内的 `prepare-release` skill。该流程会：
+
+1. 以最近语义化版本标签到 `HEAD` 为发布范围，核对归档规约、实现和测试。
+2. 对每项已发布变更完成中英文文档审计，更新两份根 changelog 和 `package.json`。
+3. 按各自变更边界独立判断 `fyllo-specs` 与 `fyllo-cortex` 版本。
+4. 准备中英文 release notes，并运行 lint、typecheck 和测试。
+
+构建与打包命令只有在当前对话获得明确授权后才能运行。release commit、annotated tag、push 和 GitHub Release publish 是四个独立审批点；“准备发版”不会自动授权后续步骤。
 
 ## 许可证
 

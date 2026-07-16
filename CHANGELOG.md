@@ -4,6 +4,36 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.2] - 2026-07-16
+
+这个版本补齐项目级工作脉络浏览能力，让任务、Chat、Plan、Proposal 与 Commit 可以在同一页面按 Session 回看。Settings 同时改为稳定的独立子路由，并统一服务连接术语；长内容确认弹窗的操作区域也保持可见，减少关键确认按钮被滚动内容挤出视口的问题。
+
+### 新增
+
+- 新增 `/lineage` 工作脉络页面：按最近更新时间浏览项目全部 lineage subject，支持“全部 / 推进中 / 已归档 / 待关联”筛选，并按 Session 展示 Plan、Proposal 与 Commit 演进路径
+- 工作脉络详情支持复用现有入口打开 Chat 会话和 Proposal、进入任务看板及复制完整 Commit hash；缺失的 Session、Plan 或 Proposal 元信息会保留稳定 ID，不阻塞其他脉络显示
+- Overview 治理健康入口网格新增“工作脉络”，显示项目 subject 总数并进入完整 lineage browser
+- 新增 durable knowledge 中英文设计文章，说明可沉淀知识的准入边界、`knowledge.flag` / capture 两阶段机制，以及 knowledge、guidelines 与 lineage 的分工
+
+### 调整
+
+- Settings 改为共享布局下的 `/settings/acp-agents`、`/settings/connections`、`/settings/preferences` 与 `/settings/about` 独立子路由；`/settings` 继续作为稳定入口并默认进入 ACP Agents
+- 设置左侧导航固定按“偏好设置、Agents、服务连接、关于我们”排序；原“集成提供方”统一改为“服务连接”，项目集成页会通过 `focus` 参数定位需要配置的 provider
+- 仓库内 Agent 发版能力统一为 `prepare-release` skill，集中处理发布范围审计、中英文文档、changelog、版本同步、release notes、验证与 commit/tag/push/publish 审批点；贡献指南同步记录维护者流程
+- 中英文文档新增工作脉络与 Settings 产品参考，并同步更新 Overview、lineage、ACP Agents 和研发系统集成页面
+
+### 修复
+
+- 修复确认弹窗在描述内容较长时操作按钮随内容滚出可视区域的问题；描述区域现在独立滚动，确认与取消操作保持可见
+- 修复 ACP `session_info_update` 覆盖 FylloCode 已建立的 Chat 会话标题的问题；mapper 现在忽略该上游更新，使现有会话标题保持稳定
+
+### 备注
+
+- 应用版本升级到 `0.14.2`。
+- `fyllo-specs` MCP server 保持 `0.8.1`，`fyllo-cortex` MCP server 保持 `0.5.0`；本次发布范围没有修改这两个 server。
+- lineage browser 是现有本地 lineage、Session、Plan 与 Proposal 数据的只读投影，不改变存储格式，既有项目无需迁移。
+- **兼容性提示**：`/settings?tab=integration-providers|preferences|about` 不再选择设置区域，也不会兼容重定向；请改用对应的 `/settings/connections`、`/settings/preferences` 或 `/settings/about` 子路由。
+
 ## [0.14.1] - 2026-07-15
 
 这个版本让 FylloCode 可以同时承载多个项目窗口，并补齐项目级 durable knowledge 从发现、沉淀、审阅到浏览清理的完整路径。Fyllo Action 的状态持久化、执行幂等性和 Markdown 识别边界也得到系统性加固；底层跨进程结构迁移到 domain-first 架构，为后续能力扩展建立更清晰的所有权边界。

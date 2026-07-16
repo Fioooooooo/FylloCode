@@ -21,7 +21,25 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 - Render structured content such as Mermaid and Markdown
 - Create proposals and continue later stages inside task context
 - Show a source task banner for task-based sessions, including after reopening the session
-- Let Agents propose local task creation through structured `fyllo-action` output, with user confirmation before execution
+- Let Agents propose task creation, submit a plan for review, and flag or request review of knowledge entries through [fyllo-action](/en/docs/reference/fyllo-action), with FylloCode taking over execution after your confirmation
+
+## Locating Past Messages
+
+A timeline appears in the top-left of the conversation area, marking every message you've sent in the current session. While scrolling a long conversation, the timeline highlights the node matching your current reading position; clicking a node scrolls smoothly back to that message. The timeline is hidden when there are fewer than two messages.
+
+## Session Event Rail
+
+A collapsible rail on the right side of the conversation area collects information that matters but shouldn't interrupt the current discussion:
+
+- **Agent agenda** — the list of action items the Agent has laid out for this session
+- **Proposal cards** — proposals created in this session and their live status
+- **Pending fyllo-action items** — read-only summaries and navigation entries for rail-type actions such as `knowledge.flag` and `knowledge.review`; confirmation still happens on the inline card in the chat transcript
+
+<figure class="fc-doc-image">
+  <img src="/assets/screenshots/chat-rail.png" alt="Session event rail screenshot" />
+</figure>
+
+The rail can be collapsed to a narrow strip at any time; its expanded/collapsed state persists across sessions.
 
 ## Relationship with Lineage
 

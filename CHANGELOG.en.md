@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.2] - 2026-07-16
+
+This release adds a project-level Work Lineage browser so tasks, Chat sessions, Plans, Proposals, and Commits can be reviewed by Session on one page. Settings now uses stable child routes with consistent Service Connections terminology, while confirmation actions remain visible when a dialog contains a long description.
+
+### Added
+
+- Added `/lineage`, which lists every project lineage subject by most recent update, supports All, Active, Archived, and Unlinked filters, and shows the Plan, Proposal, and Commit path grouped by Session
+- Work Lineage details reuse existing entry points to open Chat sessions and Proposals, go to Task Board, and copy full Commit hashes; missing Session, Plan, or Proposal metadata keeps its stable ID without blocking other subjects
+- Added a Work Lineage entry to the Project Overview governance health grid, showing the total project subject count and opening the complete lineage browser
+- Added a bilingual durable knowledge design article covering the admission boundary for retained knowledge, the two-stage `knowledge.flag` and capture mechanism, and the roles of knowledge, guidelines, and lineage
+
+### Changed
+
+- Settings now uses independent `/settings/acp-agents`, `/settings/connections`, `/settings/preferences`, and `/settings/about` child routes inside one shared layout; `/settings` remains the stable entry and opens ACP Agents by default
+- The Settings sidebar now uses the fixed Preferences, Agents, Service Connections, and About order; the former Integration Providers label is now Service Connections, and project integrations use the `focus` parameter to locate a provider that needs configuration
+- Repository Agent release support is consolidated into the `prepare-release` skill, which covers release-range auditing, bilingual documentation, changelogs, version synchronization, release notes, validation, and commit/tag/push/publish approval checkpoints; contributor guides now document the maintainer flow
+- Chinese and English documentation now includes Work Lineage and Settings product references, with matching updates to Overview, lineage, ACP Agents, and engineering integrations
+
+### Fixed
+
+- Fixed confirmation dialog actions scrolling out of view when the description is long; the description now scrolls independently while confirm and cancel actions remain visible
+- Fixed ACP `session_info_update` overriding the Chat session title established by FylloCode; the mapper now ignores this upstream update so the existing session title remains stable
+
+### Notes
+
+- The application version is now `0.14.2`.
+- The `fyllo-specs` MCP server remains at `0.8.1`, and the `fyllo-cortex` MCP server remains at `0.5.0`; neither server changed in this release range.
+- The lineage browser is a read-only projection of existing local lineage, Session, Plan, and Proposal data. It does not change storage formats, and existing projects require no migration.
+- **Compatibility**: `/settings?tab=integration-providers|preferences|about` no longer selects a Settings section and is not redirected for compatibility. Use `/settings/connections`, `/settings/preferences`, or `/settings/about` instead.
+
 ## [0.14.1] - 2026-07-15
 
 This release lets FylloCode keep multiple projects open in independent windows and completes the project-level durable knowledge path from discovery and capture through review, browsing, and cleanup. Fyllo Action persistence, execution idempotency, and Markdown recognition are hardened throughout, while the underlying cross-process structure moves to a domain-first architecture with clearer ownership boundaries for future capabilities.

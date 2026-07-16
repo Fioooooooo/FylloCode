@@ -84,6 +84,19 @@ scope 对应模块或功能区域，比如 `proposal`、`specs`、`archive`、`w
 
 ---
 
+## 维护者发版
+
+准备 FylloCode Release 时，向 Agent 提供精确的目标应用版本，并使用仓库内的 `prepare-release` skill。该流程会：
+
+1. 以最近语义化版本标签到 `HEAD` 为发布范围，核对归档规约、实现和测试。
+2. 对每项已发布变更完成中英文文档审计，更新 `CHANGELOG.md`、`CHANGELOG.en.md` 和 `package.json`。
+3. 按各自变更边界独立判断 `fyllo-specs` 与 `fyllo-cortex` 版本，不让它们跟随应用版本同步升级。
+4. 准备中英文 release notes，并运行 `pnpm lint`、`pnpm typecheck` 和 `pnpm test`。
+
+`pnpm build`、文档构建和打包命令只有在当前对话获得明确授权后才能运行。release commit、annotated tag、push 和 GitHub Release publish 是四个独立审批点；不得因为用户要求“准备发版”而自动越过后续步骤。
+
+---
+
 ## 许可证
 
 贡献的代码遵循仓库的 [MIT](LICENSE) 许可证。

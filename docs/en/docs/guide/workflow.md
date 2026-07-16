@@ -4,38 +4,63 @@ sidebar:
   order: 40
 ---
 
-# Four-Stage Workflow
+# Three Execution Paths
 
-FylloCode splits each coding task into four stages along one main path: Task, Chat, Proposal, and Apply & Archive. Each stage has clear inputs, artifacts, and constraints. Every input, decision, and artifact is recorded into one [lineage](/en/docs/guide/lineage), and archived outcomes become context for the next task.
+FylloCode does not force one pipeline. After Task and Chat, you and the Agent need to decide which execution path this change should take.
 
-<figure class="fc-doc-image">
-  <img src="/assets/diagrams/workflow.svg" alt="FylloCode four-stage workflow diagram" />
-</figure>
+| Path | Fits when | Produces |
+| --- | --- | --- |
+| Direct implementation | Scope is clear, no architectural tradeoffs, no change to any external contract | The code change itself |
+| Plan | Needs upfront thinking or comparing options, but the behavior contract stays the same | A session-scoped plan document |
+| Proposal | Changes a public API, schema, protocol, persistence format, user-visible behavior, or ownership boundary | The proposal, design, specs, and tasks artifact set |
 
-## Task
+These are not three separate entry points — they are escalation steps within the same discussion. Decide whether a Plan is needed first; if writing the plan reveals a contract change, escalate to a Proposal. Every input, decision, and artifact along the way is recorded into the same [lineage](/en/docs/guide/lineage).
 
-Task is the starting point of the main path and the entry point for a work item entering governance.
+## Why not a fixed pipeline
 
-A Task can be created directly by a team member or synced from a connected engineering system. FylloCode does not add extra constraints here. It only collects the task as the shared anchor for the later stages.
+FylloCode originally treated the OpenSpec proposal as the only execution path: every change had to go through the full proposal, design, specs, and tasks artifact set before implementation. In practice this was too heavy for small changes — fixing a copy string or tuning a parameter still required the full review artifact set, so teams worked around it.
 
-## Chat
+The current approach lets the nature of the change decide whether review weight is needed, instead of the process mandating it. Only changes that actually touch the contract require Proposal-level review; everything else can move through a lighter path while still landing on the same lineage trail.
 
-The Chat stage makes the plan clear before an Agent writes code.
+## Direct implementation
 
-For a concrete task, the Agent should:
+The Agent modifies code directly after the plan is confirmed in Chat, without calling `create-plan` or `create-proposal` on `fyllo-specs`.
 
-- Analyze requirements and clarify the problem and boundary.
-- Inspect code evidence to validate feasibility and impact scope.
-- Guide the team through tradeoffs between candidate options.
-- Converge on a final decision with you instead of inventing a plan in isolation.
+Fits when:
 
-The stage should clarify change scope, existing project constraints, historical background, acceptance criteria, risks, assumptions, and open questions. The key is to avoid implementation while the target is unclear. Accepted and rejected ideas are both kept as part of lineage.
+- The scope is obvious at a glance and doesn't need a recorded design tradeoff
+- Nothing about requirements, public APIs, schemas, protocols, persistence formats, or user-visible behavior changes
+- The change can merge without a team review
+
+## Plan
+
+A Plan is a lightweight, session-scoped implementation plan written to a Markdown file under the current session's directory. It does not depend on the OpenSpec structure and does not create a linked worktree.
+
+Fits work that needs upfront thinking or tradeoff comparison, but is confirmed not to change the behavior contract:
+
+- Goal, scope boundary, key constraints
+- Tradeoffs
+- Implementation steps
+- Verification approach
+
+After the Agent writes the plan, it hands it to you for review through a `plan.create` [fyllo-action](/en/docs/reference/fyllo-action) card. Once you confirm, FylloCode opens that plan document for you to read and approve, and the Agent proceeds to implement the approved plan.
+
+### When a Plan must escalate to a Proposal
+
+While writing the plan, if it turns out the change actually touches any of the following, stop and switch to `create-proposal` instead of finishing the plan:
+
+- Changes requirements or feature scope
+- Changes a public API
+- Changes a schema or persistence format
+- Changes a protocol (e.g. an IPC contract)
+- Changes user-visible behavior
+- Changes a module's ownership boundary
+
+There is no middle ground here: matching even one of these means escalating immediately — not "implement from the plan first and backfill a proposal later."
 
 ## Proposal
 
-Proposal turns decisions confirmed in Chat into structured, reviewable artifacts.
-
-By default, Proposal generates four OpenSpec-oriented artifacts:
+Proposal targets changes that touch an external contract. It generates four OpenSpec-oriented artifacts:
 
 - `proposal.md`: background, capability changes, affected modules
 - `design.md`: goals, non-goals, key design decisions, rejected options
@@ -44,25 +69,25 @@ By default, Proposal generates four OpenSpec-oriented artifacts:
 
 These artifacts support the current review and future traceability. If someone asks two months later why the design was chosen, the answer should be in proposal and design.
 
+By default, `create-proposal` creates a linked worktree under `.worktrees/<changeName>`, so the change happens in an isolated workspace while the main branch stays clean until review passes. It only creates the proposal directly in the main workspace when the user explicitly asks for that.
+
 ## Apply & Archive
 
-Apply & Archive executes the approved `tasks.md` and preserves the complete record after the change lands.
+Whichever path was taken — direct implementation, Plan, or Proposal — the change can move into Archive once it lands, preserving the change scope, decision context, spec updates (if any), and guideline evolution as background for the next task.
 
-During execution, the Agent should:
+For the Proposal path, the Apply stage executes `tasks.md`. The Agent should:
 
-- Read Proposal artifacts and project rules.
-- Modify code only inside the approved task boundary.
-- Follow the task list.
-- Add necessary tests and verification results.
-- Avoid mixing unreviewed new plans into implementation.
-
-FylloCode supports a linked worktree workflow by default, so code changes can happen in an isolated workspace while the main branch stays clean until the task is complete.
+- Read Proposal artifacts and project rules
+- Modify code only inside the approved task boundary
+- Follow the task list
+- Add necessary tests and verification results
+- Avoid mixing unreviewed new plans into implementation
 
 After the change lands, the complete record is archived. The archive includes:
 
 - Code change scope
-- Proposal and Design decision context
-- Spec updates
+- Proposal and Design decision context (Proposal path)
+- Spec updates (Proposal path)
 - Guideline evolution
 - Execution and verification results
 
@@ -74,7 +99,7 @@ Different stages need different model capabilities:
 
 | Stage | Recommendation |
 | --- | --- |
-| Chat / Proposal | Use a model with stronger reasoning, because the focus is understanding project context, comparing options, and writing reviewable artifacts. |
-| Apply | A faster and lower-cost model may be enough because the task boundary is already made explicit by `tasks.md`. |
+| Chat / Plan / Proposal | Use a model with stronger reasoning, because the focus is understanding project context, comparing options, and writing reviewable artifacts. |
+| Apply | A faster and lower-cost model may be enough because the task boundary is already made explicit by the plan or `tasks.md`. |
 
-A common setup is to use a stronger reasoning model for Chat and Proposal, then use a faster and more cost-efficient model for Apply.
+A common setup is to use a stronger reasoning model for Chat, Plan, and Proposal, then use a faster and more cost-efficient model for Apply.

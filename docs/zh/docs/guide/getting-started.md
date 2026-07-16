@@ -56,7 +56,9 @@ FylloCode 通过 Agent Client Protocol 接入不同 Agent。Agent 会按 `native
 
 ## 进入 Proposal
 
-当方案在对话中确认后，让 Agent 进入 proposal 创建流程，把决策固化下来。Proposal 通常会生成四类产物：
+方案在对话中确认后，接下来该走[直接实现、Plan 还是 Proposal](/docs/guide/workflow)，取决于这次改动是否会影响公开 API、schema、协议、持久化格式、用户可见行为或职责边界。第一次使用建议选择一个会触发 Proposal 的改动，完整体验评审和归档的价值。
+
+让 Agent 进入 proposal 创建流程后，Proposal 通常会生成四类产物：
 
 | 产物 | 作用 |
 | --- | --- |

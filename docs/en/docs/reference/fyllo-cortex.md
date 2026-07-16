@@ -6,11 +6,12 @@ sidebar:
 
 # fyllo-cortex MCP
 
-`fyllo-cortex` is a built-in MCP server in FylloCode. It currently provides two tools:
+`fyllo-cortex` is a built-in MCP server in FylloCode, built as the Agent's "brain": guidelines and knowledge let project engineering knowledge accumulate across sessions, and lineage lets later Agents trace historical decisions. It provides three tools:
 
 | Tool | Purpose |
 | --- | --- |
 | `guidelines` | Maintains project engineering conventions so later Agent sessions can read the current rules. |
+| `knowledge` | Maintains project knowledge entries shared across tasks and sessions. |
 | `lineage` | Traces code, commits, or proposals back to the task, session, and design-decision context behind them. |
 
 ## guidelines Tool
@@ -99,6 +100,29 @@ The Chat and Apply `<guidelines>` index comes from the current workspace:
 - If there is no `guidelines/` directory or no Markdown files, no `<guidelines>` block is injected.
 - Angle brackets in frontmatter are escaped so user-authored metadata cannot close the `<guidelines>` block early.
 
+## knowledge Tool
+
+`knowledge` maintains durable project knowledge stored in FylloCode's app data directory. Unlike guidelines, knowledge entries are not written into the project repository — they are a project-level accumulation shared across tasks and sessions. See [Knowledge](/en/docs/features/knowledge) for how to browse entries in the product.
+
+### When capture triggers
+
+The Agent doesn't call this tool continuously. It follows a judgment test: if this fact were lost, would a future session pay for it — by re-deriving it, re-reading it, or getting it wrong? When the test is met, the Agent places a `knowledge.flag` [fyllo-action](/en/docs/reference/fyllo-action) card in the session as a low-cost bookmark, without calling the `knowledge` tool yet and without interrupting the current discussion.
+
+Only when the user confirms a pending flag card in the chat transcript, or explicitly asks to capture durable knowledge, does the Agent call the `knowledge` tool with `mode: capture` — at which point every pending flag in the session is bundled into one capture request. The session event rail only summarizes and locates these pending items; it has no confirmation buttons.
+
+### Maintenance modes
+
+| mode | Triggered when | Modifies Files |
+| --- | --- | --- |
+| `capture` | The user confirms a `knowledge.flag`, or explicitly asks to capture knowledge | No, returns authoring instructions |
+| `update` | The user asks to revise an existing entry | No, returns revision instructions |
+| `retire` | The user asks to remove an entry | No, returns retirement instructions |
+| `audit` | The user asks to inspect stale, unknown, duplicate, or low-quality entries | No |
+
+Like `guidelines`, the `knowledge` tool does not write files directly. It returns current state plus mode-specific authoring instructions; the Agent writes the entry content based on that guidance.
+
+After the Agent finishes a `capture` write or an `update` revision, it places a `knowledge.review` card. Once confirmed, FylloCode opens that entry's latest saved content from disk for editing and review, with the full Markdown source saved as it changes.
+
 ## lineage Tool
 
 `lineage` retrieves the design history behind existing code. It returns a projection of the FylloCode lineage subject, including task summary, Chat sessions, proposals, plans, commit hashes, proposal paths, and current proposal status.
@@ -117,4 +141,4 @@ When there is no match or the project has no lineage data, the tool returns `nul
 
 ## When to Use It
 
-`fyllo-cortex` addresses how teams continuously capture and retrieve engineering knowledge. `guidelines` carries conventions, pitfalls, and boundary rules into later sessions; `lineage` lets later Agents trace code, commits, or proposals back to the task and decision context that produced them.
+`fyllo-cortex` addresses how engineering knowledge is continuously captured and retrieved. `guidelines` carries conventions, pitfalls, and boundary rules into later sessions; `knowledge` carries project-level facts that don't belong in guidelines — business context, user directives, unexpected findings — into later sessions too; `lineage` lets later Agents trace code, commits, or proposals back to the task and decision context that produced them.

@@ -6,18 +6,21 @@ sidebar:
 
 # fyllo-specs MCP
 
-`fyllo-specs` 是 FylloCode 内置的 MCP server，围绕 OpenSpec 提供项目规范探索、Proposal 创建、Apply 执行和 Archive 归档能力。
+`fyllo-specs` 是 FylloCode 内置的 MCP server。它最初只是对 OpenSpec CLI 的简单封装，之后陆续加入了 linked worktree 管理，再后来加入了 `create-plan`，让 [三线工作方式](/docs/guide/workflow) 中的 Plan 路径也由这个 server 承载。
 
 ## 工具列表
 
-`fyllo-specs` 只注册四个 tool：
+`fyllo-specs` 注册五个 tool：
 
 | Tool | 作用 |
 | --- | --- |
 | `explore` | 进入探索模式，读取项目规范和活跃 change 状态 |
+| `create-plan` | 创建会话级 plan，用于不改变行为契约的探索性或架构性工作 |
 | `create-proposal` | 创建 change，并生成 proposal、design、specs、tasks 四件套 |
 | `apply-change` | 读取指定 change 的 artifacts，按 tasks 推进实现 |
 | `archive-change` | 完成归档动作，将 change 移入 archive，并处理 workspace finalization |
+
+`create-plan` 和 `create-proposal` 分别对应 [三线工作方式](/docs/guide/workflow) 里的 Plan 与 Proposal 路径；直接实现不调用这两个 tool 中的任何一个。
 
 ## 响应形态
 
@@ -27,6 +30,19 @@ sidebar:
 - `<state>`：当前项目或 change 状态的 JSON
 
 当传入 `includeInstruction: false` 时，只返回 JSON state。首次调用时不建议关闭 instruction，因为 instruction 是当前工具行为契约的一部分。
+
+## create-plan
+
+`create-plan` 接受两个输入字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `goal` | 一句话说明这份 plan 要达成什么 |
+| `slug` | kebab-case 短标识，不能带日期前缀，工具会自动加上 `yyyy-MM-dd-` 前缀 |
+
+plan 文档以 `<projectDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.md` 路径写入，属于当前会话，不写入项目仓库，也不创建 linked worktree。工具只负责生成带 frontmatter 和标题骨架的模板文件；plan 正文由 Agent 调研后写入。
+
+如果调研过程中发现改动会影响需求、公开 API、schema、协议、持久化格式、用户可见行为或职责边界，应当停止完善这份 plan，改为调用 `create-proposal`，而不是把 plan 写完再另起 proposal。
 
 ## workspaceMode
 

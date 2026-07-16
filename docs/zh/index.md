@@ -5,8 +5,8 @@ markdownStyles: false
 
 hero:
   name: FylloCode
-  text: Coding Agent 的团队治理层
-  tagline: 让全队的 Agent 遵守同一套持续进化的规则，从 Task、Chat 到 Proposal、Archive 由 lineage 串成一条可追溯的决策主线。
+  text: Coding Agent 的治理层
+  tagline: 从 Task、Chat 到 Proposal、Archive，由 lineage 把每一步串成一条可追溯的决策主线，让 Agent 遵守同一套持续进化的规则。
   image:
     src: /assets/fyllocode.svg
     alt: FylloCode
@@ -28,8 +28,8 @@ hero:
       <div class="fc-section__header">
         <h2>Agent 写下代码之前，先留下可审查的决策</h2>
         <p>
-          FylloCode 不替代 IDE、CI/CD 或项目管理系统。它在现有代码库和研发工具链之上，为团队持续使用 Coding Agent
-          提供结构化的上下文、约束和留痕，增强工程开发。
+          FylloCode 不替代 IDE、CI/CD 或项目管理系统。它在现有代码库和研发工具链之上，为持续使用 Coding Agent
+          的工程开发提供结构化的上下文、约束和留痕。
         </p>
       </div>
       <div class="fc-grid">
@@ -47,7 +47,7 @@ hero:
         </article>
         <article class="fc-card">
           <h3>规则自进化</h3>
-          <p>将团队实践沉淀为持久化知识，Agent 的下一次执行自动从最新规则开始。</p>
+          <p>将确认过的实践沉淀为持久化知识，Agent 的下一次执行自动从最新规则开始。</p>
         </article>
       </div>
     </div>
@@ -58,7 +58,7 @@ hero:
       <div class="fc-section__header">
         <h2>一条可追溯、自进化的变更主线</h2>
         <p>
-          从 Task 到 Chat、Proposal，再到 Apply &amp; Archive，每一步的输入、决策和产物都被 lineage 记录成一条可追溯的线索。
+          从 Task 到 Chat，再到 Plan 或 Proposal、Apply &amp; Archive，每一步的输入、决策和产物都被 lineage 记录成一条可追溯的线索。
           固化下来的知识与规范会自动成为下一次任务的起点，让主线闭环、持续进化。
         </p>
       </div>
@@ -66,17 +66,17 @@ hero:
         <article class="fc-step">
           <strong>01</strong>
           <h3>Task</h3>
-          <p>主线的起点，可以由团队成员直接创建，也可以从已接入的第三方研发系统同步进来，作为后续协作的统一入口。</p>
+          <p>主线的起点，可以直接创建，也可以从已接入的第三方研发系统同步进来，作为后续协作的统一入口。</p>
         </article>
         <article class="fc-step">
           <strong>02</strong>
           <h3>Chat</h3>
-          <p>Agent 在对话里分析需求、检索代码佐证、引导团队权衡取舍，与你一起收敛出最终决策，而不是凭空给出方案。</p>
+          <p>Agent 在对话里分析需求、检索代码佐证、引导权衡取舍，与你一起收敛出最终决策，而不是凭空给出方案。</p>
         </article>
         <article class="fc-step">
           <strong>03</strong>
-          <h3>Proposal</h3>
-          <p>把对话中确认的决策固化为 proposal、design、specs、tasks 四件套，让方案评审有实体，也让未来能追溯设计依据。</p>
+          <h3>Plan / Proposal</h3>
+          <p>不改变契约的工作写成一份轻量 plan；一旦涉及公开 API、schema 等契约变化，升级为 proposal、design、specs、tasks 四件套，让方案评审有实体，也让未来能追溯设计依据。</p>
         </article>
         <article class="fc-step">
           <strong>04</strong>
@@ -92,7 +92,7 @@ hero:
       <div class="fc-split">
         <h2>从任务看板到 Proposal 归档</h2>
         <p>
-          产品界面围绕工程团队的日常协作组织：任务看板负责收口入口，Proposal 页面承载评审和归档，对话面板负责与 Agent
+          产品界面围绕一次变更的完整生命周期组织：任务看板负责收口入口，Proposal 页面承载评审和归档，对话面板负责与 Agent
           推进执行，Workflow 编辑器负责把流程固化下来。
         </p>
         <div class="fc-links">
@@ -116,7 +116,7 @@ hero:
       <div class="fc-split">
         <h2>接入现有 Agent 与研发系统</h2>
         <p>
-          FylloCode 通过 ACP 接入不同 Coding Agent，通过集成提供方把任务结果回写到已有研发系统。团队可以保留现有工具链，同时补上
+          FylloCode 通过 ACP 接入不同 Coding Agent，通过集成提供方把任务结果回写到已有研发系统。可以保留现有工具链，同时补上
           Agent 协作需要的治理层。
         </p>
         <div class="fc-links">

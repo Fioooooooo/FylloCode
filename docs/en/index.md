@@ -5,8 +5,8 @@ markdownStyles: false
 
 hero:
   name: FylloCode
-  text: The team governance layer for Coding Agents
-  tagline: Make every Agent follow the same evolving rules, and connect Task, Chat, Proposal, and Archive into one traceable decision path.
+  text: The governance layer for Coding Agents
+  tagline: Connect Task, Chat, Proposal, and Archive into one traceable decision path via lineage, and make every Agent follow the same evolving rules.
   image:
     src: /assets/fyllocode.svg
     alt: FylloCode
@@ -28,7 +28,7 @@ hero:
       <div class="fc-section__header">
         <h2>Leave reviewable decisions before Agents write code</h2>
         <p>
-          FylloCode does not replace your IDE, CI/CD, or project management system. It adds a persistent, structured, and traceable governance layer above the codebase and engineering tools your team already uses.
+          FylloCode does not replace your IDE, CI/CD, or project management system. It adds a persistent, structured, and traceable governance layer above the codebase and engineering tools you already use.
         </p>
       </div>
       <div class="fc-grid">
@@ -46,7 +46,7 @@ hero:
         </article>
         <article class="fc-card">
           <h3>Self-Evolving Rules</h3>
-          <p>Turn team practices into durable project knowledge so the next Agent run starts from the latest rules.</p>
+          <p>Turn confirmed practices into durable project knowledge so the next Agent run starts from the latest rules.</p>
         </article>
       </div>
     </div>
@@ -57,24 +57,24 @@ hero:
       <div class="fc-section__header">
         <h2>A traceable and self-improving change path</h2>
         <p>
-          From Task to Chat, Proposal, and Apply &amp; Archive, every input, decision, and artifact is recorded into one lineage. The rules and knowledge that survive the task become the starting point for the next one.
+          From Task to Chat, then Plan or Proposal, and Apply &amp; Archive, every input, decision, and artifact is recorded into one lineage. The rules and knowledge that survive the task become the starting point for the next one.
         </p>
       </div>
       <div class="fc-steps">
         <article class="fc-step">
           <strong>01</strong>
           <h3>Task</h3>
-          <p>The starting point of the path. Tasks can be created locally by the team or synced from connected engineering systems.</p>
+          <p>The starting point of the path. Tasks can be created locally or synced from connected engineering systems.</p>
         </article>
         <article class="fc-step">
           <strong>02</strong>
           <h3>Chat</h3>
-          <p>Agents analyze requirements, inspect code evidence, and help the team compare tradeoffs before a decision is made.</p>
+          <p>Agents analyze requirements, inspect code evidence, and help compare tradeoffs before a decision is made.</p>
         </article>
         <article class="fc-step">
           <strong>03</strong>
-          <h3>Proposal</h3>
-          <p>Confirmed decisions become proposal, design, specs, and tasks so reviews have concrete artifacts and future work can trace the rationale.</p>
+          <h3>Plan / Proposal</h3>
+          <p>Work that doesn't change the contract becomes a lightweight plan; work that touches a public API, schema, or similar contract escalates to proposal, design, specs, and tasks so reviews have concrete artifacts and future work can trace the rationale.</p>
         </article>
         <article class="fc-step">
           <strong>04</strong>
@@ -90,7 +90,7 @@ hero:
       <div class="fc-split">
         <h2>From task board to proposal archive</h2>
         <p>
-          The product is organized around day-to-day engineering collaboration: the task board collects entry points, the Proposal page carries review and archive, the chat panel drives Agent work, and the Workflow editor keeps the process explicit.
+          The product is organized around the full lifecycle of a change: the task board collects entry points, the Proposal page carries review and archive, the chat panel drives Agent work, and the Workflow editor keeps the process explicit.
         </p>
         <div class="fc-links">
           <a class="fc-link" href="/en/docs/features/overview">Project Overview</a>
@@ -113,7 +113,7 @@ hero:
       <div class="fc-split">
         <h2>Connect existing Agents and engineering systems</h2>
         <p>
-          FylloCode connects Coding Agents through ACP and writes task outcomes back to existing engineering systems through integration providers. Teams can keep their current toolchain while adding the governance layer Agent collaboration needs.
+          FylloCode connects Coding Agents through ACP and writes task outcomes back to existing engineering systems through integration providers. Keep your current toolchain while adding the governance layer Agent collaboration needs.
         </p>
         <div class="fc-links">
           <a class="fc-link" href="/en/docs/features/agents">ACP Agents</a>

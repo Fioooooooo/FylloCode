@@ -14,22 +14,29 @@ sidebar:
 
 页面数据全部来自项目本地：仓库文件扫描、git 历史查询和 lineage 投影，不依赖任何外部服务。
 
-## 统计卡片
+## 页面结构
 
-页面顶部的四张卡片回答“这个项目治理到什么程度了”：
+页面把信息分为两组：左侧动态工作区展示进行中的 Proposal 和最近脉络，右侧静态治理区展示治理健康、规约增长和准则演化。窄窗口会把两组内容上下排列，但不会混合它们的职责。
 
-| 卡片 | 口径 |
+## 治理健康
+
+治理健康卡片用环形比例显示已关联任务的 lineage subject 占比。从对话直接发起、后来补建任务的 subject 同样计入。没有脉络时显示暂无可评估数据。
+
+卡片下方提供五个治理入口：
+
+| 入口 | 口径与目标 |
 | --- | --- |
-| 能力规约 | `openspec/specs/` 下的规范数量，以及本月新增数 |
-| 归档提案 | `openspec/changes/archive/` 下的归档数量，以及本月新增数 |
-| 项目准则 | `guidelines/` 顶层 Markdown 文件数量，以及最近一次更新时间 |
-| 溯源覆盖 | 已关联任务的 lineage 脉络占比，以及脉络总数 |
+| 能力规约 | 显示 `openspec/specs/` 下的规约数量，进入 `/specs` |
+| 归档提案 | 显示 `openspec/changes/archive/` 下的归档数量，进入 `/proposal` |
+| 项目准则 | 递归统计 `guidelines/**/*.md`，进入 `/guidelines` |
+| 知识沉淀 | 显示 knowledge 条目与扫描错误总数，进入 `/knowledge` |
+| 工作脉络 | 显示项目 lineage subject 总数，进入 `/lineage` |
 
-溯源覆盖按“是否已关联任务”统计：从对话直接发起、后来补建了任务的脉络同样计入。这个指标越高，说明团队的变更越多地从明确的任务入口进入治理流程。
+知识沉淀正在加载或失败时只影响该入口，不会让 Overview 主数据进入页面级错误。存在 `suspect`、`unknown` 或扫描错误时，入口会用提示图标和可访问文字显示需关注数量。
 
 ## 进行中
 
-展示当前所有未归档的活跃提案。每个提案会显示所处阶段——草拟（drafting）、提案（proposal）或 Apply（applying）——并通过 lineage 反查出它来自哪个任务。点击条目可直接进入对应的 [Proposal 详情](/docs/features/proposal)。
+展示当前所有未归档的活跃 Proposal。每个条目会显示 `creating`、`draft` 或 `applying` 状态，并通过 lineage 反查来源任务；linked worktree Proposal 还会显示可查看完整路径的 indicator。点击条目可直接进入对应的 [Proposal 详情](/docs/features/proposal)。
 
 ## 最近脉络
 
@@ -38,9 +45,9 @@ sidebar:
 - 起源：来自任务，还是直接从对话发起
 - 关联的任务标题与任务引用
 - 串联的会话数和产出的 proposal 数
-- 合并状态：`applying`（有 proposal 正在进行）或 `pending`
+- Proposal 状态信息
 
-这里是观察“一条需求走到了哪一步”的入口。关于脉络如何建立和串联，见 [Lineage 追溯链路](/docs/guide/lineage)。
+这里用于快速观察近期工作。需要浏览全部 subject、筛选状态或按 Session 查看 Plan、Proposal 与 Commit 时，进入[工作脉络](/docs/features/lineage)。关于脉络如何建立和串联，见 [Lineage 追溯链路](/docs/guide/lineage)。
 
 ## 治理演化
 

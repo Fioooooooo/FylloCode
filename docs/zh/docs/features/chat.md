@@ -21,7 +21,25 @@ sidebar:
 - 支持 Mermaid、Markdown 等结构化内容展示
 - 在任务上下文中推进 proposal 创建和后续阶段
 - 从任务发起的会话显示来源任务横幅，重新进入会话仍可见
-- Agent 可通过 `fyllo-action` 结构化输出提议创建本地任务，由你确认后执行
+- Agent 可通过 [fyllo-action](/docs/reference/fyllo-action) 提议创建任务、提交 plan 审阅、标记或复核 knowledge，由你确认后由 FylloCode 接管执行
+
+## 定位历史消息
+
+对话区左上角会出现一条时间线，标记本次会话中你发送过的每一条消息。长对话中滚动查看时，时间线会跟随当前阅读位置高亮对应节点；点击某个节点会平滑滚动回那条消息。少于两条消息时时间线不显示。
+
+## 会话事件栏
+
+对话区右侧是可折叠的会话事件栏，收纳三类不会打断当前讨论、但需要留意的信息：
+
+- **Agent 待办**：Agent 在本次会话中给出的执行项列表
+- **Proposal 卡片**：本次会话中创建的 proposal 及其实时状态
+- **fyllo-action 待处理项**：`knowledge.flag`、`knowledge.review` 等 rail 类型 action 的只读摘要和定位入口；确认操作仍在对话正文的内联卡片中完成
+
+<figure class="fc-doc-image">
+  <img src="/assets/screenshots/chat-rail.png" alt="会话事件栏截图" />
+</figure>
+
+事件栏可以随时折叠为窄条，展开状态会在会话间保持。
 
 ## 与 lineage 的关系
 

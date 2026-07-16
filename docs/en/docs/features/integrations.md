@@ -9,12 +9,12 @@ sidebar:
 FylloCode does not aim to create another task island. Its goal is to write Agent work results back into the engineering systems your team already uses.
 
 <figure class="fc-doc-image">
-  <img src="/assets/screenshots/integration-provider.png" alt="Integration provider page screenshot" />
+  <img src="/assets/screenshots/integration-provider.png" alt="Service Connections page screenshot" />
 </figure>
 
-## Integration Providers
+## Service Connections
 
-The provider page manages global provider credentials. The current focus is Yunxiao, with future room for GitHub, GitLab, Jira, Linear, and other systems.
+The Service Connections page under [Settings](/en/docs/features/settings) is available at `/settings/connections`. It manages global provider credentials and connection state. The implemented connection flow currently focuses on Yunxiao. Unavailable providers shown on the page are reserved positions, not release commitments.
 
 The page shows:
 
@@ -30,8 +30,8 @@ The page shows:
   <img src="/assets/screenshots/integration.png" alt="Integration tool page screenshot" />
 </figure>
 
-The integration page manages project-level tool capabilities such as task reading, result writeback, repository association, and pipeline association. Different providers may expose different tools.
+The project integration page manages project-level tool capabilities such as task reading, result writeback, repository association, and pipeline association. Different providers may expose different tools. When a provider is disconnected or its connection expires, the page opens `/settings/connections?focus=<providerId>` to locate the corresponding service connection.
 
 ## Current Focus
 
-The first integration batch prioritizes Yunxiao. Other systems are planned or reserved, so docs and UI should not promise automation that is not implemented yet.
+Treat the connection state and project tools shown in the application as the available capability. A placeholder for an unavailable provider does not mean connection, task synchronization, or result writeback is supported.

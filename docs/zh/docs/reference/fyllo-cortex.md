@@ -6,11 +6,12 @@ sidebar:
 
 # fyllo-cortex MCP
 
-`fyllo-cortex` 是 FylloCode 内置的 MCP server。目前它提供两个 tool：
+`fyllo-cortex` 是 FylloCode 内置的 MCP server，定位是 Agent 的"大脑"：guidelines 和 knowledge 让项目工程知识跨会话持续沉淀，lineage 让后续 Agent 能反查历史决策依据。它提供三个 tool：
 
 | Tool | 作用 |
 | --- | --- |
 | `guidelines` | 维护项目工程约定，让后续 Agent 会话能读取当前规则 |
+| `knowledge` | 维护跨任务、跨会话共享的项目知识条目 |
 | `lineage` | 查询代码、commit 或 proposal 背后的任务、会话和设计决策脉络 |
 
 ## guidelines tool
@@ -99,6 +100,29 @@ Chat 与 Apply 的 `<guidelines>` 索引来自当前 workspace：
 - 如果没有 `guidelines/` 或没有 Markdown 文件，就不注入 `<guidelines>` 块
 - frontmatter 中的尖括号会被转义，避免用户编写的元数据提前关闭 `<guidelines>` 块
 
+## knowledge tool
+
+`knowledge` 用于维护存储在 FylloCode 应用数据目录中的持久化项目知识，与 guidelines 不同，knowledge 条目不写入项目仓库，而是跨任务、跨会话共享的项目级积累。产品层面的浏览方式见 [知识沉淀](/docs/features/knowledge)。
+
+### 什么时候触发捕获
+
+Agent 不会持续调用这个 tool，而是遵循一套判断标准（flag test）：这条信息如果丢了，未来某次会话是否要为此付出代价（重新推导、重新翻查、或者理解错）。命中判断标准时，Agent 先在会话里放置一张 `knowledge.flag` [fyllo-action](/docs/reference/fyllo-action) 卡片作为低成本标记，不会立刻调用 `knowledge` tool，也不会打断当前讨论。
+
+只有当用户在对话正文中确认某张待处理的 flag 卡片，或者明确要求捕获知识时，Agent 才会以 `mode: capture` 调用 `knowledge` tool；此时会话内所有待处理的 flag 会被打包成一次捕获请求。会话事件栏只汇总并定位这些待处理项，不提供确认按钮。
+
+### 维护模式
+
+| mode | 触发时机 | 是否修改文件 |
+| --- | --- | --- |
+| `capture` | 用户确认 `knowledge.flag` 后，或用户明确要求捕获知识 | 否，返回写入指引 |
+| `update` | 用户要求修订一条已有条目 | 否，返回修订指引 |
+| `retire` | 用户要求移除一条条目 | 否，返回下线指引 |
+| `audit` | 用户要求检查过期、来源存疑、重复或低质量的条目 | 否 |
+
+和 `guidelines` 一样，`knowledge` tool 不直接写文件，返回的是当前状态和该 mode 对应的写作指引，具体的条目内容由 Agent 根据指引完成。
+
+Agent 完成 `capture` 写入或 `update` 修订后，会放置一张 `knowledge.review` 卡片，用户确认后 FylloCode 从磁盘打开该条目的最新内容供编辑和审阅；弹层会实时保存完整 Markdown 原文。
+
 ## lineage tool
 
 `lineage` 用于查询既有代码背后的设计历史。它返回的是 FylloCode lineage subject 的投影，包含任务摘要、Chat session、proposal、plan、commit hash、proposal 路径和当前 proposal 状态。
@@ -117,4 +141,4 @@ Chat 与 Apply 的 `<guidelines>` 索引来自当前 workspace：
 
 ## 适用场景
 
-`fyllo-cortex` 解决的是团队工程知识如何持续沉淀和重新取用的问题。`guidelines` 让新形成的约定、踩过的坑和边界规则进入后续会话；`lineage` 让后续 Agent 能从代码、commit 或 proposal 反查当时的任务和决策依据。
+`fyllo-cortex` 解决的是工程知识如何持续沉淀和重新取用的问题。`guidelines` 让新形成的约定、踩过的坑和边界规则进入后续会话；`knowledge` 让不适合放进 guidelines 的项目级事实（业务背景、用户指令、意外发现）同样能被后续会话取用；`lineage` 让后续 Agent 能从代码、commit 或 proposal 反查当时的任务和决策依据。
