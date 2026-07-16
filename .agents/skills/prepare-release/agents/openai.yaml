@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare Release"
+  short_description: "Audit docs and prepare verified FylloCode releases"
+  default_prompt: "Use $prepare-release to audit the release range, update release artifacts, and prepare a verified FylloCode release."
