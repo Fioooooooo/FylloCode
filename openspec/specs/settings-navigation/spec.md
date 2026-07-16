@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change split-settings-into-child-routes. Update Purpose after archive.
+定义 Electron renderer 设置区域的共享布局、子路由归属、默认入口重定向、侧栏顺序与文案，以及服务连接的 provider 定向导航契约。
 
 ## Requirements
 
