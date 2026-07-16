@@ -47,7 +47,10 @@ const iconTone = computed(() => {
 <template>
   <UModal :dismissible="false">
     <template #content>
-      <div class="space-y-4 p-6">
+      <div
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-4"
+        data-test="confirm-dialog-scroll-area"
+      >
         <div class="flex items-start gap-3">
           <div
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -60,20 +63,23 @@ const iconTone = computed(() => {
             <h2 class="text-base font-semibold text-highlighted">
               {{ title }}
             </h2>
-            <p v-if="description" class="text-sm leading-relaxed text-muted">
+            <p
+              v-if="description"
+              class="break-words whitespace-pre-wrap text-sm leading-relaxed text-muted"
+            >
               {{ description }}
             </p>
           </div>
         </div>
+      </div>
 
-        <div class="flex justify-end gap-2">
-          <UButton variant="ghost" color="neutral" @click="emit('close', false)">
-            {{ cancelLabel }}
-          </UButton>
-          <UButton :color="confirmColor" @click="emit('close', true)">
-            {{ confirmLabel }}
-          </UButton>
-        </div>
+      <div class="flex shrink-0 justify-end gap-2 px-6 py-4" data-test="confirm-dialog-actions">
+        <UButton variant="ghost" color="neutral" @click="emit('close', false)">
+          {{ cancelLabel }}
+        </UButton>
+        <UButton :color="confirmColor" @click="emit('close', true)">
+          {{ confirmLabel }}
+        </UButton>
       </div>
     </template>
   </UModal>

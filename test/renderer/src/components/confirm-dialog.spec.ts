@@ -36,6 +36,24 @@ describe("ConfirmDialog", () => {
     );
   });
 
+  it("keeps actions outside the scrollable content area", () => {
+    const wrapper = mount(ConfirmDialog, {
+      props: {
+        title: "确认长内容",
+        description: "需要确认的内容。".repeat(200),
+      },
+    });
+
+    const scrollArea = wrapper.get('[data-test="confirm-dialog-scroll-area"]');
+    const actions = wrapper.get('[data-test="confirm-dialog-actions"]');
+
+    expect(scrollArea.classes()).toEqual(
+      expect.arrayContaining(["min-h-0", "flex-1", "overflow-y-auto", "overscroll-contain"])
+    );
+    expect(actions.classes()).toContain("shrink-0");
+    expect(scrollArea.element.contains(actions.element)).toBe(false);
+  });
+
   it("emits close(false) on cancel and close(true) on confirm", async () => {
     const wrapper = mount(ConfirmDialog, {
       props: {

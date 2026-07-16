@@ -45,7 +45,7 @@ describe("SettingsAbout", () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain("About");
+    expect(wrapper.text()).toContain("关于我们");
     expect(wrapper.text()).toContain(
       "查看当前应用版本、发布渠道以及 FylloCode 项目的公开入口信息。"
     );
