@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import IntegrationProviderCard from "./IntegrationProviderCard.vue";
+import IntegrationProviderCard from "@renderer/components/settings/connections/IntegrationProviderCard.vue";
 import { useIntegrationProvidersStore } from "@renderer/stores";
 
 const route = useRoute();
@@ -40,7 +40,7 @@ watch(focusProviderId, () => {
 <template>
   <div class="space-y-6">
     <div class="space-y-1">
-      <h1 class="text-xl font-semibold tracking-tight text-highlighted">集成提供方</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-highlighted">服务连接</h1>
       <p class="text-sm text-muted">统一管理全局 provider 凭证。</p>
     </div>
 

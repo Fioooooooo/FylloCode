@@ -71,9 +71,8 @@ function toggle(providerId: string): void {
 
 function openSettings(providerId: string): void {
   void router.push({
-    path: "/settings",
+    path: "/settings/connections",
     query: {
-      tab: "integration-providers",
       focus: providerId,
     },
   });

@@ -76,6 +76,24 @@ describe("ActivityBar", () => {
     expect(wrapper.findAll('button[class*="bg-primary/15"]')).toHaveLength(0);
   });
 
+  it.each([
+    "/settings/acp-agents",
+    "/settings/connections",
+    "/settings/preferences",
+    "/settings/about",
+  ])("keeps settings active on child route %s", async (path) => {
+    mockPath.value = path;
+    const wrapper = mountActivityBar();
+    await wrapper.vm.$nextTick();
+
+    const activeButtons = wrapper.findAll('button[class*="bg-primary/15"]');
+
+    expect(activeButtons).toHaveLength(1);
+    expect(activeButtons[0].attributes("to")).toBe("/settings");
+    expect(wrapper.find('[data-test="activity-bar-item-connections"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it("renders three sections with settings separated at the bottom", () => {
     const wrapper = mountActivityBar();
 

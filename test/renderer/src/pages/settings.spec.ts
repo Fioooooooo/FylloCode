@@ -1,44 +1,31 @@
 import { mount } from "@vue/test-utils";
-import { nextTick, reactive } from "vue";
+import { reactive } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@renderer/pages/settings.vue";
 
-const replaceMock = vi.fn();
-const route = reactive<{ query: Record<string, string | undefined> }>({
+const route = reactive<{
+  path: string;
+  query: Record<string, string | undefined>;
+}>({
+  path: "/settings/acp-agents",
   query: {},
 });
 
 vi.mock("vue-router", () => ({
   useRoute: () => route,
-  useRouter: () => ({
-    replace: replaceMock,
-  }),
 }));
 
-const settingsAgentsStub = {
-  template: '<div data-test="settings-agents">agents</div>',
-};
-
-const settingsPreferencesStub = {
-  template: '<div data-test="settings-preferences">preferences</div>',
-};
-
-const settingsAboutStub = {
-  template: '<div data-test="settings-about">about</div>',
-};
-
-const settingsIntegrationProvidersStub = {
-  template: '<div data-test="settings-integration-providers">integration providers</div>',
+const routerLinkStub = {
+  props: ["to"],
+  template: '<a :data-to="to"><slot /></a>',
 };
 
 function mountSettingsPage(): ReturnType<typeof mount> {
   return mount(SettingsPage, {
     global: {
       stubs: {
-        SettingsAgents: settingsAgentsStub,
-        SettingsAbout: settingsAboutStub,
-        SettingsPreferences: settingsPreferencesStub,
-        SettingsIntegrationProviders: settingsIntegrationProvidersStub,
+        RouterLink: routerLinkStub,
+        RouterView: { template: '<div data-test="settings-router-view" />' },
       },
     },
   });
@@ -46,42 +33,63 @@ function mountSettingsPage(): ReturnType<typeof mount> {
 
 describe("settings page", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    route.path = "/settings/acp-agents";
     route.query = {};
   });
 
-  it("renders the about tab from query", async () => {
-    route.query = {
-      tab: "about",
-      focus: "yunxiao",
-    };
-
+  it("renders shared navigation and the child route outlet", () => {
     const wrapper = mountSettingsPage();
 
-    await nextTick();
-
-    expect(wrapper.find('[data-test="settings-about"]').exists()).toBe(true);
+    const navigationItems = wrapper.findAll('[data-test^="settings-nav-"]');
+    expect(
+      navigationItems.map((item) => ({
+        id: item.attributes("data-test"),
+        label: item.text().trim(),
+        path: item.attributes("data-to"),
+      }))
+    ).toEqual([
+      {
+        id: "settings-nav-preferences",
+        label: "偏好设置",
+        path: "/settings/preferences",
+      },
+      {
+        id: "settings-nav-agents",
+        label: "Agents",
+        path: "/settings/acp-agents",
+      },
+      {
+        id: "settings-nav-connections",
+        label: "服务连接",
+        path: "/settings/connections",
+      },
+      { id: "settings-nav-about", label: "关于我们", path: "/settings/about" },
+    ]);
+    expect(wrapper.find('[data-test="settings-route-content"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="settings-router-view"]').exists()).toBe(true);
   });
 
-  it("preserves focus query when switching to about", async () => {
-    route.query = {
-      tab: "integration-providers",
-      focus: "yunxiao",
-    };
+  it("derives the active item from the child route", async () => {
+    route.path = "/settings/connections";
+    const wrapper = mountSettingsPage();
+    await wrapper.vm.$nextTick();
 
+    expect(wrapper.get('[data-test="settings-nav-connections"]').classes()).toContain(
+      "bg-primary/15"
+    );
+    expect(wrapper.get('[data-test="settings-nav-agents"]').classes()).not.toContain(
+      "bg-primary/15"
+    );
+  });
+
+  it("ignores the legacy tab query when selecting the active item", () => {
+    route.path = "/settings/acp-agents";
+    route.query = { tab: "about" };
     const wrapper = mountSettingsPage();
 
-    const aboutButton = wrapper.findAll("button").find((button) => button.text().includes("About"));
-
-    expect(aboutButton).toBeTruthy();
-    await aboutButton!.trigger("click");
-
-    expect(replaceMock).toHaveBeenCalledWith({
-      path: "/settings",
-      query: {
-        tab: "about",
-        focus: "yunxiao",
-      },
-    });
+    expect(wrapper.get('[data-test="settings-nav-agents"]').classes()).toContain("bg-primary/15");
+    expect(wrapper.get('[data-test="settings-nav-about"]').classes()).not.toContain(
+      "bg-primary/15"
+    );
   });
 });

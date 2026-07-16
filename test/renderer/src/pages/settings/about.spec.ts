@@ -2,7 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import SettingsAbout from "@renderer/components/settings/SettingsAbout.vue";
+import SettingsAbout from "@renderer/pages/settings/about.vue";
 import { releaseApi } from "@renderer/api/platform/release";
 import { settingsApi } from "@renderer/api/platform/settings";
 import type { AppAboutInfo } from "@shared/types/settings";

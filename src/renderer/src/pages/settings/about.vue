@@ -33,7 +33,7 @@ function formatPublishedAt(value: string | undefined): string {
 <template>
   <div class="space-y-6">
     <div class="space-y-1">
-      <h1 class="text-xl font-semibold tracking-tight text-highlighted">About</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-highlighted">关于我们</h1>
       <p class="text-sm text-muted">
         查看当前应用版本、发布渠道以及 FylloCode 项目的公开入口信息。
       </p>

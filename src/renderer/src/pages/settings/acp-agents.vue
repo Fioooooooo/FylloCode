@@ -4,7 +4,7 @@ import { useMonaco } from "stream-monaco";
 import { useToast } from "@nuxt/ui/composables";
 import { useAcpAgentsStore } from "@renderer/stores";
 import type { AcpCustomAgentsJson } from "@shared/types/acp-agent";
-import AgentCard from "./AgentCard.vue";
+import AgentCard from "@renderer/components/settings/acp-agents/AgentCard.vue";
 
 const store = useAcpAgentsStore();
 const toast = useToast();

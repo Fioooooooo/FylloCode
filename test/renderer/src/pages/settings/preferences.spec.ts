@@ -2,7 +2,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import SettingsPreferences from "@renderer/components/settings/SettingsPreferences.vue";
+import SettingsPreferences from "@renderer/pages/settings/preferences.vue";
 import { useSettingsStore } from "@renderer/stores/platform/settings";
 
 const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();

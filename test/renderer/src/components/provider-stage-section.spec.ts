@@ -252,9 +252,8 @@ describe("ProviderStageSection", () => {
     await buttons[2].trigger("click");
 
     expect(pushMock).toHaveBeenCalledWith({
-      path: "/settings",
+      path: "/settings/connections",
       query: {
-        tab: "integration-providers",
         focus: "yunxiao",
       },
     });
@@ -281,9 +280,8 @@ describe("ProviderStageSection", () => {
     await wrapper.get('[data-test="add-provider-yunxiao"]').trigger("click");
 
     expect(pushMock).toHaveBeenCalledWith({
-      path: "/settings",
+      path: "/settings/connections",
       query: {
-        tab: "integration-providers",
         focus: "yunxiao",
       },
     });

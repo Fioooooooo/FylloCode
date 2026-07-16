@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AgentCard from "@renderer/components/settings/AgentCard.vue";
+import AgentCard from "@renderer/components/settings/acp-agents/AgentCard.vue";
 import type { AcpAgentEntry, AcpAgentStatus } from "@shared/types/acp-agent";
 
 const confirmDialogMock = vi.fn<(options: Record<string, unknown>) => Promise<boolean>>();
@@ -43,7 +43,7 @@ function mounted(status?: Partial<AcpAgentStatus>) {
   });
 }
 
-describe("AgentCard uninstall", () => {
+describe("AgentCard", () => {
   beforeEach(() => {
     confirmDialogMock.mockReset();
   });

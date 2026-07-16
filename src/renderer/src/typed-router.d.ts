@@ -99,6 +99,37 @@ declare module 'vue-router/auto-routes' {
       '/settings',
       Record<never, never>,
       Record<never, never>,
+      | '/settings/about'
+      | '/settings/acp-agents'
+      | '/settings/connections'
+      | '/settings/preferences'
+    >,
+    '/settings/about': RouteRecordInfo<
+      '/settings/about',
+      '/settings/about',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/settings/acp-agents': RouteRecordInfo<
+      '/settings/acp-agents',
+      '/settings/acp-agents',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/settings/connections': RouteRecordInfo<
+      '/settings/connections',
+      '/settings/connections',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/settings/preferences': RouteRecordInfo<
+      '/settings/preferences',
+      '/settings/preferences',
+      Record<never, never>,
+      Record<never, never>,
       | never
     >,
     '/specs': RouteRecordInfo<
@@ -210,6 +241,42 @@ declare module 'vue-router/auto-routes' {
     'src/pages/settings.vue': {
       routes:
         | '/settings'
+        | '/settings/about'
+        | '/settings/acp-agents'
+        | '/settings/connections'
+        | '/settings/preferences'
+      views:
+        | 'default'
+      pathParamNames:
+        | never
+    }
+    'src/pages/settings/about.vue': {
+      routes:
+        | '/settings/about'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/settings/acp-agents.vue': {
+      routes:
+        | '/settings/acp-agents'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/settings/connections.vue': {
+      routes:
+        | '/settings/connections'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/settings/preferences.vue': {
+      routes:
+        | '/settings/preferences'
       views:
         | never
       pathParamNames:

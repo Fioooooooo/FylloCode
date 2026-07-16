@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
+import vueRouter from "vue-router/vite";
 import ui from "@nuxt/ui/vite";
 import { resolve } from "path";
 import { readFileSync } from "fs";
@@ -21,6 +22,11 @@ const mdRawForTests = {
 export default defineConfig({
   plugins: [
     mdRawForTests,
+    vueRouter({
+      root: resolve(__dirname, "src/renderer"),
+      dts: false,
+      watch: false,
+    }),
     vue(),
     ui({
       autoImport: {
