@@ -6,6 +6,11 @@ import {
   type CreateFylloWindowOptions,
 } from "@main/bootstrap/window";
 import type { WindowStateKey } from "@main/infra/storage/window-state-store";
+import { disposeProject as disposeLineageEventConsumerProject } from "@main/services/insight/lineage/mcp-event-consumer";
+import { proposalStatusService } from "@main/services/proposal/browser/proposal-status-service";
+import { sessionRegistry } from "@main/services/session/chat/session-registry";
+import { closeProjectProbes } from "@main/services/session/chat/session-probe-service";
+import { getProject } from "@main/services/workspace/project/project-service";
 
 type ProjectWindowContext = Extract<WindowContext, { role: "project" }>;
 type LauncherWindowContext = Extract<WindowContext, { role: "launcher" }>;
@@ -271,20 +276,6 @@ async function cleanupProjectRuntimeForWindow(
   projectId: string,
   knownProjectPath?: string
 ): Promise<void> {
-  const [
-    { getProject },
-    { closeProjectProbes },
-    { sessionRegistry },
-    { proposalStatusService },
-    { disposeProject: disposeLineageEventConsumerProject },
-  ] = await Promise.all([
-    import("@main/services/workspace/project/project-service"),
-    import("@main/services/session/chat/session-probe-service"),
-    import("@main/services/session/chat/session-registry"),
-    import("@main/services/proposal/browser/proposal-status-service"),
-    import("@main/services/insight/lineage/mcp-event-consumer"),
-  ]);
-
   await closeProjectProbes(projectId);
   sessionRegistry.cancelProject(projectId);
 
