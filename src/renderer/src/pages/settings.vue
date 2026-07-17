@@ -2,7 +2,7 @@
 import { useRoute } from "vue-router";
 
 definePage({
-  redirect: "/settings/acp-agents",
+  redirect: "/settings/preferences",
 });
 
 const route = useRoute();

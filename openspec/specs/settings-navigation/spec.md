@@ -8,14 +8,14 @@
 
 ### Requirement: 设置页面使用共享父布局和独立子路由
 
-系统 SHALL 使用 `/settings` 作为共享设置布局的稳定入口，并 SHALL 将其重定向到默认 Agents 子页面 `/settings/acp-agents`；系统 SHALL 通过独立子路由提供服务连接、偏好设置和 About 页面。
+系统 SHALL 使用 `/settings` 作为共享设置布局的稳定入口，并 SHALL 将其重定向到默认偏好设置子页面 `/settings/preferences`；系统 SHALL 通过独立子路由提供服务连接、偏好设置和 About 页面。
 
 #### Scenario: 打开默认设置页面
 
 - **WHEN** 用户导航到 `/settings`
-- **THEN** 系统 SHALL 重定向到 `/settings/acp-agents`
-- **AND** 系统 SHALL 在设置共享布局中展示 Agents 页面
-- **AND** 左侧设置导航 SHALL 将 Agents 标记为当前项
+- **THEN** 系统 SHALL 重定向到 `/settings/preferences`
+- **AND** 系统 SHALL 在设置共享布局中展示偏好设置页面
+- **AND** 左侧设置导航 SHALL 将“偏好设置”标记为当前项
 
 #### Scenario: 直接打开 Agents 设置页面
 
@@ -100,7 +100,7 @@
 #### Scenario: 打开带旧 tab 查询参数的设置页面
 
 - **WHEN** 用户导航到 `/settings?tab=about`、`/settings?tab=preferences` 或 `/settings?tab=integration-providers`
-- **THEN** 系统 SHALL 按 `/settings` 的默认行为重定向到 `/settings/acp-agents` 并展示 Agents 页面
+- **THEN** 系统 SHALL 按 `/settings` 的默认行为重定向到 `/settings/preferences` 并展示偏好设置页面
 - **AND** 系统 SHALL NOT 根据 `tab` 查询参数切换或重定向到其他设置子路由
 
 ### Requirement: 设置 route 拥有页面实现且不建立 Renderer feature

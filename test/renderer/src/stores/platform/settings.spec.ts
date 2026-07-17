@@ -24,6 +24,12 @@ describe("useSettingsStore", () => {
     vi.clearAllMocks();
   });
 
+  it("defaults the language preference to Chinese", () => {
+    const store = useSettingsStore();
+
+    expect(store.preferences.language).toBe("zh");
+  });
+
   it("deduplicates concurrent ensureAboutInfoLoaded calls", async () => {
     let resolveRequest:
       | ((value: Awaited<ReturnType<typeof settingsApi.getAppInfo>>) => void)

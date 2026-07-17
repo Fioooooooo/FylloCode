@@ -6,7 +6,7 @@ import type { AppAboutInfo, PreferencesConfig, ReleaseCheckResult } from "@share
 
 const defaultPreferences: PreferencesConfig = {
   theme: "system",
-  language: "en",
+  language: "zh",
   defaultAgentMode: "auto",
   notificationMethods: ["in-app"],
   autoSaveSession: true,

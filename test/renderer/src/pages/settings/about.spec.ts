@@ -35,7 +35,7 @@ describe("SettingsAbout", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the heading, a single card, and four rows in order", async () => {
+  it("renders the heading and grouped rows in order", async () => {
     vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
       ok: true,
       data: aboutInfoFixture,
@@ -46,22 +46,30 @@ describe("SettingsAbout", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("关于我们");
-    expect(wrapper.text()).toContain(
-      "查看当前应用版本、发布渠道以及 FylloCode 项目的公开入口信息。"
-    );
-    expect(wrapper.findAll('[data-test="about-card"]')).toHaveLength(1);
+    expect(wrapper.text()).toContain("了解 FylloCode 的版本、更新动态，以及获取帮助的入口。");
+    expect(
+      wrapper
+        .findAll('[data-test^="about-section-"]')
+        .map((section) => section.attributes("data-test"))
+    ).toEqual([
+      "about-section-version-info",
+      "about-section-resources-support",
+      "about-section-legal-info",
+    ]);
     expect(
       wrapper.findAll('[data-test^="about-row-"]').map((row) => row.attributes("data-test"))
     ).toEqual([
       "about-row-version",
       "about-row-release-check",
-      "about-row-copyright",
-      "about-row-repository",
+      "about-row-documentation",
+      "about-row-changelog",
       "about-row-feedback",
+      "about-row-license",
+      "about-row-copyright",
     ]);
   });
 
-  it("loads and renders app about info with separate link entries", async () => {
+  it("loads and renders app about info with resource and legal links", async () => {
     vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
       ok: true,
       data: aboutInfoFixture,
@@ -72,18 +80,27 @@ describe("SettingsAbout", () => {
     await flushPromises();
 
     expect(settingsApi.getAppInfo).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain("Preview");
+    expect(wrapper.find('[data-test="about-release-channel"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="about-version"]').text()).toBe("v0.9.0-beta.1");
     expect(wrapper.find('[data-test="release-check-idle"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="release-check-button"]').text()).toBe("检查更新");
     expect(wrapper.find('[data-test="about-copyright"]').text()).toBe("Copyright © 2026 Fio");
-    expect(wrapper.find('[data-test="about-link-repository"]').attributes("href")).toBe(
-      "https://github.com/Fioooooooo/FylloCode"
+    expect(wrapper.find('[data-test="about-link-documentation"]').attributes("href")).toBe(
+      "https://fyllocode.cc"
+    );
+    expect(wrapper.find('[data-test="about-link-changelog"]').attributes("href")).toBe(
+      "https://github.com/Fioooooooo/FylloCode/blob/main/CHANGELOG.md"
     );
     expect(wrapper.find('[data-test="about-link-feedback"]').attributes("href")).toBe(
       "https://github.com/Fioooooooo/FylloCode/issues"
     );
-    expect(wrapper.find('[data-test="about-link-repository"]').text()).toBe("打开 GitHub");
+    expect(wrapper.find('[data-test="about-link-license"]').attributes("href")).toBe(
+      "https://github.com/Fioooooooo/FylloCode/blob/main/LICENSE"
+    );
+    expect(wrapper.find('[data-test="about-link-documentation"]').text()).toBe("查看文档");
+    expect(wrapper.find('[data-test="about-link-changelog"]').text()).toBe("查看更新日志");
     expect(wrapper.find('[data-test="about-link-feedback"]').text()).toBe("提交反馈");
+    expect(wrapper.find('[data-test="about-link-license"]').text()).toBe("查看 License");
   });
 
   it("shows a loading state before app info resolves", async () => {
@@ -128,7 +145,7 @@ describe("SettingsAbout", () => {
     expect(wrapper.find('[data-test="about-version"]').exists()).toBe(false);
   });
 
-  it("opens both external links via a new window target", async () => {
+  it("opens resource and legal links in a new window", async () => {
     vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
       ok: true,
       data: aboutInfoFixture,
@@ -138,13 +155,17 @@ describe("SettingsAbout", () => {
 
     await flushPromises();
 
-    const repositoryLink = wrapper.find('[data-test="about-link-repository"]');
-    const feedbackLink = wrapper.find('[data-test="about-link-feedback"]');
+    const externalLinks = [
+      wrapper.find('[data-test="about-link-documentation"]'),
+      wrapper.find('[data-test="about-link-changelog"]'),
+      wrapper.find('[data-test="about-link-feedback"]'),
+      wrapper.find('[data-test="about-link-license"]'),
+    ];
 
-    expect(repositoryLink.attributes("target")).toBe("_blank");
-    expect(repositoryLink.attributes("rel")).toContain("noreferrer");
-    expect(feedbackLink.attributes("target")).toBe("_blank");
-    expect(feedbackLink.attributes("rel")).toContain("noreferrer");
+    for (const link of externalLinks) {
+      expect(link.attributes("target")).toBe("_blank");
+      expect(link.attributes("rel")).toContain("noreferrer");
+    }
   });
 
   it("checks latest release and shows update available state", async () => {
