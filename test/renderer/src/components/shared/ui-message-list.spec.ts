@@ -160,7 +160,8 @@ function mountList(
   messages: UIMessage<MessageMeta>[],
   status: ChatStatus = "ready",
   agentId?: string,
-  type: "chat" | "side" = "chat"
+  type: "chat" | "side" = "chat",
+  streamIndicator?: { messageId: string; startedAt: number } | null
 ): VueWrapper {
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -191,6 +192,7 @@ function mountList(
       status,
       type,
       agentId,
+      streamIndicator,
     },
     global: {
       plugins: [pinia],
@@ -208,6 +210,11 @@ function mountList(
         ChatReasoning: chatReasoningStub,
         UTooltip: tooltipStub,
         Tooltip: tooltipStub,
+        AssistantStreamIndicator: {
+          props: ["startedAt"],
+          template:
+            '<div data-test="assistant-stream-indicator" :data-started-at="String(startedAt)"></div>',
+        },
       },
     },
   });
@@ -255,6 +262,33 @@ describe("UIMessageList", () => {
     expect(sideWrapper.get('[data-test="markdown"]').attributes("data-enable-actions")).toBe(
       "false"
     );
+  });
+
+  it("renders the stream indicator only below the matching chat assistant message", () => {
+    const firstAssistant = assistantMessage([{ type: "text", text: "first" }]);
+    const secondAssistant: UIMessage<MessageMeta> = {
+      ...assistantMessage([{ type: "text", text: "second" }]),
+      id: "message-2",
+    };
+    const startedAt = new Date("2026-05-08T00:00:12.000Z").getTime();
+
+    const chatWrapper = mountList(
+      [firstAssistant, userMessage([{ type: "text", text: "prompt" }]), secondAssistant],
+      "streaming",
+      undefined,
+      "chat",
+      { messageId: "message-2", startedAt }
+    );
+    const sideWrapper = mountList([secondAssistant], "streaming", undefined, "side", {
+      messageId: "message-2",
+      startedAt,
+    });
+
+    expect(chatWrapper.findAll('[data-test="assistant-stream-indicator"]')).toHaveLength(1);
+    expect(
+      chatWrapper.get('[data-test="assistant-stream-indicator"]').attributes("data-started-at")
+    ).toBe(String(startedAt));
+    expect(sideWrapper.find('[data-test="assistant-stream-indicator"]').exists()).toBe(false);
   });
 
   it("copies only text parts and marks copied actions independently", async () => {

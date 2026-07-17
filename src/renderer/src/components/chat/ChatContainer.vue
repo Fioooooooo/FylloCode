@@ -12,7 +12,7 @@ import ChatPromptTimeline from "./timeline/ChatPromptTimeline.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
 
 const store = useChatStore();
-const { chatStatus, streamError } = storeToRefs(store);
+const { chatStatus, streamError, activeStreamIndicator } = storeToRefs(store);
 const sessionStore = useSessionStore();
 const { activeSession, activeSessionId, isLoadingMessages } = storeToRefs(sessionStore);
 
@@ -96,6 +96,7 @@ function handleCreateSession(): void {
                 v-else
                 :messages="activeSession?.messages ?? []"
                 :status="chatStatus"
+                :stream-indicator="activeStreamIndicator"
                 type="chat"
               />
             </template>

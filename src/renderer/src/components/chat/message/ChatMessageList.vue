@@ -6,12 +6,13 @@ import ChatMessageActions from "../actions/ChatMessageActions.vue";
 import AssistantMessage from "./AssistantMessage.vue";
 import UserMessage from "./UserMessage.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
-import { useSessionStore } from "@renderer/stores";
+import { useSessionStore, type AssistantStreamIndicatorState } from "@renderer/stores";
 
 const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
   status: ChatStatus;
   type: "chat" | "side";
+  streamIndicator?: AssistantStreamIndicatorState | null;
 }>();
 const sessionStore = useSessionStore();
 
@@ -60,6 +61,14 @@ function getMessageProjectId(message: UIMessage<MessageMeta>): string | undefine
 
   return sessionStore.activeSession?.projectId;
 }
+
+function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
+  if (props.type !== "chat" || message.role !== "assistant") {
+    return null;
+  }
+
+  return props.streamIndicator?.messageId === message.id ? props.streamIndicator.startedAt : null;
+}
 </script>
 
 <template>
@@ -95,6 +104,7 @@ function getMessageProjectId(message: UIMessage<MessageMeta>): string | undefine
           :message-index="getMessageIndex(message)"
           :action-states="getMessageActionStates(message)"
           :project-id="getMessageProjectId(message)"
+          :stream-started-at="getStreamStartedAt(message)"
         />
       </template>
 

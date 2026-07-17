@@ -14,6 +14,29 @@ function userMessage(): UIMessage<MessageMeta> {
 }
 
 describe("useUIMessageAssembler", () => {
+  it("exposes the active renderer assistant message ID only for the current stream", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });
+
+    expect(assembler.getActiveAssistantMessageId()).toBeNull();
+
+    assembler.applyChunk({ kind: "reasoning_delta", text: "think" });
+    const reasoningMessageId = assembler.getActiveAssistantMessageId();
+
+    expect(reasoningMessageId).toBe(messages.value[0]?.id);
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      title: "Read",
+      toolKind: "read",
+    });
+    expect(assembler.getActiveAssistantMessageId()).toBe(reasoningMessageId);
+
+    assembler.resetActive();
+    expect(assembler.getActiveAssistantMessageId()).toBeNull();
+  });
+
   it("accumulates text deltas into one assistant message", () => {
     const messages = ref<UIMessage<MessageMeta>[]>([]);
     const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });

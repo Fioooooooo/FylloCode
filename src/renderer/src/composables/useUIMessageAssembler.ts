@@ -6,6 +6,7 @@ import type { MessageChunkData } from "@shared/types/ipc";
 export interface UIMessageAssembler {
   messages: Ref<UIMessage<MessageMeta>[]>;
   applyChunk: (chunk: MessageChunkData) => void;
+  getActiveAssistantMessageId: () => string | null;
   resetActive: () => void;
   setMessages: (nextMessages: UIMessage<MessageMeta>[]) => void;
 }
@@ -45,6 +46,10 @@ export function useUIMessageAssembler(
     activeAssistantId = null;
     activeTextPartIdx = -1;
     activeReasoningPartIdx = -1;
+  }
+
+  function getActiveAssistantMessageId(): string | null {
+    return activeAssistantId;
   }
 
   function setMessages(nextMessages: UIMessage<MessageMeta>[]): void {
@@ -224,6 +229,7 @@ export function useUIMessageAssembler(
   return {
     messages,
     applyChunk,
+    getActiveAssistantMessageId,
     resetActive,
     setMessages,
   };

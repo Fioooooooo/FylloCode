@@ -133,6 +133,7 @@ describe("useChatStore", () => {
   afterEach(() => {
     expectedConsoleErrorSpy?.mockRestore();
     expectedConsoleErrorSpy = null;
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -218,6 +219,101 @@ describe("useChatStore", () => {
     );
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
+  });
+
+  it("tracks a session-local indicator from the first assistant chunk until stream completion", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T08:00:00.000Z"));
+    prepareDraftConversation();
+
+    let callbacks: StreamCallbacks | null = null;
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return () => {};
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("hello"));
+
+    expect(chatStore.activeStreamIndicator).toBeNull();
+
+    callbacks!.onChunk({ kind: "text_delta", text: "answer" });
+    const firstIndicator = chatStore.activeStreamIndicator;
+    expect(firstIndicator).toMatchObject({ startedAt: Date.now() });
+    expect(firstIndicator?.messageId).toBe(useSessionStore().activeSession?.messages.at(-1)?.id);
+
+    vi.advanceTimersByTime(1000);
+    callbacks!.onChunk({ kind: "reasoning_delta", text: "more" });
+    expect(chatStore.activeStreamIndicator).toEqual(firstIndicator);
+
+    callbacks!.onDone({ totalTokens: 1 });
+    expect(chatStore.activeStreamIndicator).toBeNull();
+  });
+
+  it("keeps concurrently streaming session indicators isolated across session switches", async () => {
+    prepareDraftConversation();
+    vi.mocked(chatApi.loadMessages).mockResolvedValue({ ok: true, data: [] });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "session-a" }), makeSession({ id: "session-b" })];
+    sessionStore.activeSessionId = "session-a";
+
+    const callbacksBySession = new Map<string, StreamCallbacks>();
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+        callbacksBySession.set(sessionId, callbacks);
+        return () => {};
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("run A"));
+    callbacksBySession.get("session-a")!.onChunk({ kind: "text_delta", text: "A" });
+    const indicatorA = chatStore.activeStreamIndicator;
+
+    await sessionStore.selectSession("session-b");
+    await chatStore.sendMessage(textParts("run B"));
+    callbacksBySession.get("session-b")!.onChunk({ kind: "text_delta", text: "B" });
+    const indicatorB = chatStore.activeStreamIndicator;
+
+    expect(indicatorA).not.toBeNull();
+    expect(indicatorB).not.toBeNull();
+    expect(indicatorB?.messageId).not.toBe(indicatorA?.messageId);
+
+    await sessionStore.selectSession("session-a");
+    expect(chatStore.activeStreamIndicator).toEqual(indicatorA);
+
+    callbacksBySession.get("session-b")!.onDone({ totalTokens: 1 });
+    expect(chatStore.activeStreamIndicator).toEqual(indicatorA);
+  });
+
+  it("removes the active indicator after an error or cancellation", async () => {
+    const consoleError = spyOnExpectedConsoleError();
+    prepareDraftConversation();
+    const callbacks: StreamCallbacks[] = [];
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        callbacks.push(nextCallbacks);
+        return () => {};
+      }
+    );
+
+    const chatStore = useChatStore();
+    await chatStore.sendMessage(textParts("first"));
+    callbacks[0]!.onChunk({ kind: "text_delta", text: "first answer" });
+    expect(chatStore.activeStreamIndicator).not.toBeNull();
+
+    callbacks[0]!.onError({ code: "stream_failed", message: "disconnected" });
+    expect(chatStore.activeStreamIndicator).toBeNull();
+
+    await chatStore.sendMessage(textParts("second"));
+    callbacks[1]!.onChunk({ kind: "text_delta", text: "second answer" });
+    expect(chatStore.activeStreamIndicator).not.toBeNull();
+
+    chatStore.cancelStream();
+    expect(chatStore.activeStreamIndicator).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith("Stream error:", "stream_failed", "disconnected");
   });
 
   it("cancels the first draft send while session creation is still pending", async () => {

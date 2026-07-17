@@ -5,6 +5,7 @@ import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import ChatToolGroup from "./ChatToolGroup.vue";
+import AssistantStreamIndicator from "./AssistantStreamIndicator.vue";
 import { getToolIcon, getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
 import { useSessionStore } from "@renderer/stores";
 import { sessionActionApi } from "@renderer/api/session/action";
@@ -30,6 +31,7 @@ const props = defineProps<{
   messageIndex?: number;
   actionStates?: Record<string, FylloActionState>;
   projectId?: string | null;
+  streamStartedAt?: number | null;
 }>();
 
 const sessionStore = useSessionStore();
@@ -163,4 +165,9 @@ function buildActionContext(partIndex: number) {
       :action-context="buildActionContext(item.partIndex)"
     />
   </template>
+
+  <AssistantStreamIndicator
+    v-if="props.streamStartedAt !== undefined && props.streamStartedAt !== null"
+    :started-at="props.streamStartedAt"
+  />
 </template>

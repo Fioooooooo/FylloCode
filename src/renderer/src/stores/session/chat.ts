@@ -62,6 +62,13 @@ interface ChatSessionStreamState {
   status: ChatStatus;
   cancel: (() => void) | null;
   error: StreamError | null;
+  assistantMessageId: string | null;
+  replyStartedAt: number | null;
+}
+
+export interface AssistantStreamIndicatorState {
+  messageId: string;
+  startedAt: number;
 }
 
 interface DraftStreamState {
@@ -97,6 +104,21 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     return activeSessionStreamState.value?.error ?? null;
+  });
+  const activeStreamIndicator = computed<AssistantStreamIndicatorState | null>(() => {
+    const state = activeSessionStreamState.value;
+    if (
+      state?.status !== "streaming" ||
+      !state.assistantMessageId ||
+      state.replyStartedAt === null
+    ) {
+      return null;
+    }
+
+    return {
+      messageId: state.assistantMessageId,
+      startedAt: state.replyStartedAt,
+    };
   });
   const pendingConfigIds = computed<ReadonlySet<string>>(() => pendingConfigIdSet.value);
 
@@ -147,6 +169,8 @@ export const useChatStore = defineStore("chat", () => {
       status: "submitted",
       cancel: null,
       error: null,
+      assistantMessageId: null,
+      replyStartedAt: null,
     });
     return runId;
   }
@@ -271,15 +295,24 @@ export const useChatStore = defineStore("chat", () => {
             case "text_delta":
             case "reasoning_delta":
             case "tool_call_start":
-            case "tool_call_update":
-              updateSessionStreamState(sessionId, (state) =>
-                state.runId === streamRunId && state.status === "submitted"
-                  ? { ...state, status: "streaming" }
-                  : state
-              );
+            case "tool_call_update": {
+              const chunkReceivedAt = Date.now();
 
               assembler.applyChunk(data);
+              const assistantMessageId = assembler.getActiveAssistantMessageId();
+              updateSessionStreamState(sessionId, (state) =>
+                state.runId !== streamRunId ||
+                (state.status !== "submitted" && state.status !== "streaming")
+                  ? state
+                  : {
+                      ...state,
+                      status: "streaming",
+                      assistantMessageId: state.assistantMessageId ?? assistantMessageId,
+                      replyStartedAt: state.replyStartedAt ?? chunkReceivedAt,
+                    }
+              );
               return;
+            }
             default: {
               void data;
               throw new Error(`unhandled stream chunk: ${(data as MessageChunkData).kind}`);
@@ -312,6 +345,8 @@ export const useChatStore = defineStore("chat", () => {
             status: "error",
             cancel: null,
             error: err,
+            assistantMessageId: null,
+            replyStartedAt: null,
           });
           activeSession.status = "ended";
           activeSession.updatedAt = new Date();
@@ -404,6 +439,8 @@ export const useChatStore = defineStore("chat", () => {
           status: "submitted",
           cancel: null,
           error: null,
+          assistantMessageId: null,
+          replyStartedAt: null,
         });
         clearDraftRunIfCurrent(streamRunId);
         if (carryProbe) {
@@ -568,6 +605,7 @@ export const useChatStore = defineStore("chat", () => {
 
   return {
     chatStatus,
+    activeStreamIndicator,
     mode,
     cancelFn,
     streamError,

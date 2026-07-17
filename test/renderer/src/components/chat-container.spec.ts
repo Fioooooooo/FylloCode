@@ -10,6 +10,7 @@ const activeSessionIdRef = ref<string | null>(null);
 const isLoadingMessagesRef = ref(false);
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
 const streamErrorRef = ref<{ code: string; message: string } | null>(null);
+const activeStreamIndicatorRef = ref<{ messageId: string; startedAt: number } | null>(null);
 const persistSessionActionStateMock = vi.hoisted(() => vi.fn());
 const scrollIntoViewMock = vi.fn();
 
@@ -38,6 +39,7 @@ vi.mock("pinia", async (importOriginal) => {
       return {
         chatStatus: computed(() => chatStatusRef.value),
         streamError: computed(() => streamErrorRef.value),
+        activeStreamIndicator: computed(() => activeStreamIndicatorRef.value),
         activeSession: computed(() => activeSessionRef.value),
         activeSessionId: computed(() => activeSessionIdRef.value),
         isLoadingMessages: computed(() => isLoadingMessagesRef.value),
@@ -55,10 +57,11 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
       plugins: [createPinia()],
       stubs: {
         ChatMessageList: {
-          props: ["messages", "status", "type"],
+          props: ["messages", "status", "type", "streamIndicator"],
           template: `
             <div data-test="message-list">
               {{ messages.length }}|{{ status }}|{{ type }}
+              <div v-if="streamIndicator" data-test="stream-indicator-projection">{{ streamIndicator.messageId }}</div>
               <div
                 v-for="message in messages"
                 :key="message.id"
@@ -152,6 +155,7 @@ describe("ChatContainer", () => {
     isLoadingMessagesRef.value = false;
     chatStatusRef.value = "ready";
     streamErrorRef.value = null;
+    activeStreamIndicatorRef.value = null;
     persistSessionActionStateMock.mockReset();
     scrollIntoViewMock.mockReset();
     vi.stubGlobal("CSS", {
@@ -176,6 +180,20 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
+  });
+
+  it("forwards the active session stream indicator projection to the message list", async () => {
+    const session = makeSession();
+    session.messages = [{} as Session["messages"][number]];
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    activeStreamIndicatorRef.value = { messageId: "renderer-message-1", startedAt: 1234 };
+
+    const wrapper = mountContainer();
+
+    expect(wrapper.get('[data-test="stream-indicator-projection"]').text()).toBe(
+      "renderer-message-1"
+    );
   });
 
   it("emits toggle-sidebar from the sidebar toggle button", async () => {
