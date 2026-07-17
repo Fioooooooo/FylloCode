@@ -70,8 +70,7 @@ function createHarness() {
   const fromWebContents = vi.fn((webContents: WebContents) => {
     return (
       (windows.find((window) => (window.webContents as unknown as WebContents) === webContents) as
-        | BrowserWindow
-        | undefined) ?? null
+        BrowserWindow | undefined) ?? null
     );
   });
   const manager = new ProjectWindowManager({

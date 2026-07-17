@@ -32,6 +32,10 @@ const themeOptions = [
 ];
 
 const languageOptions = [{ label: "中文", value: "zh" }];
+
+function setThemeMode(mode: ThemeMode): void {
+  themeMode.value = mode;
+}
 </script>
 
 <template>
@@ -57,7 +61,7 @@ const languageOptions = [{ label: "中文", value: "zh" }];
                 size="xs"
                 :variant="themeMode === opt.value ? 'solid' : 'ghost'"
                 :color="themeMode === opt.value ? 'primary' : 'neutral'"
-                @click="themeMode = opt.value"
+                @click="setThemeMode(opt.value)"
                 >{{ opt.label }}
               </UButton>
             </div>

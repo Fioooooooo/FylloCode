@@ -15,10 +15,7 @@
  */
 
 export type ArchiveFailureSignal =
-  | "validation-failed"
-  | "spec-update-aborted"
-  | "no-change-selected"
-  | "archive-cancelled";
+  "validation-failed" | "spec-update-aborted" | "no-change-selected" | "archive-cancelled";
 
 export type ArchiveOutcome =
   | { kind: "success" }

@@ -9,8 +9,7 @@ import type { RendererActionDefinition } from "./renderer-registry";
 import type { FylloActionExecutionStatus } from "../application/execution-runtime";
 
 type DisplayStatus =
-  | FylloActionParseResult["status"]
-  | Exclude<FylloActionExecutionStatus, "ready">;
+  FylloActionParseResult["status"] | Exclude<FylloActionExecutionStatus, "ready">;
 type StatusColor = "error" | "success" | "primary" | "neutral";
 
 const props = defineProps<{

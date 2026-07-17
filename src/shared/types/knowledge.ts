@@ -44,9 +44,7 @@ export interface KnowledgeLineageSource {
 }
 
 export type KnowledgeSource =
-  | KnowledgeSessionSource
-  | KnowledgeCommitSource
-  | KnowledgeLineageSource;
+  KnowledgeSessionSource | KnowledgeCommitSource | KnowledgeLineageSource;
 
 export interface KnowledgeEntryFrontmatter {
   name: string;

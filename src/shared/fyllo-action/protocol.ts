@@ -61,9 +61,7 @@ export type FylloActionReadyParseResult = {
 }[FylloActionType];
 
 export type FylloActionParseResult =
-  | FylloActionPendingParseResult
-  | FylloActionInvalidParseResult
-  | FylloActionReadyParseResult;
+  FylloActionPendingParseResult | FylloActionInvalidParseResult | FylloActionReadyParseResult;
 
 export type FylloActionHandlerResult =
   | {

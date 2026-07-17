@@ -129,6 +129,10 @@ function selectLineage(id: string): void {
   selectedId.value = id;
 }
 
+function setActiveFilter(filter: LineageFilter): void {
+  activeFilter.value = filter;
+}
+
 async function openTask(): Promise<void> {
   await router.push("/task");
 }
@@ -244,7 +248,7 @@ watch(
             :variant="activeFilter === filter.value ? 'soft' : 'ghost'"
             size="xs"
             :data-test="`lineage-filter-${filter.value}`"
-            @click="activeFilter = filter.value"
+            @click="setActiveFilter(filter.value)"
           >
             {{ filter.label }}
           </UButton>

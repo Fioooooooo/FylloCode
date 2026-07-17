@@ -46,6 +46,10 @@ const sourceTabs = computed(() => taskStore.sourceTabs);
 const visibleTasks = computed(() => taskStore.filteredTasks);
 const isLocalSource = computed(() => selectedSource.value === "local");
 
+function openCreateTaskModal(): void {
+  showCreateTaskModal.value = true;
+}
+
 function buildTaskRef(task: TaskItem): LineageTaskRef {
   return taskStore.buildTaskRef(task);
 }
@@ -240,7 +244,7 @@ watch(
             color="primary"
             icon="i-lucide-plus"
             size="sm"
-            @click="showCreateTaskModal = true"
+            @click="openCreateTaskModal"
           >
             新建任务
           </UButton>

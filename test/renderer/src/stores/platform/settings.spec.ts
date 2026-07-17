@@ -32,8 +32,7 @@ describe("useSettingsStore", () => {
 
   it("deduplicates concurrent ensureAboutInfoLoaded calls", async () => {
     let resolveRequest:
-      | ((value: Awaited<ReturnType<typeof settingsApi.getAppInfo>>) => void)
-      | undefined;
+      ((value: Awaited<ReturnType<typeof settingsApi.getAppInfo>>) => void) | undefined;
     vi.mocked(settingsApi.getAppInfo).mockImplementation(
       () =>
         new Promise((resolve) => {

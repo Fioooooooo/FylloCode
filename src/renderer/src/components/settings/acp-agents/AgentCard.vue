@@ -135,6 +135,10 @@ function requestUninstall(): void {
   showUninstallModal.value = true;
 }
 
+function closeUninstallModal(): void {
+  showUninstallModal.value = false;
+}
+
 function confirmUninstall(): void {
   showUninstallModal.value = false;
   emit("uninstall", props.agent.id);
@@ -263,7 +267,7 @@ function confirmUninstall(): void {
     </template>
 
     <template #footer>
-      <UButton variant="ghost" color="neutral" @click="showUninstallModal = false">取消</UButton>
+      <UButton variant="ghost" color="neutral" @click="closeUninstallModal">取消</UButton>
       <UButton :color="uninstallButtonColor" @click="confirmUninstall">
         {{ uninstallButtonLabel }}
       </UButton>

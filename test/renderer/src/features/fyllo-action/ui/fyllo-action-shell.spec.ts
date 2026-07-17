@@ -70,8 +70,7 @@ function findButtonByText(
   text: string
 ): DOMWrapper<HTMLButtonElement> | undefined {
   return wrapper.findAll("button").find((node) => node.text() === text) as
-    | DOMWrapper<HTMLButtonElement>
-    | undefined;
+    DOMWrapper<HTMLButtonElement> | undefined;
 }
 
 describe("FylloActionShell", () => {

@@ -1,10 +1,5 @@
 export type WorkflowStageType =
-  | "proposal-apply"
-  | "proposal-archive"
-  | "code-review"
-  | "security-check"
-  | "create-pr"
-  | "custom";
+  "proposal-apply" | "proposal-archive" | "code-review" | "security-check" | "create-pr" | "custom";
 
 export type WorkflowStage = {
   id: string;

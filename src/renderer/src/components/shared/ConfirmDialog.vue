@@ -2,13 +2,7 @@
 import { computed } from "vue";
 
 export type ConfirmDialogColor =
-  | "neutral"
-  | "primary"
-  | "secondary"
-  | "success"
-  | "info"
-  | "warning"
-  | "error";
+  "neutral" | "primary" | "secondary" | "success" | "info" | "warning" | "error";
 
 interface ConfirmDialogProps {
   title: string;

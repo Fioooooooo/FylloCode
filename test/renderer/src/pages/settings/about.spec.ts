@@ -105,8 +105,7 @@ describe("SettingsAbout", () => {
 
   it("shows a loading state before app info resolves", async () => {
     let resolveRequest:
-      | ((value: Awaited<ReturnType<typeof settingsApi.getAppInfo>>) => void)
-      | undefined;
+      ((value: Awaited<ReturnType<typeof settingsApi.getAppInfo>>) => void) | undefined;
     vi.mocked(settingsApi.getAppInfo).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -202,8 +201,7 @@ describe("SettingsAbout", () => {
 
   it("shows the release check loading state without clearing app info", async () => {
     let resolveRelease:
-      | ((value: Awaited<ReturnType<typeof releaseApi.checkLatestRelease>>) => void)
-      | undefined;
+      ((value: Awaited<ReturnType<typeof releaseApi.checkLatestRelease>>) => void) | undefined;
     vi.mocked(settingsApi.getAppInfo).mockResolvedValue({
       ok: true,
       data: aboutInfoFixture,
