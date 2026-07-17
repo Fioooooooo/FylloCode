@@ -52,6 +52,15 @@ const menuItems = computed(() => [
     },
   },
   {
+    label: session.value.isPinned ? "取消置顶" : "置顶会话",
+    icon: session.value.isPinned ? "i-lucide-pin-off" : "i-lucide-pin",
+    onSelect: (): void => {
+      void handleSetPinned().catch((error: unknown) => {
+        console.error("Failed to update session pin:", error);
+      });
+    },
+  },
+  {
     label: "删除",
     icon: "i-lucide-trash-2",
     color: "error" as const,
@@ -125,6 +134,10 @@ async function handleDelete(): Promise<void> {
   if (confirmed) {
     await sessionStore.deleteSession(session.value.id);
   }
+}
+
+async function handleSetPinned(): Promise<void> {
+  await sessionStore.setSessionPinned(session.value.id, !session.value.isPinned);
 }
 
 async function handleOriginTaskEnter(): Promise<void> {

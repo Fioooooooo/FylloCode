@@ -15,6 +15,7 @@ export interface SessionMeta {
   originTaskRef?: LineageTaskRef;
   agentId: string;
   title: string;
+  isPinned?: boolean;
   turnCount: number;
   tokenUsage: TokenUsage;
   available_commands?: AcpAvailableCommand[];
@@ -283,9 +284,11 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
 }
 
 function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
+  const { isPinned, ...rest } = raw;
   const normalizedActionStates = normalizeActionStates(raw.actionStates);
   return {
-    ...raw,
+    ...rest,
+    ...(typeof isPinned === "boolean" ? { isPinned } : {}),
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
     configOptions: Array.isArray(raw.configOptions) ? raw.configOptions : undefined,

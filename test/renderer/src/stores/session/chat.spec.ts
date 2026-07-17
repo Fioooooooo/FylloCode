@@ -101,6 +101,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     projectId: "project-1",
     agentId: "claude-code",
     title: "Session",
+    isPinned: false,
     status: "ended",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },
@@ -151,6 +152,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "hello world",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -195,6 +197,7 @@ describe("useChatStore", () => {
     });
     expect(sessionStore.activeSessionId).toBe("session-1");
     expect(sessionStore.sessions).toHaveLength(1);
+    expect(sessionStore.sessions[0]?.isPinned).toBe(false);
     expect(sessionStore.sessions[0]?.turnCount).toBe(1);
     expect(sessionStore.sessions[0]?.messages).toHaveLength(1);
     expect(sessionStore.sessions[0]?.messages[0]?.metadata?.sessionId).toBe("session-1");
@@ -340,6 +343,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "hello world",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -512,6 +516,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "Session",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -575,6 +580,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "hello world this message is in",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -610,6 +616,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "hello world this message is in",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -646,6 +653,7 @@ describe("useChatStore", () => {
         projectId: "project-1",
         agentId: "claude-code",
         title: "New Session",
+        isPinned: false,
         status: "ended",
         turnCount: 0,
         tokenUsage: { used: 0, size: 0 },
@@ -1318,6 +1326,7 @@ describe("useChatStore", () => {
           projectId: "project-1",
           agentId: "claude-code",
           title: "Session",
+          isPinned: false,
           status: "running",
           turnCount: 1,
           tokenUsage: { used: 0, size: 0 },

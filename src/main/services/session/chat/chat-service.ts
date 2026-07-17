@@ -36,6 +36,7 @@ export function toSession(meta: SessionMeta, projectId: string): Session {
     projectId,
     agentId: meta.agentId,
     title: meta.title,
+    isPinned: meta.isPinned === true,
     status: "ended",
     turnCount: meta.turnCount,
     tokenUsage: meta.tokenUsage,
@@ -101,7 +102,7 @@ export async function createSession(input: {
 export async function updateSession(input: {
   id: string;
   projectId: string;
-  patch: { title?: string; agentId?: string };
+  patch: { title?: string; agentId?: string; isPinned?: boolean };
 }): Promise<Session> {
   const projectPath = await resolveProjectPath(input.projectId);
   const meta = await loadSessionMeta(projectPath, input.id);
@@ -109,10 +110,11 @@ export async function updateSession(input: {
     throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${input.id}`);
   }
 
+  const updatesContentMetadata =
+    input.patch.title !== undefined || input.patch.agentId !== undefined;
   const nextMeta = await patchSessionMeta(projectPath, input.id, {
-    title: input.patch.title ?? meta.title,
-    agentId: input.patch.agentId ?? meta.agentId,
-    updatedAt: new Date().toISOString(),
+    ...input.patch,
+    ...(updatesContentMetadata ? { updatedAt: new Date().toISOString() } : {}),
   });
   if (!nextMeta) {
     throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${input.id}`);

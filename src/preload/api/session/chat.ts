@@ -11,7 +11,7 @@ import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
 
-type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
+type SessionPatch = Partial<Pick<Session, "title" | "agentId" | "isPinned">>;
 type ProbeConfigOptionInput = {
   projectId: string;
   agentId: string;

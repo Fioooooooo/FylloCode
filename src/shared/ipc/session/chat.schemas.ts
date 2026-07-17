@@ -80,6 +80,7 @@ export const updateSessionInputSchema = z.object({
   patch: z.object({
     title: z.string().min(1).optional(),
     agentId: z.string().min(1).optional(),
+    isPinned: z.boolean().optional(),
   }),
 });
 

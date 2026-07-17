@@ -7,7 +7,7 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 
 // Renderer-side wrapper for session:chat IPC. Keeps components/composables free of direct
 // window.api usage and provides a typed, normalized surface.
-type SessionPatch = Partial<Pick<Session, "title" | "agentId">>;
+type SessionPatch = Partial<Pick<Session, "title" | "agentId" | "isPinned">>;
 
 export interface StreamError {
   code: string;

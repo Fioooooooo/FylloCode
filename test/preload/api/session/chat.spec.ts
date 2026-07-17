@@ -207,6 +207,18 @@ describe("preload chatApi.streamMessage", () => {
     });
   });
 
+  it("invokes updateSession with a pin patch", async () => {
+    const { chatApi } = await import("@preload/api/session/chat");
+
+    await chatApi.updateSession("session-1", { isPinned: true }, "project-1");
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.updateSession, {
+      id: "session-1",
+      patch: { isPinned: true },
+      projectId: "project-1",
+    });
+  });
+
   it("passes acpSessionId in streamMessage options", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 

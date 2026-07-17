@@ -28,7 +28,11 @@ vi.mock("@main/infra/ids", () => ({
   newSessionId: mocks.newSessionId,
 }));
 
-import { createSession, listSessions } from "@main/services/session/chat/chat-service";
+import {
+  createSession,
+  listSessions,
+  updateSession,
+} from "@main/services/session/chat/chat-service";
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -125,6 +129,20 @@ describe("chat-service", () => {
     });
   });
 
+  it("maps missing and persisted pin state when listing sessions", async () => {
+    mocks.listSessionMetas.mockResolvedValue([
+      meta({ sessionId: "legacy" }),
+      meta({ sessionId: "pinned", isPinned: true }),
+    ]);
+
+    const sessions = await listSessions("project-1");
+
+    expect(sessions.map((session) => [session.id, session.isPinned])).toEqual([
+      ["legacy", false],
+      ["pinned", true],
+    ]);
+  });
+
   it("createSession writes probe configOptions and acpSessionId into new meta", async () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
@@ -157,6 +175,28 @@ describe("chat-service", () => {
     ]);
     expect(session.configOptions).toEqual(persistedMeta.configOptions);
     expect(session.availableCommands).toEqual(persistedMeta.available_commands);
+    expect(session.isPinned).toBe(false);
+  });
+
+  it("persists pin state without changing updatedAt", async () => {
+    const existing = meta({ updatedAt: "2026-05-14T00:00:00.000Z" });
+    mocks.loadSessionMeta.mockResolvedValue(existing);
+    mocks.patchSessionMeta.mockImplementation(async (_path, _sessionId, patch) => ({
+      ...existing,
+      ...(typeof patch === "function" ? patch(existing) : patch),
+    }));
+
+    const updated = await updateSession({
+      id: "session-1",
+      projectId: "project-1",
+      patch: { isPinned: true },
+    });
+
+    expect(mocks.patchSessionMeta).toHaveBeenCalledWith("/tmp/project", "session-1", {
+      isPinned: true,
+    });
+    expect(updated.isPinned).toBe(true);
+    expect(updated.updatedAt.toISOString()).toBe(existing.updatedAt);
   });
 
   it("createSession reuses provided fylloSessionId for probe-origin sessions", async () => {

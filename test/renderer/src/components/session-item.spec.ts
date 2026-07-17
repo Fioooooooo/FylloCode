@@ -20,6 +20,7 @@ const selectSession = vi.fn(async (sessionId: string) => {
   activeSessionIdRef.value = sessionId;
 });
 const renameSession = vi.fn(async () => undefined);
+const setSessionPinned = vi.fn(async () => undefined);
 const deleteSession = vi.fn(async () => undefined);
 const resetChatState = vi.fn(() => {
   chatStatusRef.value = "ready";
@@ -46,6 +47,7 @@ vi.mock("@renderer/stores", () => ({
     },
     selectSession,
     renameSession,
+    setSessionPinned,
     deleteSession,
     ensureSessionOriginTaskInfo,
   }),
@@ -74,6 +76,7 @@ function makeSession(id: string): Session {
     projectId: "project-1",
     agentId: "claude-code",
     title: `Session ${id}`,
+    isPinned: false,
     status: "ended",
     turnCount: 1,
     tokenUsage: { used: 10, size: 100 },
@@ -104,6 +107,7 @@ describe("SessionItem", () => {
     taskInfoBySessionIdRef.value = new Map();
     selectSession.mockClear();
     renameSession.mockClear();
+    setSessionPinned.mockClear();
     deleteSession.mockClear();
     resetChatState.mockClear();
     cancelStream.mockClear();
@@ -304,6 +308,23 @@ describe("SessionItem", () => {
 
     expect(renameSession).toHaveBeenCalledWith("session-rename", "Updated session title");
     expect(wrapper.find('[data-test="session-title-input"]').exists()).toBe(false);
+  });
+
+  it("pins a session from the dropdown without selecting it", async () => {
+    const wrapper = mountSessionItem(makeSession("session-pin"));
+
+    await wrapper.get('[data-test="dropdown-item-置顶会话"]').trigger("click");
+    await flushPromises();
+
+    expect(setSessionPinned).toHaveBeenCalledWith("session-pin", true);
+    expect(selectSession).not.toHaveBeenCalled();
+  });
+
+  it("renders an unpin action without a duplicate item-level pin indicator", () => {
+    const wrapper = mountSessionItem({ ...makeSession("session-pinned"), isPinned: true });
+
+    expect(wrapper.find('[data-test="session-pinned-indicator"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="dropdown-item-取消置顶"]').exists()).toBe(true);
   });
 
   it("does not rename when the submitted title is blank", async () => {

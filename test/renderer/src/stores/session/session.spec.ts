@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getByTask: vi.fn(),
   getBySession: vi.fn(),
   createSession: vi.fn(),
+  updateSession: vi.fn(),
 }));
 
 const proposalMocks = vi.hoisted(() => ({
@@ -45,7 +46,7 @@ vi.mock("@renderer/api/session/chat", () => ({
     listSessions: mocks.listSessions,
     loadMessages: mocks.loadMessages,
     createSession: mocks.createSession,
-    updateSession: vi.fn(),
+    updateSession: mocks.updateSession,
     removeSession: vi.fn(),
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
@@ -70,6 +71,7 @@ function session(overrides: Partial<Session> = {}): Session {
     projectId: "project-1",
     agentId: "claude-code",
     title: "Session",
+    isPinned: false,
     status: "ended",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },
@@ -183,6 +185,55 @@ describe("useSessionStore", () => {
       ["empty-commands", []],
       ["with-commands", [{ name: "review", description: "Review code" }]],
     ]);
+  });
+
+  it("normalizes legacy sessions to unpinned when loading", async () => {
+    const store = useSessionStore();
+    mocks.listSessions.mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          ...session({ id: "legacy" }),
+          isPinned: undefined,
+        },
+        session({ id: "pinned", isPinned: true }),
+      ],
+    });
+
+    await store.loadSessions("project-1");
+
+    expect(store.sessions.map((item) => [item.id, item.isPinned])).toEqual([
+      ["legacy", false],
+      ["pinned", true],
+    ]);
+  });
+
+  it("updates a pin only after the IPC request succeeds", async () => {
+    const store = useSessionStore();
+    store.sessions = [session({ updatedAt: new Date("2026-05-12T00:00:00.000Z") })];
+    mocks.updateSession.mockResolvedValue({
+      ok: true,
+      data: session({ isPinned: true, updatedAt: new Date("2026-05-12T00:00:00.000Z") }),
+    });
+
+    await store.setSessionPinned("session-1", true);
+
+    expect(mocks.updateSession).toHaveBeenCalledWith("session-1", { isPinned: true }, "project-1");
+    expect(store.sessions[0]?.isPinned).toBe(true);
+    expect(store.sessions[0]?.updatedAt.toISOString()).toBe("2026-05-12T00:00:00.000Z");
+  });
+
+  it("keeps the original pin state when the IPC request fails", async () => {
+    const store = useSessionStore();
+    store.sessions = [session({ isPinned: false })];
+    mocks.updateSession.mockResolvedValue({
+      ok: false,
+      error: { code: "UPDATE_FAILED", message: "unavailable" },
+    });
+
+    await expect(store.setSessionPinned("session-1", true)).rejects.toThrow("unavailable");
+
+    expect(store.sessions[0]?.isPinned).toBe(false);
   });
 
   it("exposes selected session availableCommands through activeSession", async () => {

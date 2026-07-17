@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     removeSessionAttachments: vi.fn(),
     saveAttachment: vi.fn(),
     listSessions: vi.fn(),
+    updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveProjectPath: vi.fn(),
     getByTask: vi.fn(),
@@ -76,7 +77,7 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
   resolveProjectPath: mocks.resolveProjectPath,
-  updateSession: vi.fn(),
+  updateSession: mocks.updateSession,
 }));
 
 vi.mock("@main/services/insight/lineage/mcp-event-consumer", () => ({
@@ -263,6 +264,22 @@ describe("registerChatHandlers", () => {
     expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
     expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("/tmp/project");
     expect(mocks.listSessions).toHaveBeenCalledWith("project-1");
+  });
+
+  it("routes a pin patch through the existing updateSession handler", async () => {
+    mocks.updateSession.mockResolvedValue({ id: "session-1", isPinned: true });
+
+    const result = await handler(ChatChannels.updateSession)(
+      {},
+      { id: "session-1", projectId: "project-1", patch: { isPinned: true } }
+    );
+
+    expect(result).toEqual({ ok: true, data: { id: "session-1", isPinned: true } });
+    expect(mocks.updateSession).toHaveBeenCalledWith({
+      id: "session-1",
+      projectId: "project-1",
+      patch: { isPinned: true },
+    });
   });
 
   it("rejects assistant messages in persistMessage", async () => {

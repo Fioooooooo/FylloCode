@@ -92,6 +92,26 @@ describe("session-store", () => {
     );
   });
 
+  it("round-trips a pinned session and ignores an invalid pinned value", async () => {
+    await saveSessionMeta(projectPath, meta({ isPinned: true }));
+
+    const raw = JSON.parse(readFileSync(sessionMetaPath(), "utf8")) as Record<string, unknown>;
+    expect(raw.isPinned).toBe(true);
+    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+      meta({ isPinned: true })
+    );
+
+    writeFileSync(
+      sessionMetaPath("session-2"),
+      JSON.stringify({ ...meta({ sessionId: "session-2" }), isPinned: "true" }),
+      "utf8"
+    );
+
+    await expect(loadSessionMeta(projectPath, "session-2")).resolves.toEqual(
+      meta({ sessionId: "session-2" })
+    );
+  });
+
   it("keeps missing or invalid available commands as undefined", async () => {
     await saveSessionMeta(projectPath, meta());
     await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(meta());

@@ -147,6 +147,7 @@ function createSession() {
     projectId: "project-1",
     agentId: "claude-code",
     title: "Session",
+    isPinned: false,
     status: "ended" as const,
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },

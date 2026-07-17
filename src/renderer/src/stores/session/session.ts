@@ -85,6 +85,7 @@ export interface SessionStore {
   beginDraftSession: () => void;
   selectSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
+  setSessionPinned: (sessionId: string, isPinned: boolean) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   setSessionAgent: (agentId: string) => Promise<void>;
   setSessionAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
@@ -141,6 +142,7 @@ function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined)
 function normalizeSession(session: SerializedSession): Session {
   return {
     ...session,
+    isPinned: session.isPinned === true,
     tokenUsage: normalizeTokenUsage(session.tokenUsage),
     createdAt: toDate(session.createdAt),
     updatedAt: toDate(session.updatedAt),
@@ -430,6 +432,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     session.projectId = nextSession.projectId;
     session.agentId = nextSession.agentId;
     session.title = nextSession.title;
+    session.isPinned = nextSession.isPinned;
     session.status = nextSession.status;
     session.turnCount = nextSession.turnCount;
     session.tokenUsage = normalizeTokenUsage(nextSession.tokenUsage);
@@ -781,6 +784,32 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sortSessions();
   }
 
+  async function setSessionPinned(sessionId: string, isPinned: boolean): Promise<void> {
+    const session = findSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    const projectId = useProjectStore().currentProject?.id ?? session.projectId;
+    const actionLabel = isPinned ? "置顶会话" : "取消置顶";
+
+    try {
+      const result = await chatApi.updateSession(sessionId, { isPinned }, projectId);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      mergeSessionMeta(normalizeSession(result.data));
+    } catch (error: unknown) {
+      toast.add({
+        title: `${actionLabel}失败`,
+        description: error instanceof Error ? error.message : String(error),
+        color: "error",
+      });
+      throw error;
+    }
+  }
+
   async function deleteSession(sessionId: string): Promise<void> {
     const projectStore = useProjectStore();
     const projectId = projectStore.currentProject?.id;
@@ -897,6 +926,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     beginDraftSession,
     selectSession,
     renameSession,
+    setSessionPinned,
     deleteSession,
     setSessionAgent,
     setSessionAvailableCommands,

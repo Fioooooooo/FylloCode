@@ -41,6 +41,7 @@ export interface Session {
   projectId: string;
   agentId: string;
   title: string;
+  isPinned: boolean;
   status: "running" | "ended";
   turnCount: number;
   tokenUsage: TokenUsage;

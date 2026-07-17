@@ -7,6 +7,16 @@ const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 
 const sessions = computed(() => sessionStore.sessions);
+const pinnedSessions = computed(() =>
+  sortByUpdatedAt(sessions.value.filter((session) => session.isPinned))
+);
+const recentSessions = computed(() =>
+  sortByUpdatedAt(sessions.value.filter((session) => !session.isPinned))
+);
+
+function sortByUpdatedAt<T extends { updatedAt: Date }>(items: T[]): T[] {
+  return [...items].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+}
 
 function handleCreateSession(): void {
   sessionStore.beginDraftSession();
@@ -46,9 +56,45 @@ function handleCreateSession(): void {
     </div>
 
     <!-- Session List -->
-    <div v-else class="flex-1 overflow-y-auto px-2 py-2">
-      <div class="space-y-1">
-        <SessionItem v-for="session in sessions" :key="session.id" :session="session" />
+    <div v-else class="flex flex-1 min-h-0 flex-col py-2" data-test="session-list">
+      <template v-if="pinnedSessions.length > 0">
+        <section
+          class="flex max-h-1/2 shrink-0 flex-col"
+          aria-label="置顶会话"
+          data-test="pinned-session-group"
+        >
+          <div class="flex h-8 shrink-0 items-center gap-1.5 px-4 text-xs font-medium text-muted">
+            <UIcon name="i-lucide-pin" class="h-3.5 w-3.5" />
+            <span>置顶会话</span>
+          </div>
+          <div class="min-h-0 px-2 overflow-y-auto" data-test="pinned-session-scroll">
+            <div class="space-y-1">
+              <SessionItem v-for="session in pinnedSessions" :key="session.id" :session="session" />
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-if="recentSessions.length > 0"
+          class="flex min-h-0 flex-1 flex-col"
+          aria-label="最近会话"
+          data-test="recent-session-group"
+        >
+          <div class="flex h-8 shrink-0 items-center px-4 text-xs font-medium text-muted">
+            最近会话
+          </div>
+          <div class="min-h-0 flex-1 px-2 overflow-y-auto" data-test="recent-session-scroll">
+            <div class="space-y-1">
+              <SessionItem v-for="session in recentSessions" :key="session.id" :session="session" />
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <div v-else class="h-full overflow-y-auto" data-test="recent-session-scroll">
+        <div class="space-y-1">
+          <SessionItem v-for="session in recentSessions" :key="session.id" :session="session" />
+        </div>
       </div>
     </div>
   </div>

@@ -77,6 +77,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     updatedAt: new Date(),
     messages: [],
     ...overrides,
+    isPinned: overrides.isPinned ?? false,
   };
 }
 

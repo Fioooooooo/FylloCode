@@ -28,6 +28,7 @@ function makeSession(options: {
     projectId: "project-1",
     agentId: "claude-code",
     title: "Session",
+    isPinned: false,
     status: "ended",
     turnCount: 0,
     tokenUsage: { used: 128, size: 1024 },

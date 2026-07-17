@@ -39,4 +39,16 @@ describe("chatApi", () => {
       "image/png"
     );
   });
+
+  it("forwards pin state through updateSession", async () => {
+    chatBridge.updateSession.mockResolvedValue({ ok: true, data: {} });
+
+    await chatApi.updateSession("session-1", { isPinned: true }, "project-1");
+
+    expect(chatBridge.updateSession).toHaveBeenCalledWith(
+      "session-1",
+      { isPinned: true },
+      "project-1"
+    );
+  });
 });

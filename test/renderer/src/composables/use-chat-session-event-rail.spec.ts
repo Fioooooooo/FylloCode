@@ -27,6 +27,7 @@ function session(messages: UIMessage<MessageMeta>[] = []): Session {
     projectId: "project-1",
     agentId: "agent-1",
     title: "Session",
+    isPinned: false,
     status: "ended",
     turnCount: 1,
     tokenUsage: { used: 0, size: 1000 },
