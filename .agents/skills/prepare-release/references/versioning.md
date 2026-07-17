@@ -38,7 +38,7 @@ Both bundled MCP servers are currently below `1.0.0`. Apply these project rules:
 | Backward-compatible tool, mode, optional input, output, or substantial behavior addition                                              | Increment minor and reset patch: `0.Y.Z` → `0.(Y+1).0`                       |
 | Removed or renamed tool/mode, new required input, incompatible result/error/default/storage change, or other breaking contract change | Increment minor and reset patch, then mark the change explicitly as breaking |
 
-For `0.x`, both compatible feature additions and breaking contract changes use a minor increment. The changelog and root release notes must distinguish a breaking change explicitly because the number alone cannot.
+For `0.x`, both compatible feature additions and breaking contract changes use a minor increment. The bundled server changelog and both root changelogs must distinguish a breaking change explicitly because the number alone cannot.
 
 When a release contains multiple server changes, use the highest applicable boundary. A compatible fix does not reduce a required minor bump.
 
@@ -56,7 +56,7 @@ Reset lower-order components when incrementing minor or major.
 
 - Fix an internal archive status bug without changing inputs, outputs, or documented semantics: `0.8.1` → `0.8.2`.
 - Add a new optional mode or tool while preserving existing callers: `0.8.1` → `0.9.0`.
-- Rename a tool or make an optional field required while still below `1.0.0`: `0.8.1` → `0.9.0`, with an explicit breaking-change and migration note.
+- Rename a tool or make an optional field required while still below `1.0.0`: `0.8.1` → `0.9.0`, with an explicit breaking-change and migration note in the bundled server and root changelogs.
 - Make the same incompatible change after `1.0.0`: `1.4.2` → `2.0.0`.
 - Change only the other bundled MCP server: keep this server's version unchanged.
 
@@ -69,6 +69,6 @@ For each server, record:
 - highest affected contract boundary;
 - evidence paths or archived change;
 - derived next version;
-- whether a breaking or migration note is required.
+- whether a breaking or migration note is required in the changelogs.
 
 Update the server version constant and its changelog atomically. Mention every bumped bundled server version in both root changelogs and verify all values before the release commit.

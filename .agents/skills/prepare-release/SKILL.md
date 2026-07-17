@@ -82,12 +82,6 @@ For each bundled MCP server changed in the release range:
 
 Do not bump an unchanged bundled server merely to match the application version. Verify the release tag without its leading `v` will exactly equal `package.json.version`.
 
-## Draft Release Notes
-
-After the changelog is final, follow [release-notes.md](references/release-notes.md). Use the changelog as the primary source and verify highlights against code and specs.
-
-Prepare Chinese and English release-ready text. Keep the first screen concise and disclose breaking changes, migrations, or known issues explicitly. Do not create an auxiliary release-note file unless the repository already uses one or the user requests it; otherwise retain the draft for the final handoff or publication step.
-
 ## Validate
 
 Before running project commands in a worktree that has not been prepared in the current session, run:
@@ -109,8 +103,7 @@ Run narrower checks when the request is limited to release text and no source or
 - Chinese and English changelog sections match in version, date, structure, meaning, and risk disclosure;
 - changed product surfaces have a documented disposition;
 - application and bundled server versions agree with their changelogs;
-- the proposed tag matches `package.json.version`;
-- release notes contain only shipped claims.
+- the proposed tag matches `package.json.version`.
 
 Never run `pnpm build`, `pnpm docs:build`, Electron/Vite builds, packaging commands, or another command primarily generating build artifacts unless the user explicitly authorizes that build in the current conversation. Prior release intent, generic validation requests, plans, or earlier-session permission do not count. If build authorization is absent, report the skipped build and ask only when its result is necessary.
 
@@ -120,18 +113,27 @@ Do not run global formatting unless formatting changes are necessary. Format onl
 
 Stop and report before each external or consequential transition:
 
-1. **Release commit**: summarize artifacts and validation; obtain approval before committing unless the user already explicitly requested the commit.
-2. **Tag**: verify the release commit is the intended target and obtain approval before creating an annotated tag.
-3. **Push**: obtain approval before pushing the branch or tag.
-4. **Publish**: confirm the release workflow succeeded, present the final release notes, and obtain approval before changing a draft GitHub Release to published.
-
 Use the repository commit convention. Prefer the established release subject:
 
 ```text
 chore(release): prepare vX.Y.Z
 ```
 
+1. **Release commit**: summarize artifacts and validation; obtain approval before committing unless the user already explicitly requested the commit.
+2. **Tag**: verify the release commit is the intended target and obtain approval before creating an annotated tag.
+3. **Push**: obtain approval before pushing the branch or tag.
+4. **Release notes**: only after the annotated tag has been successfully pushed to `origin`, present the final release notes.
+5. **Publish**: confirm the release workflow succeeded and obtain approval before changing a draft GitHub Release to published.
+
+For a focused release-note-only request outside a full release workflow, provide the requested notes without requiring a tag or push.
+
 Never move or replace an existing tag without explicit user instruction. Never publish when required validation failed, documentation has `blocked` dispositions, version files disagree, or the release notes contain unresolved claims.
+
+## Present Release Notes
+
+After a full release's annotated tag has been pushed to `origin`, follow [release-notes.md](references/release-notes.md). Use the final changelog as the primary source, verify highlights against code and specs, and include only shipped claims.
+
+Prepare Chinese and English release-ready text and keep the first screen concise. Do not create an auxiliary release-note file unless the repository already uses one or the user requests it. Do not present or preview release notes earlier in the full release workflow.
 
 ## Complete the Handoff
 
@@ -141,7 +143,7 @@ Report:
 - user-visible scope and documentation dispositions;
 - files changed for docs, changelogs, versions, and release metadata;
 - validation run, passed, failed, or skipped with reasons;
-- commit, tag, push, workflow, and publication status;
+- commit, tag, push, release-note, workflow, and publication status;
 - exact next approval or action still required.
 
 Do not describe the release as complete until every user-requested stopping point has actually succeeded.
