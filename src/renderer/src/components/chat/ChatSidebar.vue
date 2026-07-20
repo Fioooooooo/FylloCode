@@ -67,8 +67,8 @@ function handleCreateSession(): void {
             <UIcon name="i-lucide-pin" class="h-3.5 w-3.5" />
             <span>置顶会话</span>
           </div>
-          <div class="min-h-0 px-2 overflow-y-auto" data-test="pinned-session-scroll">
-            <div class="space-y-1">
+          <div class="min-h-0 overflow-y-auto" data-test="pinned-session-scroll">
+            <div class="space-y-1 px-2">
               <SessionItem v-for="session in pinnedSessions" :key="session.id" :session="session" />
             </div>
           </div>
@@ -83,8 +83,8 @@ function handleCreateSession(): void {
           <div class="flex h-8 shrink-0 items-center px-4 text-xs font-medium text-muted">
             最近会话
           </div>
-          <div class="min-h-0 flex-1 px-2 overflow-y-auto" data-test="recent-session-scroll">
-            <div class="space-y-1">
+          <div class="min-h-0 flex-1 overflow-y-auto" data-test="recent-session-scroll">
+            <div class="space-y-1 px-2">
               <SessionItem v-for="session in recentSessions" :key="session.id" :session="session" />
             </div>
           </div>
@@ -92,7 +92,7 @@ function handleCreateSession(): void {
       </template>
 
       <div v-else class="h-full overflow-y-auto" data-test="recent-session-scroll">
-        <div class="space-y-1">
+        <div class="space-y-1 px-2">
           <SessionItem v-for="session in recentSessions" :key="session.id" :session="session" />
         </div>
       </div>
