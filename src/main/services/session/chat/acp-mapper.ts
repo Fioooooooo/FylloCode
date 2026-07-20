@@ -1,4 +1,5 @@
 import type { SessionConfigOption, SessionUpdate } from "@agentclientprotocol/sdk";
+import { basename } from "path";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import type {
   AcpSessionConfigOption,
@@ -8,6 +9,123 @@ import type {
 import type { AcpAvailableCommand, AgendaEntry } from "@shared/types/chat";
 import type { ToolCallDiff, ToolCallLocation } from "@shared/types/stream-event";
 import logger from "@main/infra/logger";
+
+export interface SessionUpdateMappingContext {
+  agentId?: string;
+}
+
+const CODEX_AGENT_IDS: ReadonlySet<string> = new Set(["codex", "codex-acp"]);
+
+function isCodexAgent(context: SessionUpdateMappingContext): boolean {
+  return typeof context.agentId === "string" && CODEX_AGENT_IDS.has(context.agentId);
+}
+
+export function normalizeCodexThought(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const summary = /^\*\*([^\n]+)\*\*$/.exec(trimmed);
+  return summary ? `${summary[1].trim()}\n` : text;
+}
+
+function codexToolName(rawInput: unknown, kind: unknown): string {
+  const mcpName = normalizeMcpTool(rawInput, "");
+  if (mcpName) return mcpName;
+
+  switch (kind) {
+    case "read":
+      return "Read";
+    case "write":
+      return "Write";
+    case "edit":
+      return "Edit";
+    case "search":
+      return "Search";
+    case "execute":
+      return "Bash";
+    default:
+      return "Tool";
+  }
+}
+
+function codexEditTitle(content: unknown, fallback: string): string {
+  if (!Array.isArray(content)) return fallback;
+
+  const rawDiffs = content.filter(
+    (item) =>
+      item != null && typeof item === "object" && (item as { type?: unknown }).type === "diff"
+  );
+  if (rawDiffs.length === 0) return fallback;
+
+  const files = rawDiffs.map((item) => {
+    const diff = item as { path?: unknown; _meta?: unknown };
+    const meta =
+      diff._meta != null && typeof diff._meta === "object"
+        ? (diff._meta as { kind?: unknown })
+        : null;
+    const operation = meta?.kind;
+    if (
+      typeof diff.path !== "string" ||
+      (operation !== "add" && operation !== "update" && operation !== "delete")
+    ) {
+      return null;
+    }
+
+    const filename = basename(diff.path);
+    return filename ? { filename, operation } : null;
+  });
+  if (files.some((file) => file === null)) return fallback;
+
+  const recognizedFiles = files as Array<{
+    filename: string;
+    operation: "add" | "update" | "delete";
+  }>;
+  const verbFor = (operation: "add" | "update" | "delete"): string => {
+    if (operation === "add") return "Create";
+    if (operation === "delete") return "Delete";
+    return "Edit";
+  };
+  if (recognizedFiles.length === 1) {
+    const [file] = recognizedFiles;
+    return `${verbFor(file.operation)} ${file.filename}`;
+  }
+
+  const operation = recognizedFiles[0].operation;
+  const sameOperation = recognizedFiles.every((file) => file.operation === operation);
+  if (!sameOperation) return `Change ${recognizedFiles.length} files`;
+  return `${verbFor(operation)} ${recognizedFiles.length} files`;
+}
+
+function codexTerminalOutputDelta(meta: unknown): string | undefined {
+  if (meta == null || typeof meta !== "object") return undefined;
+  const delta = (meta as { terminal_output_delta?: unknown }).terminal_output_delta;
+  if (delta == null || typeof delta !== "object") return undefined;
+  const data = (delta as { data?: unknown }).data;
+  return typeof data === "string" && data.length > 0 ? data : undefined;
+}
+
+function codexTerminalExitCode(meta: unknown): number | undefined {
+  if (meta == null || typeof meta !== "object") return undefined;
+  const terminalExit = (meta as { terminal_exit?: unknown }).terminal_exit;
+  if (terminalExit == null || typeof terminalExit !== "object") return undefined;
+  const exitCode = (terminalExit as { exit_code?: unknown }).exit_code;
+  return typeof exitCode === "number" ? exitCode : undefined;
+}
+
+function codexFinalOutput(rawOutput: unknown): string | undefined {
+  if (rawOutput == null || typeof rawOutput !== "object") return undefined;
+  const output = rawOutput as Record<string, unknown>;
+
+  for (const key of ["formatted_output", "aggregated_output"]) {
+    const value = output[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+
+  const stdout = typeof output.stdout === "string" ? output.stdout : "";
+  const stderr = typeof output.stderr === "string" ? output.stderr : "";
+  const combined = [stdout, stderr].filter(Boolean).join(stdout && stderr ? "\n" : "");
+  return combined || undefined;
+}
 
 /**
  * 工具调用字段位置无关提取辅助函数组。
@@ -228,8 +346,13 @@ export function normalizeAcpSessionConfigOptions(
   });
 }
 
-export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
+export function mapSessionUpdate(
+  update: SessionUpdate,
+  context: SessionUpdateMappingContext = {}
+): SessionEvent | null {
   logger.debug(`[acp-mapper] ← sessionUpdate: ${update.sessionUpdate} ${JSON.stringify(update)}`);
+
+  const codex = isCodexAgent(context);
 
   switch (update.sessionUpdate) {
     case "agent_message_chunk": {
@@ -240,7 +363,10 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
     case "agent_thought_chunk": {
       if (update.content.type !== "text") return null;
 
-      const event: SessionEvent = { kind: "reasoning_delta", text: update.content.text };
+      const text = codex ? normalizeCodexThought(update.content.text) : update.content.text;
+      if (text === null) return null;
+
+      const event: SessionEvent = { kind: "reasoning_delta", text };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;
     }
@@ -248,11 +374,15 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
     case "tool_call": {
       const meta = update._meta as { claudeCode?: { toolName?: string } } | null | undefined;
       // title 优先 _meta.claudeCode.toolName；否则按 codex 形态 rawInput 归一 MCP 标识；再否则原 title。
-      const title = meta?.claudeCode?.toolName ?? normalizeMcpTool(update.rawInput, update.title);
+      const normalizedTitle =
+        meta?.claudeCode?.toolName ?? normalizeMcpTool(update.rawInput, update.title);
+      const codexTitle =
+        update.kind === "edit" ? codexEditTitle(update.content, update.title) : update.title;
       const event: SessionEvent = {
         kind: "tool_call_start",
         toolCallId: update.toolCallId,
-        title,
+        toolName: codex ? codexToolName(update.rawInput, update.kind) : normalizedTitle,
+        title: codex ? codexTitle : normalizedTitle,
         toolKind: update.kind ?? "other",
         input: extractToolInput(update.rawInput),
         diff: extractDiffs(update.content),
@@ -263,21 +393,37 @@ export function mapSessionUpdate(update: SessionUpdate): SessionEvent | null {
     }
 
     case "tool_call_update": {
-      const rawStatus = update.status ?? "in_progress";
+      const terminalExitCode = codex ? codexTerminalExitCode(update._meta) : undefined;
+      const rawStatus =
+        update.status ??
+        (terminalExitCode === undefined
+          ? "in_progress"
+          : terminalExitCode === 0
+            ? "completed"
+            : "failed");
       if (rawStatus !== "in_progress" && rawStatus !== "completed" && rawStatus !== "failed") {
         return null;
       }
 
       const { status, errorText } = resolveStatus(rawStatus, update.rawOutput);
       // 降级时用 error 文本作为 content；否则取 content[] 拼合文本。
-      const content = errorText ?? extractTextContent(update.content);
+      const content =
+        errorText ??
+        extractTextContent(update.content) ??
+        (codex && status !== "in_progress" ? codexFinalOutput(update.rawOutput) : undefined);
+      const outputDelta = codex ? codexTerminalOutputDelta(update._meta) : undefined;
 
       const event: SessionEvent = {
         kind: "tool_call_update",
         toolCallId: update.toolCallId,
         status,
+        toolName:
+          codex && (update.rawInput != null || update.kind != null)
+            ? codexToolName(update.rawInput, update.kind)
+            : undefined,
         input: extractToolInput(update.rawInput),
         content,
+        outputDelta,
         diff: extractDiffs(update.content),
         locations: extractLocations(update.locations),
         // 孤儿 update（gemini 跳过 start）补偿建卡所需：若 update 自带 title/kind 则透传。

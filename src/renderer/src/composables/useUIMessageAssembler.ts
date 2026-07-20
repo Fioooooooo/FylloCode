@@ -25,6 +25,7 @@ export function useUIMessageAssembler(
   let activeAssistantId: string | null = null;
   let activeTextPartIdx = -1;
   let activeReasoningPartIdx = -1;
+  const toolOutputDeltas = new Map<string, string>();
 
   function finishActiveReasoningPart(): void {
     if (!activeAssistantId || activeReasoningPartIdx < 0) {
@@ -46,6 +47,7 @@ export function useUIMessageAssembler(
     activeAssistantId = null;
     activeTextPartIdx = -1;
     activeReasoningPartIdx = -1;
+    toolOutputDeltas.clear();
   }
 
   function getActiveAssistantMessageId(): string | null {
@@ -65,19 +67,27 @@ export function useUIMessageAssembler(
 
   function toolMetadataFor(
     prev: DynamicToolUIPart | null,
-    toolKind: string | undefined
+    toolKind: string | undefined,
+    liveOutput?: string | null
   ): DynamicToolUIPart["toolMetadata"] {
-    const existing = prev?.toolMetadata;
+    const existing = prev?.toolMetadata ?? {};
+    const next = { ...existing };
     // Prefer the existing toolKind once set; only overwrite if we did not have one before.
-    if (typeof existing?.toolKind === "string" && existing.toolKind.length > 0) {
-      return existing;
+    if (
+      !(typeof existing.toolKind === "string" && existing.toolKind.length > 0) &&
+      typeof toolKind === "string" &&
+      toolKind.length > 0
+    ) {
+      next.toolKind = toolKind;
     }
 
-    if (typeof toolKind === "string" && toolKind.length > 0) {
-      return { ...(existing ?? {}), toolKind };
+    if (liveOutput === null) {
+      delete next.liveOutput;
+    } else if (typeof liveOutput === "string") {
+      next.liveOutput = liveOutput;
     }
 
-    return existing;
+    return Object.keys(next).length > 0 ? next : undefined;
   }
 
   function ensureAssistantMessage(): UIMessage<MessageMeta> {
@@ -116,7 +126,8 @@ export function useUIMessageAssembler(
       message.parts.push({
         type: "dynamic-tool",
         toolCallId: chunk.toolCallId,
-        toolName: chunk.title ?? chunk.toolCallId,
+        toolName: chunk.toolName ?? chunk.title ?? chunk.toolCallId,
+        title: chunk.title,
         state: "input-available",
         input: chunk.input ?? {},
         toolMetadata: toolMetadataFor(null, chunk.toolKind),
@@ -129,33 +140,43 @@ export function useUIMessageAssembler(
     const prev = message.parts[idx] as DynamicToolUIPart;
     const description =
       typeof chunk.input?.description === "string" ? chunk.input.description : undefined;
+    const accumulatedOutput = `${toolOutputDeltas.get(chunk.toolCallId) ?? ""}${chunk.outputDelta ?? ""}`;
+    if (chunk.outputDelta) {
+      toolOutputDeltas.set(chunk.toolCallId, accumulatedOutput);
+    }
 
     if (chunk.status === "in_progress") {
-      const needsUpdate = chunk.input || chunk.content;
+      const needsUpdate =
+        chunk.input || chunk.content || chunk.outputDelta || chunk.title || chunk.toolName;
       if (needsUpdate) {
         message.parts.splice(idx, 1, {
           type: "dynamic-tool",
           toolCallId: prev.toolCallId,
-          toolName: prev.toolName,
-          title: description ?? chunk.content,
+          toolName: chunk.toolName ?? prev.toolName,
+          title: chunk.title ?? description ?? (chunk.outputDelta ? prev.title : chunk.content),
           state: "input-available",
           input: chunk.input ?? prev.input,
-          toolMetadata: toolMetadataFor(prev, chunk.toolKind),
+          toolMetadata: toolMetadataFor(
+            prev,
+            chunk.toolKind,
+            chunk.outputDelta ? accumulatedOutput : undefined
+          ),
         } as DynamicToolUIPart);
       }
       return;
     }
 
     if (chunk.status === "completed" || chunk.status === "failed") {
+      toolOutputDeltas.delete(chunk.toolCallId);
       message.parts.splice(idx, 1, {
         type: "dynamic-tool",
         toolCallId: prev.toolCallId,
-        toolName: prev.toolName,
-        title: prev.title,
+        toolName: chunk.toolName ?? prev.toolName,
+        title: chunk.title ?? prev.title,
         state: "output-available",
-        input: prev.input,
-        output: chunk.content ?? "",
-        toolMetadata: toolMetadataFor(prev, chunk.toolKind),
+        input: chunk.input ?? prev.input,
+        output: chunk.content ?? accumulatedOutput,
+        toolMetadata: toolMetadataFor(prev, chunk.toolKind, null),
       } as DynamicToolUIPart);
     }
   }
@@ -194,9 +215,10 @@ export function useUIMessageAssembler(
         const part: DynamicToolUIPart = {
           type: "dynamic-tool",
           toolCallId: chunk.toolCallId,
-          toolName: chunk.title,
+          toolName: chunk.toolName ?? chunk.title,
+          title: chunk.title,
           state: "input-available",
-          input: {},
+          input: chunk.input ?? {},
           toolMetadata: { toolKind: chunk.toolKind },
         };
         message.parts.push(part);

@@ -48,6 +48,23 @@ describe("MessageAssembler", () => {
     expect(part.toolMetadata).toEqual({ toolKind: "read" });
   });
 
+  it("keeps a stable toolName separate from the human-readable title", () => {
+    const a = new MessageAssembler("s");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      toolName: "Bash",
+      title: "Run pnpm typecheck",
+      toolKind: "execute",
+      input: { command: "pnpm typecheck" },
+    });
+
+    const part = a.flush()!.parts[0] as DynamicToolUIPart;
+    expect(part.toolName).toBe("Bash");
+    expect(part.title).toBe("Run pnpm typecheck");
+    expect(part.input).toEqual({ command: "pnpm typecheck" });
+  });
+
   it("accumulates reasoning_delta events into a single reasoning part", () => {
     const a = new MessageAssembler("s");
     a.apply({ kind: "reasoning_delta", text: "abc" });
@@ -115,6 +132,61 @@ describe("MessageAssembler", () => {
     expect(part.state).toBe("output-available");
     expect((part as { output: unknown }).output).toBe("file contents");
     expect(part.toolMetadata).toEqual({ toolKind: "read" });
+  });
+
+  it("accumulates tool output deltas without replacing the title", () => {
+    const a = new MessageAssembler("s");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      toolName: "Bash",
+      title: "Run tests",
+      toolKind: "execute",
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      outputDelta: "first\n",
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      outputDelta: "second\n",
+    });
+    a.apply({ kind: "tool_call_update", toolCallId: "t1", status: "completed" });
+
+    const part = a.flush()!.parts[0] as DynamicToolUIPart;
+    expect(part.toolName).toBe("Bash");
+    expect(part.title).toBe("Run tests");
+    expect(part.state).toBe("output-available");
+    expect(part.output).toBe("first\nsecond\n");
+  });
+
+  it("prefers the final tool content over accumulated output deltas", () => {
+    const a = new MessageAssembler("s");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      toolName: "Bash",
+      title: "Run tests",
+      toolKind: "execute",
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      outputDelta: "partial",
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "completed",
+      content: "complete output",
+    });
+
+    expect((a.flush()!.parts[0] as DynamicToolUIPart).output).toBe("complete output");
   });
 
   it("tool_call_update with failed status still transitions to output-available", () => {

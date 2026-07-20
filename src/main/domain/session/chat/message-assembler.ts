@@ -12,6 +12,7 @@ export class MessageAssembler {
   private currentMessage: UIMessage<MessageMeta> | null = null;
   private activeTextPartIdx = -1;
   private activeReasoningPartIdx = -1;
+  private readonly toolOutputDeltas = new Map<string, string>();
 
   constructor(private readonly sessionId: string) {}
 
@@ -82,9 +83,10 @@ export class MessageAssembler {
       const part: DynamicToolUIPart = {
         type: "dynamic-tool",
         toolCallId: ev.toolCallId,
-        toolName: ev.title,
+        toolName: ev.toolName ?? ev.title,
+        title: ev.title,
         state: "input-available",
-        input: {},
+        input: ev.input ?? {},
         toolMetadata: { toolKind: ev.toolKind },
       };
       message.parts.push(part);
@@ -104,7 +106,8 @@ export class MessageAssembler {
         message.parts.push({
           type: "dynamic-tool",
           toolCallId: ev.toolCallId,
-          toolName: ev.title ?? ev.toolCallId,
+          toolName: ev.toolName ?? ev.title ?? ev.toolCallId,
+          title: ev.title,
           state: "input-available",
           input: ev.input ?? {},
           toolMetadata: this.toolMetadataFor(null, ev.toolKind),
@@ -117,29 +120,34 @@ export class MessageAssembler {
       const prev = message.parts[idx] as DynamicToolUIPart;
       const description =
         typeof ev.input?.description === "string" ? ev.input.description : undefined;
+      const accumulatedOutput = `${this.toolOutputDeltas.get(ev.toolCallId) ?? ""}${ev.outputDelta ?? ""}`;
+      if (ev.outputDelta) {
+        this.toolOutputDeltas.set(ev.toolCallId, accumulatedOutput);
+      }
 
       if (ev.status === "in_progress") {
-        const needsUpdate = ev.input || ev.content;
+        const needsUpdate = ev.input || ev.content || ev.outputDelta || ev.title || ev.toolName;
         if (needsUpdate) {
           message.parts.splice(idx, 1, {
             type: "dynamic-tool",
             toolCallId: prev.toolCallId,
-            toolName: prev.toolName,
-            title: description ?? ev.content,
+            toolName: ev.toolName ?? prev.toolName,
+            title: ev.title ?? description ?? (ev.outputDelta ? prev.title : ev.content),
             state: "input-available",
             input: ev.input ?? prev.input,
             toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
           } as DynamicToolUIPart);
         }
       } else if (ev.status === "completed" || ev.status === "failed") {
+        this.toolOutputDeltas.delete(ev.toolCallId);
         message.parts.splice(idx, 1, {
           type: "dynamic-tool",
           toolCallId: prev.toolCallId,
-          toolName: prev.toolName,
-          title: prev.title,
+          toolName: ev.toolName ?? prev.toolName,
+          title: ev.title ?? prev.title,
           state: "output-available",
-          input: prev.input,
-          output: ev.content ?? "",
+          input: ev.input ?? prev.input,
+          output: ev.content ?? accumulatedOutput,
           toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
         } as DynamicToolUIPart);
       }
@@ -155,6 +163,7 @@ export class MessageAssembler {
     this.currentMessage = null;
     this.activeTextPartIdx = -1;
     this.activeReasoningPartIdx = -1;
+    this.toolOutputDeltas.clear();
     return message;
   }
 }

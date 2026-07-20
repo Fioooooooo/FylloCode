@@ -681,7 +681,7 @@ export class AcpSession extends EventEmitter {
       }
 
       args.runtimeState.observedSessionUpdate = true;
-      const event = mapSessionUpdate(notification.update);
+      const event = mapSessionUpdate(notification.update, { agentId: this.opts.agentId });
       if (!event) return;
       if (args.runtimeState.firstObservedEventType === null) {
         args.runtimeState.firstObservedEventType = event.kind;

@@ -95,6 +95,97 @@ describe("useUIMessageAssembler", () => {
     expect(part.toolMetadata).toEqual({ toolKind: "read" });
   });
 
+  it("keeps a stable toolName separate from the human-readable title", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      toolName: "Bash",
+      title: "Run pnpm typecheck",
+      toolKind: "execute",
+      input: { command: "pnpm typecheck" },
+    });
+
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.toolName).toBe("Bash");
+    expect(part.title).toBe("Run pnpm typecheck");
+    expect(part.input).toEqual({ command: "pnpm typecheck" });
+  });
+
+  it("shows accumulated live tool output without replacing the title", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      toolName: "Bash",
+      title: "Run tests",
+      toolKind: "execute",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "in_progress",
+      outputDelta: "first\n",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "in_progress",
+      outputDelta: "second\n",
+    });
+
+    const streaming = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(streaming.title).toBe("Run tests");
+    expect(streaming.toolMetadata).toEqual({
+      toolKind: "execute",
+      liveOutput: "first\nsecond\n",
+    });
+
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "completed",
+    });
+
+    const completed = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(completed.title).toBe("Run tests");
+    expect(completed.output).toBe("first\nsecond\n");
+    expect(completed.toolMetadata).toEqual({ toolKind: "execute" });
+  });
+
+  it("prefers final tool content over accumulated live output", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      toolName: "Bash",
+      title: "Run tests",
+      toolKind: "execute",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "in_progress",
+      outputDelta: "partial",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "tool-1",
+      status: "completed",
+      content: "complete output",
+    });
+
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.output).toBe("complete output");
+    expect(part.toolMetadata).toEqual({ toolKind: "execute" });
+  });
+
   it("inserts user_message and starts a new assistant message after it", () => {
     const messages = ref<UIMessage<MessageMeta>[]>([]);
     const assembler = useUIMessageAssembler(messages);

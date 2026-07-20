@@ -4,6 +4,8 @@ import {
   getToolGroupIcon,
   getToolIcon,
   getToolKind,
+  getToolOutput,
+  getToolText,
   summarizeToolGroup,
 } from "@renderer/utils/chatTool";
 
@@ -66,5 +68,25 @@ describe("chatTool", () => {
   it("uses the last tool icon when no group tool is streaming", () => {
     expect(getToolGroupIcon([tool("read"), tool("write")], () => false)).toBe("i-lucide-file-plus");
     expect(getToolGroupIcon([], () => false)).toBe("i-lucide-wrench");
+  });
+
+  it("uses the ACP title as the tool display text", () => {
+    const part = {
+      ...tool("execute"),
+      toolName: "Bash",
+      title: "Run pnpm typecheck",
+      input: { command: "pnpm typecheck", description: "Type-check the project" },
+    } satisfies DynamicToolUIPart;
+
+    expect(getToolText(part)).toBe("Run pnpm typecheck");
+  });
+
+  it("returns live output while a tool is still streaming", () => {
+    const part = {
+      ...tool("execute"),
+      toolMetadata: { toolKind: "execute", liveOutput: "checking...\n" },
+    } satisfies DynamicToolUIPart;
+
+    expect(getToolOutput(part)).toBe("checking...\n");
   });
 });

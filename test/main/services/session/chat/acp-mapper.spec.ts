@@ -29,6 +29,39 @@ describe("mapSessionUpdate", () => {
 
       expect(mapSessionUpdate(update)).toBeNull();
     });
+
+    it("drops Codex whitespace-only thought chunks", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "\n\n" },
+      } as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toBeNull();
+    });
+
+    it("unwraps Codex bold thought summaries for plain-text rendering", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "**Planning the implementation**" },
+      } as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex-acp" })).toEqual({
+        kind: "reasoning_delta",
+        text: "Planning the implementation\n",
+      });
+    });
+
+    it("does not normalize thought chunks from other agents", () => {
+      const update = {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "**Keep markdown**" },
+      } as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "qodercli" })).toEqual({
+        kind: "reasoning_delta",
+        text: "**Keep markdown**",
+      });
+    });
   });
 
   describe("available_commands_update", () => {
@@ -332,15 +365,162 @@ describe("mapSessionUpdate", () => {
         content: [{ type: "diff", path: "/foo.txt", newText: "created\n" }],
       } as unknown as SessionUpdate;
 
-      expect(mapSessionUpdate(update)).toEqual({
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toEqual({
         kind: "tool_call_start",
         toolCallId: "call_codex_1",
+        toolName: "Edit",
         title: "Edit foo.txt",
         toolKind: "edit",
         input: { changes: { "foo.txt": { type: "add" } } },
         diff: [{ path: "/foo.txt", newText: "created\n", oldText: undefined }],
         locations: undefined,
       });
+    });
+
+    it("codex 文件 add：根据结构化 diff 生成 Create filename title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_codex_add",
+        title: "Editing files",
+        kind: "edit",
+        status: "in_progress",
+        content: [
+          {
+            type: "diff",
+            path: "/project/tmp.txt",
+            oldText: null,
+            newText: "initial content\n",
+            _meta: { kind: "add" },
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex-acp" })).toMatchObject({
+        kind: "tool_call_start",
+        toolName: "Edit",
+        title: "Create tmp.txt",
+        toolKind: "edit",
+      });
+    });
+
+    it("codex 文件 update：根据结构化 diff 生成 Edit filename title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_codex_update",
+        title: "Editing files",
+        kind: "edit",
+        status: "in_progress",
+        content: [
+          {
+            type: "diff",
+            path: "/project/tmp.txt",
+            oldText: "before\n",
+            newText: "after\n",
+            _meta: { kind: "update" },
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+        kind: "tool_call_start",
+        toolName: "Edit",
+        title: "Edit tmp.txt",
+        toolKind: "edit",
+      });
+    });
+
+    it("codex 文件 delete：根据结构化 diff 生成 Delete filename title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_codex_delete",
+        title: "Editing files",
+        kind: "edit",
+        status: "in_progress",
+        content: [
+          {
+            type: "diff",
+            path: "/project/tmp.txt",
+            oldText: "before\n",
+            newText: "",
+            _meta: { kind: "delete" },
+          },
+        ],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex-acp" })).toMatchObject({
+        kind: "tool_call_start",
+        toolName: "Edit",
+        title: "Delete tmp.txt",
+        toolKind: "edit",
+      });
+    });
+
+    it("codex 多文件 diff：同类操作显示数量，混合操作显示 Change", () => {
+      const base = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_codex_multi",
+        title: "Editing files",
+        kind: "edit",
+        status: "in_progress",
+      };
+      const add = (path: string) => ({
+        type: "diff",
+        path,
+        oldText: null,
+        newText: "new\n",
+        _meta: { kind: "add" },
+      });
+      const update = (path: string) => ({
+        type: "diff",
+        path,
+        oldText: "old\n",
+        newText: "new\n",
+        _meta: { kind: "update" },
+      });
+
+      expect(
+        mapSessionUpdate(
+          { ...base, content: [add("/project/a.ts"), add("/project/b.ts")] } as SessionUpdate,
+          { agentId: "codex" }
+        )
+      ).toMatchObject({ title: "Create 2 files" });
+      expect(
+        mapSessionUpdate(
+          { ...base, content: [add("/project/a.ts"), update("/project/b.ts")] } as SessionUpdate,
+          { agentId: "codex" }
+        )
+      ).toMatchObject({ title: "Change 2 files" });
+    });
+
+    it("文件 diff title 归一只作用于 codex，缺失操作元数据时回退原 title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_edit_fallback",
+        title: "Editing files",
+        kind: "edit",
+        status: "in_progress",
+        content: [{ type: "diff", path: "/project/tmp.txt", newText: "content\n" }],
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+        title: "Editing files",
+      });
+      expect(
+        mapSessionUpdate(
+          {
+            ...update,
+            content: [
+              {
+                type: "diff",
+                path: "/project/tmp.txt",
+                newText: "content\n",
+                _meta: { kind: "add" },
+              },
+            ],
+          } as SessionUpdate,
+          { agentId: "qodercli" }
+        )
+      ).toMatchObject({ title: "Editing files" });
     });
 
     it("qodercli：start 时已携带 rawInput", () => {
@@ -430,7 +610,7 @@ describe("mapSessionUpdate", () => {
       });
     });
 
-    it("codex MCP {server,tool} → title 归一为 server/tool", () => {
+    it("codex MCP {server,tool} → toolName 归一，title 保留原始描述", () => {
       const update = {
         sessionUpdate: "tool_call",
         toolCallId: "call_mcp_1",
@@ -441,9 +621,56 @@ describe("mapSessionUpdate", () => {
         content: [],
       } as unknown as SessionUpdate;
 
-      expect(mapSessionUpdate(update)).toMatchObject({
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
         kind: "tool_call_start",
-        title: "fyllo-cortex/guidelines",
+        toolName: "fyllo-cortex/guidelines",
+        title: "Tool: fyllo-cortex/guidelines",
+      });
+    });
+
+    it("codex terminal output delta → in_progress outputDelta", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call_terminal_1",
+        _meta: { terminal_output_delta: { data: "line 1\n" } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+        kind: "tool_call_update",
+        toolCallId: "call_terminal_1",
+        status: "in_progress",
+        outputDelta: "line 1\n",
+      });
+    });
+
+    it("codex terminal exit infers status and uses formatted final output", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call_terminal_1",
+        rawOutput: { formatted_output: "line 1\nline 2\n" },
+        _meta: { terminal_exit: { exit_code: 0 } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+        kind: "tool_call_update",
+        toolCallId: "call_terminal_1",
+        status: "completed",
+        content: "line 1\nline 2\n",
+      });
+    });
+
+    it("codex non-zero terminal exit infers failed status", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call_terminal_2",
+        rawOutput: { stderr: "command failed" },
+        _meta: { terminal_exit: { exit_code: 2 } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+        kind: "tool_call_update",
+        status: "failed",
+        content: "command failed",
       });
     });
 

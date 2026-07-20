@@ -33,6 +33,9 @@ export type StreamContentEvent =
   | {
       kind: "tool_call_start";
       toolCallId: string;
+      /** 稳定工具身份；旧事件可缺失并由 assembler 回退到 title。 */
+      toolName?: string;
+      /** ACP 提供的人类可读描述。 */
       title: string;
       toolKind: string;
       /** 预留：start 时已有 rawInput（codex/qodercli）。 */
@@ -48,13 +51,17 @@ export type StreamContentEvent =
       kind: "tool_call_update";
       toolCallId: string;
       status: "in_progress" | "completed" | "failed";
+      /** 更新稳定工具身份；主要用于缺失 start 的工具调用。 */
+      toolName?: string;
       input?: Record<string, unknown>;
       content?: string;
+      /** 工具执行中的增量输出；不得作为 title 使用。 */
+      outputDelta?: string;
       /** 从 content[].type === "diff" 提取。 */
       diff?: ToolCallDiff[];
       /** 预留：本期透传，UI 暂不消费。 */
       locations?: ToolCallLocation[];
-      /** 孤儿 update 补偿所需（lazy-upsert 建卡用）。 */
+      /** 人类可读标题更新；孤儿 update 也用它建卡。 */
       title?: string;
       /** 孤儿 update 补偿所需。 */
       toolKind?: string;

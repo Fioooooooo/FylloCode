@@ -81,6 +81,8 @@ export function summarizeToolGroup(parts: AnyToolPart[]): string {
  */
 export function getToolText(part: AnyToolPart): string {
   if (!isDynamic(part)) return String(part.type);
+  const title = str(part.title);
+  if (title) return title;
   const input = asInput(part);
   const description = str(input.description);
   return description ? `${part.toolName} · ${description}` : part.toolName;
@@ -111,7 +113,12 @@ export function getToolSuffix(part: AnyToolPart): string {
  * Returns the tool output string, or null if not yet available.
  */
 export function getToolOutput(part: AnyToolPart): string | null {
-  if (!isDynamic(part) || part.state !== "output-available") return null;
-  const output = part.output;
-  return typeof output === "string" ? output : JSON.stringify(output, null, 2);
+  if (!isDynamic(part)) return null;
+  if (part.state === "output-available") {
+    const output = part.output;
+    return typeof output === "string" ? output : JSON.stringify(output, null, 2);
+  }
+
+  const liveOutput = part.toolMetadata?.liveOutput;
+  return typeof liveOutput === "string" && liveOutput.length > 0 ? liveOutput : null;
 }
