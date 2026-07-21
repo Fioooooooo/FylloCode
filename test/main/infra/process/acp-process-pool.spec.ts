@@ -385,7 +385,13 @@ describe("acp-process-pool", () => {
     const [cmd, args, opts] = mocks.spawn.mock.calls[0];
     expect(cmd).toBe("/bin/claude");
     expect(args).toEqual([]);
-    expect(opts.env).toBe(process.env);
+    expect(opts.env).not.toBe(process.env);
+    expect(opts.env).toMatchObject({
+      [TEST_BASE_ENV]: "base",
+      [TEST_OVERRIDE_ENV]: "process",
+      MCP_CONNECTION_NONBLOCKING: "0",
+    });
+    expect(opts.env[TEST_AGENT_ENV]).toBeUndefined();
   });
 
   it("dispose graceful close skips signal escalation", async () => {
