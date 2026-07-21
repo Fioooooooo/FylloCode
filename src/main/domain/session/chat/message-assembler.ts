@@ -1,5 +1,6 @@
 import { generateId, type DynamicToolUIPart, type UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
+import type { SubagentRunSummary } from "@shared/types/stream-event";
 import type { SessionEvent } from "./session-events";
 
 /**
@@ -35,7 +36,8 @@ export class MessageAssembler {
   private toolMetadataFor(
     prev: DynamicToolUIPart | null,
     toolKind: string | undefined,
-    parentToolCallId?: string
+    parentToolCallId?: string,
+    subagent?: SubagentRunSummary
   ): DynamicToolUIPart["toolMetadata"] {
     const existing = prev?.toolMetadata ?? {};
     const next = { ...existing };
@@ -49,13 +51,28 @@ export class MessageAssembler {
       next.toolKind = toolKind;
     }
 
-    // 子代理嵌套 parentToolCallId：本期仅持久化透传，UI 暂不消费。
+    // 首次确认父子关系后保持稳定，供渲染层构建子 Agent 工具树。
     if (
       !(typeof next.parentToolCallId === "string" && next.parentToolCallId.length > 0) &&
       typeof parentToolCallId === "string" &&
       parentToolCallId.length > 0
     ) {
       next.parentToolCallId = parentToolCallId;
+    }
+
+    if (subagent !== undefined) {
+      const existingSubagent =
+        next.subagent !== null && typeof next.subagent === "object"
+          ? (next.subagent as SubagentRunSummary)
+          : undefined;
+      const mergedSubagent: SubagentRunSummary = { ...existingSubagent, ...subagent };
+      if (existingSubagent?.toolStats || subagent.toolStats) {
+        mergedSubagent.toolStats = {
+          ...existingSubagent?.toolStats,
+          ...subagent.toolStats,
+        };
+      }
+      (next as Record<string, unknown>).subagent = mergedSubagent;
     }
 
     return Object.keys(next).length > 0 ? next : undefined;
@@ -100,7 +117,7 @@ export class MessageAssembler {
         title: ev.title,
         state: "input-available",
         input: ev.input ?? {},
-        toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId),
+        toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId, ev.subagent),
       };
       message.parts.push(part);
       this.activeTextPartIdx = -1;
@@ -123,7 +140,7 @@ export class MessageAssembler {
           title: ev.title,
           state: "input-available",
           input: ev.input ?? {},
-          toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId),
+          toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId, ev.subagent),
         } as DynamicToolUIPart);
         idx = message.parts.length - 1;
         this.activeTextPartIdx = -1;
@@ -139,7 +156,14 @@ export class MessageAssembler {
       }
 
       if (ev.status === "in_progress") {
-        const needsUpdate = ev.input || ev.content || ev.outputDelta || ev.title || ev.toolName;
+        const needsUpdate =
+          ev.input ||
+          ev.content ||
+          ev.outputDelta ||
+          ev.title ||
+          ev.toolName ||
+          ev.parentToolCallId ||
+          ev.subagent !== undefined;
         if (needsUpdate) {
           message.parts.splice(idx, 1, {
             type: "dynamic-tool",
@@ -149,7 +173,7 @@ export class MessageAssembler {
               ev.title ?? description ?? (ev.outputDelta ? prev.title : ev.content) ?? prev.title,
             state: "input-available",
             input: ev.input ?? prev.input,
-            toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId),
+            toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId, ev.subagent),
           } as DynamicToolUIPart);
         }
       } else if (ev.status === "completed" || ev.status === "failed") {
@@ -162,7 +186,7 @@ export class MessageAssembler {
           state: "output-available",
           input: ev.input ?? prev.input,
           output: ev.content ?? accumulatedOutput,
-          toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId),
+          toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId, ev.subagent),
         } as DynamicToolUIPart);
       }
     }

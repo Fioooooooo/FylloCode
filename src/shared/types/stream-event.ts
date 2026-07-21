@@ -27,6 +27,30 @@ export interface ToolCallLocation {
   line?: number;
 }
 
+export type SubagentRunStatus = "in_progress" | "completed" | "failed";
+
+/** 子 Agent 运行期间由上游提供的工具分类统计。 */
+export interface SubagentToolStats {
+  readCount?: number;
+  searchCount?: number;
+  bashCount?: number;
+  editFileCount?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
+  otherToolCount?: number;
+}
+
+/** 供应商 adapter 白名单归一后的子 Agent 运行摘要。 */
+export interface SubagentRunSummary {
+  status?: SubagentRunStatus;
+  agentType?: string;
+  resolvedModel?: string;
+  totalTokens?: number;
+  totalDurationMs?: number;
+  totalToolUseCount?: number;
+  toolStats?: SubagentToolStats;
+}
+
 export type StreamContentEvent =
   | { kind: "text_delta"; text: string }
   | { kind: "reasoning_delta"; text: string }
@@ -42,10 +66,12 @@ export type StreamContentEvent =
       input?: Record<string, unknown>;
       /** 预留：start 时已有 diff（codex edit）。 */
       diff?: ToolCallDiff[];
-      /** 预留：本期透传，UI 暂不消费。 */
+      /** ACP 工具调用关联的位置。 */
       locations?: ToolCallLocation[];
-      /** 预留：sub-agent 嵌套，本期不消费。 */
+      /** 子 Agent 内嵌工具指向父工具调用。 */
       parentToolCallId?: string;
+      /** 已确认的子 Agent 父工具及其可用运行摘要。 */
+      subagent?: SubagentRunSummary;
     }
   | {
       kind: "tool_call_update";
@@ -59,14 +85,16 @@ export type StreamContentEvent =
       outputDelta?: string;
       /** 从 content[].type === "diff" 提取。 */
       diff?: ToolCallDiff[];
-      /** 预留：本期透传，UI 暂不消费。 */
+      /** ACP 工具调用关联的位置。 */
       locations?: ToolCallLocation[];
       /** 人类可读标题更新；孤儿 update 也用它建卡。 */
       title?: string;
       /** 孤儿 update 补偿所需。 */
       toolKind?: string;
-      /** 子代理嵌套：claude parentToolUseId。本期透传至渲染层，UI 暂不消费。 */
+      /** 子 Agent 内嵌工具指向父工具调用。 */
       parentToolCallId?: string;
+      /** 已确认的子 Agent 父工具及其增量运行摘要。 */
+      subagent?: SubagentRunSummary;
     }
   | {
       kind: "usage_update";

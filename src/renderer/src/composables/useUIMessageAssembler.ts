@@ -2,6 +2,7 @@ import { ref, type Ref } from "vue";
 import { generateId, type DynamicToolUIPart, type UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import type { MessageChunkData } from "@shared/types/ipc";
+import type { SubagentRunSummary } from "@shared/types/stream-event";
 
 export interface UIMessageAssembler {
   messages: Ref<UIMessage<MessageMeta>[]>;
@@ -69,7 +70,8 @@ export function useUIMessageAssembler(
     prev: DynamicToolUIPart | null,
     toolKind: string | undefined,
     liveOutput?: string | null,
-    parentToolCallId?: string
+    parentToolCallId?: string,
+    subagent?: SubagentRunSummary
   ): DynamicToolUIPart["toolMetadata"] {
     const existing = prev?.toolMetadata ?? {};
     const next = { ...existing };
@@ -82,13 +84,28 @@ export function useUIMessageAssembler(
       next.toolKind = toolKind;
     }
 
-    // 子代理嵌套 parentToolCallId：本期仅透传持久化，UI 暂不消费。
+    // 首次确认父子关系后保持稳定，供消息组件构建子 Agent 工具树。
     if (
       !(typeof next.parentToolCallId === "string" && next.parentToolCallId.length > 0) &&
       typeof parentToolCallId === "string" &&
       parentToolCallId.length > 0
     ) {
       next.parentToolCallId = parentToolCallId;
+    }
+
+    if (subagent !== undefined) {
+      const existingSubagent =
+        next.subagent !== null && typeof next.subagent === "object"
+          ? (next.subagent as SubagentRunSummary)
+          : undefined;
+      const mergedSubagent: SubagentRunSummary = { ...existingSubagent, ...subagent };
+      if (existingSubagent?.toolStats || subagent.toolStats) {
+        mergedSubagent.toolStats = {
+          ...existingSubagent?.toolStats,
+          ...subagent.toolStats,
+        };
+      }
+      (next as Record<string, unknown>).subagent = mergedSubagent;
     }
 
     if (liveOutput === null) {
@@ -140,7 +157,13 @@ export function useUIMessageAssembler(
         title: chunk.title,
         state: "input-available",
         input: chunk.input ?? {},
-        toolMetadata: toolMetadataFor(null, chunk.toolKind, undefined, chunk.parentToolCallId),
+        toolMetadata: toolMetadataFor(
+          null,
+          chunk.toolKind,
+          undefined,
+          chunk.parentToolCallId,
+          chunk.subagent
+        ),
       } as DynamicToolUIPart);
       idx = message.parts.length - 1;
       activeTextPartIdx = -1;
@@ -157,7 +180,13 @@ export function useUIMessageAssembler(
 
     if (chunk.status === "in_progress") {
       const needsUpdate =
-        chunk.input || chunk.content || chunk.outputDelta || chunk.title || chunk.toolName;
+        chunk.input ||
+        chunk.content ||
+        chunk.outputDelta ||
+        chunk.title ||
+        chunk.toolName ||
+        chunk.parentToolCallId ||
+        chunk.subagent !== undefined;
       if (needsUpdate) {
         message.parts.splice(idx, 1, {
           type: "dynamic-tool",
@@ -174,7 +203,8 @@ export function useUIMessageAssembler(
             prev,
             chunk.toolKind,
             chunk.outputDelta ? accumulatedOutput : undefined,
-            chunk.parentToolCallId
+            chunk.parentToolCallId,
+            chunk.subagent
           ),
         } as DynamicToolUIPart);
       }
@@ -191,7 +221,13 @@ export function useUIMessageAssembler(
         state: "output-available",
         input: chunk.input ?? prev.input,
         output: chunk.content ?? accumulatedOutput,
-        toolMetadata: toolMetadataFor(prev, chunk.toolKind, null, chunk.parentToolCallId),
+        toolMetadata: toolMetadataFor(
+          prev,
+          chunk.toolKind,
+          null,
+          chunk.parentToolCallId,
+          chunk.subagent
+        ),
       } as DynamicToolUIPart);
     }
   }
@@ -234,7 +270,13 @@ export function useUIMessageAssembler(
           title: chunk.title,
           state: "input-available",
           input: chunk.input ?? {},
-          toolMetadata: toolMetadataFor(null, chunk.toolKind, undefined, chunk.parentToolCallId),
+          toolMetadata: toolMetadataFor(
+            null,
+            chunk.toolKind,
+            undefined,
+            chunk.parentToolCallId,
+            chunk.subagent
+          ),
         };
         message.parts.push(part);
         activeTextPartIdx = -1;

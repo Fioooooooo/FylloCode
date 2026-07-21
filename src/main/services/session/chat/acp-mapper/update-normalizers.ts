@@ -15,19 +15,25 @@ export function extractToolInput(rawInput: unknown): Record<string, unknown> | u
   return JSON.parse(JSON.stringify(rawInput)) as Record<string, unknown>;
 }
 
+/** 按原始顺序提取 content[] 中所有 text 类型 ContentBlock。 */
+export function extractTextContentBlocks(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((item) => {
+    if (
+      item == null ||
+      typeof item !== "object" ||
+      (item as { type?: unknown }).type !== "content"
+    ) {
+      return [];
+    }
+    const block = (item as { content?: { type?: unknown; text?: unknown } }).content;
+    return block?.type === "text" && typeof block.text === "string" ? [block.text] : [];
+  });
+}
+
 /** 拼合 content[] 中所有 text 类型 ContentBlock 的文本；无则 undefined。 */
 export function extractTextContent(content: unknown): string | undefined {
-  if (!Array.isArray(content)) return undefined;
-  const text = content
-    .flatMap((item) =>
-      item != null &&
-      typeof item === "object" &&
-      (item as { type?: unknown }).type === "content" &&
-      (item as { content?: { type?: unknown } }).content?.type === "text"
-        ? [(item as { content: { text: string } }).content.text]
-        : []
-    )
-    .join("");
+  const text = extractTextContentBlocks(content).join("");
   return text || undefined;
 }
 

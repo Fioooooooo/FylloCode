@@ -368,4 +368,89 @@ describe("useUIMessageAssembler", () => {
     expect(part.title).toBe("Edit data/tmp.txt");
     expect(part.state).toBe("output-available");
   });
+
+  it("merges stats-only subagent updates and preserves live output behavior", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "parent",
+      toolName: "Task",
+      title: "Inspect ACP mapping",
+      toolKind: "think",
+      input: { prompt: "Find the mapping files" },
+      subagent: {},
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "in_progress",
+      outputDelta: "partial",
+      subagent: {
+        status: "in_progress",
+        totalTokens: 1200,
+        toolStats: { readCount: 2 },
+      },
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "in_progress",
+      subagent: { totalDurationMs: 2500, toolStats: { bashCount: 1 } },
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "completed",
+      subagent: { status: "completed", totalToolUseCount: 3 },
+    });
+
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.title).toBe("Inspect ACP mapping");
+    expect(part.input).toEqual({ prompt: "Find the mapping files" });
+    expect(part.output).toBe("partial");
+    expect(part.toolMetadata).toEqual({
+      toolKind: "think",
+      subagent: {
+        status: "completed",
+        totalTokens: 1200,
+        totalDurationMs: 2500,
+        totalToolUseCount: 3,
+        toolStats: { readCount: 2, bashCount: 1 },
+      },
+    });
+  });
+
+  it("applies delayed parent metadata and failed subagent status", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages);
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "child",
+      title: "Read",
+      toolKind: "read",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "child",
+      status: "in_progress",
+      parentToolCallId: "parent",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "failed",
+      content: "Agent failed",
+      subagent: { status: "failed" },
+    });
+
+    expect((messages.value[0]?.parts[0] as DynamicToolUIPart).toolMetadata).toEqual({
+      toolKind: "read",
+      parentToolCallId: "parent",
+    });
+    const parent = messages.value[0]?.parts[1] as DynamicToolUIPart;
+    expect(parent.toolMetadata?.subagent).toEqual({ status: "failed" });
+    expect(parent.output).toBe("Agent failed");
+  });
 });

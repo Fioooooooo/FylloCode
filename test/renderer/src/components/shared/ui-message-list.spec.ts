@@ -86,6 +86,58 @@ function streamingTool(toolCallId: string, toolName: string, toolKind?: string):
   };
 }
 
+function subagentTool(
+  toolCallId: string,
+  options: {
+    description?: string;
+    prompt?: string;
+    output?: string;
+    parentToolCallId?: string;
+    status?: "in_progress" | "completed" | "failed";
+    agentType?: string;
+    resolvedModel?: string;
+    totalTokens?: number;
+    totalDurationMs?: number;
+    totalToolUseCount?: number;
+    toolStats?: Record<string, number>;
+  } = {}
+): DynamicToolUIPart {
+  const isParent = !options.parentToolCallId;
+  const input = {
+    ...(options.description ? { description: options.description } : {}),
+    ...(options.prompt ? { prompt: options.prompt } : {}),
+  };
+  const toolMetadata = isParent
+    ? {
+        toolKind: "think",
+        subagent: {
+          ...(options.status ? { status: options.status } : {}),
+          ...(options.agentType ? { agentType: options.agentType } : {}),
+          ...(options.resolvedModel ? { resolvedModel: options.resolvedModel } : {}),
+          ...(options.totalTokens === undefined ? {} : { totalTokens: options.totalTokens }),
+          ...(options.totalDurationMs === undefined
+            ? {}
+            : { totalDurationMs: options.totalDurationMs }),
+          ...(options.totalToolUseCount === undefined
+            ? {}
+            : { totalToolUseCount: options.totalToolUseCount }),
+          ...(options.toolStats ? { toolStats: options.toolStats } : {}),
+        },
+      }
+    : { toolKind: "read", parentToolCallId: options.parentToolCallId };
+
+  return {
+    type: "dynamic-tool",
+    toolCallId,
+    toolName: isParent ? "Task" : "Read",
+    title: options.description ?? (isParent ? "Task" : `Read ${toolCallId}`),
+    state: options.output === undefined ? "input-available" : "output-available",
+    input,
+    ...(options.output === undefined ? {} : { output: options.output }),
+    toolMetadata,
+  } as DynamicToolUIPart;
+}
+
 type TextPartMetrics = {
   scrollHeight: number;
   clientHeight: number;
@@ -471,6 +523,168 @@ describe("UIMessageList", () => {
     expect(interruptedWrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
     expect(interruptedWrapper.findAll('[data-test="tool"]')).toHaveLength(2);
     expect(interruptedWrapper.text()).toContain("between");
+  });
+
+  it("renders a subagent parent as an isolated card and hides only linked descendants", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("ordinary-before", "Read", "before", "read"),
+        subagentTool("parent", {
+          description: "定位 ACP 事件映射相关代码",
+          output: "summary",
+          status: "completed",
+          totalToolUseCount: 1,
+        }),
+        subagentTool("child", { parentToolCallId: "parent", output: "child output" }),
+        dynamicTool("ordinary-after", "Write", "after", "write"),
+      ]),
+    ]);
+
+    expect(wrapper.findAll('[data-test="subagent-call-card"]')).toHaveLength(1);
+    expect(wrapper.get('[data-test="subagent-call-card"]').text()).toContain(
+      "定位 ACP 事件映射相关代码"
+    );
+    expect(wrapper.get('[data-test="subagent-call-card"]').text()).toContain("1 次工具调用");
+    expect(wrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
+    expect(wrapper.text()).not.toContain("child output");
+  });
+
+  it("opens a subagent slideover with prompt, upstream metrics, tools and result", async () => {
+    const wrapper = mountList([
+      assistantMessage([
+        subagentTool("parent", {
+          description: "定位 ACP 事件映射相关代码",
+          prompt: "查找 ACP mapper",
+          output: "找到了映射入口",
+          status: "completed",
+          agentType: "Explore",
+          resolvedModel: "claude-sonnet-5",
+          totalTokens: 37556,
+          totalDurationMs: 28471,
+          totalToolUseCount: 1,
+          toolStats: { readCount: 0, bashCount: 1 },
+        }),
+        subagentTool("child", { parentToolCallId: "parent", output: "child output" }),
+      ]),
+    ]);
+
+    const card = wrapper.get('[data-test="subagent-call-card"]');
+    expect(card.element.tagName).toBe("BUTTON");
+    expect(card.attributes("aria-expanded")).toBe("false");
+    expect(card.get('[data-test="subagent-call-icon"]').attributes("data-icon-name")).toBe(
+      "i-lucide-waypoints"
+    );
+    const agentName = card.get('[data-test="subagent-call-name"]');
+    expect(agentName.text()).toBe("定位 ACP 事件映射相关代码");
+    expect(agentName.classes()).toEqual(expect.arrayContaining(["text-base", "font-semibold"]));
+    const agentType = card.get('[data-test="subagent-agent-type"]');
+    expect(agentType.text()).toBe("Explore");
+    expect(agentType.classes()).toEqual(expect.arrayContaining(["text-sm", "font-medium"]));
+    expect(card.text()).not.toContain("子 Agent");
+    await card.trigger("click");
+
+    expect(card.attributes("aria-expanded")).toBe("true");
+    const slideover = wrapper.get('[data-test="subagent-slideover"]');
+    expect(slideover.text()).toContain("查找 ACP mapper");
+    expect(slideover.text()).toContain("claude-sonnet-5");
+    expect(slideover.get('[data-test="subagent-tokens"]').text()).toBe("37,556");
+    expect(slideover.get('[data-test="subagent-duration"]').text()).toBe("28.5 秒");
+    expect(slideover.findAll('[data-test="subagent-tool-entry"]')).toHaveLength(1);
+    expect((slideover.get("details").element as HTMLDetailsElement).open).toBe(false);
+    expect(slideover.get(".max-h-72").classes()).toContain("overflow-auto");
+    expect(slideover.text()).toContain("child output");
+    expect(slideover.text()).toContain("找到了映射入口");
+    expect(slideover.text()).toContain("读取 0");
+  });
+
+  it("keeps an open subagent slideover reactive as the stream completes", async () => {
+    const initial = assistantMessage([
+      subagentTool("parent", {
+        description: "运行子 Agent",
+        prompt: "inspect",
+        status: "in_progress",
+      }),
+    ]);
+    const wrapper = mountList([initial], "streaming", undefined, "chat", {
+      messageId: initial.id,
+      startedAt: Date.now(),
+    });
+
+    await wrapper.get('[data-test="subagent-call-card"]').trigger("click");
+    expect(wrapper.get('[data-test="subagent-tools-waiting"]').text()).toContain(
+      "等待子 Agent 工具调用"
+    );
+
+    const completed: UIMessage<MessageMeta> = {
+      ...initial,
+      parts: [
+        subagentTool("parent", {
+          description: "运行子 Agent",
+          prompt: "inspect",
+          output: "completed result",
+          status: "completed",
+          totalTokens: 42,
+        }),
+        subagentTool("child", { parentToolCallId: "parent", output: "late child" }),
+      ],
+    };
+    await wrapper.setProps({ messages: [completed], status: "ready", streamIndicator: null });
+
+    expect(wrapper.find('[data-test="subagent-slideover"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-test="subagent-tool-entry"]')).toHaveLength(1);
+    expect(wrapper.text()).toContain("late child");
+    expect(wrapper.text()).toContain("completed result");
+    expect(wrapper.get('[data-test="subagent-tokens"]').text()).toBe("42");
+  });
+
+  it("isolates parallel subagent details and preserves orphan tools", async () => {
+    const wrapper = mountList([
+      assistantMessage([
+        subagentTool("parent-a", { description: "Agent A", status: "completed", output: "A" }),
+        subagentTool("parent-b", { description: "Agent B", status: "completed", output: "B" }),
+        subagentTool("child-a", { parentToolCallId: "parent-a", output: "A child" }),
+        subagentTool("child-b", { parentToolCallId: "parent-b", output: "B child" }),
+        subagentTool("orphan", { parentToolCallId: "missing", output: "orphan output" }),
+      ]),
+    ]);
+
+    expect(wrapper.findAll('[data-test="subagent-call-card"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(1);
+    expect(wrapper.text()).toContain("orphan output");
+
+    await wrapper.findAll('[data-test="subagent-call-card"]')[0].trigger("click");
+    const slideover = wrapper.get('[data-test="subagent-slideover"]');
+    expect(slideover.text()).toContain("A child");
+    expect(slideover.text()).not.toContain("B child");
+  });
+
+  it("shows terminal empty state, interrupted state, collapsed details and restores focus", async () => {
+    const message = assistantMessage([
+      subagentTool("empty", { description: "No tools", status: "completed", output: "done" }),
+      subagentTool("interrupted", { description: "Stopped task" }),
+      subagentTool("failed", { description: "Failed task", status: "failed", output: "error" }),
+    ]);
+    const wrapper = mountList([message]);
+    document.body.appendChild(wrapper.element);
+
+    const cards = wrapper.findAll('[data-test="subagent-call-card"]');
+    expect(cards[1].text()).toContain("已中断");
+    expect(cards[2].text()).toContain("失败");
+
+    (cards[0].element as HTMLElement).focus();
+    await cards[0].trigger("click");
+    expect(wrapper.get('[data-test="subagent-tools-empty"]').text()).toContain("未记录工具调用");
+    await wrapper.get('button[aria-label="关闭子 Agent 详情"]').trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(document.activeElement).toBe(cards[0].element);
+
+    await cards[1].trigger("click");
+    expect(wrapper.get('[data-test="subagent-tools-empty"]').text()).toContain("未记录工具调用");
+    expect(wrapper.text()).toContain("未提供最终回复");
+    expect(wrapper.find('[data-test="subagent-tools-waiting"]').exists()).toBe(false);
+
+    wrapper.unmount();
   });
 
   it("keeps Fyllo action contexts on original part indices when tools are grouped", () => {

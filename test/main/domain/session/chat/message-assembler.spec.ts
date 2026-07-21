@@ -331,4 +331,95 @@ describe("MessageAssembler", () => {
     expect(part.title).toBe("Edit data/tmp.txt");
     expect(part.state).toBe("output-available");
   });
+
+  it("merges stats-only subagent updates and preserves them through completion", () => {
+    const a = new MessageAssembler("session-subagent");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "parent",
+      toolName: "Task",
+      title: "Inspect ACP mapping",
+      toolKind: "think",
+      input: { prompt: "Find the mapping files" },
+      subagent: {},
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "in_progress",
+      subagent: {
+        status: "in_progress",
+        totalTokens: 1200,
+        toolStats: { readCount: 2 },
+      },
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "in_progress",
+      subagent: {
+        totalDurationMs: 2500,
+        toolStats: { bashCount: 1 },
+      },
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "parent",
+      status: "completed",
+      content: "Found the mapper",
+      subagent: { status: "completed", totalToolUseCount: 3 },
+    });
+
+    const message = a.flush()!;
+    const part = message.parts[0] as DynamicToolUIPart;
+    expect(part.title).toBe("Inspect ACP mapping");
+    expect(part.input).toEqual({ prompt: "Find the mapping files" });
+    expect(part.output).toBe("Found the mapper");
+    expect(part.toolMetadata?.subagent).toEqual({
+      status: "completed",
+      totalTokens: 1200,
+      totalDurationMs: 2500,
+      totalToolUseCount: 3,
+      toolStats: { readCount: 2, bashCount: 1 },
+    });
+    expect(message.metadata).toMatchObject({ sessionId: "session-subagent" });
+    expect(message.metadata).not.toHaveProperty("tokenUsage");
+  });
+
+  it("applies a delayed parent relationship even when the update has no display fields", () => {
+    const a = new MessageAssembler("s");
+    a.apply({ kind: "tool_call_start", toolCallId: "child", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "child",
+      status: "in_progress",
+      parentToolCallId: "parent",
+    });
+
+    const part = a.flush()!.parts[0] as DynamicToolUIPart;
+    expect(part.toolMetadata).toEqual({ toolKind: "read", parentToolCallId: "parent" });
+  });
+
+  it("persists an empty subagent marker and failed terminal status", () => {
+    const a = new MessageAssembler("s");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "parent",
+      title: "Task",
+      toolKind: "think",
+      subagent: {},
+    });
+    expect((a.flush()!.parts[0] as DynamicToolUIPart).toolMetadata?.subagent).toEqual({});
+
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "failed-parent",
+      status: "failed",
+      content: "Agent failed",
+      subagent: { status: "failed" },
+    });
+    const failed = a.flush()!.parts[0] as DynamicToolUIPart;
+    expect(failed.state).toBe("output-available");
+    expect(failed.toolMetadata?.subagent).toEqual({ status: "failed" });
+  });
 });

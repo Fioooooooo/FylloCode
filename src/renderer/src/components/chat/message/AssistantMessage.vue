@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { DynamicToolUIPart, ToolUIPart, UIMessage, UITools } from "ai";
+import type { UIMessage } from "ai";
 import { isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
 import { isPartStreaming, isToolStreaming } from "@nuxt/ui/utils/ai";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import ChatToolGroup from "./ChatToolGroup.vue";
+import SubagentCallCard from "./SubagentCallCard.vue";
 import AssistantStreamIndicator from "./AssistantStreamIndicator.vue";
 import { getToolIcon, getToolText, getToolSuffix, getToolOutput } from "@renderer/utils/chatTool";
 import { useSessionStore } from "@renderer/stores";
@@ -15,13 +16,17 @@ import type {
   TransitionFylloActionInput,
   TransitionFylloActionsInput,
 } from "@shared/fyllo-action/protocol";
+import {
+  projectSubagentCalls,
+  type ChatToolEntry,
+  type SubagentCallProjection,
+} from "@renderer/utils/chatSubagent";
 
 type MessagePart = UIMessage["parts"][number];
-type ToolPart = DynamicToolUIPart | ToolUIPart<UITools>;
-type ToolRenderEntry = { part: ToolPart; partIndex: number };
 type RenderItem =
   | { kind: "part"; key: string; part: MessagePart; partIndex: number }
-  | { kind: "tool-group"; key: string; tools: ToolRenderEntry[] };
+  | { kind: "tool-group"; key: string; tools: ChatToolEntry[] }
+  | { kind: "subagent-call"; key: string; call: SubagentCallProjection };
 
 const props = defineProps<{
   message: UIMessage;
@@ -35,6 +40,7 @@ const props = defineProps<{
 }>();
 
 const sessionStore = useSessionStore();
+const subagentProjection = computed(() => projectSubagentCalls(props.message.parts));
 
 function buildPartKey(part: MessagePart, partIndex: number): string {
   return `${props.message.id}-${part.type}-${partIndex}`;
@@ -42,7 +48,7 @@ function buildPartKey(part: MessagePart, partIndex: number): string {
 
 const renderItems = computed<RenderItem[]>(() => {
   const items: RenderItem[] = [];
-  let toolRun: ToolRenderEntry[] = [];
+  let toolRun: ChatToolEntry[] = [];
 
   function flushToolRun(): void {
     // Group two or more consecutive tool parts into a single `ChatToolGroup`;
@@ -70,6 +76,19 @@ const renderItems = computed<RenderItem[]>(() => {
 
   props.message.parts.forEach((part, partIndex) => {
     if (isToolUIPart(part)) {
+      if (subagentProjection.value.hiddenPartIndexes.has(partIndex)) return;
+
+      const subagentCall = subagentProjection.value.rootByPartIndex.get(partIndex);
+      if (subagentCall) {
+        flushToolRun();
+        items.push({
+          kind: "subagent-call",
+          key: `${props.message.id}-subagent-${subagentCall.root.part.toolCallId}`,
+          call: subagentCall,
+        });
+        return;
+      }
+
       toolRun.push({ part, partIndex });
       return;
     }
@@ -134,6 +153,14 @@ function buildActionContext(partIndex: number) {
 <template>
   <template v-for="item in renderItems" :key="item.key">
     <ChatToolGroup v-if="item.kind === 'tool-group'" :tools="item.tools" />
+
+    <SubagentCallCard
+      v-else-if="item.kind === 'subagent-call'"
+      :message="props.message"
+      :call="item.call"
+      :is-current-stream="props.streamStartedAt !== undefined && props.streamStartedAt !== null"
+      :is-dark="props.isDark"
+    />
 
     <UChatReasoning
       v-else-if="isReasoningUIPart(item.part)"
