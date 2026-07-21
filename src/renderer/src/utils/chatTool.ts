@@ -100,7 +100,7 @@ export function getToolSuffix(part: AnyToolPart): string {
     case "Read":
     case "Write":
     case "Edit":
-      return str(input.file_path);
+      return "";
     case "Glob":
     case "Grep":
       return str(input.pattern);

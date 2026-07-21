@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
-import { mapSessionUpdate } from "@main/services/session/chat/acp-mapper";
+import { mapSessionUpdate, normalizeClaudeMcpTool } from "@main/services/session/chat/acp-mapper";
 
 describe("mapSessionUpdate", () => {
   describe("agent_thought_chunk", () => {
@@ -690,5 +690,145 @@ describe("mapSessionUpdate", () => {
         title: "fyllo-specs_explore",
       });
     });
+  });
+
+  describe("claude-acp 适配", () => {
+    it("MCP 工具 start：mcp__server__tool 归一为 server/tool（toolName 与 title）", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "toolu_mcp_1",
+        title: "mcp__tavily__tavily_search",
+        kind: "other",
+        status: "pending",
+        rawInput: {},
+        content: [],
+        _meta: { claudeCode: { toolName: "mcp__tavily__tavily_search" } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "claude-acp" })).toMatchObject({
+        kind: "tool_call_start",
+        toolCallId: "toolu_mcp_1",
+        toolName: "tavily/tavily_search",
+        title: "tavily/tavily_search",
+        toolKind: "other",
+      });
+    });
+
+    it("MCP 工具 tool_call_update：toolName 与孤儿 title 同样归一", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "toolu_mcp_1",
+        status: "in_progress",
+        title: "mcp__tavily__tavily_search",
+        kind: "other",
+        rawInput: { query: "acp" },
+        _meta: { claudeCode: { toolName: "mcp__tavily__tavily_search" } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "claude-acp" })).toMatchObject({
+        kind: "tool_call_update",
+        toolCallId: "toolu_mcp_1",
+        toolName: "tavily/tavily_search",
+        title: "tavily/tavily_search",
+        input: { query: "acp" },
+      });
+    });
+
+    it("原生工具 title 不含 mcp__ 前缀时原样透传（不误伤具体命令）", () => {
+      const update = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "toolu_bash_1",
+        status: "in_progress",
+        title: "ls -la /tmp",
+        kind: "execute",
+        rawInput: { command: "ls -la /tmp" },
+        _meta: { claudeCode: { toolName: "Bash" } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "claude-acp" })).toMatchObject({
+        kind: "tool_call_update",
+        toolName: "Bash",
+        title: "ls -la /tmp",
+      });
+    });
+
+    it("子代理内嵌工具 start：解析 parentToolUseId 为 parentToolCallId", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "toolu_child_1",
+        title: "Read foo.txt",
+        kind: "read",
+        status: "pending",
+        rawInput: { file_path: "/foo.txt" },
+        content: [],
+        _meta: { claudeCode: { toolName: "Read", parentToolUseId: "toolu_parent_1" } },
+      } as unknown as SessionUpdate;
+
+      expect(mapSessionUpdate(update, { agentId: "claude-acp" })).toMatchObject({
+        kind: "tool_call_start",
+        toolCallId: "toolu_child_1",
+        parentToolCallId: "toolu_parent_1",
+      });
+    });
+
+    it("无 parentToolUseId 时 parentToolCallId 为 undefined", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "toolu_top_1",
+        title: "Read File",
+        kind: "read",
+        status: "pending",
+        rawInput: {},
+        content: [],
+        _meta: { claudeCode: { toolName: "Read" } },
+      } as unknown as SessionUpdate;
+
+      const event = mapSessionUpdate(update, { agentId: "claude-acp" });
+      expect(event).toMatchObject({ kind: "tool_call_start", toolName: "Read" });
+      expect((event as { parentToolCallId?: string }).parentToolCallId).toBeUndefined();
+    });
+
+    it("非 claude agent 不解析 parentToolUseId、不归一 mcp__ title", () => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: "call_other_1",
+        title: "mcp__tavily__tavily_search",
+        kind: "other",
+        status: "pending",
+        rawInput: {},
+        content: [],
+        _meta: { claudeCode: { toolName: "mcp__tavily__tavily_search", parentToolUseId: "p1" } },
+      } as unknown as SessionUpdate;
+
+      const event = mapSessionUpdate(update, { agentId: "gemini" });
+      // 非 claude：沿用 _meta.claudeCode.toolName 原始串（现状行为），不做 server/tool 归一。
+      expect(event).toMatchObject({
+        kind: "tool_call_start",
+        title: "mcp__tavily__tavily_search",
+      });
+      expect((event as { parentToolCallId?: string }).parentToolCallId).toBeUndefined();
+    });
+  });
+});
+
+describe("normalizeClaudeMcpTool", () => {
+  it("mcp__server__tool → server/tool", () => {
+    expect(normalizeClaudeMcpTool("mcp__tavily__tavily_search")).toBe("tavily/tavily_search");
+  });
+
+  it("tool 名自身含下划线时仅按首个 __ 划定 server 边界", () => {
+    expect(normalizeClaudeMcpTool("mcp__fyllo_specs__create_proposal")).toBe(
+      "fyllo_specs/create_proposal"
+    );
+  });
+
+  it("非 mcp__ 前缀原样返回", () => {
+    expect(normalizeClaudeMcpTool("Bash")).toBe("Bash");
+    expect(normalizeClaudeMcpTool("ls -la /tmp")).toBe("ls -la /tmp");
+  });
+
+  it("退化形态（缺 server 或 tool 段）原样返回", () => {
+    expect(normalizeClaudeMcpTool("mcp__onlyserver")).toBe("mcp__onlyserver");
+    expect(normalizeClaudeMcpTool("mcp____tool")).toBe("mcp____tool");
   });
 });

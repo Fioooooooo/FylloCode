@@ -68,7 +68,8 @@ export function useUIMessageAssembler(
   function toolMetadataFor(
     prev: DynamicToolUIPart | null,
     toolKind: string | undefined,
-    liveOutput?: string | null
+    liveOutput?: string | null,
+    parentToolCallId?: string
   ): DynamicToolUIPart["toolMetadata"] {
     const existing = prev?.toolMetadata ?? {};
     const next = { ...existing };
@@ -79,6 +80,15 @@ export function useUIMessageAssembler(
       toolKind.length > 0
     ) {
       next.toolKind = toolKind;
+    }
+
+    // 子代理嵌套 parentToolCallId：本期仅透传持久化，UI 暂不消费。
+    if (
+      !(typeof next.parentToolCallId === "string" && next.parentToolCallId.length > 0) &&
+      typeof parentToolCallId === "string" &&
+      parentToolCallId.length > 0
+    ) {
+      next.parentToolCallId = parentToolCallId;
     }
 
     if (liveOutput === null) {
@@ -130,7 +140,7 @@ export function useUIMessageAssembler(
         title: chunk.title,
         state: "input-available",
         input: chunk.input ?? {},
-        toolMetadata: toolMetadataFor(null, chunk.toolKind),
+        toolMetadata: toolMetadataFor(null, chunk.toolKind, undefined, chunk.parentToolCallId),
       } as DynamicToolUIPart);
       idx = message.parts.length - 1;
       activeTextPartIdx = -1;
@@ -153,13 +163,18 @@ export function useUIMessageAssembler(
           type: "dynamic-tool",
           toolCallId: prev.toolCallId,
           toolName: chunk.toolName ?? prev.toolName,
-          title: chunk.title ?? description ?? (chunk.outputDelta ? prev.title : chunk.content),
+          title:
+            chunk.title ??
+            description ??
+            (chunk.outputDelta ? prev.title : chunk.content) ??
+            prev.title,
           state: "input-available",
           input: chunk.input ?? prev.input,
           toolMetadata: toolMetadataFor(
             prev,
             chunk.toolKind,
-            chunk.outputDelta ? accumulatedOutput : undefined
+            chunk.outputDelta ? accumulatedOutput : undefined,
+            chunk.parentToolCallId
           ),
         } as DynamicToolUIPart);
       }
@@ -176,7 +191,7 @@ export function useUIMessageAssembler(
         state: "output-available",
         input: chunk.input ?? prev.input,
         output: chunk.content ?? accumulatedOutput,
-        toolMetadata: toolMetadataFor(prev, chunk.toolKind, null),
+        toolMetadata: toolMetadataFor(prev, chunk.toolKind, null, chunk.parentToolCallId),
       } as DynamicToolUIPart);
     }
   }
@@ -219,7 +234,7 @@ export function useUIMessageAssembler(
           title: chunk.title,
           state: "input-available",
           input: chunk.input ?? {},
-          toolMetadata: { toolKind: chunk.toolKind },
+          toolMetadata: toolMetadataFor(null, chunk.toolKind, undefined, chunk.parentToolCallId),
         };
         message.parts.push(part);
         activeTextPartIdx = -1;

@@ -336,4 +336,36 @@ describe("useUIMessageAssembler", () => {
     expect(part.output).toBe("done");
     expect(part.toolMetadata).toBeUndefined();
   });
+
+  it("claude toolResponse-only 中间 update（仅带 toolName，无 title/content/input）不清空既有友好 title", () => {
+    const messages = ref<UIMessage<MessageMeta>[]>([]);
+    const assembler = useUIMessageAssembler(messages, { sessionId: "session-1" });
+
+    assembler.applyChunk({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Edit",
+      toolKind: "edit",
+    });
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      toolName: "Edit",
+      title: "Edit data/tmp.txt",
+      input: { file_path: "data/tmp.txt" },
+    });
+    // claude toolResponse-only 中间 update：仅带 toolName，无 title/content/input/outputDelta。
+    assembler.applyChunk({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      toolName: "Edit",
+    });
+    assembler.applyChunk({ kind: "tool_call_update", toolCallId: "t1", status: "completed" });
+
+    const part = messages.value[0]?.parts[0] as DynamicToolUIPart;
+    expect(part.title).toBe("Edit data/tmp.txt");
+    expect(part.state).toBe("output-available");
+  });
 });

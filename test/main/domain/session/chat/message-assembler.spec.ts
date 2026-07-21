@@ -48,6 +48,27 @@ describe("MessageAssembler", () => {
     expect(part.toolMetadata).toEqual({ toolKind: "read" });
   });
 
+  it("carries parentToolCallId into toolMetadata and preserves it across updates", () => {
+    const a = new MessageAssembler("s");
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "child",
+      title: "Read",
+      toolKind: "read",
+      parentToolCallId: "parent",
+    });
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "child",
+      status: "completed",
+      content: "done",
+    });
+
+    const msg = a.flush()!;
+    const part = msg.parts[0] as DynamicToolUIPart;
+    expect(part.toolMetadata).toEqual({ toolKind: "read", parentToolCallId: "parent" });
+  });
+
   it("keeps a stable toolName separate from the human-readable title", () => {
     const a = new MessageAssembler("s");
     a.apply({
@@ -281,5 +302,33 @@ describe("MessageAssembler", () => {
     const part = msg!.parts[0] as DynamicToolUIPart;
     expect(part.toolCallId).toBe("replace__1");
     expect(part.toolMetadata).toBeUndefined();
+  });
+
+  it("claude toolResponse-only 中间 update（仅带 toolName，无 title/content/input）不清空既有友好 title", () => {
+    const a = new MessageAssembler("s");
+    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Edit", toolKind: "edit" });
+    // 第一次 in_progress：mapper 已把 title 归一为具体路径。
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      toolName: "Edit",
+      title: "Edit data/tmp.txt",
+      input: { file_path: "data/tmp.txt" },
+    });
+    // claude toolResponse-only 中间 update：仅带 toolName，无 title/content/input/outputDelta。
+    a.apply({
+      kind: "tool_call_update",
+      toolCallId: "t1",
+      status: "in_progress",
+      toolName: "Edit",
+    });
+    // completed 事件同样不带 title（claude Edit 的实际形态）。
+    a.apply({ kind: "tool_call_update", toolCallId: "t1", status: "completed" });
+
+    const msg = a.flush()!;
+    const part = msg.parts[0] as DynamicToolUIPart;
+    expect(part.title).toBe("Edit data/tmp.txt");
+    expect(part.state).toBe("output-available");
   });
 });

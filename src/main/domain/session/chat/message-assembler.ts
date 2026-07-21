@@ -34,18 +34,31 @@ export class MessageAssembler {
 
   private toolMetadataFor(
     prev: DynamicToolUIPart | null,
-    toolKind: string | undefined
+    toolKind: string | undefined,
+    parentToolCallId?: string
   ): DynamicToolUIPart["toolMetadata"] {
-    const existing = prev?.toolMetadata;
-    if (typeof existing?.toolKind === "string" && existing.toolKind.length > 0) {
-      return existing;
+    const existing = prev?.toolMetadata ?? {};
+    const next = { ...existing };
+
+    // 已有 toolKind 优先保留，仅在此前缺失时写入。
+    if (
+      !(typeof existing.toolKind === "string" && existing.toolKind.length > 0) &&
+      typeof toolKind === "string" &&
+      toolKind.length > 0
+    ) {
+      next.toolKind = toolKind;
     }
 
-    if (typeof toolKind === "string" && toolKind.length > 0) {
-      return { ...(existing ?? {}), toolKind };
+    // 子代理嵌套 parentToolCallId：本期仅持久化透传，UI 暂不消费。
+    if (
+      !(typeof next.parentToolCallId === "string" && next.parentToolCallId.length > 0) &&
+      typeof parentToolCallId === "string" &&
+      parentToolCallId.length > 0
+    ) {
+      next.parentToolCallId = parentToolCallId;
     }
 
-    return existing;
+    return Object.keys(next).length > 0 ? next : undefined;
   }
 
   apply(ev: SessionEvent): void {
@@ -87,7 +100,7 @@ export class MessageAssembler {
         title: ev.title,
         state: "input-available",
         input: ev.input ?? {},
-        toolMetadata: { toolKind: ev.toolKind },
+        toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId),
       };
       message.parts.push(part);
       this.activeTextPartIdx = -1;
@@ -110,7 +123,7 @@ export class MessageAssembler {
           title: ev.title,
           state: "input-available",
           input: ev.input ?? {},
-          toolMetadata: this.toolMetadataFor(null, ev.toolKind),
+          toolMetadata: this.toolMetadataFor(null, ev.toolKind, ev.parentToolCallId),
         } as DynamicToolUIPart);
         idx = message.parts.length - 1;
         this.activeTextPartIdx = -1;
@@ -132,10 +145,11 @@ export class MessageAssembler {
             type: "dynamic-tool",
             toolCallId: prev.toolCallId,
             toolName: ev.toolName ?? prev.toolName,
-            title: ev.title ?? description ?? (ev.outputDelta ? prev.title : ev.content),
+            title:
+              ev.title ?? description ?? (ev.outputDelta ? prev.title : ev.content) ?? prev.title,
             state: "input-available",
             input: ev.input ?? prev.input,
-            toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
+            toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId),
           } as DynamicToolUIPart);
         }
       } else if (ev.status === "completed" || ev.status === "failed") {
@@ -148,7 +162,7 @@ export class MessageAssembler {
           state: "output-available",
           input: ev.input ?? prev.input,
           output: ev.content ?? accumulatedOutput,
-          toolMetadata: this.toolMetadataFor(prev, ev.toolKind),
+          toolMetadata: this.toolMetadataFor(prev, ev.toolKind, ev.parentToolCallId),
         } as DynamicToolUIPart);
       }
     }

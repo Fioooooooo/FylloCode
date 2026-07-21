@@ -20,6 +20,42 @@ function isCodexAgent(context: SessionUpdateMappingContext): boolean {
   return typeof context.agentId === "string" && CODEX_AGENT_IDS.has(context.agentId);
 }
 
+const CLAUDE_AGENT_IDS: ReadonlySet<string> = new Set(["claude-acp", "claude"]);
+
+function isClaudeAgent(context: SessionUpdateMappingContext): boolean {
+  return typeof context.agentId === "string" && CLAUDE_AGENT_IDS.has(context.agentId);
+}
+
+/**
+ * Claude Code MCP 工具标识归一。
+ *
+ * Claude Code 的 MCP 工具在 `_meta.claudeCode.toolName` 与 `title` 均为
+ * `mcp__<server>__<tool>` 双下划线格式（如 `mcp__tavily__tavily_search`），
+ * 与 codex 的结构化 `{server,tool}` 不同，需按字符串归一为 `server/tool`。
+ * 按剥离 `mcp__` 前缀后的首个 `__` 划定 server 边界，tool 名自身含 `__` 时保留其余部分。
+ * 非 `mcp__` 前缀（原生工具如 `Bash`）原样返回。
+ */
+export function normalizeClaudeMcpTool(name: string): string {
+  const rest = name.startsWith("mcp__") ? name.slice("mcp__".length) : null;
+  if (rest === null) return name;
+
+  const sep = rest.indexOf("__");
+  if (sep <= 0 || sep >= rest.length - 2) return name;
+
+  const server = rest.slice(0, sep);
+  const tool = rest.slice(sep + 2);
+  return `${server}/${tool}`;
+}
+
+/** 提取 Claude Code 子代理内嵌工具的父 toolCallId（`_meta.claudeCode.parentToolUseId`）。 */
+function claudeParentToolCallId(meta: unknown): string | undefined {
+  if (meta == null || typeof meta !== "object") return undefined;
+  const claudeCode = (meta as { claudeCode?: unknown }).claudeCode;
+  if (claudeCode == null || typeof claudeCode !== "object") return undefined;
+  const parent = (claudeCode as { parentToolUseId?: unknown }).parentToolUseId;
+  return typeof parent === "string" && parent.length > 0 ? parent : undefined;
+}
+
 export function normalizeCodexThought(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
@@ -353,6 +389,7 @@ export function mapSessionUpdate(
   logger.debug(`[acp-mapper] ← sessionUpdate: ${update.sessionUpdate} ${JSON.stringify(update)}`);
 
   const codex = isCodexAgent(context);
+  const claude = isClaudeAgent(context);
 
   switch (update.sessionUpdate) {
     case "agent_message_chunk": {
@@ -374,8 +411,10 @@ export function mapSessionUpdate(
     case "tool_call": {
       const meta = update._meta as { claudeCode?: { toolName?: string } } | null | undefined;
       // title 优先 _meta.claudeCode.toolName；否则按 codex 形态 rawInput 归一 MCP 标识；再否则原 title。
-      const normalizedTitle =
+      const metaToolName =
         meta?.claudeCode?.toolName ?? normalizeMcpTool(update.rawInput, update.title);
+      // claude：MCP 工具 `mcp__server__tool` 归一为 `server/tool`；原生工具原样。
+      const normalizedTitle = claude ? normalizeClaudeMcpTool(metaToolName) : metaToolName;
       const codexTitle =
         update.kind === "edit" ? codexEditTitle(update.content, update.title) : update.title;
       const event: SessionEvent = {
@@ -387,6 +426,7 @@ export function mapSessionUpdate(
         input: extractToolInput(update.rawInput),
         diff: extractDiffs(update.content),
         locations: extractLocations(update.locations),
+        parentToolCallId: claude ? claudeParentToolCallId(update._meta) : undefined,
       };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;
@@ -413,6 +453,16 @@ export function mapSessionUpdate(
         (codex && status !== "in_progress" ? codexFinalOutput(update.rawOutput) : undefined);
       const outputDelta = codex ? codexTerminalOutputDelta(update._meta) : undefined;
 
+      const claudeMeta = update._meta as { claudeCode?: { toolName?: string } } | null | undefined;
+      const claudeToolName =
+        claude && typeof claudeMeta?.claudeCode?.toolName === "string"
+          ? normalizeClaudeMcpTool(claudeMeta.claudeCode.toolName)
+          : undefined;
+      // claude 孤儿 update 的 title 若为 MCP 原始串同样归一；原生工具具体命令/路径原样。
+      const rawTitle = typeof update.title === "string" ? update.title : undefined;
+      const claudeTitle =
+        claude && rawTitle !== undefined ? normalizeClaudeMcpTool(rawTitle) : rawTitle;
+
       const event: SessionEvent = {
         kind: "tool_call_update",
         toolCallId: update.toolCallId,
@@ -420,15 +470,16 @@ export function mapSessionUpdate(
         toolName:
           codex && (update.rawInput != null || update.kind != null)
             ? codexToolName(update.rawInput, update.kind)
-            : undefined,
+            : claudeToolName,
         input: extractToolInput(update.rawInput),
         content,
         outputDelta,
         diff: extractDiffs(update.content),
         locations: extractLocations(update.locations),
         // 孤儿 update（gemini 跳过 start）补偿建卡所需：若 update 自带 title/kind 则透传。
-        title: typeof update.title === "string" ? update.title : undefined,
+        title: claudeTitle,
         toolKind: typeof update.kind === "string" ? update.kind : undefined,
+        parentToolCallId: claude ? claudeParentToolCallId(update._meta) : undefined,
       };
       logger.debug(`[acp-mapper] → ${JSON.stringify(event)}`);
       return event;

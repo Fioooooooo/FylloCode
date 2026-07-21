@@ -65,6 +65,8 @@ export type StreamContentEvent =
       title?: string;
       /** 孤儿 update 补偿所需。 */
       toolKind?: string;
+      /** 子代理嵌套：claude parentToolUseId。本期透传至渲染层，UI 暂不消费。 */
+      parentToolCallId?: string;
     }
   | {
       kind: "usage_update";
