@@ -5,10 +5,11 @@ import type { CatalogAgent } from "@shared/types/acp-agent";
 function createCustomAgent(
   command: string,
   args: string[],
-  env?: Record<string, string>
+  env?: Record<string, string>,
+  id = "custom-test-agent"
 ): CatalogAgent {
   return {
-    id: "custom-test-agent",
+    id,
     source: "custom",
     name: "Test Agent",
     customConfig: {
@@ -48,5 +49,17 @@ describe("acp-process-pool custom spawn spec", () => {
     const spec = buildSpawnSpecForTesting(agent);
 
     expect(spec.args).toEqual([]);
+  });
+
+  it("forces blocking MCP connection startup for claude-acp", () => {
+    const agent = createCustomAgent(
+      "/usr/local/bin/claude-acp",
+      [],
+      { MCP_CONNECTION_NONBLOCKING: "1" },
+      "claude-acp"
+    );
+    const spec = buildSpawnSpecForTesting(agent);
+
+    expect(spec.env.MCP_CONNECTION_NONBLOCKING).toBe("0");
   });
 });

@@ -82,6 +82,19 @@ function mergeSpawnEnv(env?: Record<string, string>): NodeJS.ProcessEnv {
   return env ? { ...process.env, ...env } : process.env;
 }
 
+function applyAgentSpawnWorkarounds(agentId: string, spec: AgentSpawnSpec): AgentSpawnSpec {
+  if (agentId !== "claude-acp") return spec;
+
+  return {
+    ...spec,
+    env: {
+      ...spec.env,
+      // TODO: Claude Code runtime 修复首轮 MCP 异步注册竞态后移除此临时兼容开关。
+      MCP_CONNECTION_NONBLOCKING: "0",
+    },
+  };
+}
+
 function buildCustomSpawnSpec(agent: CatalogAgent): AgentSpawnSpec {
   const config = agent.customConfig;
   if (!config) {
@@ -100,12 +113,15 @@ export function buildSpawnSpecForTesting(
   installMethod?: string
 ): AgentSpawnSpec {
   if (agent.source === "custom") {
-    return buildCustomSpawnSpec(agent);
+    return applyAgentSpawnWorkarounds(agent.id, buildCustomSpawnSpec(agent));
   }
   if (!agent.registryEntry || !installMethod) {
     throw new Error("Registry agent requires registryEntry and installMethod");
   }
-  return buildSpawnSpec(agent.registryEntry, installPath, installMethod);
+  return applyAgentSpawnWorkarounds(
+    agent.id,
+    buildSpawnSpec(agent.registryEntry, installPath, installMethod)
+  );
 }
 
 function buildSpawnSpec(
@@ -164,7 +180,7 @@ async function startProcess(agentId: string, priorFailures: number): Promise<Age
     installedVersion = record.installedVersion;
   }
 
-  const { cmd, args, env } = spawnSpec;
+  const { cmd, args, env } = applyAgentSpawnWorkarounds(agentId, spawnSpec);
   logger.info(`[infra.process.acp] spawning agent ${agentId}: ${cmd} ${args.join(" ")}`);
 
   const child = spawn(cmd, args, {
