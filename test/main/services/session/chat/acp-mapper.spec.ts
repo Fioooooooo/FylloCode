@@ -610,21 +610,50 @@ describe("mapSessionUpdate", () => {
       });
     });
 
-    it("codex MCP {server,tool} → toolName 归一，title 保留原始描述", () => {
+    it("codex MCP {server,tool} → 新旧 ACP title 都统一为 server/tool", () => {
+      for (const title of ["Tool: fyllo-specs/explore", "mcp.fyllo-specs.explore"]) {
+        const update = {
+          sessionUpdate: "tool_call",
+          toolCallId: "call_mcp_1",
+          title,
+          kind: "execute",
+          status: "in_progress",
+          rawInput: {
+            server: "fyllo-specs",
+            tool: "explore",
+            arguments: { targetPath: "/project", includeInstruction: true },
+          },
+          content: [],
+          _meta: { is_mcp_tool_call: true },
+        } as unknown as SessionUpdate;
+
+        expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
+          kind: "tool_call_start",
+          toolName: "fyllo-specs/explore",
+          title: "Call fyllo-specs/explore",
+        });
+      }
+    });
+
+    it("codex MCP orphan update → toolName 与 title 同样统一为 server/tool", () => {
       const update = {
-        sessionUpdate: "tool_call",
-        toolCallId: "call_mcp_1",
-        title: "Tool: fyllo-cortex/guidelines",
-        kind: "other",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call_mcp_orphan",
+        title: "mcp.fyllo-specs.explore",
+        kind: "execute",
         status: "in_progress",
-        rawInput: { server: "fyllo-cortex", tool: "guidelines", arguments: { mode: "read" } },
-        content: [],
+        rawInput: {
+          server: "fyllo-specs",
+          tool: "explore",
+          arguments: { targetPath: "/project" },
+        },
+        _meta: { is_mcp_tool_call: true },
       } as unknown as SessionUpdate;
 
-      expect(mapSessionUpdate(update, { agentId: "codex" })).toMatchObject({
-        kind: "tool_call_start",
-        toolName: "fyllo-cortex/guidelines",
-        title: "Tool: fyllo-cortex/guidelines",
+      expect(mapSessionUpdate(update, { agentId: "codex-acp" })).toMatchObject({
+        kind: "tool_call_update",
+        toolName: "fyllo-specs/explore",
+        title: "Call fyllo-specs/explore",
       });
     });
 
@@ -709,7 +738,7 @@ describe("mapSessionUpdate", () => {
         kind: "tool_call_start",
         toolCallId: "toolu_mcp_1",
         toolName: "tavily/tavily_search",
-        title: "tavily/tavily_search",
+        title: "Call tavily/tavily_search",
         toolKind: "other",
       });
     });
@@ -729,7 +758,7 @@ describe("mapSessionUpdate", () => {
         kind: "tool_call_update",
         toolCallId: "toolu_mcp_1",
         toolName: "tavily/tavily_search",
-        title: "tavily/tavily_search",
+        title: "Call tavily/tavily_search",
         input: { query: "acp" },
       });
     });

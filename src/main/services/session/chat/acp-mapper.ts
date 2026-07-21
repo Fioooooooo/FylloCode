@@ -64,10 +64,7 @@ export function normalizeCodexThought(text: string): string | null {
   return summary ? `${summary[1].trim()}\n` : text;
 }
 
-function codexToolName(rawInput: unknown, kind: unknown): string {
-  const mcpName = normalizeMcpTool(rawInput, "");
-  if (mcpName) return mcpName;
-
+function codexNativeToolName(kind: unknown): string {
   switch (kind) {
     case "read":
       return "Read";
@@ -82,6 +79,14 @@ function codexToolName(rawInput: unknown, kind: unknown): string {
     default:
       return "Tool";
   }
+}
+
+function codexToolName(rawInput: unknown, kind: unknown): string {
+  return normalizeMcpTool(rawInput, "") || codexNativeToolName(kind);
+}
+
+function mcpCallTitle(toolName: string): string {
+  return `Call ${toolName}`;
 }
 
 function codexEditTitle(content: unknown, fallback: string): string {
@@ -410,18 +415,28 @@ export function mapSessionUpdate(
 
     case "tool_call": {
       const meta = update._meta as { claudeCode?: { toolName?: string } } | null | undefined;
-      // title 优先 _meta.claudeCode.toolName；否则按 codex 形态 rawInput 归一 MCP 标识；再否则原 title。
-      const metaToolName =
+      // 稳定身份优先取 Claude 元数据，其次取结构化 MCP 标识，最后回退 ACP title。
+      const rawToolName =
         meta?.claudeCode?.toolName ?? normalizeMcpTool(update.rawInput, update.title);
       // claude：MCP 工具 `mcp__server__tool` 归一为 `server/tool`；原生工具原样。
-      const normalizedTitle = claude ? normalizeClaudeMcpTool(metaToolName) : metaToolName;
+      const normalizedToolName = claude ? normalizeClaudeMcpTool(rawToolName) : rawToolName;
+      const claudeMcpName = claude && normalizedToolName !== rawToolName ? normalizedToolName : "";
+      const codexMcpName = codex ? normalizeMcpTool(update.rawInput, "") : "";
       const codexTitle =
-        update.kind === "edit" ? codexEditTitle(update.content, update.title) : update.title;
+        codexMcpName !== ""
+          ? mcpCallTitle(codexMcpName)
+          : update.kind === "edit"
+            ? codexEditTitle(update.content, update.title)
+            : update.title;
       const event: SessionEvent = {
         kind: "tool_call_start",
         toolCallId: update.toolCallId,
-        toolName: codex ? codexToolName(update.rawInput, update.kind) : normalizedTitle,
-        title: codex ? codexTitle : normalizedTitle,
+        toolName: codex ? codexMcpName || codexNativeToolName(update.kind) : normalizedToolName,
+        title: codex
+          ? codexTitle
+          : claudeMcpName
+            ? mcpCallTitle(claudeMcpName)
+            : normalizedToolName,
         toolKind: update.kind ?? "other",
         input: extractToolInput(update.rawInput),
         diff: extractDiffs(update.content),
@@ -454,14 +469,25 @@ export function mapSessionUpdate(
       const outputDelta = codex ? codexTerminalOutputDelta(update._meta) : undefined;
 
       const claudeMeta = update._meta as { claudeCode?: { toolName?: string } } | null | undefined;
-      const claudeToolName =
+      const rawClaudeToolName =
         claude && typeof claudeMeta?.claudeCode?.toolName === "string"
-          ? normalizeClaudeMcpTool(claudeMeta.claudeCode.toolName)
+          ? claudeMeta.claudeCode.toolName
           : undefined;
-      // claude 孤儿 update 的 title 若为 MCP 原始串同样归一；原生工具具体命令/路径原样。
+      const claudeToolName =
+        rawClaudeToolName !== undefined ? normalizeClaudeMcpTool(rawClaudeToolName) : undefined;
+      // Claude 孤儿 update 同样识别 MCP 身份并生成 Call 标题；原生工具命令/路径原样。
       const rawTitle = typeof update.title === "string" ? update.title : undefined;
-      const claudeTitle =
+      const normalizedClaudeTitle =
         claude && rawTitle !== undefined ? normalizeClaudeMcpTool(rawTitle) : rawTitle;
+      const claudeMcpName =
+        rawClaudeToolName !== undefined && claudeToolName !== rawClaudeToolName
+          ? claudeToolName
+          : claude && rawTitle !== undefined && normalizedClaudeTitle !== rawTitle
+            ? normalizedClaudeTitle
+            : undefined;
+      const claudeTitle =
+        claudeMcpName !== undefined ? mcpCallTitle(claudeMcpName) : normalizedClaudeTitle;
+      const codexMcpTitle = codex ? normalizeMcpTool(update.rawInput, "") : "";
 
       const event: SessionEvent = {
         kind: "tool_call_update",
@@ -477,7 +503,7 @@ export function mapSessionUpdate(
         diff: extractDiffs(update.content),
         locations: extractLocations(update.locations),
         // 孤儿 update（gemini 跳过 start）补偿建卡所需：若 update 自带 title/kind 则透传。
-        title: claudeTitle,
+        title: codexMcpTitle ? mcpCallTitle(codexMcpTitle) : claudeTitle,
         toolKind: typeof update.kind === "string" ? update.kind : undefined,
         parentToolCallId: claude ? claudeParentToolCallId(update._meta) : undefined,
       };
