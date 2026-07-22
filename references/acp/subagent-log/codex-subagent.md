@@ -1,6 +1,6 @@
 # Codex subagent ACP 流程
 
-> 本文基于 2026-07-21 的单次成功样本 [`codex-subagent.log`](./codex-subagent.log) 整理。它描述当前 Codex ACP 的 collaboration 扩展形态，仅供 FylloCode 后续适配取材，不是跨 agent 协议。
+> 本文基于 2026-07-21 的单次成功样本 [`codex-subagent.log`](codex-subagent-1.1.4.log) 整理。它描述当前 Codex ACP 的 collaboration 扩展形态，仅供 FylloCode 后续适配取材，不是跨 agent 协议。
 
 ## 快速结论
 
