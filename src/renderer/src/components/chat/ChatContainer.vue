@@ -25,6 +25,7 @@ const emit = defineEmits<{
 }>();
 
 const messageScrollContainerRef = ref<HTMLElement | null>(null);
+const messageContentRef = ref<HTMLElement | null>(null);
 const isDraft = computed(() => activeSessionId.value === null);
 const sidebarToggleLabel = computed(() =>
   props.sidebarCollapsed ? "展开聊天列表" : "折叠聊天列表"
@@ -77,16 +78,18 @@ function handleCreateSession(): void {
 
       <section class="relative flex-1 min-h-0 isolate">
         <ChatPromptTimeline
-          class="absolute left-2 top-4 z-10"
+          class="absolute left-2 top-4 bottom-4 z-10"
+          :message-content="messageContentRef"
           :scroll-container="messageScrollContainerRef"
         />
 
         <div
           ref="messageScrollContainerRef"
           class="h-full overflow-y-auto py-4 px-2 relative"
+          data-test="chat-message-scroll-container"
           style="mask-image: linear-gradient(to bottom, transparent, black 24px, black 100%)"
         >
-          <div class="max-w-3xl mx-auto h-full">
+          <div ref="messageContentRef" class="max-w-3xl mx-auto min-h-full">
             <template v-if="isLoadingMessages">
               <ChatMessageSkeleton />
             </template>

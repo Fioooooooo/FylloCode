@@ -13,6 +13,7 @@ const streamErrorRef = ref<{ code: string; message: string } | null>(null);
 const activeStreamIndicatorRef = ref<{ messageId: string; startedAt: number } | null>(null);
 const persistSessionActionStateMock = vi.hoisted(() => vi.fn());
 const scrollIntoViewMock = vi.fn();
+const scrollToMock = vi.fn();
 
 vi.mock("@renderer/stores", () => ({
   useChatStore: () => ({
@@ -159,10 +160,16 @@ describe("ChatContainer", () => {
     activeStreamIndicatorRef.value = null;
     persistSessionActionStateMock.mockReset();
     scrollIntoViewMock.mockReset();
+    scrollToMock.mockReset();
     vi.stubGlobal("CSS", {
       escape: (value: string) => value,
     });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false }))
+    );
     window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+    window.HTMLElement.prototype.scrollTo = scrollToMock;
   });
 
   it("renders the empty agent picker until the active session has messages", async () => {
@@ -317,23 +324,68 @@ describe("ChatContainer", () => {
     });
   });
 
-  it("renders the prompt timeline and scrolls to a user prompt anchor", async () => {
+  it("renders the prompt timeline and uses smooth click navigation", async () => {
     const session = makeSessionWithUserPrompt();
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
 
     const wrapper = mountContainer();
-    await wrapper.vm.$nextTick();
+    await flushPromises();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     expect(wrapper.find('[data-test="chat-prompt-timeline"]').exists()).toBe(true);
 
-    await wrapper.get('[data-test="chat-prompt-timeline-item"]').trigger("click");
+    const rail = wrapper.get('[data-test="chat-prompt-timeline"]');
+    Object.defineProperty(rail.element, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 0, height: 12 }),
+    });
+    await rail.trigger("pointerdown", { button: 0, clientY: 0, pointerId: 1 });
+    await rail.trigger("pointerup", { clientY: 0, pointerId: 1 });
     await flushPromises();
 
-    expect(scrollIntoViewMock).toHaveBeenCalledWith({
-      block: "center",
-      behavior: "smooth",
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("uses immediate navigation while the prompt timeline is dragged", async () => {
+    const session = makeSessionWithUserPrompt();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    await flushPromises();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const rail = wrapper.get('[data-test="chat-prompt-timeline"]');
+    Object.defineProperty(rail.element, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 0, height: 12 }),
     });
+    await rail.trigger("pointerdown", { button: 0, clientY: 0, pointerId: 2 });
+    await rail.trigger("pointermove", { clientY: 6, pointerId: 2 });
+    await rail.trigger("pointerup", { clientY: 6, pointerId: 2 });
+    await flushPromises();
+
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("keeps the prompt timeline hidden below its display threshold and while loading", async () => {
+    const session = makeSessionWithUserPrompt();
+    session.messages = session.messages.slice(0, 1);
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    expect(wrapper.find('[data-test="chat-prompt-timeline"]').exists()).toBe(false);
+
+    session.messages = makeSessionWithUserPrompt().messages;
+    activeSessionRef.value = { ...session };
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="chat-prompt-timeline"]').exists()).toBe(true);
+
+    isLoadingMessagesRef.value = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="chat-prompt-timeline"]').exists()).toBe(false);
   });
 
   it("does not render the event rail when the active session has no agent agenda entries", async () => {
@@ -359,6 +411,22 @@ describe("ChatContainer", () => {
     const promptPanel = wrapper.get('[data-test="prompt-panel"]').element;
     expect(promptPanel.closest(".flex-col")).not.toBeNull();
     expect(promptPanel.closest('[data-test="event-rail"]')).toBeNull();
+  });
+
+  it("constrains the compact timeline without changing the message column or event rail", () => {
+    const session = makeSessionWithUserPrompt();
+    session.agentAgenda = [{ content: "Step 1", priority: "high", status: "completed" }];
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+
+    const wrapper = mountContainer();
+    const timeline = wrapper.get('[data-test="chat-prompt-timeline"]');
+    const timelineHost = timeline.element.closest(".bottom-4");
+
+    expect(timelineHost).not.toBeNull();
+    expect(timelineHost?.classList.contains("top-4")).toBe(true);
+    expect(wrapper.get('[data-test="chat-message-scroll-container"] .max-w-3xl')).toBeTruthy();
+    expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
   });
 
   it("does not render the agent agenda panel at the old bottom position", async () => {

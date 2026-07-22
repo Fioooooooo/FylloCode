@@ -6,6 +6,7 @@ import { useSessionStore } from "@renderer/stores";
 import ChatPromptTimelineNav from "@renderer/components/chat/timeline/ChatPromptTimelineNav.vue";
 
 const props = defineProps<{
+  messageContent: HTMLElement | null;
   scrollContainer: HTMLElement | null;
 }>();
 
@@ -16,6 +17,7 @@ const { promptTimelineItems, activePromptTimelineItemId, showPromptTimeline, loc
     activeSession,
     activeSessionId,
     isLoadingMessages,
+    messageContentRef: toRef(props, "messageContent"),
     messageScrollContainerRef: toRef(props, "scrollContainer"),
   });
 </script>

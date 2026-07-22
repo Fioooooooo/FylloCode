@@ -81,4 +81,29 @@ describe("collectChatPromptTimelineItems", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.preview).toBe("图片附件、spec.pdf");
   });
+
+  it("preserves prompt order while filtering hidden and empty user messages", () => {
+    const items = collectChatPromptTimelineItems([
+      message("user-attachment", "user", [
+        {
+          type: "file",
+          mediaType: "application/pdf",
+          url: "file:///tmp/brief.pdf",
+          filename: "brief.pdf",
+        },
+      ]),
+      message("assistant-1", "assistant", [{ type: "text", text: "ignored" }]),
+      message("user-hidden", "user", [
+        { type: "text", text: "<system-reminder>hidden only</system-reminder>" },
+      ]),
+      message("user-visible", "user", [
+        { type: "text", text: "<system-reminder>hidden</system-reminder>" },
+        { type: "text", text: "Visible follow-up" },
+      ]),
+    ]);
+
+    expect(items.map((item) => item.messageId)).toEqual(["user-attachment", "user-visible"]);
+    expect(items.map((item) => item.preview)).toEqual(["brief.pdf", "Visible follow-up"]);
+    expect(items.map((item) => item.index)).toEqual([1, 2]);
+  });
 });
