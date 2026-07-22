@@ -147,4 +147,4 @@ There are also paths between them. Knowledge entries that are repeatedly referen
 
 Together, these three tools give a coding agent the conditions for self-evolution inside a project: **every conversation consumes existing conventions, facts, and context while also producing new ones**. As the project grows in functionality, the agent's understanding of it grows too, and that understanding no longer evaporates when a conversation closes.
 
-Every debate and reversal from the design process remains in the repository under `references/knowledge-tool/`. By knowledge's own standards, that document is itself a textbook example of valid project knowledge.
+Every debate and reversal from the design process remains in the repository under `references/designs/knowledge-tool/`. By knowledge's own standards, that document is itself a textbook example of valid project knowledge.

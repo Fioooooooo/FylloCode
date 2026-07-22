@@ -1,6 +1,6 @@
 # Claude Code (claude-acp) session update 修复方案
 
-> 本文记录 Claude Code ACP（agent id `claude-acp`）当前工具调用事件形态及 FylloCode 的阶段性适配方案。延续 `Codex.md` 的按 agent 单独适配思路，`references/` 仅供后续统一 Proposal 取材，不是行为契约。
+> 本文记录 Claude Code ACP（agent id `claude-acp`）当前工具调用事件形态及 FylloCode 的阶段性适配方案。延续 `Codex.md` 的按 agent 单独适配思路，`references/third-party/acp/` 仅供后续统一 Proposal 取材，不是行为契约。
 
 ## 目标与边界
 
@@ -20,7 +20,7 @@
 
 ## 日志证据
 
-证据来源：`references/acp/tool-call-trace/agent-tool-call-logs/claude-acp.txt`、同目录 `agent-tool-call-analysis/claude-acp.md`，以及本次针对 MCP 工具触发 tavily 后的开发日志 `data/logs/main.log`。
+证据来源：`references/third-party/acp/tool-call-trace/agent-tool-call-logs/claude-acp.txt`、同目录 `agent-tool-call-analysis/claude-acp.md`，以及本次针对 MCP 工具触发 tavily 后的开发日志 `data/logs/main.log`。
 
 ### 原生工具（现状已可用）
 

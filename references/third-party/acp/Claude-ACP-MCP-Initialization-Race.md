@@ -343,7 +343,7 @@ MCP_CONNECT_TIMEOUT_MS=30000
 ## 后续 Agent 可直接使用的任务描述
 
 ```text
-先完整阅读 references/acp/Claude-ACP-MCP-Initialization-Race.md 和关联 blog。
+先完整阅读 references/third-party/acp/Claude-ACP-MCP-Initialization-Race.md 和关联 blog。
 检查当前实际安装的 claude-agent-acp、Claude Agent SDK 与 bundled Claude Code Runtime 版本，
 重新查看文档列出的上游 issue 和 Claude Code changelog。先做只读调查并报告证据。
 

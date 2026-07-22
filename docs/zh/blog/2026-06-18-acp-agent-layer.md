@@ -94,7 +94,7 @@ Adapter 的问题在于，它很难真正代表原生体验。上游 CLI 或 SDK
 
 ACP 太过开放了，为了不给 Agent 产品增加难度，协议 schema 中很多事件，甚至很多字段都是可选的。最让我受不了的是 `tool_call` 事件，ACP 协议对 `tool_call` 字段的定义几乎全部是可选的，除 `toolCallId` 和 `title` 以外，`status / kind / rawInput / rawOutput / content / locations` 均为可选，而且协议没有规定各字段出现的时机。这意味着各 Agent 的差异行为都是协议合法的，想获得好的体验 Client 必须自己做兼容。
 
-我测试了 5 款 Agent：`Claude Agent`、`Codex ACP`、`Gemini CLI`、`OpenCode` 和 `Qodercli`，测试结果在[这里](https://github.com/Fioooooooo/FylloCode/tree/main/references/acp/tool-call-trace)。一句话，太乱了。迫不得已再给这些 `tool_call` 做一个兼容层。
+我测试了 5 款 Agent：`Claude Agent`、`Codex ACP`、`Gemini CLI`、`OpenCode` 和 `Qodercli`，测试结果在[这里](https://github.com/Fioooooooo/FylloCode/tree/main/references/third-party/acp/tool-call-trace)。一句话，太乱了。迫不得已再给这些 `tool_call` 做一个兼容层。
 
 这类问题单看协议字段可能只是小差异，但放到产品里就会很明显。比如同样是一次文件编辑，有的 Agent 会先给出工具标题，有的会先给出 diff，有的直到 completed 才补齐内容。如果 Client 不做额外整理，用户看到的就不是一个稳定的工具调用流程，而是一堆时序不一致的事件碎片。
 

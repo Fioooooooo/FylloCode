@@ -95,7 +95,7 @@ Fortunately, more Agents now support ACP natively, including `Qodercli` and `Kim
 
 ACP is very open. To reduce difficulty for Agent products, many events and fields in the schema are optional. The most frustrating one for me is `tool_call`. In ACP, almost every field of `tool_call` is optional. Except for `toolCallId` and `title`, fields such as `status`, `kind`, `rawInput`, `rawOutput`, `content`, and `locations` are optional. The protocol also does not define when each field should appear. That means different Agent behaviors are all legal, and Clients must handle compatibility to provide a good experience.
 
-I tested five Agents: `Claude Agent`, `Codex ACP`, `Gemini CLI`, `OpenCode`, and `Qodercli`. The results are [here](https://github.com/Fioooooooo/FylloCode/tree/main/references/acp/tool-call-trace). In one sentence: it is messy. I had to build another compatibility layer for `tool_call`.
+I tested five Agents: `Claude Agent`, `Codex ACP`, `Gemini CLI`, `OpenCode`, and `Qodercli`. The results are [here](https://github.com/Fioooooooo/FylloCode/tree/main/references/third-party/acp/tool-call-trace). In one sentence: it is messy. I had to build another compatibility layer for `tool_call`.
 
 These differences may look small at the protocol level, but they are obvious in the product. For the same file edit, one Agent may first send a tool title, another may send a diff first, and another may only fill content after completion. Without extra processing, users do not see a stable tool call flow. They see fragments with inconsistent timing.
 

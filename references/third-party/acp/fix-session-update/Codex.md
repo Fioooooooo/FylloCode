@@ -1,6 +1,6 @@
 # Codex session update 修复方案
 
-> 本文记录 Codex ACP 当前事件形态及 FylloCode 的阶段性适配方案。`references/` 仅供后续统一 Proposal 取材，不是行为契约。
+> 本文记录 Codex ACP 当前事件形态及 FylloCode 的阶段性适配方案。`references/third-party/acp/` 仅供后续统一 Proposal 取材，不是行为契约。
 
 ## 目标与边界
 
@@ -13,7 +13,7 @@
 - 同时兼容旧版 Codex ACP 的标准 `content` / `rawOutput` 形态；
 - 保持其他 agent 的现有映射和展示不变。
 
-本次不处理 `agent_message_chunk._meta.codex.phase` 的 commentary / final_answer 分流，也不建立跨 agent 的统一 adapter 架构。待其他 agent 适配完成后，再根据 `references/acp/fix-session-update/` 下的文档统一形成 Proposal。
+本次不处理 `agent_message_chunk._meta.codex.phase` 的 commentary / final_answer 分流，也不建立跨 agent 的统一 adapter 架构。待其他 agent 适配完成后，再根据 `references/third-party/acp/fix-session-update/` 下的文档统一形成 Proposal。
 
 ## 日志证据
 

@@ -12,7 +12,7 @@
 - `SessionItem` 没有通用提醒派生边界，未来新增提醒来源时容易直接耦合 Action store。
 - `sessionId` 只校验非空；Action state IPC 没有充分绑定发送窗口所属 project；Renderer 提供的 `updatedAt` 被 Main 直接接受。
 
-本设计在 `references/fyllo-action/README.md` 的基础上，明确落地边界、文件位置和迁移顺序，确保行为契约变更可被独立验证。
+本设计在 `references/designs/fyllo-action/README.md` 的基础上，明确落地边界、文件位置和迁移顺序，确保行为契约变更可被独立验证。
 
 ## Goals / Non-Goals
 

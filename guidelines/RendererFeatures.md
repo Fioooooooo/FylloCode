@@ -13,13 +13,13 @@ keywords: [renderer, features, architecture, boundaries, vue]
 - 不覆盖：跨进程协议和共享 schema；这些继续放在 `src/shared/**` 并遵守 `guidelines/Architecture.md` 与 `guidelines/MainProcess.md`。
 - 不覆盖：视觉 token、交互和可访问性规范；feature UI 仍须遵守 `guidelines/UiDesign.md`。
 
-本结构是 Renderer 进程面向复杂能力的渐进式演进方向。现有技术目录不要求一次性搬迁；新复杂能力和已批准的能力重组应优先建立 feature 边界，并按独立变更逐步迁移。首个已确认采用该结构的能力是 `references/fyllo-action/README.md` 中的 Fyllo Action 整改方向。
+本结构是 Renderer 进程面向复杂能力的渐进式演进方向。现有技术目录不要求一次性搬迁；新复杂能力和已批准的能力重组应优先建立 feature 边界，并按独立变更逐步迁移。首个已确认采用该结构的能力是 `references/designs/fyllo-action/README.md` 中的 Fyllo Action 整改方向。
 
 ## Feature 准入与边界
 
 - MUST 只让具有复杂功能编排责任的能力进入 `features/**`。至少应存在以下一种准入信号：多个 UI/宿主入口需要共享同一状态投影或交互生命周期；独立状态机、持久化、重试或幂等流程；通过 port/contributor 协调其他 feature；第三方宿主或 overlay/integration 适配；已批准的复杂能力迁移。仅有一个 route、一个 domain store 和少量页面内交互不构成 feature 准入理由。（依据：用户确认的 feature 准入边界；复杂实例见 `src/renderer/src/features/fyllo-action/**`。）
 - MUST 让单页面、小规模能力继续使用 `src/renderer/src/pages/**`、`components/**`、`composables/**`、`utils/**` 与既有 domain store/API 的传统 renderer 结构；不得仅因它能被命名为一个用户能力、包含异步读取或拆出多个组件就创建 feature。现有 reader 页面模式见 `src/renderer/src/pages/guidelines.vue`、`src/renderer/src/pages/specs.vue`。（依据：用户确认的小功能落位规则。）
-- MUST 以可独立描述的用户能力或业务用例命名 feature，例如 `fyllo-action`、`workflow-editor`、`chat-composer`；不得以 `common`、`misc`、`helpers` 等无所有权名称建立 feature。（证据：`references/fyllo-action/README.md`；当前 `src/renderer/src/components/shared/**` 已承担真正的跨功能 UI 原语。）
+- MUST 以可独立描述的用户能力或业务用例命名 feature，例如 `fyllo-action`、`workflow-editor`、`chat-composer`；不得以 `common`、`misc`、`helpers` 等无所有权名称建立 feature。（证据：`references/designs/fyllo-action/README.md`；当前 `src/renderer/src/components/shared/**` 已承担真正的跨功能 UI 原语。）
 - MUST 让已准入的 feature 拥有自己的复杂交互生命周期、跨入口用例编排或被多个宿主复用的纯业务投影。单个通用组件、单个格式化函数、route wrapper、API wrapper、store 或仅服务一个页面的展示投影不得仅为目录一致性被包装成 feature。
 - MUST 在 feature 根目录提供 `README.md`，至少说明状态、范围、非范围、当前来源位置、目标边界和迁移触发条件。仅含 README 的目录表示已记录的未来方向，不表示功能已迁移或可从该目录导入。
 - MUST 默认通过 `features/<feature>/index.ts` 暴露已实现 feature 的公共 API。feature 外部不得深路径导入其 `model/`、`application/` 或 `ui/` 内部文件；确有 bundling、循环依赖或宿主注册需求时，可增加 README 明确列出的 integration entry point。
@@ -37,7 +37,7 @@ keywords: [renderer, features, architecture, boundaries, vue]
 | 有宿主、第三方库、overlay、route 或跨 feature 装配 | 按需使用完整 `model/application/ui/integration` |
 
 - MUST 以“能否降低一次需求改动所跨越的目录和所有权数量”判断是否创建 feature；不得只以文件数量或页面名称判断。
-- SHOULD 在 feature 出现多个 UI 入口、明确状态机、持久化/重试/幂等、第三方宿主或跨 domain 副作用时使用完整分层。Fyllo Action 同时具备 streaming 生命周期、Action 状态、Inline/Rail/badge 多入口、Markstream 集成和 durable 副作用，因此采用完整四层。（证据：`references/fyllo-action/README.md`。）
+- SHOULD 在 feature 出现多个 UI 入口、明确状态机、持久化/重试/幂等、第三方宿主或跨 domain 副作用时使用完整分层。Fyllo Action 同时具备 streaming 生命周期、Action 状态、Inline/Rail/badge 多入口、Markstream 集成和 durable 副作用，因此采用完整四层。（证据：`references/designs/fyllo-action/README.md`。）
 - SHOULD 让已通过准入但仍处于渐进迁移首切片的 feature 保持可读的最小结构；当职责增长时再拆层。不得提前创建只有一个 re-export 或空 `index.ts` 的层级，也不得以该最小结构作为新建小型 feature 的理由。
 - MUST 将“是否创建 feature”和“feature 内是否使用四层”分开判断。不是所有页面块、组件或 composable 都应成为 feature。
 
@@ -170,7 +170,7 @@ Chat host
 - `fyllo-action/integration/event-rail.ts` 只把 `PendingFylloAction[]` 转换为 contributor；
 - `proposal-workbench/integration/event-rail.ts` 只转换 proposal projection；
 - Chat host 同时导入三个公共入口并完成装配；
-- Event Rail 核心不导入 Fyllo Action 或 Proposal，来源 feature 也不导入 Rail 内部 UI。（规划依据：`src/renderer/src/features/chat-event-rail/README.md` 与 `references/fyllo-action/README.md`。）
+- Event Rail 核心不导入 Fyllo Action 或 Proposal，来源 feature 也不导入 Rail 内部 UI。（规划依据：`src/renderer/src/features/chat-event-rail/README.md` 与 `references/designs/fyllo-action/README.md`。）
 
 Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed contract。事件表达已经发生的 occurrence；要求另一个 feature 执行动作时仍应使用 command/port，不得用 event 伪装命令。
 
@@ -206,7 +206,7 @@ Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed co
 
 - MUST 区分 feature-owned 纯 projection 与宿主展示 DTO。前者放在 model，例如 `Session -> PendingFylloAction[]`；后者在 integration 中转换，例如 `PendingFylloAction[] -> EventRail contributor`。model 不得返回 EventRail、overlay 或具体组件拥有的 DTO。
 - MUST 区分领域/持久化状态与 Renderer 运行期控制状态。纯状态枚举、终态谓词和迁移判断放在 model；`running`、`retrying`、`sync-failed` 等控制器生命周期放在 application；局部 hover/open/expanded 状态留在 ui。
-- SHOULD 让多个展示入口复用 model selector，不得在 Inline、Rail、badge 等 UI 中分别重写同一状态判定。（证据：`references/fyllo-action/README.md` 中统一 `requiresFylloActionAttention` 与 resolved predicate 的决策。）
+- SHOULD 让多个展示入口复用 model selector，不得在 Inline、Rail、badge 等 UI 中分别重写同一状态判定。（证据：`references/designs/fyllo-action/README.md` 中统一 `requiresFylloActionAttention` 与 resolved predicate 的决策。）
 
 ## 迁移规则
 

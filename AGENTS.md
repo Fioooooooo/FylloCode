@@ -31,7 +31,7 @@ FylloCode/
 │   ├── shared/         # 跨进程共享类型、schema、常量与错误对象
 │   └── mcp-servers/    # 内置 MCP server
 ├── test/               # 与 src/ 平级，内部按 src/ 镜像组织测试
-├── references/         # ACP、第三方集成等专题参考资料
+├── references/         # 参考资料（designs/ 自身设计方案，third-party/ 第三方调研）
 ├── build/              # 构建资源（图标、entitlements）
 ├── resources/          # 应用资源
 ├── vitest.config.mts   # Vitest 配置（ESM，.mts 后缀）
