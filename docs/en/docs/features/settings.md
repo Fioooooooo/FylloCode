@@ -6,7 +6,7 @@ sidebar:
 
 # Settings
 
-Settings centralizes FylloCode application preferences, ACP Agents, global service connections, and version information. The ActivityBar entry remains `/settings`, which opens the default `/settings/acp-agents` page.
+Settings centralizes FylloCode application preferences, ACP Agents, global service connections, and version information. The ActivityBar entry remains `/settings`, which opens the default `/settings/preferences` page.
 
 ## Pages and Paths
 
@@ -29,6 +29,6 @@ Service Connections changes only the user-facing terminology and navigation path
 
 ## Path Compatibility
 
-`/settings?tab=integration-providers`, `/settings?tab=preferences`, and `/settings?tab=about` no longer select a Settings section and are not redirected to the new child routes. Opening `/settings` with an old `tab` parameter follows the default behavior and enters `/settings/acp-agents`.
+`/settings?tab=integration-providers`, `/settings?tab=preferences`, and `/settings?tab=about` no longer select a Settings section and are not redirected to the new child routes. Opening `/settings` with an old `tab` parameter follows the default behavior and enters `/settings/preferences`.
 
 Use the independent child routes in the table when linking directly to a Settings page.

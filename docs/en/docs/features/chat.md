@@ -15,9 +15,10 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 ## Main Capabilities
 
 - Manage project sessions
+- Pin important sessions into a separate group, with the pinned state restored after restart
 - Select installed ACP Agents
 - Send text and attachment context
-- Display Agent reasoning, tool calls, and streamed output
+- Display Agent reasoning, tool calls, subagent calls, and streamed output state
 - Render structured content such as Mermaid and Markdown
 - Create proposals and continue later stages inside task context
 - Show a source task banner for task-based sessions, including after reopening the session
@@ -25,7 +26,15 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 
 ## Locating Past Messages
 
-A timeline appears in the top-left of the conversation area, marking every message you've sent in the current session. While scrolling a long conversation, the timeline highlights the node matching your current reading position; clicking a node scrolls smoothly back to that message. The timeline is hidden when there are fewer than two messages.
+A timeline appears in the top-left of the conversation area, marking every message you've sent in the current session. While scrolling a long conversation, the timeline highlights the node matching your current reading position; clicking or dragging the line index locates the matching message. The timeline also supports keyboard focus, arrow-key preview, Enter to locate, and Escape to close the summary popover. The timeline is hidden when there are fewer than two messages.
+
+## Reading Agent Activity
+
+The currently streaming assistant message shows a runtime indicator after the content already received, with generic status text and elapsed time in natural units. The indicator only means the reply is still being processed; it does not infer the Agent's specific action from tool calls. It is removed when the stream finishes, fails, or is cancelled, and historical messages do not retain this runtime state.
+
+Consecutive Thinking and normal tool calls are grouped into a collapsible Activity group. After expanding the group, you can inspect each Thinking and Tool item separately, including complete Input and Output sections. Long content scrolls inside the detail area instead of being truncated in the underlying data.
+
+When Claude Code starts a subagent through the Agent tool, the parent call appears as a separate card. Opening the details shows the prompt, status, model, tokens, duration, tool statistics, child tool activity, and final response. The details connect only parent-child tool relationships that can be safely confirmed inside the same assistant message; tools that cannot be linked continue to appear as normal tools.
 
 ## Session Event Rail
 

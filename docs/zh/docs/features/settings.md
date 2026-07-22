@@ -6,7 +6,7 @@ sidebar:
 
 # 设置
 
-设置区域集中管理 FylloCode 的应用级偏好、ACP Agents、全局服务连接和版本信息。ActivityBar 的设置入口保持为 `/settings`，打开后会进入默认的 `/settings/acp-agents` 页面。
+设置区域集中管理 FylloCode 的应用级偏好、ACP Agents、全局服务连接和版本信息。ActivityBar 的设置入口保持为 `/settings`，打开后会进入默认的 `/settings/preferences` 页面。
 
 ## 页面与路径
 
@@ -29,6 +29,6 @@ sidebar:
 
 ## 路径兼容性
 
-`/settings?tab=integration-providers`、`/settings?tab=preferences` 和 `/settings?tab=about` 不再用于选择设置区域，也不会兼容重定向到对应子页面。打开带旧 `tab` 参数的 `/settings` 会按默认行为进入 `/settings/acp-agents`。
+`/settings?tab=integration-providers`、`/settings?tab=preferences` 和 `/settings?tab=about` 不再用于选择设置区域，也不会兼容重定向到对应子页面。打开带旧 `tab` 参数的 `/settings` 会按默认行为进入 `/settings/preferences`。
 
 需要直接进入某个设置区域时，请使用上表中的独立子路由。

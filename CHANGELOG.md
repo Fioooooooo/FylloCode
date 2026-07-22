@@ -4,6 +4,42 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.3] - 2026-07-22
+
+这个版本提升长对话和 Agent 执行过程的可读性：Chat 现在可以置顶重要会话，正在生成的 assistant 消息会展示运行状态，连续 Thinking / Tool 活动会收拢为可展开的 Activity group。Claude Code 子 Agent 调用也获得独立检查器，方便查看父子工具关系、运行统计和最终回复；同时依赖版本和发版流程文档进一步收敛，降低后续升级和发布风险。
+
+### 新增
+
+- Chat 会话支持置顶和取消置顶；置顶状态随项目会话元数据持久化，侧栏按“置顶会话 / 最近会话”分组展示，并限制置顶分组高度以保留最近会话可视空间
+- 正在 stream 的 assistant 消息新增消息级运行状态指示，显示 4×4 dot matrix 动画、通用状态文案和自然单位耗时；该状态仅保存在 renderer 运行时，流结束后不会进入历史消息
+- 新增 Claude Code 子 Agent 调用检查器：父 Agent 工具显示为独立卡片，详情展示 prompt、状态、模型、token、耗时、工具统计、子工具活动和最终回复
+- 新增 `assistant-stream-indicator`、`pinned-sessions`、`subagent-call-inspector`、`assistant-activity-display` 和 `chat-prompt-timeline` OpenSpec 能力规约，沉淀本轮 Chat 可观测性和导航行为契约
+
+### 调整
+
+- Chat prompt 时间线改为紧凑横线索引，支持连续命中最近 prompt、拖动即时定位、单一摘要浮层、键盘导航和更稳定的阅读位置同步
+- Assistant 消息中的连续 Thinking 与普通工具调用统一收拢为可折叠 Activity group；工具详情使用独立 `Input` / `Output` 分区，并完整展示 Codex MCP 返回的最终输出
+- ACP event mapper 拆分为 Agent 无关基线、Claude / Codex adapter、tool-call mapper 和 update normalizer，保留多 Agent 映射边界并增强 Claude Code / Codex 会话更新兼容性
+- 设置页默认入口调整为 `/settings/preferences`，Preferences 与 About 页面内容收敛为更聚焦的偏好和版本更新信息
+- 依赖升级到当前锁定组合，并显式锁定 `markstream-vue` `1.0.5` 与 `stream-monaco` `0.0.46`，记录升级前需要验证的兼容性约束
+- `references/` 重新整理为 `designs/` 和 `third-party/`，补充 ACP 子 Agent、Claude MCP 初始化竞态、内置 MCP HTTP 与 bundled MCP 相关调研和设计资料
+- 仓库发版 skill 增强版本、文档审计、release notes 展示时机和 MCP server 版本决策规则
+
+### 修复
+
+- 修复 Claude Code MCP 初始化竞态，等待 MCP 启动完成后再进入可用状态，减少启动早期工具不可用的问题
+- 修复 Claude Code 和 Codex ACP 会话更新映射细节，避免会话标题、工具名称、MCP 调用标题和子 Agent 输出在流式过程中显示不稳定
+- 修复 prompt 时间线摘要浮层在 hover、点击和焦点切换时可能抢占焦点、重复打开或摘要窗口跳动的问题
+- 修复 Chat 会话条目宽度、配置下拉 hover、确认弹窗、lineage/task/settings 局部布局和会话状态细节
+- 移除 main 进程冗余动态导入，保持运行时依赖路径更直接
+
+### 备注
+
+- 应用版本升级到 `0.14.3`。
+- `fyllo-specs` MCP server 升级到 `0.8.2`，仅包含 archive outcome 解析类型的内部规范化，不改变 tool 名称、输入、输出、指引或 archive 行为。
+- `fyllo-cortex` MCP server 保持 `0.5.0`；本次发布范围没有修改该 server。
+- 本次置顶会话会在既有 session 元数据中新增可选 `isPinned` 字段；缺少该字段的历史会话按未置顶读取，无需手动迁移。
+
 ## [0.14.2] - 2026-07-16
 
 这个版本补齐项目级工作脉络浏览能力，让任务、Chat、Plan、Proposal 与 Commit 可以在同一页面按 Session 回看。Settings 同时改为稳定的独立子路由，并统一服务连接术语；长内容确认弹窗的操作区域也保持可见，减少关键确认按钮被滚动内容挤出视口的问题。

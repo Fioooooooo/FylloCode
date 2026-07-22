@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.3] - 2026-07-22
+
+This release improves readability in long Chat sessions and while Agents are working. Chat can now pin important sessions, streaming assistant messages show a runtime indicator, and consecutive Thinking / Tool activity is grouped into expandable Activity groups. Claude Code subagent calls also get a dedicated inspector for parent-child tool relationships, runtime statistics, and final responses, while dependency pinning and release workflow guidance reduce upgrade and release risk.
+
+### Added
+
+- Chat sessions can now be pinned and unpinned; the pinned state is persisted with project session metadata, the sidebar shows Pinned Sessions and Recent Sessions groups, and the pinned group is height-limited so recent sessions remain visible
+- Streaming assistant messages now show a message-level runtime indicator with a 4×4 dot matrix animation, generic status text, and natural elapsed-time units; the state exists only in renderer runtime and is not stored in historical messages
+- Added a Claude Code subagent call inspector: parent Agent tools render as standalone cards, and details show prompt, status, model, tokens, duration, tool statistics, child tool activity, and final response
+- Added OpenSpec capabilities for `assistant-stream-indicator`, `pinned-sessions`, `subagent-call-inspector`, `assistant-activity-display`, and `chat-prompt-timeline` to capture this release's Chat observability and navigation contracts
+
+### Changed
+
+- Chat prompt timeline now uses a compact line index with continuous nearest-prompt hit testing, drag-to-locate, one summary popover, keyboard navigation, and more stable reading-position synchronization
+- Consecutive Thinking and normal tool calls in assistant messages are grouped into collapsible Activity groups; tool details use separate `Input` and `Output` sections and show the complete final output returned by Codex MCP calls
+- The ACP event mapper is split into an Agent-neutral baseline, Claude / Codex adapters, a tool-call mapper, and update normalizers, preserving multi-Agent mapping boundaries while improving Claude Code and Codex session update compatibility
+- The default Settings entry now opens `/settings/preferences`, and the Preferences and About pages are tightened around preference and release-update information
+- Dependencies were updated to the current locked set, with `markstream-vue` `1.0.5` and `stream-monaco` `0.0.46` explicitly pinned together with compatibility notes for future upgrades
+- `references/` is reorganized into `designs/` and `third-party/`, with added research and designs for ACP subagents, the Claude MCP initialization race, built-in MCP HTTP, and bundled MCP work
+- The repository release skill now has tighter versioning, documentation-audit, release-note timing, and MCP server version decision rules
+
+### Fixed
+
+- Fixed a Claude Code MCP initialization race by waiting for MCP startup before treating the session as ready, reducing early tool-unavailable failures
+- Fixed Claude Code and Codex ACP session update mapping details so session titles, tool names, MCP call titles, and subagent output remain more stable while streaming
+- Fixed prompt timeline summary popovers potentially stealing focus, reopening immediately, or shifting the summary window during hover, click, and focus transitions
+- Fixed Chat session item width, config dropdown hover behavior, confirmation dialogs, and local layout/state details in lineage, task, and settings pages
+- Removed redundant dynamic imports from the main process so runtime dependency paths stay direct
+
+### Notes
+
+- The application version is now `0.14.3`.
+- `fyllo-specs` MCP server is now `0.8.2`, containing only an internal archive outcome parsing type normalization with no changes to tool names, inputs, outputs, instructions, or archive behavior.
+- `fyllo-cortex` MCP server remains at `0.5.0`; that server did not change in this release range.
+- Pinned sessions add an optional `isPinned` field to existing session metadata. Historical sessions without the field are read as unpinned and require no manual migration.
+
 ## [0.14.2] - 2026-07-16
 
 This release adds a project-level Work Lineage browser so tasks, Chat sessions, Plans, Proposals, and Commits can be reviewed by Session on one page. Settings now uses stable child routes with consistent Service Connections terminology, while confirmation actions remain visible when a dialog contains a long description.

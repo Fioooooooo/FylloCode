@@ -4,6 +4,12 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.8.2] - 2026-07-22
+
+### Changed
+
+- Internal archive outcome parsing types were normalized without changing tool names, inputs, outputs, instructions, or archive behavior.
+
 ## [0.8.1] - 2026-07-15
 
 ### Changed
