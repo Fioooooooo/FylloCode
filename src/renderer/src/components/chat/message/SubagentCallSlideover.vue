@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { DynamicToolUIPart, UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { isToolStreaming } from "@nuxt/ui/utils/ai";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
-import { getToolIcon, getToolOutput, getToolSuffix, getToolText } from "@renderer/utils/chatTool";
+import ChatToolDetails from "./ChatToolDetails.vue";
+import { getToolIcon, getToolInput, getToolOutput, getToolText } from "@renderer/utils/chatTool";
 import {
   formatSubagentDuration,
   formatSubagentTokens,
@@ -12,7 +13,6 @@ import {
   getSubagentToolStatRows,
   projectSubagentCalls,
   resolveSubagentDisplayState,
-  type ChatToolPart,
   type SubagentDisplayState,
 } from "@renderer/utils/chatSubagent";
 
@@ -83,13 +83,6 @@ const result = computed(() => {
 });
 const toolStatRows = computed(() => getSubagentToolStatRows(summary.value?.toolStats));
 const isSettledState = computed(() => displayState.value !== "running");
-
-function toolInput(part: ChatToolPart): string | null {
-  if (part.type !== "dynamic-tool") return null;
-  const value = (part as DynamicToolUIPart).input;
-  if (!value || (typeof value === "object" && Object.keys(value).length === 0)) return null;
-  return JSON.stringify(value, null, 2);
-}
 
 function depthClass(depth: number): string {
   if (depth >= 4) return "pl-12";
@@ -216,26 +209,15 @@ function depthClass(depth: number): string {
                     <span class="min-w-0 flex-1 truncate text-default">
                       {{ getToolText(entry.part) }}
                     </span>
-                    <span v-if="getToolSuffix(entry.part)" class="truncate text-xs text-muted">
-                      {{ getToolSuffix(entry.part) }}
-                    </span>
                     <span class="text-xs text-muted">
                       {{ isToolStreaming(entry.part) ? "运行中" : "查看详情" }}
                     </span>
                   </summary>
-                  <div class="max-h-72 space-y-3 overflow-auto border-t border-default/50 p-3">
-                    <div v-if="toolInput(entry.part)" class="space-y-1">
-                      <p class="text-xs font-medium text-muted">Input</p>
-                      <pre class="whitespace-pre-wrap wrap-anywhere text-xs text-default">{{
-                        toolInput(entry.part)
-                      }}</pre>
-                    </div>
-                    <div v-if="getToolOutput(entry.part)" class="space-y-1">
-                      <p class="text-xs font-medium text-muted">Output</p>
-                      <pre class="whitespace-pre-wrap wrap-anywhere text-xs text-default">{{
-                        getToolOutput(entry.part)
-                      }}</pre>
-                    </div>
+                  <div class="border-t border-default/50 p-3">
+                    <ChatToolDetails
+                      :input="getToolInput(entry.part)"
+                      :output="getToolOutput(entry.part)"
+                    />
                   </div>
                 </details>
               </div>

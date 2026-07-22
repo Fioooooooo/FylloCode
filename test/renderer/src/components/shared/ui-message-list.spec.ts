@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { computed, ref, type PropType } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/session/chat";
@@ -62,14 +63,15 @@ function dynamicTool(
   toolCallId: string,
   toolName: string,
   output: string,
-  toolKind?: string
+  toolKind?: string,
+  input: unknown = {}
 ): DynamicToolUIPart {
   return {
     type: "dynamic-tool",
     toolCallId,
     toolName,
     state: "output-available",
-    input: {},
+    input,
     output,
     ...(toolKind === undefined ? {} : { toolMetadata: { toolKind } }),
   };
@@ -84,6 +86,13 @@ function streamingTool(toolCallId: string, toolName: string, toolKind?: string):
     input: {},
     ...(toolKind === undefined ? {} : { toolMetadata: { toolKind } }),
   };
+}
+
+function reasoning(
+  text: string,
+  state: "streaming" | "done" = "done"
+): Extract<UIMessage["parts"][number], { type: "reasoning" }> {
+  return { type: "reasoning", text, state };
 }
 
 function subagentTool(
@@ -226,13 +235,54 @@ function mountList(
       '<div data-test="chat-messages" :data-status="status"><div v-for="message in messages" :key="message.id"><slot name="content" :message="message" /><slot name="actions" :message="message" /></div></div>',
   };
   const chatToolStub = {
-    props: ["text", "suffix", "streaming", "icon", "open", "variant", "ui"],
+    props: {
+      text: String,
+      suffix: String,
+      streaming: Boolean,
+      icon: String,
+      open: { type: Boolean, default: undefined },
+      variant: String,
+      ui: Object as PropType<{ content?: string }>,
+    },
     emits: ["update:open"],
+    setup(
+      props: { open?: boolean },
+      { emit }: { emit: (event: "update:open", value: boolean) => void }
+    ) {
+      const internalOpen = ref(false);
+      const isOpen = computed(() => (props.open === undefined ? internalOpen.value : props.open));
+      function toggle(): void {
+        if (props.open === undefined) internalOpen.value = !internalOpen.value;
+        else emit("update:open", !props.open);
+      }
+      return { isOpen, toggle };
+    },
     template:
-      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" :data-ui-content="ui?.content ?? \'\'" @click="$emit(\'update:open\', !open)"><span data-test="tool-text">{{ text }}</span><span data-test="tool-suffix">{{ suffix }}</span><slot v-if="open === undefined || open" /></div>',
+      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" :data-ui-content="ui?.content ?? \'\'" :data-has-suffix="String(suffix !== undefined)" :aria-expanded="String(isOpen)" @click.stop="toggle"><span data-test="tool-text">{{ text }}</span><span v-if="suffix !== undefined" data-test="tool-suffix">{{ suffix }}</span><slot v-if="isOpen" /></div>',
   };
   const chatReasoningStub = {
-    template: "<div><slot /></div>",
+    props: {
+      text: String,
+      streaming: Boolean,
+      open: { type: Boolean, default: undefined },
+      duration: Number,
+      icon: String,
+    },
+    emits: ["update:open"],
+    setup(
+      props: { open?: boolean; streaming?: boolean },
+      { emit }: { emit: (event: "update:open", value: boolean) => void }
+    ) {
+      const internalOpen = ref(Boolean(props.streaming));
+      const isOpen = computed(() => (props.open === undefined ? internalOpen.value : props.open));
+      function toggle(): void {
+        if (props.open === undefined) internalOpen.value = !internalOpen.value;
+        else emit("update:open", !props.open);
+      }
+      return { isOpen, toggle };
+    },
+    template:
+      '<div data-test="reasoning" :data-streaming="String(streaming)" :data-icon="icon" :data-duration="duration" :aria-expanded="String(isOpen)" @click.stop="toggle"><span data-test="reasoning-label">Thinking</span><span v-if="isOpen" data-test="reasoning-text">{{ text }}</span></div>',
   };
   const tooltipStub = {
     props: ["text"],
@@ -409,42 +459,84 @@ describe("UIMessageList", () => {
     expect(assistantAction.attributes("data-icon")).toBe("i-lucide-copy");
   });
 
-  it("renders dynamic tool parts", () => {
-    const wrapper = mountList([assistantMessage([dynamicTool("tool-1", "Read", "done", "read")])]);
-
-    expect(wrapper.text()).toContain("done");
-    expect(wrapper.get('[data-test="tool"]').attributes("data-icon")).toBe("i-lucide-file-text");
-  });
-
-  it("collapses consecutive tool parts into one tool group summary", () => {
+  it("renders direct tools with independently collapsible Input and Output and no suffix", async () => {
     const wrapper = mountList([
       assistantMessage([
+        dynamicTool("tool-1", "Bash", "command output", "execute", { command: "pnpm test" }),
+      ]),
+    ]);
+
+    const tool = wrapper.get('[data-test="chat-tool-item"]');
+    expect(tool.attributes("data-icon")).toBe("i-lucide-square-terminal");
+    expect(tool.attributes("data-has-suffix")).toBe("false");
+    expect(tool.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find('[data-test="chat-tool-details"]').exists()).toBe(false);
+
+    await tool.trigger("click");
+
+    expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain("Input");
+    expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain('"command": "pnpm test"');
+    expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("Output");
+    expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("command output");
+    expect(wrapper.find('[data-test="tool-suffix"]').exists()).toBe(false);
+  });
+
+  it("collapses consecutive mixed activities into one activity group summary", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        reasoning("inspect"),
         dynamicTool("tool-1", "Read", "read output", "read"),
-        dynamicTool("tool-2", "Write", "write output", "write"),
+        reasoning("compare"),
       ]),
     ]);
 
-    expect(wrapper.findAll('[data-test="chat-tool-group"]')).toHaveLength(1);
-    const group = wrapper.get('[data-test="chat-tool-group"]');
-    expect(group.get('[data-test="tool-text"]').text()).toBe("Read 1 file, Write 1 file");
-    expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
-    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-test="chat-activity-group"]')).toHaveLength(1);
+    const group = wrapper.get('[data-test="chat-activity-group"]');
+    expect(group.get('[data-test="tool-text"]').text()).toBe("Think 2 times, Read 1 file");
+    expect(group.attributes("data-icon")).toBe("i-lucide-file-text");
+    expect(group.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find('[data-test="chat-activity-group-items"]').exists()).toBe(false);
   });
 
-  it("uses the last streaming tool icon for a tool group header", () => {
+  it("uses the last streaming tool icon while any activity keeps the group streaming", () => {
     const wrapper = mountList([
       assistantMessage([
-        streamingTool("tool-1", "Read", "read"),
-        streamingTool("tool-2", "Write", "write"),
+        reasoning("inspect", "streaming"),
+        streamingTool("tool-1", "Write", "write"),
+        dynamicTool("tool-2", "Read", "done", "read"),
       ]),
     ]);
 
-    const group = wrapper.get('[data-test="chat-tool-group"]');
+    const group = wrapper.get('[data-test="chat-activity-group"]');
     expect(group.attributes("data-streaming")).toBe("true");
     expect(group.attributes("data-icon")).toBe("i-lucide-file-plus");
+    expect(group.attributes("aria-expanded")).toBe("false");
   });
 
-  it("uses the other icon for historical tool groups without metadata", () => {
+  it("keeps a tool icon when trailing reasoning is streaming", () => {
+    const wrapper = mountList([
+      assistantMessage([
+        dynamicTool("tool-1", "Read", "done", "read"),
+        reasoning("compare", "streaming"),
+      ]),
+    ]);
+
+    const group = wrapper.get('[data-test="chat-activity-group"]');
+    expect(group.attributes("data-streaming")).toBe("true");
+    expect(group.attributes("data-icon")).toBe("i-lucide-file-text");
+  });
+
+  it("uses the brain icon for pure reasoning activity groups", () => {
+    const wrapper = mountList([
+      assistantMessage([reasoning("inspect"), reasoning("compare", "streaming")]),
+    ]);
+
+    const group = wrapper.get('[data-test="chat-activity-group"]');
+    expect(group.attributes("data-streaming")).toBe("true");
+    expect(group.attributes("data-icon")).toBe("i-lucide-brain");
+  });
+
+  it("keeps fallback summaries and icons for historical tools without metadata", () => {
     const wrapper = mountList([
       assistantMessage([
         dynamicTool("tool-1", "Read", "read output"),
@@ -452,77 +544,91 @@ describe("UIMessageList", () => {
       ]),
     ]);
 
-    const group = wrapper.get('[data-test="chat-tool-group"]');
+    const group = wrapper.get('[data-test="chat-activity-group"]');
     expect(group.get('[data-test="tool-text"]').text()).toBe("Run 2 tools");
     expect(group.attributes("data-icon")).toBe("i-lucide-wrench");
   });
 
-  it("passes kind icons to expanded tool group items", async () => {
+  it("keeps expanded activity children collapsed and in original order", async () => {
     const wrapper = mountList([
       assistantMessage([
-        dynamicTool("tool-1", "Read", "read output", "read"),
-        dynamicTool("tool-2", "Write", "write output", "write"),
+        reasoning("first thought", "streaming"),
+        dynamicTool("tool-1", "Read", "read output", "read", { path: "README.md" }),
+        reasoning("second thought"),
       ]),
     ]);
 
-    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
+    await wrapper.get('[data-test="chat-activity-group"]').trigger("click");
 
+    const items = wrapper.get('[data-test="chat-activity-group-items"]');
+    expect(items.findAll('[data-test="chat-activity-reasoning"]')).toHaveLength(2);
+    expect(items.findAll('[data-test="chat-tool-item"]')).toHaveLength(1);
     expect(
-      wrapper.findAll('[data-test="tool"]').map((node) => node.attributes("data-icon"))
-    ).toEqual(["i-lucide-file-text", "i-lucide-file-plus"]);
+      items
+        .findAll('[data-test="chat-activity-reasoning"], [data-test="chat-tool-item"]')
+        .map((node) => node.attributes("data-test"))
+    ).toEqual(["chat-activity-reasoning", "chat-tool-item", "chat-activity-reasoning"]);
+    expect(
+      items
+        .findAll('[data-test="chat-activity-reasoning"], [data-test="chat-tool-item"]')
+        .map((node) => node.attributes("aria-expanded"))
+    ).toEqual(["false", "false", "false"]);
+    expect(wrapper.text()).not.toContain("first thought");
+    expect(wrapper.find('[data-test="chat-tool-details"]').exists()).toBe(false);
+
+    await items.get('[data-test="chat-tool-item"]').trigger("click");
+    expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain("README.md");
+    expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("read output");
+    expect(items.get('[data-test="chat-tool-item"]').attributes("data-has-suffix")).toBe("false");
   });
 
-  it("expands a tool group and shows original tool outputs", async () => {
-    const wrapper = mountList([
-      assistantMessage([
-        dynamicTool("tool-1", "Read", "read output", "read"),
-        dynamicTool("tool-2", "Write", "write output", "write"),
-      ]),
+  it("keeps an opened activity group expanded when streaming appends activity", async () => {
+    const initial = assistantMessage([
+      reasoning("inspect", "streaming"),
+      streamingTool("tool-1", "Read", "read"),
     ]);
+    const wrapper = mountList([initial], "streaming");
 
-    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
-
-    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
-    expect(wrapper.text()).toContain("Read");
-    expect(wrapper.text()).toContain("Write");
-    expect(wrapper.text()).toContain("read output");
-    expect(wrapper.text()).toContain("write output");
-  });
-
-  it("summarizes historical tool groups without metadata as run tools", async () => {
-    const wrapper = mountList([
-      assistantMessage([
-        dynamicTool("tool-1", "Read", "read output"),
-        dynamicTool("tool-2", "Write", "write output"),
-      ]),
-    ]);
-
-    expect(wrapper.get('[data-test="chat-tool-group"] [data-test="tool-text"]').text()).toBe(
-      "Run 2 tools"
+    await wrapper.get('[data-test="chat-activity-group"]').trigger("click");
+    expect(wrapper.get('[data-test="chat-activity-group"]').attributes("aria-expanded")).toBe(
+      "true"
     );
 
-    await wrapper.get('[data-test="chat-tool-group"]').trigger("click");
+    const appended: UIMessage<MessageMeta> = {
+      ...initial,
+      parts: [
+        reasoning("inspect", "done"),
+        dynamicTool("tool-1", "Read", "read output", "read"),
+        reasoning("verify", "streaming"),
+      ],
+    };
+    await wrapper.setProps({ messages: [appended] });
 
-    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
-    expect(wrapper.text()).toContain("read output");
-    expect(wrapper.text()).toContain("write output");
+    expect(wrapper.get('[data-test="chat-activity-group"]').attributes("aria-expanded")).toBe(
+      "true"
+    );
+    expect(wrapper.findAll('[data-test="chat-activity-reasoning"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-test="chat-tool-item"]')).toHaveLength(1);
   });
 
-  it("does not collapse single tools or tool runs interrupted by text", () => {
-    const singleWrapper = mountList([assistantMessage([dynamicTool("tool-1", "Read", "done")])]);
-    expect(singleWrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
-    expect(singleWrapper.findAll('[data-test="tool"]')).toHaveLength(1);
+  it("groups consecutive pure reasoning but leaves single reasoning and tools direct", () => {
+    const reasoningGroup = mountList([assistantMessage([reasoning("first"), reasoning("second")])]);
+    expect(reasoningGroup.findAll('[data-test="chat-activity-group"]')).toHaveLength(1);
+    expect(
+      reasoningGroup.get('[data-test="chat-activity-group"] [data-test="tool-text"]').text()
+    ).toBe("Think 2 times");
 
-    const interruptedWrapper = mountList([
+    const direct = mountList([
       assistantMessage([
-        dynamicTool("tool-1", "Read", "read output", "read"),
+        reasoning("one"),
         { type: "text", text: "between" },
-        dynamicTool("tool-2", "Write", "write output", "write"),
+        dynamicTool("tool-1", "Read", "done", "read"),
       ]),
     ]);
-    expect(interruptedWrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
-    expect(interruptedWrapper.findAll('[data-test="tool"]')).toHaveLength(2);
-    expect(interruptedWrapper.text()).toContain("between");
+    expect(direct.find('[data-test="chat-activity-group"]').exists()).toBe(false);
+    expect(direct.findAll('[data-test="reasoning"]')).toHaveLength(1);
+    expect(direct.findAll('[data-test="chat-tool-item"]')).toHaveLength(1);
+    expect(direct.text()).toContain("between");
   });
 
   it("renders a subagent parent as an isolated card and hides only linked descendants", () => {
@@ -545,8 +651,8 @@ describe("UIMessageList", () => {
       "定位 ACP 事件映射相关代码"
     );
     expect(wrapper.get('[data-test="subagent-call-card"]').text()).toContain("1 次工具调用");
-    expect(wrapper.find('[data-test="chat-tool-group"]').exists()).toBe(false);
-    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(2);
+    expect(wrapper.find('[data-test="chat-activity-group"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="chat-tool-item"]')).toHaveLength(2);
     expect(wrapper.text()).not.toContain("child output");
   });
 
@@ -650,7 +756,9 @@ describe("UIMessageList", () => {
     ]);
 
     expect(wrapper.findAll('[data-test="subagent-call-card"]')).toHaveLength(2);
-    expect(wrapper.findAll('[data-test="tool"]')).toHaveLength(1);
+    expect(wrapper.find('[data-test="chat-activity-group"]').exists()).toBe(false);
+    expect(wrapper.findAll('[data-test="chat-tool-item"]')).toHaveLength(1);
+    await wrapper.get('[data-test="chat-tool-item"]').trigger("click");
     expect(wrapper.text()).toContain("orphan output");
 
     await wrapper.findAll('[data-test="subagent-call-card"]')[0].trigger("click");
@@ -687,7 +795,7 @@ describe("UIMessageList", () => {
     wrapper.unmount();
   });
 
-  it("keeps Fyllo action contexts on original part indices when tools are grouped", () => {
+  it("keeps Fyllo action contexts on original part indices when activities are grouped", () => {
     const wrapper = mountList([
       assistantMessage([
         { type: "text", text: "action-a" },

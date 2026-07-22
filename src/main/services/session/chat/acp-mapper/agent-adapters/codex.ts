@@ -107,10 +107,30 @@ function codexTerminalExitCode(meta: unknown): number | undefined {
   return typeof exitCode === "number" ? exitCode : undefined;
 }
 
-/** Codex 终端终态可能只在 rawOutput 提供聚合结果，字段优先级与其当前 ACP 实现一致。 */
+/** 提取 MCP CallToolResult 中按原始顺序返回的文本块。 */
+function codexMcpTextContent(content: unknown): string | undefined {
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .flatMap((item) => {
+      if (item == null || typeof item !== "object") return [];
+      const block = item as { type?: unknown; text?: unknown };
+      return block.type === "text" && typeof block.text === "string" ? [block.text] : [];
+    })
+    .join("");
+  return text || undefined;
+}
+
+/** Codex 工具终态可能只在 rawOutput 提供 MCP 结果或终端聚合输出。 */
 function codexFinalOutput(rawOutput: unknown): string | undefined {
   if (rawOutput == null || typeof rawOutput !== "object") return undefined;
   const output = rawOutput as Record<string, unknown>;
+
+  const result =
+    output.result != null && typeof output.result === "object"
+      ? (output.result as Record<string, unknown>)
+      : undefined;
+  const mcpOutput = codexMcpTextContent(result?.content) ?? codexMcpTextContent(output.content);
+  if (mcpOutput) return mcpOutput;
 
   for (const key of ["formatted_output", "aggregated_output"]) {
     const value = output[key];

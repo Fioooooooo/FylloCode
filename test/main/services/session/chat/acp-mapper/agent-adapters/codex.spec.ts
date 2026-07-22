@@ -134,6 +134,50 @@ describe("Codex ACP event adapter", () => {
     }
   });
 
+  it.each([
+    {
+      name: "current result envelope",
+      expected: "first line\nsecond line",
+      rawOutput: {
+        result: {
+          content: [
+            { type: "text", text: "first line\n" },
+            { type: "text", text: "second line" },
+          ],
+          structuredContent: null,
+          _meta: null,
+        },
+        error: null,
+      },
+    },
+    {
+      name: "legacy direct CallToolResult",
+      expected: "legacy output",
+      rawOutput: {
+        content: [{ type: "text", text: "legacy output" }],
+      },
+    },
+  ])("extracts MCP output from the $name shape", ({ rawOutput, expected }) => {
+    const update = {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call_mcp",
+      status: "completed",
+      rawInput: {
+        server: "fyllo-specs",
+        tool: "explore",
+        arguments: { targetPath: "/project" },
+      },
+      rawOutput,
+    } as unknown as SessionUpdate;
+
+    const event = mapSessionUpdate(update, { agentId: "codex-acp" });
+    expect(event).toMatchObject({
+      status: "completed",
+      toolName: "fyllo-specs/explore",
+      content: expected,
+    });
+  });
+
   it("maps terminal deltas and infers terminal completion", () => {
     const delta = {
       sessionUpdate: "tool_call_update",
