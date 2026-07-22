@@ -43,11 +43,26 @@ const dropdownMenuStub = {
 const tooltipStub = {
   template: "<div><slot /></div>",
 };
+function preventsOpenAutoFocus(
+  content: { onOpenAutoFocus?: (event: Event) => void } | undefined
+): boolean {
+  const event = new Event("openAutoFocus", { cancelable: true });
+  content?.onOpenAutoFocus?.(event);
+  return event.defaultPrevented;
+}
+function preventsCloseAutoFocus(
+  content: { onCloseAutoFocus?: (event: Event) => void } | undefined
+): boolean {
+  const event = new Event("closeAutoFocus", { cancelable: true });
+  content?.onCloseAutoFocus?.(event);
+  return event.defaultPrevented;
+}
 const popoverStub = {
   template:
-    '<div><slot /><div v-if="open" data-test="popover-content"><slot name="content" /></div></div>',
+    '<div data-test="popover-stub" :data-open-auto-focus-prevented="String(preventsOpenAutoFocus(content))" :data-close-auto-focus-prevented="String(preventsCloseAutoFocus(content))"><slot /><div v-if="open" data-test="popover-content"><slot name="content" /></div></div>',
   props: ["open", "content", "ui", "portal"],
   emits: ["update:open"],
+  methods: { preventsCloseAutoFocus, preventsOpenAutoFocus },
 };
 const dashboardGroupStub = {
   template: '<div v-bind="$attrs" data-test="dashboard-group"><slot /></div>',

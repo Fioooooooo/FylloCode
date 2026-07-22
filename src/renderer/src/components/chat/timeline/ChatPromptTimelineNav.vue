@@ -6,6 +6,7 @@ import type { ChatPromptTimelineItem } from "@renderer/utils/chat-prompt-timelin
 const LINE_STEP_PX = 6;
 const PREVIEW_CLOSE_DELAY_MS = 180;
 const PREVIEW_COUNT = 3;
+const PREVIEW_REOPEN_SUPPRESSION_MS = 300;
 
 const props = defineProps<{
   items: ChatPromptTimelineItem[];
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 
 const railRef = ref<HTMLElement | null>(null);
 const previewItemId = ref<string | null>(null);
+const previewWindowAnchorIndex = ref<number | null>(null);
 const keyboardCursorIndex = ref<number | null>(null);
 const popoverOpen = ref(false);
 
@@ -25,18 +27,20 @@ let previewCloseTimer: number | null = null;
 let pointerId: number | null = null;
 let pointerIndex = -1;
 let pointerMoved = false;
+let pointerPreviewSuppressedUntil = 0;
 
 const previewIndex = computed(() =>
   props.items.findIndex((item) => item.id === previewItemId.value)
 );
 const activeIndex = computed(() => props.items.findIndex((item) => item.id === props.activeItemId));
 const nearbyPreviewItems = computed(() => {
-  if (previewIndex.value < 0) {
+  const anchorIndex = previewWindowAnchorIndex.value ?? previewIndex.value;
+  if (anchorIndex < 0) {
     return [];
   }
 
   const visibleCount = Math.min(PREVIEW_COUNT, props.items.length);
-  const start = Math.max(0, Math.min(props.items.length - visibleCount, previewIndex.value - 1));
+  const start = Math.max(0, Math.min(props.items.length - visibleCount, anchorIndex - 1));
   return props.items.slice(start, start + visibleCount);
 });
 const activeDescendantId = computed(() => {
@@ -78,13 +82,16 @@ function ensureIndexVisible(index: number): void {
   }
 }
 
-function showPreview(index: number): void {
+function showPreview(index: number, options: { updateWindowAnchor?: boolean } = {}): void {
   const item = props.items[index];
   if (!item) {
     return;
   }
 
   clearPreviewCloseTimer();
+  if (options.updateWindowAnchor !== false) {
+    previewWindowAnchorIndex.value = index;
+  }
   previewItemId.value = item.id;
   keyboardCursorIndex.value = index;
   popoverOpen.value = true;
@@ -95,6 +102,7 @@ function closePreview(): void {
   clearPreviewCloseTimer();
   popoverOpen.value = false;
   previewItemId.value = null;
+  previewWindowAnchorIndex.value = null;
 }
 
 function closePreviewSoon(): void {
@@ -103,6 +111,14 @@ function closePreviewSoon(): void {
     previewCloseTimer = null;
     closePreview();
   }, PREVIEW_CLOSE_DELAY_MS);
+}
+
+function suppressPointerPreviewReopen(): void {
+  pointerPreviewSuppressedUntil = Date.now() + PREVIEW_REOPEN_SUPPRESSION_MS;
+}
+
+function clearPointerPreviewReopenSuppression(): void {
+  pointerPreviewSuppressedUntil = 0;
 }
 
 function indexFromPointer(event: PointerEvent): number {
@@ -116,6 +132,10 @@ function indexFromPointer(event: PointerEvent): number {
 }
 
 function handlePointerMove(event: PointerEvent): void {
+  if (Date.now() < pointerPreviewSuppressedUntil) {
+    return;
+  }
+
   const index = indexFromPointer(event);
   if (index < 0) {
     return;
@@ -143,6 +163,7 @@ function handlePointerDown(event: PointerEvent): void {
   }
 
   event.preventDefault();
+  clearPointerPreviewReopenSuppression();
   clearPreviewCloseTimer();
   pointerId = event.pointerId;
   pointerIndex = index;
@@ -176,6 +197,7 @@ function releasePointer(event: PointerEvent, locateClick: boolean): void {
 }
 
 function handleFocus(): void {
+  clearPointerPreviewReopenSuppression();
   const index = keyboardCursorIndex.value ?? Math.max(0, activeIndex.value);
   showPreview(index);
 }
@@ -216,6 +238,12 @@ function handleKeydown(event: KeyboardEvent): void {
 function locateFromPreview(item: ChatPromptTimelineItem): void {
   showPreview(props.items.findIndex((candidate) => candidate.id === item.id));
   emit("locate-prompt", item.messageId, "smooth");
+  suppressPointerPreviewReopen();
+  closePreview();
+}
+
+function preventPopoverAutoFocus(event: Event): void {
+  event.preventDefault();
 }
 
 function handlePopoverOpenChange(open: boolean): void {
@@ -241,6 +269,11 @@ watch(
     if (previewItemId.value && !props.items.some((item) => item.id === previewItemId.value)) {
       closePreview();
       keyboardCursorIndex.value = null;
+    } else if (
+      previewWindowAnchorIndex.value !== null &&
+      !props.items[previewWindowAnchorIndex.value]
+    ) {
+      previewWindowAnchorIndex.value = previewIndex.value >= 0 ? previewIndex.value : null;
     }
   }
 );
@@ -254,7 +287,13 @@ onBeforeUnmount(() => {
   <div class="inline-flex h-full max-h-full items-start">
     <UPopover
       :open="popoverOpen && nearbyPreviewItems.length > 0"
-      :content="{ align: 'start', side: 'right', sideOffset: 8 }"
+      :content="{
+        align: 'start',
+        side: 'right',
+        sideOffset: 8,
+        onCloseAutoFocus: preventPopoverAutoFocus,
+        onOpenAutoFocus: preventPopoverAutoFocus,
+      }"
       :ui="{ content: 'w-64 p-1' }"
       :portal="true"
       @update:open="handlePopoverOpenChange"
@@ -315,7 +354,7 @@ onBeforeUnmount(() => {
             v-for="item in nearbyPreviewItems"
             :key="item.id"
             type="button"
-            class="line-clamp-2 w-full border-l-2 px-3 py-2 text-left text-xs leading-4 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-primary"
+            class="w-full border-l-2 px-3 py-2 text-left text-xs leading-4 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-primary"
             :class="
               isPreview(item)
                 ? 'border-primary bg-primary/10 text-default'
@@ -323,11 +362,21 @@ onBeforeUnmount(() => {
             "
             data-test="chat-prompt-timeline-preview"
             @pointerenter="
-              showPreview(props.items.findIndex((candidate) => candidate.id === item.id))
+              showPreview(
+                props.items.findIndex((candidate) => candidate.id === item.id),
+                {
+                  updateWindowAnchor: false,
+                }
+              )
             "
             @click="locateFromPreview(item)"
           >
-            {{ item.preview }}
+            <span
+              class="line-clamp-2 max-h-8 overflow-hidden whitespace-normal break-words"
+              data-test="chat-prompt-timeline-preview-text"
+            >
+              {{ item.preview }}
+            </span>
           </button>
         </div>
       </template>

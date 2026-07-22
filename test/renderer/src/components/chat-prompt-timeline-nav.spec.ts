@@ -116,6 +116,50 @@ describe("ChatPromptTimelineNav", () => {
     ).toEqual(["Third prompt", "Fourth prompt", "Last prompt"]);
   });
 
+  it("prevents hover-opened popover from auto-focusing prompt summaries", async () => {
+    const { wrapper, rail } = mountTimeline();
+
+    await rail.trigger("pointermove", pointer(100));
+
+    expect(
+      wrapper.get('[data-test="popover-stub"]').attributes("data-open-auto-focus-prevented")
+    ).toBe("true");
+    expect(
+      wrapper.get('[data-test="popover-stub"]').attributes("data-close-auto-focus-prevented")
+    ).toBe("true");
+  });
+
+  it("clamps preview summary text to two lines", async () => {
+    const { wrapper, rail } = mountTimeline();
+
+    await rail.trigger("pointermove", pointer(100));
+
+    const previewText = wrapper.get('[data-test="chat-prompt-timeline-preview-text"]');
+    expect(previewText.classes()).toContain("line-clamp-2");
+    expect(previewText.classes()).toContain("max-h-8");
+    expect(previewText.classes()).toContain("overflow-hidden");
+    expect(previewText.classes()).toContain("break-words");
+  });
+
+  it("keeps the summary window stable when hovering a popover preview", async () => {
+    const { wrapper, rail } = mountTimeline();
+
+    await rail.trigger("pointermove", pointer(100));
+    await wrapper.findAll('[data-test="chat-prompt-timeline-preview"]')[2]?.trigger("pointerenter");
+    await wrapper.vm.$nextTick();
+
+    const previews = wrapper.findAll('[data-test="chat-prompt-timeline-preview"]');
+    expect(previews.map((preview) => preview.text())).toEqual([
+      "First prompt",
+      "Second prompt",
+      "Third prompt",
+    ]);
+    expect(previews[2]?.classes()).toContain("border-primary");
+
+    await previews[2]?.trigger("click");
+    expect(wrapper.emitted("locate-prompt")?.at(-1)).toEqual(["user-3", "smooth"]);
+  });
+
   it("emits smooth navigation for a click and immediate navigation while dragging", async () => {
     const { wrapper, rail } = mountTimeline(null);
 
@@ -185,5 +229,12 @@ describe("ChatPromptTimelineNav", () => {
     await previews[0]?.trigger("click");
 
     expect(wrapper.emitted("locate-prompt")?.at(-1)).toEqual(["user-2", "smooth"]);
+    expect(wrapper.find('[data-test="popover-content"]').exists()).toBe(false);
+
+    await rail.trigger("pointermove", pointer(112));
+    expect(wrapper.find('[data-test="popover-content"]').exists()).toBe(false);
+
+    await rail.trigger("focus");
+    expect(wrapper.find('[data-test="popover-content"]').exists()).toBe(true);
   });
 });
