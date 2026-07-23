@@ -89,7 +89,7 @@ function handleCreateSession(): void {
           data-test="chat-message-scroll-container"
           style="mask-image: linear-gradient(to bottom, transparent, black 24px, black 100%)"
         >
-          <div ref="messageContentRef" class="max-w-3xl mx-auto min-h-full">
+          <div ref="messageContentRef" class="max-w-3xl mx-auto h-full">
             <template v-if="isLoadingMessages">
               <ChatMessageSkeleton />
             </template>
