@@ -52,6 +52,8 @@ List installed agents that can be delegated work via prompt_agent. Call once at 
 Send a prompt to another installed agent and return its text response. Omit sessionId to start a new conversation; include a sessionId from a previous call to continue an existing one.
 
 Set background=true for long-running work — the call returns immediately and you can poll with check_status for progress and the final result. The agent runs in the same project directory with its own context window and tool set.
+
+When starting a new session (no sessionId), emit a <fyllo-signal type="spawn.status"> tag in your text output after receiving the response. This is not needed when continuing an existing session.
 ```
 
 **参数：**
@@ -74,6 +76,14 @@ Set background=true for long-running work — the call returns immediately and y
 ```
 
 background=true 时，response 为占位文本（如 `"Background task started, use check_status to monitor progress"`），主 agent 通过 `check_status` 轮询获取进度和最终结果。
+
+**fyllo-signal 集成：**
+
+当主 agent 首次调用 `prompt_agent`（不传 sessionId，创建新 session）并拿到返回的 `sessionId` 后，需要在文本输出中嵌入一条 `<fyllo-signal type="spawn.status">` 标记。该标记在对话流中渲染为轻量行内 UI，用户点击可打开 slideover 查看该 spawn session 的详情和完整对话流。
+
+续 session（传入已有 sessionId）时不需要再次输出 signal——对应的 signal 已在首次调用时嵌入。
+
+fyllo-signal 的完整设计见 `references/designs/fyllo-signal/design.md`。
 
 **设计决策：**
 
@@ -268,17 +278,18 @@ Map<fylloSessionId, SpawnedSessionEntry>
 
 SpawnedSessionEntry:
 
-| 字段           | 类型                       | 说明                                       |
-| -------------- | -------------------------- | ------------------------------------------ |
-| fylloSessionId | string                     | FylloCode 生成的 session ID（tool 层暴露） |
-| agentId        | string                     | 子 agent ID                                |
-| acpSessionId   | string                     | ACP 层 session ID（内部使用，不暴露）      |
-| status         | `running \| idle \| error` | 当前状态                                   |
-| lastResponse   | string \| null             | idle 时填充上次 prompt 完整输出            |
-| activityRing   | string[]                   | 最近 3 条文本片段（running 时更新）        |
-| lastActivityAt | string \| null             | 上次收到 session/update 的时间戳           |
-| configOptions  | AcpSessionConfigOption[]   | session 建立后由 agent 推送                |
-| error          | string \| null             | error 时填充错误描述                       |
+| 字段            | 类型                       | 说明                                       |
+| --------------- | -------------------------- | ------------------------------------------ |
+| fylloSessionId  | string                     | FylloCode 生成的 session ID（tool 层暴露） |
+| parentSessionId | string                     | 父 session 的 fylloSessionId               |
+| agentId         | string                     | 子 agent ID                                |
+| acpSessionId    | string                     | ACP 层 session ID（内部使用，不暴露）      |
+| status          | `running \| idle \| error` | 当前状态                                   |
+| lastResponse    | string \| null             | idle 时填充上次 prompt 完整输出            |
+| activityRing    | string[]                   | 最近 3 条文本片段（running 时更新）        |
+| lastActivityAt  | string \| null             | 上次收到 session/update 的时间戳           |
+| configOptions   | AcpSessionConfigOption[]   | session 建立后由 agent 推送                |
+| error           | string \| null             | error 时填充错误描述                       |
 
 #### 与现有模块的复用关系
 
@@ -306,10 +317,135 @@ spawned session 的 sessionHandler 做两件事（替代 acp-stream-driver 的 r
 
 #### 生命周期
 
-v1 不做清理。entry 是纯内存数据，app 退出即消失。后续如有需要可加：
+v1 不做主动清理。内存 entry 在 app 退出时消失，磁盘记录永久保留（跟随父 session 一并删除，见持久化章节）。后续如有需要可加 TTL 自动过期。
 
-- 跟随父 session 清理（需记录 parentFylloSessionId）
-- TTL 自动过期
+### 持久化
+
+spawn session 需要持久化到磁盘，用途：
+
+1. **排查问题**：spawn session 运行出错时，可以查看完整的事件记录
+2. **UI 展示**：renderer 可以展示父 session 下的 spawn session 历史、响应内容、token 用量等
+3. **上下文恢复**：app 重启后，虽然内存 entry 丢失（session 变成不可续状态），但磁盘记录仍可供 UI 展示历史
+
+#### 磁盘目录结构
+
+```
+data/projects/<encoded-project>/sessions/<parentSessionId>/spawn/
+├── <spawnedSessionId>.meta.json       # SpawnedSessionMeta
+└── <spawnedSessionId>.messages.jsonl  # UIMessage 对话流
+```
+
+spawn session 的文件放在父 session 的子目录 `spawn/` 下，在文件系统层面就归属于触发它的父 session。这带来的好处：
+
+- 删除父 session（`deleteSession`）时，`rm -rf sessions/<parentSessionId>/` 自然清理所有 spawn session
+- 按父 session 列出 spawn session 只需 `readdir` spawn/ 目录
+- 不污染 sessions/ 顶层目录（`listSessionMetas` 扫描 `session*.json` 不会匹配到 spawn session 文件）
+
+#### 对话流格式
+
+复用现有 `UIMessage` + `messages.jsonl` 格式，不另造事件流格式。理由：
+
+- **写入侧**：直接复用 `MessageAssembler` 把 ACP `session/update` 事件组装成 `UIMessage`，零新代码
+- **读取侧**：renderer 的消息列表组件可直接渲染 spawn session 的消息，只需换数据源
+- **一致性**：spawn session 的 ACP 事件流与主 session 同构（agent_message_chunk、tool_call、tool_result 等），`UIMessage` 完全能表达
+
+`UIMessage` 中某些 `meta` 字段在 spawn session 场景用不到（如部分 UI 交互状态），这些字段保持空值即可，不是错误数据。
+
+#### SpawnedSessionMeta
+
+在现有 `SessionMeta` 基础上做精简 + 扩展：
+
+```typescript
+interface SpawnedSessionMeta {
+  spawnedSessionId: string; // fylloSessionId（tool 层暴露的 ID）
+  parentSessionId: string; // 父 session 的 fylloSessionId
+  agentId: string; // 子 agent ID
+  acpSessionId?: string; // ACP 层 session ID（session 建立后填充）
+  status: "running" | "idle" | "error";
+  model?: string; // 子 agent 使用的 model
+  thoughtLevel?: string; // 子 agent 的 thought level
+  turnCount: number; // prompt 轮次计数
+  tokenUsage: { used: number; size: number };
+  error?: string; // error 状态时的错误描述
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+}
+```
+
+**相比 `SessionMeta` 的精简：**
+
+- 不含 `title`（spawn session 无标题，由 agentId + prompt 概括）
+- 不含 `isPinned`、`available_commands`（UI 交互概念，spawn session 不需要）
+- 不含 `configOptions`（运行时数据，只在内存 entry 中维护，不持久化全量 options）
+- 不含 `actionStates`（spawn session 不参与 fyllo-action 流程）
+
+**相比 `SessionMeta` 的扩展：**
+
+- `parentSessionId`：归属关系
+- `spawnedSessionId`：命名上区分于主 session 的 sessionId
+- `model`：子 agent 实际使用的 model，便于 UI 展示和排查
+- `thoughtLevel`：同上
+
+**`model` / `thoughtLevel` 的数据来源与更新时机：**
+
+这两个字段是从 `configOptions` 中提取的关键值快照，而非 `configOptions` 全量持久化。
+
+1. **调用方通过 `config` 参数主动指定**：`prompt_agent` 的 `config` 参数中若包含 `model` / `thought_level`，`setSessionConfigOption` 成功后立即写入 meta
+2. **子 agent 在 session 建立后推送**：`newSession` 响应或 `config_option_update` 通知中的 `configOptions` 中取 `model` / `thought_level` 的 `currentValue`，写入 meta
+3. **后续 prompt turn 中变更**：任何 config 变更都更新 meta
+
+即 meta 中的 `model` / `thoughtLevel` 初始可能为空（`undefined`），随 session 生命周期逐步填充和更新。
+
+#### 写入时机
+
+复用 `MessageAssembler`，写入节奏与主 session 对齐：
+
+1. **prompt_agent 调用时**：
+   - 首次调用：创建 `spawn/` 目录，写 meta.json，通过 `MessageAssembler` 开始组装 `UIMessage`
+   - 续 session：更新 meta.json（updatedAt + turnCount），`MessageAssembler` 继续组装
+
+2. **ACP 事件流中**：
+   - `MessageAssembler` 按现有逻辑组装 `UIMessage`，每条完整消息 append 到 `messages.jsonl`
+   - 与主 session 的写入节奏一致（消息粒度，不逐 chunk 写）
+
+3. **turn 完成时（done/error）**：
+   - 更新 meta.json（status、tokenUsage、model、thoughtLevel、updatedAt）
+
+4. **config 变更时**：
+   - `setSessionConfigOption` 成功或收到 `config_option_update` 后，更新 meta.json 的 model / thoughtLevel
+
+#### 内存与磁盘的关系
+
+```
+SpawnedSessionEntry（内存）           SpawnedSessionMeta + messages.jsonl（磁盘）
+─────────────────────               ─────────────────────────────────────────
+运行时热数据                          持久化冷数据
+status / activityRing / lastResponse   status / tokenUsage / model / thoughtLevel
+configOptions（全量运行时数据）         model + thoughtLevel（关键值快照）
+app 退出即消失                        永久保留
+check_status 读取                     UI 展示 / 排查问题
+```
+
+app 重启后：
+
+- 内存 entry 为空，所有 spawn session 不可续（`check_status` 返回 `not_found`）
+- UI 可通过读取磁盘 meta.json 展示历史 spawn session 列表和关键参数
+- UI 可通过读取 messages.jsonl 展示完整对话流，复用现有消息渲染组件
+- 如果 meta.json 中 status 为 `running`（说明上次 app 异常退出），UI 可标记为"中断"
+
+#### 路径函数
+
+在 `project-paths.ts` 中增加：
+
+```typescript
+export function spawnedSessionsDir(projectPath: string, parentSessionId: string): string {
+  return join(sessionsDir(projectPath), parentSessionId, "spawn");
+}
+```
+
+#### 与 deleteSession 的联动
+
+现有 `deleteSession` 已删除 `<sessionId>.json` 和 `<sessionId>.messages.jsonl`。需要扩展为同时删除 `<sessionId>/` 目录（包含 plans/、attachments/、spawn/）。当前代码只删两个文件，不删目录——这是一个待修复的问题，不是 spawn 特有的。
 
 ## 通信机制
 
