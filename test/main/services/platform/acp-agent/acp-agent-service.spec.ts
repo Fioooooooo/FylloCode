@@ -11,9 +11,15 @@ const mocks = vi.hoisted(() => ({
   removeAgentCapabilities: vi.fn(),
   getCachedPromptCapabilities: vi.fn(),
   getOrStartProcess: vi.fn(),
+  stopAgentProcess: vi.fn(),
+  prewarmAgentConnections: vi.fn(),
   getAgentIcons: vi.fn(),
   readStatusCache: vi.fn(),
   writeStatusCache: vi.fn(),
+  readCustomAgents: vi.fn(),
+  writeCustomAgents: vi.fn(),
+  listAgents: vi.fn(),
+  resolveCustomCommandPath: vi.fn((command: string) => Promise.resolve(command)),
 }));
 
 vi.mock("@main/infra/storage/acp-registry-cache", () => ({
@@ -44,6 +50,25 @@ vi.mock("@main/infra/storage/agent-capability-store", () => ({
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
+  stopAgentProcess: mocks.stopAgentProcess,
+}));
+
+vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
+  prewarmAgentConnections: mocks.prewarmAgentConnections,
+}));
+
+vi.mock("@main/infra/storage/custom-agent-config-store", () => ({
+  readCustomAgents: mocks.readCustomAgents,
+  writeCustomAgents: mocks.writeCustomAgents,
+}));
+
+vi.mock("@main/infra/acp/agent-catalog", () => ({
+  generateCustomAgentId: (command: string, args: string[]) =>
+    `custom-${command}-${JSON.stringify(args)}`,
+  getAgentById: vi.fn(),
+  isCustomAgentId: (agentId: string) => agentId.startsWith("custom-"),
+  listAgents: mocks.listAgents,
+  resolveCustomCommandPath: mocks.resolveCustomCommandPath,
 }));
 
 vi.mock("@main/infra/storage/acp-icon-cache", () => ({
@@ -53,6 +78,9 @@ vi.mock("@main/infra/storage/acp-icon-cache", () => ({
 describe("acp-agent-service uninstall", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.stopAgentProcess.mockResolvedValue(undefined);
+    mocks.prewarmAgentConnections.mockResolvedValue([]);
+    mocks.uninstallAgent.mockResolvedValue(undefined);
     mocks.getRegistry.mockResolvedValue({
       agents: [
         {
@@ -82,6 +110,7 @@ describe("acp-agent-service uninstall", () => {
 
     await uninstallAgentById("claude-code");
 
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith("claude-code", "uninstall");
     expect(mocks.uninstallAgent).toHaveBeenCalledWith(
       expect.objectContaining({ id: "claude-code" }),
       "npx",
@@ -89,6 +118,7 @@ describe("acp-agent-service uninstall", () => {
     );
     expect(mocks.removeInstalledRecord).toHaveBeenCalledWith("claude-code");
     expect(mocks.removeAgentCapabilities).toHaveBeenCalledWith("claude-code");
+    expect(mocks.prewarmAgentConnections).not.toHaveBeenCalled();
   });
 
   it("does not remove records when uninstall fails", async () => {
@@ -114,6 +144,138 @@ describe("acp-agent-service uninstall", () => {
       code: "AGENT_NOT_FOUND",
       message: "Agent claude-code is not installed",
     });
+  });
+});
+
+describe("acp-agent-service install lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getRegistry.mockResolvedValue({
+      agents: [{ id: "claude-code", name: "Claude Code", distribution: {} }],
+    });
+    mocks.installAgent.mockResolvedValue(undefined);
+    mocks.stopAgentProcess.mockResolvedValue(undefined);
+    mocks.prewarmAgentConnections.mockResolvedValue([]);
+  });
+
+  it("stops an installed agent before upgrade and prewarms after success", async () => {
+    const callOrder: string[] = [];
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-code": { installMethod: "npx" },
+    });
+    mocks.stopAgentProcess.mockImplementation(async () => {
+      callOrder.push("stop");
+    });
+    mocks.installAgent.mockImplementation(async () => {
+      callOrder.push("install");
+    });
+    mocks.prewarmAgentConnections.mockImplementation(() => {
+      callOrder.push("prewarm");
+      return Promise.resolve([]);
+    });
+    const { installAgentById } =
+      await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await installAgentById("claude-code");
+
+    expect(callOrder).toEqual(["stop", "install", "prewarm"]);
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith("claude-code", "upgrade");
+    expect(mocks.prewarmAgentConnections).toHaveBeenCalledWith(["claude-code"]);
+  });
+
+  it("does not stop on first install and does not prewarm a failed install", async () => {
+    mocks.readInstalledRecords.mockResolvedValue({});
+    mocks.installAgent.mockRejectedValueOnce(new Error("install failed"));
+    const { installAgentById } =
+      await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await expect(installAgentById("claude-code")).rejects.toThrow("install failed");
+
+    expect(mocks.stopAgentProcess).not.toHaveBeenCalled();
+    expect(mocks.prewarmAgentConnections).not.toHaveBeenCalled();
+  });
+
+  it("prewarms a successful first install without stopping", async () => {
+    mocks.readInstalledRecords.mockResolvedValue({});
+    const { installAgentById } =
+      await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await installAgentById("claude-code");
+
+    expect(mocks.stopAgentProcess).not.toHaveBeenCalled();
+    expect(mocks.prewarmAgentConnections).toHaveBeenCalledWith(["claude-code"]);
+  });
+});
+
+describe("acp-agent-service custom lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.stopAgentProcess.mockResolvedValue(undefined);
+    mocks.prewarmAgentConnections.mockResolvedValue([]);
+    mocks.detectAgentStatuses.mockResolvedValue([]);
+    mocks.writeStatusCache.mockResolvedValue(undefined);
+    mocks.writeCustomAgents.mockResolvedValue(undefined);
+    mocks.resolveCustomCommandPath.mockImplementation((command: string) =>
+      Promise.resolve(command)
+    );
+  });
+
+  it("stops removed and env-changed custom agents, then prewarms the saved catalog", async () => {
+    mocks.readCustomAgents.mockResolvedValue({
+      agent_servers: {
+        Removed: { command: "/bin/removed", args: ["acp"] },
+        Changed: { command: "/bin/changed", args: ["acp"], env: { MODE: "old" } },
+        ArgsChanged: { command: "/bin/args", args: ["old"] },
+        CommandChanged: { command: "/bin/command-old", args: ["acp"] },
+        Stable: { command: "/bin/stable", args: ["acp"] },
+      },
+    });
+    const config = {
+      agent_servers: {
+        Changed: { command: "/bin/changed", args: ["acp"], env: { MODE: "new" } },
+        ArgsChanged: { command: "/bin/args", args: ["new"] },
+        CommandChanged: { command: "/bin/command-new", args: ["acp"] },
+        Stable: { command: "/bin/stable", args: ["acp"] },
+        Added: { command: "/bin/added", args: ["acp"] },
+      },
+    };
+    mocks.listAgents.mockResolvedValue([
+      { id: "registry", source: "registry" },
+      { id: "custom-changed", source: "custom" },
+      { id: "custom-stable", source: "custom" },
+      { id: "custom-added", source: "custom" },
+    ]);
+    const { saveCustomAgents } =
+      await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await saveCustomAgents(config);
+
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith(
+      'custom-/bin/removed-["acp"]',
+      "custom-config-change"
+    );
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith(
+      'custom-/bin/changed-["acp"]',
+      "custom-config-change"
+    );
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith(
+      'custom-/bin/args-["old"]',
+      "custom-config-change"
+    );
+    expect(mocks.stopAgentProcess).toHaveBeenCalledWith(
+      'custom-/bin/command-old-["acp"]',
+      "custom-config-change"
+    );
+    expect(mocks.stopAgentProcess).not.toHaveBeenCalledWith(
+      'custom-/bin/stable-["acp"]',
+      expect.anything()
+    );
+    expect(mocks.writeCustomAgents).toHaveBeenCalledWith(config);
+    expect(mocks.prewarmAgentConnections).toHaveBeenCalledWith([
+      "custom-changed",
+      "custom-stable",
+      "custom-added",
+    ]);
   });
 });
 

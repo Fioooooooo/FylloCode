@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "events";
 import { PassThrough } from "stream";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const mocks = vi.hoisted(() => {
   const initialize = vi.fn();
@@ -193,6 +194,132 @@ describe("acp-process-pool", () => {
 
     expect(mocks.spawn).toHaveBeenCalledTimes(1);
     expect(a).toBe(b);
+  });
+
+  it("stops a ready process intentionally without restart or unavailable broadcast", async () => {
+    const { getOrStartProcess, onAgentProcessInvalidated, onAgentUnavailable, stopAgentProcess } =
+      await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+    const invalidated = vi.fn();
+    const unavailable = vi.fn();
+    onAgentProcessInvalidated(invalidated);
+    onAgentUnavailable(unavailable);
+
+    const stop = stopAgentProcess("claude-acp", "upgrade");
+    queueMicrotask(() => {
+      const fake = mocks.child as FakeChild;
+      fake.exitCode = 0;
+      fake.emit("exit", 0, null);
+      fake.triggerClose();
+    });
+    await stop;
+
+    expect(invalidated).toHaveBeenCalledWith({ agentId: "claude-acp", reason: "upgrade" });
+    expect(unavailable).not.toHaveBeenCalled();
+    expect((mocks.child as FakeChild).stdin.end).toHaveBeenCalled();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops a child stuck in initialize and prevents the stale start from entering the pool", async () => {
+    let resolveInit!: (value: unknown) => void;
+    mocks.initialize.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveInit = resolve;
+        })
+    );
+    const { getOrStartProcess, stopAgentProcess } =
+      await import("@main/infra/process/acp-process-pool");
+    const staleStart = getOrStartProcess("claude-acp");
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce());
+
+    const stop = stopAgentProcess("claude-acp", "upgrade");
+    queueMicrotask(() => (mocks.child as FakeChild).triggerClose());
+    await stop;
+    resolveInit({ protocolVersion: 1, agentCapabilities: {} });
+    await expect(staleStart).rejects.toThrow("invalidated");
+
+    const freshChild = createFakeChild(23456);
+    mocks.child = freshChild;
+    mocks.spawn.mockReturnValue(freshChild);
+    const fresh = await getOrStartProcess("claude-acp");
+
+    expect(fresh.child).toBe(freshChild);
+    expect(mocks.spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels an owned backoff timer when the agent is stopped", async () => {
+    vi.useFakeTimers();
+    try {
+      const { getOrStartProcess, stopAgentProcess } =
+        await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+      const fake = mocks.child as FakeChild;
+      fake.exitCode = 1;
+      fake.emit("exit", 1, null);
+
+      await stopAgentProcess("claude-acp", "uninstall");
+      await vi.runAllTimersAsync();
+
+      expect(mocks.spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears crash give-up so an intentional stop allows a fresh start", async () => {
+    vi.useFakeTimers();
+    try {
+      const children: FakeChild[] = [];
+      mocks.spawn.mockImplementation(() => {
+        const child = createFakeChild(30_000 + children.length);
+        children.push(child);
+        mocks.child = child;
+        return child;
+      });
+      const { getOrStartProcess, stopAgentProcess } =
+        await import("@main/infra/process/acp-process-pool");
+      await getOrStartProcess("claude-acp");
+
+      for (let index = 0; index < 5; index += 1) {
+        const child = children[index]!;
+        child.exitCode = 1;
+        child.emit("exit", 1, null);
+        await vi.runAllTimersAsync();
+        if (index < 4) {
+          await vi.waitFor(() => expect(children).toHaveLength(index + 2));
+          await vi.waitFor(() =>
+            expect(children[index + 1]?.listenerCount("exit")).toBeGreaterThan(0)
+          );
+        }
+      }
+
+      await expect(getOrStartProcess("claude-acp")).rejects.toMatchObject({
+        code: IpcErrorCodes.ACP_EXIT_GIVEUP,
+      });
+
+      await stopAgentProcess("claude-acp", "upgrade");
+      await expect(getOrStartProcess("claude-acp")).resolves.toMatchObject({ ready: true });
+      expect(mocks.spawn).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects new starts after the pool begins shutdown", async () => {
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
+
+    const disposing = dispose();
+    queueMicrotask(() => (mocks.child as FakeChild).triggerClose());
+    await disposing;
+
+    await expect(getOrStartProcess("claude-acp")).rejects.toMatchObject({
+      code: IpcErrorCodes.ACP_NOT_READY,
+    });
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
   });
 
   it("spawns ACP agent with detached: true on POSIX", async () => {

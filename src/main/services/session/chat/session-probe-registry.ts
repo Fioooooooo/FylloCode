@@ -54,6 +54,17 @@ class SessionProbeRegistry {
     return removed;
   }
 
+  deleteAgent(agentId: string): ProbeEntry[] {
+    const removed: ProbeEntry[] = [];
+    for (const [key, entry] of this.entries) {
+      if (entry.agentId === agentId) {
+        this.entries.delete(key);
+        removed.push(entry);
+      }
+    }
+    return removed;
+  }
+
   clear(): void {
     this.entries.clear();
   }

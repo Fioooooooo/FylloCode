@@ -5,6 +5,7 @@ import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
 import { setupProbeBroadcast } from "@main/ipc/session/chat";
 import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-in-loader";
+import { scheduleInstalledAgentConnectionWarmup } from "@main/services/platform/acp-agent/connection-warmup";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { startBundledMcpHost, stopBundledMcpHost } from "@main/infra/mcp/bundled-mcp-host";
 import { runAllMigrations } from "@main/migrations";
@@ -39,6 +40,7 @@ export async function bootstrapReady(): Promise<void> {
   setupAgentEventBroadcast(projectWindowManager);
   setupProposalStatusBroadcast(projectWindowManager);
   projectWindowManager.openLauncherWindow();
+  scheduleInstalledAgentConnectionWarmup();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

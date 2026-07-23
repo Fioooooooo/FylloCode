@@ -66,6 +66,26 @@ describe("session-probe-registry", () => {
     expect(sessionProbeRegistry.get("project-b", "claude-code")?.acpSessionId).toBe("acp-b");
   });
 
+  it("deleteAgent returns every project entry for that agent only", () => {
+    const projectAEntry = makeEntry({ projectId: "project-a", acpSessionId: "acp-a" });
+    const projectBEntry = makeEntry({ projectId: "project-b", acpSessionId: "acp-b" });
+    const otherAgentEntry = makeEntry({
+      projectId: "project-a",
+      agentId: "codex",
+      acpSessionId: "acp-other",
+    });
+    sessionProbeRegistry.set("project-a", "claude-code", projectAEntry);
+    sessionProbeRegistry.set("project-b", "claude-code", projectBEntry);
+    sessionProbeRegistry.set("project-a", "codex", otherAgentEntry);
+
+    const removed = sessionProbeRegistry.deleteAgent("claude-code");
+
+    expect(removed).toEqual([projectAEntry, projectBEntry]);
+    expect(sessionProbeRegistry.get("project-a", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("project-b", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("project-a", "codex")).toBe(otherAgentEntry);
+  });
+
   it("takeFor returns the entry with availableCommands when acpSessionId matches", () => {
     const entry = makeEntry({
       acpSessionId: "acp-x",

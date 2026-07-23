@@ -5,16 +5,18 @@ import { sessionProbeRegistry } from "@main/services/session/chat/session-probe-
 import { sessionProbeBus } from "@main/services/session/chat/session-probe-bus";
 
 const mocks = vi.hoisted(() => ({
-  agentUnavailableListener: null as ((event: { agentId: string; reason: string }) => void) | null,
+  processInvalidatedListener: null as ((event: { agentId: string; reason: string }) => void) | null,
   pendingProbeHandlers: new Map<string, (notification: SessionNotification) => void>(),
   sessionHandlers: new Map<string, (notification: SessionNotification) => void>(),
   getOrStartProcess: vi.fn(),
   resolveBundledMcpServers: vi.fn(),
   toAcpMcpServer: vi.fn(),
-  onAgentUnavailable: vi.fn((listener: (event: { agentId: string; reason: string }) => void) => {
-    mocks.agentUnavailableListener = listener;
-    return vi.fn();
-  }),
+  onAgentProcessInvalidated: vi.fn(
+    (listener: (event: { agentId: string; reason: string }) => void) => {
+      mocks.processInvalidatedListener = listener;
+      return vi.fn();
+    }
+  ),
   setPendingProbeHandler: vi.fn(
     (agentId: string, handler: (notification: SessionNotification) => void) => {
       mocks.pendingProbeHandlers.set(agentId, handler);
@@ -41,7 +43,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
-  onAgentUnavailable: mocks.onAgentUnavailable,
+  onAgentProcessInvalidated: mocks.onAgentProcessInvalidated,
   setPendingProbeHandler: mocks.setPendingProbeHandler,
   clearPendingProbeHandler: mocks.clearPendingProbeHandler,
 }));
@@ -55,11 +57,11 @@ vi.mock("@main/infra/logger", () => ({
   default: mocks.logger,
 }));
 
-function agentUnavailableListener(): (event: { agentId: string; reason: string }) => void {
-  const listener = mocks.agentUnavailableListener;
+function processInvalidatedListener(): (event: { agentId: string; reason: string }) => void {
+  const listener = mocks.processInvalidatedListener;
   expect(listener).toBeTypeOf("function");
   if (!listener) {
-    throw new Error("Expected agent unavailable listener");
+    throw new Error("Expected process invalidated listener");
   }
   return listener;
 }
@@ -361,13 +363,13 @@ describe("session-probe-service", () => {
     expect(mocks.setSessionConfigOption).not.toHaveBeenCalled();
   });
 
-  it("cleans probe state when the agent becomes unavailable", async () => {
+  it("cleans probe state when the agent process is invalidated", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
     await ensureProbe("project-1", "claude-code", "/tmp/project");
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
-    agentUnavailableListener()({ agentId: "claude-code", reason: "crashed" });
+    processInvalidatedListener()({ agentId: "claude-code", reason: "crashed" });
 
     expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
     expect(onUpdate).toHaveBeenCalledWith({
@@ -377,6 +379,54 @@ describe("session-probe-service", () => {
     });
 
     sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("clears one agent across projects, preserves other agents, and emits project updates", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    mocks.newSession
+      .mockResolvedValueOnce({ sessionId: "acp-a", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-b", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-other", configOptions: [] });
+    await ensureProbe("project-a", "claude-code", "/tmp/project-a");
+    await ensureProbe("project-b", "claude-code", "/tmp/project-b");
+    await ensureProbe("project-a", "codex", "/tmp/project-a");
+    const onUpdate = vi.fn();
+    sessionProbeBus.onUpdate(onUpdate);
+
+    processInvalidatedListener()({ agentId: "claude-code", reason: "upgrade" });
+
+    expect(sessionProbeRegistry.get("project-a", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("project-b", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("project-a", "codex")).toMatchObject({
+      acpSessionId: "acp-other",
+    });
+    expect(onUpdate).toHaveBeenCalledWith({
+      projectId: "project-a",
+      agentId: "claude-code",
+      snapshot: null,
+    });
+    expect(onUpdate).toHaveBeenCalledWith({
+      projectId: "project-b",
+      agentId: "claude-code",
+      snapshot: null,
+    });
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+
+    sessionProbeBus.offUpdate(onUpdate);
+  });
+
+  it("creates a fresh session when ensureProbe runs after invalidation", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    mocks.newSession
+      .mockResolvedValueOnce({ sessionId: "acp-old", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-new", configOptions: [] });
+    await ensureProbe("project-1", "claude-code", "/tmp/project");
+
+    processInvalidatedListener()({ agentId: "claude-code", reason: "upgrade" });
+    const snapshot = await ensureProbe("project-1", "claude-code", "/tmp/project");
+
+    expect(mocks.newSession).toHaveBeenCalledTimes(2);
+    expect(snapshot.acpSessionId).toBe("acp-new");
   });
 
   it("registers a probe handler before newSession and ready snapshot starts with empty commands", async () => {

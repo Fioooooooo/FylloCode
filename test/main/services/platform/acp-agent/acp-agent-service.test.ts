@@ -14,6 +14,11 @@ vi.mock("@main/infra/paths", () => ({
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: vi.fn(),
+  stopAgentProcess: vi.fn(),
+}));
+
+vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
+  prewarmAgentConnections: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({

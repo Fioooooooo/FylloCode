@@ -6,7 +6,7 @@ import { ipcError } from "@shared/errors/ipc-error";
 import {
   clearPendingProbeHandler,
   getOrStartProcess,
-  onAgentUnavailable,
+  onAgentProcessInvalidated,
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
 import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
@@ -228,6 +228,13 @@ export async function ensureProbe(
         }
       });
       const current = sessionProbeRegistry.get(projectId, agentId);
+      if (current !== startingEntry) {
+        processEntry.sessionHandlers.delete(response.sessionId);
+        await processEntry.connection.closeSession({ sessionId: response.sessionId }).catch(() => {
+          /* invalidation already owns process teardown */
+        });
+        throw ipcError(IpcErrorCodes.ACP_NOT_READY, `Probe for ${agentId} was invalidated`);
+      }
       const readyEntry: ProbeEntry = {
         projectId,
         agentId,
@@ -246,6 +253,10 @@ export async function ensureProbe(
       return readyEntry;
     } catch (error: unknown) {
       detachProbeFallback(projectId, agentId);
+      if (sessionProbeRegistry.get(projectId, agentId) !== startingEntry) {
+        const normalized = normalizeError(error);
+        throw ipcError(normalizeIpcErrorCode(normalized.code), normalized.message);
+      }
       const failedEntry = setFailedEntry(projectId, agentId, error, startingEntry.fylloSessionId);
       throw ipcError(
         normalizeIpcErrorCode(failedEntry.error?.code),
@@ -373,17 +384,11 @@ export function getProbeSnapshot(projectId: string, agentId: string): ProbeSnaps
   return entry ? toProbeSnapshot(entry) : null;
 }
 
-onAgentUnavailable(({ agentId }) => {
-  for (const key of sessionProbeRegistry.keys()) {
-    const [projectId, entryAgentId] = key.split("::", 2);
-    if (!projectId || entryAgentId !== agentId) {
-      continue;
-    }
-
-    const removed = sessionProbeRegistry.delete(projectId, agentId);
-    if (removed) {
-      detachProbeFallback(projectId, agentId);
-      emitUpdate(projectId, agentId, null);
-    }
+onAgentProcessInvalidated(({ agentId }) => {
+  probeStartTailsByAgent.delete(agentId);
+  const removed = sessionProbeRegistry.deleteAgent(agentId);
+  for (const entry of removed) {
+    detachProbeFallback(entry.projectId, agentId);
+    emitUpdate(entry.projectId, agentId, null);
   }
 });

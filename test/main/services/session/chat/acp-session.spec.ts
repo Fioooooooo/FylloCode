@@ -495,6 +495,79 @@ describe("AcpSession", () => {
     expect(mocks.sessionHandlers.has("acp-existing")).toBe(false);
   });
 
+  it("uses the upgraded connection with the persisted session recovery order", async () => {
+    const callOrder: string[] = [];
+    const upgradedConnection = {
+      resumeSession: vi.fn(async () => {
+        callOrder.push("resume");
+        throw { code: -32002, message: "Resource not found" };
+      }),
+      loadSession: vi.fn(async () => {
+        callOrder.push("load");
+        throw { code: -32002, message: "Resource not found" };
+      }),
+      newSession: vi.fn(async () => {
+        callOrder.push("new");
+        return { sessionId: "acp-after-upgrade" };
+      }),
+      prompt: vi
+        .fn()
+        .mockRejectedValueOnce({ code: -32602, message: "Session not found: acp-existing" })
+        .mockResolvedValueOnce({ usage: { outputTokens: 4 } }),
+      cancel: vi.fn(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue({
+      connection: upgradedConnection,
+      sessionHandlers: mocks.sessionHandlers,
+      initializeResponse: initializeResponse(),
+    });
+    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+
+    const session = await createSession({
+      recoveryContext: {
+        hasPersistedHistory: true,
+        loadPersistedHistory: async () => [
+          {
+            id: "assistant-before-upgrade",
+            role: "assistant",
+            parts: [{ type: "text", text: "previous reply" }],
+            metadata: {
+              sessionId: "session-1",
+              createdAt: new Date("2026-07-23T00:00:00.000Z"),
+            },
+          },
+        ],
+      },
+    });
+    await session.start([{ type: "text", text: "continue" }]);
+
+    expect(callOrder).toEqual(["resume", "load", "new"]);
+    expect(upgradedConnection.resumeSession).toHaveBeenCalledWith({
+      sessionId: "acp-existing",
+      cwd: "/tmp/project",
+      mcpServers: [],
+    });
+    expect(upgradedConnection.loadSession).toHaveBeenCalledWith({
+      sessionId: "acp-existing",
+      cwd: "/tmp/project",
+      mcpServers: [],
+    });
+    expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-after-upgrade");
+    expect(upgradedConnection.prompt).toHaveBeenLastCalledWith({
+      sessionId: "acp-after-upgrade",
+      prompt: [
+        {
+          type: "text",
+          text: expect.stringContaining("请根据以下对话历史，继续与用户进行对话"),
+        },
+        { type: "text", text: "continue" },
+      ],
+    });
+    expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
+    expect(mocks.connection.loadSession).not.toHaveBeenCalled();
+    expect(mocks.connection.newSession).not.toHaveBeenCalled();
+  });
+
   it("converts ChatPromptPart text, image and resource_link into ACP prompt blocks", async () => {
     const imagePath = join(tempRoot, "截图 file.png");
     writeFileSync(imagePath, "image-binary");

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   setupProposalStatusBroadcast: vi.fn(),
   openLauncherWindow: vi.fn(),
   focusLastActiveWindow: vi.fn(),
+  scheduleInstalledAgentConnectionWarmup: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -53,6 +54,9 @@ vi.mock("@main/ipc", () => ({
 }));
 vi.mock("@main/services/automation/workflow/built-in-loader", () => ({
   initBuiltInWorkflows: mocks.initBuiltInWorkflows,
+}));
+vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
+  scheduleInstalledAgentConnectionWarmup: mocks.scheduleInstalledAgentConnectionWarmup,
 }));
 vi.mock("@main/ipc/session/chat", () => ({
   setupProbeBroadcast: mocks.setupProbeBroadcast,
@@ -96,14 +100,64 @@ describe("main bootstrap", () => {
     mocks.openLauncherWindow.mockImplementation(() => {
       callOrder.push("open-window");
     });
+    mocks.scheduleInstalledAgentConnectionWarmup.mockImplementation(() => {
+      callOrder.push("schedule-warmup");
+    });
 
     const { bootstrapReady } = await import("@main/bootstrap/index");
     await bootstrapReady();
 
-    expect(callOrder).toEqual(["start-host", "register-ipc", "open-window"]);
+    expect(callOrder).toEqual(["start-host", "register-ipc", "open-window", "schedule-warmup"]);
     expect(mocks.registerDisposable).toHaveBeenCalledWith({
       name: "bundled-mcp-host",
       dispose: mocks.stopBundledMcpHost,
     });
+  });
+
+  it("schedules warmup only after prerequisites, event setup, and the first window", async () => {
+    const callOrder: string[] = [];
+    mocks.syncShellPath.mockImplementation(async () => {
+      callOrder.push("shell-path");
+    });
+    mocks.runAllMigrations.mockImplementation(async () => {
+      callOrder.push("migrations");
+    });
+    mocks.startBundledMcpHost.mockImplementation(() => {
+      callOrder.push("start-host");
+    });
+    mocks.registerAllHandlers.mockImplementation(() => {
+      callOrder.push("register-ipc");
+    });
+    mocks.setupProbeBroadcast.mockImplementation(() => {
+      callOrder.push("probe-events");
+    });
+    mocks.setupAgentEventBroadcast.mockImplementation(() => {
+      callOrder.push("agent-events");
+    });
+    mocks.setupProposalStatusBroadcast.mockImplementation(() => {
+      callOrder.push("proposal-events");
+    });
+    mocks.openLauncherWindow.mockImplementation(() => {
+      callOrder.push("open-window");
+    });
+    mocks.scheduleInstalledAgentConnectionWarmup.mockImplementation(() => {
+      callOrder.push("schedule-warmup");
+    });
+
+    const { bootstrapReady } = await import("@main/bootstrap/index");
+    await bootstrapReady();
+
+    expect(callOrder).toEqual([
+      "shell-path",
+      "migrations",
+      "start-host",
+      "register-ipc",
+      "probe-events",
+      "agent-events",
+      "proposal-events",
+      "open-window",
+      "schedule-warmup",
+    ]);
+    expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
   });
 });

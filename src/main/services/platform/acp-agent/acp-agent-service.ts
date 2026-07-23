@@ -18,15 +18,22 @@ import { getAgentIcons } from "@main/infra/storage/acp-icon-cache";
 import { installAgent, uninstallAgent } from "@main/services/platform/acp-agent/installer";
 import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-cache";
 import { readStatusCache, writeStatusCache } from "@main/infra/storage/acp-status-cache";
-import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
+import { getOrStartProcess, stopAgentProcess } from "@main/infra/process/acp-process-pool";
 import {
   getCachedPromptCapabilities,
   removeAgentCapabilities,
 } from "@main/infra/storage/agent-capability-store";
-import { writeCustomAgents } from "@main/infra/storage/custom-agent-config-store";
-import { listAgents, getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog";
+import { readCustomAgents, writeCustomAgents } from "@main/infra/storage/custom-agent-config-store";
+import {
+  generateCustomAgentId,
+  getAgentById,
+  isCustomAgentId,
+  listAgents,
+  resolveCustomCommandPath,
+} from "@main/infra/acp/agent-catalog";
 import { ipcError } from "@main/ipc/_kit/errors";
 import logger from "@main/infra/logger";
+import { prewarmAgentConnections } from "./connection-warmup";
 
 /**
  * Service-layer event bus for agent registry/status/install updates. The
@@ -135,12 +142,68 @@ export async function detectAgentStatusesForced(): Promise<AcpAgentStatus[]> {
   return statuses;
 }
 
+interface CustomAgentRuntime {
+  id: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+
+async function resolveCustomAgentRuntimes(
+  config: AcpCustomAgentsJson
+): Promise<CustomAgentRuntime[]> {
+  return Promise.all(
+    Object.values(config.agent_servers).map(async (agent): Promise<CustomAgentRuntime> => {
+      const command = await resolveCustomCommandPath(agent.command);
+      const args = agent.args ?? [];
+      return {
+        id: generateCustomAgentId(command, args),
+        command,
+        args,
+        env: agent.env ?? {},
+      };
+    })
+  );
+}
+
+function sameRuntime(left: CustomAgentRuntime, right: CustomAgentRuntime): boolean {
+  if (left.command !== right.command || JSON.stringify(left.args) !== JSON.stringify(right.args)) {
+    return false;
+  }
+  const leftEnv = Object.entries(left.env).sort(([a], [b]) => a.localeCompare(b));
+  const rightEnv = Object.entries(right.env).sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(leftEnv) === JSON.stringify(rightEnv);
+}
+
+function submitWarmup(agentIds: readonly string[]): void {
+  void prewarmAgentConnections(agentIds).catch((error: unknown) => {
+    logger.error("[acp-agent-service] failed to submit connection warmup", error);
+  });
+}
+
 export async function saveCustomAgents(config: AcpCustomAgentsJson): Promise<void> {
+  const previousConfig = await readCustomAgents();
+  const [previousRuntimes, nextRuntimes] = await Promise.all([
+    resolveCustomAgentRuntimes(previousConfig),
+    resolveCustomAgentRuntimes(config),
+  ]);
+  const nextById = new Map(nextRuntimes.map((runtime) => [runtime.id, runtime]));
+
+  await Promise.all(
+    previousRuntimes
+      .filter((runtime) => {
+        const next = nextById.get(runtime.id);
+        return !next || !sameRuntime(runtime, next);
+      })
+      .map((runtime) => stopAgentProcess(runtime.id, "custom-config-change"))
+  );
+
   await writeCustomAgents(config);
   const agents = await listAgents();
   const statuses = await detectAgentStatuses(agents);
   await writeStatusCache(statuses);
   emitStatusUpdated(statuses);
+  submitWarmup(agents.filter((agent) => agent.source === "custom").map((agent) => agent.id));
 }
 
 export async function installAgentById(agentId: string): Promise<void> {
@@ -149,7 +212,12 @@ export async function installAgentById(agentId: string): Promise<void> {
   if (!agent) {
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `未知 Agent: ${agentId}`);
   }
+  const records = await readInstalledRecords();
+  if (records[agentId]) {
+    await stopAgentProcess(agentId, "upgrade");
+  }
   await installAgent(agent, emitInstallProgress);
+  submitWarmup([agentId]);
 }
 
 export async function uninstallAgentById(agentId: string): Promise<void> {
@@ -169,6 +237,7 @@ export async function uninstallAgentById(agentId: string): Promise<void> {
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not installed`);
   }
 
+  await stopAgentProcess(agentId, "uninstall");
   await uninstallAgent(agent, record.installMethod, emitUninstallProgress);
   await removeInstalledRecord(agentId);
   await removeAgentCapabilities(agentId);
