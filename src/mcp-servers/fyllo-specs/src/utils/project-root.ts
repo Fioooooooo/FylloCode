@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "fs";
 import path from "path";
 import spawn from "cross-spawn";
+import { getProjectPath } from "../../../shared/env";
 
 export interface TargetPathValidationResult {
   ok: boolean;
@@ -10,7 +11,7 @@ export interface TargetPathValidationResult {
 }
 
 export function resolveProjectRoot(): string {
-  return process.env.FYLLO_PROJECT_PATH || process.cwd();
+  return getProjectPath();
 }
 
 export const gitChildProcess = {
@@ -32,11 +33,12 @@ export function validateTargetPath(targetPath: string): TargetPathValidationResu
 
   const resolved = path.resolve(targetPath);
   const comparableResolved = normalizePathForComparison(resolved);
-  const projectRoot = path.resolve(process.env.FYLLO_PROJECT_PATH ?? "");
+  const projectPath = getProjectPath();
+  const projectRoot = path.resolve(projectPath);
   const comparableProjectRoot = normalizePathForComparison(projectRoot);
   const result = gitChildProcess.spawnSync(
     "git",
-    ["-C", process.env.FYLLO_PROJECT_PATH ?? "", "worktree", "list", "--porcelain"],
+    ["-C", projectPath, "worktree", "list", "--porcelain"],
     { encoding: "utf8" }
   );
 

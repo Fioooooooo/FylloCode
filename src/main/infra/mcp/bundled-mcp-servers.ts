@@ -1,52 +1,48 @@
-import { join } from "path";
-import { is } from "@electron-toolkit/utils";
-import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
+import type { McpServer as AcpMcpServer } from "@agentclientprotocol/sdk";
 import { mcpEventsDir, projectDir } from "@main/infra/storage/project-paths";
-import type { McpEnvVariable, McpServerSpec } from "@shared/types/mcp";
+import type { McpServerSpec, McpServerSpecHttp, McpServerSpecStdio } from "@shared/types/mcp";
+import {
+  getMcpServerEndpoint,
+  waitForBundledMcpInitialReadiness,
+  type BundledMcpEndpoint,
+} from "./bundled-mcp-host";
+import {
+  bundledMcpServers,
+  resolveBundlePath,
+  type BundledMcpServerRegistration,
+} from "./bundled-mcp-registry";
 
-type BundledMcpServerName = "fyllo-specs" | "fyllo-cortex";
-
-interface BundledMcpServerRegistration {
-  name: BundledMcpServerName;
-  env?: () => Record<string, string>;
+export function encodeMcpHeaderValue(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64url");
 }
 
-const bundledMcpServers: BundledMcpServerRegistration[] = [
-  {
-    name: "fyllo-specs",
-    env: () => ({
-      FYLLO_OPENSPEC_CLI_PATH: resolveOpenspecCliPath(),
-    }),
-  },
-  {
-    name: "fyllo-cortex",
-  },
-];
-
-function resolveBundlePath(serverName: BundledMcpServerName): string {
-  if (is.dev) {
-    return join(process.cwd(), "out", "mcp-servers", serverName, "index.js");
-  }
-  return join(getAppUnpackedPath(), "mcp-servers", serverName, "index.js");
+function buildHttpSpec(
+  server: BundledMcpServerRegistration,
+  endpoint: BundledMcpEndpoint,
+  opts: { projectPath: string; fylloSessionId?: string }
+): McpServerSpecHttp {
+  return {
+    type: "http",
+    name: server.name,
+    url: endpoint.url,
+    headers: {
+      Authorization: `Bearer ${endpoint.token}`,
+      "X-Fyllo-Project-Path": encodeMcpHeaderValue(opts.projectPath),
+      "X-Fyllo-Project-Data-Dir": encodeMcpHeaderValue(projectDir(opts.projectPath)),
+      "X-Fyllo-Mcp-Event-Dir": encodeMcpHeaderValue(mcpEventsDir(opts.projectPath)),
+      ...(opts.fylloSessionId
+        ? { "X-Fyllo-Session-Id": encodeMcpHeaderValue(opts.fylloSessionId) }
+        : {}),
+    },
+  };
 }
 
-function resolveOpenspecCliPath(): string {
-  // The OpenSpec CLI stays inside app.asar in production so Node resolves its
-  // ESM package dependencies (for example `commander`) from the same packaged
-  // node_modules tree instead of crossing into app.asar.unpacked.
-  const appRoot = is.dev ? process.cwd() : getAppAsarPath();
-  return join(appRoot, "node_modules", "@fission-ai", "openspec", "bin", "openspec.js");
-}
-
-export function getBundledMcpServers(opts: {
-  projectPath: string;
-  fylloSessionId?: string;
-}): McpServerSpec[] {
-  if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
-    return [];
-  }
-
-  return bundledMcpServers.map((server) => ({
+function buildStdioSpec(
+  server: BundledMcpServerRegistration,
+  opts: { projectPath: string; fylloSessionId?: string }
+): McpServerSpecStdio {
+  return {
+    type: "stdio",
     name: server.name,
     command: process.execPath,
     args: [resolveBundlePath(server.name)],
@@ -57,11 +53,41 @@ export function getBundledMcpServers(opts: {
       FYLLO_MCP_TELEMETRY: "0",
       FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.projectPath),
       ...(opts.fylloSessionId ? { FYLLO_SESSION_ID: opts.fylloSessionId } : {}),
-      ...(server.env?.() ?? {}),
+      ...(server.processEnv?.() ?? {}),
     },
-  }));
+  };
 }
 
-export function toAcpMcpServerEnv(env: Record<string, string>): McpEnvVariable[] {
-  return Object.entries(env).map(([name, value]) => ({ name, value }));
+export async function resolveBundledMcpServers(opts: {
+  projectPath: string;
+  fylloSessionId?: string;
+  supportsHttp: boolean;
+}): Promise<McpServerSpec[]> {
+  if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
+    return [];
+  }
+
+  await waitForBundledMcpInitialReadiness();
+
+  return bundledMcpServers.map((server) => {
+    const endpoint = opts.supportsHttp ? getMcpServerEndpoint(server.name) : null;
+    return endpoint ? buildHttpSpec(server, endpoint, opts) : buildStdioSpec(server, opts);
+  });
+}
+
+export function toAcpMcpServer(spec: McpServerSpec): AcpMcpServer {
+  if (spec.type === "http") {
+    return {
+      type: "http",
+      name: spec.name,
+      url: spec.url,
+      headers: Object.entries(spec.headers).map(([name, value]) => ({ name, value })),
+    };
+  }
+  return {
+    name: spec.name,
+    command: spec.command,
+    args: spec.args,
+    env: Object.entries(spec.env).map(([name, value]) => ({ name, value })),
+  };
 }

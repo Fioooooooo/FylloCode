@@ -97,7 +97,7 @@ File:
 Responsibility:
 
 - set `process.env.DO_NOT_TRACK = "1"` before anything else runs
-- install `SIGTERM` / `SIGINT` handling
+- install `SIGTERM` / `SIGINT` handling and abort when the parent IPC channel disconnects
 - call `startServer()`
 
 This is the stdio MCP entrypoint, not the OpenSpec CLI entrypoint.
@@ -264,6 +264,28 @@ Final effect:
 - ACP forwards the result into the active agent session
 - the agent sees one tool result containing prompt + state
 
+## Transport Modes
+
+`fyllo-specs` supports two transports through the same `createMcpServer()` factory:
+
+- stdio is the compatibility and fallback mode. One process owns one `McpServer` and one `StdioServerTransport`.
+- HTTP is selected with `FYLLO_MCP_TRANSPORT=http`. The process listens on a random loopback port and reports `{ type: "ready", port }` to the main process over IPC.
+
+The main process owns a stable loopback proxy URL and passes it to HTTP-capable ACP agents. The real backend port remains private and can change after a backend restart.
+
+HTTP mode requires `FYLLO_MCP_AUTH_TOKEN`. The process refuses to start its listener without the token, and every request must include the matching bearer token. Each HTTP request creates a short-lived in-memory `McpServer` plus stateless `StreamableHTTPServerTransport`; requests do not spawn additional operating-system processes.
+
+Project/session context is request-scoped in HTTP mode. These UTF-8 values are base64url-encoded in headers:
+
+| Header                     | Required | Getter fallback in stdio mode |
+| -------------------------- | -------- | ----------------------------- |
+| `X-Fyllo-Project-Path`     | yes      | `FYLLO_PROJECT_PATH`          |
+| `X-Fyllo-Project-Data-Dir` | yes      | `FYLLO_PROJECT_DATA_DIR`      |
+| `X-Fyllo-Mcp-Event-Dir`    | no       | `FYLLO_MCP_EVENT_DIR`         |
+| `X-Fyllo-Session-Id`       | no       | `FYLLO_SESSION_ID`            |
+
+The current security boundary is one application-lifetime shared token plus structural context decoding. Context signatures, token-context binding, path ownership checks, token rotation/revocation, and Host/Origin validation are intentionally deferred.
+
 ## Environment Variables
 
 There are two layers of environment variables in this flow:
@@ -273,12 +295,14 @@ There are two layers of environment variables in this flow:
 
 ### Variables Received By `fyllo-specs`
 
-These are injected by `getBundledMcpServers()`.
+The stdio values are injected by `resolveBundledMcpServers()`; HTTP process-level values are injected by `bundled-mcp-host.ts`.
 
 | Variable                  | Example                                                            | Meaning                                                                                                                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ELECTRON_RUN_AS_NODE`    | `"1"`                                                              | Makes the launched Electron binary behave like Node so the MCP bundle can run as a stdio server.                                                                                                                    |
-| `FYLLO_PROJECT_PATH`      | `"/Users/tao/Work/Fio/projects/FylloCode"`                         | Absolute path of the selected project. `resolveProjectRoot()` uses this first and only falls back to `process.cwd()` when missing.                                                                                  |
+| `ELECTRON_RUN_AS_NODE`    | `"1"`                                                              | Makes the launched Electron binary behave like Node so the MCP bundle can run outside Electron.                                                                                                                     |
+| `FYLLO_MCP_TRANSPORT`     | `"http"`                                                           | Selects the HTTP listener. Any other value keeps the stdio compatibility mode.                                                                                                                                      |
+| `FYLLO_MCP_AUTH_TOKEN`    | application-generated token                                        | Required only in HTTP mode; authenticates requests and must never be logged.                                                                                                                                        |
+| `FYLLO_PROJECT_PATH`      | `"/Users/tao/Work/Fio/projects/FylloCode"`                         | Stdio project context. HTTP requests obtain this value from `X-Fyllo-Project-Path`.                                                                                                                                 |
 | `FYLLO_OPENSPEC_CLI_PATH` | `".../app.asar/node_modules/@fission-ai/openspec/bin/openspec.js"` | Absolute path to the packaged OpenSpec CLI entry. `resolveOpenspecCli()` uses this first before probing fallback paths.                                                                                             |
 | `FYLLO_MCP_TELEMETRY`     | `"0"`                                                              | Contract-level switch stating bundled MCP telemetry must stay disabled. `fyllo-specs` does not currently branch on this value, but the launcher still passes it explicitly as part of the bundled-MCP env contract. |
 
@@ -315,9 +339,9 @@ Notes:
 
 This variable is not received by the running MCP server process. It is consumed earlier by the main process.
 
-| Variable                      | Meaning                                                                                               |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `FYLLO_DISABLE_BUNDLED_MCP=1` | Makes `getBundledMcpServers()` return `[]`, which disables all bundled MCP servers before ACP launch. |
+| Variable                      | Meaning                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `FYLLO_DISABLE_BUNDLED_MCP=1` | Prevents the main process from starting the proxy/backends and makes `resolveBundledMcpServers()` return `[]`. |
 
 ## Failure-Prone Points
 

@@ -9,7 +9,7 @@ import {
   onAgentUnavailable,
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
-import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
+import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
 import { newSessionId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
 import { normalizeAcpSessionConfigOptions, normalizeAvailableCommands } from "./acp-mapper";
@@ -198,13 +198,15 @@ export async function ensureProbe(
     probeHandlersByKey.set(probeKey(projectId, agentId), probeHandler);
     try {
       const processEntry = await getProcess(agentId);
-      const mcpServers = getBundledMcpServers({
-        projectPath,
-        fylloSessionId: startingEntry.fylloSessionId,
-      }).map((spec) => ({
-        ...spec,
-        env: toAcpMcpServerEnv(spec.env),
-      }));
+      const supportsHttp =
+        processEntry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
+      const mcpServers = (
+        await resolveBundledMcpServers({
+          projectPath,
+          fylloSessionId: startingEntry.fylloSessionId,
+          supportsHttp,
+        })
+      ).map(toAcpMcpServer);
       const response = await runSerializedProbeStart(agentId, async () => {
         // Register the probe handler BEFORE newSession: claude-acp pushes
         // available_commands_update via setTimeout(0) right after newSession

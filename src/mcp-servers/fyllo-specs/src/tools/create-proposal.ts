@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
 import type { McpProposalEvent } from "@shared/types/mcp-event";
+import { getMcpEventDir, getProjectPath, getSessionId } from "../../../shared/env";
 import { runTool } from "../utils/state";
 import { createChange, computeStatus, getInstructions } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
@@ -33,8 +34,8 @@ const createProposalInputSchema = z.object({
 });
 
 async function writeProposalEvent(changeName: string): Promise<void> {
-  const eventDir = process.env.FYLLO_MCP_EVENT_DIR;
-  const sessionId = process.env.FYLLO_SESSION_ID;
+  const eventDir = getMcpEventDir();
+  const sessionId = getSessionId();
   if (!eventDir || !sessionId) {
     return;
   }
@@ -77,8 +78,8 @@ export async function createProposalTool(
       throw error;
     }
 
-    const mainProjectPath = result.resolved;
-    const expectedMainPath = path.resolve((process.env.FYLLO_PROJECT_PATH ?? mainProjectPath)!);
+    const mainProjectPath = result.resolved!;
+    const expectedMainPath = path.resolve(getProjectPath());
     if (mainProjectPath !== expectedMainPath) {
       throw new Error("targetPath must be the main project root for create-proposal");
     }

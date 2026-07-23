@@ -1,14 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { startHttpServer } from "../../shared/http-server";
 import { registerTools } from "./tools";
 import { FYLLO_CORTEX_SERVER_VERSION } from "./version";
 
-export async function startServer(signal?: AbortSignal): Promise<void> {
+export function createMcpServer(): McpServer {
   const server = new McpServer({ name: "fyllo-cortex", version: FYLLO_CORTEX_SERVER_VERSION });
-  const transport = new StdioServerTransport();
-
   registerTools(server);
+  return server;
+}
 
+export async function startServer(signal?: AbortSignal): Promise<void> {
+  if (process.env.FYLLO_MCP_TRANSPORT === "http") {
+    await startHttpServer(createMcpServer, signal);
+    return;
+  }
+
+  const server = createMcpServer();
+  const transport = new StdioServerTransport();
   await server.connect(transport);
 
   if (signal) {

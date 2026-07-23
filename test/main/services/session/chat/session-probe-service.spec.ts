@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   pendingProbeHandlers: new Map<string, (notification: SessionNotification) => void>(),
   sessionHandlers: new Map<string, (notification: SessionNotification) => void>(),
   getOrStartProcess: vi.fn(),
-  getBundledMcpServers: vi.fn(),
-  toAcpMcpServerEnv: vi.fn(),
+  resolveBundledMcpServers: vi.fn(),
+  toAcpMcpServer: vi.fn(),
   onAgentUnavailable: vi.fn((listener: (event: { agentId: string; reason: string }) => void) => {
     mocks.agentUnavailableListener = listener;
     return vi.fn();
@@ -47,8 +47,8 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
-  getBundledMcpServers: mocks.getBundledMcpServers,
-  toAcpMcpServerEnv: mocks.toAcpMcpServerEnv,
+  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  toAcpMcpServer: mocks.toAcpMcpServer,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -77,11 +77,34 @@ describe("session-probe-service", () => {
         closeSession: mocks.closeSession,
         setSessionConfigOption: mocks.setSessionConfigOption,
       },
+      initializeResponse: {
+        protocolVersion: 1,
+        agentCapabilities: {},
+      },
     });
-    mocks.getBundledMcpServers.mockReturnValue([
-      { name: "fyllo", command: "node", args: ["server.js"], env: { A: "B" } },
+    mocks.resolveBundledMcpServers.mockResolvedValue([
+      {
+        type: "stdio",
+        name: "fyllo",
+        command: "node",
+        args: ["server.js"],
+        env: { A: "B" },
+      },
     ]);
-    mocks.toAcpMcpServerEnv.mockImplementation((env: unknown) => env);
+    mocks.toAcpMcpServer.mockImplementation((spec: unknown) => {
+      const value = spec as {
+        name: string;
+        command: string;
+        args: string[];
+        env: Record<string, string>;
+      };
+      return {
+        name: value.name,
+        command: value.command,
+        args: value.args,
+        env: Object.entries(value.env).map(([name, value]) => ({ name, value })),
+      };
+    });
     mocks.newSession.mockResolvedValue({
       sessionId: "acp-1",
       configOptions: [
@@ -117,13 +140,21 @@ describe("session-probe-service", () => {
     const snapshot = await ensureProbe("project-1", "claude-code", "/tmp/project");
 
     expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
-    expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
       projectPath: "/tmp/project",
       fylloSessionId: snapshot.fylloSessionId,
+      supportsHttp: false,
     });
     expect(mocks.newSession).toHaveBeenCalledWith({
       cwd: "/tmp/project",
-      mcpServers: [{ name: "fyllo", command: "node", args: ["server.js"], env: { A: "B" } }],
+      mcpServers: [
+        {
+          name: "fyllo",
+          command: "node",
+          args: ["server.js"],
+          env: [{ name: "A", value: "B" }],
+        },
+      ],
     });
     expect(snapshot).toMatchObject({
       agentId: "claude-code",
@@ -165,6 +196,24 @@ describe("session-probe-service", () => {
       expect.objectContaining({ acpSessionId: "acp-1" }),
     ]);
     expect(mocks.newSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for bundled MCP readiness before calling newSession", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    let resolveServers!: (value: []) => void;
+    mocks.resolveBundledMcpServers.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveServers = resolve;
+      })
+    );
+
+    const probe = ensureProbe("project-1", "claude-code", "/tmp/project");
+    await vi.waitFor(() => expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce());
+    expect(mocks.newSession).not.toHaveBeenCalled();
+
+    resolveServers([]);
+    await expect(probe).resolves.toMatchObject({ status: "ready", acpSessionId: "acp-1" });
+    expect(mocks.newSession).toHaveBeenCalledOnce();
   });
 
   it("serializes concurrent draft probe starts for the same agent across projects", async () => {
@@ -228,9 +277,10 @@ describe("session-probe-service", () => {
     });
 
     await vi.waitFor(() => {
-      expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+      expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
         projectPath: "/tmp/project",
         fylloSessionId: startingEntry?.fylloSessionId,
+        supportsHttp: false,
       });
     });
 

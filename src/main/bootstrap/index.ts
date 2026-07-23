@@ -6,43 +6,52 @@ import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
 import { setupProbeBroadcast } from "@main/ipc/session/chat";
 import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-in-loader";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
+import { startBundledMcpHost, stopBundledMcpHost } from "@main/infra/mcp/bundled-mcp-host";
 import { runAllMigrations } from "@main/migrations";
-import { disposeAll } from "./lifecycle";
+import { disposeAll, registerDisposable } from "./lifecycle";
 import { projectWindowManager } from "./project-window-manager";
 import logger from "@main/infra/logger";
 
 let shuttingDown = false;
 
-export function startApp(): void {
-  app.whenReady().then(async () => {
-    electronApp.setAppUserModelId("com.fyllocode.app");
+export async function bootstrapReady(): Promise<void> {
+  electronApp.setAppUserModelId("com.fyllocode.app");
 
-    app.on("browser-window-created", (_event, window) => {
-      optimizer.watchWindowShortcuts(window);
-    });
-
-    await syncShellPath();
-    await runAllMigrations();
-
-    logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
-
-    registerAllHandlers();
-    void initBuiltInWorkflows();
-
-    setupProbeBroadcast(projectWindowManager);
-    setupAgentEventBroadcast(projectWindowManager);
-    setupProposalStatusBroadcast(projectWindowManager);
-    projectWindowManager.openLauncherWindow();
-
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        projectWindowManager.openLauncherWindow();
-        return;
-      }
-
-      projectWindowManager.focusLastActiveWindow();
-    });
+  app.on("browser-window-created", (_event, window) => {
+    optimizer.watchWindowShortcuts(window);
   });
+
+  await syncShellPath();
+  await runAllMigrations();
+
+  logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
+
+  startBundledMcpHost();
+  registerDisposable({
+    name: "bundled-mcp-host",
+    dispose: stopBundledMcpHost,
+  });
+
+  registerAllHandlers();
+  void initBuiltInWorkflows();
+
+  setupProbeBroadcast(projectWindowManager);
+  setupAgentEventBroadcast(projectWindowManager);
+  setupProposalStatusBroadcast(projectWindowManager);
+  projectWindowManager.openLauncherWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      projectWindowManager.openLauncherWindow();
+      return;
+    }
+
+    projectWindowManager.focusLastActiveWindow();
+  });
+}
+
+export function startApp(): void {
+  app.whenReady().then(bootstrapReady);
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {

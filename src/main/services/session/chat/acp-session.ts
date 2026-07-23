@@ -27,7 +27,7 @@ import type {
   SessionRuntimeState,
 } from "@main/domain/session/chat/acp-session-recovery";
 import logger from "@main/infra/logger";
-import { getBundledMcpServers, toAcpMcpServerEnv } from "@main/infra/mcp/bundled-mcp-servers";
+import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
 import type { SessionOwner } from "@main/services/session/chat/session-registry";
 import type { TextUIPart } from "ai";
 import { resolveSystemReminder } from "@main/services/session/chat/system-reminder";
@@ -144,13 +144,14 @@ export class AcpSession extends EventEmitter {
       return null;
     }
 
-    const mcpServers: AcpMcpServers = getBundledMcpServers({
-      projectPath: this.opts.projectPath,
-      fylloSessionId: this.opts.fylloSessionId,
-    }).map((spec) => ({
-      ...spec,
-      env: toAcpMcpServerEnv(spec.env),
-    }));
+    const supportsHttp = entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
+    const mcpServers: AcpMcpServers = (
+      await resolveBundledMcpServers({
+        projectPath: this.opts.projectPath,
+        fylloSessionId: this.opts.fylloSessionId,
+        supportsHttp,
+      })
+    ).map(toAcpMcpServer);
     const persistedSessionId = await this.opts.sessionStore.loadAcpSessionId();
     if (this.cancelled) {
       logger.warn(

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { getProjectPath } from "../../../shared/env";
 import { runTool } from "../utils/state";
 import { archiveChange, changeDir, OpenspecArchiveNotConfirmedError } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
@@ -220,7 +221,7 @@ export async function archiveChangeTool(
     }
 
     const workspace = await finalizeArchiveWorkspace({
-      mainProjectPath: process.env.FYLLO_PROJECT_PATH ?? projectRoot,
+      mainProjectPath: getProjectPath() || projectRoot,
       workspacePath: projectRoot,
       changeName: input.changeName,
       commitMessage: input.commitMessage ?? "",

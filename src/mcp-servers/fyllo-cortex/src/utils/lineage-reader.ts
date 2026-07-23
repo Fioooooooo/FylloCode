@@ -7,6 +7,7 @@ import type {
   Subject,
 } from "@shared/types/lineage";
 import type { ProposalStatus } from "@shared/types/proposal";
+import { getProjectDataDir } from "../../../shared/env";
 import { runGit } from "./git";
 import { resolveProjectRoot } from "./project-root";
 
@@ -60,10 +61,10 @@ export class MissingEnvError extends Error {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
+function getRequiredProjectDataDir(): string {
+  const value = getProjectDataDir();
   if (!value) {
-    throw new MissingEnvError(name);
+    throw new MissingEnvError("FYLLO_PROJECT_DATA_DIR");
   }
   return value;
 }
@@ -235,7 +236,7 @@ async function projectSubjectDto(subject: Subject): Promise<LineageResponseDto> 
 
 export async function readLineageIndex(): Promise<LineageIndex | null> {
   try {
-    const dataDir = getRequiredEnv("FYLLO_PROJECT_DATA_DIR");
+    const dataDir = getRequiredProjectDataDir();
     const indexPath = join(dataDir, "lineage", "index.json");
     const content = await readFile(indexPath, "utf-8");
     const parsed = JSON.parse(content) as unknown;
@@ -250,7 +251,7 @@ export async function readLineageIndex(): Promise<LineageIndex | null> {
 
 export async function readSubject(subjectId: string): Promise<Subject | null> {
   try {
-    const dataDir = getRequiredEnv("FYLLO_PROJECT_DATA_DIR");
+    const dataDir = getRequiredProjectDataDir();
     const subjectPath = join(dataDir, "lineage", "subjects", `${subjectId}.json`);
     const content = await readFile(subjectPath, "utf-8");
     const parsed = JSON.parse(content) as unknown;

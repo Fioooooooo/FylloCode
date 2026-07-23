@@ -27,8 +27,8 @@ const mocks = vi.hoisted(() => {
       loadAcpSessionId: vi.fn(),
       persistAcpSessionId: vi.fn(),
     },
-    getBundledMcpServers: vi.fn(),
-    toAcpMcpServerEnv: vi.fn(),
+    resolveBundledMcpServers: vi.fn(),
+    toAcpMcpServer: vi.fn(),
     resolveSystemReminder: vi.fn(),
     logger: {
       info: vi.fn(),
@@ -43,8 +43,8 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
-  getBundledMcpServers: mocks.getBundledMcpServers,
-  toAcpMcpServerEnv: mocks.toAcpMcpServerEnv,
+  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  toAcpMcpServer: mocks.toAcpMcpServer,
 }));
 
 vi.mock("@main/services/session/chat/system-reminder", () => ({
@@ -116,8 +116,8 @@ describe("AcpSession", () => {
     mocks.connection.prompt.mockResolvedValue({ usage: { outputTokens: 12 } });
     mocks.sessionStore.loadAcpSessionId.mockResolvedValue(null);
     mocks.sessionStore.persistAcpSessionId.mockResolvedValue(undefined);
-    mocks.getBundledMcpServers.mockReturnValue([]);
-    mocks.toAcpMcpServerEnv.mockImplementation((env: unknown) => env);
+    mocks.resolveBundledMcpServers.mockResolvedValue([]);
+    mocks.toAcpMcpServer.mockImplementation((spec: unknown) => spec);
     mocks.resolveSystemReminder.mockResolvedValue(null);
   });
 
@@ -164,10 +164,27 @@ describe("AcpSession", () => {
     const session = await createSession();
     await session.start([{ type: "text", text: "hello" }]);
 
-    expect(mocks.getBundledMcpServers).toHaveBeenCalledWith({
+    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
       projectPath: "/tmp/project",
       fylloSessionId: "session-1",
+      supportsHttp: false,
     });
+  });
+
+  it("waits for bundled MCP readiness before calling newSession", async () => {
+    const bundledServers = deferred<[]>();
+    mocks.resolveBundledMcpServers.mockReturnValueOnce(bundledServers.promise);
+
+    const session = await createSession();
+    const start = session.start([{ type: "text", text: "hello" }]);
+    await flushMicrotasks();
+
+    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce();
+    expect(mocks.connection.newSession).not.toHaveBeenCalled();
+
+    bundledServers.resolve([]);
+    await start;
+    expect(mocks.connection.newSession).toHaveBeenCalledOnce();
   });
 
   it("records cancellation before acpSessionId resolves and does not prompt after setup", async () => {

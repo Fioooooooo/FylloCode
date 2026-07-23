@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
 import type { McpPlanEvent } from "@shared/types/mcp-event";
+import { getMcpEventDir, requireProjectDataDir, requireSessionId } from "../../../shared/env";
 import { runTool } from "../utils/state";
 
 const agentSlugPattern = /^[a-z0-9][a-z0-9-]*$/;
@@ -35,14 +36,6 @@ function assertAgentSlug(slug: string): void {
   }
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} is required to create a plan`);
-  }
-  return value;
-}
-
 function planSkeleton(input: { slug: string; goal: string; createdAt: string }): string {
   return [
     "---",
@@ -68,7 +61,7 @@ function planSkeleton(input: { slug: string; goal: string; createdAt: string }):
 }
 
 async function writePlanEvent(input: { sessionId: string; planSlug: string }): Promise<void> {
-  const eventDir = process.env.FYLLO_MCP_EVENT_DIR;
+  const eventDir = getMcpEventDir();
   if (!eventDir) {
     return;
   }
@@ -101,8 +94,8 @@ export async function createPlanTool(
   return runTool("create-plan", { includeInstruction: true }, async () => {
     assertAgentSlug(input.slug);
 
-    const projectDataDir = requireEnv("FYLLO_PROJECT_DATA_DIR");
-    const sessionId = requireEnv("FYLLO_SESSION_ID");
+    const projectDataDir = requireProjectDataDir();
+    const sessionId = requireSessionId();
     const createdAt = new Date().toISOString();
     const fullSlug = `${formatLocalDate(new Date())}-${input.slug}`;
     const plansDir = path.join(projectDataDir, "sessions", sessionId, "plans");
