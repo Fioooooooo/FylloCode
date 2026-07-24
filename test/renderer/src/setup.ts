@@ -1,4 +1,5 @@
 import { config } from "@vue/test-utils";
+import { computed, defineComponent, ref } from "vue";
 import { vi } from "vitest";
 
 // ─────────────────────────────────────────────
@@ -84,6 +85,58 @@ const dashboardSidebarStub = {
   ],
   emits: ["update:collapsed"],
 };
+const collapsibleStub = defineComponent({
+  props: {
+    as: {
+      type: [String, Object],
+      default: "div",
+    },
+    open: {
+      type: Boolean,
+      default: undefined,
+    },
+    defaultOpen: {
+      type: Boolean,
+      default: false,
+    },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
+    unmountOnHide: {
+      type: Boolean,
+      default: true,
+    },
+    ui: {
+      type: Object,
+      default: undefined,
+    },
+  },
+  emits: ["update:open"],
+  setup(props, { emit }) {
+    const internalOpen = ref(props.defaultOpen);
+    const isOpen = computed(() => props.open ?? internalOpen.value);
+
+    function toggle(): void {
+      if (props.disabled) {
+        return;
+      }
+
+      const nextOpen = !isOpen.value;
+      if (props.open === undefined) {
+        internalOpen.value = nextOpen;
+      }
+      emit("update:open", nextOpen);
+    }
+
+    return {
+      isOpen,
+      toggle,
+    };
+  },
+  template:
+    '<component :is="as || \'div\'" v-bind="$attrs" :data-state="isOpen ? \'open\' : \'closed\'"><div data-test="collapsible-trigger" @click="toggle"><slot :open="isOpen" /></div><div v-if="isOpen || !unmountOnHide" data-test="collapsible-content" :hidden="!isOpen"><slot name="content" /></div></component>',
+});
 
 vi.mock("@nuxt/ui/composables", () => ({
   useToast: vi.fn(() => mockToast),
@@ -117,6 +170,8 @@ config.global.stubs = {
   DashboardSidebar: dashboardSidebarStub,
 
   // @nuxt/ui components — 保留基础交互能力用于测试
+  UCollapsible: collapsibleStub,
+  Collapsible: collapsibleStub,
   UButton: buttonStub,
   Button: buttonStub,
   UDropdownMenu: dropdownMenuStub,
