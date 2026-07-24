@@ -276,7 +276,27 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text).toContain("Enabled action types:");
   });
 
-  it("does not inject Fyllo action contracts into apply or archive reminders", async () => {
+  it("injects the Fyllo signal contract after the Action contract in chat reminders", async () => {
+    const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      projectPath: "/tmp/project",
+      cwd: "/tmp/project",
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+    });
+    const text = reminder?.text ?? "";
+
+    expect(text).toContain("<fyllo-signal-contract>");
+    expect(text).toContain("</fyllo-signal-contract>");
+    expect(text).toContain('<fyllo-signal type="show.time">');
+    expect(text.indexOf("<fyllo-action-contract>")).toBeLessThan(
+      text.indexOf("<fyllo-signal-contract>")
+    );
+  });
+
+  it("does not inject Fyllo tag contracts into apply or archive reminders", async () => {
     const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
 
     for (const owner of ["apply", "archive"] as const) {
@@ -293,6 +313,8 @@ describe("resolveSystemReminder", () => {
 
       expect(reminder?.text).not.toContain("<fyllo-action-contract>");
       expect(reminder?.text).not.toContain("</fyllo-action-contract>");
+      expect(reminder?.text).not.toContain("<fyllo-signal-contract>");
+      expect(reminder?.text).not.toContain("</fyllo-signal-contract>");
     }
   });
 });

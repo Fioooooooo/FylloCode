@@ -23,6 +23,7 @@ const props = defineProps<{
   message: UIMessage;
   isDark: boolean;
   enableActions?: boolean;
+  enableSignals?: boolean;
   sessionId?: string | null;
   messageIndex?: number;
   actionStates?: Record<string, FylloActionState>;
@@ -109,6 +110,7 @@ function buildActionContext(partIndex: number) {
       :is-streaming="isPartStreaming(item.part)"
       :is-dark="props.isDark"
       :enable-actions="Boolean(buildActionContext(item.partIndex))"
+      :enable-signals="props.enableSignals"
       :action-context="buildActionContext(item.partIndex)"
     />
   </template>

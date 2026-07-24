@@ -3,18 +3,28 @@ import { analyzeFylloActionMarkdown, parseFylloActionNode } from "@shared/fyllo-
 import { buildChatFylloActionId } from "@shared/fyllo-action/identity";
 import type {
   FylloActionMarkdownAnalysis,
-  FylloActionMarkdownOccurrence,
   RegisterFylloActionInput,
   FylloActionState,
 } from "@shared/fyllo-action/protocol";
+import {
+  createFylloTagNodeTransformer,
+  prepareFylloTagMarkdown,
+  type FylloTagLiteralPlaceholder,
+  type FylloTagPostTransformNodes,
+  type PreparedFylloTagMarkdown,
+} from "@renderer/components/shared/markstream/fyllo-tag";
 import type { FylloActionRegistrationController } from "../application/registration";
-import type { NodeRendererProps } from "markstream-vue";
 
 export { FylloActionNode };
 
 const PUBLIC_FYLLO_ACTION_OPEN = "<fyllo-action";
 const PUBLIC_FYLLO_ACTION_CLOSE = "</fyllo-action>";
 const INTERNAL_FYLLO_ACTION_TAG = "fyllo-action-render";
+const fylloActionTransportConfig = {
+  publicTagName: "fyllo-action",
+  internalTagName: INTERNAL_FYLLO_ACTION_TAG,
+  placeholderNamespace: "FYLLO_ACTION_LITERAL",
+} as const;
 
 export const fylloActionMarkstreamCustomHtmlTags = [INTERNAL_FYLLO_ACTION_TAG] as const;
 
@@ -46,13 +56,7 @@ export interface FylloActionHostContextInput {
   >;
 }
 
-export interface FylloActionLiteralPlaceholder {
-  token: string;
-  raw: string;
-  start: number;
-  end: number;
-  sourceOrdinal: number;
-}
+export type FylloActionLiteralPlaceholder = FylloTagLiteralPlaceholder;
 
 export interface FylloActionOrdinalNode {
   type?: string;
@@ -60,12 +64,7 @@ export interface FylloActionOrdinalNode {
   content?: string;
 }
 
-export interface PreparedFylloActionMarkdown {
-  content: string;
-  analysis: FylloActionMarkdownAnalysis;
-  candidates: FylloActionMarkdownOccurrence[];
-  placeholders: FylloActionLiteralPlaceholder[];
-}
+export type PreparedFylloActionMarkdown = PreparedFylloTagMarkdown<FylloActionMarkdownAnalysis>;
 
 /**
  * 将 shared Markdown analysis 中已经闭合且语义合法的 Action 注册到 Main。
@@ -103,37 +102,6 @@ export async function registerPreparedFylloActions(
   );
 }
 
-type MarkstreamParseOptions = NonNullable<NodeRendererProps["parseOptions"]>;
-type PostTransformNodes = NonNullable<MarkstreamParseOptions["postTransformNodes"]>;
-type MarkstreamNode = Parameters<PostTransformNodes>[0][number];
-
-const nestedNodeArrayFields = ["children", "items", "rows", "cells", "term", "definition"] as const;
-
-function createPlaceholderPrefix(source: string): string {
-  let attempt = 0;
-  let prefix = "";
-  do {
-    prefix = `\uE000FYLLO_ACTION_LITERAL_${attempt}_`;
-    attempt += 1;
-  } while (source.includes(prefix));
-  return prefix;
-}
-
-function renderInternalCandidate(
-  source: string,
-  occurrence: FylloActionMarkdownOccurrence
-): string {
-  const openingTail = source.slice(
-    occurrence.start + PUBLIC_FYLLO_ACTION_OPEN.length,
-    occurrence.openingTagEnd
-  );
-  return [
-    `<${INTERNAL_FYLLO_ACTION_TAG}${openingTail}`,
-    occurrence.body,
-    `</${INTERNAL_FYLLO_ACTION_TAG}>`,
-  ].join("");
-}
-
 /**
  * 为 Markstream 生成 render-only Markdown。原始消息不会被修改，内部标签和占位符
  * 也不会进入 public Action payload 或持久化 identity。
@@ -142,85 +110,13 @@ export function prepareFylloActionMarkdown(
   source: string,
   analysis: FylloActionMarkdownAnalysis = analyzeFylloActionMarkdown(source)
 ): PreparedFylloActionMarkdown {
-  const candidates = analysis.occurrences.filter(
-    (occurrence) => occurrence.disposition === "candidate"
-  );
-  const placeholders: FylloActionLiteralPlaceholder[] = [];
-  const placeholderPrefix = createPlaceholderPrefix(source);
-  const chunks: string[] = [];
-  let cursor = 0;
-
-  for (const occurrence of analysis.occurrences) {
-    if (occurrence.start < cursor) {
-      continue;
-    }
-    if (occurrence.disposition === "literal" && occurrence.context !== "markdown") {
-      continue;
-    }
-
-    chunks.push(source.slice(cursor, occurrence.start));
-    if (occurrence.disposition === "candidate") {
-      chunks.push(renderInternalCandidate(source, occurrence));
-    } else {
-      const token = `${placeholderPrefix}${occurrence.sourceOrdinal}\uE001`;
-      placeholders.push({
-        token,
-        raw: occurrence.raw,
-        start: occurrence.start,
-        end: occurrence.end,
-        sourceOrdinal: occurrence.sourceOrdinal,
-      });
-      chunks.push(token);
-    }
-    cursor = occurrence.end;
-  }
-
-  chunks.push(source.slice(cursor));
-  return { content: chunks.join(""), analysis, candidates, placeholders };
-}
-
-function restorePlaceholders(value: string, placeholders: FylloActionLiteralPlaceholder[]): string {
-  return placeholders.reduce(
-    (restored, placeholder) => restored.split(placeholder.token).join(placeholder.raw),
-    value
-  );
-}
-
-function transformNode(
-  node: MarkstreamNode,
-  placeholders: FylloActionLiteralPlaceholder[]
-): MarkstreamNode {
-  if (node.type === INTERNAL_FYLLO_ACTION_TAG) {
-    return node;
-  }
-
-  const record = node as unknown as Record<string, unknown>;
-  const transformed: Record<string, unknown> = { ...record };
-  if (typeof record.raw === "string") {
-    transformed.raw = restorePlaceholders(record.raw, placeholders);
-  }
-  if (node.type === "text" && typeof record.content === "string") {
-    transformed.content = restorePlaceholders(record.content, placeholders);
-  }
-
-  for (const field of nestedNodeArrayFields) {
-    const value = record[field];
-    if (Array.isArray(value)) {
-      transformed[field] = value.map((child) =>
-        child && typeof child === "object" && "type" in child
-          ? transformNode(child as MarkstreamNode, placeholders)
-          : child
-      );
-    }
-  }
-
-  return transformed as unknown as MarkstreamNode;
+  return prepareFylloTagMarkdown(source, analysis, fylloActionTransportConfig);
 }
 
 export function createFylloActionNodeTransformer(
   prepared: Pick<PreparedFylloActionMarkdown, "placeholders">
-): PostTransformNodes {
-  return (nodes) => nodes.map((node) => transformNode(node, prepared.placeholders));
+): FylloTagPostTransformNodes {
+  return createFylloTagNodeTransformer(prepared, fylloActionTransportConfig);
 }
 
 function normalizeInternalRaw(raw: string): string {

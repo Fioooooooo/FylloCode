@@ -155,6 +155,21 @@ describe("useChatEventRail", () => {
     expect(api.showEventRail.value).toBe(false);
   });
 
+  it("does not add a ready Signal to the event rail", () => {
+    const signalSession = session([
+      message("assistant-1", "assistant", [
+        {
+          type: "text",
+          text: '<fyllo-signal type="show.time">{"label":"2026-07-24 10:30"}</fyllo-signal>',
+        },
+      ]),
+    ]);
+    const { api } = mountEventRailHost(signalSession);
+
+    expect(api.pendingActionRailItems.value).toEqual([]);
+    expect(api.showEventRail.value).toBe(false);
+  });
+
   it.each(["ready", "failed"] as const)(
     "keeps the event rail visible for a persisted %s action",
     (status) => {

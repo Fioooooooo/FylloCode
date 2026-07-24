@@ -1,5 +1,6 @@
 import template from "../templates/chat.txt?raw";
 import { renderFylloActionPromptContract } from "@shared/fyllo-action/prompt";
+import { renderFylloSignalPromptContract } from "@shared/fyllo-signal/prompt";
 import { resolveGuidelinesSection } from "./guidelines";
 import { resolveKnowledgeSection } from "./knowledge";
 import { renderSystemReminderTemplate } from "./shared";
@@ -16,7 +17,13 @@ export async function resolveChatSystemReminder(
   const guidelinesSection = await resolveGuidelinesSection(ctx);
   const knowledgeSection = await resolveKnowledgeSection(ctx);
 
-  return [rendered, guidelinesSection, knowledgeSection, renderFylloActionPromptContract()]
+  return [
+    rendered,
+    guidelinesSection,
+    knowledgeSection,
+    renderFylloActionPromptContract(),
+    renderFylloSignalPromptContract(),
+  ]
     .filter((part): part is string => part !== null)
     .join("\n\n");
 }

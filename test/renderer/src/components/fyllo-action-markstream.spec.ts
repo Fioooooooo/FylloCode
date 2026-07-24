@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from "pinia";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import AssistantMessage from "@renderer/components/chat/message/AssistantMessage.vue";
 import { fylloActionMarkstreamCustomHtmlTags } from "@renderer/features/fyllo-action/integration";
+import { fylloSignalMarkstreamCustomHtmlTags } from "@renderer/features/fyllo-signal/integration";
 import type { UIMessage } from "ai";
 
 const markstreamMocks = vi.hoisted(() => ({
@@ -13,6 +14,7 @@ const markstreamMocks = vi.hoisted(() => ({
 
 vi.mock("markstream-vue", () => ({
   default: {
+    name: "MarkdownRender",
     props: [
       "customId",
       "customHtmlTags",
@@ -28,6 +30,7 @@ vi.mock("markstream-vue", () => ({
       "renderBatchDelay",
       "renderBatchBudgetMs",
       "isDark",
+      "enableSignals",
     ],
     template:
       '<div data-test="markdown-render" :data-custom-id="customId" :data-tags="customHtmlTags ? customHtmlTags.join(\',\') : \'\'">{{ content }}</div>',
@@ -40,6 +43,13 @@ vi.mock("@renderer/features/fyllo-action/ui/FylloActionNode.vue", () => ({
   default: {
     name: "FylloActionNode",
     template: "<div />",
+  },
+}));
+
+vi.mock("@renderer/features/fyllo-signal/ui/FylloSignalNode.vue", () => ({
+  default: {
+    name: "FylloSignalNode",
+    template: "<span />",
   },
 }));
 
@@ -111,6 +121,62 @@ describe("MarkStream Fyllo action integration", () => {
         [fylloActionMarkstreamCustomHtmlTags[0]]: expect.any(Object),
       })
     );
+  });
+
+  it("composes Action and Signal custom tags and render-only content", () => {
+    const wrapper = mount(MarkStream, {
+      props: {
+        id: "message-1",
+        content: [
+          '<fyllo-action type="task.create">{"title":"ready"}</fyllo-action>',
+          '<fyllo-signal type="show.time">{"label":"2026-07-24 10:30"}</fyllo-signal>',
+        ].join("\n\n"),
+        isStreaming: false,
+        isDark: false,
+        enableActions: true,
+        enableSignals: true,
+      },
+    });
+
+    const renderer = wrapper.get('[data-test="markdown-render"]');
+    expect(renderer.attributes("data-tags")).toBe(
+      `${fylloActionMarkstreamCustomHtmlTags[0]},${fylloSignalMarkstreamCustomHtmlTags[0]}`
+    );
+    expect(renderer.text()).toContain("<fyllo-action-render");
+    expect(renderer.text()).toContain("<fyllo-signal-render");
+    expect(markstreamMocks.setCustomComponents).toHaveBeenCalledWith(
+      "message-1",
+      expect.objectContaining({
+        [fylloActionMarkstreamCustomHtmlTags[0]]: expect.any(Object),
+        [fylloSignalMarkstreamCustomHtmlTags[0]]: expect.any(Object),
+      })
+    );
+  });
+
+  it("keeps an unclosed Signal as ordinary Markdown without a custom node", () => {
+    const source = '<fyllo-signal type="show.time">{"label":"streaming"}';
+    const wrapper = mount(MarkStream, {
+      props: {
+        id: "message-1",
+        content: source,
+        isStreaming: true,
+        isDark: false,
+        enableSignals: true,
+      },
+    });
+
+    const renderer = wrapper.get('[data-test="markdown-render"]');
+    expect(renderer.text()).not.toContain("<fyllo-signal-render");
+    const markdownRender = wrapper.getComponent({ name: "MarkdownRender" });
+    const parseOptions = markdownRender.props("parseOptions") as {
+      postTransformNodes: (
+        nodes: Array<{ type: string; content: string }>
+      ) => Array<{ type: string; content: string }>;
+    };
+    const [restored] = parseOptions.postTransformNodes([
+      { type: "text", content: markdownRender.props("content") as string },
+    ]);
+    expect(restored.content).toBe(source);
   });
 
   it("cleans the previous scoped custom component mapping when id changes", async () => {
@@ -228,6 +294,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
         message: assistantMessage(),
         isDark: false,
         enableActions: true,
+        enableSignals: true,
         sessionId: "session-1",
         messageIndex: 0,
         projectId: "project-1",
@@ -242,10 +309,11 @@ describe("AssistantMessage Fyllo action enablement", () => {
               isStreaming: Boolean,
               isDark: Boolean,
               enableActions: Boolean,
+              enableSignals: Boolean,
               actionContext: Object,
             },
             template:
-              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-project-id="actionContext?.projectId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
+              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-project-id="actionContext?.projectId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
           },
           UChatReasoning: true,
           UChatTool: {
@@ -262,8 +330,36 @@ describe("AssistantMessage Fyllo action enablement", () => {
     expect(markstreams).toHaveLength(1);
     expect(reasoningBody.text()).toContain("reasoning");
     expect(textPart?.attributes("data-content")).toContain("text");
+    expect(textPart?.attributes("data-enable-signals")).toBe("true");
     expect(textPart?.attributes("data-session-id")).toBe("session-1");
     expect(textPart?.attributes("data-message-index")).toBe("0");
     expect(textPart?.attributes("data-part-index")).toBe("1");
+  });
+
+  it("enables Signals for text even when no Action context can be built", () => {
+    const wrapper = mount(AssistantMessage, {
+      props: {
+        message: assistantMessage(),
+        isDark: false,
+        enableActions: true,
+        enableSignals: true,
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          MarkStream: {
+            props: ["enableActions", "enableSignals"],
+            template:
+              '<div data-test="markstream" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" />',
+          },
+          UChatReasoning: true,
+          UChatTool: true,
+        },
+      },
+    });
+
+    const markstream = wrapper.get('[data-test="markstream"]');
+    expect(markstream.attributes("data-enable-actions")).toBe("false");
+    expect(markstream.attributes("data-enable-signals")).toBe("true");
   });
 });

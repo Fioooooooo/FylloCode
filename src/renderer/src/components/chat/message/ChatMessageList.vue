@@ -100,6 +100,7 @@ function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
           :message="message"
           :is-dark="isDark"
           :enable-actions="props.type === 'chat'"
+          :enable-signals="props.type === 'chat'"
           :session-id="getMessageSessionId(message)"
           :message-index="getMessageIndex(message)"
           :action-states="getMessageActionStates(message)"

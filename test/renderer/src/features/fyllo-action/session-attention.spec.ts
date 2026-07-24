@@ -178,6 +178,26 @@ describe("getSessionAttention", () => {
     expect(getSessionAttention(session)).toBe(0);
   });
 
+  it("does not count a ready Signal as session attention", () => {
+    const session = makeSession({
+      messages: [
+        {
+          id: "msg-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: '<fyllo-signal type="show.time">{"label":"2026-07-24 10:30"}</fyllo-signal>',
+            },
+          ],
+          metadata: { sessionId: "session-1", createdAt: new Date() },
+        },
+      ],
+    });
+
+    expect(getSessionAttention(session)).toBe(0);
+  });
+
   it("does not double-count actions that already have a persisted state", () => {
     const session = makeSession({
       actionStates: {

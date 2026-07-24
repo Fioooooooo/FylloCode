@@ -161,6 +161,18 @@ describe("collectPendingFylloActionRailItems", () => {
     expect(collectPendingFylloActionRailItems(session)).toEqual([]);
   });
 
+  it("ignores ready Signals without creating EventRail items", () => {
+    const session = makeSession({
+      messages: [
+        assistantTextMessage(
+          '<fyllo-signal type="show.time">{"label":"2026-07-24 10:30"}</fyllo-signal>'
+        ),
+      ],
+    });
+
+    expect(collectPendingFylloActionRailItems(session)).toEqual([]);
+  });
+
   it("excludes prose, inline-code, fenced, list, and blockquote literals", () => {
     const example = '<fyllo-action type="task.create">{"title":"literal"}</fyllo-action>';
     const session = makeSession({

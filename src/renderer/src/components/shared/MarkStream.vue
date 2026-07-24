@@ -4,7 +4,8 @@ import MarkdownRender, {
   setCustomComponents,
   type NodeRendererProps,
 } from "markstream-vue";
-import { computed, onBeforeUnmount, provide, watch } from "vue";
+import { computed, onBeforeUnmount, provide, watch, type Component } from "vue";
+import type { FylloTagPostTransformNodes } from "./markstream/fyllo-tag";
 import {
   FylloActionNode as FeatureFylloActionNode,
   createFylloActionNodeTransformer,
@@ -14,6 +15,12 @@ import {
   registerPreparedFylloActions,
   type FylloActionHostContextInput,
 } from "@renderer/features/fyllo-action/integration";
+import {
+  FylloSignalNode as FeatureFylloSignalNode,
+  createFylloSignalNodeTransformer,
+  fylloSignalMarkstreamCustomHtmlTags,
+  prepareFylloSignalMarkdown,
+} from "@renderer/features/fyllo-signal/integration";
 import {
   createFylloActionRegistrationController,
   fylloActionHostContextKey,
@@ -26,28 +33,62 @@ const props = defineProps<{
   isStreaming: boolean;
   isDark: boolean;
   enableActions?: boolean;
+  enableSignals?: boolean;
   actionContext?: FylloActionHostContextInput;
 }>();
 
-const customHtmlTags = computed(() =>
-  props.enableActions ? fylloActionMarkstreamCustomHtmlTags : undefined
-);
-const preparedMarkdown = computed(() =>
-  props.enableActions ? prepareFylloActionMarkdown(props.content) : null
-);
-const renderContent = computed(() => preparedMarkdown.value?.content ?? props.content);
-const parseOptions = computed<NodeRendererProps["parseOptions"]>(() =>
-  preparedMarkdown.value
-    ? { postTransformNodes: createFylloActionNodeTransformer(preparedMarkdown.value) }
-    : undefined
-);
+const customHtmlTags = computed(() => {
+  const tags: string[] = [];
+  if (props.enableActions) {
+    tags.push(...fylloActionMarkstreamCustomHtmlTags);
+  }
+  if (props.enableSignals) {
+    tags.push(...fylloSignalMarkstreamCustomHtmlTags);
+  }
+  return tags.length > 0 ? tags : undefined;
+});
+
+const preparedMarkdown = computed(() => {
+  let content = props.content;
+  const action = props.enableActions ? prepareFylloActionMarkdown(content) : null;
+  if (action) {
+    content = action.content;
+  }
+
+  const signal = props.enableSignals ? prepareFylloSignalMarkdown(content) : null;
+  if (signal) {
+    content = signal.content;
+  }
+
+  return { content, action, signal };
+});
+
+const renderContent = computed(() => preparedMarkdown.value.content);
+const parseOptions = computed<NodeRendererProps["parseOptions"]>(() => {
+  const transformers: FylloTagPostTransformNodes[] = [];
+  if (preparedMarkdown.value.action) {
+    transformers.push(createFylloActionNodeTransformer(preparedMarkdown.value.action));
+  }
+  if (preparedMarkdown.value.signal) {
+    transformers.push(createFylloSignalNodeTransformer(preparedMarkdown.value.signal));
+  }
+  if (transformers.length === 0) {
+    return undefined;
+  }
+
+  return {
+    postTransformNodes: (nodes) =>
+      transformers.reduce((transformed, transform) => transform(transformed), nodes),
+  };
+});
 
 let registeredCustomId: string | null = null;
 let registrationContextKey: string | null = null;
 let registrationController: FylloActionRegistrationController | null = null;
-let actionOrdinalResolver = createFylloActionOrdinalResolver(
-  prepareFylloActionMarkdown(props.content).analysis
-);
+let actionOrdinalResolver = createFylloActionOrdinalResolver({
+  sourceLength: 0,
+  occurrences: [],
+});
 
 function getRegistrationController(
   context: FylloActionHostContextInput
@@ -125,22 +166,27 @@ function removeRegisteredCustomComponents(): void {
   registeredCustomId = null;
 }
 
-function registerFylloActionComponents(): void {
-  if (!props.enableActions) {
+function registerFylloTagComponents(): void {
+  if (!props.enableActions && !props.enableSignals) {
     return;
   }
 
-  setCustomComponents(props.id, {
-    [fylloActionMarkstreamCustomHtmlTags[0]]: FeatureFylloActionNode,
-  });
+  const components: Record<string, Component> = {};
+  if (props.enableActions) {
+    components[fylloActionMarkstreamCustomHtmlTags[0]] = FeatureFylloActionNode;
+  }
+  if (props.enableSignals) {
+    components[fylloSignalMarkstreamCustomHtmlTags[0]] = FeatureFylloSignalNode;
+  }
+  setCustomComponents(props.id, components);
   registeredCustomId = props.id;
 }
 
 watch(
-  () => [props.id, props.enableActions] as const,
+  () => [props.id, props.enableActions, props.enableSignals] as const,
   () => {
     removeRegisteredCustomComponents();
-    registerFylloActionComponents();
+    registerFylloTagComponents();
   },
   { immediate: true }
 );
@@ -148,15 +194,17 @@ watch(
 watch(
   () => [props.content, props.enableActions] as const,
   () => {
-    const analysis =
-      preparedMarkdown.value?.analysis ?? prepareFylloActionMarkdown(props.content).analysis;
+    const analysis = preparedMarkdown.value.action?.analysis ?? {
+      sourceLength: 0,
+      occurrences: [],
+    };
     actionOrdinalResolver = createFylloActionOrdinalResolver(analysis);
   },
   { immediate: true }
 );
 
 watch(
-  () => [preparedMarkdown.value, props.actionContext, props.enableActions] as const,
+  () => [preparedMarkdown.value.action, props.actionContext, props.enableActions] as const,
   ([prepared, context, enabled]) => {
     if (!enabled || !prepared || !context) {
       return;

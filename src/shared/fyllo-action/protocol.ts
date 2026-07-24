@@ -2,6 +2,12 @@ import type {
   KnowledgeFlagActionPayload,
   KnowledgeReviewActionPayload,
 } from "@shared/types/knowledge";
+import type {
+  FylloTagMarkdownAnalysis,
+  FylloTagMarkdownContext,
+  FylloTagMarkdownDisposition,
+  FylloTagMarkdownOccurrence,
+} from "@shared/fyllo-markdown/tag-analysis";
 
 export type FylloActionType = "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review";
 
@@ -141,28 +147,10 @@ export interface ParsedFylloActionSource {
   loading: boolean;
 }
 
-export type FylloActionMarkdownDisposition = "candidate" | "literal";
-
-export type FylloActionMarkdownContext = "markdown" | "inline_code" | "fenced_code";
-
-export interface FylloActionMarkdownOccurrence {
-  start: number;
-  end: number;
-  openingTagEnd: number;
-  closingTagStart: number | null;
-  raw: string;
-  attrs: Record<string, string>;
-  body: string;
-  closed: boolean;
-  sourceOrdinal: number;
-  disposition: FylloActionMarkdownDisposition;
-  context: FylloActionMarkdownContext;
-}
-
-export interface FylloActionMarkdownAnalysis {
-  sourceLength: number;
-  occurrences: FylloActionMarkdownOccurrence[];
-}
+export type FylloActionMarkdownDisposition = FylloTagMarkdownDisposition;
+export type FylloActionMarkdownContext = FylloTagMarkdownContext;
+export type FylloActionMarkdownOccurrence = FylloTagMarkdownOccurrence;
+export type FylloActionMarkdownAnalysis = FylloTagMarkdownAnalysis;
 
 export interface FylloActionMarkdownNode {
   type?: string;

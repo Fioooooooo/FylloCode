@@ -301,9 +301,16 @@ function mountList(
       plugins: [pinia],
       stubs: {
         MarkStream: {
-          props: ["content", "isStreaming", "isDark", "enableActions", "actionContext"],
+          props: [
+            "content",
+            "isStreaming",
+            "isDark",
+            "enableActions",
+            "enableSignals",
+            "actionContext",
+          ],
           template:
-            '<div data-test="markdown" :data-enable-actions="String(enableActions)" :data-action-part-index="actionContext?.partIndex">{{ content }}</div>',
+            '<div data-test="markdown" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-action-part-index="actionContext?.partIndex">{{ content }}</div>',
         },
         UChatMessages: chatMessagesStub,
         ChatMessages: chatMessagesStub,
@@ -363,6 +370,18 @@ describe("UIMessageList", () => {
       "true"
     );
     expect(sideWrapper.get('[data-test="markdown"]').attributes("data-enable-actions")).toBe(
+      "false"
+    );
+  });
+
+  it("enables Fyllo signals only in chat message lists", () => {
+    const chatWrapper = mountList([textMessage()]);
+    const sideWrapper = mountList([textMessage()], "ready", undefined, "side");
+
+    expect(chatWrapper.get('[data-test="markdown"]').attributes("data-enable-signals")).toBe(
+      "true"
+    );
+    expect(sideWrapper.get('[data-test="markdown"]').attributes("data-enable-signals")).toBe(
       "false"
     );
   });
