@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-fyllo-signal. Update Purpose after archive.
+规定 Markstream agent-facing 自定义标签的通用结构分析与 render-only transport：统一判断 standalone block、代码上下文、闭合状态和 literal 恢复，同时让各标签保留独立的 semantic parser、schema 与 UI contract。
 
 ## Requirements
 

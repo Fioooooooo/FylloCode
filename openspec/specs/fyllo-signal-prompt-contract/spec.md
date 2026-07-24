@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-fyllo-signal. Update Purpose after archive.
+规定 Fyllo Signal 的共享协议注册表与 agent-facing prompt contract，确保启用类型、严格 payload schema、示例和独立 Markdown 输出规则由单一 shared contract 驱动，并与 Renderer 实现解耦。
 
 ## Requirements
 

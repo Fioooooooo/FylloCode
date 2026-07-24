@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-fyllo-signal. Update Purpose after archive.
+规定 Fyllo Signal 在 Chat assistant text 中的显式启用、闭合后渲染和非交互展示边界；共享 Shell 仅承载节点，具体 Signal type 自主管理视觉，且不参与 Action 状态、EventRail 或 session attention。
 
 ## Requirements
 
