@@ -6,6 +6,8 @@ coverage
 .eslintcache
 *.log*
 
+.pnpm-store
+
 .idea
 
 # 开发环境数据目录（生产环境使用系统 userData，不在项目内）
