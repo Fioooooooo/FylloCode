@@ -64,6 +64,7 @@ describe("preload index API shape", () => {
         workspace: expect.objectContaining({
           project: expect.any(Object),
           window: expect.any(Object),
+          document: expect.any(Object),
         }),
         session: expect.objectContaining({
           chat: expect.any(Object),

@@ -11,6 +11,7 @@ import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 import { PlatformSettingsChannels } from "@shared/ipc/platform/settings.channels";
 import { PlatformReleaseChannels } from "@shared/ipc/platform/release.channels";
 import { InsightOverviewChannels } from "@shared/ipc/insight/overview.channels";
+import { WorkspaceDocumentChannels } from "@shared/ipc/workspace/document.channels";
 
 const mocks = vi.hoisted(() => ({
   browserWindowFromWebContents: vi.fn(),
@@ -84,6 +85,7 @@ describe("registerAllHandlers", () => {
       ...Object.values(PlatformSettingsChannels),
       ...Object.values(PlatformReleaseChannels),
       ...Object.values(InsightOverviewChannels),
+      ...Object.values(WorkspaceDocumentChannels),
     ];
 
     for (const channel of expectedChannels) {

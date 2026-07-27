@@ -26,6 +26,11 @@ import {
   fylloActionHostContextKey,
   type FylloActionRegistrationController,
 } from "@renderer/features/fyllo-action";
+import {
+  LocalFileLinkNode,
+  localFilePreviewHostKey,
+  useLocalFilePreview,
+} from "@renderer/features/local-file-preview/integration";
 
 const props = defineProps<{
   id: string;
@@ -36,6 +41,11 @@ const props = defineProps<{
   enableSignals?: boolean;
   actionContext?: FylloActionHostContextInput;
 }>();
+
+const { openLocalFilePreview } = useLocalFilePreview();
+provide(localFilePreviewHostKey, {
+  open: openLocalFilePreview,
+});
 
 const customHtmlTags = computed(() => {
   const tags: string[] = [];
@@ -166,12 +176,10 @@ function removeRegisteredCustomComponents(): void {
   registeredCustomId = null;
 }
 
-function registerFylloTagComponents(): void {
-  if (!props.enableActions && !props.enableSignals) {
-    return;
-  }
-
-  const components: Record<string, Component> = {};
+function registerCustomComponents(): void {
+  const components: Record<string, Component> = {
+    link: LocalFileLinkNode,
+  };
   if (props.enableActions) {
     components[fylloActionMarkstreamCustomHtmlTags[0]] = FeatureFylloActionNode;
   }
@@ -186,7 +194,7 @@ watch(
   () => [props.id, props.enableActions, props.enableSignals] as const,
   () => {
     removeRegisteredCustomComponents();
-    registerFylloTagComponents();
+    registerCustomComponents();
   },
   { immediate: true }
 );

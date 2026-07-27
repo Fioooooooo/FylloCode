@@ -35,6 +35,10 @@ vi.mock("markstream-vue", () => ({
     template:
       '<div data-test="markdown-render" :data-custom-id="customId" :data-tags="customHtmlTags ? customHtmlTags.join(\',\') : \'\'">{{ content }}</div>',
   },
+  LinkNode: {
+    name: "LinkNode",
+    template: "<a />",
+  },
   setCustomComponents: markstreamMocks.setCustomComponents,
   removeCustomComponents: markstreamMocks.removeCustomComponents,
 }));

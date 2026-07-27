@@ -5,6 +5,7 @@ import type { releaseApi } from "./api/platform/release";
 import type { settingsApi } from "./api/platform/settings";
 import type { projectApi } from "./api/workspace/project";
 import type { windowApi } from "./api/workspace/window";
+import type { documentApi } from "./api/workspace/document";
 import type { chatApi } from "./api/session/chat";
 import type { sessionActionApi } from "./api/session/action";
 import type { proposalArchiveApi } from "./api/proposal/archive";
@@ -30,6 +31,7 @@ export interface AppApi {
   workspace: {
     project: typeof projectApi;
     window: typeof windowApi;
+    document: typeof documentApi;
   };
   session: {
     chat: typeof chatApi;

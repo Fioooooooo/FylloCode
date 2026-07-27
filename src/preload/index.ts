@@ -7,6 +7,7 @@ import { releaseApi } from "./api/platform/release";
 import { settingsApi } from "./api/platform/settings";
 import { projectApi } from "./api/workspace/project";
 import { windowApi } from "./api/workspace/window";
+import { documentApi } from "./api/workspace/document";
 import { chatApi } from "./api/session/chat";
 import { sessionActionApi } from "./api/session/action";
 import { proposalArchiveApi } from "./api/proposal/archive";
@@ -32,6 +33,7 @@ const api = {
   workspace: {
     project: projectApi,
     window: windowApi,
+    document: documentApi,
   },
   session: {
     chat: chatApi,
