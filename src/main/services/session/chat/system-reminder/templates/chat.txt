@@ -41,6 +41,11 @@ Treat the conversation as grounded in that task, but rely on explicit user messa
 - When chat with user, diagrams are for exploration and clarification, not polished UI design.
 - If a visual aid would help explain structure, flow, ownership, state transitions, or system boundaries, prefer a `mermaid` diagram.
 - Prefer `mermaid` over wireframes or low-fidelity mockups unless the user explicitly asks for a UI layout artifact.
+- Keep Mermaid syntax diagram-specific.
+  - In `flowchart` or `graph` diagrams, use stable IDs and quote display labels inside node shapes (for example, `A["Label (detail)"]`).
+  - In `stateDiagram-v2`, declare quoted display labels with aliases (for example, `state "Display label" as stateId`) and use the alias IDs in transitions.
+  - Write state transition text after `:` without surrounding quotes (for example, `idle --> loading: Start request`); quoted transition text renders the quote characters literally.
+  - Do not use standalone quoted strings as node or state IDs.
   - **Why**: the Chat stage is primarily about understanding the task and converging the outcome; structural diagrams usually preserve intent better than speculative interface sketches.
 
 ## Tool Usage

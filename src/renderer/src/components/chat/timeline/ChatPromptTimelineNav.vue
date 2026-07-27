@@ -284,7 +284,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="inline-flex h-full max-h-full items-start">
+  <div class="inline-flex h-fit min-h-0 flex-col items-start">
     <UPopover
       :open="popoverOpen && nearbyPreviewItems.length > 0"
       :content="{
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
       <template #default>
         <nav
           ref="railRef"
-          class="max-h-full w-9 shrink-0 touch-none overflow-y-auto rounded-md py-0 pl-1.5 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 [&::-webkit-scrollbar]:hidden"
+          class="min-h-0 max-h-full w-9 shrink touch-none overflow-y-auto rounded-md py-0 pl-1.5 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 [&::-webkit-scrollbar]:hidden"
           aria-label="用户 prompt 时间线"
           :aria-activedescendant="activeDescendantId"
           data-test="chat-prompt-timeline"

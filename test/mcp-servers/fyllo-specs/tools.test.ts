@@ -113,6 +113,11 @@ describe("tools", () => {
       const text = await exploreTool({ targetPath: root });
       expect(text).toContain("<tool_instruction>");
       expect(text).toContain("<state>");
+      expect(text).toContain('A["Label (detail)"]');
+      expect(text).toContain('state "Display label" as stateId');
+      expect(text).toContain("idle --> loading: Start request");
+      expect(text).toContain("quoted transition text renders the quote characters literally");
+      expect(text).toContain("Never use standalone quoted strings as node or state IDs");
       const state = parseState(text);
       expect(state).not.toHaveProperty("errors");
       expect(state.activeChanges).toBeInstanceOf(Array);

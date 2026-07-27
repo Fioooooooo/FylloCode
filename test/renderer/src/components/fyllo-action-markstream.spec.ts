@@ -30,6 +30,7 @@ vi.mock("markstream-vue", () => ({
       "renderBatchDelay",
       "renderBatchBudgetMs",
       "isDark",
+      "mermaidProps",
       "enableSignals",
     ],
     template:
@@ -125,6 +126,21 @@ describe("MarkStream Fyllo action integration", () => {
         [fylloActionMarkstreamCustomHtmlTags[0]]: expect.any(Object),
       })
     );
+  });
+
+  it("keeps Mermaid HTML labels enabled explicitly", () => {
+    const wrapper = mount(MarkStream, {
+      props: {
+        id: "message-1",
+        content: '```mermaid\nflowchart LR\nA["<b>可信 HTML label</b><br/>第 2 行"] --> B\n```',
+        isStreaming: false,
+        isDark: false,
+      },
+    });
+
+    expect(wrapper.getComponent({ name: "MarkdownRender" }).props("mermaidProps")).toEqual({
+      isStrict: false,
+    });
   });
 
   it("composes Action and Signal custom tags and render-only content", () => {

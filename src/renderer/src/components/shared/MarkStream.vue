@@ -244,6 +244,7 @@ onBeforeUnmount(() => {
     :render-batch-delay="8"
     :render-batch-budget-ms="4"
     :is-dark="props.isDark"
+    :mermaid-props="{ isStrict: false }"
   />
 </template>
 

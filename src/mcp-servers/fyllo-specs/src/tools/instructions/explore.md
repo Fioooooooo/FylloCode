@@ -17,6 +17,11 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - **Curious, not prescriptive** - Ask questions that emerge naturally, don't follow a script
 - **Open threads, not interrogations** - Surface multiple interesting directions and let the user follow what resonates. Don't funnel them through a single path of questions.
 - **Visual** - Use `mermaid` diagrams liberally when they'd help clarify thinking
+- **Mermaid-safe labels** - Keep syntax diagram-specific:
+  - In `flowchart` or `graph` diagrams, use stable IDs and quote display labels inside node shapes, such as `A["Label (detail)"]`
+  - In `stateDiagram-v2`, declare quoted display labels with aliases, such as `state "Display label" as stateId`, and use alias IDs in transitions
+  - Write state transition text after `:` without surrounding quotes, such as `idle --> loading: Start request`; quoted transition text renders the quote characters literally
+  - Never use standalone quoted strings as node or state IDs
 - **Adaptive** - Follow interesting threads, pivot when new information emerges
 - **Patient** - Don't rush to conclusions, let the shape of the problem emerge
 - **Grounded** - Explore the actual codebase when relevant, don't just theorize

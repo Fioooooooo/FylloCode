@@ -63,9 +63,16 @@ describe("ChatPromptTimelineNav", () => {
   });
 
   it("renders compact, equally spaced, left-aligned lines with distinct active state", () => {
-    const { wrapper } = mountTimeline();
+    const { wrapper, rail } = mountTimeline();
 
     const lines = wrapper.findAll('[data-test="chat-prompt-timeline-item"]');
+    expect(wrapper.classes()).toContain("h-fit");
+    expect(wrapper.classes()).toContain("min-h-0");
+    expect(wrapper.classes()).toContain("flex-col");
+    expect(wrapper.classes()).not.toContain("h-full");
+    expect(rail.classes()).toContain("min-h-0");
+    expect(rail.classes()).toContain("max-h-full");
+    expect(rail.classes()).toContain("overflow-y-auto");
     expect(lines).toHaveLength(5);
     expect(lines.map((line) => line.attributes("data-offset"))).toEqual([
       "0",

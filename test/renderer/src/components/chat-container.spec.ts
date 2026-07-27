@@ -421,10 +421,12 @@ describe("ChatContainer", () => {
 
     const wrapper = mountContainer();
     const timeline = wrapper.get('[data-test="chat-prompt-timeline"]');
-    const timelineHost = timeline.element.closest(".bottom-4");
+    const timelineHost = timeline.element.closest(".h-fit");
 
     expect(timelineHost).not.toBeNull();
     expect(timelineHost?.classList.contains("top-4")).toBe(true);
+    expect(timelineHost?.classList.contains("bottom-4")).toBe(false);
+    expect(timelineHost?.classList.contains("max-h-[calc(100%-2rem)]")).toBe(true);
     expect(wrapper.get('[data-test="chat-message-scroll-container"] .max-w-3xl')).toBeTruthy();
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
   });

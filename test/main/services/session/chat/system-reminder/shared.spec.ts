@@ -110,6 +110,14 @@ describe("system-reminder templates", () => {
     expect(() => wrapAsSystemReminder(chatTemplate)).not.toThrow();
   });
 
+  it("requires parser-safe quoted Mermaid node labels", () => {
+    expect(chatTemplate).toContain('A["Label (detail)"]');
+    expect(chatTemplate).toContain('state "Display label" as stateId');
+    expect(chatTemplate).toContain("idle --> loading: Start request");
+    expect(chatTemplate).toContain("quoted transition text renders the quote characters literally");
+    expect(chatTemplate).toContain("Do not use standalone quoted strings as node or state IDs");
+  });
+
   it("allows apply.txt to be wrapped without nested wrapper tags", () => {
     expect(() => wrapAsSystemReminder(applyTemplate)).not.toThrow();
   });
