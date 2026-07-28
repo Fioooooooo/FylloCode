@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change cache-complete-acp-agent-capabilities. Update Purpose after archive.
+规定 Electron 主进程以 ACP SDK `InitializeResponse` 为契约持久化 Agent 的认证方式与完整能力快照，并定义旧缓存兼容、连接后刷新以及 renderer 跨进程读取这些数据时必须保持的行为边界。
 
 ## Requirements
 
