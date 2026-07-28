@@ -2,11 +2,12 @@ import { ipcRenderer } from "electron";
 import type { IpcResponse } from "@shared/types/ipc";
 import { PlatformAcpAgentChannels } from "@shared/ipc/platform/acp-agents.channels";
 import type {
+  AcpAgentCapabilityCache,
+  AcpAgentCapabilitySnapshot,
   AcpAgentStatus,
   AcpCustomAgentsJson,
   AcpInstallProgress,
   AcpInstalledRecord,
-  AcpPromptCapabilities,
   AcpRegistry,
   AcpUninstallProgress,
 } from "@shared/types/acp-agent";
@@ -51,13 +52,11 @@ export const acpAgentsApi = {
     return ipcRenderer.invoke(PlatformAcpAgentChannels.uninstall, agentId);
   },
 
-  ensureAgent(
-    agentId: string
-  ): Promise<IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>> {
+  ensureAgent(agentId: string): Promise<IpcResponse<AcpAgentCapabilitySnapshot>> {
     return ipcRenderer.invoke(PlatformAcpAgentChannels.ensureAgent, { agentId });
   },
 
-  loadCapabilitiesCache(): Promise<IpcResponse<Record<string, AcpPromptCapabilities>>> {
+  loadCapabilitiesCache(): Promise<IpcResponse<AcpAgentCapabilityCache>> {
     return ipcRenderer.invoke(PlatformAcpAgentChannels.loadCapabilitiesCache);
   },
 

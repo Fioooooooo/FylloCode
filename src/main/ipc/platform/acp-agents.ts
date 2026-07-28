@@ -82,12 +82,7 @@ export function registerAcpAgentHandlers(): void {
     })
   );
   ipcMain.handle(PlatformAcpAgentChannels.loadCapabilitiesCache, () =>
-    wrapHandler(async () => {
-      const cache = await loadCache();
-      return Object.fromEntries(
-        Object.entries(cache).map(([agentId, entry]) => [agentId, entry.promptCapabilities])
-      );
-    })
+    wrapHandler(() => loadCache())
   );
   ipcMain.handle(PlatformAcpAgentChannels.loadCustomAgents, () =>
     wrapHandler(async () => readCustomAgents())

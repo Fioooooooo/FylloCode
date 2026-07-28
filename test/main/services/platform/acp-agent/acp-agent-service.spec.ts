@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   uninstallAgent: vi.fn(),
   installAgent: vi.fn(),
   removeAgentCapabilities: vi.fn(),
-  getCachedPromptCapabilities: vi.fn(),
+  getCachedAgentCapabilities: vi.fn(),
   getOrStartProcess: vi.fn(),
   stopAgentProcess: vi.fn(),
   prewarmAgentConnections: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@main/services/platform/acp-agent/installer", () => ({
 }));
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({
-  getCachedPromptCapabilities: mocks.getCachedPromptCapabilities,
+  getCachedAgentCapabilities: mocks.getCachedAgentCapabilities,
   removeAgentCapabilities: mocks.removeAgentCapabilities,
 }));
 
@@ -143,6 +143,66 @@ describe("acp-agent-service uninstall", () => {
     await expect(uninstallAgentById("claude-code")).rejects.toMatchObject({
       code: "AGENT_NOT_FOUND",
       message: "Agent claude-code is not installed",
+    });
+  });
+});
+
+describe("acp-agent-service ensureAgent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-code": {
+        managedBy: "fyllocode",
+        installMethod: "npx",
+        installedVersion: "1.2.3",
+        installedAt: "2026-07-28T00:00:00.000Z",
+      },
+    });
+    mocks.getOrStartProcess.mockResolvedValue(undefined);
+  });
+
+  it("returns a matching complete cached snapshot and lazily starts the process", async () => {
+    const cached = {
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+      promptCapabilities: { image: true },
+      mcpCapabilities: { http: true },
+      sessionCapabilities: { resume: {} },
+      capturedAgentVersion: "1.2.3",
+      capturedAt: "2026-07-28T00:00:00.000Z",
+    };
+    mocks.getCachedAgentCapabilities.mockResolvedValue(cached);
+    const { ensureAgent } = await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await expect(ensureAgent("claude-code")).resolves.toEqual(cached);
+    expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
+  });
+
+  it("returns a complete live snapshot when the cached version is stale", async () => {
+    mocks.getCachedAgentCapabilities.mockResolvedValue({
+      promptCapabilities: { image: false },
+      capturedAgentVersion: "1.1.0",
+      capturedAt: "2026-07-20T00:00:00.000Z",
+    });
+    mocks.getOrStartProcess.mockResolvedValue({
+      initializeResponse: {
+        protocolVersion: 1,
+        authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+        agentCapabilities: {
+          promptCapabilities: { image: true, _meta: { vision: "native" } },
+          mcpCapabilities: { http: true },
+          sessionCapabilities: { list: {}, resume: {} },
+        },
+      },
+    });
+    const { ensureAgent } = await import("@main/services/platform/acp-agent/acp-agent-service");
+
+    await expect(ensureAgent("claude-code")).resolves.toMatchObject({
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+      promptCapabilities: { image: true, _meta: { vision: "native" } },
+      mcpCapabilities: { http: true },
+      sessionCapabilities: { list: {}, resume: {} },
+      capturedAgentVersion: "1.2.3",
+      capturedAt: expect.any(String),
     });
   });
 });

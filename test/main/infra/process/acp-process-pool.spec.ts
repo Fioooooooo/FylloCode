@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
     readInstalledRecords: vi.fn(),
     getRegistry: vi.fn(),
     registerDisposable: vi.fn(),
+    upsertAgentCapabilities: vi.fn(),
   };
 });
 
@@ -56,6 +57,10 @@ vi.mock("@main/infra/storage/acp-registry-cache", () => ({
 
 vi.mock("@main/bootstrap/lifecycle", () => ({
   registerDisposable: mocks.registerDisposable,
+}));
+
+vi.mock("@main/infra/storage/agent-capability-store", () => ({
+  upsertAgentCapabilities: mocks.upsertAgentCapabilities,
 }));
 
 vi.mock("@agentclientprotocol/sdk", () => ({
@@ -143,6 +148,7 @@ describe("acp-process-pool", () => {
       protocolVersion: 1,
       agentCapabilities: { loadSession: true, sessionCapabilities: { resume: {} } },
     });
+    mocks.upsertAgentCapabilities.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -166,6 +172,55 @@ describe("acp-process-pool", () => {
     const entry = await getOrStartProcess("claude-acp");
 
     expect(entry.initializeResponse).toEqual(initResponse);
+  });
+
+  it("persists the selected complete capability snapshot after initialize", async () => {
+    mocks.readInstalledRecords.mockResolvedValue({
+      "claude-acp": {
+        installPath: "/bin/claude",
+        installMethod: "binary",
+        installedVersion: "1.2.3",
+      },
+    });
+    const initResponse = {
+      protocolVersion: 1,
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+      agentCapabilities: {
+        promptCapabilities: { image: true, _meta: { vision: "native" } },
+        mcpCapabilities: { http: true, _meta: { proxy: "supported" } },
+        sessionCapabilities: {
+          list: { _meta: { pagination: true } },
+          resume: {},
+          _meta: { history: "remote" },
+        },
+      },
+    };
+    mocks.initialize.mockResolvedValue(initResponse);
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+
+    expect(mocks.upsertAgentCapabilities).toHaveBeenCalledWith(
+      "claude-acp",
+      {
+        authMethods: initResponse.authMethods,
+        promptCapabilities: initResponse.agentCapabilities.promptCapabilities,
+        mcpCapabilities: initResponse.agentCapabilities.mcpCapabilities,
+        sessionCapabilities: initResponse.agentCapabilities.sessionCapabilities,
+      },
+      "1.2.3"
+    );
+  });
+
+  it("keeps the initialized process ready when capability persistence fails", async () => {
+    mocks.upsertAgentCapabilities.mockRejectedValueOnce(new Error("disk unavailable"));
+
+    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+
+    await expect(getOrStartProcess("claude-acp")).resolves.toMatchObject({
+      ready: true,
+      initializeResponse: expect.objectContaining({ protocolVersion: 1 }),
+    });
   });
 
   it("dedupes concurrent getOrStartProcess calls into a single spawn", async () => {

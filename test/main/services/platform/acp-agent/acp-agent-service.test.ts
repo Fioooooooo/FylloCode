@@ -22,7 +22,7 @@ vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
 }));
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({
-  getCachedPromptCapabilities: vi.fn(),
+  getCachedAgentCapabilities: vi.fn(),
   removeAgentCapabilities: vi.fn(),
   removeCustomAgentCapabilities: vi.fn(),
 }));
@@ -52,13 +52,13 @@ vi.mock("@main/services/platform/acp-agent/installer", () => ({
 }));
 
 import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
-import { getCachedPromptCapabilities } from "@main/infra/storage/agent-capability-store";
+import { getCachedAgentCapabilities } from "@main/infra/storage/agent-capability-store";
 import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
 import { ensureAgent } from "@main/services/platform/acp-agent/acp-agent-service";
 import { generateCustomAgentId } from "@main/infra/acp/agent-catalog";
 
 const mockedGetOrStartProcess = vi.mocked(getOrStartProcess);
-const mockedGetCachedPromptCapabilities = vi.mocked(getCachedPromptCapabilities);
+const mockedGetCachedAgentCapabilities = vi.mocked(getCachedAgentCapabilities);
 const mockedReadCustomAgents = vi.mocked(readCustomAgents);
 
 function getCustomAgentId(command: string, args: string[]): string {
@@ -91,18 +91,24 @@ describe("ensureAgent custom branch", () => {
         "Kimi Code CLI": { command: "/usr/local/bin/kimi", args: ["acp"] },
       },
     });
-    mockedGetCachedPromptCapabilities.mockResolvedValue({
-      capabilities: { image: true, audio: false, embeddedContext: false },
+    mockedGetCachedAgentCapabilities.mockResolvedValue({
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "kimi" } }],
+      promptCapabilities: { image: true, audio: false, embeddedContext: false },
+      mcpCapabilities: { http: true },
+      sessionCapabilities: { resume: {} },
       capturedAgentVersion: "",
+      capturedAt: "2026-07-28T00:00:00.000Z",
     });
 
     const agentId = getCustomAgentId("/usr/local/bin/kimi", ["acp"]);
     const result = await ensureAgent(agentId);
 
-    expect(result.promptCapabilities).toEqual({
-      image: true,
-      audio: false,
-      embeddedContext: false,
+    expect(result).toMatchObject({
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "kimi" } }],
+      promptCapabilities: { image: true, audio: false, embeddedContext: false },
+      mcpCapabilities: { http: true },
+      sessionCapabilities: { resume: {} },
+      capturedAgentVersion: "",
     });
     expect(mockedGetOrStartProcess).toHaveBeenCalledWith(agentId);
   });
@@ -113,13 +119,16 @@ describe("ensureAgent custom branch", () => {
         "Kimi Code CLI": { command: "/usr/local/bin/kimi", args: ["acp"] },
       },
     });
-    mockedGetCachedPromptCapabilities.mockResolvedValue(null);
+    mockedGetCachedAgentCapabilities.mockResolvedValue(null);
 
     const agentId = getCustomAgentId("/usr/local/bin/kimi", ["acp"]);
     mockedGetOrStartProcess.mockResolvedValue({
       initializeResponse: {
+        authMethods: [{ id: "login", name: "Agent Login" }],
         agentCapabilities: {
           promptCapabilities: { image: false, audio: true, embeddedContext: true },
+          mcpCapabilities: { sse: true },
+          sessionCapabilities: { list: {} },
         },
       },
     } as unknown as Awaited<ReturnType<typeof getOrStartProcess>>);
@@ -127,10 +136,12 @@ describe("ensureAgent custom branch", () => {
     const result = await ensureAgent(agentId);
 
     expect(mockedGetOrStartProcess).toHaveBeenCalledWith(agentId);
-    expect(result.promptCapabilities).toEqual({
-      image: false,
-      audio: true,
-      embeddedContext: true,
+    expect(result).toMatchObject({
+      authMethods: [{ id: "login", name: "Agent Login" }],
+      promptCapabilities: { image: false, audio: true, embeddedContext: true },
+      mcpCapabilities: { sse: true },
+      sessionCapabilities: { list: {} },
+      capturedAgentVersion: "",
     });
   });
 });

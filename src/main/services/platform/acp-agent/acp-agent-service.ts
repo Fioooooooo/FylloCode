@@ -1,10 +1,10 @@
 import { EventEmitter } from "events";
+import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import {
-  normalizePromptCapabilities,
+  type AcpAgentCapabilitySnapshot,
   type AcpAgentStatus,
   type AcpCustomAgentsJson,
   type AcpInstallProgress,
-  type AcpPromptCapabilities,
   type AcpRegistry,
   type AcpUninstallProgress,
 } from "@shared/types/acp-agent";
@@ -20,7 +20,7 @@ import { getRegistry, refreshRegistry } from "@main/infra/storage/acp-registry-c
 import { readStatusCache, writeStatusCache } from "@main/infra/storage/acp-status-cache";
 import { getOrStartProcess, stopAgentProcess } from "@main/infra/process/acp-process-pool";
 import {
-  getCachedPromptCapabilities,
+  getCachedAgentCapabilities,
   removeAgentCapabilities,
 } from "@main/infra/storage/agent-capability-store";
 import { readCustomAgents, writeCustomAgents } from "@main/infra/storage/custom-agent-config-store";
@@ -243,29 +243,37 @@ export async function uninstallAgentById(agentId: string): Promise<void> {
   await removeAgentCapabilities(agentId);
 }
 
-export async function ensureAgent(agentId: string): Promise<{
-  promptCapabilities: AcpPromptCapabilities;
-}> {
+function snapshotFromInitializeResponse(
+  initializeResponse: InitializeResponse,
+  capturedAgentVersion: string
+): AcpAgentCapabilitySnapshot {
+  return {
+    authMethods: initializeResponse.authMethods,
+    promptCapabilities: initializeResponse.agentCapabilities?.promptCapabilities,
+    mcpCapabilities: initializeResponse.agentCapabilities?.mcpCapabilities,
+    sessionCapabilities: initializeResponse.agentCapabilities?.sessionCapabilities,
+    capturedAgentVersion,
+    capturedAt: new Date().toISOString(),
+  };
+}
+
+export async function ensureAgent(agentId: string): Promise<AcpAgentCapabilitySnapshot> {
   if (isCustomAgentId(agentId)) {
     const agent = await getAgentById(agentId);
     if (!agent || agent.source !== "custom") {
       throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not configured`);
     }
 
-    const cached = await getCachedPromptCapabilities(agentId);
+    const cached = await getCachedAgentCapabilities(agentId);
     if (cached && cached.capturedAgentVersion === "") {
       void getOrStartProcess(agentId).catch((error: unknown) => {
         logger.error(`[acp-agent-service] failed to lazily start ${agentId}`, error);
       });
-      return { promptCapabilities: cached.capabilities };
+      return cached;
     }
 
     const agentProcess = await getOrStartProcess(agentId);
-    return {
-      promptCapabilities: normalizePromptCapabilities(
-        agentProcess.initializeResponse.agentCapabilities?.promptCapabilities
-      ),
-    };
+    return snapshotFromInitializeResponse(agentProcess.initializeResponse, "");
   }
 
   const records = await readInstalledRecords();
@@ -274,18 +282,17 @@ export async function ensureAgent(agentId: string): Promise<{
     throw ipcError(IpcErrorCodes.AGENT_NOT_FOUND, `Agent ${agentId} is not installed`);
   }
 
-  const cached = await getCachedPromptCapabilities(agentId);
+  const cached = await getCachedAgentCapabilities(agentId);
   if (cached && cached.capturedAgentVersion === (installed.installedVersion ?? "")) {
     void getOrStartProcess(agentId).catch((error: unknown) => {
       logger.error(`[acp-agent-service] failed to lazily start ${agentId}`, error);
     });
-    return { promptCapabilities: cached.capabilities };
+    return cached;
   }
 
   const agentProcess = await getOrStartProcess(agentId);
-  return {
-    promptCapabilities: normalizePromptCapabilities(
-      agentProcess.initializeResponse.agentCapabilities?.promptCapabilities
-    ),
-  };
+  return snapshotFromInitializeResponse(
+    agentProcess.initializeResponse,
+    installed.installedVersion ?? ""
+  );
 }

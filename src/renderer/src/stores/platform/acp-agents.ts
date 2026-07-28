@@ -3,13 +3,15 @@ import { defineStore } from "pinia";
 import { acpAgentsApi } from "@renderer/api/platform/acp-agents";
 import { appApi } from "@renderer/api/platform/app";
 import { useSessionStore } from "../session/session";
-import type {
-  AcpAgentStatus,
-  AcpCustomAgentsJson,
-  AcpInstallProgress,
-  AcpPromptCapabilities,
-  AcpRegistry,
-  AcpUninstallProgress,
+import {
+  normalizePromptCapabilities,
+  type AcpAgentCapabilitySnapshot,
+  type AcpAgentStatus,
+  type AcpCustomAgentsJson,
+  type AcpInstallProgress,
+  type AcpPromptCapabilities,
+  type AcpRegistry,
+  type AcpUninstallProgress,
 } from "@shared/types/acp-agent";
 
 const DEFAULT_PROMPT_CAPABILITIES: AcpPromptCapabilities = {
@@ -24,7 +26,16 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
   const statuses = ref<Record<string, AcpAgentStatus>>({});
   const installProgress = ref<Record<string, AcpInstallProgress>>({});
   const uninstallProgress = ref<Record<string, AcpUninstallProgress>>({});
-  const promptCapabilitiesByAgent = ref<Map<string, AcpPromptCapabilities>>(new Map());
+  const capabilitiesByAgent = ref<Map<string, AcpAgentCapabilitySnapshot>>(new Map());
+  const promptCapabilitiesByAgent = computed(
+    () =>
+      new Map(
+        Array.from(capabilitiesByAgent.value, ([agentId, snapshot]) => [
+          agentId,
+          normalizePromptCapabilities(snapshot.promptCapabilities),
+        ])
+      )
+  );
   const userDataPath = ref("");
   const registryLoading = ref(false);
   const registryError = ref<string | null>(null);
@@ -104,9 +115,9 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
 
     if (!stopAgentUnavailableListener) {
       stopAgentUnavailableListener = acpAgentsApi.onAgentUnavailable(({ agentId }) => {
-        const next = new Map(promptCapabilitiesByAgent.value);
+        const next = new Map(capabilitiesByAgent.value);
         next.delete(agentId);
-        promptCapabilitiesByAgent.value = next;
+        capabilitiesByAgent.value = next;
         useSessionStore().applyProbeUpdate(agentId, null);
       });
     }
@@ -185,7 +196,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       return;
     }
 
-    promptCapabilitiesByAgent.value = new Map(Object.entries(response.data));
+    capabilitiesByAgent.value = new Map(Object.entries(response.data));
   }
 
   async function ensureUserDataPath(): Promise<void> {
@@ -228,10 +239,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       return;
     }
 
-    promptCapabilitiesByAgent.value = new Map(promptCapabilitiesByAgent.value).set(
-      agentId,
-      response.data.promptCapabilities
-    );
+    capabilitiesByAgent.value = new Map(capabilitiesByAgent.value).set(agentId, response.data);
   }
 
   function getPromptCapabilities(agentId: string | null | undefined): AcpPromptCapabilities {
@@ -239,7 +247,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
       return DEFAULT_PROMPT_CAPABILITIES;
     }
 
-    return promptCapabilitiesByAgent.value.get(agentId) ?? DEFAULT_PROMPT_CAPABILITIES;
+    return normalizePromptCapabilities(capabilitiesByAgent.value.get(agentId)?.promptCapabilities);
   }
 
   async function ensureInitialized(): Promise<void> {
@@ -356,6 +364,7 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     statuses,
     installProgress,
     uninstallProgress,
+    capabilitiesByAgent,
     promptCapabilitiesByAgent,
     userDataPath,
     registryLoading,

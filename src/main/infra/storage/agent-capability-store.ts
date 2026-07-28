@@ -3,31 +3,103 @@ import { join } from "path";
 import { z } from "zod";
 import { getDataSubPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
-import type { AcpPromptCapabilities } from "@shared/types/acp-agent";
+import type { AcpAgentCapabilityCache, AcpAgentCapabilitySnapshot } from "@shared/types/acp-agent";
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
-const promptCapabilitiesSchema = z.object({
-  image: z.boolean(),
-  audio: z.boolean(),
-  embeddedContext: z.boolean(),
-});
+const metaSchema = z.record(z.string(), z.unknown()).nullable().optional();
 
-const agentCapabilityRecordSchema = z.object({
-  promptCapabilities: promptCapabilitiesSchema,
-  capturedAgentVersion: z.string(),
-  capturedAt: z.string(),
-});
+const authMethodSchema = z
+  .object({
+    _meta: metaSchema,
+    id: z.string(),
+    name: z.string(),
+  })
+  .passthrough();
+
+const promptCapabilitiesSchema = z
+  .object({
+    _meta: metaSchema,
+    image: z.boolean().optional(),
+    audio: z.boolean().optional(),
+    embeddedContext: z.boolean().optional(),
+  })
+  .passthrough();
+
+const mcpCapabilitiesSchema = z
+  .object({
+    _meta: metaSchema,
+    acp: z.boolean().optional(),
+    http: z.boolean().optional(),
+    sse: z.boolean().optional(),
+  })
+  .passthrough();
+
+const sessionCapabilityMarkerSchema = z
+  .object({
+    _meta: metaSchema,
+  })
+  .passthrough();
+
+const sessionCapabilitiesSchema = z
+  .object({
+    _meta: metaSchema,
+    additionalDirectories: sessionCapabilityMarkerSchema.nullable().optional(),
+    close: sessionCapabilityMarkerSchema.nullable().optional(),
+    delete: sessionCapabilityMarkerSchema.nullable().optional(),
+    fork: sessionCapabilityMarkerSchema.nullable().optional(),
+    list: sessionCapabilityMarkerSchema.nullable().optional(),
+    resume: sessionCapabilityMarkerSchema.nullable().optional(),
+  })
+  .passthrough();
+
+const agentCapabilityRecordSchema = z
+  .object({
+    authMethods: z.array(authMethodSchema).optional(),
+    promptCapabilities: promptCapabilitiesSchema.optional(),
+    mcpCapabilities: mcpCapabilitiesSchema.optional(),
+    sessionCapabilities: sessionCapabilitiesSchema.optional(),
+    capturedAgentVersion: z.string(),
+    capturedAt: z.string(),
+  })
+  .passthrough();
 
 const cacheDocumentSchema = z.object({
   version: z.literal(CACHE_VERSION),
   agents: z.record(z.string(), agentCapabilityRecordSchema),
 });
 
-export type AgentCapabilityCacheEntry = z.infer<typeof agentCapabilityRecordSchema>;
-type AgentCapabilityCacheDocument = z.infer<typeof cacheDocumentSchema>;
+const legacyPromptCapabilitiesSchema = z.object({
+  image: z.boolean(),
+  audio: z.boolean(),
+  embeddedContext: z.boolean(),
+});
+
+const legacyAgentCapabilityRecordSchema = z.object({
+  promptCapabilities: legacyPromptCapabilitiesSchema,
+  capturedAgentVersion: z.string(),
+  capturedAt: z.string(),
+});
+
+const legacyCacheDocumentSchema = z.object({
+  version: z.literal(1),
+  agents: z.record(z.string(), legacyAgentCapabilityRecordSchema),
+});
+
+interface AgentCapabilitySource {
+  authMethods?: AcpAgentCapabilitySnapshot["authMethods"];
+  promptCapabilities?: AcpAgentCapabilitySnapshot["promptCapabilities"];
+  mcpCapabilities?: AcpAgentCapabilitySnapshot["mcpCapabilities"];
+  sessionCapabilities?: AcpAgentCapabilitySnapshot["sessionCapabilities"];
+}
+
+interface AgentCapabilityCacheDocument {
+  version: typeof CACHE_VERSION;
+  agents: AcpAgentCapabilityCache;
+}
 
 let tempWriteCounter = 0;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 function cachePath(): string {
   return join(getDataSubPath("acp"), "agent-capabilities.json");
@@ -48,10 +120,21 @@ async function writeCacheDocument(document: AgentCapabilityCacheDocument): Promi
   }
 }
 
-export async function loadCache(): Promise<Record<string, AgentCapabilityCacheEntry>> {
+export async function loadCache(): Promise<AcpAgentCapabilityCache> {
   try {
     const content = await fs.readFile(cachePath(), "utf8");
-    return cacheDocumentSchema.parse(JSON.parse(content)).agents;
+    const raw: unknown = JSON.parse(content);
+    const current = cacheDocumentSchema.safeParse(raw);
+    if (current.success) {
+      return current.data.agents as AcpAgentCapabilityCache;
+    }
+
+    const legacy = legacyCacheDocumentSchema.safeParse(raw);
+    if (legacy.success) {
+      return legacy.data.agents;
+    }
+
+    throw current.error;
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       logger.warn("[agent-capability-store] failed to load cache", error);
@@ -60,65 +143,70 @@ export async function loadCache(): Promise<Record<string, AgentCapabilityCacheEn
   }
 }
 
-export async function upsertPromptCapabilities(
+function enqueueMutation(mutation: () => Promise<void>): Promise<void> {
+  const result = mutationQueue.then(mutation);
+  mutationQueue = result.catch(() => undefined);
+  return result;
+}
+
+export async function upsertAgentCapabilities(
   agentId: string,
-  capabilities: AcpPromptCapabilities,
+  capabilities: AgentCapabilitySource,
   capturedAgentVersion: string
 ): Promise<void> {
-  const agents = await loadCache();
-  agents[agentId] = {
-    promptCapabilities: capabilities,
-    capturedAgentVersion,
-    capturedAt: new Date().toISOString(),
-  };
+  await enqueueMutation(async () => {
+    const agents = await loadCache();
+    agents[agentId] = {
+      ...capabilities,
+      capturedAgentVersion,
+      capturedAt: new Date().toISOString(),
+    };
 
-  await writeCacheDocument({
-    version: CACHE_VERSION,
-    agents,
+    await writeCacheDocument({
+      version: CACHE_VERSION,
+      agents,
+    });
   });
 }
 
-export async function getCachedPromptCapabilities(
+export async function getCachedAgentCapabilities(
   agentId: string
-): Promise<{ capabilities: AcpPromptCapabilities; capturedAgentVersion: string } | null> {
+): Promise<AcpAgentCapabilitySnapshot | null> {
   const cached = (await loadCache())[agentId];
-  if (!cached) {
-    return null;
-  }
-
-  return {
-    capabilities: cached.promptCapabilities,
-    capturedAgentVersion: cached.capturedAgentVersion,
-  };
+  return cached ?? null;
 }
 
 export async function removeAgentCapabilities(agentId: string): Promise<void> {
-  const agents = await loadCache();
-  delete agents[agentId];
+  await enqueueMutation(async () => {
+    const agents = await loadCache();
+    delete agents[agentId];
 
-  await writeCacheDocument({
-    version: CACHE_VERSION,
-    agents,
+    await writeCacheDocument({
+      version: CACHE_VERSION,
+      agents,
+    });
   });
 }
 
 export async function removeCustomAgentCapabilities(): Promise<void> {
-  const agents = await loadCache();
-  let changed = false;
+  await enqueueMutation(async () => {
+    const agents = await loadCache();
+    let changed = false;
 
-  for (const agentId of Object.keys(agents)) {
-    if (agentId.startsWith("custom-")) {
-      delete agents[agentId];
-      changed = true;
+    for (const agentId of Object.keys(agents)) {
+      if (agentId.startsWith("custom-")) {
+        delete agents[agentId];
+        changed = true;
+      }
     }
-  }
 
-  if (!changed) {
-    return;
-  }
+    if (!changed) {
+      return;
+    }
 
-  await writeCacheDocument({
-    version: CACHE_VERSION,
-    agents,
+    await writeCacheDocument({
+      version: CACHE_VERSION,
+      agents,
+    });
   });
 }

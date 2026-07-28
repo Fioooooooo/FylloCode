@@ -1,3 +1,10 @@
+import type {
+  AuthMethod,
+  McpCapabilities,
+  PromptCapabilities,
+  SessionCapabilities,
+} from "@agentclientprotocol/sdk";
+
 export type AcpInstallMethod = "npx" | "uvx" | "binary";
 
 export type AcpManagedBy = "fyllocode" | "user";
@@ -113,6 +120,17 @@ export interface AcpPromptCapabilities {
   audio: boolean;
   embeddedContext: boolean;
 }
+
+export interface AcpAgentCapabilitySnapshot {
+  authMethods?: AuthMethod[];
+  promptCapabilities?: PromptCapabilities;
+  mcpCapabilities?: McpCapabilities;
+  sessionCapabilities?: SessionCapabilities;
+  capturedAgentVersion: string;
+  capturedAt: string;
+}
+
+export type AcpAgentCapabilityCache = Record<string, AcpAgentCapabilitySnapshot>;
 
 export function normalizePromptCapabilities(input?: {
   image?: boolean;

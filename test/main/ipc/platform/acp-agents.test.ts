@@ -51,9 +51,11 @@ vi.mock("@main/infra/storage/custom-agent-config-store", () => ({
 import { ipcMain } from "electron";
 import { PlatformAcpAgentChannels as AcpAgentChannels } from "@shared/ipc/platform/acp-agents.channels";
 import { saveCustomAgents } from "@main/services/platform/acp-agent/acp-agent-service";
+import { loadCache } from "@main/infra/storage/agent-capability-store";
 import { registerAcpAgentHandlers, setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 
 const mockedSaveCustomAgents = vi.mocked(saveCustomAgents);
+const mockedLoadCache = vi.mocked(loadCache);
 const mockedIpcMainHandle = vi.mocked(ipcMain.handle);
 
 describe("registerAcpAgentHandlers", () => {
@@ -88,6 +90,32 @@ describe("registerAcpAgentHandlers", () => {
 
     await expect(handler({}, config)).resolves.toEqual({ ok: true, data: undefined });
     expect(mockedSaveCustomAgents).toHaveBeenCalledWith(config);
+  });
+
+  it("returns complete capability snapshots without trimming SDK extensions", async () => {
+    const call = mockedIpcMainHandle.mock.calls.find(
+      ([channel]) => channel === AcpAgentChannels.loadCapabilitiesCache
+    );
+    expect(call).toBeDefined();
+
+    const snapshot = {
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+      promptCapabilities: { image: true, _meta: { vision: "native" } },
+      mcpCapabilities: { http: true, _meta: { proxy: "supported" } },
+      sessionCapabilities: {
+        resume: { _meta: { strategy: "remote" } },
+        _meta: { history: "remote" },
+      },
+      capturedAgentVersion: "1.2.3",
+      capturedAt: "2026-07-28T00:00:00.000Z",
+    };
+    mockedLoadCache.mockResolvedValue({ "claude-code": snapshot });
+
+    const handler = call![1] as (_event: unknown) => Promise<unknown>;
+    await expect(handler({})).resolves.toEqual({
+      ok: true,
+      data: { "claude-code": snapshot },
+    });
   });
 
   it("broadcasts global agent events to every active window through the manager", () => {

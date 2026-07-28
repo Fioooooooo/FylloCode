@@ -1,10 +1,11 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
+  AcpAgentCapabilityCache,
+  AcpAgentCapabilitySnapshot,
   AcpAgentStatus,
   AcpCustomAgentsJson,
   AcpInstallProgress,
   AcpInstalledRecord,
-  AcpPromptCapabilities,
   AcpRegistry,
   AcpUninstallProgress,
 } from "@shared/types/acp-agent";
@@ -38,13 +39,11 @@ export const acpAgentsApi = {
     return window.api.platform.acpAgents.uninstall(agentId);
   },
 
-  ensureAgent(
-    agentId: string
-  ): Promise<IpcResponse<{ promptCapabilities: AcpPromptCapabilities }>> {
+  ensureAgent(agentId: string): Promise<IpcResponse<AcpAgentCapabilitySnapshot>> {
     return window.api.platform.acpAgents.ensureAgent(agentId);
   },
 
-  loadCapabilitiesCache(): Promise<IpcResponse<Record<string, AcpPromptCapabilities>>> {
+  loadCapabilitiesCache(): Promise<IpcResponse<AcpAgentCapabilityCache>> {
     return window.api.platform.acpAgents.loadCapabilitiesCache();
   },
 

@@ -112,13 +112,33 @@ describe("useAcpAgentsStore", () => {
     vi.mocked(acpAgentsApi.loadCapabilitiesCache).mockResolvedValue({
       ok: true,
       data: {
-        "claude-code": { image: true, audio: false, embeddedContext: true },
+        "claude-code": {
+          authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+          promptCapabilities: {
+            image: true,
+            audio: false,
+            embeddedContext: true,
+            _meta: { vision: "native" },
+          },
+          mcpCapabilities: { http: true, _meta: { proxy: "supported" } },
+          sessionCapabilities: {
+            resume: { _meta: { strategy: "remote" } },
+            _meta: { history: "remote" },
+          },
+          capturedAgentVersion: "1.2.3",
+          capturedAt: "2026-07-28T00:00:00.000Z",
+        },
       },
     });
     vi.mocked(acpAgentsApi.ensureAgent).mockResolvedValue({
       ok: true,
       data: {
+        authMethods: [{ id: "token", name: "Token Login" }],
         promptCapabilities: { image: false, audio: true, embeddedContext: false },
+        mcpCapabilities: { sse: true },
+        sessionCapabilities: { list: {} },
+        capturedAgentVersion: "1.2.3",
+        capturedAt: "2026-07-28T01:00:00.000Z",
       },
     });
     vi.mocked(appApi.getUserDataPath).mockResolvedValue({
@@ -250,6 +270,14 @@ describe("useAcpAgentsStore", () => {
       audio: false,
       embeddedContext: true,
     });
+    expect(store.capabilitiesByAgent.get("claude-code")).toMatchObject({
+      authMethods: [{ id: "login", name: "Agent Login", _meta: { adapter: "claude" } }],
+      mcpCapabilities: { http: true, _meta: { proxy: "supported" } },
+      sessionCapabilities: {
+        resume: { _meta: { strategy: "remote" } },
+        _meta: { history: "remote" },
+      },
+    });
   });
 
   it("refreshes prompt capabilities for an agent", async () => {
@@ -261,6 +289,39 @@ describe("useAcpAgentsStore", () => {
     expect(store.getPromptCapabilities("claude-code")).toEqual({
       image: false,
       audio: true,
+      embeddedContext: false,
+    });
+    expect(store.capabilitiesByAgent.get("claude-code")).toMatchObject({
+      authMethods: [{ id: "token", name: "Token Login" }],
+      mcpCapabilities: { sse: true },
+      sessionCapabilities: { list: {} },
+      capturedAt: "2026-07-28T01:00:00.000Z",
+    });
+  });
+
+  it("keeps version 1 promoted snapshots partial while preserving prompt behavior", async () => {
+    vi.mocked(acpAgentsApi.loadCapabilitiesCache).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        "claude-code": {
+          promptCapabilities: { image: true, audio: false, embeddedContext: false },
+          capturedAgentVersion: "1.2.3",
+          capturedAt: "2026-07-20T00:00:00.000Z",
+        },
+      },
+    });
+    const store = useAcpAgentsStore();
+
+    await store.loadCapabilitiesCache();
+
+    expect(store.capabilitiesByAgent.get("claude-code")).toEqual({
+      promptCapabilities: { image: true, audio: false, embeddedContext: false },
+      capturedAgentVersion: "1.2.3",
+      capturedAt: "2026-07-20T00:00:00.000Z",
+    });
+    expect(store.getPromptCapabilities("claude-code")).toEqual({
+      image: true,
+      audio: false,
       embeddedContext: false,
     });
   });
@@ -304,6 +365,7 @@ describe("useAcpAgentsStore", () => {
 
     agentUnavailableListener?.({ agentId: "claude-code", reason: "crashed" });
 
+    expect(store.capabilitiesByAgent.has("claude-code")).toBe(false);
     expect(store.getPromptCapabilities("claude-code")).toEqual({
       image: false,
       audio: false,
