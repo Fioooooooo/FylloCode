@@ -76,6 +76,39 @@ describe("LocalFilePreviewService", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["md", "MARKDOWN", "mdown", "MkDn", "mkd", "MDWN", "mdtxt", "MdText"])(
+    "recognizes .%s as Markdown",
+    async (extension) => {
+      const canonicalPath = `/canonical/project/docs/guide.${extension}`;
+      const harness = createHarness({
+        resolveTarget: vi.fn().mockResolvedValue({ ...baseTarget, canonicalPath }),
+        readFile: vi.fn().mockResolvedValue({ ...baseSnapshot, canonicalPath }),
+      });
+
+      await expect(
+        harness.service.preparePreview({ requestedPath: canonicalPath }, harness.context)
+      ).resolves.toMatchObject({
+        status: "ready",
+        document: { language: "markdown" },
+      });
+    }
+  );
+
+  it("keeps unknown extensions on the existing plaintext fallback", async () => {
+    const canonicalPath = "/canonical/project/docs/guide.notes";
+    const harness = createHarness({
+      resolveTarget: vi.fn().mockResolvedValue({ ...baseTarget, canonicalPath }),
+      readFile: vi.fn().mockResolvedValue({ ...baseSnapshot, canonicalPath }),
+    });
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: canonicalPath }, harness.context)
+    ).resolves.toMatchObject({
+      status: "ready",
+      document: { language: "plaintext" },
+    });
+  });
+
   it("opens project and registered worktree files without confirmation", async () => {
     const projectHarness = createHarness({
       resolveTarget: vi.fn().mockResolvedValue({

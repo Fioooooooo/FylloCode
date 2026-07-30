@@ -2,6 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useColorMode } from "@vueuse/core";
 import { useMonaco } from "stream-monaco";
+import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import type { LocalFilePreviewDocument } from "@shared/types/local-file-preview";
 import type { LocalFilePreviewController } from "../application/local-file-preview-controller";
 
@@ -16,6 +17,9 @@ const emit = defineEmits<{
 const colorMode = useColorMode();
 const editorContainer = ref<HTMLElement | null>(null);
 const state = computed(() => props.controller.state.value);
+const previewMode = ref<"source" | "rendered">("source");
+const wordWrapMode = ref<"overflow" | "wrap">("overflow");
+const wordWrap = computed(() => wordWrapMode.value === "wrap");
 const { createEditor, cleanupEditor, setTheme } = useMonaco({
   readOnly: true,
   MAX_HEIGHT: "100%",
@@ -27,6 +31,32 @@ const { createEditor, cleanupEditor, setTheme } = useMonaco({
   autoScrollOnUpdate: false,
 });
 let editorGeneration = 0;
+let currentEditor: Awaited<ReturnType<typeof createEditor>> | null = null;
+
+const readyDocument = computed<LocalFilePreviewDocument | null>(() => {
+  return state.value.status === "ready" ? state.value.document : null;
+});
+const isMarkdownPreview = computed(() => readyDocument.value?.language === "markdown");
+const markdownPreviewId = "local-file-preview-markdown";
+const previewTabs: { label: string; icon: string; value: "source" | "rendered" }[] = [
+  { label: "原文", icon: "i-lucide-code-2", value: "source" },
+  { label: "预览", icon: "i-lucide-book-open-text", value: "rendered" },
+];
+const wordWrapTabs = computed<
+  { label: string; icon: string; value: "overflow" | "wrap"; disabled: boolean }[]
+>(() => {
+  const disabled = previewMode.value === "rendered";
+  return [
+    { label: "内容溢出", icon: "i-lucide-arrow-left-right", value: "overflow", disabled },
+    { label: "自动换行", icon: "i-lucide-wrap-text", value: "wrap", disabled },
+  ];
+});
+const toolbarTabsUi = {
+  root: "w-auto gap-0",
+  list: "w-auto p-0.5",
+  trigger: "grow-0",
+} as const;
+const slideoverTooltipUi = { content: "z-[60]" } as const;
 
 const titlePath = computed(() => {
   const current = state.value;
@@ -51,26 +81,49 @@ async function confirm(rememberForWindow: boolean): Promise<void> {
   await props.controller.confirm({ rememberForWindow });
 }
 
+function cleanupCurrentEditor(): void {
+  currentEditor = null;
+  cleanupEditor();
+}
+
+function isSupersededEditorCreation(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  return (
+    error.name === "AbortError" ||
+    (error as Error & { code?: string }).code === "STREAM_MONACO_CREATE_SUPERSEDED"
+  );
+}
+
 async function mountDocument(document: LocalFilePreviewDocument | null): Promise<void> {
   const generation = ++editorGeneration;
-  cleanupEditor();
-  if (!document) return;
+  cleanupCurrentEditor();
+  if (!document || previewMode.value !== "source") return;
 
   await nextTick();
   if (generation !== editorGeneration || !editorContainer.value) return;
 
-  const editor = await createEditor(editorContainer.value, document.content, document.language);
+  let editor: Awaited<ReturnType<typeof createEditor>>;
+  try {
+    editor = await createEditor(editorContainer.value, document.content, document.language);
+  } catch (error) {
+    if (generation !== editorGeneration && isSupersededEditorCreation(error)) return;
+    throw error;
+  }
+
   if (generation !== editorGeneration) {
-    cleanupEditor();
+    editor.dispose();
     return;
   }
 
+  currentEditor = editor;
   editor.updateOptions({
     readOnly: true,
     domReadOnly: true,
     lineNumbers: "on",
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
+    wordWrap: wordWrap.value ? "on" : "off",
   });
   const lineNumber = document.line ?? 1;
   editor.setPosition({
@@ -85,12 +138,16 @@ async function mountDocument(document: LocalFilePreviewDocument | null): Promise
 }
 
 watch(
-  () => (state.value.status === "ready" ? state.value.document : null),
-  (document) => {
+  () => [readyDocument.value, previewMode.value] as const,
+  ([document]) => {
     void mountDocument(document);
   },
   { immediate: true }
 );
+
+watch(wordWrap, (enabled) => {
+  currentEditor?.updateOptions({ wordWrap: enabled ? "on" : "off" });
+});
 
 watch(
   () => colorMode.value,
@@ -102,7 +159,7 @@ watch(
 
 onUnmounted(() => {
   editorGeneration += 1;
-  cleanupEditor();
+  cleanupCurrentEditor();
   props.controller.dispose();
 });
 </script>
@@ -119,8 +176,8 @@ onUnmounted(() => {
       <div class="flex h-full min-h-0 flex-col bg-default" data-test="local-file-preview">
         <header class="shrink-0 border-b border-default px-5 py-4">
           <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0 space-y-1">
-              <h2 class="text-base font-semibold text-highlighted">本地文件预览</h2>
+            <div class="min-w-0 flex-1 space-y-1">
+              <h2 class="text-sm font-semibold text-highlighted">本地文件预览</h2>
               <p
                 v-if="titlePath"
                 class="wrap-anywhere font-mono text-xs text-muted"
@@ -129,7 +186,7 @@ onUnmounted(() => {
                 {{ titlePath }}
               </p>
             </div>
-            <UTooltip text="关闭">
+            <UTooltip text="关闭" :ui="slideoverTooltipUi">
               <UButton
                 icon="i-lucide-x"
                 color="neutral"
@@ -141,6 +198,36 @@ onUnmounted(() => {
             </UTooltip>
           </div>
         </header>
+
+        <div
+          v-show="readyDocument"
+          class="flex shrink-0 items-center gap-4 border-b border-default/50 bg-muted/30 px-4 py-2"
+          data-test="preview-toolbar"
+        >
+          <UTabs
+            v-model="wordWrapMode"
+            :items="wordWrapTabs"
+            value-key="value"
+            variant="pill"
+            size="sm"
+            :content="false"
+            aria-label="源码换行模式"
+            :ui="toolbarTabsUi"
+            data-test="word-wrap-tabs"
+          />
+          <UTabs
+            v-show="isMarkdownPreview"
+            v-model="previewMode"
+            :items="previewTabs"
+            value-key="value"
+            variant="pill"
+            size="sm"
+            :content="false"
+            aria-label="Markdown 查看模式"
+            :ui="toolbarTabsUi"
+            data-test="preview-mode-tabs"
+          />
+        </div>
 
         <div
           v-if="state.status === 'loading'"
@@ -208,9 +295,24 @@ onUnmounted(() => {
         </div>
 
         <div
+          v-else-if="state.status === 'ready' && isMarkdownPreview && previewMode === 'rendered'"
+          class="min-h-0 flex-1 overflow-y-auto"
+          data-test="preview-markstream"
+        >
+          <article class="mx-auto w-full max-w-3xl px-6 py-8 sm:px-8">
+            <MarkStream
+              :id="markdownPreviewId"
+              :content="state.document.content"
+              :is-streaming="false"
+              :is-dark="colorMode === 'dark'"
+            />
+          </article>
+        </div>
+
+        <div
           v-else-if="state.status === 'ready'"
           ref="editorContainer"
-          class="min-h-0 flex-1"
+          class="min-h-0 flex-1 overflow-hidden"
           data-test="preview-editor"
         />
       </div>
