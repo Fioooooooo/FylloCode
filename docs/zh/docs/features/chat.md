@@ -16,13 +16,20 @@ sidebar:
 
 - 管理项目内的会话列表
 - 将重要会话置顶到独立分组，重启后仍保持置顶状态
+- 独立折叠“置顶会话”和“最近会话”分组，并在多个展开分组之间平分可用高度
 - 选择已安装的 ACP Agent
 - 发送文本和附件上下文
 - 展示 Agent 的思考、工具调用、子 Agent 调用和流式输出状态
 - 支持 Mermaid、Markdown 等结构化内容展示
+- 在所有 Markdown 阅读区域内安全预览 Agent 提供的绝对本地文件链接
 - 在任务上下文中推进 proposal 创建和后续阶段
 - 从任务发起的会话显示来源任务横幅，重新进入会话仍可见
 - Agent 可通过 [fyllo-action](/docs/reference/fyllo-action) 提议创建任务、提交 plan 审阅、标记或复核 knowledge，由你确认后由 FylloCode 接管执行
+- Agent 可通过 [Fyllo Signal](/docs/reference/fyllo-signal) 显示无需确认的轻量信息；Signal 不进入会话事件栏
+
+## 管理会话分组
+
+“置顶会话”和“最近会话”按最近活动时间分别排序。每个非空分组都可以独立折叠；两个分组同时展开时会平分标题之外的剩余高度，并在各自列表内滚动。折叠不会中断后台执行，重新展开会恢复原来的滚动位置。分组状态只保留到当前 Chat 侧栏卸载，不会写入会话元数据。
 
 ## 定位历史消息
 
@@ -35,6 +42,18 @@ sidebar:
 连续的 Thinking 和普通工具调用会收拢为一个可折叠的 Activity group。展开 group 后，可以分别查看每个 Thinking、Tool 的完整 Input 和 Output；长内容会在详情区域内滚动，不会为了布局截断底层内容。
 
 当 Claude Code 通过 Agent 工具启动子 Agent 时，父调用会渲染为独立卡片。打开详情后，可以查看 prompt、状态、模型、token、耗时、工具统计、子工具活动和最终回复。详情只连接同一条 assistant 消息内可安全确认的父子工具关系；无法关联的工具仍按普通工具展示。
+
+## 预览本地文件
+
+Agent 输出的 Markdown 链接如果指向 POSIX、Windows drive 或 UNC 绝对路径，点击后会在窗口级 Slideover 中打开只读预览。项目根和当前项目已注册 worktree 内的文件可直接读取；指向这些可信根之外的文件时，FylloCode 会在读取内容前显示完整规范路径、大小和修改时间，并要求选择“仅打开一次”或“打开并在此窗口中信任”。
+
+预览只接受不超过 5 MiB 的 UTF-8 普通文本文件，不支持目录、设备、二进制或无效 UTF-8 文件。链接末尾可使用 `:line[:column]` 定位源码；预览允许搜索、选择和复制，但不提供保存或回写。窗口信任只保存在当前 Renderer Window 的内存中，关闭窗口或重启应用后会失效。
+
+所有文本文件都可以在“内容溢出”和“自动换行”之间切换。识别为 Markdown 的文件还会显示“原文”和“预览”模式；“预览”使用共享 MarkStream 渲染当前只读快照。关闭 Slideover 后，这些查看选择不会保留。
+
+## Fyllo Signal
+
+Fyllo Signal 是 Agent 在 assistant 正文中输出的被动展示标记。当前 `show.time` 类型会把时间标签显示为非交互 pill；它不需要确认，不创建 Action 状态，不进入会话事件栏，也不改变待处理数量。历史 Signal 只从已保存的 assistant 文本重新渲染，详细协议见 [Fyllo Signal 参考](/docs/reference/fyllo-signal)。
 
 ## 会话事件栏
 

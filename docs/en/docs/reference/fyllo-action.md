@@ -10,6 +10,8 @@ sidebar:
 
 This channel exists because some actions (creating a task, opening a plan for review, asking you to confirm a knowledge entry) can't be reliably confirmed or traced if the Agent only describes them in text like "I've created...". `fyllo-action` turns these actions into an explicit interaction you can confirm or cancel.
 
+When an Agent only needs to display information that requires no confirmation, it should use [Fyllo Signal](/en/docs/reference/fyllo-signal). A Signal creates no Action state and never enters the session event rail.
+
 ## Four Action Types
 
 | Type | Where it appears | Triggered when | What happens after confirmation |

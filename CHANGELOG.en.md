@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.14.4] - 2026-07-30
+
+This release improves reading, preview, and recovery in Chat. Absolute local file links can now be previewed safely inside the app, Markdown files gain source, rendered, and wrapping modes, and Fyllo Signal gives Agents a lightweight display channel that requires no confirmation. ACP Agent connections are prewarmed in the background and confirmed session configuration is restored after restart or reconnection; bundled MCP servers also move to a reusable application-level HTTP host while retaining stdio fallback.
+
+### Added
+
+- All shared MarkStream hosts can now preview absolute local text-file links. Files under the project root or a registered worktree open directly; files outside trusted roots require either one-time access or trust for the current window before content is read. Preview accepts regular UTF-8 files up to 5 MiB and supports `:line[:column]` locations.
+- Local Markdown previews now offer **Source / Preview** and **Content Overflow / Wrap Lines** controls. Preview uses MarkStream rendering, Source remains the default, and display choices affect only the current Slideover without modifying the file or persisting a setting.
+- Added the passive Fyllo Signal display protocol. The initial `show.time` type renders the current time as a non-interactive pill without creating a Fyllo Action, entering the session event rail, or producing durable side effects.
+- The **Pinned Sessions** and **Recent Sessions** groups in Chat can now be collapsed independently. Expanded groups share the remaining height and retain their own scroll positions.
+
+### Changed
+
+- After launch, FylloCode now prewarms installed and valid custom ACP Agent connections with application-level concurrency limits. Installation, upgrade, and custom-Agent saves also schedule incremental warmup, and Chat reuses the same in-flight or ready connection.
+- The ACP capability cache now retains complete authentication, prompt, MCP, and session capability snapshots while remaining compatible with older prompt-only cache files and preserving current attachment and prompt-capability behavior.
+- `fyllo-specs` and `fyllo-cortex` now use an application-level shared HTTP host. HTTP-capable Agents reuse a stable loopback proxy, application bearer token, and request-scoped project/session context; Agents without HTTP support, or unavailable backends, continue through stdio.
+- Fyllo Action and Fyllo Signal now share MarkStream rules for top-level standalone blocks, streaming closure, and exact literal-source preservation while keeping separate schemas, state, and rendering contracts.
+
+### Fixed
+
+- Fixed confirmed session options such as model, mode, and thought level being replaced by Agent defaults after app restart or Agent reconnection. Compatible values are restored before the first resumed prompt, while incompatible options fall back to the Agent's current schema.
+- Fixed Chat prompt-timeline container sizing, scroll targeting, and summary-popover details, and added syntax-safe Mermaid guidance for flowchart and state-diagram labels to reduce unrenderable Agent output.
+- Fixed the Chat message area not filling its available height in some layouts.
+
+### Notes
+
+- The application version is now `0.14.4`.
+- The `fyllo-specs` MCP server is now `0.9.0`, adding HTTP transport, request-scoped context, and Mermaid guidance. Tool names, inputs, outputs, storage behavior, and stdio transport remain compatible.
+- The `fyllo-cortex` MCP server is now `0.6.0`, adding HTTP transport and request-scoped context. Tool names, modes, inputs, outputs, storage behavior, and stdio transport remain compatible.
+- Older ACP capability caches are read through the compatibility path and are gradually rewritten in the new format after Agents initialize successfully; no manual migration is required.
+- **Trust in this window** for files outside the project is kept only in Renderer Window memory. Closing the window or restarting the app requires confirmation again.
+
 ## [0.14.3] - 2026-07-22
 
 This release improves readability in long Chat sessions and while Agents are working. Chat can now pin important sessions, streaming assistant messages show a runtime indicator, and consecutive Thinking / Tool activity is grouped into expandable Activity groups. Claude Code subagent calls also get a dedicated inspector for parent-child tool relationships, runtime statistics, and final responses, while dependency pinning and release workflow guidance reduce upgrade and release risk.

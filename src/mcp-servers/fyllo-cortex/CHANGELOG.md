@@ -4,6 +4,21 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [0.6.0] - 2026-07-30
+
+### Added
+
+- Added a bearer-authenticated loopback HTTP transport for application-level reuse by HTTP-capable ACP Agents, with request-scoped project/session context and stdio fallback.
+- Added parent-IPC disconnect handling so a hosted HTTP listener shuts down when the Electron main process exits unexpectedly.
+
+### Changed
+
+- Guidelines, knowledge, and lineage now resolve project and project-data context from the active HTTP request when present, while retaining the existing environment-variable contract in stdio mode.
+
+### Compatibility
+
+- Tool names, modes, inputs, outputs, storage behavior, and the stdio transport remain compatible with `0.5.0`.
+
 ## [0.5.0] - 2026-07-15
 
 ### Added

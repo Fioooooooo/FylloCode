@@ -61,3 +61,17 @@ The configuration is edited as JSON, structured as an `agent_servers` map:
 | `env` | Extra environment variables, merged on top of the system environment (optional). |
 
 Saved configuration is written to a local `custom-agents.json`. It is not synced to the registry and isn't covered by FylloCode's install/update management — installing and upgrading the command itself remains the user's responsibility.
+
+## Connection Warmup and Reuse
+
+After main-process startup completes, FylloCode prewarms every installed registry Agent and valid custom Agent in the background. Warmup starts the ACP process and completes `initialize` only. It does not create a Chat session or fetch project-level configuration and commands early, and it still runs while only the Launcher is open.
+
+Installing, upgrading, or saving custom Agents schedules incremental warmup for the affected connections. Before an upgrade, uninstall, or custom-Agent `command`, `args`, or `env` change, FylloCode intentionally stops the old process so the next connection uses the new runtime configuration. One failed Agent does not block window startup or other Agents. If you select an Agent while it is warming up, Chat joins the same in-flight connection instead of starting another process.
+
+After successful initialization, FylloCode caches complete authentication, prompt, MCP, and session capability snapshots. Older prompt-only cache files remain readable and are gradually refreshed after Agents initialize successfully; no manual migration is required.
+
+## Session Configuration Recovery
+
+FylloCode saves the Agent-confirmed model, mode, thought level, and other session `configOptions` with session metadata. After an app restart or Agent reconnection, it restores values that are still supported by the current Agent schema before sending the first resumed prompt. Removed options, changed types, and invalid values fall back to the Agent's current valid value while other compatible options continue to recover.
+
+If the Agent cannot confirm a still-compatible value, the current prompt ends through the existing ACP error path instead of silently using a default. Older sessions without persisted configuration continue through the previous recovery flow and require no migration.

@@ -14,6 +14,12 @@ sidebar:
 | `knowledge` | 维护跨任务、跨会话共享的项目知识条目 |
 | `lineage` | 查询代码、commit 或 proposal 背后的任务、会话和设计决策脉络 |
 
+## Bundled Transport 与上下文
+
+在 FylloCode 应用内，`fyllo-cortex` 由应用级 bundled MCP host 托管。声明 HTTP MCP 能力的 ACP Agent 会通过稳定 loopback proxy 复用同一个后端进程；每个请求都使用应用运行期 bearer token 鉴权，并通过请求级上下文隔离项目路径、项目数据目录和可选 session 信息。并发项目调用不会通过修改 `process.env` 互相切换上下文。
+
+Agent 不支持 HTTP、后端未就绪或 host 不可用时，FylloCode 会回退到原有 stdio transport。`guidelines`、`knowledge`、`lineage` 的名称、mode、输入输出、存储位置和错误语义保持不变。设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会完全禁用 bundled MCP 注入。
+
 ## guidelines tool
 
 `guidelines` 用于维护项目 guidelines。正常读取 guidelines 的路径不是调用 tool，而是：
@@ -85,7 +91,7 @@ keywords: [architecture, electron, ipc]
 guidelines 不只由 `fyllo-cortex.guidelines` tool 触发。FylloCode 会在多个位置把 guideline 维护纳入工作流：
 
 - **Chat**：system reminder 注入 `<guidelines>` 索引；创建 Proposal 前要求 Agent 考虑是否需要新增或更新 guideline；直接实现或 Plan 实现完成后也要做同样检查。
-- **Proposal 创建**：`fyllo-specs` 初始化或复用 OpenSpec config 时会追加默认 tasks 规则，要求 `tasks.md` 评估本次变更是否应更新 local repository guidelines。
+- **Proposal 创建**：`fyllo-specs create-proposal` 的 instruction 会要求 Agent 在编写 `tasks.md` 时直接决定是否需要具体的 local repository guideline 更新任务；已有 OpenSpec config 不会被自动改写。
 - **Apply**：改代码前必须读取相关 guideline；实现中发现 guideline 缺失、陈旧或与仓库事实冲突时，调用 `guidelines` tool 维护。
 - **Archive**：归档前再次检查已完成变更是否改变了命令、架构、测试、工作流、数据契约或项目约定。
 - **Project Health Check**：guideline 健康检查不计入健康分，但会直接通过 `init` / `create` / `update` 处理缺失、损坏或陈旧的 guideline，不走 Proposal。

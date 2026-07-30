@@ -14,6 +14,12 @@ sidebar:
 | `knowledge` | Maintains project knowledge entries shared across tasks and sessions. |
 | `lineage` | Traces code, commits, or proposals back to the task, session, and design-decision context behind them. |
 
+## Bundled Transport and Context
+
+Inside the FylloCode application, `fyllo-cortex` is hosted by an application-level bundled MCP host. ACP Agents that declare HTTP MCP capability reuse one backend process through a stable loopback proxy. Every request uses an application-lifetime bearer token and request-scoped isolation for the project path, project-data directory, and optional session context. Concurrent project calls do not switch one another by mutating `process.env`.
+
+When an Agent lacks HTTP support, the backend is not ready, or the host is unavailable, FylloCode falls back to the existing stdio transport. The `guidelines`, `knowledge`, and `lineage` names, modes, inputs, outputs, storage locations, and error semantics remain unchanged. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables bundled MCP injection completely.
+
 ## guidelines Tool
 
 `guidelines` maintains project guidelines. Normal guideline reading does not go through this tool:
@@ -85,7 +91,7 @@ Files without frontmatter are still returned, with `name` falling back to the fi
 Guidelines are not triggered only by the `fyllo-cortex.guidelines` tool. FylloCode brings guideline maintenance into several parts of the workflow:
 
 - **Chat**: the system reminder injects the `<guidelines>` index; before creating a Proposal, the Agent considers whether guidelines need to be created or updated; after direct implementation or approved Plan work, it performs the same check.
-- **Proposal creation**: when `fyllo-specs` initializes or reuses an OpenSpec config, it appends the default task rule that asks `tasks.md` to evaluate local guideline updates.
+- **Proposal creation**: the instruction returned by `fyllo-specs create-proposal` requires the Agent to decide while writing `tasks.md` whether a concrete local-repository guideline update task is needed. Existing OpenSpec config remains unchanged.
 - **Apply**: before editing code, the Agent reads relevant guidelines; if implementation reveals missing, stale, or conflicting guidelines, it calls the maintenance tool.
 - **Archive**: before final archive, the Agent checks whether the completed change altered commands, architecture, tests, workflow, data contracts, or project conventions.
 - **Project Health Check**: guideline health is reported separately from the score and handled directly with `init` / `create` / `update`, without going through Proposal.

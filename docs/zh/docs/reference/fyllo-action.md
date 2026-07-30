@@ -10,6 +10,8 @@ sidebar:
 
 这条通道的存在，是因为一些动作（创建任务、打开 plan 审阅、请求确认知识条目）如果只靠 Agent 用文字描述"我已经……"，用户既无法真正确认，也难以追溯这个动作是否发生、发生了什么。fyllo-action 把这些动作变成一次明确的、用户可确认或取消的交互。
 
+如果 Agent 只需要展示无需确认的信息，应使用 [Fyllo Signal](/docs/reference/fyllo-signal)。Signal 不创建 Action 状态，也不进入会话事件栏。
+
 ## 四种 Action
 
 | Type | 呈现位置 | 触发方 | 确认后发生什么 |

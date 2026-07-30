@@ -63,7 +63,13 @@ When the target project lacks the minimum OpenSpec structure, `create-proposal` 
 - `openspec/specs/`
 - `openspec/changes/archive/`
 
-An existing `openspec/config.yaml` is preserved. If the default guidelines evaluation rule is missing, the tool appends it while preserving other fields.
+An existing `openspec/config.yaml` is treated as project-owned and remains unchanged. The default guideline task rule is seeded only when the file is first created. Regardless of config contents, the current instruction returned by `create-proposal` requires the Agent to decide while writing `tasks.md` whether a concrete guideline update task is needed.
+
+## Bundled Transport and Context
+
+Inside the FylloCode application, `fyllo-specs` is hosted by an application-level bundled MCP host in the main process. ACP Agents that declare HTTP MCP capability connect through a stable loopback proxy. Agents and sessions in the same app run share the backend process, while every request carries bearer-token authentication and isolated project path, project-data directory, MCP-event directory, and optional session-ID context.
+
+The real HTTP backend port remains private to the main process, so a backend restart does not change the proxy URL already supplied to an Agent. When an Agent lacks HTTP support, the target backend is not ready, or the HTTP host is unavailable, FylloCode falls back to the existing stdio transport for that server. Tool names, inputs, outputs, error semantics, and storage locations remain unchanged. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables both the HTTP host and stdio spec injection.
 
 ## Usage Boundary
 

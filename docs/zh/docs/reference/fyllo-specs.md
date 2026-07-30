@@ -63,7 +63,13 @@ plan 文档以 `<projectDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.md
 - `openspec/specs/`
 - `openspec/changes/archive/`
 
-已有 `openspec/config.yaml` 会被保留。若缺少默认 guidelines 评估规则，工具会在保留其他字段的前提下追加该规则。
+已有 `openspec/config.yaml` 视为项目自有配置并保持原样，不会被自动补写。只有首次创建该文件时才会写入默认 guidelines task 规则；无论配置文件内容如何，`create-proposal` 返回的当前 instruction 都会要求 Agent 在编写 `tasks.md` 时直接决定是否需要具体的 guideline 更新任务。
+
+## Bundled Transport 与上下文
+
+在 FylloCode 应用内，`fyllo-specs` 默认由主进程以应用级 bundled MCP host 托管。声明 HTTP MCP 能力的 ACP Agent 会连接稳定的 loopback proxy；同一应用运行中的不同 Agent 和 session 复用后端进程，每个请求通过 bearer token 鉴权，并使用独立的项目路径、项目数据目录、MCP event 目录和可选 session ID 上下文。
+
+HTTP 后端端口只对主进程可见，后端重启不会改变已提供给 Agent 的 proxy URL。Agent 不支持 HTTP、目标后端未就绪或 HTTP host 不可用时，FylloCode 会为该 server 回退到原有 stdio transport，tool 名称、输入、输出、错误语义和存储位置不变。设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会同时禁用 HTTP host 和 stdio spec 注入。
 
 ## 使用边界
 

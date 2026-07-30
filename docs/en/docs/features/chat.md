@@ -16,13 +16,20 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 
 - Manage project sessions
 - Pin important sessions into a separate group, with the pinned state restored after restart
+- Collapse the **Pinned Sessions** and **Recent Sessions** groups independently, sharing available height between expanded groups
 - Select installed ACP Agents
 - Send text and attachment context
 - Display Agent reasoning, tool calls, subagent calls, and streamed output state
 - Render structured content such as Mermaid and Markdown
+- Safely preview absolute local file links supplied by an Agent from any Markdown reading surface
 - Create proposals and continue later stages inside task context
 - Show a source task banner for task-based sessions, including after reopening the session
 - Let Agents propose task creation, submit a plan for review, and flag or request review of knowledge entries through [fyllo-action](/en/docs/reference/fyllo-action), with FylloCode taking over execution after your confirmation
+- Let Agents display lightweight information that requires no confirmation through [Fyllo Signal](/en/docs/reference/fyllo-signal); Signals do not enter the session event rail
+
+## Managing Session Groups
+
+**Pinned Sessions** and **Recent Sessions** are each sorted by recent activity. Every non-empty group can be collapsed independently. When both groups are expanded, they share the remaining height below their headers and scroll separately. Collapsing a group does not interrupt background execution, and expanding it restores the previous scroll position. Collapse state lasts only for the current Chat-sidebar mount and is not written to session metadata.
 
 ## Locating Past Messages
 
@@ -35,6 +42,18 @@ The currently streaming assistant message shows a runtime indicator after the co
 Consecutive Thinking and normal tool calls are grouped into a collapsible Activity group. After expanding the group, you can inspect each Thinking and Tool item separately, including complete Input and Output sections. Long content scrolls inside the detail area instead of being truncated in the underlying data.
 
 When Claude Code starts a subagent through the Agent tool, the parent call appears as a separate card. Opening the details shows the prompt, status, model, tokens, duration, tool statistics, child tool activity, and final response. The details connect only parent-child tool relationships that can be safely confirmed inside the same assistant message; tools that cannot be linked continue to appear as normal tools.
+
+## Previewing Local Files
+
+When an Agent emits a Markdown link to a POSIX, Windows drive, or UNC absolute path, clicking it opens a read-only preview in a window-level Slideover. Files under the project root or any registered worktree for the current project can be read directly. For files outside those trusted roots, FylloCode displays the full canonical path, size, and modification time before reading content, then requires either **Open Once** or **Open and Trust in This Window**.
+
+Preview accepts regular UTF-8 text files up to 5 MiB. Directories, devices, binary content, and invalid UTF-8 are rejected. Add `:line[:column]` to a link to locate source; the preview supports search, selection, and copy, but never save or write-back. Window trust exists only in memory for the current Renderer Window and expires when the window closes or the app restarts.
+
+Every text file can switch between **Content Overflow** and **Wrap Lines**. Recognized Markdown files also show **Source** and **Preview** modes; Preview renders the current read-only snapshot through shared MarkStream. These display choices reset when the Slideover closes.
+
+## Fyllo Signal
+
+Fyllo Signal is a passive display marker emitted inside assistant text. The current `show.time` type renders a time label as a non-interactive pill. It requires no confirmation, creates no Action state, does not enter the session event rail, and does not affect pending counts. Historical Signals are rendered again only from saved assistant text. See the [Fyllo Signal reference](/en/docs/reference/fyllo-signal) for the protocol details.
 
 ## Session Event Rail
 

@@ -4,6 +4,22 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.9.0] - 2026-07-30
+
+### Added
+
+- Added a bearer-authenticated loopback HTTP transport for application-level reuse by HTTP-capable ACP Agents, with request-scoped project/session context and stdio fallback.
+- Added parent-IPC disconnect handling so a hosted HTTP listener shuts down when the Electron main process exits unexpectedly.
+
+### Changed
+
+- Project paths, project data directories, MCP event directories, and session IDs now resolve from isolated HTTP request context when present, while retaining the existing environment-variable contract in stdio mode.
+- `explore` instructions now include syntax-safe Mermaid label guidance for flowcharts and state diagrams.
+
+### Compatibility
+
+- Tool names, inputs, outputs, storage behavior, and the stdio transport remain compatible with `0.8.2`.
+
 ## [0.8.2] - 2026-07-22
 
 ### Changed

@@ -4,6 +4,38 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.14.4] - 2026-07-30
+
+这个版本集中改善 Chat 中的阅读、预览和会话恢复体验：绝对本地文件链接可以在应用内安全预览，Markdown 文件支持原文、渲染和换行模式，Fyllo Signal 则为 Agent 提供无需确认的轻量展示通道。ACP Agent 连接会在后台预热，并在应用重启或连接重建后恢复已确认的 session 配置；内置 MCP server 同时迁移到可复用的应用级 HTTP 托管，并保留 stdio 兼容回退。
+
+### 新增
+
+- 所有共享 MarkStream 宿主现在都能预览绝对本地文本文件链接：项目根和已注册 worktree 内的文件直接打开，项目外文件在读取内容前要求“仅打开一次”或“在此窗口中信任”；预览只接受不超过 5 MiB 的 UTF-8 普通文件，并支持 `:line[:column]` 定位
+- 本地 Markdown 文件预览新增“原文 / 预览”和“内容溢出 / 自动换行”切换；“预览”使用 MarkStream 渲染，默认仍显示只读原文，查看模式只在当前 Slideover 中生效，不修改文件或持久化设置
+- 新增 Fyllo Signal 被动展示协议；首个 `show.time` 类型可把当前时间渲染为非交互 pill，不创建 Fyllo Action、不进入会话事件栏，也不产生持久化副作用
+- Chat 的“置顶会话”和“最近会话”分组支持独立折叠；多个展开分组平分剩余高度，并保留各自滚动位置
+
+### 调整
+
+- 应用启动后会在后台限流预热全部已安装和有效的自定义 ACP Agent 连接；安装、升级或保存自定义 Agent 后也会增量预热，用户发起 Chat 时可复用同一条在途或已就绪连接
+- ACP capability cache 升级为保存认证方式、prompt、MCP 与 session 完整能力快照，同时兼容只含 prompt 能力的旧缓存，并保持现有附件与 prompt 能力判断不变
+- `fyllo-specs` 与 `fyllo-cortex` 迁移到应用级共享 HTTP host：支持 HTTP 的 Agent 复用稳定 loopback proxy、应用级 bearer token 和请求级项目/session 上下文；不支持 HTTP 或后端不可用时继续使用 stdio
+- Fyllo Action 与 Fyllo Signal 共用 MarkStream 顶层独立 block 识别、流式闭合和原文保留规则，各自仍使用独立 schema、状态与渲染契约
+
+### 修复
+
+- 修复应用重启或 Agent 连接重建后，已确认的 model、mode、thought level 等 session 配置可能被 Agent 默认值覆盖的问题；首个续聊 prompt 前会恢复仍与当前 schema 兼容的选值，不兼容项降级到 Agent 当前值
+- 修复 Chat prompt 时间线的容器高度、滚动定位和摘要浮层细节，并补充 Mermaid flowchart / state diagram 的安全标签指引，减少 Agent 输出无法渲染的图表
+- 修复 Chat 消息区在部分布局下无法占满可用高度的问题
+
+### 备注
+
+- 应用版本升级到 `0.14.4`。
+- `fyllo-specs` MCP server 升级到 `0.9.0`，新增 HTTP transport、请求级上下文与 Mermaid 指引；tool 名称、输入输出、存储行为和 stdio transport 保持兼容。
+- `fyllo-cortex` MCP server 升级到 `0.6.0`，新增 HTTP transport 与请求级上下文；tool 名称、mode、输入输出、存储行为和 stdio transport 保持兼容。
+- 旧版 ACP capability cache 会按兼容路径读取，并在 Agent 后续成功 initialize 时逐步写为新格式，无需手动迁移。
+- 项目外文件的“在此窗口中信任”只保存在当前 Renderer Window 的内存中；关闭窗口或重启应用后需要重新确认。
+
 ## [0.14.3] - 2026-07-22
 
 这个版本提升长对话和 Agent 执行过程的可读性：Chat 现在可以置顶重要会话，正在生成的 assistant 消息会展示运行状态，连续 Thinking / Tool 活动会收拢为可展开的 Activity group。Claude Code 子 Agent 调用也获得独立检查器，方便查看父子工具关系、运行统计和最终回复；同时依赖版本和发版流程文档进一步收敛，降低后续升级和发布风险。
