@@ -4,12 +4,19 @@ import { fileURLToPath } from "url";
 import type {
   ClientSideConnection,
   InitializeResponse,
-  SessionConfigOption,
   SessionNotification,
 } from "@agentclientprotocol/sdk";
-import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
-import { mapSessionUpdate, normalizeAcpSessionConfigOptions } from "./acp-mapper";
-import { getOrStartProcess } from "@main/infra/process/acp-process-pool";
+import type {
+  AcpSessionRecoveryState,
+  AcpSessionStore,
+} from "@main/domain/session/chat/acp-session-store";
+import { mapSessionUpdate } from "./acp-mapper";
+import {
+  forgetActiveAcpSession,
+  getOrStartProcess,
+  hasActiveAcpSession,
+  markAcpSessionActive,
+} from "@main/infra/process/acp-process-pool";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import {
   buildHistoryReminder,
@@ -18,8 +25,6 @@ import {
   isSessionMissingError,
   promptErrorMessage,
   shouldSuppressDuringReplay,
-  supportsLoad,
-  supportsResume,
 } from "@main/domain/session/chat/acp-session-recovery";
 import type {
   RecoveryContext,
@@ -36,6 +41,9 @@ import { normalizePromptCapabilities } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import type { LineageTaskRef } from "@shared/types/lineage";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
+import { activateAcpSession } from "./acp-session-activation";
+import { recoverSessionConfig } from "./session-config-recovery-service";
 
 interface ReminderContext {
   changeId?: string;
@@ -56,7 +64,11 @@ interface StartContext {
   entry: Awaited<ReturnType<typeof getOrStartProcess>>;
   mcpServers: AcpMcpServers;
   runtimeState: SessionRuntimeState;
-  persistedSessionId: string | null;
+  recoveryState: AcpSessionRecoveryState;
+}
+
+interface ReconciledRecoveryOutcome extends RecoveryOutcome {
+  configOptions: AcpSessionConfigOption[];
 }
 
 export interface AcpSessionOpts {
@@ -152,7 +164,8 @@ export class AcpSession extends EventEmitter {
         supportsHttp,
       })
     ).map(toAcpMcpServer);
-    const persistedSessionId = await this.opts.sessionStore.loadAcpSessionId();
+    const recoveryState = await this.opts.sessionStore.loadRecoveryState();
+    const persistedSessionId = recoveryState.acpSessionId;
     if (this.cancelled) {
       logger.warn(
         `${this.logPrefix(persistedSessionId)} start aborted after session metadata load`
@@ -169,7 +182,7 @@ export class AcpSession extends EventEmitter {
       entry,
       mcpServers,
       runtimeState,
-      persistedSessionId,
+      recoveryState,
     };
   }
 
@@ -212,10 +225,10 @@ export class AcpSession extends EventEmitter {
 
     this.throwIfCancelled("before recovery flow");
     const recovery = await this.recoverSession({
-      connection: context.entry.connection,
+      entry: context.entry,
       initializeResponse: context.entry.initializeResponse,
       runtimeState: context.runtimeState,
-      persistedSessionId: context.persistedSessionId,
+      recoveryState: context.recoveryState,
       mcpServers: context.mcpServers,
       prompt: this.getPrimaryTextPrompt(parts),
     });
@@ -233,8 +246,8 @@ export class AcpSession extends EventEmitter {
     // A preset session id bypasses resume/load/new recovery. This is used when a session id
     // has already been established externally (e.g. a probe session reused for the chat turn).
     this.acpSessionId = acpSessionId;
+    markAcpSessionActive(context.entry, acpSessionId);
     logger.info(`${this.logPrefix(acpSessionId)} using preset ACP session`);
-    await this.opts.sessionStore.loadAcpSessionId();
 
     this.throwIfCancelled("before preset persist");
     await this.persistResolvedSession(acpSessionId);
@@ -274,9 +287,15 @@ export class AcpSession extends EventEmitter {
     context: StartContext,
     parts: ChatPromptPart[]
   ): Promise<boolean> {
-    const { persistedSessionId } = context;
+    const persistedSessionId = context.recoveryState.acpSessionId;
     if (!persistedSessionId) {
       logger.info(`${this.logPrefix()} no persisted ACP session; proceeding to new session flow`);
+      return false;
+    }
+    if (!hasActiveAcpSession(context.entry, persistedSessionId)) {
+      logger.info(
+        `${this.logPrefix(persistedSessionId)} persisted session is cold in current process; entering recovery`
+      );
       return false;
     }
 
@@ -312,16 +331,18 @@ export class AcpSession extends EventEmitter {
     logger.warn(
       `${this.logPrefix(persistedSessionId)} direct prompt reported missing session before updates; entering recovery`
     );
+    forgetActiveAcpSession(context.entry, persistedSessionId);
     return false;
   }
 
   private async completeRecoveredPrompt(
     context: StartContext,
-    recovery: RecoveryOutcome,
+    recovery: ReconciledRecoveryOutcome,
     parts: ChatPromptPart[]
   ): Promise<void> {
     if (recovery.previousSessionId && recovery.previousSessionId !== recovery.sessionId) {
       context.entry.sessionHandlers.delete(recovery.previousSessionId);
+      forgetActiveAcpSession(context.entry, recovery.previousSessionId);
       logger.info(
         `${this.logPrefix(recovery.previousSessionId)} cleared stale session handler before switching to ${recovery.sessionId}`
       );
@@ -336,6 +357,7 @@ export class AcpSession extends EventEmitter {
       return;
     }
 
+    this.emitConfigOptions(recovery.configOptions);
     await this.persistResolvedSession(recovery.sessionId);
 
     if (this.cancelled) {
@@ -385,8 +407,7 @@ export class AcpSession extends EventEmitter {
     } satisfies SessionEvent);
   }
 
-  private emitConfigOptions(raw: SessionConfigOption[] | null | undefined): void {
-    const options = normalizeAcpSessionConfigOptions(raw);
+  private emitConfigOptions(options: AcpSessionConfigOption[]): void {
     this.emit("event", {
       kind: "config_options_update",
       options,
@@ -477,128 +498,81 @@ export class AcpSession extends EventEmitter {
   }
 
   private async recoverSession(args: {
-    connection: ClientSideConnection;
+    entry: Awaited<ReturnType<typeof getOrStartProcess>>;
     initializeResponse: InitializeResponse;
     runtimeState: SessionRuntimeState;
-    persistedSessionId: string | null;
+    recoveryState: AcpSessionRecoveryState;
     mcpServers: AcpMcpServers;
     prompt: string;
-  }): Promise<RecoveryOutcome> {
-    const { connection, initializeResponse, runtimeState, persistedSessionId, mcpServers, prompt } =
-      args;
-    const resumeSupported = supportsResume(initializeResponse);
-    const loadSupported = supportsLoad(initializeResponse);
+  }): Promise<ReconciledRecoveryOutcome> {
+    const { entry, initializeResponse, runtimeState, recoveryState, mcpServers, prompt } = args;
+    const persistedSessionId = recoveryState.acpSessionId;
 
     logger.info(
-      `${this.logPrefix(persistedSessionId)} recovery capabilities; resume=${resumeSupported}; load=${loadSupported}; hasPersistedHistory=${this.recoveryContext.hasPersistedHistory}`
+      `${this.logPrefix(persistedSessionId)} starting cold recovery; hasPersistedHistory=${this.recoveryContext.hasPersistedHistory}`
     );
 
-    // Recovery priority: resume (cheapest, no replay) → load (replays history) → new session.
-    if (persistedSessionId && resumeSupported) {
-      try {
-        this.throwIfCancelled("before resumeSession");
-        logger.info(`${this.logPrefix(persistedSessionId)} attempting resumeSession`);
-        const resumeResponse = await connection.resumeSession({
-          sessionId: persistedSessionId,
-          cwd: this.opts.cwd,
-          mcpServers,
-        });
-        this.throwIfCancelled("after resumeSession");
-        logger.info(`${this.logPrefix(persistedSessionId)} resumeSession succeeded`);
-        this.emitConfigOptions(resumeResponse.configOptions);
-        return {
-          sessionId: persistedSessionId,
-          createdNewSession: false,
-          recoveryHistoryReminder: null,
-          previousSessionId: persistedSessionId,
-          strategy: "resume_session",
-        };
-      } catch (error: unknown) {
-        if (this.cancelled) {
-          throw error;
-        }
-        logger.warn(
-          `[acp-session] resumeSession failed for ${persistedSessionId}, trying next recovery path`
-        );
-        logger.error("[acp-session] resumeSession error", error);
-        if (!isSessionMissingError(error)) {
-          throw error;
-        }
-      }
-    }
-
-    if (persistedSessionId && loadSupported) {
-      try {
-        this.throwIfCancelled("before loadSession");
-        // When we already have persisted history in FylloCode, suppress the ACP loadSession replay
-        // to avoid duplicating historical events. Count how many events were suppressed for diagnostics.
+    this.throwIfCancelled("before session activation");
+    const activation = await activateAcpSession({
+      entry,
+      initializeResponse,
+      persistedSessionId,
+      cwd: this.opts.cwd,
+      mcpServers,
+      allowFreshSession: true,
+      checkCancelled: (stage) => this.throwIfCancelled(stage),
+      onNewSessionCreated: (sessionId) => {
+        this.acpSessionId = sessionId;
+      },
+      onLoadStart: (sessionId) => {
         runtimeState.suppressReplay = this.recoveryContext.hasPersistedHistory;
         runtimeState.suppressedReplayEvents = 0;
-        this.acpSessionId = persistedSessionId;
+        this.acpSessionId = sessionId;
         logger.info(
-          `${this.logPrefix(persistedSessionId)} attempting loadSession; suppressReplay=${runtimeState.suppressReplay}`
+          `${this.logPrefix(sessionId)} loadSession replay suppression started; suppressReplay=${runtimeState.suppressReplay}`
         );
-        const loadResponse = await connection.loadSession({
-          sessionId: persistedSessionId,
-          cwd: this.opts.cwd,
-          mcpServers,
-        });
-        this.throwIfCancelled("after loadSession");
+      },
+      onLoadFinish: (sessionId) => {
         logger.info(
-          `${this.logPrefix(persistedSessionId)} loadSession succeeded; suppressedReplayEvents=${runtimeState.suppressedReplayEvents}`
+          `${this.logPrefix(sessionId)} loadSession replay suppression finished; suppressedReplayEvents=${runtimeState.suppressedReplayEvents}`
         );
-        this.emitConfigOptions(loadResponse.configOptions);
-        return {
-          sessionId: persistedSessionId,
-          createdNewSession: false,
-          recoveryHistoryReminder: null,
-          previousSessionId: persistedSessionId,
-          strategy: "load_session",
-        };
-      } catch (error: unknown) {
-        if (this.cancelled) {
-          throw error;
-        }
-        logger.warn(
-          `[acp-session] loadSession failed for ${persistedSessionId}, falling back to newSession`
-        );
-        if (!isSessionMissingError(error)) {
-          throw error;
-        }
-      } finally {
-        if (runtimeState.suppressReplay) {
-          logger.info(
-            `${this.logPrefix(persistedSessionId)} loadSession replay suppression finished; suppressedReplayEvents=${runtimeState.suppressedReplayEvents}`
-          );
-        }
         runtimeState.suppressReplay = false;
-      }
+      },
+    });
+    this.acpSessionId = activation.sessionId;
+    let configOptions: AcpSessionConfigOption[];
+    try {
+      this.throwIfCancelled("after session activation");
+      configOptions = await recoverSessionConfig({
+        connection: entry.connection,
+        sessionId: activation.sessionId,
+        persistedOptions: recoveryState.configOptions,
+        liveOptions: activation.configOptions,
+      });
+      this.throwIfCancelled("after config recovery");
+    } catch (error: unknown) {
+      // 仅完成 activation 还不能安全复用 direct prompt；恢复失败或取消后，
+      // 下一轮必须重新进入 cold recovery，避免静默使用 Agent 默认配置。
+      forgetActiveAcpSession(entry, activation.sessionId);
+      throw error;
     }
 
-    logger.warn(
-      persistedSessionId
-        ? `${this.logPrefix(persistedSessionId)} falling back to fresh newSession recovery`
-        : `${this.logPrefix()} creating fresh newSession`
-    );
-    this.throwIfCancelled("before newSession");
-    const created = await connection.newSession({ cwd: this.opts.cwd, mcpServers });
-    logger.info("SessionCreated", JSON.stringify(created.configOptions));
-
-    this.acpSessionId = created.sessionId;
-    this.throwIfCancelled("after newSession");
-    const historyMessages = await this.recoveryContext.loadPersistedHistory();
-    this.throwIfCancelled("after loading persisted history");
-    const recoveryHistoryReminder = buildHistoryReminder(historyMessages, prompt);
+    let recoveryHistoryReminder: TextUIPart | null = null;
+    if (activation.createdNewSession) {
+      const historyMessages = await this.recoveryContext.loadPersistedHistory();
+      this.throwIfCancelled("after loading persisted history");
+      recoveryHistoryReminder = buildHistoryReminder(historyMessages, prompt);
+    }
     logger.info(
-      `${this.logPrefix(created.sessionId)} newSession created; historyMessages=${historyMessages.length}; historyReminder=${recoveryHistoryReminder ? "yes" : "no"}`
+      `${this.logPrefix(activation.sessionId)} cold recovery completed via ${activation.strategy}; historyReminder=${recoveryHistoryReminder ? "yes" : "no"}`
     );
-    this.emitConfigOptions(created.configOptions);
     return {
-      sessionId: created.sessionId,
-      createdNewSession: true,
+      sessionId: activation.sessionId,
+      createdNewSession: activation.createdNewSession,
       recoveryHistoryReminder,
-      previousSessionId: persistedSessionId ?? null,
-      strategy: persistedSessionId ? "fresh_fallback" : "new_session",
+      previousSessionId: activation.previousSessionId,
+      strategy: activation.strategy,
+      configOptions,
     };
   }
 

@@ -11,20 +11,24 @@ import type { SessionEvent } from "@main/domain/session/chat/session-events";
 
 const mocks = vi.hoisted(() => {
   const sessionHandlers = new Map<string, (notification: SessionNotification) => void>();
+  const activeSessionIds = new Set<string>();
   const connection = {
     resumeSession: vi.fn(),
     loadSession: vi.fn(),
     newSession: vi.fn(),
     prompt: vi.fn(),
     cancel: vi.fn(),
+    setSessionConfigOption: vi.fn(),
   };
 
   return {
     connection,
     sessionHandlers,
+    activeSessionIds,
     getOrStartProcess: vi.fn(),
+    hasActiveAcpSession: vi.fn(),
     sessionStore: {
-      loadAcpSessionId: vi.fn(),
+      loadRecoveryState: vi.fn(),
       persistAcpSessionId: vi.fn(),
     },
     resolveBundledMcpServers: vi.fn(),
@@ -40,6 +44,13 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
+  hasActiveAcpSession: mocks.hasActiveAcpSession,
+  markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.add(sessionId);
+  }),
+  forgetActiveAcpSession: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.delete(sessionId);
+  }),
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
@@ -105,16 +116,22 @@ describe("AcpSession", () => {
     tempRoot = mkdtempSync(join(tmpdir(), "fyllocode-acp-session-"));
     vi.clearAllMocks();
     mocks.sessionHandlers.clear();
+    mocks.activeSessionIds.clear();
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse(),
     });
+    mocks.hasActiveAcpSession.mockReturnValue(true);
     mocks.connection.resumeSession.mockResolvedValue({});
     mocks.connection.loadSession.mockResolvedValue({});
     mocks.connection.newSession.mockResolvedValue({ sessionId: "acp-new" });
     mocks.connection.prompt.mockResolvedValue({ usage: { outputTokens: 12 } });
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue(null);
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: null,
+      configOptions: [],
+    });
     mocks.sessionStore.persistAcpSessionId.mockResolvedValue(undefined);
     mocks.resolveBundledMcpServers.mockResolvedValue([]);
     mocks.toAcpMcpServer.mockImplementation((spec: unknown) => spec);
@@ -211,7 +228,10 @@ describe("AcpSession", () => {
   });
 
   it("uses direct prompt first when persisted acpSessionId exists", async () => {
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
 
     const session = await createSession();
     await session.start([{ type: "text", text: "hello" }]);
@@ -227,7 +247,10 @@ describe("AcpSession", () => {
   });
 
   it("preset branch skips newSession and recovery calls", async () => {
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-preset");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-preset",
+      configOptions: [],
+    });
 
     const session = await createSession({ presetAcpSessionId: "acp-preset" });
     await session.start([{ type: "text", text: "hello" }]);
@@ -297,7 +320,10 @@ describe("AcpSession", () => {
   });
 
   it("falls back to resumeSession on classified direct prompt missing-session failure", async () => {
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
     mocks.connection.prompt
       .mockRejectedValueOnce({
         code: -32603,
@@ -327,6 +353,7 @@ describe("AcpSession", () => {
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse({
         agentCapabilities: {
           loadSession: true,
@@ -334,7 +361,10 @@ describe("AcpSession", () => {
         },
       }),
     });
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
     mocks.connection.prompt
       .mockRejectedValueOnce({ code: -32602, message: "Session not found: acp-existing" })
       .mockResolvedValueOnce({ usage: { outputTokens: 4 } });
@@ -356,7 +386,10 @@ describe("AcpSession", () => {
   });
 
   it("does not auto-recover when direct prompt failure happens after an update", async () => {
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
     mocks.connection.prompt.mockImplementationOnce(async () => {
       const handler = mocks.sessionHandlers.get("acp-existing");
       handler?.({
@@ -385,6 +418,7 @@ describe("AcpSession", () => {
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse({
         agentCapabilities: {
           loadSession: true,
@@ -392,7 +426,10 @@ describe("AcpSession", () => {
         },
       }),
     });
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
     mocks.connection.prompt
       .mockRejectedValueOnce({ code: -32602, message: "Session not found: acp-existing" })
       .mockImplementationOnce(async () => ({ usage: { outputTokens: 4 } }));
@@ -453,7 +490,10 @@ describe("AcpSession", () => {
       },
     ];
 
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
     mocks.connection.prompt.mockRejectedValueOnce({
       code: -32602,
       message: "Session not found: acp-existing",
@@ -519,9 +559,13 @@ describe("AcpSession", () => {
     mocks.getOrStartProcess.mockResolvedValue({
       connection: upgradedConnection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse(),
     });
-    mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
 
     const session = await createSession({
       recoveryContext: {
@@ -574,6 +618,7 @@ describe("AcpSession", () => {
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse({
         agentCapabilities: {
           loadSession: true,
@@ -623,6 +668,7 @@ describe("AcpSession", () => {
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       initializeResponse: initializeResponse({
         agentCapabilities: {
           loadSession: true,
@@ -694,7 +740,10 @@ describe("AcpSession", () => {
     });
 
     it("emits config_options_update from resumeSession response", async () => {
-      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: [],
+      });
       mocks.connection.prompt
         .mockRejectedValueOnce({
           code: -32603,
@@ -712,10 +761,153 @@ describe("AcpSession", () => {
       expect(seen).toContainEqual({ kind: "config_options_update", options: sampleOptions });
     });
 
+    it("skips direct prompt for a cold session and restores persisted config before prompting", async () => {
+      const persistedOptions = [
+        {
+          ...sampleOptions[0],
+          currentValue: "opus",
+          options: [
+            { value: "sonnet", name: "Sonnet" },
+            { value: "opus", name: "Opus" },
+          ],
+        },
+      ];
+      const defaultOptions = [
+        {
+          ...persistedOptions[0],
+          currentValue: "sonnet",
+        },
+      ];
+      mocks.hasActiveAcpSession.mockReturnValue(false);
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: persistedOptions,
+      });
+      mocks.connection.resumeSession.mockResolvedValueOnce({ configOptions: defaultOptions });
+      mocks.connection.setSessionConfigOption.mockResolvedValueOnce({
+        configOptions: persistedOptions,
+      });
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "continue" }]);
+
+      expect(mocks.connection.resumeSession).toHaveBeenCalledOnce();
+      expect(mocks.connection.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: "acp-existing",
+        configId: "model",
+        value: "opus",
+      });
+      expect(mocks.connection.setSessionConfigOption.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.connection.prompt.mock.invocationCallOrder[0]
+      );
+      expect(seen.filter((event) => event.kind === "config_options_update")).toEqual([
+        { kind: "config_options_update", options: persistedOptions },
+      ]);
+    });
+
+    it("forces config confirmation when resume omits configOptions", async () => {
+      mocks.hasActiveAcpSession.mockReturnValue(false);
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: sampleOptions,
+      });
+      mocks.connection.resumeSession.mockResolvedValueOnce({});
+      mocks.connection.setSessionConfigOption.mockResolvedValueOnce({
+        configOptions: sampleOptions,
+      });
+
+      const session = await createSession();
+      await session.start([{ type: "text", text: "continue" }]);
+
+      expect(mocks.connection.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: "acp-existing",
+        configId: "model",
+        value: "sonnet",
+      });
+      expect(mocks.connection.prompt).toHaveBeenCalledOnce();
+    });
+
+    it("does not prompt or publish lifecycle defaults when config recovery fails", async () => {
+      const persistedOptions = [
+        {
+          ...sampleOptions[0],
+          currentValue: "opus",
+          options: [
+            { value: "sonnet", name: "Sonnet" },
+            { value: "opus", name: "Opus" },
+          ],
+        },
+      ];
+      mocks.hasActiveAcpSession.mockReturnValue(false);
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: persistedOptions,
+      });
+      mocks.connection.resumeSession.mockResolvedValueOnce({
+        configOptions: [{ ...persistedOptions[0], currentValue: "sonnet" }],
+      });
+      mocks.connection.setSessionConfigOption.mockRejectedValueOnce(new Error("transport closed"));
+
+      const session = await createSession();
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+      await session.start([{ type: "text", text: "continue" }]);
+
+      expect(mocks.connection.prompt).not.toHaveBeenCalled();
+      expect(seen).not.toContainEqual(expect.objectContaining({ kind: "config_options_update" }));
+      expect(seen).toContainEqual(
+        expect.objectContaining({ kind: "error", message: "transport closed" })
+      );
+    });
+
+    it("restores persisted config on a fresh fallback before its first prompt", async () => {
+      const persistedOptions = [
+        {
+          ...sampleOptions[0],
+          currentValue: "opus",
+          options: [
+            { value: "sonnet", name: "Sonnet" },
+            { value: "opus", name: "Opus" },
+          ],
+        },
+      ];
+      mocks.hasActiveAcpSession.mockReturnValue(false);
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: persistedOptions,
+      });
+      mocks.connection.resumeSession.mockRejectedValueOnce(new Error("session not found"));
+      mocks.connection.loadSession.mockRejectedValueOnce(new Error("session not found"));
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: [{ ...persistedOptions[0], currentValue: "sonnet" }],
+      });
+      mocks.connection.setSessionConfigOption.mockResolvedValueOnce({
+        configOptions: persistedOptions,
+      });
+
+      const session = await createSession();
+      await session.start([{ type: "text", text: "continue" }]);
+
+      expect(mocks.connection.newSession).toHaveBeenCalledOnce();
+      expect(mocks.connection.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: "acp-new",
+        configId: "model",
+        value: "opus",
+      });
+      expect(mocks.connection.setSessionConfigOption.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.connection.prompt.mock.invocationCallOrder[0]
+      );
+      expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-new");
+    });
+
     it("emits config_options_update from loadSession response even with suppressReplay", async () => {
       mocks.getOrStartProcess.mockResolvedValue({
         connection: mocks.connection,
         sessionHandlers: mocks.sessionHandlers,
+        activeSessionIds: mocks.activeSessionIds,
         initializeResponse: initializeResponse({
           agentCapabilities: {
             loadSession: true,
@@ -723,7 +915,10 @@ describe("AcpSession", () => {
           },
         }),
       });
-      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: [],
+      });
       mocks.connection.prompt
         .mockRejectedValueOnce({ code: -32602, message: "Session not found: acp-existing" })
         .mockResolvedValueOnce({ usage: { outputTokens: 4 } });
@@ -743,7 +938,10 @@ describe("AcpSession", () => {
     });
 
     it("does not emit config_options_update from direct prompt success", async () => {
-      mocks.sessionStore.loadAcpSessionId.mockResolvedValue("acp-existing");
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: [],
+      });
 
       const session = await createSession();
       const seen: SessionEvent[] = [];

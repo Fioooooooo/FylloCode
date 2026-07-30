@@ -44,18 +44,71 @@ afterEach(() => {
 });
 
 describe("chat-acp-session-store", () => {
-  it("returns null when session meta is missing", async () => {
+  it("returns empty recovery state when session meta is missing", async () => {
     const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
 
-    await expect(store.loadAcpSessionId()).resolves.toBeNull();
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: null,
+      configOptions: [],
+    });
   });
 
-  it("loads acpSessionId from session meta", async () => {
+  it("loads an independent recovery snapshot from session meta", async () => {
+    await saveSessionMeta(
+      projectPath,
+      meta({
+        acpSessionId: "acp-existing",
+        configOptions: [
+          {
+            id: "model",
+            name: "Model",
+            type: "select",
+            currentValue: "opus",
+            options: [{ value: "opus", name: "Opus" }],
+          },
+        ],
+      })
+    );
+
+    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const recovery = await store.loadRecoveryState();
+
+    expect(recovery).toEqual({
+      acpSessionId: "acp-existing",
+      configOptions: [
+        {
+          id: "model",
+          name: "Model",
+          type: "select",
+          currentValue: "opus",
+          options: [{ value: "opus", name: "Opus" }],
+        },
+      ],
+    });
+    recovery.configOptions[0].name = "Changed";
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: "acp-existing",
+      configOptions: [
+        {
+          id: "model",
+          name: "Model",
+          type: "select",
+          currentValue: "opus",
+          options: [{ value: "opus", name: "Opus" }],
+        },
+      ],
+    });
+  });
+
+  it("loads an empty config snapshot when session meta has no configOptions", async () => {
     await saveSessionMeta(projectPath, meta({ acpSessionId: "acp-existing" }));
 
     const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
 
-    await expect(store.loadAcpSessionId()).resolves.toBe("acp-existing");
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
   });
 
   it("creates session meta when persisting for the first time", async () => {
@@ -85,6 +138,15 @@ describe("chat-acp-session-store", () => {
       meta({
         acpSessionId: "acp-old",
         available_commands: [{ name: "review", description: "Review code" }],
+        configOptions: [
+          {
+            id: "mode",
+            name: "Mode",
+            type: "select",
+            currentValue: "plan",
+            options: [{ value: "plan", name: "Plan" }],
+          },
+        ],
         tokenUsage: {
           used: 42,
           size: 2048,
@@ -109,6 +171,15 @@ describe("chat-acp-session-store", () => {
         cost: { amount: 1.5, currency: "USD" },
       },
       available_commands: [{ name: "review", description: "Review code" }],
+      configOptions: [
+        {
+          id: "mode",
+          name: "Mode",
+          type: "select",
+          currentValue: "plan",
+          options: [{ value: "plan", name: "Plan" }],
+        },
+      ],
       createdAt: "2026-05-14T00:00:00.000Z",
       updatedAt: "2026-05-18T08:00:00.000Z",
     });

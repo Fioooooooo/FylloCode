@@ -1,5 +1,8 @@
 import logger from "@main/infra/logger";
-import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
+import type {
+  AcpSessionRecoveryState,
+  AcpSessionStore,
+} from "@main/domain/session/chat/acp-session-store";
 import {
   loadApplyRunMeta,
   updateApplyRunStageAcpSessionId,
@@ -13,21 +16,24 @@ export class ApplyStageAcpSessionStore implements AcpSessionStore {
     private readonly stageIndex: number
   ) {}
 
-  async loadAcpSessionId(): Promise<string | null> {
+  async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
     const meta = await loadApplyRunMeta(this.projectPath, this.changeId);
     if (!meta) {
       logger.warn(`[apply-stage-acp-session-store] run meta missing for change ${this.changeId}`);
-      return null;
+      return { acpSessionId: null, configOptions: [] };
     }
 
     if (meta.runId !== this.runId) {
       logger.warn(
         `[apply-stage-acp-session-store] runId mismatch for change ${this.changeId}: expected ${this.runId}, got ${meta.runId}`
       );
-      return null;
+      return { acpSessionId: null, configOptions: [] };
     }
 
-    return meta.stageAcpSessionIds[this.stageIndex] ?? null;
+    return {
+      acpSessionId: meta.stageAcpSessionIds[this.stageIndex] ?? null,
+      configOptions: [],
+    };
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {

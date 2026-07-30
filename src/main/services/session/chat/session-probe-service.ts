@@ -5,15 +5,18 @@ import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import {
   clearPendingProbeHandler,
+  forgetActiveAcpSession,
   getOrStartProcess,
+  markAcpSessionActive,
   onAgentProcessInvalidated,
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
 import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
 import { newSessionId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
+import { valueExistsInSchema } from "@main/domain/session/chat/session-config-recovery";
 import { normalizeAcpSessionConfigOptions, normalizeAvailableCommands } from "./acp-mapper";
-import { buildPayload, isMethodNotFoundError, valueExistsInSchema } from "./acp-config-option-rpc";
+import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
 import type { ProbeEntry } from "./session-probe-registry";
 import { sessionProbeRegistry, toProbeSnapshot } from "./session-probe-registry";
 import { sessionProbeBus } from "./session-probe-bus";
@@ -219,6 +222,7 @@ export async function ensureProbe(
             cwd: projectPath,
             mcpServers,
           });
+          markAcpSessionActive(processEntry, createdSession.sessionId);
           processEntry.sessionHandlers.set(createdSession.sessionId, probeHandler);
           clearPendingProbeHandler(agentId, probeHandler);
           return createdSession;
@@ -230,6 +234,7 @@ export async function ensureProbe(
       const current = sessionProbeRegistry.get(projectId, agentId);
       if (current !== startingEntry) {
         processEntry.sessionHandlers.delete(response.sessionId);
+        forgetActiveAcpSession(processEntry, response.sessionId);
         await processEntry.connection.closeSession({ sessionId: response.sessionId }).catch(() => {
           /* invalidation already owns process teardown */
         });
@@ -282,6 +287,7 @@ export async function closeProbe(projectId: string, agentId: string): Promise<vo
   try {
     const processEntry = await getProcess(agentId);
     processEntry.sessionHandlers.delete(entry.acpSessionId);
+    forgetActiveAcpSession(processEntry, entry.acpSessionId);
     await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
   } catch (error: unknown) {
     logger.error(`[chat-probe] closeSession failed for agent=${agentId}`, error);
@@ -301,6 +307,7 @@ export async function closeProjectProbes(projectId: string): Promise<void> {
       try {
         const processEntry = await getProcess(entry.agentId);
         processEntry.sessionHandlers.delete(entry.acpSessionId);
+        forgetActiveAcpSession(processEntry, entry.acpSessionId);
         await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
       } catch (error: unknown) {
         logger.error(

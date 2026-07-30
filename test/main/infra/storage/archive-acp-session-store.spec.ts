@@ -55,7 +55,10 @@ describe("archive-acp-session-store", () => {
   it("returns null when archive meta is missing", async () => {
     const store = new ArchiveAcpSessionStore(projectPath, "change-1");
 
-    await expect(store.loadAcpSessionId()).resolves.toBeNull();
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: null,
+      configOptions: [],
+    });
   });
 
   it("loads acpSessionId from archive meta", async () => {
@@ -63,7 +66,10 @@ describe("archive-acp-session-store", () => {
 
     const store = new ArchiveAcpSessionStore(projectPath, "change-1");
 
-    await expect(store.loadAcpSessionId()).resolves.toBe("acp-existing");
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
   });
 
   it("persists acpSessionId without dropping archive fields", async () => {

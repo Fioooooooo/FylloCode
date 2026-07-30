@@ -59,7 +59,10 @@ describe("apply-stage-acp-session-store", () => {
   it("returns null when run meta is missing", async () => {
     const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 0);
 
-    await expect(store.loadAcpSessionId()).resolves.toBeNull();
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: null,
+      configOptions: [],
+    });
     expect(loggerWarn).toHaveBeenCalledOnce();
   });
 
@@ -68,7 +71,10 @@ describe("apply-stage-acp-session-store", () => {
 
     const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 0);
 
-    await expect(store.loadAcpSessionId()).resolves.toBeNull();
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: null,
+      configOptions: [],
+    });
     expect(loggerWarn).toHaveBeenCalledOnce();
   });
 
@@ -77,7 +83,10 @@ describe("apply-stage-acp-session-store", () => {
 
     const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 1);
 
-    await expect(store.loadAcpSessionId()).resolves.toBe("acp-existing");
+    await expect(store.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
   });
 
   it("persists stage acpSessionId without dropping other fields", async () => {

@@ -969,6 +969,57 @@ describe("registerChatHandlers", () => {
     });
   });
 
+  it("persists only the final reconciled config event and ignores recovery errors", async () => {
+    handler(ChatStreamChannels.streamMessage)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        streamId: "stream-1",
+        sessionId: "session-1",
+        projectId: "project-1",
+        agentId: "claude-acp",
+        prompt: [{ type: "text", text: "hello" }],
+      }
+    );
+    const sink = {
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    };
+    await mocks.onReady!(sink);
+
+    mocks.eventHandler!({
+      kind: "error",
+      code: "ACP_ERROR",
+      message: "config recovery failed",
+    });
+    expect(mocks.patchSessionMeta).not.toHaveBeenCalledWith(
+      "/tmp/project",
+      "session-1",
+      expect.objectContaining({ configOptions: expect.any(Array) })
+    );
+
+    const finalOptions = [
+      {
+        type: "select" as const,
+        id: "model",
+        name: "Model",
+        currentValue: "opus",
+        options: [{ value: "opus", name: "Opus" }],
+      },
+    ];
+    mocks.eventHandler!({ kind: "config_options_update", options: finalOptions });
+
+    await vi.waitFor(() => {
+      const configPatches = mocks.patchSessionMeta.mock.calls.filter(
+        ([, , patch]) => typeof patch === "object" && patch !== null && "configOptions" in patch
+      );
+      expect(configPatches).toHaveLength(1);
+      expect(configPatches[0]?.[2]).toEqual(
+        expect.objectContaining({ configOptions: finalOptions })
+      );
+    });
+  });
+
   it("rejects setConfigOption input missing configId before calling service", async () => {
     const result = await handler(ChatChannels.setConfigOption)(
       {},

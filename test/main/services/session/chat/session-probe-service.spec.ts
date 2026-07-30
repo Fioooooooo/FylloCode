@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   processInvalidatedListener: null as ((event: { agentId: string; reason: string }) => void) | null,
   pendingProbeHandlers: new Map<string, (notification: SessionNotification) => void>(),
   sessionHandlers: new Map<string, (notification: SessionNotification) => void>(),
+  activeSessionIds: new Set<string>(),
   getOrStartProcess: vi.fn(),
   resolveBundledMcpServers: vi.fn(),
   toAcpMcpServer: vi.fn(),
@@ -30,6 +31,12 @@ const mocks = vi.hoisted(() => ({
       }
     }
   ),
+  markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.add(sessionId);
+  }),
+  forgetActiveAcpSession: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.delete(sessionId);
+  }),
   newSession: vi.fn(),
   closeSession: vi.fn(),
   setSessionConfigOption: vi.fn(),
@@ -46,6 +53,8 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
   onAgentProcessInvalidated: mocks.onAgentProcessInvalidated,
   setPendingProbeHandler: mocks.setPendingProbeHandler,
   clearPendingProbeHandler: mocks.clearPendingProbeHandler,
+  markAcpSessionActive: mocks.markAcpSessionActive,
+  forgetActiveAcpSession: mocks.forgetActiveAcpSession,
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
@@ -71,9 +80,11 @@ describe("session-probe-service", () => {
     vi.clearAllMocks();
     mocks.pendingProbeHandlers.clear();
     mocks.sessionHandlers.clear();
+    mocks.activeSessionIds.clear();
     sessionProbeRegistry.clear();
     mocks.getOrStartProcess.mockResolvedValue({
       sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
       connection: {
         newSession: mocks.newSession,
         closeSession: mocks.closeSession,
@@ -165,6 +176,7 @@ describe("session-probe-service", () => {
       acpSessionId: "acp-1",
     });
     expect(mocks.sessionHandlers.get("acp-1")).toBeTypeOf("function");
+    expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
     expect(updates).toEqual([
       expect.objectContaining({
         projectId: "project-1",
@@ -304,6 +316,7 @@ describe("session-probe-service", () => {
 
     expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
     expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-1" });
+    expect(mocks.activeSessionIds.has("acp-1")).toBe(false);
     expect(onUpdate).toHaveBeenCalledWith({
       projectId: "project-1",
       agentId: "claude-code",
@@ -535,6 +548,7 @@ describe("session-probe-service", () => {
     expect(entry).toMatchObject({ projectId: "project-1", agentId: "claude-code" });
     expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
     expect(mocks.sessionHandlers.has("acp-1")).toBe(false);
+    expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
   });
 
   it("broadcasts an empty array when the agent declares no commands", async () => {

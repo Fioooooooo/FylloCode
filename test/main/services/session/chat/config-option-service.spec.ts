@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
   loadSessionMeta: vi.fn(),
   patchSessionMeta: vi.fn(),
   getOrStartProcess: vi.fn(),
+  hasActiveAcpSession: vi.fn(),
+  activeSessionIds: new Set<string>(),
+  resumeSession: vi.fn(),
+  loadSession: vi.fn(),
+  newSession: vi.fn(),
   setSessionConfigOption: vi.fn(),
+  resolveBundledMcpServers: vi.fn(),
+  toAcpMcpServer: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -21,6 +28,18 @@ vi.mock("@main/infra/storage/session-store", () => ({
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
+  hasActiveAcpSession: mocks.hasActiveAcpSession,
+  markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.add(sessionId);
+  }),
+  forgetActiveAcpSession: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+    entry.activeSessionIds.delete(sessionId);
+  }),
+}));
+
+vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
+  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  toAcpMcpServer: mocks.toAcpMcpServer,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -74,10 +93,29 @@ const groupedModelSchema = {
 describe("setConfigOption", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.activeSessionIds.clear();
     mocks.loadProject.mockResolvedValue({ id: "p1", path: "/tmp/project" });
     mocks.getOrStartProcess.mockResolvedValue({
-      connection: { setSessionConfigOption: mocks.setSessionConfigOption },
+      connection: {
+        resumeSession: mocks.resumeSession,
+        loadSession: mocks.loadSession,
+        newSession: mocks.newSession,
+        setSessionConfigOption: mocks.setSessionConfigOption,
+      },
+      initializeResponse: {
+        protocolVersion: 1,
+        agentCapabilities: {
+          loadSession: true,
+          sessionCapabilities: { resume: {} },
+        },
+      },
+      activeSessionIds: mocks.activeSessionIds,
     });
+    mocks.hasActiveAcpSession.mockReturnValue(true);
+    mocks.resolveBundledMcpServers.mockResolvedValue([]);
+    mocks.toAcpMcpServer.mockImplementation((value: unknown) => value);
+    mocks.resumeSession.mockResolvedValue({ configOptions: [flatModelSchema] });
+    mocks.loadSession.mockResolvedValue({ configOptions: [flatModelSchema] });
     mocks.setSessionConfigOption.mockResolvedValue({
       configOptions: [{ ...flatModelSchema, currentValue: "haiku" }],
     });
@@ -248,5 +286,84 @@ describe("setConfigOption", () => {
       type: "boolean",
       value: true,
     });
+  });
+
+  it("activates a cold session, restores persisted config, then applies the user value", async () => {
+    mocks.hasActiveAcpSession.mockReturnValue(false);
+    mocks.loadSessionMeta.mockResolvedValue(
+      makeMeta({
+        configOptions: [{ ...flatModelSchema, currentValue: "haiku" }],
+      })
+    );
+    mocks.resumeSession.mockResolvedValue({
+      configOptions: [{ ...flatModelSchema, currentValue: "sonnet" }],
+    });
+    mocks.setSessionConfigOption
+      .mockResolvedValueOnce({
+        configOptions: [{ ...flatModelSchema, currentValue: "haiku" }],
+      })
+      .mockResolvedValueOnce({
+        configOptions: [{ ...flatModelSchema, currentValue: "sonnet" }],
+      });
+
+    await setConfigOption({
+      projectId: "p1",
+      sessionId: "session-1",
+      configId: "model",
+      type: "select",
+      value: "sonnet",
+    });
+
+    expect(mocks.resumeSession).toHaveBeenCalledOnce();
+    expect(mocks.setSessionConfigOption.mock.calls).toEqual([
+      [{ sessionId: "acp-1", configId: "model", value: "haiku" }],
+      [{ sessionId: "acp-1", configId: "model", value: "sonnet" }],
+    ]);
+    expect(mocks.patchSessionMeta).toHaveBeenCalledOnce();
+  });
+
+  it("does not set or patch when a cold session cannot be activated", async () => {
+    mocks.hasActiveAcpSession.mockReturnValue(false);
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
+    mocks.resumeSession.mockRejectedValue(new Error("session not found"));
+    mocks.loadSession.mockRejectedValue(new Error("session not found"));
+
+    await expect(
+      setConfigOption({
+        projectId: "p1",
+        sessionId: "session-1",
+        configId: "model",
+        type: "select",
+        value: "haiku",
+      })
+    ).rejects.toMatchObject({ code: IpcErrorCodes.ACP_ERROR });
+    expect(mocks.newSession).not.toHaveBeenCalled();
+    expect(mocks.setSessionConfigOption).not.toHaveBeenCalled();
+    expect(mocks.patchSessionMeta).not.toHaveBeenCalled();
+  });
+
+  it("validates the requested value against the recovered live schema", async () => {
+    mocks.hasActiveAcpSession.mockReturnValue(false);
+    mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
+    mocks.resumeSession.mockResolvedValue({
+      configOptions: [
+        {
+          ...flatModelSchema,
+          options: [{ value: "sonnet", name: "Sonnet" }],
+        },
+      ],
+    });
+
+    await expect(
+      setConfigOption({
+        projectId: "p1",
+        sessionId: "session-1",
+        configId: "model",
+        type: "select",
+        value: "haiku",
+      })
+    ).rejects.toMatchObject({ code: IpcErrorCodes.CONFIG_OPTION_INVALID_VALUE });
+    expect(mocks.setSessionConfigOption).not.toHaveBeenCalled();
+    expect(mocks.patchSessionMeta).not.toHaveBeenCalled();
   });
 });

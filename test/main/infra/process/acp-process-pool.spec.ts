@@ -174,6 +174,35 @@ describe("acp-process-pool", () => {
     expect(entry.initializeResponse).toEqual(initResponse);
   });
 
+  it("tracks active sessions only within one process generation", async () => {
+    const {
+      forgetActiveAcpSession,
+      getOrStartProcess,
+      hasActiveAcpSession,
+      markAcpSessionActive,
+      stopAgentProcess,
+    } = await import("@main/infra/process/acp-process-pool");
+    const first = await getOrStartProcess("claude-acp");
+
+    markAcpSessionActive(first, "acp-1");
+    expect(hasActiveAcpSession(first, "acp-1")).toBe(true);
+    forgetActiveAcpSession(first, "acp-1");
+    expect(hasActiveAcpSession(first, "acp-1")).toBe(false);
+    markAcpSessionActive(first, "acp-1");
+
+    const stop = stopAgentProcess("claude-acp", "restart");
+    queueMicrotask(() => (mocks.child as FakeChild).triggerClose());
+    await stop;
+
+    const freshChild = createFakeChild(23456);
+    mocks.child = freshChild;
+    mocks.spawn.mockReturnValue(freshChild);
+    const second = await getOrStartProcess("claude-acp");
+
+    expect(second).not.toBe(first);
+    expect(hasActiveAcpSession(second, "acp-1")).toBe(false);
+  });
+
   it("persists the selected complete capability snapshot after initialize", async () => {
     mocks.readInstalledRecords.mockResolvedValue({
       "claude-acp": {

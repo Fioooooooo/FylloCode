@@ -1,4 +1,7 @@
-import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
+import type {
+  AcpSessionRecoveryState,
+  AcpSessionStore,
+} from "@main/domain/session/chat/acp-session-store";
 import { loadSessionMeta, upsertSessionMeta } from "@main/infra/storage/session-store";
 
 const DEFAULT_TOKEN_USAGE = { used: 0, size: 0 };
@@ -10,9 +13,12 @@ export class ChatAcpSessionStore implements AcpSessionStore {
     private readonly agentId: string
   ) {}
 
-  async loadAcpSessionId(): Promise<string | null> {
+  async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
     const meta = await loadSessionMeta(this.projectPath, this.sessionId);
-    return meta?.acpSessionId ?? null;
+    return {
+      acpSessionId: meta?.acpSessionId ?? null,
+      configOptions: structuredClone(meta?.configOptions ?? []),
+    };
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {

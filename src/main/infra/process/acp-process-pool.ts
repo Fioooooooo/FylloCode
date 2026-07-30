@@ -35,6 +35,7 @@ interface AgentProcess {
   child: ChildProcessWithoutNullStreams;
   ready: boolean;
   sessionHandlers: Map<string, SessionUpdateHandler>;
+  activeSessionIds: Set<string>;
   // Fallback handler for session/update notifications that arrive before any
   // precise sessionId handler is registered. Used by the draft-session probe
   // to capture metadata (e.g. available_commands_update) that the agent pushes
@@ -252,6 +253,7 @@ async function startProcess(
   });
 
   const sessionHandlers = new Map<string, SessionUpdateHandler>();
+  const activeSessionIds = new Set<string>();
 
   const input = Writable.toWeb(child.stdin);
   const output = Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>;
@@ -326,6 +328,7 @@ async function startProcess(
       child,
       ready: true,
       sessionHandlers,
+      activeSessionIds,
       failures: priorFailures,
       initializeResponse,
       generation,
@@ -474,6 +477,18 @@ export function clearPendingProbeHandler(agentId: string, handler?: SessionUpdat
   }
 }
 
+export function markAcpSessionActive(entry: AgentProcess, sessionId: string): void {
+  entry.activeSessionIds.add(sessionId);
+}
+
+export function hasActiveAcpSession(entry: AgentProcess, sessionId: string): boolean {
+  return entry.activeSessionIds.has(sessionId);
+}
+
+export function forgetActiveAcpSession(entry: AgentProcess, sessionId: string): void {
+  entry.activeSessionIds.delete(sessionId);
+}
+
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
   const pid = child.pid;
   if (pid === undefined) return;
@@ -566,7 +581,8 @@ async function terminateChild(child: ChildProcessWithoutNullStreams): Promise<vo
 }
 
 async function closeReadyProcess(entry: AgentProcess): Promise<void> {
-  const closePromises = Array.from(entry.sessionHandlers.keys()).map((sessionId) =>
+  const sessionIds = new Set([...entry.activeSessionIds, ...entry.sessionHandlers.keys()]);
+  const closePromises = Array.from(sessionIds).map((sessionId) =>
     Promise.race([
       entry.connection.closeSession({ sessionId }).catch(() => {
         /* agent may not support close or the session may already be dead */
@@ -576,6 +592,7 @@ async function closeReadyProcess(entry: AgentProcess): Promise<void> {
   );
   await Promise.all(closePromises);
   entry.sessionHandlers.clear();
+  entry.activeSessionIds.clear();
   entry.pendingProbeHandler = undefined;
   await terminateChild(entry.child);
 }

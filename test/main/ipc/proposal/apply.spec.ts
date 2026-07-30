@@ -702,7 +702,10 @@ describe("registerProposalApplyHandlers", () => {
       })
     );
     expect(typedOpts.sessionStore).toBeInstanceOf(ArchiveAcpSessionStore);
-    await expect(typedOpts.sessionStore.loadAcpSessionId()).resolves.toBeNull();
+    await expect(typedOpts.sessionStore.loadRecoveryState()).resolves.toEqual({
+      acpSessionId: null,
+      configOptions: [],
+    });
     await typedOpts.sessionStore.persistAcpSessionId("acp-archive");
     expect(mocks.updateArchiveRunAcpSessionId).toHaveBeenCalledWith(
       "/tmp/project",

@@ -1,4 +1,7 @@
-import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
+import type {
+  AcpSessionRecoveryState,
+  AcpSessionStore,
+} from "@main/domain/session/chat/acp-session-store";
 import {
   loadArchiveRunMeta,
   updateArchiveRunAcpSessionId,
@@ -10,9 +13,12 @@ export class ArchiveAcpSessionStore implements AcpSessionStore {
     private readonly changeId: string
   ) {}
 
-  async loadAcpSessionId(): Promise<string | null> {
+  async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
     const meta = await loadArchiveRunMeta(this.projectPath, this.changeId);
-    return meta?.acpSessionId ?? null;
+    return {
+      acpSessionId: meta?.acpSessionId ?? null,
+      configOptions: [],
+    };
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
