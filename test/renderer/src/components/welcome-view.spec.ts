@@ -67,6 +67,14 @@ describe("WelcomeView", () => {
     projectStoreMock.removeRecentProject.mockResolvedValue(undefined);
   });
 
+  it("renders the shared brand icon", () => {
+    const wrapper = mountWelcomeView();
+    const brandIcon = wrapper.get('[data-test="welcome-brand-icon"]');
+
+    expect(brandIcon.attributes("src")).toContain("icon.svg");
+    expect(brandIcon.attributes("alt")).toBe("FylloCode");
+  });
+
   it("navigates after open folder binds the current window", async () => {
     projectStoreMock.openFolderWindow.mockResolvedValueOnce(projectInfo("project-a"));
     const wrapper = mountWelcomeView();

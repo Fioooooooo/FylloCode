@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check icon assets
+        run: pnpm icon:check
+
       - name: Run tests
         run: pnpm test
 

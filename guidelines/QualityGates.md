@@ -24,7 +24,8 @@ keywords: [quality, lint, typecheck, format, ci, hooks]
 - MUST 通过 `simple-git-hooks` 安装 git hooks。`package.json` 在 `postinstall` 中运行 `simple-git-hooks`，配置 `pre-commit` 调用 `npx lint-staged`，并配置 `commit-msg` 调用 `node scripts/validate-commit-msg.mjs "$1"`。证据：`package.json`、`.git/hooks/pre-commit`、`.git/hooks/commit-msg`。
 - MUST 保持 pre-commit 检查有实际意义。`lint-staged` 对 JS/TS/Vue 文件运行 `eslint --cache --fix` 和 `prettier --write`，对 JSON/Markdown/HTML/CSS 运行 `prettier --write`。
 - MUST 保持提交信息符合仓库验证格式：header 为 `type(scope): summary`，可选正文必须与 header 之间用空行分隔，并且非空正文行以 `- ` 开头；允许生成式 header：`Merge`、`Revert` 和 `Squashed commit of the following:`。证据：`scripts/validate-commit-msg.mjs`、`test/main/scripts/validate-commit-msg.spec.mjs`。
-- MUST 保持 CI 在质量失败时阻塞。`.github/workflows/ci.yml` 在 push 到 `main` 和针对 `main` 的 pull request 时触发，并运行 `pnpm test`、`pnpm lint` 和 `pnpm typecheck`，且不使用 `continue-on-error`。
+- MUST 通过 `pnpm icon:check` 检查 renderer/docs 品牌图标副本是否与 `resources/icon.svg` 同步；该命令必须保持跨平台且不得调用 macOS `iconutil`。证据：`package.json`、`scripts/icon/assets.mjs`、`guidelines/BrandAssets.md`。
+- MUST 保持 CI 在质量失败时阻塞。`.github/workflows/ci.yml` 在 push 到 `main` 和针对 `main` 的 pull request 时触发，并运行 `pnpm icon:check`、`pnpm test`、`pnpm lint` 和 `pnpm typecheck`，且不使用 `continue-on-error`。
 
 ## 验证
 
@@ -33,10 +34,11 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:coverage
+pnpm icon:check
 ```
 
 只有在确实需要格式化改动时才运行 `pnpm format`。
 
 ## 失效信号
 
-- 当 `package.json`、任何 `tsconfig*.json`、`eslint.config.mjs`、`.prettierrc`、`.prettierignore`、`.github/workflows/*.yml`、`scripts/prepare-worktree-env.sh`、`scripts/validate-commit-msg.mjs` 或 git hook 工具链发生变化时，重新检查本文档。
+- 当 `package.json`、任何 `tsconfig*.json`、`eslint.config.mjs`、`.prettierrc`、`.prettierignore`、`.github/workflows/*.yml`、`scripts/prepare-worktree-env.sh`、`scripts/validate-commit-msg.mjs`、`scripts/icon/assets.mjs` 或 git hook 工具链发生变化时，重新检查本文档。

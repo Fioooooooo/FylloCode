@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useProjectStore } from "@renderer/stores";
 import { activityBarItems } from "@renderer/config/activity-bar";
+import Logo from "@renderer/components/shared/Logo.vue";
 
 const route = useRoute();
 const projectStore = useProjectStore();
@@ -11,8 +12,6 @@ const hasProject = computed(() => projectStore.hasCurrentProject);
 
 const items = computed(() => activityBarItems.filter((i) => i.group === "top"));
 const bottomItems = computed(() => activityBarItems.filter((i) => i.group === "bottom"));
-const brandIconSrc = `${import.meta.env.BASE_URL}icon.svg`;
-
 const activeItem = computed(() => {
   const matches = activityBarItems.filter((i) => route.path.startsWith(i.path));
   if (matches.length === 0) return null;
@@ -33,7 +32,7 @@ const isDev = import.meta.env.DEV;
       class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-default ring-1 ring-inset ring-default mb-1"
       data-test="activity-bar-brand"
     >
-      <img :src="brandIconSrc" alt="FylloCode" class="size-6" data-test="activity-bar-brand-icon" />
+      <Logo alt="FylloCode" class="size-6" data-test="activity-bar-brand-icon" />
       <span
         v-if="isDev"
         class="absolute -bottom-0.5 -right-0.5 rounded-xs bg-error px-1 py-0.5 text-[8px] font-bold leading-none text-inverted"

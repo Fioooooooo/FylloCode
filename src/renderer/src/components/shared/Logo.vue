@@ -1,43 +1,45 @@
 <script setup lang="ts">
-import { useId } from "vue";
-
 type LogoColor = "default" | "neutral";
 
 withDefaults(
   defineProps<{
     color?: LogoColor;
+    alt?: string;
   }>(),
   {
     color: "default",
+    alt: "",
   }
 );
 
-const shadowId = useId().replace(/:/g, "-");
-const shadowFilterId = `logo-shadow-${shadowId}`;
+defineOptions({
+  inheritAttrs: false,
+});
+
+const iconUrl = `${import.meta.env.BASE_URL}icon.svg`;
+const neutralStyle = {
+  "--fyllocode-logo-icon": `url("${iconUrl}")`,
+  backgroundColor: "currentColor",
+  display: "inline-block",
+  maskImage: "var(--fyllocode-logo-icon)",
+  maskPosition: "center",
+  maskRepeat: "no-repeat",
+  maskSize: "contain",
+  WebkitMaskImage: "var(--fyllocode-logo-icon)",
+  WebkitMaskPosition: "center",
+  WebkitMaskRepeat: "no-repeat",
+  WebkitMaskSize: "contain",
+};
 </script>
 
 <template>
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 326 283.51">
-    <defs v-if="color === 'default'">
-      <filter :id="shadowFilterId" x="-10%" y="-10%" width="130%" height="130%">
-        <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.12" />
-      </filter>
-    </defs>
-    <g fill-rule="evenodd" :filter="color === 'default' ? `url(#${shadowFilterId})` : undefined">
-      <path
-        :fill="color === 'neutral' ? 'currentColor' : '#0f766e'"
-        d="M0 0l163.23 283.51 41-70.73L81.23 0H0z"
-      />
-      <path
-        :fill="color === 'neutral' ? 'currentColor' : '#2dd4bf'"
-        opacity=".85"
-        d="M0 0h326l-40 71H41L0 0z"
-      />
-      <path
-        :fill="color === 'neutral' ? 'currentColor' : '#0891b2'"
-        opacity=".8"
-        d="M55 95h218.46l-40 71H96L55 95z"
-      />
-    </g>
-  </svg>
+  <span
+    v-if="color === 'neutral'"
+    v-bind="$attrs"
+    :style="neutralStyle"
+    :role="alt ? 'img' : undefined"
+    :aria-label="alt || undefined"
+    :aria-hidden="alt ? undefined : 'true'"
+  />
+  <img v-else v-bind="$attrs" :src="iconUrl" :alt="alt" />
 </template>

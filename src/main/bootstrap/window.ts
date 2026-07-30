@@ -7,7 +7,7 @@ import {
   type MainWindowState,
   type WindowStateKey,
 } from "@main/infra/storage/window-state-store";
-import icon from "../../../resources/icon.png?asset";
+import icon from "../../../resources/app-icon.png?asset";
 
 export const DEFAULT_MAIN_WINDOW_SIZE = Object.freeze({
   width: 1280,

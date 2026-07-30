@@ -1,13 +1,19 @@
+/**
+ * 从 `resources/app-icon.svg` 生成 PNG、ICNS 和 ICO 平台资产。
+ * 修改任一手工维护的图标 SVG 后运行 `pnpm icon:build`；该流程依赖 macOS 图标工具链。
+ */
 import { existsSync } from "node:fs";
 import { mkdir, rm, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import spawn from "cross-spawn";
+import { syncIconAssets } from "./assets.mjs";
 
 const rootDir = process.cwd();
 const sourceSvg = join(rootDir, "resources", "app-icon.svg");
 const buildDir = join(rootDir, "build");
 const resourcesDir = join(rootDir, "resources");
+const runtimeIcon = join(resourcesDir, "app-icon.png");
 const tempRoot = join(tmpdir(), `fyllocode-icon-${Date.now()}`);
 const tempPng = join(tempRoot, "icon-1024.png");
 const iconsetDir = join(tempRoot, "icon.iconset");
@@ -43,6 +49,8 @@ async function main() {
   if (!existsSync(sourceSvg)) {
     throw new Error(`Missing source SVG: ${sourceSvg}`);
   }
+
+  await syncIconAssets(rootDir);
 
   await ensureTool("rsvg-convert", "brew install librsvg");
   await ensureTool("iconutil", "already available on macOS");
@@ -88,7 +96,7 @@ async function main() {
   ]);
 
   await run("sips", ["-z", "512", "512", tempPng, "--out", join(buildDir, "icon.png")]);
-  await copyFile(join(buildDir, "icon.png"), join(resourcesDir, "icon.png"));
+  await copyFile(join(buildDir, "icon.png"), runtimeIcon);
 
   await rm(tempRoot, { recursive: true, force: true });
 }

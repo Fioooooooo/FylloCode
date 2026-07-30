@@ -2,12 +2,11 @@
 import { useProjectStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import ProjectList from "@renderer/components/welcome/ProjectList.vue";
+import Logo from "@renderer/components/shared/Logo.vue";
 import type { RecentProject } from "@shared/types/project";
 
 const { goToDefault } = useDefaultAppRoute();
 const projectStore = useProjectStore();
-
-const iconUrl = `${import.meta.env.BASE_URL}icon.svg`;
 
 async function handleOpenFolder(): Promise<void> {
   const project = await projectStore.openFolderWindow();
@@ -34,7 +33,7 @@ async function handleRemove(projectId: string): Promise<void> {
       <!-- Brand Identity -->
       <div class="flex flex-col items-center mb-10">
         <div class="flex items-center gap-3">
-          <img :src="iconUrl" class="size-10" alt="FylloCode" />
+          <Logo alt="FylloCode" class="size-10" data-test="welcome-brand-icon" />
           <h1 class="text-3xl font-bold text-highlighted">FylloCode</h1>
         </div>
         <p class="text-muted mt-2"></p>

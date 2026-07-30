@@ -69,6 +69,7 @@ sh scripts/prepare-worktree-env.sh
 ## Project Guidelines Index
 
 - **Architecture** - [Architecture](guidelines/Architecture.md)
+- **Brand Assets** - [Brand Assets](guidelines/BrandAssets.md)
 - **MainProcess** - [MainProcess](guidelines/MainProcess.md)
 - **Quality Gates** - [Quality Gates](guidelines/QualityGates.md)
 - **Renderer Feature Architecture** - [Renderer Feature Architecture](guidelines/RendererFeatures.md)

@@ -1,24 +1,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <title>FylloCode App Icon</title>
-  <rect x="96" y="96" width="832" height="832" rx="204" fill="#fff"/>
-  <rect
-    x="96"
-    y="96"
-    width="832"
-    height="832"
-    rx="204"
-    fill="none"
-    stroke="#e5e7eb"
-    stroke-width="8"
-  />
   <defs>
+    <filter id="app-icon-shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow
+        in="SourceAlpha"
+        dx="0"
+        dy="6"
+        stdDeviation="5"
+        flood-color="#000"
+        flood-opacity="0.18"
+        result="contact-shadow"
+      />
+      <feDropShadow
+        in="SourceAlpha"
+        dx="0"
+        dy="16"
+        stdDeviation="12"
+        flood-color="#000"
+        flood-opacity="0.12"
+        result="depth-shadow"
+      />
+      <feMerge>
+        <feMergeNode in="depth-shadow"/>
+        <feMergeNode in="contact-shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
     <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
       <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.12"/>
     </filter>
   </defs>
-  <g fill-rule="evenodd" transform="translate(196.2 270) scale(1.937)" filter="url(#shadow)">
-    <path fill="#0f766e" d="M0 0l163.23 283.51 41-70.73L81.23 0H0z"/>
-    <path fill="#2dd4bf" d="M0 0h326l-40 71H41L0 0z"/>
-    <path fill="#0891b2" d="M55 95h218.46l-40 71H96L55 95z"/>
+  <g filter="url(#app-icon-shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="184" fill="#fff"/>
+    <rect
+      x="102"
+      y="102"
+      width="820"
+      height="820"
+      rx="182"
+      fill="none"
+      stroke="#e5e7eb"
+      stroke-width="4"
+      stroke-opacity="0.7"
+    />
   </g>
+  <image
+    data-icon-source="icon.svg"
+    href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjYgMjgzLjUxIj4KICA8dGl0bGU+RnlsbG9Db2RlIEljb248L3RpdGxlPgogIDxnIGZpbGwtcnVsZT0iZXZlbm9kZCI+CiAgICA8cGF0aCBmaWxsPSIjMGY3NjZlIiBkPSJNMCAwbDE2My4yMyAyODMuNTEgNDEtNzAuNzNMODEuMjMgMEgweiIvPgogICAgPHBhdGggZmlsbD0iIzJkZDRiZiIgZD0iTTAgMGgzMjZsLTQwIDcxSDQxTDAgMHoiLz4KICAgIDxwYXRoIGZpbGw9IiMwODkxYjIiIGQ9Ik01NSA5NWgyMTguNDZsLTQwIDcxSDk2TDU1IDk1eiIvPgogIDwvZz4KPC9zdmc+Cg=="
+    x="199.237"
+    y="272.327"
+    width="625.39"
+    height="543.878"
+    filter="url(#shadow)"
+  />
 </svg>
