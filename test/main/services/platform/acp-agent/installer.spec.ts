@@ -98,6 +98,8 @@ describe("acp-agent installer uninstall", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     await fs.rm(dataRoot, { recursive: true, force: true });
   });
 
@@ -244,6 +246,109 @@ describe("acp-agent installer uninstall", () => {
         vi.fn()
       )
     ).resolves.toMatchObject({ installMethod: "binary" });
+  });
+
+  it("normalizes an interrupted binary response stream as a download failure", async () => {
+    const abortError = Object.assign(new Error("The operation was aborted"), {
+      name: "AbortError",
+      code: 20,
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.error(abortError);
+      },
+    });
+    vi.spyOn(net, "fetch").mockResolvedValue(new Response(body) as unknown as Response);
+
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+    await expect(
+      installAgent(
+        createAgent({
+          distribution: { binary: { darwin: { archive: "https://x/a.zip", cmd: "claude" } } },
+        }),
+        vi.fn()
+      )
+    ).rejects.toMatchObject({
+      code: "DOWNLOAD_FAILED",
+      message: "下载失败，请重试",
+    });
+  });
+
+  it("allows an active binary download to run beyond 60 seconds", async () => {
+    vi.useFakeTimers();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    });
+    vi.spyOn(net, "fetch").mockResolvedValue(new Response(body) as unknown as Response);
+    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
+    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+      const dir = args[args.indexOf("-C") + 1];
+      await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
+      return { stdout: "", stderr: "", code: 0 };
+    });
+
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+    const installPromise = installAgent(
+      createAgent({
+        distribution: { binary: { darwin: { archive: "https://x/a.tar.gz", cmd: "claude" } } },
+      }),
+      vi.fn()
+    );
+
+    await vi.waitFor(() => expect(net.fetch).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(50_000);
+    streamController?.enqueue(new Uint8Array([1, 2, 3]));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(50_000);
+    streamController?.close();
+
+    await expect(installPromise).resolves.toMatchObject({ installMethod: "binary" });
+  });
+
+  it("aborts a binary download after 60 seconds without response data", async () => {
+    vi.useFakeTimers();
+    let markFetchStarted: (() => void) | undefined;
+    const fetchStarted = new Promise<void>((resolve) => {
+      markFetchStarted = resolve;
+    });
+    vi.spyOn(net, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          markFetchStarted?.();
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              reject(
+                Object.assign(new Error("The operation was aborted"), {
+                  name: "AbortError",
+                  code: 20,
+                })
+              );
+            },
+            { once: true }
+          );
+        })
+    );
+
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+    const installPromise = installAgent(
+      createAgent({
+        distribution: { binary: { darwin: { archive: "https://x/a.zip", cmd: "claude" } } },
+      }),
+      vi.fn()
+    );
+    const rejection = expect(installPromise).rejects.toMatchObject({
+      code: "DOWNLOAD_FAILED",
+      message: "下载失败，请重试",
+    });
+
+    await fetchStarted;
+    await vi.advanceTimersByTimeAsync(60_000);
+    await rejection;
   });
 
   it("rejects a binary archive that extracts a path escaping the extraction dir", async () => {

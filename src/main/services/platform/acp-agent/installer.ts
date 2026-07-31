@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import type { FileHandle } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
@@ -20,7 +21,8 @@ import {
   runCommand,
   writeInstalledRecords,
 } from "@main/infra/acp/detector";
-import { ipcError } from "@shared/errors/ipc-error";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError, type IpcError } from "@shared/errors/ipc-error";
 
 type InstallProgressHandler = (progress: AcpInstallProgress) => void;
 type UninstallProgressHandler = (progress: AcpUninstallProgress) => void;
@@ -232,23 +234,71 @@ function getArchiveExtension(filePath: string): string {
   return extname(lower);
 }
 
-/** 二进制下载超时上限。避免 net.fetch 在网络挂起时永久阻塞，
- *  进而让 activeMutationAgentId 互斥锁无法释放、后续安装全部 INSTALL_BUSY。 */
-const DOWNLOAD_TIMEOUT_MS = 60_000;
+// 无数据超时允许慢速持续下载；总时长上限避免安装锁被极慢连接长期占用。
+const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
+const DOWNLOAD_MAX_DURATION_MS = 10 * 60_000;
+
+function isIpcError(error: unknown): error is IpcError {
+  const code = (error as { code?: unknown } | null)?.code;
+  return error instanceof Error && typeof code === "string" && code in IpcErrorCodes;
+}
+
+async function writeChunk(fileHandle: FileHandle, chunk: Uint8Array): Promise<void> {
+  let offset = 0;
+  while (offset < chunk.byteLength) {
+    const { bytesWritten } = await fileHandle.write(chunk, offset, chunk.byteLength - offset, null);
+    if (bytesWritten === 0) {
+      throw new Error("Unable to write downloaded data");
+    }
+    offset += bytesWritten;
+  }
+}
 
 async function downloadFile(url: string, outputPath: string): Promise<void> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
-  try {
-    const response = await net.fetch(url, { signal: controller.signal });
-    if (!response.ok) {
-      throw ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
-    }
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let fileHandle: FileHandle | undefined;
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await fs.writeFile(outputPath, buffer);
-  } finally {
-    clearTimeout(timer);
+  const abortDownload = (): void => {
+    controller.abort();
+  };
+  const refreshIdleTimeout = (): void => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(abortDownload, DOWNLOAD_IDLE_TIMEOUT_MS);
+  };
+  const maxDurationTimer = setTimeout(abortDownload, DOWNLOAD_MAX_DURATION_MS);
+
+  try {
+    try {
+      refreshIdleTimeout();
+      const response = await net.fetch(url, { signal: controller.signal });
+      if (!response.ok || !response.body) {
+        throw ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
+      }
+
+      refreshIdleTimeout();
+      fileHandle = await fs.open(outputPath, "w");
+      const reader = response.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          refreshIdleTimeout();
+          await writeChunk(fileHandle, value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    } finally {
+      clearTimeout(idleTimer);
+      clearTimeout(maxDurationTimer);
+      await fileHandle?.close();
+    }
+  } catch (error) {
+    throw isIpcError(error) ? error : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
   }
 }
 
@@ -408,9 +458,7 @@ async function installBinary(
     return finalizeInstallRecord(agent, "binary", finalExecutablePath);
   } catch (error) {
     await fs.rm(finalDirectory, { recursive: true, force: true }).catch(() => undefined);
-    throw error instanceof Error && "code" in error
-      ? error
-      : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
+    throw isIpcError(error) ? error : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
   }
