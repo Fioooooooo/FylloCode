@@ -70,6 +70,7 @@ sh scripts/prepare-worktree-env.sh
 
 - **Architecture** - [Architecture](guidelines/Architecture.md)
 - **Brand Assets** - [Brand Assets](guidelines/BrandAssets.md)
+- **Data Migrations** - [Data Migrations](guidelines/DataMigrations.md)
 - **MainProcess** - [MainProcess](guidelines/MainProcess.md)
 - **Quality Gates** - [Quality Gates](guidelines/QualityGates.md)
 - **Renderer Feature Architecture** - [Renderer Feature Architecture](guidelines/RendererFeatures.md)
