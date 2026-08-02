@@ -49,11 +49,12 @@ keywords: [migration, data, storage, upgrade, main]
 - MUST 在新增迁移前检查旧版本用户是否可能只有 `projects` 和 `acp/installed.json` 之外的目标数据。如果现有新安装判定会把这类用户误判为 fresh install，不得只增加脚本；应先通过 proposal 明确并调整 baseline 判定。证据：`src/main/migrations/runner.ts` 的 `isNewInstall`。
 - MUST NOT 在普通迁移脚本变更中顺带改变账本 schema、baseline 规则、失败后继续/不重试语义或 bootstrap 执行时序。这些变化会改变持久化与升级契约，必须先通过 OpenSpec proposal 收敛并补齐 runner 测试。证据：`src/main/migrations/types.ts`、`src/main/migrations/runner.ts`、`test/main/migrations/runner.spec.ts`。
 - MUST 将 `WORKSPACE_CUTOVER_MIGRATION_ID` 视为 required gate 的不可变标识；不得通过改写同 ID 脚本、删除 failed ledger 或用 baseline 覆盖 failed record 来重试。修复已发布 cutover 必须新增更晚 migration ID。证据：`src/main/migrations/index.ts`、`src/main/migrations/runner.ts`、`src/main/bootstrap/index.ts`。
+- MUST 让 Cortex Workspace-scope 迁移只转换可证明唯一 Folder owner 的 legacy knowledge evidence 与 lineage relation：Folder Workspace 可直接采用唯一成员，Collection Workspace 只有在 evidence 唯一指向一个成员时才可补写 `folderId`。无法确定 owner、subject 损坏或 repository origin 冲突时必须保留源文件并把 warning 持久化到对应 Workspace；不得猜测 primary。迁移按稳定顺序重建 Workspace lineage v2 composite index，并仅向 Folder reverse index 写入可证明的 proposal/commit origin；重复执行必须幂等，写失败必须抛出。证据：`src/main/migrations/scripts/20260803_001_cortex-workspace-scope.ts`、`test/main/migrations/scripts/cortex-workspace-scope.spec.ts`。
 
 ## 测试与验证
 
 - MUST 保持 `test/main/migrations/scripts-index.spec.ts` 通过；它会校验所有符合命名规则的脚本都按文件名顺序注册。
-- SHOULD 为非平凡迁移在 `test/main/migrations/scripts/` 添加聚焦测试，至少覆盖旧形态转换、已迁移数据 no-op、缺失或不可解析输入，以及无关字段保留。
+- SHOULD 为非平凡迁移在 `test/main/migrations/scripts/` 添加聚焦测试，至少覆盖旧形态转换、已迁移数据 no-op、缺失或不可解析输入、无关字段保留；涉及 owner 推断或 index 重建时，还必须覆盖歧义 warning、冲突、写失败和幂等 replay。
 - 修改 runner 或 store 时，MUST 覆盖 fresh-install baseline、旧用户全量执行、baseline 跳过、已记账跳过、失败后继续和失败不重试。证据：`test/main/migrations/runner.spec.ts`。
 - 修改 required cutover 或 bootstrap gate 时，MUST 同时覆盖 success、failed、baseline、success-target-incomplete，以及 gate 失败前没有 MCP/IPC/workflow/window/warmup 副作用。证据：`test/main/migrations/runner.spec.ts`、`test/main/bootstrap/index.spec.ts`、`test/main/bootstrap/workspace-upgrade-failure.spec.ts`。
 

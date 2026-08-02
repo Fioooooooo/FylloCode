@@ -1,9 +1,16 @@
 import template from "../templates/archive.txt?raw";
+import { resolveGuidelinesSection } from "./guidelines";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
 
 export async function resolveArchiveSystemReminder(
   ctx: SystemReminderContext
 ): Promise<string | null> {
-  return renderSystemReminderTemplate(template, ctx);
+  const rendered = renderSystemReminderTemplate(template, ctx);
+  if (rendered === null) {
+    return null;
+  }
+
+  const guidelinesSection = await resolveGuidelinesSection(ctx);
+  return guidelinesSection === null ? rendered : [rendered, guidelinesSection].join("\n\n");
 }

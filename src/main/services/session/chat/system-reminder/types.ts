@@ -13,6 +13,8 @@ export interface SystemReminderContext {
   stageIndex?: number;
   runId?: string;
   worktreePath?: string;
+  folderId?: string;
+  folderName?: string;
   taskRef?: LineageTaskRef;
   taskTitle?: string;
   workspaceSnapshot?: SessionWorkspaceSnapshot;

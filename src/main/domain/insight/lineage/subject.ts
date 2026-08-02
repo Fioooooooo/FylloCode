@@ -1,4 +1,5 @@
 import type { LineageOrigin, LineageTaskSnapshot, Subject } from "@shared/types/lineage";
+import type { ProposalRef } from "@shared/types/proposal";
 
 function defaultSubjectId(now: string): string {
   const time = new Date(now).getTime();
@@ -45,13 +46,21 @@ export function upsertSessionLink(subject: Subject, sessionId: string, now: stri
 export function appendProposal(
   subject: Subject,
   sessionId: string,
-  changeId: string,
-  now: string,
-  folderId?: string
+  proposalRef: ProposalRef,
+  now: string
 ): Subject {
+  if (!proposalRef.folderId || !proposalRef.changeId) {
+    throw new TypeError("proposalRef requires folderId and changeId");
+  }
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
   // Idempotent: a proposal is recorded only once per session link.
-  if (!targetLink || targetLink.proposals.some((proposal) => proposal.changeId === changeId)) {
+  if (
+    !targetLink ||
+    targetLink.proposals.some(
+      (proposal) =>
+        proposal.folderId === proposalRef.folderId && proposal.changeId === proposalRef.changeId
+    )
+  ) {
     return subject;
   }
 
@@ -64,9 +73,8 @@ export function appendProposal(
             proposals: [
               ...link.proposals,
               {
-                changeId,
+                ...proposalRef,
                 createdAt: now,
-                ...(folderId ? { folderId } : {}),
               },
             ],
           }
@@ -112,7 +120,7 @@ export function appendPlan(
 
 export function attachProposalCommitHash(
   subject: Subject,
-  changeId: string,
+  proposalRef: ProposalRef,
   commitHash: string,
   now: string
 ): Subject {
@@ -126,7 +134,10 @@ export function attachProposalCommitHash(
   const links = subject.links.map((link) => ({
     ...link,
     proposals: link.proposals.map((proposal) => {
-      if (proposal.changeId !== changeId) {
+      if (
+        proposal.folderId !== proposalRef.folderId ||
+        proposal.changeId !== proposalRef.changeId
+      ) {
         return proposal;
       }
 

@@ -26,6 +26,12 @@ import {
   writeIndex,
   writeSubject,
 } from "@main/infra/storage/lineage-store";
+import {
+  appendRepositoryLineageRelation,
+  readRepositoryLineageIndex,
+  RepositoryLineageOriginConflictError,
+  type RepositoryLineageObject,
+} from "@main/infra/storage/repository-lineage-store";
 import { updateSessionOriginTaskRef } from "@main/infra/storage/session-store";
 import { createTask } from "@main/services/automation/_public";
 import type {
@@ -33,8 +39,11 @@ import type {
   LineageIndex,
   LineageTaskRef,
   LineageTaskSnapshot,
+  RepositoryLineageRelation,
   Subject,
 } from "@shared/types/lineage";
+import { lineageProposalKey } from "@shared/types/lineage";
+import type { ProposalRef } from "@shared/types/proposal";
 import type { TaskItem } from "@shared/types/task";
 
 function nowIso(): string {
@@ -43,7 +52,7 @@ function nowIso(): string {
 
 function emptyIndex(updatedAt: string): LineageIndex {
   return {
-    version: 1,
+    version: 2,
     tasks: {},
     sessions: {},
     proposals: {},
@@ -69,7 +78,7 @@ function removeSubjectEntries(
 function mergeSubjectIntoIndex(index: LineageIndex, subject: Subject): LineageIndex {
   const entries = deriveIndexEntries(subject);
   return {
-    version: 1,
+    version: 2,
     tasks: {
       ...removeSubjectEntries(index.tasks, subject.id),
       ...entries.tasks,
@@ -220,8 +229,7 @@ export async function linkTaskSession(
 export async function recordProposal(
   workspaceId: string,
   sessionId: string,
-  changeId: string,
-  folderId?: string
+  proposalRef: ProposalRef
 ): Promise<Subject | null> {
   const now = nowIso();
   const index = await readWritableIndex(workspaceId, now);
@@ -235,7 +243,7 @@ export async function recordProposal(
     return null;
   }
 
-  const nextSubject = appendProposal(subject, sessionId, changeId, now, folderId);
+  const nextSubject = appendProposal(subject, sessionId, proposalRef, now);
   await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
@@ -265,12 +273,12 @@ export async function recordPlan(
 
 export async function recordProposalCommitHash(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   commitHash: string
 ): Promise<Subject | null> {
   const now = nowIso();
   const index = await readWritableIndex(workspaceId, now);
-  const subjectId = index.proposals[changeId];
+  const subjectId = index.proposals[lineageProposalKey(proposalRef)];
   if (!subjectId) {
     return null;
   }
@@ -281,13 +289,16 @@ export async function recordProposalCommitHash(
   }
 
   const hasProposal = subject.links.some((link) =>
-    link.proposals.some((proposal) => proposal.changeId === changeId)
+    link.proposals.some(
+      (proposal) =>
+        proposal.folderId === proposalRef.folderId && proposal.changeId === proposalRef.changeId
+    )
   );
   if (!hasProposal) {
     return null;
   }
 
-  const nextSubject = attachProposalCommitHash(subject, changeId, commitHash, now);
+  const nextSubject = attachProposalCommitHash(subject, proposalRef, commitHash, now);
   await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
@@ -388,13 +399,151 @@ export async function getBySession(
 
 export async function getByProposal(
   workspaceId: string,
-  changeId: string
+  proposalRef: ProposalRef
 ): Promise<ProposalOriginProjection | null> {
   return projectFromIndex(
     workspaceId,
-    (index) => index.proposals[changeId],
-    (subject) => projectProposalOrigin(subject, changeId)
+    (index) => index.proposals[lineageProposalKey(proposalRef)],
+    (subject) => projectProposalOrigin(subject, proposalRef)
   );
+}
+
+export type RepositoryLineageMutationResult =
+  | { status: "recorded" | "unchanged" }
+  | { status: "conflict"; existing: RepositoryLineageRelation }
+  | { status: "failed"; error: { type: string; message: string } };
+
+export interface RepositoryLineageRelations {
+  origin: RepositoryLineageRelation | null;
+  references: RepositoryLineageRelation[];
+}
+
+async function recordRepositoryRelation(
+  folderId: string,
+  object: RepositoryLineageObject,
+  relation: RepositoryLineageRelation
+): Promise<RepositoryLineageMutationResult> {
+  try {
+    const result = await appendRepositoryLineageRelation(folderId, object, relation);
+    return { status: result.changed ? "recorded" : "unchanged" };
+  } catch (error) {
+    if (error instanceof RepositoryLineageOriginConflictError) {
+      return { status: "conflict", existing: error.existing };
+    }
+    return {
+      status: "failed",
+      error: {
+        type: error instanceof Error ? error.name : "UnknownError",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+export function recordRepositoryProposalRelation(
+  proposalRef: ProposalRef,
+  relation: RepositoryLineageRelation
+): Promise<RepositoryLineageMutationResult> {
+  return recordRepositoryRelation(
+    proposalRef.folderId,
+    { kind: "proposal", changeId: proposalRef.changeId },
+    relation
+  );
+}
+
+export function recordRepositoryCommitRelation(
+  folderId: string,
+  commitHash: string,
+  relation: RepositoryLineageRelation
+): Promise<RepositoryLineageMutationResult> {
+  return recordRepositoryRelation(folderId, { kind: "commit", commitHash }, relation);
+}
+
+export async function getRepositoryProposalRelations(
+  proposalRef: ProposalRef
+): Promise<RepositoryLineageRelations> {
+  const index = await readRepositoryLineageIndex(proposalRef.folderId);
+  return splitRepositoryRelations(index.proposals[proposalRef.changeId] ?? []);
+}
+
+export async function getRepositoryCommitRelations(
+  folderId: string,
+  commitHash: string
+): Promise<RepositoryLineageRelations> {
+  const index = await readRepositoryLineageIndex(folderId);
+  return splitRepositoryRelations(index.commits[commitHash] ?? []);
+}
+
+export type ProposalContinuationResult =
+  | { status: "missing-origin" | "same-origin"; subjectId?: string }
+  | ({ subjectId: string } & RepositoryLineageMutationResult);
+
+export async function recordProposalContinuation(
+  workspaceId: string,
+  sessionId: string,
+  proposalRef: ProposalRef
+): Promise<ProposalContinuationResult> {
+  const repository = await getRepositoryProposalRelations(proposalRef);
+  if (!repository.origin) {
+    return { status: "missing-origin" };
+  }
+
+  await ensureChatSubject(workspaceId, sessionId);
+  const subject = await recordProposal(workspaceId, sessionId, proposalRef);
+  if (!subject) {
+    return {
+      status: "failed",
+      subjectId: "",
+      error: { type: "LineageSubjectMissing", message: "Continuation subject is unavailable" },
+    };
+  }
+  if (repository.origin.workspaceId === workspaceId && repository.origin.subjectId === subject.id) {
+    return { status: "same-origin", subjectId: subject.id };
+  }
+  return {
+    subjectId: subject.id,
+    ...(await recordRepositoryProposalRelation(proposalRef, {
+      workspaceId,
+      subjectId: subject.id,
+      relation: "reference",
+      linkedAt: nowIso(),
+    })),
+  };
+}
+
+export async function recordDiscoveredProposalCommit(
+  workspaceId: string,
+  proposalRef: ProposalRef,
+  commitHash: string
+): Promise<
+  ({ subjectId: string } & RepositoryLineageMutationResult) | { status: "missing-subject" }
+> {
+  const projection = await getByProposal(workspaceId, proposalRef);
+  if (!projection) {
+    return { status: "missing-subject" };
+  }
+  const subject = await recordProposalCommitHash(workspaceId, proposalRef, commitHash);
+  if (!subject) {
+    return { status: "missing-subject" };
+  }
+  return {
+    subjectId: subject.id,
+    ...(await recordRepositoryCommitRelation(proposalRef.folderId, commitHash, {
+      workspaceId,
+      subjectId: subject.id,
+      relation: "origin",
+      linkedAt: nowIso(),
+    })),
+  };
+}
+
+function splitRepositoryRelations(
+  relations: RepositoryLineageRelation[]
+): RepositoryLineageRelations {
+  return {
+    origin: relations.find((relation) => relation.relation === "origin") ?? null,
+    references: relations.filter((relation) => relation.relation === "reference"),
+  };
 }
 
 export async function listRecentSubjects(workspaceId: string, limit: number): Promise<Subject[]> {

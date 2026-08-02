@@ -13,7 +13,7 @@ import type {
   LineageSessionLink,
   Subject,
 } from "@shared/types/lineage";
-import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
+import { proposalRefKey, type ProposalMeta, type ProposalStatus } from "@shared/types/proposal";
 import { readPlan } from "./plan";
 
 export function deriveLineageBrowserStatus(
@@ -40,7 +40,15 @@ export function deriveLineageBrowserStatus(
 }
 
 function buildProposalMap(proposals: ProposalMeta[]): Map<string, ProposalMeta> {
-  return new Map(proposals.map((proposal) => [stripArchivePrefix(proposal.id), proposal]));
+  return new Map(
+    proposals.map((proposal) => [
+      proposalRefKey({
+        folderId: proposal.proposalRef.folderId,
+        changeId: stripArchivePrefix(proposal.proposalRef.changeId),
+      }),
+      proposal,
+    ])
+  );
 }
 
 async function projectPlan(
@@ -70,10 +78,15 @@ function projectProposal(
   link: LineageProposalLink,
   proposalMap: Map<string, ProposalMeta>
 ): LineageBrowserProposal {
-  const proposal = proposalMap.get(link.changeId);
+  const proposalRef = { folderId: link.folderId, changeId: link.changeId };
+  const key = proposalRefKey(proposalRef);
+  const proposal = proposalMap.get(key);
   return {
+    key,
+    proposalRef,
     changeId: link.changeId,
     folderId: link.folderId,
+    folderName: proposal?.folderName ?? null,
     createdAt: link.createdAt,
     commitHash: link.commitHash ?? null,
     title: proposal?.title ?? null,
@@ -130,13 +143,14 @@ async function projectSubject(
 
 export async function getLineageBrowser(
   workspaceId: string,
-  workspaceCwd: string
+  folders: readonly { folderId: string; folderPath: string }[]
 ): Promise<LineageBrowserData> {
-  const [subjects, sessionMetas, proposals] = await Promise.all([
+  const [subjects, sessionMetas, proposalGroups] = await Promise.all([
     listSubjects(workspaceId),
     listSessionMetas(workspaceId),
-    readProposalFiles(workspaceCwd),
+    Promise.all(folders.map((folder) => readProposalFiles(folder.folderPath))),
   ]);
+  const proposals = proposalGroups.flat();
   const sessionMap = new Map(sessionMetas.map((session) => [session.sessionId, session]));
   const proposalMap = buildProposalMap(proposals);
   const entries = await Promise.all(

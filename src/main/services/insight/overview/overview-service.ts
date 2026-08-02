@@ -1,11 +1,7 @@
 import { readProposalFiles, stripArchivePrefix } from "@main/infra/proposal/openspec-reader";
 import logger from "@main/infra/logger";
 import { listSubjects } from "@main/infra/storage/lineage-store";
-import {
-  getByProposal,
-  listRecentSubjects,
-  recordProposalCommitHash,
-} from "@main/services/insight/lineage/lineage-service";
+import { getByProposal, listRecentSubjects } from "@main/services/insight/lineage/lineage-service";
 import type {
   ActiveChange,
   ProjectOverview,
@@ -34,13 +30,15 @@ async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]
 
   return Promise.all(
     activeProposals.map(async (proposal) => {
-      const projection = await getByProposal(projectPath, proposal.id).catch((error: unknown) => {
-        logger.warn(
-          `[overview] failed to resolve lineage proposal project=${projectPath} change=${proposal.id}`,
-          error
-        );
-        return null;
-      });
+      const projection = await getByProposal(projectPath, proposal.proposalRef).catch(
+        (error: unknown) => {
+          logger.warn(
+            `[overview] failed to resolve lineage proposal project=${projectPath} change=${proposal.id}`,
+            error
+          );
+          return null;
+        }
+      );
 
       return {
         id: proposal.id,
@@ -129,8 +127,8 @@ async function computeRecentLineages(projectPath: string): Promise<RecentLineage
     };
   });
 
-  // For proposals without an explicit commit hash, look up the archive directory naming
-  // (which encodes the commit hash) and persist the discovered hash back to lineage.
+  // Archive discovery is a passive overview read. Lifecycle code records commit lineage;
+  // this fallback only renders historical archives that predate that wiring.
   const missingChangeIds = Array.from(
     new Set(lineageStates.flatMap((state) => state.missingChangeIds))
   );
@@ -138,28 +136,6 @@ async function computeRecentLineages(projectPath: string): Promise<RecentLineage
     missingChangeIds.length > 0
       ? await buildArchiveCommitIndex(projectPath, missingChangeIds)
       : new Map();
-
-  await Promise.all(
-    Array.from(archiveCommitIndex.values()).map(async (archiveCommit) => {
-      try {
-        const subject = await recordProposalCommitHash(
-          projectPath,
-          archiveCommit.changeId,
-          archiveCommit.hash
-        );
-        if (!subject) {
-          logger.warn(
-            `[overview] failed to persist proposal commit hash project=${projectPath} change=${archiveCommit.changeId}`
-          );
-        }
-      } catch (error: unknown) {
-        logger.warn(
-          `[overview] failed to persist proposal commit hash project=${projectPath} change=${archiveCommit.changeId}`,
-          error
-        );
-      }
-    })
-  );
 
   return lineageStates.map((state) => {
     const archiveCommit =

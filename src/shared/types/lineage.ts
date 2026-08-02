@@ -1,5 +1,5 @@
 import type { TaskItem, TaskSource } from "@shared/types/task";
-import type { ProposalStatus } from "@shared/types/proposal";
+import type { ProposalRef, ProposalStatus } from "@shared/types/proposal";
 
 export type LineageOrigin = "task" | "chat";
 
@@ -13,8 +13,8 @@ export type LineageTaskSnapshot = {
 
 export type LineageProposalLink = {
   changeId: string;
+  folderId: string;
   createdAt: string;
-  folderId?: string;
   commitHash?: string;
 };
 
@@ -81,13 +81,37 @@ export type PlanDocument = {
 };
 
 export type LineageIndex = {
-  version: 1;
+  version: 2;
   tasks: Record<string, string>;
   sessions: Record<string, string>;
   proposals: Record<string, string>;
   commitHashes: Record<string, string>;
   updatedAt: string;
 };
+
+export type RepositoryLineageRelationKind = "origin" | "reference";
+
+export interface RepositoryLineageRelation {
+  workspaceId: string;
+  subjectId: string;
+  relation: RepositoryLineageRelationKind;
+  linkedAt: string;
+}
+
+export interface RepositoryLineageIndex {
+  version: 2;
+  proposals: Record<string, RepositoryLineageRelation[]>;
+  commits: Record<string, RepositoryLineageRelation[]>;
+  updatedAt: string;
+}
+
+export function lineageProposalKey(proposalRef: ProposalRef): string {
+  return `${proposalRef.folderId}\0${proposalRef.changeId}`;
+}
+
+export function lineageCommitKey(folderId: string, commitHash: string): string {
+  return `${folderId}\0${commitHash}`;
+}
 
 export type LineageBrowserStatus = "applying" | "planned" | "completed" | "discussion";
 
@@ -99,8 +123,11 @@ export type LineageBrowserPlan = {
 };
 
 export type LineageBrowserProposal = {
+  key: string;
+  proposalRef: ProposalRef;
   changeId: string;
-  folderId?: string;
+  folderId: string;
+  folderName: string | null;
   createdAt: string;
   commitHash: string | null;
   title: string | null;

@@ -5,7 +5,12 @@ import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { mcpEventsDir } from "@main/infra/storage/workspace-paths";
 import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
-import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
+import {
+  ensureChatSubject,
+  recordPlan,
+  recordProposal,
+  recordRepositoryProposalRelation,
+} from "./lineage-service";
 import { proposalStatusService } from "@main/services/proposal/_public";
 import {
   getRequiredWorkspaceInfo,
@@ -119,24 +124,14 @@ async function consumeEventFile(
     }
     let subject =
       event.tool === "create-proposal"
-        ? await recordProposal(
-            workspaceId,
-            event.sessionId,
-            event.proposalRef.changeId,
-            event.proposalRef.folderId
-          )
+        ? await recordProposal(workspaceId, event.sessionId, event.proposalRef)
         : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
 
     if (!subject) {
       await ensureChatSubject(workspaceId, event.sessionId);
       subject =
         event.tool === "create-proposal"
-          ? await recordProposal(
-              workspaceId,
-              event.sessionId,
-              event.proposalRef.changeId,
-              event.proposalRef.folderId
-            )
+          ? await recordProposal(workspaceId, event.sessionId, event.proposalRef)
           : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
     }
 
@@ -152,6 +147,24 @@ async function consumeEventFile(
     }
 
     if (event.tool === "create-proposal") {
+      const relationResult = await recordRepositoryProposalRelation(event.proposalRef, {
+        workspaceId,
+        subjectId: subject.id,
+        relation: "origin",
+        linkedAt: event.createdAt,
+      });
+      if (relationResult.status === "failed") {
+        throw new Error(
+          `Failed to record proposal origin: ${relationResult.error.type}: ${relationResult.error.message}`
+        );
+      }
+      if (relationResult.status === "conflict") {
+        logger.warn("[lineage-mcp-event] proposal origin conflict", {
+          workspaceId,
+          proposalRef: event.proposalRef,
+          existing: relationResult.existing,
+        });
+      }
       proposalStatusService.watchProposal(
         workspaceId,
         event.proposalRef,

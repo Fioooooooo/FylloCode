@@ -1,17 +1,18 @@
-import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, readdir, realpath } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 import type {
-  LineageIndex,
   LineageOrigin,
   LineageSessionLink,
+  RepositoryLineageIndex,
+  RepositoryLineageRelation,
   Subject,
 } from "@shared/types/lineage";
 import type { ProposalStatus } from "@shared/types/proposal";
+import { projectRelativePathSchema } from "@shared/schemas/knowledge";
 import { getWorkspaceDataDir } from "../../../shared/env";
+import { getWorkspaceContext } from "../../../shared/workspace-context";
+import { resolveFolder, validateWorktree } from "../../../shared/workspace-resolver";
 import { runGit } from "./git";
-import { resolveProjectRoot } from "./project-root";
-
-// ── DTO ───────────────────────────────────────────────────────────────────────
 
 export type LineageTaskDto = {
   ref: string;
@@ -22,6 +23,7 @@ export type LineageTaskDto = {
 };
 
 export type LineageProposalDto = {
+  folderId: string;
   changeId: string;
   createdAt: string;
   commitHash: string | null;
@@ -29,11 +31,7 @@ export type LineageProposalDto = {
   proposalPath: string | null;
 };
 
-export type LineagePlanDto = {
-  slug: string;
-  createdAt: string;
-};
-
+export type LineagePlanDto = { slug: string; createdAt: string };
 export type LineageSessionDto = {
   sessionId: string;
   createdAt: string;
@@ -50,272 +48,256 @@ export type LineageResponseDto = {
   updatedAt: string;
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+export type LineageTraceDto = Partial<Omit<LineageResponseDto, "origin">> & {
+  folderId: string;
+  worktreePath: string;
+  object: { kind: "proposal"; changeId: string } | { kind: "commit"; commitHash: string };
+  origin: RepositoryLineageRelation | null;
+  references: RepositoryLineageRelation[];
+  subjects: Array<{ relation: RepositoryLineageRelation; lineage: LineageResponseDto }>;
+  warnings: string[];
+};
 
-function getRequiredProjectDataDir(): string {
-  return getWorkspaceDataDir();
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-function isValidOrigin(value: unknown): value is LineageOrigin {
-  return value === "task" || value === "chat";
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function isValidLineageIndex(value: unknown): value is LineageIndex {
-  if (!isPlainObject(value)) return false;
-  if (value.version !== 1) return false;
-  if (!isPlainObject(value.tasks)) return false;
-  if (!isPlainObject(value.sessions)) return false;
-  if (!isPlainObject(value.proposals)) return false;
-  if (!isPlainObject(value.commitHashes)) return false;
-  if (!isNonEmptyString(value.updatedAt)) return false;
-  return true;
+function repositoryIndexPath(folderId: string): string {
+  const appDataRoot = dirname(dirname(getWorkspaceDataDir()));
+  return join(appDataRoot, "workspace-folders", folderId, "lineage", "index.json");
 }
 
-function isValidSubject(value: unknown): value is Subject {
-  if (!isPlainObject(value)) return false;
-  if (!isNonEmptyString(value.id)) return false;
-  if (!isValidOrigin(value.origin)) return false;
-  if (value.task !== null && !isPlainObject(value.task)) return false;
-  if (!Array.isArray(value.links)) return false;
-  if (!isNonEmptyString(value.createdAt)) return false;
-  if (!isNonEmptyString(value.updatedAt)) return false;
-  return true;
-}
-
-function stripArchivePrefix(dirname: string): string {
-  return dirname.replace(/^\d{4}-\d{2}-\d{2}-/, "");
-}
-
-async function findArchiveDir(projectPath: string, changeId: string): Promise<string | null> {
-  const archiveRoot = join(projectPath, "openspec", "changes", "archive");
+async function readRepositoryIndex(folderId: string): Promise<RepositoryLineageIndex | null> {
   try {
-    const entries = await readdir(archiveRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory() && stripArchivePrefix(entry.name) === changeId) {
-        return join(archiveRoot, entry.name);
-      }
+    const value = JSON.parse(await readFile(repositoryIndexPath(folderId), "utf8")) as unknown;
+    if (
+      !isRecord(value) ||
+      value.version !== 2 ||
+      !isRecord(value.proposals) ||
+      !isRecord(value.commits)
+    ) {
+      return null;
     }
+    return value as unknown as RepositoryLineageIndex;
   } catch {
-    // archive 目录不存在或无法读取
+    return null;
   }
-  return null;
 }
 
-// ── Status derivation ───────────────────────────────────────────────────────
+function isSubject(value: unknown): value is Subject {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    (value.origin === "task" || value.origin === "chat") &&
+    Array.isArray(value.links) &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
 
-async function resolveProposalLocation(
-  changeId: string
-): Promise<{ status: ProposalStatus | null; proposalPath: string | null }> {
-  const projectPath = resolveProjectRoot();
-
-  const mainPath = join(projectPath, "openspec", "changes", changeId, ".openspec.yaml");
+async function readActiveWorkspaceSubject(subjectId: string): Promise<Subject | null> {
   try {
-    const content = await readFile(mainPath, "utf-8");
-    const match = content.match(/^\s*status:\s*(creating|draft|applying|archived)\s*$/m);
-    return {
-      status: (match?.[1] as ProposalStatus | undefined) ?? null,
-      proposalPath: join(projectPath, "openspec", "changes", changeId),
-    };
+    const value = JSON.parse(
+      await readFile(
+        join(getWorkspaceDataDir(), "lineage", "subjects", `${subjectId}.json`),
+        "utf8"
+      )
+    ) as unknown;
+    return isSubject(value) ? value : null;
   } catch {
-    // 主目录不存在，继续检查 archive 目录
+    return null;
   }
+}
 
-  const archiveDir = await findArchiveDir(projectPath, changeId);
-  if (archiveDir) {
+function stripArchivePrefix(name: string): string {
+  return name.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+}
+
+async function findArchiveDir(repositoryPath: string, changeId: string): Promise<string | null> {
+  const root = join(repositoryPath, "openspec", "changes", "archive");
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    const entry = entries.find(
+      (candidate) => candidate.isDirectory() && stripArchivePrefix(candidate.name) === changeId
+    );
+    return entry ? join(root, entry.name) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function proposalLocation(folderId: string, changeId: string) {
+  let repositoryPath: string;
+  try {
+    repositoryPath = resolveFolder(folderId).folderPath;
+  } catch {
+    return { status: null as ProposalStatus | null, proposalPath: null as string | null };
+  }
+  const activePath = join(repositoryPath, "openspec", "changes", changeId);
+  try {
+    const content = await readFile(join(activePath, ".openspec.yaml"), "utf8");
+    const status = content.match(/^\s*status:\s*(creating|draft|applying|archived)\s*$/m)?.[1];
+    return { status: (status as ProposalStatus | undefined) ?? null, proposalPath: activePath };
+  } catch {
+    const archived = await findArchiveDir(repositoryPath, changeId);
     return {
-      status: "archived",
-      proposalPath: archiveDir,
+      status: archived ? ("archived" as const) : null,
+      proposalPath: archived,
     };
   }
-
-  return { status: null, proposalPath: null };
 }
 
-function deriveLineageStatus(rawStatus: ProposalStatus | null): LineageProposalDto["status"] {
-  switch (rawStatus) {
-    case "creating":
-    case "draft":
-      return "pending";
-    case "applying":
-      return "applying";
-    case "archived":
-      return "completed";
-    default:
-      return "pending";
-  }
+function status(raw: ProposalStatus | null): LineageProposalDto["status"] {
+  return raw === "archived" ? "completed" : raw === "applying" ? "applying" : "pending";
 }
 
-// ── Projection ──────────────────────────────────────────────────────────────
-
-function projectTaskDto(task: Subject["task"]): LineageTaskDto | null {
-  if (task === null) return null;
-
-  const snapshot = task.snapshot;
-  const sourceMeta = snapshot.sourceMeta;
-
-  let url: string | null = null;
-  if (sourceMeta && "url" in sourceMeta && typeof sourceMeta.url === "string") {
-    url = sourceMeta.url;
-  }
-
+function taskDto(task: Subject["task"]): LineageTaskDto | null {
+  if (!task) return null;
+  const meta = task.snapshot.sourceMeta;
   return {
     ref: task.ref,
-    title: snapshot.title,
-    description: snapshot.description.content,
-    source: snapshot.source,
-    url,
+    title: task.snapshot.title,
+    description: task.snapshot.description.content,
+    source: task.snapshot.source,
+    url: meta && "url" in meta && typeof meta.url === "string" ? meta.url : null,
   };
 }
 
-async function projectProposalDto(
-  link: LineageSessionLink["proposals"][number]
+async function proposalDto(
+  proposal: LineageSessionLink["proposals"][number]
 ): Promise<LineageProposalDto> {
-  const { status: rawStatus, proposalPath } = await resolveProposalLocation(link.changeId);
-  const status = deriveLineageStatus(rawStatus);
-
+  const location = await proposalLocation(proposal.folderId, proposal.changeId);
   return {
-    changeId: link.changeId,
-    createdAt: link.createdAt,
-    commitHash: link.commitHash ?? null,
-    status,
-    proposalPath,
+    folderId: proposal.folderId,
+    changeId: proposal.changeId,
+    createdAt: proposal.createdAt,
+    commitHash: proposal.commitHash ?? null,
+    status: status(location.status),
+    proposalPath: location.proposalPath,
   };
 }
 
-async function projectSessionDto(link: LineageSessionLink): Promise<LineageSessionDto> {
-  const proposals = await Promise.all(link.proposals.map((p) => projectProposalDto(p)));
-  const plans = Array.isArray(link.plans)
-    ? link.plans.map((plan) => ({
-        slug: plan.slug,
-        createdAt: plan.createdAt,
-      }))
-    : [];
-
-  return {
-    sessionId: link.sessionId,
-    createdAt: link.createdAt,
-    proposals,
-    plans,
-  };
-}
-
-async function projectSubjectDto(subject: Subject): Promise<LineageResponseDto> {
-  const sessions = await Promise.all(subject.links.map((link) => projectSessionDto(link)));
+async function projectSubject(subject: Subject): Promise<LineageResponseDto> {
   return {
     subjectId: subject.id,
     origin: subject.origin,
-    task: projectTaskDto(subject.task),
-    sessions,
+    task: taskDto(subject.task),
+    sessions: await Promise.all(
+      subject.links.map(async (link) => ({
+        sessionId: link.sessionId,
+        createdAt: link.createdAt,
+        proposals: await Promise.all(link.proposals.map(proposalDto)),
+        plans: (link.plans ?? []).map((plan) => ({ slug: plan.slug, createdAt: plan.createdAt })),
+      }))
+    ),
     createdAt: subject.createdAt,
     updatedAt: subject.updatedAt,
   };
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+async function resolveTarget(folderId: string, worktreePath?: string): Promise<string> {
+  const folder = resolveFolder(folderId);
+  return worktreePath ? validateWorktree(folderId, worktreePath) : realpath(folder.folderPath);
+}
 
-export async function readLineageIndex(): Promise<LineageIndex | null> {
-  try {
-    const dataDir = getRequiredProjectDataDir();
-    const indexPath = join(dataDir, "lineage", "index.json");
-    const content = await readFile(indexPath, "utf-8");
-    const parsed = JSON.parse(content) as unknown;
-    if (!isValidLineageIndex(parsed)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
+async function traceRelations(
+  folderId: string,
+  worktreePath: string,
+  object: LineageTraceDto["object"],
+  relations: RepositoryLineageRelation[]
+): Promise<LineageTraceDto> {
+  const origin = relations.find((relation) => relation.relation === "origin") ?? null;
+  const references = relations.filter((relation) => relation.relation === "reference");
+  const activeWorkspaceId = getWorkspaceContext().workspaceId;
+  const subjects: LineageTraceDto["subjects"] = [];
+  for (const relation of relations) {
+    if (relation.workspaceId !== activeWorkspaceId) continue;
+    const subject = await readActiveWorkspaceSubject(relation.subjectId);
+    if (subject) subjects.push({ relation, lineage: await projectSubject(subject) });
   }
+  const activeLineage = subjects[0]?.lineage;
+  const compatibilityProjection = activeLineage
+    ? {
+        subjectId: activeLineage.subjectId,
+        task: activeLineage.task,
+        sessions: activeLineage.sessions,
+        createdAt: activeLineage.createdAt,
+        updatedAt: activeLineage.updatedAt,
+      }
+    : {};
+  return {
+    ...compatibilityProjection,
+    folderId,
+    worktreePath,
+    object,
+    origin,
+    references,
+    subjects,
+    warnings: origin ? [] : ["Repository lineage origin is unavailable"],
+  };
 }
 
-export async function readSubject(subjectId: string): Promise<Subject | null> {
-  try {
-    const dataDir = getRequiredProjectDataDir();
-    const subjectPath = join(dataDir, "lineage", "subjects", `${subjectId}.json`);
-    const content = await readFile(subjectPath, "utf-8");
-    const parsed = JSON.parse(content) as unknown;
-    if (!isValidSubject(parsed)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
+export async function traceLineageByProposal(
+  folderId: string,
+  changeId: string,
+  requestedWorktreePath?: string
+): Promise<LineageTraceDto> {
+  const worktreePath = await resolveTarget(folderId, requestedWorktreePath);
+  const index = await readRepositoryIndex(folderId);
+  return traceRelations(
+    folderId,
+    worktreePath,
+    { kind: "proposal", changeId },
+    index?.proposals[changeId] ?? []
+  );
 }
 
-export async function traceLineageByProposal(changeId: string): Promise<LineageResponseDto | null> {
-  const index = await readLineageIndex();
-  if (!index) return null;
-
-  const subjectId = index.proposals[changeId];
-  if (!subjectId) return null;
-
-  const subject = await readSubject(subjectId);
-  if (!subject) return null;
-
-  return projectSubjectDto(subject);
-}
-
-export async function traceLineageByCommit(commitHash: string): Promise<LineageResponseDto | null> {
-  const index = await readLineageIndex();
-  if (!index) return null;
-
-  const subjectId = index.commitHashes[commitHash];
-  if (!subjectId) return null;
-
-  const subject = await readSubject(subjectId);
-  if (!subject) return null;
-
-  return projectSubjectDto(subject);
+export async function traceLineageByCommit(
+  folderId: string,
+  commitHash: string,
+  requestedWorktreePath?: string
+): Promise<LineageTraceDto> {
+  const worktreePath = await resolveTarget(folderId, requestedWorktreePath);
+  const index = await readRepositoryIndex(folderId);
+  return traceRelations(
+    folderId,
+    worktreePath,
+    { kind: "commit", commitHash },
+    index?.commits[commitHash] ?? []
+  );
 }
 
 export async function traceLineageByFile(
+  folderId: string,
   filePath: string,
-  lineRange?: string
-): Promise<LineageResponseDto[]> {
-  const projectPath = resolveProjectRoot();
-
-  const args = lineRange
-    ? ["log", "--format=%H", `-L`, `${lineRange}:${filePath}`]
-    : ["log", "--format=%H", "--", filePath];
-  let stdout: string;
-  try {
-    stdout = await runGit(projectPath, args);
-  } catch {
-    return [];
+  lineRange?: string,
+  requestedWorktreePath?: string
+): Promise<LineageTraceDto[]> {
+  const worktreePath = await resolveTarget(folderId, requestedWorktreePath);
+  const parsedPath = projectRelativePathSchema.parse(filePath);
+  const canonicalRoot = await realpath(worktreePath);
+  const canonicalFile = await realpath(resolve(canonicalRoot, parsedPath));
+  const relativePath = relative(canonicalRoot, canonicalFile).replace(/\\/g, "/");
+  if (!relativePath || relativePath === ".." || relativePath.startsWith("../")) {
+    const error = new Error("filePath escapes the resolved worktree");
+    error.name = "InvalidTargetPath";
+    throw error;
   }
-
-  const commitHashes = stdout
+  const args = lineRange
+    ? ["log", "--format=%H", "-L", `${lineRange}:${relativePath}`]
+    : ["log", "--format=%H", "--", relativePath];
+  const hashes = (await runGit(canonicalRoot, args))
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => /^[0-9a-f]{40}$/.test(line));
-
-  if (commitHashes.length === 0) return [];
-
-  const index = await readLineageIndex();
-  if (!index) return [];
-
-  const seenSubjects = new Set<string>();
-  const results: LineageResponseDto[] = [];
-
-  for (const hash of commitHashes) {
-    const subjectId = index.commitHashes[hash];
-    if (!subjectId || seenSubjects.has(subjectId)) continue;
-    seenSubjects.add(subjectId);
-
-    const subject = await readSubject(subjectId);
-    if (!subject) continue;
-
-    results.push(await projectSubjectDto(subject));
+  const index = await readRepositoryIndex(folderId);
+  const results: LineageTraceDto[] = [];
+  for (const hash of [...new Set(hashes)]) {
+    const relations = index?.commits[hash] ?? [];
+    if (relations.length === 0) continue;
+    results.push(
+      await traceRelations(folderId, canonicalRoot, { kind: "commit", commitHash: hash }, relations)
+    );
   }
-
   return results;
 }

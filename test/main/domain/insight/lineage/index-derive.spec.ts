@@ -43,8 +43,8 @@ function subject(overrides: Partial<Subject> = {}): Subject {
         sessionId: "session-1",
         createdAt: "2026-06-09T00:01:00.000Z",
         proposals: [
-          { changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
-          { changeId: "change-2", createdAt: "2026-06-09T00:03:00.000Z" },
+          { folderId: "folder-a", changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
+          { folderId: "folder-a", changeId: "change-2", createdAt: "2026-06-09T00:03:00.000Z" },
         ],
         plans: [{ slug: "2026-06-29-plan-a", createdAt: "2026-06-09T00:03:30.000Z" }],
       },
@@ -61,8 +61,8 @@ describe("lineage index derivation", () => {
       tasks: { "local:task-1": "subject-1" },
       sessions: { "session-1": "subject-1" },
       proposals: {
-        "change-1": "subject-1",
-        "change-2": "subject-1",
+        "folder-a\0change-1": "subject-1",
+        "folder-a\0change-2": "subject-1",
       },
       commitHashes: {},
     });
@@ -78,6 +78,7 @@ describe("lineage index derivation", () => {
               createdAt: "2026-06-09T00:01:00.000Z",
               proposals: [
                 {
+                  folderId: "folder-a",
                   changeId: "change-1",
                   commitHash: "abc123",
                   createdAt: "2026-06-09T00:02:00.000Z",
@@ -91,8 +92,8 @@ describe("lineage index derivation", () => {
     ).toEqual({
       tasks: { "local:task-1": "subject-1" },
       sessions: { "session-1": "subject-1" },
-      proposals: { "change-1": "subject-1" },
-      commitHashes: { abc123: "subject-1" },
+      proposals: { "folder-a\0change-1": "subject-1" },
+      commitHashes: { "folder-a\0abc123": "subject-1" },
     });
   });
 
@@ -106,7 +107,13 @@ describe("lineage index derivation", () => {
         {
           sessionId: "session-2",
           createdAt: "2026-06-09T00:05:00.000Z",
-          proposals: [{ changeId: "change-3", createdAt: "2026-06-09T00:06:00.000Z" }],
+          proposals: [
+            {
+              folderId: "folder-b",
+              changeId: "change-3",
+              createdAt: "2026-06-09T00:06:00.000Z",
+            },
+          ],
           plans: [{ slug: "2026-06-29-plan-b", createdAt: "2026-06-09T00:06:30.000Z" }],
         },
       ],
@@ -114,16 +121,16 @@ describe("lineage index derivation", () => {
     });
 
     expect(buildIndexFromSubjects([taskSubject, chatSubject])).toEqual({
-      version: 1,
+      version: 2,
       tasks: { "local:task-1": "subject-1" },
       sessions: {
         "session-1": "subject-1",
         "session-2": "subject-2",
       },
       proposals: {
-        "change-1": "subject-1",
-        "change-2": "subject-1",
-        "change-3": "subject-2",
+        "folder-a\0change-1": "subject-1",
+        "folder-a\0change-2": "subject-1",
+        "folder-b\0change-3": "subject-2",
       },
       commitHashes: {},
       updatedAt: "2026-06-09T00:07:00.000Z",
@@ -135,5 +142,32 @@ describe("lineage index derivation", () => {
 
     expect(index).not.toHaveProperty("plans");
     expect(JSON.stringify(index)).not.toContain("2026-06-29-plan-a");
+  });
+
+  it("keeps same-name proposals from different Folders", () => {
+    const first = subject();
+    const second = subject({
+      id: "subject-2",
+      task: null,
+      links: [
+        {
+          sessionId: "session-2",
+          createdAt: "2026-06-09T00:05:00.000Z",
+          proposals: [
+            {
+              folderId: "folder-b",
+              changeId: "change-1",
+              createdAt: "2026-06-09T00:06:00.000Z",
+            },
+          ],
+          plans: [],
+        },
+      ],
+    });
+
+    expect(buildIndexFromSubjects([first, second]).proposals).toMatchObject({
+      "folder-a\0change-1": "subject-1",
+      "folder-b\0change-1": "subject-2",
+    });
   });
 });

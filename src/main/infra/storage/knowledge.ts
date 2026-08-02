@@ -8,6 +8,8 @@ export {
 export type {
   KnowledgeAnchorStatusDetail,
   KnowledgeAnchorStatusResult,
+  KnowledgeEvidenceFolder,
+  KnowledgeEvidenceScope,
   KnowledgeIndex,
   KnowledgeIndexEntry,
   KnowledgeIndexError,

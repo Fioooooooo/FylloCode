@@ -31,6 +31,7 @@ import { prependReminderToLastUserMessage } from "@main/infra/storage/message-re
 import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-session-store";
 import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
+import { recordProposalContinuation } from "@main/services/insight/lineage/lineage-service";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
 
 export function registerProposalApplyHandlers(): void {
@@ -100,6 +101,20 @@ export function registerProposalApplyHandlers(): void {
           },
           sessionId: fylloSessionId,
         });
+        const continuation = await recordProposalContinuation(
+          form.workspaceId,
+          fylloSessionId,
+          proposalRef
+        ).catch((error: unknown) => ({
+          status: "failed" as const,
+          error: {
+            type: error instanceof Error ? error.name : "UnknownError",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+        if (continuation.status === "failed" || continuation.status === "conflict") {
+          logger.warn("[proposal-apply] failed to record lineage continuation", continuation);
+        }
         const userMessage = buildProposalRunUserMessage(fylloSessionId, prompt);
         try {
           await appendApplyRunMessage(form.workspaceId, proposalRef, form.stageIndex, userMessage);
@@ -129,6 +144,8 @@ export function registerProposalApplyHandlers(): void {
             stageIndex: form.stageIndex,
             runId: form.runId,
             worktreePath: repositoryTarget.worktreePath,
+            folderId: ownerFolder.folderId,
+            folderName: ownerFolder.folderName,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(

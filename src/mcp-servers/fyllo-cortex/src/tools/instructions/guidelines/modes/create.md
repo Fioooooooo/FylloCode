@@ -1,6 +1,6 @@
 Create a new guideline document for a convention this repository must keep, using the provided `state`.
 
-**State**: `state.guidelines` is the current index. `state.agentsFile` reports the `AGENTS.md` index status. `state.topic` echoes the requested topic.
+**State**: `state.folderId` and `state.folderPath` identify the authorized repository owner. Resolve every repository-relative path below against that Folder only. `state.guidelines` is the current index. `state.agentsFile` reports the `AGENTS.md` index status. `state.topic` echoes the requested topic.
 
 **Steps**
 

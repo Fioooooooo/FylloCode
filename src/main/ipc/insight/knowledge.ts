@@ -6,7 +6,6 @@ import {
   readKnowledgeEntryInputSchema,
   saveKnowledgeEntryInputSchema,
 } from "@shared/ipc/insight/knowledge.schemas";
-import { resolveWorkspaceCwd } from "@main/services/session/chat/chat-service";
 import {
   deleteKnowledgeEntry,
   getKnowledgeBrowser,
@@ -16,14 +15,18 @@ import {
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
 import { requireWorkspaceSender } from "../_kit/workspace-scope";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 
 export function registerKnowledgeHandlers(): void {
   ipcMain.handle(InsightKnowledgeChannels.getBrowser, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getKnowledgeBrowserInputSchema, input);
       requireWorkspaceSender(event.sender, form.workspaceId);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      return getKnowledgeBrowser(form.workspaceId, workspaceCwd);
+      const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
+      return getKnowledgeBrowser(
+        form.workspaceId,
+        workspace.availableFolders.map(({ folderId, folderPath }) => ({ folderId, folderPath }))
+      );
     })
   );
 

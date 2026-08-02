@@ -80,6 +80,7 @@ describe("lineage browser", () => {
             plans: [{ slug: "2026-07-03-plan-one", createdAt: "2026-07-03T01:00:00.000Z" }],
             proposals: [
               {
+                folderId: "folder-1",
                 changeId: "change-one",
                 createdAt: "2026-07-03T02:00:00.000Z",
                 commitHash: "abc123",
@@ -100,6 +101,8 @@ describe("lineage browser", () => {
     mocks.readProposalFiles.mockResolvedValue([
       {
         id: "2026-07-09-change-one",
+        proposalRef: { folderId: "folder-1", changeId: "change-one" },
+        folderName: "Primary",
         title: "Change One",
         status: "archived",
       },
@@ -112,7 +115,9 @@ describe("lineage browser", () => {
       body: "",
     });
 
-    const result = await getLineageBrowser("workspace-1", "/tmp/project");
+    const result = await getLineageBrowser("workspace-1", [
+      { folderId: "folder-1", folderPath: "/tmp/project" },
+    ]);
 
     expect(result.entries.map((entry) => entry.subjectId)).toEqual(["newer", "older"]);
     expect(result.entries[0]).toMatchObject({
@@ -126,7 +131,11 @@ describe("lineage browser", () => {
           plans: [{ goal: "验证恢复路径", status: "approved" }],
           proposals: [
             {
+              key: "folder-1\0change-one",
+              proposalRef: { folderId: "folder-1", changeId: "change-one" },
               changeId: "change-one",
+              folderId: "folder-1",
+              folderName: "Primary",
               title: "Change One",
               status: "archived",
               commitHash: "abc123",
@@ -145,13 +154,21 @@ describe("lineage browser", () => {
             sessionId: "session-missing",
             createdAt: "2026-07-03T00:00:00.000Z",
             plans: [{ slug: "2026-07-03-plan-missing", createdAt: "2026-07-03T01:00:00.000Z" }],
-            proposals: [{ changeId: "change-missing", createdAt: "2026-07-03T02:00:00.000Z" }],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "change-missing",
+                createdAt: "2026-07-03T02:00:00.000Z",
+              },
+            ],
           },
         ],
       }),
     ]);
 
-    const result = await getLineageBrowser("workspace-1", "/tmp/project");
+    const result = await getLineageBrowser("workspace-1", [
+      { folderId: "folder-1", folderPath: "/tmp/project" },
+    ]);
 
     expect(result.entries[0]).toMatchObject({
       status: "planned",
@@ -163,14 +180,84 @@ describe("lineage browser", () => {
           createdAt: "2026-07-03T00:00:00.000Z",
           updatedAt: "2026-07-03T00:00:00.000Z",
           plans: [{ slug: "2026-07-03-plan-missing", goal: null, status: null }],
-          proposals: [{ changeId: "change-missing", title: null, status: null, commitHash: null }],
+          proposals: [
+            {
+              key: "folder-1\0change-missing",
+              proposalRef: { folderId: "folder-1", changeId: "change-missing" },
+              changeId: "change-missing",
+              folderId: "folder-1",
+              folderName: null,
+              title: null,
+              status: null,
+              commitHash: null,
+            },
+          ],
         },
       ],
     });
   });
 
+  it("keeps same-name proposals in different Folders distinct", async () => {
+    mocks.listSubjects.mockResolvedValue([
+      subject({
+        links: [
+          {
+            sessionId: "session-1",
+            createdAt: "2026-07-03T00:00:00.000Z",
+            plans: [],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "same-change",
+                createdAt: "2026-07-03T01:00:00.000Z",
+              },
+              {
+                folderId: "folder-2",
+                changeId: "same-change",
+                createdAt: "2026-07-03T02:00:00.000Z",
+              },
+            ],
+          },
+        ],
+      }),
+    ]);
+    mocks.readProposalFiles.mockImplementation(async (folderPath: string) => {
+      const folderId = folderPath.endsWith("one") ? "folder-1" : "folder-2";
+      return [
+        {
+          id: "same-change",
+          proposalRef: { folderId, changeId: "same-change" },
+          folderName: folderId === "folder-1" ? "One" : "Two",
+          title: folderId === "folder-1" ? "Change One" : "Change Two",
+          status: "draft",
+        },
+      ];
+    });
+
+    const result = await getLineageBrowser("workspace-1", [
+      { folderId: "folder-1", folderPath: "/repo/one" },
+      { folderId: "folder-2", folderPath: "/repo/two" },
+    ]);
+    expect(result.entries[0]?.sessions[0]?.proposals).toEqual([
+      expect.objectContaining({
+        key: "folder-1\0same-change",
+        proposalRef: { folderId: "folder-1", changeId: "same-change" },
+        folderName: "One",
+        title: "Change One",
+      }),
+      expect.objectContaining({
+        key: "folder-2\0same-change",
+        proposalRef: { folderId: "folder-2", changeId: "same-change" },
+        folderName: "Two",
+        title: "Change Two",
+      }),
+    ]);
+  });
+
   it("returns an empty browser without invoking plan reads or writes", async () => {
-    await expect(getLineageBrowser("workspace-1", "/tmp/project")).resolves.toEqual({
+    await expect(
+      getLineageBrowser("workspace-1", [{ folderId: "folder-1", folderPath: "/tmp/project" }])
+    ).resolves.toEqual({
       entries: [],
     });
     expect(mocks.readPlan).not.toHaveBeenCalled();

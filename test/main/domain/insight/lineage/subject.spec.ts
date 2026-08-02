@@ -77,10 +77,30 @@ describe("lineage subject domain", () => {
       "session-2",
       now
     );
-    const withFirst = appendProposal(subject, "session-1", "change-1", later);
-    const duplicate = appendProposal(withFirst, "session-1", "change-1", later);
-    const withSecond = appendProposal(withFirst, "session-1", "change-2", later);
-    const missingSession = appendProposal(withSecond, "session-missing", "change-3", later);
+    const withFirst = appendProposal(
+      subject,
+      "session-1",
+      { folderId: "folder-a", changeId: "change-1" },
+      later
+    );
+    const duplicate = appendProposal(
+      withFirst,
+      "session-1",
+      { folderId: "folder-a", changeId: "change-1" },
+      later
+    );
+    const withSecond = appendProposal(
+      withFirst,
+      "session-1",
+      { folderId: "folder-a", changeId: "change-2" },
+      later
+    );
+    const missingSession = appendProposal(
+      withSecond,
+      "session-missing",
+      { folderId: "folder-a", changeId: "change-3" },
+      later
+    );
 
     expect(duplicate).toBe(withFirst);
     expect(missingSession).toBe(withSecond);
@@ -89,13 +109,47 @@ describe("lineage subject domain", () => {
         sessionId: "session-1",
         createdAt: now,
         proposals: [
-          { changeId: "change-1", createdAt: later },
-          { changeId: "change-2", createdAt: later },
+          { folderId: "folder-a", changeId: "change-1", createdAt: later },
+          { folderId: "folder-a", changeId: "change-2", createdAt: later },
         ],
         plans: [],
       },
       { sessionId: "session-2", createdAt: now, proposals: [], plans: [] },
     ]);
+  });
+
+  it("uses Folder-qualified proposal identity for idempotency", () => {
+    const subject = upsertSessionLink(
+      buildSubject("chat", null, now, "subject-1"),
+      "session-1",
+      now
+    );
+    const first = appendProposal(
+      subject,
+      "session-1",
+      { folderId: "folder-a", changeId: "same-change" },
+      later
+    );
+    const second = appendProposal(
+      first,
+      "session-1",
+      { folderId: "folder-b", changeId: "same-change" },
+      later
+    );
+
+    expect(second.links[0]?.proposals).toHaveLength(2);
+  });
+
+  it("rejects a proposal without a Folder owner", () => {
+    const subject = upsertSessionLink(
+      buildSubject("chat", null, now, "subject-1"),
+      "session-1",
+      now
+    );
+
+    expect(() =>
+      appendProposal(subject, "session-1", { folderId: "", changeId: "change-1" }, later)
+    ).toThrow(/folderId/);
   });
 
   it("appends multiple plans per session and keeps duplicates idempotent", () => {

@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   deleteKnowledgeEntry,
@@ -108,7 +108,11 @@ describe("knowledge document service", () => {
     await writeFile(join(knowledgeRoot, "broken-entry.md"), "not frontmatter", "utf8");
     await writeFile(join(knowledgeRoot, "broken entry.md"), "still broken", "utf8");
 
-    await expect(getKnowledgeBrowser(tempRoot, tempRoot, { knowledgeRoot })).resolves.toEqual({
+    await expect(
+      getKnowledgeBrowser(tempRoot, [{ folderId: "folder-1", folderPath: tempRoot }], {
+        knowledgeRoot,
+      })
+    ).resolves.toEqual({
       entries: [
         {
           name: "markstream-vue-theme-subscription",
@@ -135,10 +139,53 @@ describe("knowledge document service", () => {
   });
 
   it("treats a missing knowledge directory as an empty browser", async () => {
-    await expect(getKnowledgeBrowser(tempRoot, tempRoot, { knowledgeRoot })).resolves.toEqual({
+    await expect(
+      getKnowledgeBrowser(tempRoot, [{ folderId: "folder-1", folderPath: tempRoot }], {
+        knowledgeRoot,
+      })
+    ).resolves.toEqual({
       entries: [],
       errors: [],
     });
+  });
+
+  it("does not fall back to another Folder for an unauthorized anchor owner", async () => {
+    const evidenceFile = join(tempRoot, "src", "same.ts");
+    await mkdir(dirname(evidenceFile), { recursive: true });
+    const content = "export const value = 1;\n";
+    await writeFile(evidenceFile, content, "utf8");
+    await mkdir(knowledgeRoot, { recursive: true });
+    await writeFile(
+      join(knowledgeRoot, "foreign-owner.md"),
+      serializeKnowledgeEntry({
+        name: "foreign-owner",
+        description: "Evidence belongs to another Folder",
+        type: "project",
+        createdAt: "2026-07-01T00:00:00.000Z",
+        updatedAt: "2026-07-02T00:00:00.000Z",
+        anchors: [
+          {
+            kind: "file",
+            folderId: "folder-outside",
+            file: "src/same.ts",
+            hash: await import("node:crypto").then(({ createHash }) =>
+              createHash("sha256").update(content).digest("hex")
+            ),
+          },
+        ],
+        body: "Do not validate against the available Folder.",
+      }),
+      "utf8"
+    );
+
+    const browser = await getKnowledgeBrowser(
+      tempRoot,
+      [{ folderId: "folder-available", folderPath: tempRoot }],
+      { knowledgeRoot }
+    );
+    expect(browser.entries).toEqual([
+      expect.objectContaining({ name: "foreign-owner", status: "unknown" }),
+    ]);
   });
 
   it("deletes one validated knowledge entry", async () => {

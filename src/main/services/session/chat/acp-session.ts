@@ -61,6 +61,8 @@ interface ReminderContext {
   stageIndex?: number;
   runId?: string;
   worktreePath?: string;
+  folderId?: string;
+  folderName?: string;
   taskRef?: LineageTaskRef;
   taskTitle?: string;
 }

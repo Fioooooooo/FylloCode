@@ -37,6 +37,9 @@ const mocks = vi.hoisted(() => {
     validateApplyRunTarget: vi.fn(),
     getRequiredWorkspaceInfo: vi.fn(),
     createOwnerMcpWorkspaceDescriptor: vi.fn(),
+    recordProposalContinuation: vi.fn(),
+    recordDiscoveredProposalCommit: vi.fn(),
+    buildArchiveCommitIndex: vi.fn(),
     updateRunMetaIfCurrent: vi.fn(),
     getCompletedApplyStageIndex: vi.fn(),
     assemblerApply: vi.fn(),
@@ -105,6 +108,15 @@ vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
   createOwnerMcpWorkspaceDescriptor: mocks.createOwnerMcpWorkspaceDescriptor,
 }));
 
+vi.mock("@main/services/insight/lineage/lineage-service", () => ({
+  recordProposalContinuation: mocks.recordProposalContinuation,
+  recordDiscoveredProposalCommit: mocks.recordDiscoveredProposalCommit,
+}));
+
+vi.mock("@main/services/insight/overview/archive-commit-index", () => ({
+  buildArchiveCommitIndex: mocks.buildArchiveCommitIndex,
+}));
+
 vi.mock("@main/services/session/chat/session-registry", () => ({
   sessionRegistry: {
     register: mocks.register,
@@ -159,6 +171,12 @@ describe("registerProposalApplyHandlers", () => {
     vi.clearAllMocks();
     mocks.eventHandler = null;
     mocks.onReady = null;
+    mocks.recordProposalContinuation.mockResolvedValue({ status: "recorded", subjectId: "s-1" });
+    mocks.recordDiscoveredProposalCommit.mockResolvedValue({
+      status: "recorded",
+      subjectId: "s-1",
+    });
+    mocks.buildArchiveCommitIndex.mockResolvedValue(new Map());
     mocks.getRequiredWorkspaceInfo.mockResolvedValue({
       id: "workspace-1",
       kind: "collection",
@@ -696,6 +714,8 @@ describe("registerProposalApplyHandlers", () => {
           stageIndex: 0,
           runId: "run-1",
           worktreePath: "/tmp/proposal-worktree",
+          folderId: "folder-secondary",
+          folderName: "Secondary",
         },
       })
     );
@@ -704,6 +724,10 @@ describe("registerProposalApplyHandlers", () => {
       { folderId: "folder-secondary", changeId: "change-1" },
       expect.objectContaining({ worktreePath: "/tmp/proposal-worktree" })
     );
+    expect(mocks.recordProposalContinuation).toHaveBeenCalledWith("workspace-1", "run-1-0", {
+      folderId: "folder-secondary",
+      changeId: "change-1",
+    });
     expect(mocks.createOwnerMcpWorkspaceDescriptor).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       workspaceKind: "collection",

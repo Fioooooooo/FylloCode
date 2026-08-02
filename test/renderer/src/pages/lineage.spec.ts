@@ -103,6 +103,13 @@ function browserData(): LineageBrowserData {
             ],
             proposals: [
               {
+                key: "folder-1\0add-lineage-browser-page",
+                proposalRef: {
+                  folderId: "folder-1",
+                  changeId: "add-lineage-browser-page",
+                },
+                folderId: "folder-1",
+                folderName: "Project",
                 changeId: "add-lineage-browser-page",
                 createdAt: "2026-07-12T00:00:00.000Z",
                 commitHash: "abcdef1234567890",
@@ -110,6 +117,10 @@ function browserData(): LineageBrowserData {
                 status: "applying",
               },
               {
+                key: "folder-2\0missing-proposal",
+                proposalRef: { folderId: "folder-2", changeId: "missing-proposal" },
+                folderId: "folder-2",
+                folderName: "Secondary",
                 changeId: "missing-proposal",
                 createdAt: "2026-07-12T00:00:00.000Z",
                 commitHash: null,
@@ -243,7 +254,10 @@ describe("lineage page", () => {
 
     expect(routerMock.push).toHaveBeenCalledWith("/task");
     expect(sessionMock.openChatSession).toHaveBeenCalledWith("session-1");
-    expect(proposalMock.openProposalDetail).toHaveBeenCalledWith("add-lineage-browser-page");
+    expect(proposalMock.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-1",
+      changeId: "add-lineage-browser-page",
+    });
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("abcdef1234567890");
     expect(toastMock.add).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Commit hash 已复制", color: "success" })

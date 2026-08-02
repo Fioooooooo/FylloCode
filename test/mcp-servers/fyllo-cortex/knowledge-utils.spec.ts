@@ -16,6 +16,10 @@ const hashB = "b".repeat(64);
 
 let root: string;
 
+function evidenceScope(folderPath = root) {
+  return { folders: [{ folderId: "folder-a", folderPath }] };
+}
+
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "fyllo-knowledge-"));
 });
@@ -34,6 +38,7 @@ function entry(overrides: Partial<KnowledgeEntryDraft> = {}): KnowledgeEntryDraf
     anchors: [
       {
         kind: "file",
+        folderId: "folder-a",
         file: "src/renderer/src/components/chat/MessageMarkdown.vue",
         hash: hashA,
       },
@@ -45,7 +50,7 @@ function entry(overrides: Partial<KnowledgeEntryDraft> = {}): KnowledgeEntryDraf
 
 describe("knowledge storage utils", () => {
   it("returns an empty index when the knowledge directory is missing", async () => {
-    await expect(readKnowledgeIndex(join(root, "knowledge"), root)).resolves.toEqual({
+    await expect(readKnowledgeIndex(join(root, "knowledge"), evidenceScope())).resolves.toEqual({
       entries: [],
       errors: [],
     });
@@ -85,7 +90,7 @@ describe("knowledge storage utils", () => {
       )
     );
 
-    const index = await readKnowledgeIndex(knowledgeRoot, root);
+    const index = await readKnowledgeIndex(knowledgeRoot, evidenceScope());
 
     expect(index.entries.map((item) => item.name)).toEqual([
       "api-contract-reference",
@@ -123,6 +128,7 @@ describe("knowledge storage utils", () => {
         "asOf: 2026-07-13",
         "anchors:",
         "  - file: src/example.ts",
+        "    folderId: folder-a",
         "    hash: 5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29",
         "  - url: https://example.com/streaming",
         "    verifiedAt: 2026-07-13T00:43:47+08:00",
@@ -134,7 +140,7 @@ describe("knowledge storage utils", () => {
       "utf8"
     );
 
-    const index = await readKnowledgeIndex(knowledgeRoot, root);
+    const index = await readKnowledgeIndex(knowledgeRoot, evidenceScope());
 
     expect(index.errors).toEqual([]);
     expect(index.entries).toHaveLength(1);
@@ -146,6 +152,7 @@ describe("knowledge storage utils", () => {
       anchors: [
         {
           kind: "file",
+          folderId: "folder-a",
           file: "src/example.ts",
           hash: "5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29",
         },
@@ -193,22 +200,24 @@ describe("knowledge storage utils", () => {
       "utf8"
     );
 
-    const activeFile = await computeKnowledgeAnchorStatus(root, [
+    const activeFile = await computeKnowledgeAnchorStatus(evidenceScope(), [
       {
         kind: "file",
+        folderId: "folder-a",
         file: "src/example.ts",
         hash: "5d8f65d2774e206bc9f7a7a4ad39ca2dc563b5c31e46ab57ef4874961237ce29",
       },
     ]);
-    const changedFile = await computeKnowledgeAnchorStatus(root, [
-      { kind: "file", file: "src/example.ts", hash: hashB },
+    const changedFile = await computeKnowledgeAnchorStatus(evidenceScope(), [
+      { kind: "file", folderId: "folder-a", file: "src/example.ts", hash: hashB },
     ]);
-    const missingFile = await computeKnowledgeAnchorStatus(root, [
-      { kind: "file", file: "src/missing.ts", hash: hashB },
+    const missingFile = await computeKnowledgeAnchorStatus(evidenceScope(), [
+      { kind: "file", folderId: "folder-a", file: "src/missing.ts", hash: hashB },
     ]);
-    const activePackage = await computeKnowledgeAnchorStatus(root, [
+    const activePackage = await computeKnowledgeAnchorStatus(evidenceScope(), [
       {
         kind: "package",
+        folderId: "folder-a",
         package: "@modelcontextprotocol/sdk",
         version: "1.20.0",
         resolutionDigest: sha256StableJson({
@@ -216,18 +225,19 @@ describe("knowledge storage utils", () => {
         }),
       },
     ]);
-    const changedPackage = await computeKnowledgeAnchorStatus(root, [
+    const changedPackage = await computeKnowledgeAnchorStatus(evidenceScope(), [
       {
         kind: "package",
+        folderId: "folder-a",
         package: "@modelcontextprotocol/sdk",
         version: "1.20.0",
         resolutionDigest: hashB,
       },
     ]);
-    const staleUrl = await computeKnowledgeAnchorStatus(root, [
+    const staleUrl = await computeKnowledgeAnchorStatus(evidenceScope(), [
       { kind: "url", url: "https://example.com", verifiedAt: "2026-01-01T00:00:00.000Z" },
     ]);
-    const auditExempt = await computeKnowledgeAnchorStatus(root, undefined);
+    const auditExempt = await computeKnowledgeAnchorStatus(evidenceScope(), undefined);
 
     expect(activeFile.status).toBe("active");
     expect(changedFile.status).toBe("suspect");
@@ -236,5 +246,55 @@ describe("knowledge storage utils", () => {
     expect(changedPackage.status).toBe("suspect");
     expect(staleUrl.status).toBe("suspect");
     expect(auditExempt).toEqual({ status: "active", details: [] });
+  });
+
+  it("validates the same relative path only in the anchor owner Folder", async () => {
+    const folderA = join(root, "repo-a");
+    const folderB = join(root, "repo-b");
+    await mkdir(join(folderA, "src"), { recursive: true });
+    await mkdir(join(folderB, "src"), { recursive: true });
+    await writeFile(join(folderA, "src", "shared.ts"), "export const owner = 'a';\n", "utf8");
+    const folderBContent = "export const owner = 'b';\n";
+    await writeFile(join(folderB, "src", "shared.ts"), folderBContent, "utf8");
+
+    const result = await computeKnowledgeAnchorStatus(
+      {
+        folders: [
+          { folderId: "folder-a", folderPath: folderA },
+          { folderId: "folder-b", folderPath: folderB },
+        ],
+      },
+      [
+        {
+          kind: "file",
+          folderId: "folder-b",
+          file: "src/shared.ts",
+          hash: await import("node:crypto").then(({ createHash }) =>
+            createHash("sha256").update(folderBContent).digest("hex")
+          ),
+        },
+      ]
+    );
+
+    expect(result.status).toBe("active");
+  });
+
+  it("marks repository sources unknown when their Folder owner is unavailable", async () => {
+    const knowledgeRoot = join(root, "knowledge");
+    await mkdir(knowledgeRoot, { recursive: true });
+    await writeFile(
+      join(knowledgeRoot, "commit-source.md"),
+      serializeKnowledgeEntry(
+        entry({
+          name: "commit-source",
+          anchors: undefined,
+          source: { kind: "commit", folderId: "folder-outside", commitHash: "abcdef1" },
+        })
+      )
+    );
+
+    const index = await readKnowledgeIndex(knowledgeRoot, evidenceScope());
+    expect(index.errors).toEqual([]);
+    expect(index.entries[0]).toMatchObject({ name: "commit-source", status: "unknown" });
   });
 });

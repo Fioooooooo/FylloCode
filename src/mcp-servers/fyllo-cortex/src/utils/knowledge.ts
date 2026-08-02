@@ -14,6 +14,7 @@ import type {
   KnowledgeComputedStatus,
   KnowledgeEntryDraft,
   KnowledgeEntryFrontmatter,
+  KnowledgeSource,
 } from "@shared/types/knowledge";
 
 // 匹配 knowledge entry 的 YAML frontmatter，允许可选的 BOM 与 CRLF 换行。
@@ -47,6 +48,15 @@ export interface KnowledgeAnchorStatusDetail {
 export interface KnowledgeAnchorStatusResult {
   status: KnowledgeComputedStatus;
   details: KnowledgeAnchorStatusDetail[];
+}
+
+export interface KnowledgeEvidenceFolder {
+  folderId: string;
+  folderPath: string;
+}
+
+export interface KnowledgeEvidenceScope {
+  folders: readonly KnowledgeEvidenceFolder[];
 }
 
 export interface WriteKnowledgeEntryOptions {
@@ -303,7 +313,7 @@ export async function writeKnowledgeEntry(
 
 async function buildKnowledgeIndexEntry(
   knowledgeRoot: string,
-  projectRoot: string | undefined,
+  evidenceScope: KnowledgeEvidenceScope | undefined,
   filename: string
 ): Promise<{ entry?: KnowledgeIndexEntry; error?: KnowledgeIndexError }> {
   const filePath = path.join(knowledgeRoot, filename);
@@ -327,17 +337,20 @@ async function buildKnowledgeIndexEntry(
       throw new Error(`knowledge entry filename does not match frontmatter name: ${parsed.name}`);
     }
 
-    const status = projectRoot
-      ? await computeKnowledgeAnchorStatus(projectRoot, parsed.anchors)
+    const anchorStatus = evidenceScope
+      ? await computeKnowledgeAnchorStatus(evidenceScope, parsed.anchors)
       : { status: "unknown" as const, details: [] };
+    const sourceStatus = evidenceScope
+      ? await computeKnowledgeSourceOwnerStatus(evidenceScope, parsed.source)
+      : "unknown";
 
     return {
       entry: {
         ...parsed,
         path: filename,
         contentHash: sha256(content),
-        status: status.status,
-        statusDetails: status.details,
+        status: sourceStatus === "unknown" ? "unknown" : anchorStatus.status,
+        statusDetails: anchorStatus.details,
       },
     };
   } catch (error) {
@@ -353,7 +366,7 @@ async function buildKnowledgeIndexEntry(
 
 export async function readKnowledgeIndex(
   knowledgeRoot: string,
-  projectRoot?: string
+  evidenceScope?: KnowledgeEvidenceScope
 ): Promise<KnowledgeIndex> {
   let filenames: string[];
   try {
@@ -373,7 +386,7 @@ export async function readKnowledgeIndex(
   const seenNames = new Set<string>();
 
   for (const filename of filenames) {
-    const result = await buildKnowledgeIndexEntry(knowledgeRoot, projectRoot, filename);
+    const result = await buildKnowledgeIndexEntry(knowledgeRoot, evidenceScope, filename);
     if (result.error) {
       index.errors.push(result.error);
       continue;
@@ -419,6 +432,34 @@ function combineStatuses(details: KnowledgeAnchorStatusDetail[]): KnowledgeCompu
   return "active";
 }
 
+function sourceFolderIds(source: KnowledgeSource | undefined): string[] {
+  if (!source || source.kind === "session") {
+    return [];
+  }
+  if (source.kind === "commit") {
+    return [source.folderId];
+  }
+  return [...new Set([source.proposalRef?.folderId, source.folderId].filter(Boolean))] as string[];
+}
+
+async function computeKnowledgeSourceOwnerStatus(
+  evidenceScope: KnowledgeEvidenceScope,
+  source: KnowledgeSource | undefined
+): Promise<"active" | "unknown"> {
+  for (const folderId of sourceFolderIds(source)) {
+    const owner = evidenceScope.folders.find((folder) => folder.folderId === folderId);
+    if (!owner) {
+      return "unknown";
+    }
+    try {
+      await access(owner.folderPath, constants.F_OK);
+    } catch {
+      return "unknown";
+    }
+  }
+  return "active";
+}
+
 function resolveProjectRelativePath(projectRoot: string, relativePath: string): string | null {
   const parsedPath = projectRelativePathSchema.safeParse(relativePath);
   if (!parsedPath.success) {
@@ -435,9 +476,15 @@ function resolveProjectRelativePath(projectRoot: string, relativePath: string): 
 }
 
 async function computeFileAnchorStatus(
-  projectRoot: string,
+  evidenceScope: KnowledgeEvidenceScope,
   anchor: Extract<KnowledgeAnchor, { kind: "file" }>
 ): Promise<KnowledgeAnchorStatusDetail> {
+  const projectRoot = evidenceScope.folders.find(
+    (folder) => folder.folderId === anchor.folderId
+  )?.folderPath;
+  if (!projectRoot) {
+    return { anchor, status: "unknown", reason: "Folder evidence owner is unavailable" };
+  }
   const filePath = resolveProjectRelativePath(projectRoot, anchor.file);
   if (!filePath) {
     return { anchor, status: "unknown", reason: "invalid file path" };
@@ -464,9 +511,15 @@ function packageKeyMatches(key: string, anchor: Extract<KnowledgeAnchor, { kind:
 }
 
 async function computePackageAnchorStatus(
-  projectRoot: string,
+  evidenceScope: KnowledgeEvidenceScope,
   anchor: Extract<KnowledgeAnchor, { kind: "package" }>
 ): Promise<KnowledgeAnchorStatusDetail> {
+  const projectRoot = evidenceScope.folders.find(
+    (folder) => folder.folderId === anchor.folderId
+  )?.folderPath;
+  if (!projectRoot) {
+    return { anchor, status: "unknown", reason: "Folder evidence owner is unavailable" };
+  }
   try {
     const lockContent = await readFile(path.join(projectRoot, "pnpm-lock.yaml"), "utf8");
     const parsed = load(lockContent);
@@ -513,7 +566,7 @@ function computeUrlAnchorStatus(
 }
 
 export async function computeKnowledgeAnchorStatus(
-  projectRoot: string,
+  evidenceScope: KnowledgeEvidenceScope,
   anchors: KnowledgeAnchor[] | undefined,
   options: { now?: Date } = {}
 ): Promise<KnowledgeAnchorStatusResult> {
@@ -526,9 +579,9 @@ export async function computeKnowledgeAnchorStatus(
 
   for (const anchor of anchors) {
     if (anchor.kind === "file") {
-      details.push(await computeFileAnchorStatus(projectRoot, anchor));
+      details.push(await computeFileAnchorStatus(evidenceScope, anchor));
     } else if (anchor.kind === "package") {
-      details.push(await computePackageAnchorStatus(projectRoot, anchor));
+      details.push(await computePackageAnchorStatus(evidenceScope, anchor));
     } else {
       details.push(computeUrlAnchorStatus(anchor, now));
     }

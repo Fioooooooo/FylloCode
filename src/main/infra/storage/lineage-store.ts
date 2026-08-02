@@ -22,7 +22,7 @@ import type {
 
 type JsonRecord = Record<string, unknown>;
 
-const LINEAGE_INDEX_VERSION = 1 as const;
+const LINEAGE_INDEX_VERSION = 2 as const;
 
 // Per-file write queues: serialize all writes to the same lineage file so that concurrent
 // updates never interleave or produce torn writes. The lock is implemented as a promise
@@ -194,10 +194,9 @@ function normalizeTaskItem(value: unknown): TaskItem | null {
     sourceMeta: normalizeSourceMeta(source, value.sourceMeta),
     labels: normalizeLabels(value.labels),
     assignee: normalizeAssignee(value.assignee),
-    originSessionId:
-      typeof value.originSessionId === "string" && value.originSessionId.length > 0
-        ? value.originSessionId
-        : undefined,
+    ...(typeof value.originSessionId === "string" && value.originSessionId.length > 0
+      ? { originSessionId: value.originSessionId }
+      : {}),
     createdAt,
     updatedAt,
   };
@@ -223,6 +222,8 @@ function normalizeTaskSnapshot(value: unknown): LineageTaskSnapshot | null {
 function normalizeProposalLink(value: unknown): LineageProposalLink | null {
   if (
     !isRecord(value) ||
+    typeof value.folderId !== "string" ||
+    value.folderId.length === 0 ||
     typeof value.changeId !== "string" ||
     typeof value.createdAt !== "string"
   ) {
@@ -230,6 +231,7 @@ function normalizeProposalLink(value: unknown): LineageProposalLink | null {
   }
 
   return {
+    folderId: value.folderId,
     changeId: value.changeId,
     createdAt: value.createdAt,
     commitHash:

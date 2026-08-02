@@ -9,7 +9,7 @@ import {
 import { execFileSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types/guideline";
 import { registerTools } from "../../../src/mcp-servers/fyllo-cortex/src/tools";
@@ -21,6 +21,10 @@ import type { KnowledgeEntryDraft } from "../../../src/shared/types/knowledge";
 
 vi.mock("../../../src/mcp-servers/shared/workspace-context", () => ({
   getWorkspaceContext: () => {
+    const override = process.env.FYLLO_TEST_WORKSPACE_JSON;
+    if (override) {
+      return JSON.parse(override);
+    }
     const folderPath = process.env.FYLLO_PROJECT_PATH ?? process.cwd();
     return {
       version: 2,
@@ -129,6 +133,9 @@ function expectTextContent(result: CallToolResult): string {
 
 type GuidelinesState = {
   mode?: string;
+  folderId?: string;
+  folderName?: string;
+  folderPath?: string;
   guidelinesRoot?: string;
   reason?: string;
   topic?: string;
@@ -142,7 +149,7 @@ type GuidelinesState = {
     keywords: string[] | null;
     parseError?: string;
   };
-  errors?: Array<{ type: string; message: string }>;
+  errors?: Array<{ type: string; message: string; details?: Record<string, unknown> }>;
 };
 
 function parseGuidelinesState(text: string): GuidelinesState {
@@ -233,11 +240,42 @@ async function createLineageFixture(
   await writeFile(
     join(lineageDir, "index.json"),
     JSON.stringify({
-      version: 1,
+      version: 2,
       tasks: {},
       sessions: {},
-      proposals: index.proposals ?? {},
-      commitHashes: index.commitHashes ?? {},
+      proposals: Object.fromEntries(
+        Object.entries(index.proposals ?? {}).map(([key, value]) => [`folder-test\0${key}`, value])
+      ),
+      commitHashes: Object.fromEntries(
+        Object.entries(index.commitHashes ?? {}).map(([key, value]) => [
+          `folder-test\0${key}`,
+          value,
+        ])
+      ),
+      updatedAt: "2026-06-16T00:00:00.000Z",
+    })
+  );
+
+  const repositoryIndexPath = repositoryLineageFixturePath(dataDir, "folder-test");
+  await mkdir(dirname(repositoryIndexPath), { recursive: true });
+  const relation = (subjectId: string) => [
+    {
+      workspaceId: "workspace-test",
+      subjectId,
+      relation: "origin",
+      linkedAt: "2026-06-16T00:00:00.000Z",
+    },
+  ];
+  await writeFile(
+    repositoryIndexPath,
+    JSON.stringify({
+      version: 2,
+      proposals: Object.fromEntries(
+        Object.entries(index.proposals ?? {}).map(([key, value]) => [key, relation(value)])
+      ),
+      commits: Object.fromEntries(
+        Object.entries(index.commitHashes ?? {}).map(([key, value]) => [key, relation(value)])
+      ),
       updatedAt: "2026-06-16T00:00:00.000Z",
     })
   );
@@ -245,6 +283,10 @@ async function createLineageFixture(
   for (const subject of subjects) {
     await writeFile(join(subjectsDir, `${subject.id}.json`), JSON.stringify(subject.content));
   }
+}
+
+function repositoryLineageFixturePath(dataDir: string, folderId: string): string {
+  return join(dirname(dirname(dataDir)), "workspace-folders", folderId, "lineage", "index.json");
 }
 
 function makeSubject(options: {
@@ -270,6 +312,7 @@ function makeSubject(options: {
     sessionId: string;
     createdAt: string;
     proposals: Array<{
+      folderId?: string;
       changeId: string;
       createdAt: string;
       commitHash?: string;
@@ -284,7 +327,13 @@ function makeSubject(options: {
     id: options.id,
     origin: options.origin,
     task: options.task ?? null,
-    links: options.links,
+    links: options.links.map((link) => ({
+      ...link,
+      proposals: link.proposals.map((proposal) => ({
+        folderId: proposal.folderId ?? "folder-test",
+        ...proposal,
+      })),
+    })),
     createdAt: "2026-06-16T00:00:00.000Z",
     updatedAt: "2026-06-16T00:01:00.000Z",
   };
@@ -363,7 +412,7 @@ describe("fyllo-cortex tools", () => {
               enum: ["trace-proposal", "trace-commit", "trace-file"],
             },
           },
-          required: ["mode"],
+          required: ["mode", "folderId"],
           additionalProperties: false,
         });
 
@@ -564,6 +613,7 @@ describe("fyllo-cortex tools", () => {
             anchors: [
               {
                 kind: "file",
+                folderId: "folder-test",
                 file: "src/example.ts",
                 hash: "b".repeat(64),
               },
@@ -586,6 +636,59 @@ describe("fyllo-cortex tools", () => {
         expect(state.approximateRenderedIndexTokens).toEqual(expect.any(Number));
         expect(state.approximateRenderedIndexTokens ?? 0).toBeGreaterThan(0);
       } finally {
+        await close();
+      }
+    });
+
+    it("keeps Workspace knowledge separate while validating a secondary Folder anchor", async () => {
+      const originalWorkspaceJson = process.env.FYLLO_TEST_WORKSPACE_JSON;
+      const folderA = join(tmpProjectPath, "folder-a");
+      const folderB = join(tmpProjectPath, "folder-b");
+      const { client, close } = await createToolClient();
+      try {
+        await mkdir(join(folderA, "src"), { recursive: true });
+        await mkdir(join(folderB, "src"), { recursive: true });
+        await writeFile(join(folderA, "src", "shared.ts"), "export const owner = 'a';\n");
+        const folderBContent = "export const owner = 'b';\n";
+        await writeFile(join(folderB, "src", "shared.ts"), folderBContent);
+        await writeKnowledgeFixture(
+          tmpDataDir,
+          makeKnowledgeEntry({
+            anchors: [
+              {
+                kind: "file",
+                folderId: "folder-b",
+                file: "src/shared.ts",
+                hash: sha256(folderBContent),
+              },
+            ],
+            source: undefined,
+          })
+        );
+        process.env.FYLLO_TEST_WORKSPACE_JSON = JSON.stringify({
+          version: 2,
+          workspaceId: "workspace-multi",
+          workspaceKind: "collection",
+          primaryFolderId: "folder-a",
+          folders: [
+            { folderId: "folder-a", folderName: "A", folderPath: folderA },
+            { folderId: "folder-b", folderName: "B", folderPath: folderB },
+          ],
+          workspaceDataDir: tmpDataDir,
+        });
+
+        const state = parseKnowledgeState(
+          expectTextContent(
+            await callKnowledge(client, { mode: "audit", includeInstruction: false })
+          )
+        );
+        expect(state.knowledgeRoot).toBe(join(tmpDataDir, "knowledge"));
+        expect(state.index?.entries[0]).toMatchObject({
+          name: "renderer-theme-subscription",
+          status: "active",
+        });
+      } finally {
+        setEnv("FYLLO_TEST_WORKSPACE_JSON", originalWorkspaceJson);
         await close();
       }
     });
@@ -618,6 +721,8 @@ describe("fyllo-cortex tools", () => {
 
         const state = parseGuidelinesState(text);
         expect(state.mode).toBe("init");
+        expect(state.folderId).toBe("folder-test");
+        expect(state.folderPath).toBe(tmpDir);
         expect(state.guidelinesRoot).toBe("guidelines");
         expect(state.guidelines).toEqual([]);
         expect(state.agentsFile).toEqual({
@@ -627,6 +732,131 @@ describe("fyllo-cortex tools", () => {
         });
       } finally {
         setEnv("FYLLO_PROJECT_PATH", originalProjectPath);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("resolves an explicit secondary Folder without reading the primary Folder", async () => {
+      const originalWorkspaceJson = process.env.FYLLO_TEST_WORKSPACE_JSON;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-multi-"));
+      const primaryPath = join(tmpDir, "primary");
+      const secondaryPath = join(tmpDir, "secondary");
+      const { client, close } = await createToolClient();
+
+      try {
+        await mkdir(join(primaryPath, "guidelines"), { recursive: true });
+        await mkdir(join(secondaryPath, "guidelines"), { recursive: true });
+        await writeFile(
+          join(primaryPath, "guidelines", "Testing.md"),
+          "---\nname: Primary Testing\ndescription: primary\n---\n"
+        );
+        await writeFile(
+          join(secondaryPath, "guidelines", "Testing.md"),
+          "---\nname: Secondary Testing\ndescription: secondary\n---\n"
+        );
+        process.env.FYLLO_TEST_WORKSPACE_JSON = JSON.stringify({
+          version: 2,
+          workspaceId: "workspace-multi",
+          workspaceKind: "collection",
+          primaryFolderId: "folder-primary",
+          folders: [
+            {
+              folderId: "folder-primary",
+              folderName: "Primary",
+              folderPath: primaryPath,
+            },
+            {
+              folderId: "folder-secondary",
+              folderName: "Secondary",
+              folderPath: secondaryPath,
+            },
+          ],
+          workspaceDataDir: join(tmpDir, "data"),
+        });
+
+        const result = await callGuidelines(client, {
+          mode: "update",
+          folderId: "folder-secondary",
+          path: "guidelines/Testing.md",
+          includeInstruction: false,
+        });
+        const state = parseGuidelinesState(expectTextContent(result));
+        expect(state).toMatchObject({
+          folderId: "folder-secondary",
+          folderName: "Secondary",
+          folderPath: secondaryPath,
+          target: {
+            path: "guidelines/Testing.md",
+            name: "Secondary Testing",
+            description: "secondary",
+          },
+        });
+      } finally {
+        setEnv("FYLLO_TEST_WORKSPACE_JSON", originalWorkspaceJson);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("requires an explicit owner in a multi-root Workspace", async () => {
+      const originalWorkspaceJson = process.env.FYLLO_TEST_WORKSPACE_JSON;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-multi-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_TEST_WORKSPACE_JSON = JSON.stringify({
+          version: 2,
+          workspaceId: "workspace-multi",
+          workspaceKind: "collection",
+          primaryFolderId: "folder-a",
+          folders: [
+            { folderId: "folder-a", folderName: "A", folderPath: join(tmpDir, "a") },
+            { folderId: "folder-b", folderName: "B", folderPath: join(tmpDir, "b") },
+          ],
+          workspaceDataDir: join(tmpDir, "data"),
+        });
+
+        const result = await callGuidelines(client, {
+          mode: "init",
+          includeInstruction: false,
+        });
+        expect(parseGuidelinesState(expectTextContent(result)).errors?.[0]).toMatchObject({
+          type: "MCP_WORKSPACE_OWNER_REQUIRED",
+          details: { workspaceId: "workspace-multi", folderCount: 2 },
+        });
+      } finally {
+        setEnv("FYLLO_TEST_WORKSPACE_JSON", originalWorkspaceJson);
+        await close();
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects a Folder outside the current Workspace descriptor", async () => {
+      const originalWorkspaceJson = process.env.FYLLO_TEST_WORKSPACE_JSON;
+      const tmpDir = await mkdtemp(join(tmpdir(), "fyllo-cortex-multi-"));
+      const { client, close } = await createToolClient();
+
+      try {
+        process.env.FYLLO_TEST_WORKSPACE_JSON = JSON.stringify({
+          version: 2,
+          workspaceId: "workspace-multi",
+          workspaceKind: "folder",
+          primaryFolderId: "folder-a",
+          folders: [{ folderId: "folder-a", folderName: "A", folderPath: tmpDir }],
+          workspaceDataDir: join(tmpDir, "data"),
+        });
+        const result = await callGuidelines(client, {
+          mode: "init",
+          folderId: "folder-outside",
+          includeInstruction: false,
+        });
+        expect(parseGuidelinesState(expectTextContent(result)).errors?.[0]).toMatchObject({
+          type: "MCP_WORKSPACE_FOLDER_UNAUTHORIZED",
+          details: { workspaceId: "workspace-multi", folderId: "folder-outside" },
+        });
+      } finally {
+        setEnv("FYLLO_TEST_WORKSPACE_JSON", originalWorkspaceJson);
         await close();
         await rm(tmpDir, { recursive: true, force: true });
       }
@@ -968,13 +1198,16 @@ describe("fyllo-cortex tools", () => {
   describe("lineage tool", () => {
     let originalDataDir: string | undefined;
     let originalProjectPath: string | undefined;
+    let tmpLineageRoot: string;
     let tmpDataDir: string;
     let tmpProjectPath: string;
 
     beforeEach(async () => {
       originalDataDir = process.env.FYLLO_PROJECT_DATA_DIR;
       originalProjectPath = process.env.FYLLO_PROJECT_PATH;
-      tmpDataDir = await mkdtemp(join(tmpdir(), "fyllo-lineage-data-"));
+      tmpLineageRoot = await mkdtemp(join(tmpdir(), "fyllo-lineage-data-"));
+      tmpDataDir = join(tmpLineageRoot, "workspaces", "workspace-test");
+      await mkdir(tmpDataDir, { recursive: true });
       tmpProjectPath = await mkdtemp(join(tmpdir(), "fyllo-lineage-project-"));
       process.env.FYLLO_PROJECT_DATA_DIR = tmpDataDir;
       process.env.FYLLO_PROJECT_PATH = tmpProjectPath;
@@ -983,7 +1216,7 @@ describe("fyllo-cortex tools", () => {
     afterEach(async () => {
       process.env.FYLLO_PROJECT_DATA_DIR = originalDataDir;
       process.env.FYLLO_PROJECT_PATH = originalProjectPath;
-      await rm(tmpDataDir, { recursive: true, force: true });
+      await rm(tmpLineageRoot, { recursive: true, force: true });
       await rm(tmpProjectPath, { recursive: true, force: true });
     });
 
@@ -992,6 +1225,7 @@ describe("fyllo-cortex tools", () => {
       try {
         await expectLineageCallToFail(client, {
           mode: "trace-proposal",
+          folderId: "folder-test",
           changeId: "add-foo",
           targetPath: "/repo",
         });
@@ -1045,12 +1279,17 @@ describe("fyllo-cortex tools", () => {
           },
         ]);
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text);
 
         expect(dto.subjectId).toBe("subject-1");
-        expect(dto.origin).toBe("task");
+        expect(dto.origin).toMatchObject({ relation: "origin", subjectId: "subject-1" });
+        expect(dto.subjects[0].lineage.origin).toBe("task");
         expect(dto.task).toEqual({
           ref: "github:42",
           title: "Task title",
@@ -1070,6 +1309,121 @@ describe("fyllo-cortex tools", () => {
         });
         expect(dto.createdAt).toBe("2026-06-16T00:00:00.000Z");
         expect(dto.updatedAt).toBe("2026-06-16T00:01:00.000Z");
+      } finally {
+        await close();
+      }
+    });
+
+    it("returns all repository references but hydrates subjects only for the active Workspace", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        await createLineageFixture(
+          tmpDataDir,
+          { proposals: { "shared-change": "subject-current" } },
+          [
+            {
+              id: "subject-current",
+              content: makeSubject({
+                id: "subject-current",
+                origin: "chat",
+                task: null,
+                links: [
+                  {
+                    sessionId: "session-current",
+                    createdAt: "2026-06-16T00:00:00.000Z",
+                    proposals: [
+                      { changeId: "shared-change", createdAt: "2026-06-16T00:00:00.000Z" },
+                    ],
+                  },
+                ],
+              }),
+            },
+          ]
+        );
+        const indexPath = repositoryLineageFixturePath(tmpDataDir, "folder-test");
+        await writeFile(
+          indexPath,
+          JSON.stringify({
+            version: 2,
+            proposals: {
+              "shared-change": [
+                {
+                  workspaceId: "workspace-other",
+                  subjectId: "subject-secret",
+                  relation: "origin",
+                  linkedAt: "2026-06-15T00:00:00.000Z",
+                },
+                {
+                  workspaceId: "workspace-test",
+                  subjectId: "subject-current",
+                  relation: "reference",
+                  linkedAt: "2026-06-16T00:00:00.000Z",
+                },
+                {
+                  workspaceId: "workspace-third",
+                  subjectId: "subject-third",
+                  relation: "reference",
+                  linkedAt: "2026-06-17T00:00:00.000Z",
+                },
+              ],
+            },
+            commits: {},
+            updatedAt: "2026-06-17T00:00:00.000Z",
+          })
+        );
+
+        const dto = JSON.parse(
+          expectTextContent(
+            await callLineage(client, {
+              mode: "trace-proposal",
+              folderId: "folder-test",
+              changeId: "shared-change",
+            })
+          )
+        );
+        expect(dto.origin).toMatchObject({
+          workspaceId: "workspace-other",
+          subjectId: "subject-secret",
+        });
+        expect(dto.references).toHaveLength(2);
+        expect(dto.subjects).toHaveLength(1);
+        expect(dto.subjects[0]).toMatchObject({
+          relation: { workspaceId: "workspace-test", subjectId: "subject-current" },
+          lineage: { subjectId: "subject-current" },
+        });
+        expect(JSON.stringify(dto.subjects)).not.toContain("subject-secret");
+        expect(JSON.stringify(dto.subjects)).not.toContain("subject-third");
+      } finally {
+        await close();
+      }
+    });
+
+    it("returns structured target errors for unauthorized Folder and escaping file paths", async () => {
+      const { client, close } = await createToolClient();
+      try {
+        const unauthorized = JSON.parse(
+          expectTextContent(
+            await callLineage(client, {
+              mode: "trace-proposal",
+              folderId: "folder-outside",
+              changeId: "add-foo",
+            })
+          )
+        );
+        expect(unauthorized).toMatchObject({
+          error: { type: "MCP_WORKSPACE_FOLDER_UNAUTHORIZED" },
+        });
+
+        const escaped = JSON.parse(
+          expectTextContent(
+            await callLineage(client, {
+              mode: "trace-file",
+              folderId: "folder-test",
+              filePath: "../outside.ts",
+            })
+          )
+        );
+        expect(escaped).toMatchObject({ error: { type: "ZodError" } });
       } finally {
         await close();
       }
@@ -1129,7 +1483,11 @@ describe("fyllo-cortex tools", () => {
           ]
         );
 
-        const result = await callLineage(client, { mode: "trace-commit", commitHash: fullHash });
+        const result = await callLineage(client, {
+          mode: "trace-commit",
+          folderId: "folder-test",
+          commitHash: fullHash,
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text);
 
@@ -1167,11 +1525,16 @@ describe("fyllo-cortex tools", () => {
           },
         ]);
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text);
 
-        expect(dto.origin).toBe("chat");
+        expect(dto.origin).toMatchObject({ relation: "origin", subjectId: "subject-1" });
+        expect(dto.subjects[0].lineage.origin).toBe("chat");
         expect(dto.task).toBeNull();
       } finally {
         await close();
@@ -1223,7 +1586,11 @@ describe("fyllo-cortex tools", () => {
           },
         ]);
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text);
 
@@ -1236,9 +1603,19 @@ describe("fyllo-cortex tools", () => {
     it("returns null when index.json is missing", async () => {
       const { client, close } = await createToolClient();
       try {
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
-        expect(text).toBe("null");
+        expect(JSON.parse(text)).toMatchObject({
+          folderId: "folder-test",
+          origin: null,
+          references: [],
+          subjects: [],
+          warnings: [expect.any(String)],
+        });
       } finally {
         await close();
       }
@@ -1249,9 +1626,13 @@ describe("fyllo-cortex tools", () => {
       try {
         await createLineageFixture(tmpDataDir, { proposals: { "add-bar": "subject-1" } }, []);
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
-        expect(text).toBe("null");
+        expect(JSON.parse(text)).toMatchObject({ origin: null, subjects: [] });
       } finally {
         await close();
       }
@@ -1262,9 +1643,16 @@ describe("fyllo-cortex tools", () => {
       try {
         await createLineageFixture(tmpDataDir, { proposals: { "add-foo": "subject-missing" } }, []);
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
-        expect(text).toBe("null");
+        expect(JSON.parse(text)).toMatchObject({
+          origin: { subjectId: "subject-missing" },
+          subjects: [],
+        });
       } finally {
         await close();
       }
@@ -1288,9 +1676,13 @@ describe("fyllo-cortex tools", () => {
           )
         );
 
-        const result = await callLineage(client, { mode: "trace-proposal", changeId: "add-foo" });
+        const result = await callLineage(client, {
+          mode: "trace-proposal",
+          folderId: "folder-test",
+          changeId: "add-foo",
+        });
         const text = expectTextContent(result);
-        expect(text).toBe("null");
+        expect(JSON.parse(text)).toMatchObject({ origin: null, subjects: [] });
       } finally {
         await close();
       }
@@ -1353,7 +1745,11 @@ describe("fyllo-cortex tools", () => {
           ]
         );
 
-        const result = await callLineage(client, { mode: "trace-file", filePath: "src/foo.ts" });
+        const result = await callLineage(client, {
+          mode: "trace-file",
+          folderId: "folder-test",
+          filePath: "src/foo.ts",
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text) as Array<{ subjectId: string }>;
 
@@ -1361,6 +1757,62 @@ describe("fyllo-cortex tools", () => {
         const subjectIds = dto.map((d) => d.subjectId).sort();
         expect(subjectIds).toEqual(["subject-1", "subject-2"]);
       } finally {
+        await close();
+      }
+    });
+
+    it("traces a file in a registered linked worktree and reports that target", async () => {
+      const { client, close } = await createToolClient();
+      const linkedPath = join(tmpLineageRoot, "linked-worktree");
+      try {
+        await initGitRepo(tmpProjectPath);
+        const hash = await gitCommitFile(tmpProjectPath, "src/linked.ts", "linked", "linked file");
+        git(tmpProjectPath, ["worktree", "add", "-b", "linked-test", linkedPath]);
+        await createLineageFixture(tmpDataDir, { commitHashes: { [hash]: "subject-linked" } }, [
+          {
+            id: "subject-linked",
+            content: makeSubject({
+              id: "subject-linked",
+              origin: "chat",
+              task: null,
+              links: [
+                {
+                  sessionId: "session-linked",
+                  createdAt: "2026-06-16T00:00:00.000Z",
+                  proposals: [
+                    {
+                      changeId: "linked-change",
+                      commitHash: hash,
+                      createdAt: "2026-06-16T00:00:00.000Z",
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        ]);
+
+        const dto = JSON.parse(
+          expectTextContent(
+            await callLineage(client, {
+              mode: "trace-file",
+              folderId: "folder-test",
+              worktreePath: linkedPath,
+              filePath: "src/linked.ts",
+            })
+          )
+        );
+        expect(dto).toHaveLength(1);
+        expect(dto[0]).toMatchObject({ folderId: "folder-test", subjectId: "subject-linked" });
+        expect(dto[0].worktreePath).toBe(
+          await import("node:fs/promises").then(({ realpath }) => realpath(linkedPath))
+        );
+      } finally {
+        try {
+          git(tmpProjectPath, ["worktree", "remove", "--force", linkedPath]);
+        } catch {
+          // The temporary root cleanup below handles a partially-created worktree.
+        }
         await close();
       }
     });
@@ -1373,11 +1825,13 @@ describe("fyllo-cortex tools", () => {
 
         await createLineageFixture(tmpDataDir, { commitHashes: {} }, []);
 
-        const result = await callLineage(client, { mode: "trace-file", filePath: "src/bar.ts" });
+        const result = await callLineage(client, {
+          mode: "trace-file",
+          folderId: "folder-test",
+          filePath: "src/bar.ts",
+        });
         const text = expectTextContent(result);
-        const dto = JSON.parse(text) as unknown[];
-
-        expect(dto).toEqual([]);
+        expect(JSON.parse(text)).toEqual([]);
       } finally {
         await close();
       }
@@ -1391,12 +1845,11 @@ describe("fyllo-cortex tools", () => {
 
         const result = await callLineage(client, {
           mode: "trace-file",
+          folderId: "folder-test",
           filePath: "src/nonexistent.ts",
         });
         const text = expectTextContent(result);
-        const dto = JSON.parse(text) as unknown[];
-
-        expect(dto).toEqual([]);
+        expect(JSON.parse(text)).toMatchObject({ error: { type: "ENOENT" } });
       } finally {
         await close();
       }
@@ -1442,12 +1895,16 @@ describe("fyllo-cortex tools", () => {
           ]
         );
 
-        const result = await callLineage(client, { mode: "trace-file", filePath: "src/dup.ts" });
+        const result = await callLineage(client, {
+          mode: "trace-file",
+          folderId: "folder-test",
+          filePath: "src/dup.ts",
+        });
         const text = expectTextContent(result);
         const dto = JSON.parse(text) as Array<{ subjectId: string }>;
 
-        expect(dto).toHaveLength(1);
-        expect(dto[0].subjectId).toBe("subject-1");
+        expect(dto).toHaveLength(2);
+        expect(dto.map((item) => item.subjectId)).toEqual(["subject-1", "subject-1"]);
       } finally {
         await close();
       }
@@ -1458,11 +1915,13 @@ describe("fyllo-cortex tools", () => {
       try {
         await writeFile(join(tmpProjectPath, "file.ts"), "content");
 
-        const result = await callLineage(client, { mode: "trace-file", filePath: "file.ts" });
+        const result = await callLineage(client, {
+          mode: "trace-file",
+          folderId: "folder-test",
+          filePath: "file.ts",
+        });
         const text = expectTextContent(result);
-        const dto = JSON.parse(text) as unknown[];
-
-        expect(dto).toEqual([]);
+        expect(JSON.parse(text)).toMatchObject({ error: { type: "Error" } });
       } finally {
         await close();
       }

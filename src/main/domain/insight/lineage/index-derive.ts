@@ -1,4 +1,5 @@
 import type { LineageIndex, Subject } from "@shared/types/lineage";
+import { lineageCommitKey, lineageProposalKey } from "@shared/types/lineage";
 
 export type LineageIndexEntries = Pick<
   LineageIndex,
@@ -10,9 +11,8 @@ const EMPTY_INDEX_UPDATED_AT = new Date(0).toISOString();
 /**
  * Derive the inverse lookup entries for a single subject.
  *
- * The lineage index is a derived view: it maps task refs, session ids, proposal change ids,
- * and commit hashes back to the subject that owns them. This lets callers find a subject
- * without scanning every subject file.
+ * The lineage index is a derived view: repository object keys include Folder identity so
+ * same-name proposals and commits from different repositories cannot overwrite each other.
  */
 export function deriveIndexEntries(subject: Subject): LineageIndexEntries {
   const tasks: Record<string, string> = {};
@@ -27,9 +27,10 @@ export function deriveIndexEntries(subject: Subject): LineageIndexEntries {
   for (const link of subject.links) {
     sessions[link.sessionId] = subject.id;
     for (const proposal of link.proposals) {
-      proposals[proposal.changeId] = subject.id;
+      const proposalRef = { folderId: proposal.folderId, changeId: proposal.changeId };
+      proposals[lineageProposalKey(proposalRef)] = subject.id;
       if (typeof proposal.commitHash === "string" && proposal.commitHash.length > 0) {
-        commitHashes[proposal.commitHash] = subject.id;
+        commitHashes[lineageCommitKey(proposal.folderId, proposal.commitHash)] = subject.id;
       }
     }
   }
@@ -60,7 +61,7 @@ function latestUpdatedAt(subjects: Subject[]): string {
  */
 export function buildIndexFromSubjects(subjects: Subject[]): LineageIndex {
   const index: LineageIndex = {
-    version: 1,
+    version: 2,
     tasks: {},
     sessions: {},
     proposals: {},

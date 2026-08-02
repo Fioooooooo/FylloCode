@@ -4,11 +4,18 @@ import path from "node:path";
 import { z } from "zod";
 import type { GuidelineEntry } from "../types/guideline";
 import { loadPrompt } from "../utils/load-prompt";
-import { resolveProjectRoot } from "../utils/project-root";
 import { extractGuidelineMetadata, scanGuidelines } from "../utils/scan-guidelines";
+import { resolveSingleFolder, WorkspaceResolverError } from "../../../shared/workspace-resolver";
 
 const guidelinesInputSchema = z
   .object({
+    folderId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Authorized Folder owner. Required when the current Workspace contains multiple Folders; inferred only for a single-Folder Workspace."
+      ),
     mode: z
       .enum(["init", "create", "update"])
       .describe(
@@ -135,10 +142,14 @@ async function readTargetState(projectRoot: string, requested: string): Promise<
 }
 
 async function buildGuidelinesState(input: GuidelinesInput): Promise<object> {
-  const projectRoot = resolveProjectRoot();
+  const folder = resolveSingleFolder(input.folderId);
+  const projectRoot = folder.folderPath;
   const guidelines: GuidelineEntry[] = await scanGuidelines(projectRoot);
   const base = {
     mode: input.mode,
+    folderId: folder.folderId,
+    folderName: folder.folderName,
+    folderPath: folder.folderPath,
     guidelinesRoot: "guidelines",
     ...(input.reason ? { reason: input.reason } : {}),
     guidelines,
@@ -166,11 +177,13 @@ export async function handleGuidelines(input: GuidelinesInput): Promise<Guidelin
   try {
     state = await buildGuidelinesState(input);
   } catch (error) {
+    const resolverError = error instanceof WorkspaceResolverError ? error : null;
     state = {
       errors: [
         {
-          type: error instanceof Error ? error.name : "UnknownError",
+          type: resolverError?.code ?? (error instanceof Error ? error.name : "UnknownError"),
           message: error instanceof Error ? error.message : String(error),
+          ...(resolverError ? { details: resolverError.details } : {}),
         },
       ],
     };
@@ -188,7 +201,7 @@ export function registerGuidelinesTool(server: McpServer): void {
     "guidelines",
     {
       description:
-        "Maintain the project's repository guidelines (guidelines/**/*.md). Call when: the user asks to bootstrap guidelines for a project that has none (mode=init); you discover an unwritten convention future agents must follow (mode=create); the user corrects your understanding of a project convention, or a guideline is stale or conflicts with repository facts (mode=update). Returns the current guidelines state plus scenario-specific authoring instructions. Do NOT call this tool to read guidelines — the index is injected into your session as a <guidelines> block, and documents are read directly via their paths.",
+        "Maintain one authorized Folder repository's guidelines (guidelines/**/*.md). Pass folderId in a multi-root Workspace; it is inferred only when exactly one Folder is authorized. Call when: the user asks to bootstrap guidelines for a repository that has none (mode=init); you discover an unwritten convention future agents must follow (mode=create); the user corrects your understanding of a repository convention, or a guideline is stale or conflicts with repository facts (mode=update). Returns the resolved Folder state plus scenario-specific authoring instructions. Do NOT call this tool to read guidelines — the index is injected into your session as a <guidelines> block, and documents are read directly via their repository-relative paths.",
       inputSchema: guidelinesInputSchema,
     },
     handleGuidelines

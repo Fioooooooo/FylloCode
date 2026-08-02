@@ -1,6 +1,6 @@
 Update an existing guideline document so it matches current repository facts, using the provided `state`.
 
-**State**: `state.target` is the document to update — its current frontmatter (`name`, `description`, `keywords`), an `exists` flag, and `parseError` when the frontmatter is broken. `state.guidelines` is the full index for cross-checking.
+**State**: `state.folderId` and `state.folderPath` identify the authorized repository owner. Resolve `state.target.path` against that Folder only. `state.target` is the document to update — its current frontmatter (`name`, `description`, `keywords`), an `exists` flag, and `parseError` when the frontmatter is broken. `state.guidelines` is the full index for cross-checking.
 
 **Steps**
 

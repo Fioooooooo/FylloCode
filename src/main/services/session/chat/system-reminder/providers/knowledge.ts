@@ -29,11 +29,16 @@ function renderGroup(title: string, entries: KnowledgeIndexEntry[]): string | nu
 
 export async function resolveKnowledgeSection(ctx: SystemReminderContext): Promise<string | null> {
   const root = knowledgeDir(ctx.workspaceId);
-  const workspaceRoot = ctx.worktreePath || ctx.projectPath;
 
   let entries: KnowledgeIndexEntry[];
   try {
-    const index = await readKnowledgeIndex(root, workspaceRoot);
+    const index = await readKnowledgeIndex(root, {
+      folders:
+        ctx.workspaceSnapshot?.folders.map(({ folderId, folderPath }) => ({
+          folderId,
+          folderPath,
+        })) ?? [],
+    });
     entries = index.entries;
   } catch (error) {
     logger.warn("[system-reminder] failed to scan project knowledge", {

@@ -11,7 +11,7 @@ import {
   readPlanInputSchema,
   savePlanBodyInputSchema,
 } from "@shared/ipc/insight/lineage.schemas";
-import { resolveWorkspaceCwd } from "@main/services/session/chat/chat-service";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 import {
   createSessionTask,
   ensureTaskSubject,
@@ -56,8 +56,11 @@ export function registerLineageHandlers(): void {
   ipcMain.handle(InsightLineageChannels.getBrowser, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getBrowserInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      return getLineageBrowser(form.workspaceId, workspaceCwd);
+      const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
+      return getLineageBrowser(
+        form.workspaceId,
+        workspace.availableFolders.map(({ folderId, folderPath }) => ({ folderId, folderPath }))
+      );
     })
   );
 

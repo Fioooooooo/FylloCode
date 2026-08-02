@@ -33,6 +33,12 @@ import { wrapHandler } from "../_kit/wrap-handler";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
 import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
+import {
+  recordDiscoveredProposalCommit,
+  recordProposalContinuation,
+} from "@main/services/insight/lineage/lineage-service";
+import { buildArchiveCommitIndex } from "@main/services/insight/overview/archive-commit-index";
+import logger from "@main/infra/logger";
 
 // Archive uses the last completed apply stage's agent to generate the final archive commit.
 export function registerProposalArchiveHandlers(): void {
@@ -103,6 +109,20 @@ export function registerProposalArchiveHandlers(): void {
           },
           sessionId: fylloSessionId,
         });
+        const continuation = await recordProposalContinuation(
+          form.workspaceId,
+          fylloSessionId,
+          proposalRef
+        ).catch((error: unknown) => ({
+          status: "failed" as const,
+          error: {
+            type: error instanceof Error ? error.name : "UnknownError",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+        if (continuation.status === "failed" || continuation.status === "conflict") {
+          logger.warn("[proposal-archive] failed to record lineage continuation", continuation);
+        }
         const stage = buildArchiveStage(agentId);
         const prompt = buildStagePrompt({
           changeId: form.changeId,
@@ -153,6 +173,8 @@ export function registerProposalArchiveHandlers(): void {
             changeId: form.changeId,
             runId: archiveRunId,
             worktreePath: repositoryTarget.worktreePath,
+            folderId: ownerFolder.folderId,
+            folderName: ownerFolder.folderName,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
@@ -179,7 +201,23 @@ export function registerProposalArchiveHandlers(): void {
               appendArchiveMessage(form.workspaceId, proposalRef, message),
             // archive forwards no control events (parity with apply).
             doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
-            onDone: () => persistArchiveStatus("done"),
+            onDone: async () => {
+              await persistArchiveStatus("done");
+              const archiveCommit = (
+                await buildArchiveCommitIndex(repositoryTarget.worktreePath, [form.changeId])
+              ).get(form.changeId);
+              if (!archiveCommit) {
+                return;
+              }
+              const result = await recordDiscoveredProposalCommit(
+                form.workspaceId,
+                proposalRef,
+                archiveCommit.hash
+              );
+              if (result.status === "failed" || result.status === "conflict") {
+                logger.warn("[proposal-archive] failed to record archive commit lineage", result);
+              }
+            },
             onError: () => persistArchiveStatus("error"),
           },
         });

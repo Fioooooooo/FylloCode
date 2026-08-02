@@ -63,7 +63,7 @@ function subject(overrides: Partial<Subject> = {}): Subject {
       {
         sessionId: "session-1",
         createdAt: now,
-        proposals: [{ changeId: "change-1", createdAt: now }],
+        proposals: [{ folderId: "folder-1", changeId: "change-1", createdAt: now }],
         plans: [],
       },
     ],
@@ -75,10 +75,10 @@ function subject(overrides: Partial<Subject> = {}): Subject {
 
 function index(overrides: Partial<LineageIndex> = {}): LineageIndex {
   return {
-    version: 1,
+    version: 2,
     tasks: { "local:task-1": "subject-1" },
     sessions: { "session-1": "subject-1" },
-    proposals: { "change-1": "subject-1" },
+    proposals: { "folder-1\0change-1": "subject-1" },
     commitHashes: {},
     updatedAt: now,
     ...overrides,
@@ -121,7 +121,7 @@ describe("lineage-store", () => {
       origin: "task",
     });
     expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).toMatchObject({
-      version: 1,
+      version: 2,
       tasks: { "local:task-1": "subject-1" },
     });
     await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subject());
@@ -134,7 +134,14 @@ describe("lineage-store", () => {
         {
           sessionId: "session-1",
           createdAt: now,
-          proposals: [{ changeId: "change-1", createdAt: now, commitHash: "abc123" }],
+          proposals: [
+            {
+              folderId: "folder-1",
+              changeId: "change-1",
+              createdAt: now,
+              commitHash: "abc123",
+            },
+          ],
           plans: [{ slug: "2026-06-29-plan-a", createdAt: now }],
         },
       ],
@@ -171,7 +178,7 @@ describe("lineage-store", () => {
             {
               sessionId: "session-1",
               createdAt: now,
-              proposals: [{ changeId: "change-1", createdAt: now }],
+              proposals: [{ folderId: "folder-1", changeId: "change-1", createdAt: now }],
             },
           ],
         },
@@ -194,7 +201,7 @@ describe("lineage-store", () => {
     await expect(readIndex(workspaceId)).resolves.toEqual(index());
   });
 
-  it("normalizes old index files missing commitHashes", async () => {
+  it("rejects v1 index files until the upgrade migration rebuilds them", async () => {
     mkdirSync(lineageDir(workspaceId), { recursive: true });
     writeFileSync(
       indexFilePath(),
@@ -212,15 +219,15 @@ describe("lineage-store", () => {
       "utf8"
     );
 
-    await expect(readIndex(workspaceId)).resolves.toEqual(index({ commitHashes: {} }));
+    await expect(readIndex(workspaceId)).resolves.toBeNull();
   });
 
   it("writes index commitHashes", async () => {
-    await writeIndex(workspaceId, index({ commitHashes: { abc123: "subject-1" } }));
+    await writeIndex(workspaceId, index({ commitHashes: { "folder-1\0abc123": "subject-1" } }));
 
     expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).toMatchObject({
-      version: 1,
-      commitHashes: { abc123: "subject-1" },
+      version: 2,
+      commitHashes: { "folder-1\0abc123": "subject-1" },
     });
   });
 

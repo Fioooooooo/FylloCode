@@ -29,12 +29,14 @@ export const sha256Schema = z.string().regex(sha256Pattern);
 
 const knowledgeFileAnchorSchema = z.strictObject({
   kind: z.literal("file"),
+  folderId: z.string().min(1).max(200),
   file: projectRelativePathSchema,
   hash: sha256Schema,
 });
 
 const knowledgePackageAnchorSchema = z.strictObject({
   kind: z.literal("package"),
+  folderId: z.string().min(1).max(200),
   package: z.string().min(1).max(214),
   version: z.string().min(1).max(120),
   resolutionDigest: sha256Schema,
@@ -62,6 +64,7 @@ const knowledgeSessionSourceSchema = z.strictObject({
 
 const knowledgeCommitSourceSchema = z.strictObject({
   kind: z.literal("commit"),
+  folderId: z.string().min(1).max(200),
   commitHash: z.string().regex(/^[a-f0-9]{7,64}$/),
 });
 
@@ -69,7 +72,13 @@ const knowledgeLineageSourceSchema = z
   .strictObject({
     kind: z.literal("lineage"),
     subjectId: z.string().min(1).max(200).optional(),
-    proposalId: z.string().min(1).max(200).optional(),
+    proposalRef: z
+      .strictObject({
+        folderId: z.string().min(1).max(200),
+        changeId: z.string().min(1).max(200),
+      })
+      .optional(),
+    folderId: z.string().min(1).max(200).optional(),
     commitHash: z
       .string()
       .regex(/^[a-f0-9]{7,64}$/)
@@ -78,10 +87,17 @@ const knowledgeLineageSourceSchema = z
   // A lineage source may link to a subject, a proposal, or a commit, but it must
   // reference at least one so the entry can be traced back to a concrete lineage node.
   .superRefine((source, context) => {
-    if (!source.subjectId && !source.proposalId && !source.commitHash) {
+    const hasCommit = Boolean(source.folderId && source.commitHash);
+    if (!source.subjectId && !source.proposalRef && !hasCommit) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "lineage source must include at least one identifier",
+      });
+    }
+    if (Boolean(source.folderId) !== Boolean(source.commitHash)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "lineage commit source requires both folderId and commitHash",
       });
     }
   });

@@ -18,7 +18,11 @@ vi.mock("@main/infra/paths", () => ({
 
 import { readIndex, readSubject } from "@main/infra/storage/lineage-store";
 import { createSessionMeta } from "@main/infra/storage/session-store";
-import { lineageDir, lineageSubjectsDir } from "@main/infra/storage/workspace-paths";
+import {
+  lineageDir,
+  lineageSubjectsDir,
+  repositoryLineageIndexPath,
+} from "@main/infra/storage/workspace-paths";
 import {
   backfillTask,
   createSessionTask,
@@ -27,15 +31,21 @@ import {
   getByProposal,
   getBySession,
   getByTask,
+  getRepositoryCommitRelations,
+  getRepositoryProposalRelations,
   linkSession,
   linkTaskSession,
   rebuildIndex,
+  recordDiscoveredProposalCommit,
   recordPlan,
   recordProposal,
   recordProposalCommitHash,
+  recordProposalContinuation,
+  recordRepositoryProposalRelation,
 } from "@main/services/insight/lineage/lineage-service";
 
 const projectPath = "workspace-1";
+const proposalRef = (changeId: string, folderId = "folder-1") => ({ folderId, changeId });
 
 function setNow(iso: string): void {
   vi.setSystemTime(new Date(iso));
@@ -94,16 +104,16 @@ describe("lineage-service", () => {
     setNow("2026-06-09T00:01:00.000Z");
     await linkSession(projectPath, "session-1", subject.id);
     setNow("2026-06-09T00:02:00.000Z");
-    await recordProposal(projectPath, "session-1", "change-1");
+    await recordProposal(projectPath, "session-1", proposalRef("change-1"));
     setNow("2026-06-09T00:03:00.000Z");
-    await recordProposal(projectPath, "session-1", "change-2");
+    await recordProposal(projectPath, "session-1", proposalRef("change-2"));
     setNow("2026-06-09T00:04:00.000Z");
     await linkSession(projectPath, "session-2", subject.id);
     setNow("2026-06-09T00:05:00.000Z");
-    await recordProposal(projectPath, "session-2", "change-3");
+    await recordProposal(projectPath, "session-2", proposalRef("change-3"));
 
     await linkSession(projectPath, "session-1", subject.id);
-    await recordProposal(projectPath, "session-1", "change-1");
+    await recordProposal(projectPath, "session-1", proposalRef("change-1"));
 
     await expect(getByTask(projectPath, snapshot.ref)).resolves.toMatchObject({
       subjectId: subject.id,
@@ -127,7 +137,7 @@ describe("lineage-service", () => {
         proposals: [{ changeId: "change-1" }, { changeId: "change-2" }],
       },
     });
-    await expect(getByProposal(projectPath, "change-3")).resolves.toMatchObject({
+    await expect(getByProposal(projectPath, proposalRef("change-3"))).resolves.toMatchObject({
       subjectId: subject.id,
       origin: "task",
       task: snapshot,
@@ -142,9 +152,9 @@ describe("lineage-service", () => {
         "session-2": subject.id,
       },
       proposals: {
-        "change-1": subject.id,
-        "change-2": subject.id,
-        "change-3": subject.id,
+        ["folder-1\0change-1"]: subject.id,
+        ["folder-1\0change-2"]: subject.id,
+        ["folder-1\0change-3"]: subject.id,
       },
     });
   });
@@ -161,9 +171,9 @@ describe("lineage-service", () => {
     });
 
     setNow("2026-06-09T00:01:00.000Z");
-    await recordProposal(projectPath, "session-chat", "change-chat-1");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat-1"));
     setNow("2026-06-09T00:02:00.000Z");
-    await recordProposal(projectPath, "session-chat", "change-chat-2");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat-2"));
     const backfilled = await backfillTask(
       projectPath,
       subject.id,
@@ -190,7 +200,7 @@ describe("lineage-service", () => {
       origin: "chat",
       task: { ref: "local:task-backfilled" },
     });
-    await expect(getByProposal(projectPath, "change-chat-2")).resolves.toMatchObject({
+    await expect(getByProposal(projectPath, proposalRef("change-chat-2"))).resolves.toMatchObject({
       subjectId: subject.id,
       origin: "chat",
       task: { ref: "local:task-backfilled" },
@@ -367,11 +377,11 @@ describe("lineage-service", () => {
   it("records proposal commit hashes into the subject and index", async () => {
     const subject = await ensureTaskSubject(projectPath, taskSnapshot());
     await linkSession(projectPath, "session-1", subject.id);
-    await recordProposal(projectPath, "session-1", "change-1");
+    await recordProposal(projectPath, "session-1", proposalRef("change-1"));
 
     setNow("2026-06-09T00:10:00.000Z");
     await expect(
-      recordProposalCommitHash(projectPath, "change-1", "abc123")
+      recordProposalCommitHash(projectPath, proposalRef("change-1"), "abc123")
     ).resolves.toMatchObject({
       id: subject.id,
       updatedAt: "2026-06-09T00:10:00.000Z",
@@ -391,19 +401,102 @@ describe("lineage-service", () => {
       ],
     });
     await expect(readIndex(projectPath)).resolves.toMatchObject({
-      proposals: { "change-1": subject.id },
-      commitHashes: { abc123: subject.id },
+      proposals: { ["folder-1\0change-1"]: subject.id },
+      commitHashes: { ["folder-1\0abc123"]: subject.id },
     });
+  });
+
+  it("returns explicit reverse-index replay, conflict, and failure states after subject durability", async () => {
+    const subject = await ensureChatSubject(projectPath, "session-chat");
+    const ref = proposalRef("change-shared");
+    await recordProposal(projectPath, "session-chat", ref);
+    const origin = {
+      workspaceId: projectPath,
+      subjectId: subject.id,
+      relation: "origin" as const,
+      linkedAt: "2026-06-09T00:10:00.000Z",
+    };
+
+    await expect(recordRepositoryProposalRelation(ref, origin)).resolves.toEqual({
+      status: "recorded",
+    });
+    await expect(recordRepositoryProposalRelation(ref, origin)).resolves.toEqual({
+      status: "unchanged",
+    });
+    await expect(
+      recordRepositoryProposalRelation(ref, { ...origin, subjectId: "subject-other" })
+    ).resolves.toEqual({ status: "conflict", existing: origin });
+    await expect(getRepositoryProposalRelations(ref)).resolves.toEqual({
+      origin,
+      references: [],
+    });
+
+    const blockedRef = proposalRef("change-blocked", "folder-blocked");
+    await recordProposal(projectPath, "session-chat", blockedRef);
+    const blockedIndex = repositoryLineageIndexPath(blockedRef.folderId);
+    mkdirSync(dirname(dirname(blockedIndex)), { recursive: true });
+    writeFileSync(dirname(blockedIndex), "not a directory", "utf8");
+    await expect(
+      recordRepositoryProposalRelation(blockedRef, {
+        ...origin,
+        linkedAt: "2026-06-09T00:20:00.000Z",
+      })
+    ).resolves.toMatchObject({ status: "failed", error: { type: expect.any(String) } });
+    await expect(getByProposal(projectPath, blockedRef)).resolves.toMatchObject({
+      subjectId: subject.id,
+    });
+  });
+
+  it("records explicit proposal continuations and archive commit origins idempotently", async () => {
+    const ref = proposalRef("change-lifecycle");
+    const originSubject = await ensureChatSubject(projectPath, "session-origin");
+    await recordProposal(projectPath, "session-origin", ref);
+    await recordRepositoryProposalRelation(ref, {
+      workspaceId: projectPath,
+      subjectId: originSubject.id,
+      relation: "origin",
+      linkedAt: "2026-06-09T00:00:00.000Z",
+    });
+
+    setNow("2026-06-09T00:10:00.000Z");
+    const continuation = await recordProposalContinuation(projectPath, "session-apply", ref);
+    expect(continuation).toMatchObject({ status: "recorded", subjectId: expect.any(String) });
+    await expect(
+      recordProposalContinuation(projectPath, "session-apply", ref)
+    ).resolves.toMatchObject({ status: "unchanged", subjectId: continuation.subjectId });
+    await expect(getRepositoryProposalRelations(ref)).resolves.toMatchObject({
+      origin: { subjectId: originSubject.id },
+      references: [{ subjectId: continuation.subjectId, relation: "reference" }],
+    });
+
+    const discovered = await recordDiscoveredProposalCommit(projectPath, ref, "archive123");
+    expect(discovered).toMatchObject({ status: "recorded", subjectId: continuation.subjectId });
+    await expect(getRepositoryCommitRelations(ref.folderId, "archive123")).resolves.toMatchObject({
+      origin: { workspaceId: projectPath, subjectId: continuation.subjectId, relation: "origin" },
+      references: [],
+    });
+  });
+
+  it("does not create a continuation subject when repository origin is missing", async () => {
+    const ref = proposalRef("change-without-origin");
+    await expect(recordProposalContinuation(projectPath, "session-passive", ref)).resolves.toEqual({
+      status: "missing-origin",
+    });
+    await expect(getBySession(projectPath, "session-passive")).resolves.toBeNull();
   });
 
   it("records the same proposal commit hash idempotently", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
-    await recordProposal(projectPath, "session-chat", "change-chat");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat"));
 
     setNow("2026-06-09T00:10:00.000Z");
-    await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+    await recordProposalCommitHash(projectPath, proposalRef("change-chat"), "abc123");
     setNow("2026-06-09T00:20:00.000Z");
-    const repeated = await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+    const repeated = await recordProposalCommitHash(
+      projectPath,
+      proposalRef("change-chat"),
+      "abc123"
+    );
 
     expect(repeated).toMatchObject({
       id: subject.id,
@@ -420,18 +513,22 @@ describe("lineage-service", () => {
       )
     ).toHaveLength(1);
     await expect(readIndex(projectPath)).resolves.toMatchObject({
-      commitHashes: { abc123: subject.id },
+      commitHashes: { ["folder-1\0abc123"]: subject.id },
     });
   });
 
   it("does not overwrite an existing different proposal commit hash", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
-    await recordProposal(projectPath, "session-chat", "change-chat");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat"));
 
     setNow("2026-06-09T00:10:00.000Z");
-    await recordProposalCommitHash(projectPath, "change-chat", "oldhash");
+    await recordProposalCommitHash(projectPath, proposalRef("change-chat"), "oldhash");
     setNow("2026-06-09T00:20:00.000Z");
-    const repeated = await recordProposalCommitHash(projectPath, "change-chat", "newhash");
+    const repeated = await recordProposalCommitHash(
+      projectPath,
+      proposalRef("change-chat"),
+      "newhash"
+    );
 
     expect(repeated).toMatchObject({
       id: subject.id,
@@ -443,16 +540,16 @@ describe("lineage-service", () => {
       ],
     });
     await expect(readIndex(projectPath)).resolves.toMatchObject({
-      commitHashes: { oldhash: subject.id },
+      commitHashes: { ["folder-1\0oldhash"]: subject.id },
     });
     await expect(readIndex(projectPath)).resolves.not.toMatchObject({
-      commitHashes: { newhash: subject.id },
+      commitHashes: { ["folder-1\0newhash"]: subject.id },
     });
   });
 
   it("returns null when recording a commit hash for an unknown proposal", async () => {
     await expect(
-      recordProposalCommitHash(projectPath, "missing-change", "abc123")
+      recordProposalCommitHash(projectPath, proposalRef("missing-change"), "abc123")
     ).resolves.toBeNull();
 
     expect(existsSync(lineageDir(projectPath))).toBe(false);
@@ -462,15 +559,15 @@ describe("lineage-service", () => {
     const snapshot = taskSnapshot();
     const subject = await ensureTaskSubject(projectPath, snapshot);
     await linkSession(projectPath, "session-1", subject.id);
-    await recordProposal(projectPath, "session-1", "change-1");
+    await recordProposal(projectPath, "session-1", proposalRef("change-1"));
     unlinkSync(indexFilePath());
 
-    await expect(getByProposal(projectPath, "change-1")).resolves.toMatchObject({
+    await expect(getByProposal(projectPath, proposalRef("change-1"))).resolves.toMatchObject({
       subjectId: subject.id,
       origin: "task",
     });
     await expect(readIndex(projectPath)).resolves.toMatchObject({
-      proposals: { "change-1": subject.id },
+      proposals: { ["folder-1\0change-1"]: subject.id },
     });
   });
 
@@ -491,34 +588,34 @@ describe("lineage-service", () => {
   it("returns empty query results without creating lineage files for a fresh project", async () => {
     await expect(getByTask(projectPath, "local:missing")).resolves.toBeNull();
     await expect(getBySession(projectPath, "session-missing")).resolves.toBeNull();
-    await expect(getByProposal(projectPath, "change-missing")).resolves.toBeNull();
+    await expect(getByProposal(projectPath, proposalRef("change-missing"))).resolves.toBeNull();
 
     expect(existsSync(lineageDir(projectPath))).toBe(false);
   });
 
   it("rebuilds index from valid subjects while skipping corrupt subject files", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
-    await recordProposal(projectPath, "session-chat", "change-chat");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat"));
     mkdirSync(lineageSubjectsDir(projectPath), { recursive: true });
     writeFileSync(`${lineageSubjectsDir(projectPath)}/subject-bad.json`, "{not-json", "utf8");
     unlinkSync(indexFilePath());
 
     await expect(rebuildIndex(projectPath)).resolves.toMatchObject({
       sessions: { "session-chat": subject.id },
-      proposals: { "change-chat": subject.id },
+      proposals: { ["folder-1\0change-chat"]: subject.id },
     });
   });
 
   it("rebuilds commit hash index entries from subjects", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
-    await recordProposal(projectPath, "session-chat", "change-chat");
-    await recordProposalCommitHash(projectPath, "change-chat", "abc123");
+    await recordProposal(projectPath, "session-chat", proposalRef("change-chat"));
+    await recordProposalCommitHash(projectPath, proposalRef("change-chat"), "abc123");
     unlinkSync(indexFilePath());
 
     await expect(rebuildIndex(projectPath)).resolves.toMatchObject({
       sessions: { "session-chat": subject.id },
-      proposals: { "change-chat": subject.id },
-      commitHashes: { abc123: subject.id },
+      proposals: { ["folder-1\0change-chat"]: subject.id },
+      commitHashes: { ["folder-1\0abc123"]: subject.id },
     });
   });
 });

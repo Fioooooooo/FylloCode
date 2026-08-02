@@ -5,7 +5,7 @@ import { InsightLineageChannels as LineageChannels } from "@shared/ipc/insight/l
 import type { IpcResponse } from "@shared/types/ipc";
 
 const mocks = vi.hoisted(() => ({
-  resolveWorkspaceCwd: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
   ensureTaskSubject: vi.fn(),
   linkTaskSession: vi.fn(),
   getByTask: vi.fn(),
@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   approvePlan: vi.fn(),
 }));
 
-vi.mock("@main/services/session/chat/chat-service", () => ({
-  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
+vi.mock("@main/services/workspace/_public", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
 }));
 
 vi.mock("@main/services/insight/lineage/lineage-service", () => ({
@@ -44,7 +44,11 @@ import { registerLineageHandlers } from "@main/ipc/insight/lineage";
 describe("registerLineageHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
+    mocks.getRequiredWorkspaceInfo.mockResolvedValue({
+      availableFolders: [
+        { folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" },
+      ],
+    });
     mocks.getLineageBrowser.mockResolvedValue({ entries: [] });
     mocks.readPlan.mockResolvedValue({
       slug: "2026-06-29-plan-a",
@@ -90,7 +94,7 @@ describe("registerLineageHandlers", () => {
       }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.readPlan).toHaveBeenCalledWith("workspace-1", "session-1", "2026-06-29-plan-a");
     expect(result).toEqual({
       ok: true,
@@ -98,11 +102,13 @@ describe("registerLineageHandlers", () => {
     });
   });
 
-  it("loads the lineage browser through a resolved project path", async () => {
+  it("loads the lineage browser through all available Workspace Folders", async () => {
     const result = await handler(LineageChannels.getBrowser)({}, { workspaceId: "workspace-1" });
 
-    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
-    expect(mocks.getLineageBrowser).toHaveBeenCalledWith("workspace-1", "/tmp/project");
+    expect(mocks.getRequiredWorkspaceInfo).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.getLineageBrowser).toHaveBeenCalledWith("workspace-1", [
+      { folderId: "folder-1", folderPath: "/tmp/project" },
+    ]);
     expect(result).toEqual({ ok: true, data: { entries: [] } });
   });
 

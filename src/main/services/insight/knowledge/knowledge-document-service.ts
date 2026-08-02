@@ -10,6 +10,7 @@ import type {
 } from "@shared/types/knowledge";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { readKnowledgeIndex } from "@main/infra/storage/knowledge";
+import type { KnowledgeEvidenceFolder } from "@main/infra/storage/knowledge";
 import { knowledgeDir } from "@main/infra/storage/workspace-paths";
 
 export interface SaveKnowledgeEntryInput {
@@ -62,11 +63,11 @@ function parseErrorEntryName(filePath: string): string | undefined {
 
 export async function getKnowledgeBrowser(
   workspaceId: string,
-  workspaceRoot: string,
+  evidenceFolders: readonly KnowledgeEvidenceFolder[],
   options: KnowledgeDocumentServiceOptions = {}
 ): Promise<KnowledgeBrowserOverview> {
   const root = options.knowledgeRoot ?? knowledgeDir(workspaceId);
-  const index = await readKnowledgeIndex(root, workspaceRoot);
+  const index = await readKnowledgeIndex(root, { folders: evidenceFolders });
 
   return {
     entries: index.entries.map((entry) => ({

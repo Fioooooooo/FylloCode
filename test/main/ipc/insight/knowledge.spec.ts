@@ -4,7 +4,7 @@ import { InsightKnowledgeChannels as KnowledgeChannels } from "@shared/ipc/insig
 import type { IpcResponse } from "@shared/types/ipc";
 
 const mocks = vi.hoisted(() => ({
-  resolveWorkspaceCwd: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
   getKnowledgeBrowser: vi.fn(),
   readKnowledgeEntry: vi.fn(),
   saveKnowledgeEntry: vi.fn(),
@@ -18,8 +18,8 @@ vi.mock("@main/bootstrap/workspace-window-manager", () => ({
   },
 }));
 
-vi.mock("@main/services/session/chat/chat-service", () => ({
-  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
+vi.mock("@main/services/workspace/_public", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
 }));
 
 vi.mock("@main/services/insight/knowledge/knowledge-document-service", () => ({
@@ -52,9 +52,8 @@ describe("registerKnowledgeHandlers", () => {
     return call![1] as (event: unknown, input: unknown) => Promise<IpcResponse<unknown>>;
   }
 
-  it("reads a raw knowledge markdown entry for a resolved project", async () => {
+  it("reads a raw knowledge markdown entry for a Workspace", async () => {
     registerKnowledgeHandlers();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.readKnowledgeEntry.mockResolvedValue({
       name: "markstream-vue-theme-subscription",
       content: "---\nname: markstream-vue-theme-subscription\n---\n\nBody",
@@ -68,7 +67,7 @@ describe("registerKnowledgeHandlers", () => {
       }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.readKnowledgeEntry).toHaveBeenCalledWith(
       "workspace-1",
       "markstream-vue-theme-subscription"
@@ -82,21 +81,28 @@ describe("registerKnowledgeHandlers", () => {
     });
   });
 
-  it("loads the knowledge browser for a resolved project", async () => {
+  it("loads the knowledge browser with authorized Folder evidence roots", async () => {
     registerKnowledgeHandlers();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
+    mocks.getRequiredWorkspaceInfo.mockResolvedValue({
+      availableFolders: [
+        { folderId: "folder-1", folderPath: "/tmp/project" },
+        { folderId: "folder-2", folderPath: "/tmp/secondary" },
+      ],
+    });
     mocks.getKnowledgeBrowser.mockResolvedValue({ entries: [], errors: [] });
 
     const result = await handler(KnowledgeChannels.getBrowser)({}, { workspaceId: "workspace-1" });
 
-    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
-    expect(mocks.getKnowledgeBrowser).toHaveBeenCalledWith("workspace-1", "/tmp/project");
+    expect(mocks.getRequiredWorkspaceInfo).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.getKnowledgeBrowser).toHaveBeenCalledWith("workspace-1", [
+      { folderId: "folder-1", folderPath: "/tmp/project" },
+      { folderId: "folder-2", folderPath: "/tmp/secondary" },
+    ]);
     expect(result).toEqual({ ok: true, data: { entries: [], errors: [] } });
   });
 
-  it("saves raw knowledge markdown for a resolved project", async () => {
+  it("saves raw knowledge markdown for a Workspace", async () => {
     registerKnowledgeHandlers();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.saveKnowledgeEntry.mockResolvedValue({
       name: "markstream-vue-theme-subscription",
       content: "---\nname: markstream-vue-theme-subscription\n---\n\nUpdated",
@@ -111,7 +117,7 @@ describe("registerKnowledgeHandlers", () => {
       }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.saveKnowledgeEntry).toHaveBeenCalledWith("workspace-1", {
       name: "markstream-vue-theme-subscription",
       content: "---\nname: markstream-vue-theme-subscription\n---\n\nUpdated",
@@ -130,7 +136,7 @@ describe("registerKnowledgeHandlers", () => {
       }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.readKnowledgeEntry).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -138,9 +144,8 @@ describe("registerKnowledgeHandlers", () => {
     }
   });
 
-  it("deletes a validated knowledge entry for a resolved project", async () => {
+  it("deletes a validated knowledge entry for a Workspace", async () => {
     registerKnowledgeHandlers();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.deleteKnowledgeEntry.mockResolvedValue({ name: "entry-name" });
 
     const result = await handler(KnowledgeChannels.deleteEntry)(
@@ -148,7 +153,7 @@ describe("registerKnowledgeHandlers", () => {
       { workspaceId: "workspace-1", name: "entry-name" }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.deleteKnowledgeEntry).toHaveBeenCalledWith("workspace-1", "entry-name");
     expect(result).toEqual({ ok: true, data: { name: "entry-name" } });
   });
@@ -161,7 +166,7 @@ describe("registerKnowledgeHandlers", () => {
       { workspaceId: "workspace-1", name: "../escape" }
     );
 
-    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
     expect(mocks.deleteKnowledgeEntry).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
   });

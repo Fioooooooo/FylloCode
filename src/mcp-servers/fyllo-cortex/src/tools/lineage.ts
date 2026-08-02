@@ -4,12 +4,14 @@ import {
   traceLineageByCommit,
   traceLineageByFile,
   traceLineageByProposal,
-  type LineageResponseDto,
+  type LineageTraceDto,
 } from "../utils/lineage-reader";
 
 const lineageInputSchema = z
   .object({
     mode: z.enum(["trace-proposal", "trace-commit", "trace-file"]),
+    folderId: z.string().min(1),
+    worktreePath: z.string().optional(),
     changeId: z.string().optional(),
     commitHash: z.string().optional(),
     filePath: z.string().optional(),
@@ -35,28 +37,58 @@ const lineageInputSchema = z
 type LineageInput = z.infer<typeof lineageInputSchema>;
 type LineageResponse = { content: [{ type: "text"; text: string }] };
 
-function formatResult(result: LineageResponseDto | LineageResponseDto[] | null): string {
-  if (result === null) return "null";
+function formatResult(result: LineageTraceDto | LineageTraceDto[]): string {
   return JSON.stringify(result, null, 2);
 }
 
 export async function handleLineage(input: LineageInput): Promise<LineageResponse> {
   try {
-    let result: LineageResponseDto | LineageResponseDto[] | null;
+    let result: LineageTraceDto | LineageTraceDto[];
 
     if (input.mode === "trace-proposal") {
-      result = await traceLineageByProposal(input.changeId as string);
+      result = await traceLineageByProposal(
+        input.folderId,
+        input.changeId as string,
+        input.worktreePath
+      );
     } else if (input.mode === "trace-commit") {
-      result = await traceLineageByCommit(input.commitHash as string);
+      result = await traceLineageByCommit(
+        input.folderId,
+        input.commitHash as string,
+        input.worktreePath
+      );
     } else {
-      result = await traceLineageByFile(input.filePath as string, input.lineRange);
+      result = await traceLineageByFile(
+        input.folderId,
+        input.filePath as string,
+        input.lineRange,
+        input.worktreePath
+      );
     }
 
     return {
       content: [{ type: "text", text: formatResult(result) }],
     };
-  } catch {
-    return { content: [{ type: "text", text: "null" }] };
+  } catch (error) {
+    const candidate = error as { code?: string; details?: unknown };
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              error: {
+                type: candidate.code ?? (error instanceof Error ? error.name : "UnknownError"),
+                message: error instanceof Error ? error.message : String(error),
+                ...(candidate.details ? { details: candidate.details } : {}),
+              },
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
   }
 }
 
@@ -70,7 +102,8 @@ export function registerLineageTool(server: McpServer): void {
         "Use this tool when the user asks about design rationale, decision context, or the motivation behind existing code. It surfaces the full deliberation chain that produced a change, which git commit messages alone do not capture.",
         "",
         "Modes:",
-        "- trace-file (preferred for 'why' questions): given a file path (and optional line range), finds all commits that touched the file and returns the lineage entries that originated from FylloCode sessions. This is the easiest entry point — no need to know a commit hash upfront.",
+        "All modes require an authorized folderId. Optional worktreePath must be a registered worktree for that Folder; filePath remains repository-relative.",
+        "- trace-file (preferred for 'why' questions): given a file path (and optional line range), finds all commits that touched the file and returns repository origin/references plus active-Workspace subject details.",
         "- trace-commit: given a full Git SHA, returns the lineage entry for that specific commit.",
         "- trace-proposal: given an OpenSpec change ID, returns the lineage entry for that proposal.",
       ].join("\n"),

@@ -1,15 +1,19 @@
+import type { ProposalRef } from "@shared/types/proposal";
+
 export type KnowledgeEntryType = "project" | "reference" | "feedback";
 
 export type KnowledgeComputedStatus = "active" | "suspect" | "unknown";
 
 export interface KnowledgeFileAnchor {
   kind: "file";
+  folderId: string;
   file: string;
   hash: string;
 }
 
 export interface KnowledgePackageAnchor {
   kind: "package";
+  folderId: string;
   package: string;
   version: string;
   resolutionDigest: string;
@@ -33,13 +37,15 @@ export interface KnowledgeSessionSource {
 
 export interface KnowledgeCommitSource {
   kind: "commit";
+  folderId: string;
   commitHash: string;
 }
 
 export interface KnowledgeLineageSource {
   kind: "lineage";
   subjectId?: string;
-  proposalId?: string;
+  proposalRef?: ProposalRef;
+  folderId?: string;
   commitHash?: string;
 }
 

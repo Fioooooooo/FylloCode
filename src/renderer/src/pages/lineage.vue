@@ -145,11 +145,7 @@ async function openProposal(proposal: LineageBrowserProposal): Promise<void> {
   if (!proposal.title || !proposal.status) {
     return;
   }
-  const folderId = proposal.folderId ?? workspaceStore.currentWorkspace?.primaryFolderId;
-  if (!folderId) {
-    return;
-  }
-  await openProposalDetail({ folderId, changeId: proposal.changeId });
+  await openProposalDetail(proposal.proposalRef);
 }
 
 async function copyCommitHash(commitHash: string): Promise<void> {
@@ -539,7 +535,7 @@ watch(
 
                       <template
                         v-for="proposal in session.proposals"
-                        :key="`${session.sessionId}-proposal-${proposal.changeId}`"
+                        :key="`${session.sessionId}-proposal-${proposal.key}`"
                       >
                         <button
                           type="button"

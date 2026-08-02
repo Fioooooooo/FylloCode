@@ -1,6 +1,6 @@
 Bootstrap repository guidelines for a project that has none, using the provided `state`.
 
-**State**: `state.guidelines` lists existing guideline documents (expected empty or near-empty for init). `state.agentsFile` reports whether root `AGENTS.md` exists and whether it already links to guideline documents.
+**State**: `state.folderId` and `state.folderPath` identify the authorized repository owner. Resolve every repository-relative path below against that Folder only. `state.guidelines` lists existing guideline documents (expected empty or near-empty for init). `state.agentsFile` reports whether root `AGENTS.md` exists and whether it already links to guideline documents.
 
 **Steps**
 

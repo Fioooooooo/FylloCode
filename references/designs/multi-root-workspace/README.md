@@ -1737,20 +1737,17 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### 23.7 Cortex/Insight
 
-- guidelines 按 owner；
+- guidelines 显式 owner、Chat 聚合 reminder 与 Apply/Archive owner-only reminder → `make-cortex-workspace-aware` proposal / `fyllo-cortex-guidelines`、`mcp-workspace-authorization` specs；
 - spec/guideline aggregate 对每个 Folder 返回 ready/missing/error；合法空目录与 permission/I/O 失败可区分，单项 parse warning 可见；
 - SpecRef 与 GuidelineRef 贯穿列表 key、选择、详情 lookup/IPC 和缓存；不同 Folder 的同名 spec ID / guideline path 同时可见且不串详情；
-- Workspace knowledge 独立存储；
-- file/package anchor 按 member 校验；
-- trace file/commit/proposal 按 repository；
-- 同一 proposal/commit 的 origin 不被另一 Workspace reference 覆盖；多 Workspace reference 幂等追加并全部可查询；第二个不同 origin 被拒绝；
-- 多窗口同时追加同一 repository index 时，完整 read-modify-write 串行化且不丢关系；
-- lineage v1 单值迁移为单元素 origin relation；无法确定 owner/subject 时失败而不猜测；
-- `trace-file` 省略 `worktreePath` 使用 main worktree，指定 registered linked worktree 时使用对应分支历史，非法或逃逸 path 被拒绝；
-- Folder Workspace 能通过 Folder repository reverse index 追踪来自 Collection Workspace 的 proposal；
+- Workspace knowledge 独立存储、Folder-qualified file/package/commit evidence 与 owner 授权 → `make-cortex-workspace-aware` proposal / `fyllo-cortex-knowledge`、`mcp-workspace-authorization` specs；
+- repository-qualified file/commit/proposal trace、main/registered linked worktree target 与逃逸拒绝 → `make-cortex-workspace-aware` proposal / `repository-lineage`、`mcp-workspace-authorization` specs；
+- proposal/commit 唯一 origin、多 Workspace 幂等 reference、origin conflict 与并发原子 mutation → `make-cortex-workspace-aware` proposal / `repository-lineage` spec；
+- lineage v1 owner-qualified migration、歧义保留与 warning → `make-cortex-workspace-aware` proposal / `repository-lineage`、`fyllo-cortex-knowledge` specs；
+- Folder repository reverse index 可从任意授权 Workspace 查询唯一 origin 与全部 references → `make-cortex-workspace-aware` proposal / `repository-lineage` spec；
 - aggregate browser partial error 保留其他 Folder data；多成员 degraded Workspace 即使只有一个 available Folder 也显示 missing member 与 owner scope；
 - Overview 的 Workspace work 只从当前 workspaceDataDir 读取一次，不按 Folder 重复；repository governance 独立读取并只汇总 ready 结果，partial aggregate 标记未计入 Folder；
-- 共享 Folder proposal 的 task/session enrichment 只读取当前 Workspace subject/reference；当前 Workspace 无 link 时返回 null，不读取 origin Workspace 内容；
+- Lineage Browser 使用完整 `ProposalRef`、Folder owner metadata 与 composite key，且共享 Folder proposal enrichment 只读取当前 Workspace subject/reference → `make-cortex-workspace-aware` proposal / `lineage-browser`、`repository-lineage` specs；
 - overview 计数不按 changeId 跨 repo dedupe。
 
 ### 23.8 Renderer

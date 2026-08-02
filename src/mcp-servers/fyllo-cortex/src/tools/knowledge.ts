@@ -5,8 +5,8 @@ import { z } from "zod";
 import { knowledgeEntryNameSchema } from "@shared/schemas/knowledge";
 import type { KnowledgeAnchor, KnowledgeEntryType, KnowledgeSource } from "@shared/types/knowledge";
 import { getWorkspaceDataDir } from "../../../shared/env";
+import { getWorkspaceContext } from "../../../shared/workspace-context";
 import { loadPrompt } from "../utils/load-prompt";
-import { resolveProjectRoot } from "../utils/project-root";
 import {
   readKnowledgeIndex,
   sha256,
@@ -176,7 +176,10 @@ async function readTargetState(
 
 async function buildKnowledgeState(input: KnowledgeInput): Promise<object> {
   const root = knowledgeRoot();
-  const index = await readKnowledgeIndex(root, resolveProjectRoot());
+  const workspace = getWorkspaceContext();
+  const index = await readKnowledgeIndex(root, {
+    folders: workspace.folders.map(({ folderId, folderPath }) => ({ folderId, folderPath })),
+  });
   const base = {
     mode: input.mode,
     knowledgeRoot: root,

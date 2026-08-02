@@ -16,6 +16,14 @@ export function folderDataDir(folderId: string): string {
   return join(getDataSubPath("workspace-folders"), assertStorageIdentity(folderId, "Folder"));
 }
 
+export function folderLineageDir(folderId: string): string {
+  return join(folderDataDir(folderId), "lineage");
+}
+
+export function repositoryLineageIndexPath(folderId: string): string {
+  return join(folderLineageDir(folderId), "index.json");
+}
+
 export function sessionsDir(workspaceId: string): string {
   return join(workspaceDataDir(workspaceId), "sessions");
 }

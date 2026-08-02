@@ -21,7 +21,9 @@ Each HTTP request creates and closes an independent in-memory `McpServer + Strea
 
 HTTP receives one proxy-injected `X-Fyllo-Workspace-Context` header containing a strict Workspace v2 descriptor. `AsyncLocalStorage` keeps concurrent Workspace/session calls isolated. stdio receives the same descriptor through `FYLLO_WORKSPACE_JSON` and freezes it before accepting tools.
 
-Tools read Workspace-owned data through the shared resolver. Repository-scoped guidelines, knowledge anchor, and lineage operations use the descriptor's only Folder; a multi-root activation without an explicit owner is rejected rather than silently selecting primary. Legacy Project headers/env and `cwd` fallback are not accepted.
+Tools read Workspace-owned data through the shared resolver. Repository-scoped guidelines, knowledge anchor, and lineage operations accept an authorized `folderId`; omission is compatible only when the descriptor contains exactly one Folder. A multi-root activation without an explicit owner is rejected rather than silently selecting primary. Guideline `path` values remain relative to the selected Folder repository. Legacy Project headers/env and `cwd` fallback are not accepted.
+
+Lineage proposal and commit traces read the selected Folder's reverse index and expose all origin/reference identities, but hydrate subject/task/session details only for the active descriptor Workspace. File traces use the Folder main root by default; an explicit `worktreePath` must be registered for that Folder, and `filePath` remains repository-relative within the resolved worktree.
 
 ## Disable and Fallback
 

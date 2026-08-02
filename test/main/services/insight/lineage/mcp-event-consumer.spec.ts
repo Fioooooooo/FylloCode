@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     mocks.disposable = disposable;
   }),
   recordProposal: vi.fn(),
+  recordRepositoryProposalRelation: vi.fn(),
   recordPlan: vi.fn(),
   ensureChatSubject: vi.fn(),
   watchProposal: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock("@main/services/insight/lineage/lineage-service", () => ({
   recordProposal: mocks.recordProposal,
   recordPlan: mocks.recordPlan,
   ensureChatSubject: mocks.ensureChatSubject,
+  recordRepositoryProposalRelation: mocks.recordRepositoryProposalRelation,
 }));
 
 vi.mock("@main/services/proposal/browser/proposal-status-service", () => ({
@@ -136,6 +138,7 @@ describe("lineage mcp event consumer", () => {
     mocks.watchCallbacks = [];
     mocks.watcherCloseFns = [];
     mocks.recordProposal.mockResolvedValue({ id: "subject-1" });
+    mocks.recordRepositoryProposalRelation.mockResolvedValue({ status: "recorded" });
     mocks.recordPlan.mockResolvedValue({ id: "subject-1" });
     mocks.ensureChatSubject.mockResolvedValue({ id: "chat-subject" });
     mocks.getRequiredWorkspaceInfo.mockImplementation(async (workspaceId: string) => ({
@@ -190,11 +193,18 @@ describe("lineage mcp event consumer", () => {
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordProposal).toHaveBeenCalledWith(
-      projectPath,
-      "session-1",
-      "change-1",
-      "folder-1"
+    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", {
+      folderId: "folder-1",
+      changeId: "change-1",
+    });
+    expect(mocks.recordRepositoryProposalRelation).toHaveBeenCalledWith(
+      { folderId: "folder-1", changeId: "change-1" },
+      {
+        workspaceId: projectPath,
+        subjectId: "subject-1",
+        relation: "origin",
+        linkedAt: "2026-06-10T00:00:00.000Z",
+      }
     );
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
     expect(mocks.watchProposal).toHaveBeenCalledWith(
@@ -267,12 +277,10 @@ describe("lineage mcp event consumer", () => {
       expect(existsSync(validPath)).toBe(false);
     });
     expect(existsSync(damagedPath)).toBe(true);
-    expect(mocks.recordProposal).toHaveBeenCalledWith(
-      projectPath,
-      "session-1",
-      "change-good",
-      "folder-1"
-    );
+    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", {
+      folderId: "folder-1",
+      changeId: "change-good",
+    });
     expect(mocks.logger.warn).toHaveBeenCalled();
   });
 
@@ -294,12 +302,10 @@ describe("lineage mcp event consumer", () => {
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordProposal).toHaveBeenCalledWith(
-      projectPath,
-      "session-1",
-      "change-late",
-      "folder-1"
-    );
+    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", {
+      folderId: "folder-1",
+      changeId: "change-late",
+    });
   });
 
   it("rejects an event whose workspaceId does not match the scanned Workspace", async () => {

@@ -121,6 +121,7 @@ describe("system-reminder knowledge section", () => {
         anchors: [
           {
             kind: "file",
+            folderId: "folder-1",
             file: "src/example.ts",
             hash: sha256(activeContent),
           },
@@ -136,6 +137,7 @@ describe("system-reminder knowledge section", () => {
         anchors: [
           {
             kind: "file",
+            folderId: "folder-1",
             file: "src/example.ts",
             hash: "b".repeat(64),
           },
@@ -151,6 +153,7 @@ describe("system-reminder knowledge section", () => {
         anchors: [
           {
             kind: "file",
+            folderId: "folder-1",
             file: "src/missing.ts",
             hash: "c".repeat(64),
           },

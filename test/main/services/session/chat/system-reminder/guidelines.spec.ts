@@ -79,7 +79,9 @@ describe("system-reminder guidelines section", () => {
 
     expect(reminder?.text).toContain(GUIDELINES_BLOCK_OPEN);
     expect(reminder?.text).toContain("</guidelines>");
-    expect(reminder?.text).toContain("come from the user's project");
+    expect(reminder?.text).toContain("come from the user's authorized Folder repositories");
+    expect(reminder?.text).toContain('"folderId": "folder-1"');
+    expect(reminder?.text).toContain(`"folderPath": "${projectDir}"`);
     expect(reminder?.text).toContain('"path": "guidelines/Testing.md"');
     expect(reminder?.text).toContain('"name": "Testing"');
     expect(reminder?.text).toContain('"description": "test conventions"');
@@ -88,6 +90,85 @@ describe("system-reminder guidelines section", () => {
     const guidelinesIndex = reminder?.text.indexOf(GUIDELINES_BLOCK_OPEN) ?? -1;
     expect(guidelinesIndex).toBeGreaterThan(reminder?.text.indexOf("</critical>") ?? 0);
     expect(guidelinesIndex).toBeLessThan(reminder?.text.indexOf("<fyllo-action-contract>") ?? 0);
+  });
+
+  it("keeps duplicate relative guideline paths in separate Folder groups", async () => {
+    const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
+    const secondaryDir = await mkdtemp(join(tmpdir(), "fyllo-reminder-secondary-"));
+    try {
+      await writeGuideline(projectDir, "Testing.md", {
+        name: "Primary Testing",
+        description: "primary rules",
+        keywords: ["primary"],
+      });
+      await writeGuideline(secondaryDir, "Testing.md", {
+        name: "Secondary Testing",
+        description: "secondary rules",
+        keywords: ["secondary"],
+      });
+
+      const reminder = await resolveSystemReminder({
+        owner: "chat",
+        workspaceId: "workspace-1",
+        projectPath: projectDir,
+        cwd: projectDir,
+        fylloSessionId: "session-1",
+        agentId: "claude-acp",
+        workspaceSnapshot: {
+          ...workspaceSnapshot(projectDir),
+          workspaceKind: "collection",
+          folders: [
+            { folderId: "folder-1", folderName: "Primary", folderPath: projectDir },
+            { folderId: "folder-2", folderName: "Secondary", folderPath: secondaryDir },
+          ],
+          additionalDirectories: [secondaryDir],
+        },
+      });
+
+      expect(reminder?.text).toContain('"folderId": "folder-1"');
+      expect(reminder?.text).toContain('"folderId": "folder-2"');
+      expect(reminder?.text).toContain('"name": "Primary Testing"');
+      expect(reminder?.text).toContain('"name": "Secondary Testing"');
+      expect(reminder?.text.match(/"path": "guidelines\/Testing\.md"/g)).toHaveLength(2);
+    } finally {
+      await rm(secondaryDir, { recursive: true, force: true });
+    }
+  });
+
+  it("isolates an unavailable Folder while retaining readable Folder guidelines", async () => {
+    const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
+    const missingPath = join(projectDir, "missing-folder");
+    await writeGuideline(projectDir, "Testing.md", {
+      name: "Testing",
+      description: "readable rules",
+      keywords: ["vitest"],
+    });
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      workspaceId: "workspace-1",
+      projectPath: projectDir,
+      cwd: projectDir,
+      fylloSessionId: "session-1",
+      agentId: "claude-acp",
+      workspaceSnapshot: {
+        ...workspaceSnapshot(projectDir),
+        workspaceKind: "collection",
+        folders: [
+          { folderId: "folder-1", folderName: "Readable", folderPath: projectDir },
+          { folderId: "folder-missing", folderName: "Missing", folderPath: missingPath },
+        ],
+        additionalDirectories: [missingPath],
+      },
+    });
+
+    expect(reminder?.text).toContain('"name": "Testing"');
+    expect(reminder?.text).toContain('"folderId": "folder-missing"');
+    expect(reminder?.text).toContain('"code": "FOLDER_UNAVAILABLE"');
+    expect(logger.warn).toHaveBeenCalledWith(
+      "[system-reminder] guideline Folder is unavailable",
+      expect.objectContaining({ folderId: "folder-missing" })
+    );
   });
 
   it("injects the <guidelines> block into apply reminders", async () => {
@@ -109,6 +190,8 @@ describe("system-reminder guidelines section", () => {
       changeId: "change-1",
       stageIndex: 2,
       runId: "run-1",
+      folderId: "folder-1",
+      folderName: "Project",
     });
 
     expect(reminder?.text).toContain(GUIDELINES_BLOCK_OPEN);
@@ -136,7 +219,12 @@ describe("system-reminder guidelines section", () => {
       });
 
       expect(reminder?.text).toEqual(expect.any(String));
-      expect(reminder?.text).not.toContain(GUIDELINES_BLOCK_OPEN);
+      if (owner === "chat") {
+        expect(reminder?.text).toContain(GUIDELINES_BLOCK_OPEN);
+        expect(reminder?.text).toContain('"guidelines": []');
+      } else {
+        expect(reminder?.text).not.toContain(GUIDELINES_BLOCK_OPEN);
+      }
     }
   });
 
@@ -167,6 +255,8 @@ describe("system-reminder guidelines section", () => {
         stageIndex: 2,
         runId: "run-1",
         worktreePath: worktreeDir,
+        folderId: "folder-1",
+        folderName: "Project",
       });
 
       expect(reminder?.text).toContain('"name": "WorktreeOnly"');
@@ -199,28 +289,41 @@ describe("system-reminder guidelines section", () => {
     expect(reminder?.text.match(/<\/guidelines>/g)).toHaveLength(1);
   });
 
-  it("does not inject the <guidelines> block into archive reminders", async () => {
+  it("injects only the fixed owner worktree guidelines into archive reminders", async () => {
     const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
+    const worktreeDir = await mkdtemp(join(tmpdir(), "fyllo-reminder-archive-"));
+    try {
+      await writeGuideline(projectDir, "MainOnly.md", {
+        name: "MainOnly",
+        description: "main rules",
+        keywords: ["main"],
+      });
+      await writeGuideline(worktreeDir, "OwnerOnly.md", {
+        name: "OwnerOnly",
+        description: "owner rules",
+        keywords: ["owner"],
+      });
 
-    await writeGuideline(projectDir, "Testing.md", {
-      name: "Testing",
-      description: "test conventions",
-      keywords: ["vitest"],
-    });
+      const reminder = await resolveSystemReminder({
+        owner: "archive",
+        workspaceId: "workspace-1",
+        projectPath: projectDir,
+        cwd: worktreeDir,
+        fylloSessionId: "session-1",
+        agentId: "claude-acp",
+        changeId: "change-1",
+        stageIndex: 3,
+        runId: "run-1",
+        worktreePath: worktreeDir,
+        folderId: "folder-1",
+        folderName: "Project",
+      });
 
-    const reminder = await resolveSystemReminder({
-      owner: "archive",
-      workspaceId: "workspace-1",
-      projectPath: projectDir,
-      cwd: projectDir,
-      fylloSessionId: "session-1",
-      agentId: "claude-acp",
-      changeId: "change-1",
-      stageIndex: 3,
-      runId: "run-1",
-    });
-
-    expect(reminder?.text).toEqual(expect.any(String));
-    expect(reminder?.text).not.toContain(GUIDELINES_BLOCK_OPEN);
+      expect(reminder?.text).toContain(GUIDELINES_BLOCK_OPEN);
+      expect(reminder?.text).toContain('"name": "OwnerOnly"');
+      expect(reminder?.text).not.toContain("MainOnly");
+    } finally {
+      await rm(worktreeDir, { recursive: true, force: true });
+    }
   });
 });

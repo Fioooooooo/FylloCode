@@ -123,6 +123,7 @@ describe("Fyllo action shared schemas", () => {
       anchors: [
         {
           kind: "package",
+          folderId: "folder-1",
           package: "@modelcontextprotocol/sdk",
           version: "1.20.0",
           resolutionDigest: "a".repeat(64),
@@ -138,11 +139,51 @@ describe("Fyllo action shared schemas", () => {
         anchors: [
           {
             kind: "package",
+            folderId: "folder-1",
             package: "@modelcontextprotocol/sdk",
             version: "1.20.0",
             resolution: "sha512-original",
           },
         ],
+      }).success
+    ).toBe(false);
+  });
+
+  it("requires repository owners for knowledge anchors and sources", () => {
+    const baseEntry = {
+      name: "repository-evidence",
+      description: "Owner-qualified repository evidence",
+      type: "reference" as const,
+      createdAt: "2026-08-02T00:00:00.000Z",
+      updatedAt: "2026-08-02T00:00:00.000Z",
+      body: "Repository evidence remains bound to one Folder.",
+    };
+
+    expect(
+      knowledgeEntryDraftSchema.safeParse({
+        ...baseEntry,
+        source: { kind: "commit", folderId: "folder-1", commitHash: "abcdef1" },
+      }).success
+    ).toBe(true);
+    expect(
+      knowledgeEntryDraftSchema.safeParse({
+        ...baseEntry,
+        source: { kind: "commit", commitHash: "abcdef1" },
+      }).success
+    ).toBe(false);
+    expect(
+      knowledgeEntryDraftSchema.safeParse({
+        ...baseEntry,
+        source: {
+          kind: "lineage",
+          proposalRef: { folderId: "folder-2", changeId: "same-change" },
+        },
+      }).success
+    ).toBe(true);
+    expect(
+      knowledgeEntryDraftSchema.safeParse({
+        ...baseEntry,
+        source: { kind: "lineage", commitHash: "abcdef1" },
       }).success
     ).toBe(false);
   });

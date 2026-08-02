@@ -5,6 +5,7 @@ import type {
   LineageTaskSnapshot,
   Subject,
 } from "@shared/types/lineage";
+import type { ProposalRef } from "@shared/types/proposal";
 
 export type TaskDownstreamProjection = {
   subjectId: string;
@@ -66,10 +67,12 @@ export function projectSessionLineage(
 
 export function projectProposalOrigin(
   subject: Subject,
-  changeId: string
+  proposalRef: ProposalRef
 ): ProposalOriginProjection | null {
   for (const link of subject.links) {
-    const proposal = link.proposals.find((item) => item.changeId === changeId);
+    const proposal = link.proposals.find(
+      (item) => item.folderId === proposalRef.folderId && item.changeId === proposalRef.changeId
+    );
     if (proposal) {
       return {
         subjectId: subject.id,

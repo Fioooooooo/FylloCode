@@ -99,18 +99,21 @@ describe("overview-service", () => {
     mocks.readProposalFiles.mockResolvedValue([
       {
         id: "creating-change",
+        proposalRef: { folderId: "folder-1", changeId: "creating-change" },
         title: "Creating Change",
         status: "creating",
         date: "2026-06-01T00:00:00.000Z",
       },
       {
         id: "draft-change",
+        proposalRef: { folderId: "folder-1", changeId: "draft-change" },
         title: "Draft Change",
         status: "draft",
         date: "2026-06-02T00:00:00.000Z",
       },
       {
         id: "applying-change",
+        proposalRef: { folderId: "folder-1", changeId: "applying-change" },
         title: "Applying Change",
         status: "applying",
         date: "2026-06-03T00:00:00.000Z",
@@ -118,40 +121,46 @@ describe("overview-service", () => {
       },
       {
         id: "archived-change",
+        proposalRef: { folderId: "folder-1", changeId: "archived-change" },
         title: "Archived Change",
         status: "archived",
         date: "2026-06-05T00:00:00.000Z",
       },
       {
         id: "old-change",
+        proposalRef: { folderId: "folder-1", changeId: "old-change" },
         title: "Old Change",
         status: "archived",
         date: "2026-06-02T00:00:00.000Z",
       },
       {
         id: "persisted-change",
+        proposalRef: { folderId: "folder-1", changeId: "persisted-change" },
         title: "Persisted Change",
         status: "archived",
         date: "2026-06-04T00:00:00.000Z",
       },
       {
         id: "no-commit",
+        proposalRef: { folderId: "folder-1", changeId: "no-commit" },
         title: "No Commit",
         status: "draft",
         date: "2026-06-04T00:00:00.000Z",
       },
     ]);
-    mocks.getByProposal.mockImplementation(async (_projectPath: string, changeId: string) => {
-      if (changeId === "creating-change") {
-        return {
-          task: {
-            ref: "yunxiao:ABC-1",
-            snapshot: { title: "Implement overview data" },
-          },
-        };
+    mocks.getByProposal.mockImplementation(
+      async (_projectPath: string, ref: { changeId: string }) => {
+        if (ref.changeId === "creating-change") {
+          return {
+            task: {
+              ref: "yunxiao:ABC-1",
+              snapshot: { title: "Implement overview data" },
+            },
+          };
+        }
+        return null;
       }
-      return null;
-    });
+    );
     mocks.listSubjects.mockResolvedValue([
       subject({
         id: "task-subject",
@@ -177,7 +186,13 @@ describe("overview-service", () => {
           {
             sessionId: "session-1",
             createdAt: "2026-06-01T00:00:00.000Z",
-            proposals: [{ changeId: "applying-change", createdAt: "2026-06-03T00:00:00.000Z" }],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "applying-change",
+                createdAt: "2026-06-03T00:00:00.000Z",
+              },
+            ],
             plans: [],
           },
         ],
@@ -189,7 +204,13 @@ describe("overview-service", () => {
           {
             sessionId: "session-2",
             createdAt: "2026-06-02T00:00:00.000Z",
-            proposals: [{ changeId: "old-change", createdAt: "2026-06-02T00:00:00.000Z" }],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "old-change",
+                createdAt: "2026-06-02T00:00:00.000Z",
+              },
+            ],
             plans: [],
           },
         ],
@@ -203,6 +224,7 @@ describe("overview-service", () => {
             createdAt: "2026-06-04T00:00:00.000Z",
             proposals: [
               {
+                folderId: "folder-1",
                 changeId: "persisted-change",
                 createdAt: "2026-06-04T00:00:00.000Z",
                 commitHash: "stored123",
@@ -219,7 +241,13 @@ describe("overview-service", () => {
           {
             sessionId: "session-3",
             createdAt: "2026-06-04T00:00:00.000Z",
-            proposals: [{ changeId: "no-commit", createdAt: "2026-06-04T00:00:00.000Z" }],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "no-commit",
+                createdAt: "2026-06-04T00:00:00.000Z",
+              },
+            ],
             plans: [],
           },
         ],
@@ -277,12 +305,7 @@ describe("overview-service", () => {
       "old-change",
       "no-commit",
     ]);
-    expect(mocks.recordProposalCommitHash).toHaveBeenCalledTimes(1);
-    expect(mocks.recordProposalCommitHash).toHaveBeenCalledWith(
-      "/repo",
-      "old-change",
-      "abc123archive"
-    );
+    expect(mocks.recordProposalCommitHash).not.toHaveBeenCalled();
     expect(overview.recentLineages).toEqual([
       expect.objectContaining({
         subjectId: "recent-applying",
@@ -322,7 +345,7 @@ describe("overview-service", () => {
     expect(overview.recentLineages).toEqual([]);
   });
 
-  it("returns a git-resolved merge hash when lineage writeback fails", async () => {
+  it("returns a git-resolved merge hash without mutating lineage during overview reads", async () => {
     mocks.readProposalFiles.mockResolvedValue([
       {
         id: "missing-hash",
@@ -341,7 +364,13 @@ describe("overview-service", () => {
           {
             sessionId: "session-1",
             createdAt: "2026-06-04T00:00:00.000Z",
-            proposals: [{ changeId: "missing-hash", createdAt: "2026-06-04T00:00:00.000Z" }],
+            proposals: [
+              {
+                folderId: "folder-1",
+                changeId: "missing-hash",
+                createdAt: "2026-06-04T00:00:00.000Z",
+              },
+            ],
             plans: [],
           },
         ],
@@ -360,9 +389,6 @@ describe("overview-service", () => {
         ],
       ])
     );
-    const writebackError = new Error("write failed");
-    mocks.recordProposalCommitHash.mockRejectedValueOnce(writebackError);
-
     const overview = await getProjectOverview("/repo");
 
     expect(overview.recentLineages).toEqual([
@@ -372,10 +398,7 @@ describe("overview-service", () => {
         archiveCommitHash: "git123",
       }),
     ]);
-    expect(mocks.recordProposalCommitHash).toHaveBeenCalledWith("/repo", "missing-hash", "git123");
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      "[overview] failed to persist proposal commit hash project=/repo change=missing-hash",
-      writebackError
-    );
+    expect(mocks.recordProposalCommitHash).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 });

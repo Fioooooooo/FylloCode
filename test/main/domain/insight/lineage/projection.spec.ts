@@ -44,8 +44,9 @@ function subject(): Subject {
         sessionId: "session-1",
         createdAt: "2026-06-09T00:01:00.000Z",
         proposals: [
-          { changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
+          { folderId: "folder-a", changeId: "change-1", createdAt: "2026-06-09T00:02:00.000Z" },
           {
+            folderId: "folder-a",
             changeId: "change-2",
             createdAt: "2026-06-09T00:03:00.000Z",
             commitHash: "abc123",
@@ -86,17 +87,22 @@ describe("lineage projections", () => {
   });
 
   it("projects proposal origin with original task and origin", () => {
-    expect(projectProposalOrigin(subject(), "change-2")).toEqual({
+    expect(
+      projectProposalOrigin(subject(), { folderId: "folder-a", changeId: "change-2" })
+    ).toEqual({
       subjectId: "subject-1",
       origin: "task",
       task: taskSnapshot(),
       sessionId: "session-1",
       proposal: {
+        folderId: "folder-a",
         changeId: "change-2",
         createdAt: "2026-06-09T00:03:00.000Z",
         commitHash: "abc123",
       },
     });
-    expect(projectProposalOrigin(subject(), "change-missing")).toBeNull();
+    expect(
+      projectProposalOrigin(subject(), { folderId: "folder-a", changeId: "change-missing" })
+    ).toBeNull();
   });
 });
