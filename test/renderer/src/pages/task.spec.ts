@@ -29,7 +29,7 @@ type TaskStoreStub = {
   detailErrorMessage: string | null;
   availableSources: VisibleTaskSource[];
   sourceTabs: Array<{ label: string; value: VisibleTaskSource }>;
-  projectIntegration: unknown;
+  workspaceIntegration: unknown;
   sourceFilter: VisibleTaskSource | "all";
   statusFilter: TaskStatus;
   tasksBySource: TaskItem[];
@@ -115,7 +115,7 @@ const taskStore = reactive<TaskStoreStub>({
   detailErrorMessage: null,
   availableSources: ["local"],
   sourceTabs: [{ label: "本地", value: "local" as const }],
-  projectIntegration: null,
+  workspaceIntegration: null,
   sourceFilter: "local",
   statusFilter: "open",
   tasksBySource: [] as TaskItem[],

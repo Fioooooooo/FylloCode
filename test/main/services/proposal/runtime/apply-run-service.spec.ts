@@ -94,6 +94,7 @@ afterEach(() => rmSync(tempRoot, { recursive: true, force: true }));
 describe("apply-run-service", () => {
   it("persists the secondary owner ProposalRef and fixed worktree snapshot", async () => {
     await createApplyRun({ workspaceId: "workspace-1", ...proposalRef, workflowId: "workflow-1" });
+    expect(mocks.loadAllWorkflowTemplates).toHaveBeenCalledWith("workspace-1");
     await expect(loadApplyRunMeta("workspace-1", proposalRef)).resolves.toMatchObject({
       runId: "run-1",
       proposalRef,

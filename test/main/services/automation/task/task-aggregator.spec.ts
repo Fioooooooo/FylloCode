@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   yunxiaoGet: vi.fn(),
   githubList: vi.fn(),
   githubGet: vi.fn(),
+  resolveWorkspace: vi.fn(),
 }));
 
 vi.mock("@main/services/automation/task/adapters/local-task-adapter", () => ({
@@ -29,6 +30,10 @@ vi.mock("@main/services/automation/task/adapters/github-task-adapter", () => ({
     list: mocks.githubList,
     get: mocks.githubGet,
   },
+}));
+
+vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 import { getTask, listTasks } from "@main/services/automation/task/task-aggregator";
@@ -62,13 +67,18 @@ describe("task-aggregator", () => {
     mocks.yunxiaoGet.mockResolvedValue(null);
     mocks.githubList.mockResolvedValue([]);
     mocks.githubGet.mockResolvedValue(null);
+    mocks.resolveWorkspace.mockResolvedValue({
+      folders: [{ folderId: "folder-a" }, { folderId: "folder-b" }],
+    });
   });
 
   it("returns the real yunxiao adapter result when source is yunxiao", async () => {
     const yunxiaoTask = buildTask("yx-1", "yunxiao", "2026-05-10T10:00:00.000Z");
     mocks.yunxiaoList.mockResolvedValue([yunxiaoTask]);
 
-    await expect(listTasks("workspace-1", "yunxiao")).resolves.toEqual([yunxiaoTask]);
+    await expect(listTasks("workspace-1", "yunxiao")).resolves.toEqual([
+      { ...yunxiaoTask, currentTargetFolderIds: [], staleTargetFolderIds: [] },
+    ]);
     expect(mocks.yunxiaoList).toHaveBeenCalledWith("workspace-1");
     expect(mocks.localList).not.toHaveBeenCalled();
     expect(mocks.githubList).not.toHaveBeenCalled();
@@ -80,14 +90,21 @@ describe("task-aggregator", () => {
     mocks.localList.mockResolvedValue([localTask]);
     mocks.yunxiaoList.mockResolvedValue([yunxiaoTask]);
 
-    await expect(listTasks("workspace-1")).resolves.toEqual([yunxiaoTask, localTask]);
+    await expect(listTasks("workspace-1")).resolves.toEqual([
+      { ...yunxiaoTask, currentTargetFolderIds: [], staleTargetFolderIds: [] },
+      { ...localTask, currentTargetFolderIds: [], staleTargetFolderIds: [] },
+    ]);
   });
 
   it("dispatches getTask to yunxiao adapter when taskId starts with yunxiao", async () => {
     const yunxiaoTask = buildTask("yunxiao:space-1:102", "yunxiao", "2026-05-10T10:00:00.000Z");
     mocks.yunxiaoGet.mockResolvedValue(yunxiaoTask);
 
-    await expect(getTask("workspace-1", "yunxiao:space-1:102")).resolves.toEqual(yunxiaoTask);
+    await expect(getTask("workspace-1", "yunxiao:space-1:102")).resolves.toEqual({
+      ...yunxiaoTask,
+      currentTargetFolderIds: [],
+      staleTargetFolderIds: [],
+    });
     expect(mocks.yunxiaoGet).toHaveBeenCalledWith("yunxiao:space-1:102", "workspace-1");
     expect(mocks.localGet).not.toHaveBeenCalled();
   });
@@ -96,8 +113,24 @@ describe("task-aggregator", () => {
     const localTask = buildTask("task-1", "local", "2026-05-10T08:00:00.000Z");
     mocks.localGet.mockResolvedValue(localTask);
 
-    await expect(getTask("workspace-1", "task-1")).resolves.toEqual(localTask);
+    await expect(getTask("workspace-1", "task-1")).resolves.toEqual({
+      ...localTask,
+      currentTargetFolderIds: [],
+      staleTargetFolderIds: [],
+    });
     expect(mocks.localGet).toHaveBeenCalledWith("task-1", "workspace-1");
     expect(mocks.yunxiaoGet).not.toHaveBeenCalled();
+  });
+
+  it("projects ordered current and stale targets without rewriting the original hints", async () => {
+    const localTask = buildTask("task-1", "local", "2026-05-10T08:00:00.000Z");
+    localTask.targetFolderIds = ["folder-b", "removed", "folder-b", "folder-a"];
+    mocks.localGet.mockResolvedValue(localTask);
+
+    await expect(getTask("workspace-1", "task-1")).resolves.toMatchObject({
+      targetFolderIds: ["folder-b", "removed", "folder-a"],
+      currentTargetFolderIds: ["folder-b", "folder-a"],
+      staleTargetFolderIds: ["removed"],
+    });
   });
 });

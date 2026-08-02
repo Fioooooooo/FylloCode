@@ -9,6 +9,8 @@ const props = defineProps<{
   knowledgeAttentionCount: number;
   knowledgeLoading: boolean;
   knowledgeError: string | null;
+  repositoryCompleteness: "complete" | "partial";
+  excludedFolderNames: string[];
 }>();
 
 const router = useRouter();
@@ -66,23 +68,26 @@ const knowledgeMeta = computed(() => {
   return undefined;
 });
 
+const repositoryStat = (value: number): string =>
+  props.repositoryCompleteness === "partial" ? `${value}+` : String(value);
+
 const cards = computed<StatCard[]>(() => [
   {
     key: "specs",
     label: "能力规约",
-    value: String(props.stats.specsCount),
+    value: repositoryStat(props.stats.specsCount),
     route: "/specs",
   },
   {
     key: "archives",
     label: "归档提案",
-    value: String(props.stats.archiveCount),
+    value: repositoryStat(props.stats.archiveCount),
     route: "/proposal",
   },
   {
     key: "guidelines",
     label: "项目准则",
-    value: String(props.stats.guidelinesCount),
+    value: repositoryStat(props.stats.guidelinesCount),
     route: "/guidelines",
   },
   {
@@ -130,6 +135,13 @@ function openCard(route: StatRoute): void {
           {{ governanceSummary }}
         </h2>
         <p class="mt-1 text-xs text-white/75 dark:text-teal-100/70">{{ governanceMeta }}</p>
+        <p
+          v-if="props.repositoryCompleteness === 'partial'"
+          class="mt-1 text-xs text-white/80"
+          data-test="overview-partial-stats-label"
+        >
+          Repository 数据不完整，未计入 {{ props.excludedFolderNames.join("、") }}
+        </p>
       </div>
     </div>
 

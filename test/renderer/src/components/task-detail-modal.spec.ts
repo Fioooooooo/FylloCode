@@ -177,10 +177,45 @@ describe("TaskDetailModal", () => {
               content: "更新后的描述",
             },
             status: "open",
+            targetFolderIds: [],
           },
         },
       ],
     ]);
+  });
+
+  it("shows stale targets and allows editing current and stale target hints", async () => {
+    const wrapper = mountModal(
+      buildTask({
+        targetFolderIds: ["folder-a", "removed"],
+        currentTargetFolderIds: ["folder-a"],
+        staleTargetFolderIds: ["removed"],
+      }),
+      {
+        folders: [
+          {
+            folderId: "folder-a",
+            folderName: "Repository A",
+            folderPath: "/repos/a",
+            pathMissing: false,
+            isPrimary: true,
+          },
+        ],
+      }
+    );
+
+    expect(wrapper.get('[data-test="task-target-summary"]').text()).toContain("Repository A");
+    expect(wrapper.get('[data-test="task-target-summary"]').text()).toContain("1 个目标已失效");
+    await enterEditMode(wrapper);
+    expect(wrapper.get('[aria-label="选择目标 Folder removed"]').attributes("checked")).toBe("");
+
+    await wrapper.get('[aria-label="选择目标 Folder removed"]').setValue(false);
+    const saveButton = wrapper.findAll("button").find((node) => node.text().includes("保存"));
+    await saveButton?.trigger("click");
+
+    expect(wrapper.emitted("save")?.at(-1)?.[0]).toMatchObject({
+      updates: { targetFolderIds: ["folder-a"] },
+    });
   });
 
   it("shows placeholder text when description is empty", () => {

@@ -58,6 +58,12 @@ export interface TaskItem {
   originSessionId?: string;
   /** Idempotency key: set when the task is created from a fyllo-action so duplicates can be detected. */
   actionId?: string;
+  /** Ordered repository hints. Missing and empty both mean no repository target. */
+  targetFolderIds?: string[];
+  /** Read projection against current Workspace membership; not persisted. */
+  currentTargetFolderIds?: string[];
+  /** Read projection preserving removed or otherwise unavailable target IDs; not persisted. */
+  staleTargetFolderIds?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,8 +71,24 @@ export interface TaskItem {
 export interface CreateLocalTaskInput {
   title: string;
   description?: TaskDescription;
+  targetFolderIds?: string[];
 }
 
 export type UpdateTaskInput = Partial<
-  Pick<TaskItem, "title" | "description" | "status" | "labels" | "assignee">
+  Pick<TaskItem, "title" | "description" | "status" | "labels" | "assignee" | "targetFolderIds">
 >;
+
+export function normalizeTaskTargetFolderIds(value: readonly string[] | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return value.filter((folderId) => {
+    if (!folderId || seen.has(folderId)) {
+      return false;
+    }
+    seen.add(folderId);
+    return true;
+  });
+}

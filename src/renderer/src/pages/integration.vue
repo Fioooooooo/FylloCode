@@ -21,7 +21,7 @@ onMounted(async () => {
 watch(
   currentWorkspaceId,
   async (workspaceId) => {
-    await integrationProvidersStore.loadProjectIntegration(workspaceId);
+    await integrationProvidersStore.loadWorkspaceIntegration(workspaceId);
   },
   { immediate: true }
 );
@@ -49,6 +49,7 @@ watch(
           :category="category"
           :providers="integrationProvidersStore.filteredProviders"
           :current-workspace-id="currentWorkspaceId"
+          :workspace-folders="workspaceStore.currentWorkspace?.folders ?? []"
         />
       </div>
 

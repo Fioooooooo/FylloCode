@@ -155,4 +155,33 @@ describe("registerTaskHandlers", () => {
       description: { format: "plain_text", content: "详情" },
     });
   });
+
+  it("forwards task target Folder hints and returns the membership projection", async () => {
+    mocks.getTask.mockResolvedValue({
+      id: "task-1",
+      currentTargetFolderIds: ["folder-a"],
+      staleTargetFolderIds: ["removed"],
+      targetFolderIds: ["folder-a", "removed"],
+    });
+
+    const result = await handler(TaskChannels.update)(
+      {},
+      {
+        workspaceId: "workspace-1",
+        taskId: "task-1",
+        patch: { targetFolderIds: ["folder-a", "removed", "folder-a"] },
+      }
+    );
+
+    expect(mocks.updateTask).toHaveBeenCalledWith("workspace-1", "task-1", {
+      targetFolderIds: ["folder-a", "removed", "folder-a"],
+    });
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        currentTargetFolderIds: ["folder-a"],
+        staleTargetFolderIds: ["removed"],
+      }),
+    });
+  });
 });

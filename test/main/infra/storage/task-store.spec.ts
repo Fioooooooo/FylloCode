@@ -30,6 +30,12 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
     source: "local",
     sourceMeta: { source: "local" },
     labels: [],
+    assignee: undefined,
+    originSessionId: undefined,
+    actionId: undefined,
+    targetFolderIds: undefined,
+    currentTargetFolderIds: [],
+    staleTargetFolderIds: [],
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -174,5 +180,28 @@ describe("task-store", () => {
     );
 
     await expect(loadTasks(workspaceId)).resolves.toEqual([]);
+  });
+
+  it("deduplicates persisted target Folder IDs and does not persist read projections", async () => {
+    const item = task({
+      targetFolderIds: ["folder-b", "folder-a", "folder-b"],
+      currentTargetFolderIds: ["folder-b"],
+      staleTargetFolderIds: ["folder-a"],
+    });
+
+    await saveTasks(workspaceId, [item]);
+    const raw = JSON.parse(readFileSync(tasksPath(workspaceId), "utf8")) as {
+      tasks: Array<Record<string, unknown>>;
+    };
+
+    expect(raw.tasks[0]).not.toHaveProperty("currentTargetFolderIds");
+    expect(raw.tasks[0]).not.toHaveProperty("staleTargetFolderIds");
+    await expect(loadTasks(workspaceId)).resolves.toMatchObject([
+      {
+        targetFolderIds: ["folder-b", "folder-a"],
+        currentTargetFolderIds: [],
+        staleTargetFolderIds: [],
+      },
+    ]);
   });
 });

@@ -1,16 +1,21 @@
-import { readProposalFiles, stripArchivePrefix } from "@main/infra/proposal/openspec-reader";
-import logger from "@main/infra/logger";
+import { readRepositoryProposalFiles } from "@main/infra/proposal/openspec-reader";
+import { listRegisteredWorktreePaths } from "@main/infra/git/worktree-reader";
 import { listSubjects } from "@main/infra/storage/lineage-store";
-import { getByProposal, listRecentSubjects } from "@main/services/insight/lineage/lineage-service";
+import { resolveWorkspace } from "@main/services/workspace/_public";
+import { aggregateWorkspaceRepositories } from "@main/services/insight/repository-browser/aggregate";
+import type { Subject } from "@shared/types/lineage";
 import type {
   ActiveChange,
+  GovernanceEvolution,
+  OverviewStats,
   ProjectOverview,
   RecentLineage,
-  SpecsGrowthBucket,
+  RepositoryGovernanceSnapshot,
 } from "@shared/types/overview";
-import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
+import { proposalRefKey, type ProposalMeta, type ProposalStatus } from "@shared/types/proposal";
+import type { ResolvedWorkspaceFolder } from "@shared/types/workspace";
 import { buildArchiveCommitIndex } from "./archive-commit-index";
-import { getGitGovernance } from "./git-stats";
+import { getGitGovernance, type RepositorySpecsGrowthBucket } from "./git-stats";
 import { countArchives, countGuidelines, countSpecs } from "./openspec-stats";
 
 type TaskLinkedStats = {
@@ -24,47 +29,45 @@ function isActiveProposal(proposal: ProposalMeta): proposal is ActiveProposalMet
   return proposal.status !== "archived";
 }
 
-async function computeActiveChanges(projectPath: string): Promise<ActiveChange[]> {
-  const proposals = await readProposalFiles(projectPath);
-  const activeProposals = proposals.filter(isActiveProposal);
-
-  return Promise.all(
-    activeProposals.map(async (proposal) => {
-      const projection = await getByProposal(projectPath, proposal.proposalRef).catch(
-        (error: unknown) => {
-          logger.warn(
-            `[overview] failed to resolve lineage proposal project=${projectPath} change=${proposal.id}`,
-            error
-          );
-          return null;
-        }
-      );
-
-      return {
-        id: proposal.id,
-        title: proposal.title,
-        createdAt: proposal.date || null,
-        taskTitle: projection?.task?.snapshot.title ?? null,
-        taskRef: projection?.task?.ref ?? null,
-        status: proposal.status,
-        worktreePath: proposal.worktreePath,
-      };
-    })
-  );
+function buildSubjectByProposal(subjects: Subject[]): Map<string, Subject> {
+  const result = new Map<string, Subject>();
+  for (const subject of subjects) {
+    for (const link of subject.links) {
+      for (const proposal of link.proposals) {
+        const key = proposalRefKey({
+          folderId: proposal.folderId,
+          changeId: proposal.changeId,
+        });
+        if (!result.has(key)) result.set(key, subject);
+      }
+    }
+  }
+  return result;
 }
 
-async function computeTaskLinkedRatio(projectPath: string): Promise<TaskLinkedStats> {
-  const subjects = await listSubjects(projectPath);
-  const total = subjects.length;
-  if (total === 0) {
-    return { ratio: 0, total: 0 };
-  }
-
-  // Count subjects that have an associated task snapshot, regardless of origin.
-  // A chat-origin subject that later gets a task backfilled should still count as linked.
+function toActiveChange(
+  proposal: ActiveProposalMeta,
+  subjectByProposal: Map<string, Subject>
+): ActiveChange {
+  const subject = subjectByProposal.get(proposalRefKey(proposal.proposalRef));
   return {
-    ratio: subjects.filter((subject) => subject.task !== null).length / total,
-    total,
+    id: proposal.id,
+    proposalRef: proposal.proposalRef,
+    folderName: proposal.folderName,
+    title: proposal.title,
+    createdAt: proposal.date || null,
+    taskTitle: subject?.task?.snapshot.title ?? null,
+    taskRef: subject?.task?.ref ?? null,
+    status: proposal.status,
+    ...(proposal.worktreePath ? { worktreePath: proposal.worktreePath } : {}),
+  };
+}
+
+function computeTaskLinkedRatio(subjects: Subject[]): TaskLinkedStats {
+  if (subjects.length === 0) return { ratio: 0, total: 0 };
+  return {
+    ratio: subjects.filter((subject) => subject.task !== null).length / subjects.length,
+    total: subjects.length,
   };
 }
 
@@ -94,128 +97,227 @@ function resolveLineageStatus(
   return "pending";
 }
 
-async function computeRecentLineages(projectPath: string): Promise<RecentLineage[]> {
-  const allProposals = await readProposalFiles(projectPath);
-  // Proposal ids in lineage are stripped of archive prefixes; map statuses using the same key.
-  const statusMap = new Map<string, ProposalStatus>(
-    allProposals.map((p) => [stripArchivePrefix(p.id), p.status])
-  );
-
-  const subjects = await listRecentSubjects(projectPath, 5);
-  const lineageStates = subjects.map((subject) => {
-    const proposals = subject.links.flatMap((link) => link.proposals);
-    const proposalCount = subject.links.reduce((total, link) => total + link.proposals.length, 0);
-    const hasApplyingChange = proposals.some(
-      (proposal) => statusMap.get(proposal.changeId) === "applying"
-    );
-    const persistedCommitHash = hasApplyingChange
-      ? null
-      : (proposals.find(
-          (proposal) => typeof proposal.commitHash === "string" && proposal.commitHash.length > 0
-        )?.commitHash ?? null);
-    const missingChangeIds =
-      hasApplyingChange || persistedCommitHash
-        ? []
-        : proposals.map((proposal) => proposal.changeId).filter(Boolean);
-
-    return {
-      subject,
-      proposalCount,
-      hasApplyingChange,
-      persistedCommitHash,
-      missingChangeIds,
-    };
-  });
-
-  // Archive discovery is a passive overview read. Lifecycle code records commit lineage;
-  // this fallback only renders historical archives that predate that wiring.
-  const missingChangeIds = Array.from(
-    new Set(lineageStates.flatMap((state) => state.missingChangeIds))
-  );
-  const archiveCommitIndex =
-    missingChangeIds.length > 0
-      ? await buildArchiveCommitIndex(projectPath, missingChangeIds)
-      : new Map();
-
-  return lineageStates.map((state) => {
-    const archiveCommit =
-      state.hasApplyingChange || state.persistedCommitHash
-        ? null
-        : (state.missingChangeIds
-            .map((changeId) => archiveCommitIndex.get(changeId))
-            .find(Boolean) ?? null);
-
-    const proposalStatuses = state.subject.links
-      .flatMap((link) => link.proposals)
-      .map((proposal) => statusMap.get(proposal.changeId));
-
-    return {
-      subjectId: state.subject.id,
-      origin: state.subject.origin,
-      taskRef: state.subject.task?.ref ?? null,
-      taskTitle: state.subject.task?.snapshot.title ?? null,
-      sessionCount: state.subject.links.length,
-      proposalCount: state.proposalCount,
-      archiveCommitHash: state.persistedCommitHash ?? archiveCommit?.hash ?? null,
-      proposalStatus: resolveLineageStatus(proposalStatuses),
-      createdAt: state.subject.createdAt,
-      updatedAt: state.subject.updatedAt,
-    };
-  });
-}
-
-function computeSpecsThisMonth(specsGrowth: SpecsGrowthBucket[]): number {
-  if (specsGrowth.length === 0) {
-    return 0;
-  }
-
+function computeSpecsThisMonth(specsGrowth: RepositorySpecsGrowthBucket[]): number {
+  if (specsGrowth.length === 0) return 0;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const firstCurrentMonthIndex = specsGrowth.findIndex((bucket) =>
     bucket.weekStart.startsWith(currentMonth)
   );
-  if (firstCurrentMonthIndex === -1) {
-    return 0;
-  }
-
+  if (firstCurrentMonthIndex === -1) return 0;
   const previousCount =
     firstCurrentMonthIndex > 0
       ? (specsGrowth[firstCurrentMonthIndex - 1]?.cumulativeCount ?? 0)
       : 0;
-  const latestCount = specsGrowth[specsGrowth.length - 1]?.cumulativeCount ?? previousCount;
-
+  const latestCount = specsGrowth.at(-1)?.cumulativeCount ?? previousCount;
   return Math.max(0, latestCount - previousCount);
 }
 
-export async function getProjectOverview(projectPath: string): Promise<ProjectOverview> {
-  const countsPromise = Promise.all([
-    countSpecs(projectPath),
-    countArchives(projectPath),
-    countGuidelines(projectPath),
+async function readFolderGovernance(
+  folder: ResolvedWorkspaceFolder,
+  subjectByProposal: Map<string, Subject>
+): Promise<{ items: RepositoryGovernanceSnapshot[]; warnings: Array<{ message: string }> }> {
+  const registered = await listRegisteredWorktreePaths(folder.folderPath);
+  const [proposals, specsCount, archiveCounts, guidelinesCount, governance] = await Promise.all([
+    readRepositoryProposalFiles({
+      folderId: folder.folderId,
+      folderName: folder.folderName,
+      folderPath: folder.folderPath,
+      registeredWorktreePaths: registered.paths,
+    }),
+    countSpecs(folder.folderPath),
+    countArchives(folder.folderPath),
+    countGuidelines(folder.folderPath),
+    getGitGovernance(folder.folderPath),
   ]);
-  const taskLinkedPromise = computeTaskLinkedRatio(projectPath);
-  const activeChangesPromise = computeActiveChanges(projectPath);
-  const governancePromise = getGitGovernance(projectPath);
-
-  const [[specsCount, archiveCounts, guidelinesCount], taskLinked, activeChanges, governance] =
-    await Promise.all([countsPromise, taskLinkedPromise, activeChangesPromise, governancePromise]);
-  const recentLineages = await computeRecentLineages(projectPath);
 
   return {
-    stats: {
-      specsCount,
-      specsThisMonth: computeSpecsThisMonth(governance.specsGrowth),
-      archiveCount: archiveCounts.total,
-      archiveThisMonth: archiveCounts.thisMonth,
-      guidelinesCount,
-      guidelinesLastUpdated: governance.guidelinesLastUpdated,
-      taskLinkedRatio: taskLinked.ratio,
-      totalSubjects: taskLinked.total,
-    },
-    activeChanges,
-    recentLineages,
-    governance: {
-      specsGrowth: governance.specsGrowth,
-      recentGuidelines: governance.recentGuidelines,
-    },
+    items: [
+      {
+        folderId: folder.folderId,
+        folderName: folder.folderName,
+        stats: {
+          specsCount,
+          specsThisMonth: computeSpecsThisMonth(governance.specsGrowth),
+          archiveCount: archiveCounts.total,
+          archiveThisMonth: archiveCounts.thisMonth,
+          guidelinesCount,
+          guidelinesLastUpdated: governance.guidelinesLastUpdated,
+        },
+        activeChanges: proposals
+          .filter(isActiveProposal)
+          .map((proposal) => toActiveChange(proposal, subjectByProposal)),
+        proposalStatuses: proposals.map((proposal) => ({
+          proposalRef: proposal.proposalRef,
+          status: proposal.status,
+        })),
+        governance: {
+          specsGrowth: governance.specsGrowth.map((bucket) => ({
+            ...bucket,
+            folderId: folder.folderId,
+            folderName: folder.folderName,
+          })),
+          recentGuidelines: governance.recentGuidelines.map((item) => ({
+            ...item,
+            folderId: folder.folderId,
+            folderName: folder.folderName,
+          })),
+        },
+      },
+    ],
+    warnings: registered.warning ? [{ message: registered.warning }] : [],
+  };
+}
+
+function buildProposalStatusMap(
+  snapshots: RepositoryGovernanceSnapshot[]
+): Map<string, ProposalStatus> {
+  return new Map(
+    snapshots.flatMap((snapshot) =>
+      snapshot.proposalStatuses.map(({ proposalRef, status }) => [
+        proposalRefKey(proposalRef),
+        status,
+      ])
+    )
+  );
+}
+
+async function buildArchiveCommitMap(
+  subjects: Subject[],
+  proposalStatuses: Map<string, ProposalStatus>,
+  folderPaths: Map<string, string>
+): Promise<Map<string, string>> {
+  const requestedByFolder = new Map<string, Set<string>>();
+  for (const subject of subjects) {
+    for (const proposal of subject.links.flatMap((link) => link.proposals)) {
+      const ref = { folderId: proposal.folderId, changeId: proposal.changeId };
+      if (
+        proposal.commitHash ||
+        proposalStatuses.get(proposalRefKey(ref)) !== "archived" ||
+        !folderPaths.has(proposal.folderId)
+      ) {
+        continue;
+      }
+      const requested = requestedByFolder.get(proposal.folderId) ?? new Set<string>();
+      requested.add(proposal.changeId);
+      requestedByFolder.set(proposal.folderId, requested);
+    }
+  }
+
+  const result = new Map<string, string>();
+  await Promise.all(
+    Array.from(requestedByFolder, async ([folderId, changeIds]) => {
+      const index = await buildArchiveCommitIndex(folderPaths.get(folderId)!, changeIds);
+      for (const [changeId, commit] of index) {
+        result.set(proposalRefKey({ folderId, changeId }), commit.hash);
+      }
+    })
+  );
+  return result;
+}
+
+async function computeRecentLineages(
+  subjects: Subject[],
+  snapshots: RepositoryGovernanceSnapshot[],
+  folderPaths: Map<string, string>
+): Promise<RecentLineage[]> {
+  const proposalStatuses = buildProposalStatusMap(snapshots);
+  const recentSubjects = [...subjects]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, 5);
+  const archiveCommits = await buildArchiveCommitMap(recentSubjects, proposalStatuses, folderPaths);
+
+  return recentSubjects.map((subject) => {
+    const proposals = subject.links.flatMap((link) => link.proposals);
+    const statuses = proposals.map((proposal) =>
+      proposalStatuses.get(
+        proposalRefKey({ folderId: proposal.folderId, changeId: proposal.changeId })
+      )
+    );
+    const hasApplying = statuses.includes("applying");
+    const persistedCommit = hasApplying
+      ? null
+      : (proposals.find((proposal) => proposal.commitHash)?.commitHash ?? null);
+    const discoveredCommit = hasApplying
+      ? null
+      : (proposals
+          .map((proposal) =>
+            archiveCommits.get(
+              proposalRefKey({ folderId: proposal.folderId, changeId: proposal.changeId })
+            )
+          )
+          .find(Boolean) ?? null);
+
+    return {
+      subjectId: subject.id,
+      origin: subject.origin,
+      taskRef: subject.task?.ref ?? null,
+      taskTitle: subject.task?.snapshot.title ?? null,
+      sessionCount: subject.links.length,
+      proposalCount: proposals.length,
+      archiveCommitHash: persistedCommit ?? discoveredCommit,
+      proposalStatus: resolveLineageStatus(statuses),
+      createdAt: subject.createdAt,
+      updatedAt: subject.updatedAt,
+    };
+  });
+}
+
+function latestDate(values: Array<string | null>): string | null {
+  return (
+    values
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null
+  );
+}
+
+function combineRepositoryStats(
+  snapshots: RepositoryGovernanceSnapshot[],
+  taskLinked: TaskLinkedStats
+): OverviewStats {
+  return {
+    specsCount: snapshots.reduce((total, item) => total + item.stats.specsCount, 0),
+    specsThisMonth: snapshots.reduce((total, item) => total + item.stats.specsThisMonth, 0),
+    archiveCount: snapshots.reduce((total, item) => total + item.stats.archiveCount, 0),
+    archiveThisMonth: snapshots.reduce((total, item) => total + item.stats.archiveThisMonth, 0),
+    guidelinesCount: snapshots.reduce((total, item) => total + item.stats.guidelinesCount, 0),
+    guidelinesLastUpdated: latestDate(snapshots.map((item) => item.stats.guidelinesLastUpdated)),
+    taskLinkedRatio: taskLinked.ratio,
+    totalSubjects: taskLinked.total,
+  };
+}
+
+function combineGovernance(snapshots: RepositoryGovernanceSnapshot[]): GovernanceEvolution {
+  return {
+    specsGrowth: snapshots.flatMap((snapshot) => snapshot.governance.specsGrowth),
+    recentGuidelines: snapshots
+      .flatMap((snapshot) => snapshot.governance.recentGuidelines)
+      .sort((left, right) => right.lastCommitDate.localeCompare(left.lastCommitDate))
+      .slice(0, 5),
+  };
+}
+
+export async function getProjectOverview(workspaceId: string): Promise<ProjectOverview> {
+  const workspace = await resolveWorkspace(workspaceId);
+  const subjects = await listSubjects(workspaceId);
+  const subjectByProposal = buildSubjectByProposal(subjects);
+  const repository = await aggregateWorkspaceRepositories(workspace, (folder) =>
+    readFolderGovernance(folder, subjectByProposal)
+  );
+  const taskLinked = computeTaskLinkedRatio(subjects);
+  const folderPaths = new Map(
+    repository.folders
+      .filter((folder) => folder.status === "ready")
+      .map((folder) => [folder.folderId, folder.folderPath])
+  );
+
+  return {
+    stats: combineRepositoryStats(repository.items, taskLinked),
+    activeChanges: repository.items
+      .flatMap((snapshot) => snapshot.activeChanges)
+      .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? "")),
+    recentLineages: await computeRecentLineages(subjects, repository.items, folderPaths),
+    governance: combineGovernance(repository.items),
+    repository,
   };
 }

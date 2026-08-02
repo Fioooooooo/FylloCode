@@ -43,17 +43,20 @@ export function registerTaskHandlers(): void {
   ipcMain.handle(AutomationTaskChannels.create, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createTaskInputSchema, input);
-      return createLocalTask(form.workspaceId, {
+      const task = await createLocalTask(form.workspaceId, {
         title: form.title,
         description: form.description,
+        ...(form.targetFolderIds ? { targetFolderIds: form.targetFolderIds } : {}),
       });
+      return (await getAggregatedTask(form.workspaceId, task.id))!;
     })
   );
 
   ipcMain.handle(AutomationTaskChannels.update, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(updateTaskInputSchema, input);
-      return updateLocalTask(form.workspaceId, form.taskId, form.patch);
+      await updateLocalTask(form.workspaceId, form.taskId, form.patch);
+      return (await getAggregatedTask(form.workspaceId, form.taskId))!;
     })
   );
 

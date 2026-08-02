@@ -9,13 +9,20 @@ import type {
   ProviderCapability,
   ProviderResource,
   ProviderResourceType,
+  WorkspaceIntegrationEntry,
 } from "@shared/types/integration";
+import { isRepositoryBoundIntegrationStage } from "@shared/types/integration";
+import type { WorkspaceFolderInfo } from "@shared/types/workspace";
 
-const props = defineProps<{
-  category: IntegrationCategory;
-  providers: Provider[];
-  currentWorkspaceId: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    category: IntegrationCategory;
+    providers: Provider[];
+    currentWorkspaceId: string;
+    workspaceFolders?: WorkspaceFolderInfo[];
+  }>(),
+  { workspaceFolders: () => [] }
+);
 
 const router = useRouter();
 const integrationProvidersStore = useIntegrationProvidersStore();
@@ -24,6 +31,8 @@ const activePickerKey = ref<string | null>(null);
 const resourcePickerSearch = ref<Record<string, string>>({});
 const resourcePickerSelection = ref<Record<string, string[]>>({});
 const resourcePickerErrors = ref<Record<string, string>>({});
+const resourcePickerFolderBindings = ref<Record<string, Record<string, string>>>({});
+const repositoryBoundStage = computed(() => isRepositoryBoundIntegrationStage(props.category.id));
 
 const stageProviders = computed(() => {
   return props.providers.filter((provider) => {
@@ -107,8 +116,33 @@ function toggleResourceSelection(
   const key = resourceKey(providerId, resourceType);
   const current = new Set(resourcePickerSelection.value[key] ?? []);
   if (checked) current.add(resourceId);
-  else current.delete(resourceId);
+  else {
+    current.delete(resourceId);
+    delete resourcePickerFolderBindings.value[key]?.[resourceId];
+  }
   resourcePickerSelection.value[key] = Array.from(current);
+}
+
+function setResourceFolderBinding(key: string, resourceId: string, folderId: string): void {
+  resourcePickerFolderBindings.value[key] ??= {};
+  if (folderId) {
+    resourcePickerFolderBindings.value[key]![resourceId] = folderId;
+  } else {
+    delete resourcePickerFolderBindings.value[key]![resourceId];
+  }
+}
+
+function folderBindingLabel(entry: WorkspaceIntegrationEntry): string | null {
+  if (entry.currentFolderId) {
+    return (
+      props.workspaceFolders.find((folder) => folder.folderId === entry.currentFolderId)
+        ?.folderName ?? entry.currentFolderId
+    );
+  }
+  if (entry.staleFolderId) {
+    return `已失效：${entry.staleFolderId}`;
+  }
+  return repositoryBoundStage.value ? "未绑定" : null;
 }
 
 async function loadResourceOptions(
@@ -141,6 +175,11 @@ async function openResourcePicker(
     providerId,
     capability.resourceType
   ).map((entry) => entry.resourceId);
+  resourcePickerFolderBindings.value[key] = Object.fromEntries(
+    getCapabilityEntries(providerId, capability.resourceType)
+      .filter((entry) => entry.folderId)
+      .map((entry) => [entry.resourceId, entry.folderId!])
+  );
   await loadResourceOptions(providerId, capability.resourceType);
 }
 
@@ -169,6 +208,14 @@ async function applyResourceSelection(
 ): Promise<void> {
   const key = resourceKey(providerId, resourceType);
   const selectedIds = new Set(resourcePickerSelection.value[key] ?? []);
+  if (
+    repositoryBoundStage.value &&
+    [...selectedIds].some((resourceId) => !resourcePickerFolderBindings.value[key]?.[resourceId])
+  ) {
+    resourcePickerErrors.value[key] =
+      "Repository-bound 资源必须为每一项选择当前 Workspace Folder。";
+    return;
+  }
   const nextEntries = integrationProvidersStore
     .getStageEntries(stageId())
     .filter((entry) => !(entry.providerId === providerId && entry.resourceType === resourceType));
@@ -178,10 +225,13 @@ async function applyResourceSelection(
       providerId,
       resourceType,
       resourceId,
+      ...(repositoryBoundStage.value
+        ? { folderId: resourcePickerFolderBindings.value[key]![resourceId]! }
+        : {}),
     });
   }
 
-  await integrationProvidersStore.saveProjectIntegrationStage(
+  await integrationProvidersStore.saveWorkspaceIntegrationStage(
     props.currentWorkspaceId,
     stageId(),
     nextEntries
@@ -192,7 +242,8 @@ async function applyResourceSelection(
 async function handleRemoveResource(
   providerId: Provider["id"],
   resourceType: ProviderResourceType,
-  resourceId: string
+  resourceId: string,
+  folderId?: string
 ): Promise<void> {
   const nextEntries = integrationProvidersStore
     .getStageEntries(stageId())
@@ -201,10 +252,11 @@ async function handleRemoveResource(
         !(
           entry.providerId === providerId &&
           entry.resourceType === resourceType &&
-          entry.resourceId === resourceId
+          entry.resourceId === resourceId &&
+          entry.folderId === folderId
         )
     );
-  await integrationProvidersStore.saveProjectIntegrationStage(
+  await integrationProvidersStore.saveWorkspaceIntegrationStage(
     props.currentWorkspaceId,
     stageId(),
     nextEntries
@@ -308,15 +360,21 @@ async function handleRemoveResource(
               <div class="flex flex-wrap gap-2">
                 <button
                   v-for="entry in getCapabilityEntries(provider.id, capability.resourceType)"
-                  :key="`${entry.resourceType}:${entry.resourceId}`"
+                  :key="`${entry.resourceType}:${entry.resourceId}:${entry.folderId ?? 'unbound'}`"
                   type="button"
                   class="rounded-full border border-default px-3 py-1 text-xs text-muted hover:border-error hover:text-error"
                   :data-test="`remove-resource-${provider.id}-${capability.resourceType}-${entry.resourceId}`"
                   @click="
-                    handleRemoveResource(provider.id, capability.resourceType, entry.resourceId)
+                    handleRemoveResource(
+                      provider.id,
+                      capability.resourceType,
+                      entry.resourceId,
+                      entry.folderId
+                    )
                   "
                 >
                   {{ entry.resourceId }}
+                  <span v-if="folderBindingLabel(entry)"> · {{ folderBindingLabel(entry) }}</span>
                 </button>
               </div>
 
@@ -427,6 +485,40 @@ async function handleRemoveResource(
                         }}{{ resource.subtitle ?? "" }}
                       </span>
                       <span class="block text-[11px] text-muted">{{ resource.id }}</span>
+                      <select
+                        v-if="
+                          repositoryBoundStage &&
+                          (
+                            resourcePickerSelection[
+                              resourceKey(provider.id, capability.resourceType)
+                            ] ?? []
+                          ).includes(resource.id)
+                        "
+                        :value="
+                          resourcePickerFolderBindings[
+                            resourceKey(provider.id, capability.resourceType)
+                          ]?.[resource.id] ?? ''
+                        "
+                        class="mt-2 w-full rounded-md border border-default bg-default px-2 py-1 text-xs"
+                        :aria-label="`为 ${resource.name} 选择 Folder`"
+                        @click.stop
+                        @change="
+                          setResourceFolderBinding(
+                            resourceKey(provider.id, capability.resourceType),
+                            resource.id,
+                            ($event.target as HTMLSelectElement).value
+                          )
+                        "
+                      >
+                        <option value="">选择 Folder</option>
+                        <option
+                          v-for="folder in props.workspaceFolders"
+                          :key="folder.folderId"
+                          :value="folder.folderId"
+                        >
+                          {{ folder.folderName }}
+                        </option>
+                      </select>
                     </span>
                   </label>
                 </div>

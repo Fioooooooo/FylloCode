@@ -314,7 +314,11 @@ watch(
     </div>
   </div>
 
-  <CreateTaskModal v-model:open="showCreateTaskModal" @create="handleCreateTask" />
+  <CreateTaskModal
+    v-model:open="showCreateTaskModal"
+    :folders="workspaceStore.currentWorkspace?.folders ?? []"
+    @create="handleCreateTask"
+  />
   <TaskDetailModal
     v-model:open="showDetailModal"
     :task="activeDetailTask"
@@ -323,6 +327,7 @@ watch(
     :detail-error="
       taskStore.detailErrorTaskId === activeDetailTask?.id ? taskStore.detailErrorMessage : null
     "
+    :folders="workspaceStore.currentWorkspace?.folders ?? []"
     @save="handleSaveDetail"
     @delete="handleDeleteTask"
     @update:open="handleDetailOpenChange"

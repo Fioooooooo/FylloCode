@@ -21,6 +21,7 @@ const taskDescriptionSchema = z.object({
   format: taskDescriptionFormatSchema,
   content: z.string(),
 });
+const targetFolderIdsSchema = z.array(z.string().min(1)).max(16);
 
 export const listTasksInputSchema = z.object({
   workspaceId: z.string().min(1),
@@ -36,6 +37,7 @@ export const createTaskInputSchema = z.object({
   workspaceId: z.string().min(1),
   title: z.string().min(1),
   description: taskDescriptionSchema.optional(),
+  targetFolderIds: targetFolderIdsSchema.optional(),
 });
 
 export const updateTaskInputSchema = z.object({
@@ -47,6 +49,7 @@ export const updateTaskInputSchema = z.object({
     status: taskStatusSchema.optional(),
     labels: z.array(taskLabelSchema).optional(),
     assignee: taskUserSchema.optional(),
+    targetFolderIds: targetFolderIdsSchema.optional(),
   }),
 });
 

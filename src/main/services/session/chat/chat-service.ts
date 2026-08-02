@@ -26,10 +26,6 @@ import { newSessionId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 
-export async function resolveWorkspaceCwd(workspaceId: string): Promise<string> {
-  return (await resolveWorkspace(workspaceId)).cwd;
-}
-
 export async function assertSessionBelongsToWorkspace(
   workspaceId: string,
   sessionId: string

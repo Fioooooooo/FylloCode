@@ -222,6 +222,16 @@ describe("TaskCard", () => {
     expect(wrapper.find('[data-test="linked-session-trigger"]').exists()).toBe(false);
   });
 
+  it("shows the stale repository target count", () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: buildTask({ staleTargetFolderIds: ["removed-a", "removed-b"] }),
+      },
+    });
+
+    expect(wrapper.get('[data-test="task-stale-targets"]').text()).toContain("2 个目标已失效");
+  });
+
   it("renders linked session items in the popover and emits open-session on click", async () => {
     const sessions = [
       buildLinkedSession(),

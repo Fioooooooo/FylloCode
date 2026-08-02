@@ -9,14 +9,19 @@ import type {
   TaskStatus,
   UpdateTaskInput,
 } from "@shared/types/task";
+import type { WorkspaceFolderInfo } from "@shared/types/workspace";
 
-const props = defineProps<{
-  open: boolean;
-  task: TaskItem | null;
-  error?: string | null;
-  detailLoading?: boolean;
-  detailError?: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    task: TaskItem | null;
+    error?: string | null;
+    detailLoading?: boolean;
+    detailError?: string | null;
+    folders?: WorkspaceFolderInfo[];
+  }>(),
+  { folders: () => [] }
+);
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -36,6 +41,7 @@ const title = ref("");
 const description = ref("");
 const status = ref<TaskStatus>("open");
 const titleError = ref("");
+const targetFolderIds = ref<string[]>([]);
 
 const isLocalTask = computed(() => props.task?.source === "local");
 const canEdit = computed(() => Boolean(props.task && isLocalTask.value));
@@ -62,6 +68,23 @@ const modalDescription = computed(() => {
   return `${props.task.title} · ${sourceDisplay.value} · ${props.task.status === "open" ? "打开" : "关闭"} · 创建于 ${timeAgo(props.task.createdAt)}`;
 });
 const editorContent = computed(() => props.task?.description.content ?? "");
+const currentTargetFolders = computed(() =>
+  (props.task?.currentTargetFolderIds ?? []).map(
+    (folderId) =>
+      props.folders.find((folder) => folder.folderId === folderId)?.folderName ?? folderId
+  )
+);
+const staleTargetFolderIds = computed(() => props.task?.staleTargetFolderIds ?? []);
+const targetOptions = computed(() => [
+  ...props.folders.map((folder) => ({
+    id: folder.folderId,
+    label: folder.folderName,
+    stale: false,
+  })),
+  ...staleTargetFolderIds.value
+    .filter((folderId) => !props.folders.some((folder) => folder.folderId === folderId))
+    .map((folderId) => ({ id: folderId, label: folderId, stale: true })),
+]);
 const editorContentType = computed<"html" | "markdown">(() => {
   return mapEditorContentType(props.task?.description.format);
 });
@@ -78,6 +101,7 @@ function resetForm(): void {
   title.value = "";
   description.value = "";
   titleError.value = "";
+  targetFolderIds.value = [];
 }
 
 function resetState(): void {
@@ -98,8 +122,15 @@ function startEditing(): void {
   title.value = props.task.title;
   description.value = props.task.description.content;
   status.value = props.task.status;
+  targetFolderIds.value = [...(props.task.targetFolderIds ?? [])];
   titleError.value = "";
   mode.value = "edit";
+}
+
+function toggleTarget(folderId: string, checked: boolean): void {
+  targetFolderIds.value = checked
+    ? [...targetFolderIds.value, folderId]
+    : targetFolderIds.value.filter((id) => id !== folderId);
 }
 
 function cancelEditing(): void {
@@ -127,6 +158,7 @@ function submit(): void {
         content: description.value.trim(),
       },
       status: status.value,
+      targetFolderIds: targetFolderIds.value,
     },
   });
 }
@@ -205,6 +237,35 @@ watch(
                 {{ label.name }}
               </UBadge>
             </div>
+
+            <div class="space-y-1.5" data-test="task-target-summary">
+              <p class="text-xs font-medium text-muted">目标 Folder</p>
+              <div class="flex flex-wrap gap-1.5">
+                <UBadge
+                  v-for="folderName in currentTargetFolders"
+                  :key="folderName"
+                  color="neutral"
+                  variant="soft"
+                  size="sm"
+                >
+                  {{ folderName }}
+                </UBadge>
+                <UBadge
+                  v-if="staleTargetFolderIds.length > 0"
+                  color="warning"
+                  variant="soft"
+                  size="sm"
+                >
+                  {{ staleTargetFolderIds.length }} 个目标已失效
+                </UBadge>
+                <span
+                  v-if="currentTargetFolders.length === 0 && staleTargetFolderIds.length === 0"
+                  class="text-xs text-muted"
+                >
+                  未指定 repository
+                </span>
+              </div>
+            </div>
           </div>
 
           <div class="rounded-lg border border-default bg-muted/30 px-4 py-3">
@@ -255,6 +316,28 @@ watch(
                 color="primary"
               />
             </UFormField>
+
+            <fieldset class="space-y-2">
+              <legend class="text-sm font-medium text-highlighted">目标 Folder（可选）</legend>
+              <label
+                v-for="option in targetOptions"
+                :key="option.id"
+                class="flex items-center justify-between gap-2 rounded-md border border-default px-3 py-2 text-sm"
+              >
+                <span class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    :checked="targetFolderIds.includes(option.id)"
+                    :aria-label="`选择目标 Folder ${option.label}`"
+                    @change="toggleTarget(option.id, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ option.label }}</span>
+                </span>
+                <UBadge v-if="option.stale" color="warning" variant="soft" size="sm">
+                  已失效
+                </UBadge>
+              </label>
+            </fieldset>
           </div>
         </template>
       </div>

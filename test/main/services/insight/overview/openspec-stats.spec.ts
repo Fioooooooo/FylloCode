@@ -93,11 +93,21 @@ describe("overview openspec stats", () => {
   });
 
   it("returns zero counts when directories are missing", async () => {
-    vi.mocked(fs.readdir).mockRejectedValue(new Error("ENOENT"));
-    mocks.scanGuidelines.mockRejectedValue(new Error("ENOENT"));
+    const missing = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    vi.mocked(fs.readdir).mockRejectedValue(missing);
+    mocks.scanGuidelines.mockRejectedValue(missing);
 
     await expect(countSpecs(projectPath)).resolves.toBe(0);
     await expect(countArchives(projectPath)).resolves.toEqual({ total: 0, thisMonth: 0 });
     await expect(countGuidelines(projectPath)).resolves.toBe(0);
+  });
+
+  it("propagates non-missing reader failures", async () => {
+    vi.mocked(fs.readdir).mockRejectedValue(Object.assign(new Error("denied"), { code: "EACCES" }));
+    mocks.scanGuidelines.mockRejectedValue(Object.assign(new Error("denied"), { code: "EACCES" }));
+
+    await expect(countSpecs(projectPath)).rejects.toThrow("denied");
+    await expect(countArchives(projectPath)).rejects.toThrow("denied");
+    await expect(countGuidelines(projectPath)).rejects.toThrow("denied");
   });
 });

@@ -12,6 +12,19 @@ const props = defineProps<{
 const maxSpecsCount = computed(() =>
   Math.max(...props.governance.specsGrowth.map((bucket) => bucket.cumulativeCount), 0)
 );
+const specsFolderNames = computed(() => [
+  ...new Set(props.governance.specsGrowth.map((bucket) => bucket.folderName)),
+]);
+const latestSpecsTotal = computed(() => {
+  const latestByFolder = new Map<string, SpecsGrowthBucket>();
+  for (const bucket of props.governance.specsGrowth) {
+    const current = latestByFolder.get(bucket.folderId);
+    if (!current || current.weekStart < bucket.weekStart) {
+      latestByFolder.set(bucket.folderId, bucket);
+    }
+  }
+  return [...latestByFolder.values()].reduce((total, bucket) => total + bucket.cumulativeCount, 0);
+});
 
 const barToneClasses = [
   "bg-primary/30",
@@ -90,9 +103,10 @@ function formatCount(value: number): string {
       >
         <div
           v-for="(bucket, index) in props.governance.specsGrowth"
-          :key="bucket.weekStart"
+          :key="`${bucket.folderId}:${bucket.weekStart}`"
           class="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-          :title="`${formatWeekStart(bucket.weekStart)}: ${formatCount(bucket.cumulativeCount)}`"
+          :title="`${bucket.folderName} · ${formatWeekStart(bucket.weekStart)}: ${formatCount(bucket.cumulativeCount)}`"
+          :aria-label="`${bucket.folderName}，${formatWeekStart(bucket.weekStart)}，${formatCount(bucket.cumulativeCount)}`"
         >
           <span
             class="text-[10px] leading-none text-muted opacity-0 transition-opacity group-hover:opacity-100"
@@ -111,6 +125,18 @@ function formatCount(value: number): string {
         </div>
       </div>
 
+      <div v-if="specsFolderNames.length > 0" class="mt-3 flex flex-wrap gap-1.5">
+        <UBadge
+          v-for="name in specsFolderNames"
+          :key="name"
+          color="neutral"
+          variant="soft"
+          size="sm"
+        >
+          {{ name }}
+        </UBadge>
+      </div>
+
       <AppEmptyState
         v-else
         compact
@@ -121,9 +147,7 @@ function formatCount(value: number): string {
 
       <div class="mt-3 flex items-center justify-between text-xs text-muted">
         <span>{{ startLabel }}</span>
-        <span v-if="props.governance.specsGrowth.length > 0">
-          累计 {{ props.governance.specsGrowth.at(-1)?.cumulativeCount ?? 0 }}
-        </span>
+        <span v-if="props.governance.specsGrowth.length > 0"> 累计 {{ latestSpecsTotal }} </span>
         <span>{{ endLabel }}</span>
       </div>
     </UiSurface>
@@ -152,7 +176,7 @@ function formatCount(value: number): string {
       <div v-else class="mt-4 divide-y divide-default">
         <div
           v-for="item in props.governance.recentGuidelines"
-          :key="item.fileName"
+          :key="`${item.folderId}:${item.fileName}`"
           class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2.5"
         >
           <div class="min-w-0">
@@ -161,6 +185,7 @@ function formatCount(value: number): string {
               <span class="truncate font-mono text-xs bg-muted/40 px-1 rounded">{{
                 item.fileName
               }}</span>
+              <UBadge color="neutral" variant="soft" size="sm">{{ item.folderName }}</UBadge>
             </p>
             <p class="mt-0.5 truncate text-xs text-muted" :title="item.lastCommitMessage">
               {{ item.lastCommitMessage }}

@@ -85,7 +85,7 @@ describe("preload index API shape", () => {
         automation: expect.objectContaining({
           workflow: expect.any(Object),
           task: expect.any(Object),
-          projectIntegration: expect.any(Object),
+          workspaceIntegration: expect.any(Object),
         }),
       })
     );

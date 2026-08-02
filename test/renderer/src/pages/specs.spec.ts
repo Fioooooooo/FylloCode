@@ -35,63 +35,89 @@ function project(): WorkspaceInfo {
 }
 
 function specsOverview(): SpecsBrowserOverview {
-  return {
-    items: [
+  const primary = {
+    id: "project-overview",
+    ref: { folderId: "folder-a", specId: "project-overview" },
+    folderName: "Repository A",
+    purpose: "定义主仓库项目概览页的数据聚合。",
+    sourcePath: "openspec/specs/project-overview/spec.md",
+    updatedAt: "2026-06-20T10:00:00.000Z",
+    requirementsCount: 2,
+    scenariosCount: 3,
+    requirementGroups: [
       {
-        id: "project-overview",
-        purpose: "定义项目概览页的数据聚合。",
-        sourcePath: "openspec/specs/project-overview/spec.md",
-        updatedAt: "2026-06-20T10:00:00.000Z",
-        requirementsCount: 2,
-        scenariosCount: 3,
-        requirementGroups: [
+        title: "概览数据聚合通道",
+        body: "系统 SHALL 提供 `insight:overview:getProjectOverview` IPC 通道。",
+        scenarios: [
           {
-            title: "概览数据聚合通道",
-            body: "系统 SHALL 提供 `insight:overview:getProjectOverview` IPC 通道。",
-            scenarios: [
-              {
-                title: "成功返回完整概览",
-                body: "- **WHEN** renderer 调用 IPC\n- **THEN** 返回完整概览",
-              },
-              {
-                title: "workspaceId 无法解析",
-                body: "- **WHEN** workspaceId 无效\n- **THEN** 返回错误",
-              },
-            ],
+            title: "成功返回完整概览",
+            body: "- **WHEN** renderer 调用 IPC\n- **THEN** 返回完整概览",
           },
           {
-            title: "仓库统计取数口径",
-            body: "系统 SHALL 通过文件系统扫描计算 stats。",
-            scenarios: [
-              {
-                title: "标准项目结构",
-                body: "- **WHEN** openspec/specs 存在\n- **THEN** 返回计数",
-              },
-            ],
+            title: "workspaceId 无法解析",
+            body: "- **WHEN** workspaceId 无效\n- **THEN** 返回错误",
           },
         ],
       },
       {
-        id: "chat-interface",
-        purpose: "定义消息流渲染。",
-        sourcePath: "openspec/specs/chat-interface/spec.md",
-        updatedAt: "2026-06-21T11:00:00.000Z",
-        requirementsCount: 1,
-        scenariosCount: 1,
-        requirementGroups: [
+        title: "仓库统计取数口径",
+        body: "系统 SHALL 通过文件系统扫描计算 stats。",
+        scenarios: [
           {
-            title: "Chat 区域显示可滚动的消息流",
-            body: "系统 SHALL 渲染垂直滚动的消息序列。",
-            scenarios: [
-              {
-                title: "消息流渲染",
-                body: "- **WHEN** session 活跃\n- **THEN** 显示消息流",
-              },
-            ],
+            title: "标准项目结构",
+            body: "- **WHEN** openspec/specs 存在\n- **THEN** 返回计数",
           },
         ],
       },
     ],
+  };
+  const secondary = {
+    id: "project-overview",
+    ref: { folderId: "folder-b", specId: "project-overview" },
+    folderName: "Repository B",
+    purpose: "定义次仓库的同名项目概览。",
+    sourcePath: "openspec/specs/project-overview/spec.md",
+    updatedAt: "2026-06-21T11:00:00.000Z",
+    requirementsCount: 1,
+    scenariosCount: 1,
+    requirementGroups: [
+      {
+        title: "次仓库同名能力",
+        body: "系统 SHALL 保留 owner identity。",
+        scenarios: [
+          {
+            title: "同名能力选择",
+            body: "- **WHEN** 用户选择次仓库\n- **THEN** 显示次仓库详情",
+          },
+        ],
+      },
+    ],
+  };
+
+  return {
+    folders: [
+      {
+        folderId: "folder-a",
+        folderName: "Repository A",
+        folderPath: "/repos/a",
+        isPrimary: true,
+        status: "ready",
+        items: [primary],
+        warnings: [],
+      },
+      {
+        folderId: "folder-b",
+        folderName: "Repository B",
+        folderPath: "/repos/b",
+        isPrimary: false,
+        status: "ready",
+        items: [secondary],
+        warnings: [],
+      },
+    ],
+    items: [primary, secondary],
+    completeness: "complete",
+    excludedFolderIds: [],
   };
 }
 
@@ -148,7 +174,7 @@ describe("specs page", () => {
 
     expect(wrapper.findAll('[data-test="specs-list-item"]')).toHaveLength(2);
     expect(wrapper.text()).toContain("project-overview");
-    expect(wrapper.text()).toContain("定义项目概览页的数据聚合。");
+    expect(wrapper.text()).toContain("定义主仓库项目概览页的数据聚合。");
     expect(wrapper.text()).toContain("openspec/specs/project-overview/spec.md");
     expect(wrapper.text()).toContain("需求");
     expect(wrapper.text()).toContain("2");
@@ -168,7 +194,7 @@ describe("specs page", () => {
     expect(firstScenarioHeader.element.children[1]?.textContent).toBe("成功返回完整概览");
   });
 
-  it("selects another capability from the left list", async () => {
+  it("uses the complete SpecRef to select a same-name capability from another Folder", async () => {
     vi.mocked(specsApi.getSpecsBrowser).mockResolvedValue({
       ok: true,
       data: specsOverview(),
@@ -180,17 +206,98 @@ describe("specs page", () => {
     await wrapper.findAll('[data-test="specs-list-item"]')[1].trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("chat-interface");
-    expect(wrapper.text()).toContain("Chat 区域显示可滚动的消息流");
+    expect(wrapper.text()).toContain("定义次仓库的同名项目概览。");
+    expect(wrapper.text()).toContain("次仓库同名能力");
+    expect(wrapper.text()).toContain("Repository B");
     expect(wrapper.findAll('[data-test="specs-requirement-index-item"]')).toHaveLength(1);
     expect(wrapper.findAll('[data-test="specs-scenario"]')).toHaveLength(1);
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
+  it("filters by Folder and distinguishes partial error state from ready data", async () => {
+    const overview = specsOverview();
+    const failedFolder = overview.folders[1];
+    failedFolder.status = "error";
+    failedFolder.items = [];
+    failedFolder.error = "permission denied";
+    overview.items = [overview.items[0]];
+    overview.completeness = "partial";
+    overview.excludedFolderIds = ["folder-b"];
+    vi.mocked(specsApi.getSpecsBrowser).mockResolvedValue({ ok: true, data: overview });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="specs-partial-alert"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("部分 Folder 未计入");
+    expect(wrapper.get('[aria-label="Repository B：错误"]').attributes("aria-label")).toBe(
+      "Repository B：错误"
+    );
+    expect(wrapper.findAll('[data-test="specs-list-item"]')).toHaveLength(1);
+
+    await wrapper.get('[data-test="specs-folder-filter"]').setValue("folder-b");
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="specs-list"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("Folder 读取失败");
+    expect(wrapper.text()).toContain("permission denied");
+  });
+
+  it("rejects a late response from the previous Workspace and clears its filter", async () => {
+    let resolveFirst!: (value: Awaited<ReturnType<typeof specsApi.getSpecsBrowser>>) => void;
+    let resolveSecond!: (value: Awaited<ReturnType<typeof specsApi.getSpecsBrowser>>) => void;
+    vi.mocked(specsApi.getSpecsBrowser)
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveSecond = resolve)));
+
+    const wrapper = mountPage();
+    await wrapper.vm.$nextTick();
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
+      id: "project-2",
+      name: "Project 2",
+      folderPath: "/tmp/project-2",
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    await wrapper.vm.$nextTick();
+
+    const current = specsOverview();
+    current.items[0].purpose = "当前 Workspace 数据";
+    current.folders[0].items[0].purpose = "当前 Workspace 数据";
+    resolveSecond({ ok: true, data: current });
+    await flushPromises();
+
+    const stale = specsOverview();
+    stale.items[0].purpose = "旧 Workspace 迟到数据";
+    stale.folders[0].items[0].purpose = "旧 Workspace 迟到数据";
+    resolveFirst({ ok: true, data: stale });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("当前 Workspace 数据");
+    expect(wrapper.text()).not.toContain("旧 Workspace 迟到数据");
+    expect(specsApi.getSpecsBrowser).toHaveBeenNthCalledWith(2, "project-2");
+  });
+
   it("renders empty state when the project has no specs", async () => {
     vi.mocked(specsApi.getSpecsBrowser).mockResolvedValue({
       ok: true,
-      data: { items: [] },
+      data: {
+        folders: [
+          {
+            folderId: "folder-a",
+            folderName: "Repository A",
+            folderPath: "/repos/a",
+            isPrimary: true,
+            status: "ready",
+            items: [],
+            warnings: [],
+          },
+        ],
+        items: [],
+        completeness: "complete",
+        excludedFolderIds: [],
+      },
     });
 
     const wrapper = mountPage();

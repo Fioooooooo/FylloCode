@@ -32,7 +32,6 @@ const mocks = vi.hoisted(() => {
     listSessions: vi.fn(),
     updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
-    resolveWorkspaceCwd: vi.fn(),
     resolveWorkspace: vi.fn(),
     createSessionWorkspaceSnapshot: vi.fn(),
     ensureSessionWorkspaceSnapshot: vi.fn(),
@@ -82,7 +81,6 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   loadSessionMessages: vi.fn(),
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
-  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
   ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
   updateSession: mocks.updateSession,
 }));
@@ -189,7 +187,6 @@ describe("registerChatHandlers", () => {
     mocks.eventHandler = null;
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     const workspaceSnapshot = {
       workspaceId: "workspace-1",
       workspaceKind: "folder",
@@ -351,8 +348,8 @@ describe("registerChatHandlers", () => {
       ok: true,
       data: [],
     });
-    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
-    expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("workspace-1", "/tmp/project");
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("workspace-1");
     expect(mocks.listSessions).toHaveBeenCalledWith("workspace-1");
   });
 

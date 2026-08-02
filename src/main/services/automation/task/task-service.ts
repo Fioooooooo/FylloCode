@@ -1,5 +1,6 @@
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@main/ipc/_kit/errors";
+import { normalizeTaskTargetFolderIds } from "@shared/types/task";
 import type {
   CreateLocalTaskInput,
   TaskDescription,
@@ -31,6 +32,10 @@ function createLocalDescription(description?: TaskDescription): TaskDescription 
 }
 
 function applyPatch(task: TaskItem, patch: UpdateTaskInput): TaskItem {
+  const normalizedTargets =
+    patch.targetFolderIds === undefined
+      ? task.targetFolderIds
+      : normalizeTaskTargetFolderIds(patch.targetFolderIds);
   return {
     ...task,
     title: patch.title ?? task.title,
@@ -38,6 +43,8 @@ function applyPatch(task: TaskItem, patch: UpdateTaskInput): TaskItem {
     status: patch.status ?? task.status,
     labels: patch.labels ?? task.labels,
     assignee: patch.assignee ?? task.assignee,
+    targetFolderIds:
+      normalizedTargets && normalizedTargets.length > 0 ? normalizedTargets : undefined,
     updatedAt: new Date(),
   };
 }
@@ -75,6 +82,12 @@ export async function createTask(
     assignee: undefined,
     originSessionId: options.originSessionId,
     actionId: options.actionId,
+    targetFolderIds: (() => {
+      const targets = normalizeTaskTargetFolderIds(input.targetFolderIds);
+      return targets.length > 0 ? targets : undefined;
+    })(),
+    currentTargetFolderIds: [],
+    staleTargetFolderIds: [],
     createdAt: now,
     updatedAt: now,
   };

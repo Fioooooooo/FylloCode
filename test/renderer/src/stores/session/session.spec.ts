@@ -1012,7 +1012,26 @@ describe("useSessionStore", () => {
       createdAt: new Date(),
       lastOpenedAt: new Date(),
     });
-    proposalMocks.list.mockResolvedValue({ ok: true, data: [proposalMeta()] });
+    const loadedProposal = proposalMeta();
+    proposalMocks.list.mockResolvedValue({
+      ok: true,
+      data: {
+        folders: [
+          {
+            folderId: "project-1",
+            folderName: "Project",
+            folderPath: "/tmp/project",
+            isPrimary: true,
+            status: "ready",
+            items: [loadedProposal],
+            warnings: [],
+          },
+        ],
+        items: [loadedProposal],
+        completeness: "complete",
+        excludedFolderIds: [],
+      },
+    });
     proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
 
     const store = useSessionStore();
@@ -1035,7 +1054,10 @@ describe("useSessionStore", () => {
   it("does not reload proposals when a statusChanged event arrives for a known proposal", async () => {
     const proposalStore = useProposalStore();
     proposalStore.proposals = [proposalMeta({ title: "Cached Title" })];
-    proposalMocks.list.mockResolvedValue({ ok: true, data: [] });
+    proposalMocks.list.mockResolvedValue({
+      ok: true,
+      data: { folders: [], items: [], completeness: "complete", excludedFolderIds: [] },
+    });
     proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
 
     const workspaceStore = useWorkspaceStore();

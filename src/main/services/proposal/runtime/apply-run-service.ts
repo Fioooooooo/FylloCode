@@ -4,7 +4,7 @@ import { load, dump } from "js-yaml";
 import type { ApplyRunMeta, ProposalRef, ProposalStatus } from "@shared/types/proposal";
 import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { resolveRepositoryTarget, resolveWorkspace } from "@main/services/workspace/_public";
+import { resolveRepositoryTarget } from "@main/services/workspace/_public";
 import { saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
 import {
   resolveApplyRunChangeId,
@@ -15,10 +15,6 @@ import { loadAllWorkflowTemplates } from "@main/services/automation/_public";
 import { newRunId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
 export { updateRunMetaIfCurrent } from "@main/infra/storage/apply-run-store";
-
-export async function resolveWorkspaceCwd(workspaceId: string): Promise<string> {
-  return (await resolveWorkspace(workspaceId)).cwd;
-}
 
 export async function findWorkflowTemplate(
   workspaceId: string,

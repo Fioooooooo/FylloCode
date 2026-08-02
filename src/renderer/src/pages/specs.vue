@@ -6,27 +6,65 @@ import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useWorkspaceStore, useSpecsStore } from "@renderer/stores";
+import { specRefKey, type SpecBrowserItem } from "@shared/types/specs";
 
 const isDark = useDark();
 const workspaceStore = useWorkspaceStore();
 const specsStore = useSpecsStore();
-const selectedId = ref<string | null>(null);
+const selectedRefKey = ref<string | null>(null);
 const activeRequirementIndex = ref(0);
 
-const specs = computed(() => specsStore.data?.items ?? []);
+const specs = computed(() => specsStore.visibleItems);
 const selectedSpec = computed(() => {
   if (specs.value.length === 0) {
     return null;
   }
 
-  return specs.value.find((spec) => spec.id === selectedId.value) ?? specs.value[0];
+  return (
+    specs.value.find((spec) => specRefKey(spec.ref) === selectedRefKey.value) ?? specs.value[0]
+  );
+});
+const selectedFolder = computed(
+  () => specsStore.folders.find((folder) => folder.folderId === specsStore.selectedFolderId) ?? null
+);
+const affectedFolderNames = computed(() =>
+  specsStore.folders
+    .filter((folder) => folder.status !== "ready")
+    .map((folder) => folder.folderName)
+    .join("、")
+);
+const filteredEmptyState = computed(() => {
+  const folder = selectedFolder.value;
+  if (!folder) {
+    return {
+      title: "暂无能力规约",
+      description: "当前 Workspace 的所有 Folder repository 都没有可读取的 spec.md。",
+    };
+  }
+  if (folder.status === "missing") {
+    return {
+      title: "Folder 不可用",
+      description: `${folder.folderName} 当前不存在，未读取该 Folder 的能力规约。`,
+    };
+  }
+  if (folder.status === "error") {
+    return {
+      title: "Folder 读取失败",
+      description: folder.error ?? `${folder.folderName} 的能力规约暂时无法读取。`,
+    };
+  }
+  return {
+    title: "此 Folder 暂无能力规约",
+    description: `${folder.folderName} 的 openspec/specs 目录下没有可读取的 spec.md。`,
+  };
 });
 
 watch(
   () => workspaceStore.currentWorkspace?.id,
   (workspaceId) => {
-    selectedId.value = null;
+    selectedRefKey.value = null;
     activeRequirementIndex.value = 0;
+    specsStore.setFolderFilter(null);
 
     if (workspaceId) {
       void specsStore.load(workspaceId);
@@ -38,10 +76,10 @@ watch(
 );
 
 watch(
-  () => selectedSpec.value?.id ?? null,
-  (id) => {
-    if (id && selectedId.value !== id) {
-      selectedId.value = id;
+  () => (selectedSpec.value ? specRefKey(selectedSpec.value.ref) : null),
+  (key) => {
+    if (key && selectedRefKey.value !== key) {
+      selectedRefKey.value = key;
     }
     activeRequirementIndex.value = 0;
   }
@@ -66,8 +104,8 @@ function formatScenarioCount(count: number): string {
   return `${count} 个场景`;
 }
 
-function selectSpec(id: string): void {
-  selectedId.value = id;
+function selectSpec(spec: SpecBrowserItem): void {
+  selectedRefKey.value = specRefKey(spec.ref);
   activeRequirementIndex.value = 0;
   void nextTick(() => {
     document.getElementById(requirementDomId(0))?.scrollIntoView({ block: "start" });
@@ -75,7 +113,12 @@ function selectSpec(id: string): void {
 }
 
 function requirementDomId(index: number): string {
-  return `spec-requirement-${selectedSpec.value?.id ?? "unknown"}-${index}`;
+  const key = selectedSpec.value ? specRefKey(selectedSpec.value.ref) : "unknown";
+  return `spec-requirement-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}-${index}`;
+}
+
+function folderStatusLabel(status: "ready" | "missing" | "error"): string {
+  return { ready: "可用", missing: "缺失", error: "错误" }[status];
 }
 
 function scrollToRequirement(index: number): void {
@@ -97,6 +140,27 @@ function scrollToRequirement(index: number): void {
             title="能力规约"
             description="当前项目的 OpenSpec 能力规约。"
           />
+          <label v-if="specsStore.data" class="mt-3 block text-xs text-muted">
+            <span class="sr-only">按 Folder 筛选能力规约</span>
+            <select
+              :value="specsStore.selectedFolderId ?? ''"
+              class="w-full rounded-md border border-default bg-default px-2 py-1.5 text-sm text-highlighted"
+              aria-label="按 Folder 筛选能力规约"
+              data-test="specs-folder-filter"
+              @change="
+                specsStore.setFolderFilter(($event.target as HTMLSelectElement).value || null)
+              "
+            >
+              <option value="">全部 Folder</option>
+              <option
+                v-for="folder in specsStore.folders"
+                :key="folder.folderId"
+                :value="folder.folderId"
+              >
+                {{ folder.folderName }} · {{ folderStatusLabel(folder.status) }}
+              </option>
+            </select>
+          </label>
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto p-2">
@@ -107,31 +171,59 @@ function scrollToRequirement(index: number): void {
             </div>
           </div>
 
-          <div v-else-if="specs.length > 0" class="space-y-1" data-test="specs-list">
-            <UiSurface
-              v-for="spec in specs"
-              :key="spec.id"
-              as="button"
-              variant="flat"
-              interactive
-              padding="none"
-              class="w-full px-2.5 py-2 text-left"
-              :class="
-                selectedSpec?.id === spec.id
-                  ? '!bg-primary/15 text-primary ring-1 ring-primary/15'
-                  : 'text-default hover:bg-elevated'
-              "
-              data-test="specs-list-item"
-              @click="selectSpec(spec.id)"
-            >
-              <div class="min-w-0 space-y-0.5">
-                <p class="truncate text-sm font-medium text-highlighted">{{ spec.id }}</p>
-                <p class="truncate text-xs leading-relaxed text-muted">
-                  {{ spec.purpose || "未声明 Purpose" }}
-                </p>
+          <template v-else>
+            <UAlert
+              v-if="specsStore.data?.completeness === 'partial'"
+              color="warning"
+              variant="soft"
+              icon="i-lucide-triangle-alert"
+              title="部分 Folder 未计入"
+              :description="affectedFolderNames || '部分 Folder 暂不可用。'"
+              class="mb-2"
+              data-test="specs-partial-alert"
+            />
+            <div v-if="specsStore.data" class="mb-2 space-y-1" data-test="specs-folder-statuses">
+              <div
+                v-for="folder in specsStore.folders"
+                :key="folder.folderId"
+                class="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-muted"
+                :aria-label="`${folder.folderName}：${folderStatusLabel(folder.status)}`"
+                data-test="specs-folder-status"
+              >
+                <span class="truncate">{{ folder.folderName }}</span>
+                <span>{{ folderStatusLabel(folder.status) }}</span>
               </div>
-            </UiSurface>
-          </div>
+            </div>
+
+            <div v-if="specs.length > 0" class="space-y-1" data-test="specs-list">
+              <UiSurface
+                v-for="spec in specs"
+                :key="specRefKey(spec.ref)"
+                as="button"
+                variant="flat"
+                interactive
+                padding="none"
+                class="w-full px-2.5 py-2 text-left"
+                :class="
+                  selectedSpec && specRefKey(selectedSpec.ref) === specRefKey(spec.ref)
+                    ? '!bg-primary/15 text-primary ring-1 ring-primary/15'
+                    : 'text-default hover:bg-elevated'
+                "
+                data-test="specs-list-item"
+                @click="selectSpec(spec)"
+              >
+                <div class="min-w-0 space-y-0.5">
+                  <div class="flex min-w-0 items-center gap-1.5">
+                    <p class="truncate text-sm font-medium text-highlighted">{{ spec.id }}</p>
+                    <UBadge color="neutral" variant="soft" size="sm">{{ spec.folderName }}</UBadge>
+                  </div>
+                  <p class="truncate text-xs leading-relaxed text-muted">
+                    {{ spec.purpose || "未声明 Purpose" }}
+                  </p>
+                </div>
+              </UiSurface>
+            </div>
+          </template>
         </div>
       </div>
     </aside>
@@ -170,8 +262,8 @@ function scrollToRequirement(index: number): void {
         v-else-if="!selectedSpec"
         class="flex-1"
         icon="i-lucide-scroll-text"
-        title="暂无能力规约"
-        description="当前项目的 openspec/specs 目录下还没有可读取的 spec.md。"
+        :title="filteredEmptyState.title"
+        :description="filteredEmptyState.description"
         data-test="specs-empty-state"
       />
 
@@ -180,9 +272,12 @@ function scrollToRequirement(index: number): void {
           <div class="px-6 py-4">
             <div class="flex items-start justify-between gap-6">
               <div class="min-w-0 flex-1 space-y-2">
-                <h2 class="truncate text-xl font-semibold text-highlighted">
-                  {{ selectedSpec.id }}
-                </h2>
+                <div class="flex min-w-0 items-center gap-2">
+                  <h2 class="truncate text-xl font-semibold text-highlighted">
+                    {{ selectedSpec.id }}
+                  </h2>
+                  <UBadge color="neutral" variant="soft">{{ selectedSpec.folderName }}</UBadge>
+                </div>
                 <p class="text-sm leading-relaxed text-muted">
                   {{ selectedSpec.purpose || "未声明 Purpose" }}
                 </p>

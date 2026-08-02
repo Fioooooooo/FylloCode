@@ -38,6 +38,15 @@ describe("preload proposal owner contracts", () => {
     );
   });
 
+  it("forwards Workspace identity for proposal aggregate listing", async () => {
+    const { proposalBrowserApi } = await import("@preload/api/proposal/browser");
+    await proposalBrowserApi.list("workspace-1");
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ProposalBrowserChannels.list, {
+      workspaceId: "workspace-1",
+    });
+  });
+
   it("forwards ProposalRef for apply and archive history", async () => {
     const { proposalApplyApi } = await import("@preload/api/proposal/apply");
     const { proposalArchiveApi } = await import("@preload/api/proposal/archive");

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import IntegrationPage from "@renderer/pages/integration.vue";
 
 const loadProvidersMock = vi.fn();
-const loadProjectIntegrationMock = vi.fn();
+const loadWorkspaceIntegrationMock = vi.fn();
 const setSearchQueryMock = vi.fn();
 
 const integrationProvidersStore = {
@@ -28,7 +28,7 @@ const integrationProvidersStore = {
   ],
   searchQuery: "",
   loadProviders: loadProvidersMock,
-  loadProjectIntegration: loadProjectIntegrationMock,
+  loadWorkspaceIntegration: loadWorkspaceIntegrationMock,
   setSearchQuery: setSearchQueryMock,
 };
 
@@ -73,7 +73,7 @@ describe("integration page", () => {
     await flushPromises();
 
     expect(loadProvidersMock).toHaveBeenCalledTimes(1);
-    expect(loadProjectIntegrationMock).toHaveBeenCalledWith("project-1");
+    expect(loadWorkspaceIntegrationMock).toHaveBeenCalledWith("project-1");
     expect(wrapper.get('[data-test="stage-project-management"]').text()).toContain("project-1");
   });
 
@@ -103,7 +103,7 @@ describe("integration page", () => {
 
     await flushPromises();
 
-    expect(loadProjectIntegrationMock).toHaveBeenCalledWith("");
+    expect(loadWorkspaceIntegrationMock).toHaveBeenCalledWith("");
     expect(wrapper.text()).toContain("请先打开一个工作区");
   });
 
@@ -119,11 +119,11 @@ describe("integration page", () => {
     });
 
     await flushPromises();
-    expect(loadProjectIntegrationMock).toHaveBeenCalledWith("");
+    expect(loadWorkspaceIntegrationMock).toHaveBeenCalledWith("");
 
     workspaceStore.currentWorkspace = { id: "project-late" };
     await flushPromises();
 
-    expect(loadProjectIntegrationMock).toHaveBeenCalledWith("project-late");
+    expect(loadWorkspaceIntegrationMock).toHaveBeenCalledWith("project-late");
   });
 });

@@ -24,6 +24,6 @@
 - `src/renderer/src/api/platform/providers.ts`
 - `src/renderer/src/stores/platform/providers.ts`
 - provider manifest 与 shared integration contracts
-- `project-integrations` 的项目 stage/resource 挂载流程
+- `workspace-integrations` 的 Workspace stage/resource 挂载流程
 
 迁移时必须保持 credential 安全边界、连接状态和 probe 行为不变；跨两个 feature 的 provider 视觉原语只有在确实复用后才提升到 shared UI。

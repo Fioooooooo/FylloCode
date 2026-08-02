@@ -143,6 +143,25 @@ describe("task-service", () => {
     expect(updated.description).toEqual({ format: "plain_text", content: "updated body" });
   });
 
+  it("deduplicates target Folder IDs on create and update while preserving first order", async () => {
+    mocks.loadTasks.mockResolvedValueOnce([]);
+    const created = await createTask("workspace-1", {
+      title: "Targeted task",
+      targetFolderIds: ["folder-b", "folder-a", "folder-b"],
+    });
+    expect(created.targetFolderIds).toEqual(["folder-b", "folder-a"]);
+
+    mocks.loadTasks.mockResolvedValueOnce([created]);
+    const updated = await updateTask("workspace-1", created.id, {
+      targetFolderIds: ["folder-a", "folder-a"],
+    });
+    expect(updated.targetFolderIds).toEqual(["folder-a"]);
+
+    mocks.loadTasks.mockResolvedValueOnce([updated]);
+    const cleared = await updateTask("workspace-1", updated.id, { targetFolderIds: [] });
+    expect(cleared.targetFolderIds).toBeUndefined();
+  });
+
   it("deletes existing tasks", async () => {
     const first = task({ id: "task-1" });
     const second = task({ id: "task-2" });

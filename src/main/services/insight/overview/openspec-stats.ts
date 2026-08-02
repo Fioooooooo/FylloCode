@@ -12,14 +12,24 @@ function currentMonthPrefix(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+function isMissingPathError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
 export async function countSpecs(projectPath: string): Promise<number> {
   try {
     const entries = await fs.readdir(join(projectPath, "openspec", "specs"), {
       withFileTypes: true,
     });
     return entries.filter((entry) => entry.isDirectory()).length;
-  } catch {
-    return 0;
+  } catch (error) {
+    if (isMissingPathError(error)) return 0;
+    throw error;
   }
 }
 
@@ -34,15 +44,17 @@ export async function countArchives(projectPath: string): Promise<ArchiveCounts>
       total: directories.length,
       thisMonth: directories.filter((entry) => entry.name.startsWith(monthPrefix)).length,
     };
-  } catch {
-    return { total: 0, thisMonth: 0 };
+  } catch (error) {
+    if (isMissingPathError(error)) return { total: 0, thisMonth: 0 };
+    throw error;
   }
 }
 
 export async function countGuidelines(projectPath: string): Promise<number> {
   try {
     return (await scanGuidelines(projectPath)).length;
-  } catch {
-    return 0;
+  } catch (error) {
+    if (isMissingPathError(error)) return 0;
+    throw error;
   }
 }

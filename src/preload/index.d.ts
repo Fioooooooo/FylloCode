@@ -11,7 +11,7 @@ import type { sessionActionApi } from "./api/session/action";
 import type { proposalArchiveApi } from "./api/proposal/archive";
 import type { proposalApplyApi } from "./api/proposal/apply";
 import type { proposalBrowserApi } from "./api/proposal/browser";
-import type { projectIntegrationApi } from "./api/automation/project-integration";
+import type { workspaceIntegrationApi } from "./api/automation/workspace-integration";
 import type { taskApi } from "./api/automation/task";
 import type { workflowApi } from "./api/automation/workflow";
 import type { guidelinesApi } from "./api/insight/guidelines";
@@ -52,7 +52,7 @@ export interface AppApi {
   automation: {
     workflow: typeof workflowApi;
     task: typeof taskApi;
-    projectIntegration: typeof projectIntegrationApi;
+    workspaceIntegration: typeof workspaceIntegrationApi;
   };
 }
 

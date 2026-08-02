@@ -69,6 +69,8 @@ function overview(): ProjectOverview {
     activeChanges: [
       {
         id: "add-project-overview-page",
+        proposalRef: { folderId: "folder-a", changeId: "add-project-overview-page" },
+        folderName: "Repository A",
         title: "Add Project Overview Page",
         createdAt: new Date().toISOString(),
         taskTitle: "项目概览页真实数据",
@@ -105,16 +107,76 @@ function overview(): ProjectOverview {
     ],
     governance: {
       specsGrowth: [
-        { weekStart: new Date().toISOString(), cumulativeCount: 72 },
-        { weekStart: new Date().toISOString(), cumulativeCount: 74 },
+        {
+          folderId: "folder-a",
+          folderName: "Repository A",
+          weekStart: new Date().toISOString(),
+          cumulativeCount: 72,
+        },
+        {
+          folderId: "folder-a",
+          folderName: "Repository A",
+          weekStart: new Date().toISOString(),
+          cumulativeCount: 74,
+        },
       ],
       recentGuidelines: [
         {
+          folderId: "folder-a",
+          folderName: "Repository A",
           fileName: "IPC.md",
           lastCommitDate: new Date().toISOString(),
           lastCommitMessage: "docs(ipc): document overview channel",
         },
       ],
+    },
+    repository: {
+      folders: [
+        {
+          folderId: "folder-a",
+          folderName: "Repository A",
+          folderPath: "/tmp/project-1",
+          isPrimary: true,
+          status: "ready",
+          items: [
+            {
+              folderId: "folder-a",
+              folderName: "Repository A",
+              stats: {
+                specsCount: 74,
+                specsThisMonth: 8,
+                archiveCount: 110,
+                archiveThisMonth: 14,
+                guidelinesCount: 10,
+                guidelinesLastUpdated: new Date().toISOString(),
+              },
+              activeChanges: [],
+              proposalStatuses: [],
+              governance: { specsGrowth: [], recentGuidelines: [] },
+            },
+          ],
+          warnings: [],
+        },
+      ],
+      items: [
+        {
+          folderId: "folder-a",
+          folderName: "Repository A",
+          stats: {
+            specsCount: 74,
+            specsThisMonth: 8,
+            archiveCount: 110,
+            archiveThisMonth: 14,
+            guidelinesCount: 10,
+            guidelinesLastUpdated: new Date().toISOString(),
+          },
+          activeChanges: [],
+          proposalStatuses: [],
+          governance: { specsGrowth: [], recentGuidelines: [] },
+        },
+      ],
+      completeness: "complete",
+      excludedFolderIds: [],
     },
   };
 }
@@ -248,6 +310,8 @@ describe("overview page", () => {
     expect(governanceEntryGrid.find('[data-test="overview-knowledge-card"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-specs-growth"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="overview-guideline-evolution"]').exists()).toBe(true);
+    expect(wrapper.get('[data-test="overview-content-grid"]').classes()).toContain("grid-cols-1");
+    expect(wrapper.text()).toContain("Repository A");
   });
 
   it("uses the active change title for display and id for slideover opening", async () => {
@@ -276,8 +340,97 @@ describe("overview page", () => {
 
     await wrapper.get('[data-test="overview-active-changes"] button').trigger("click");
 
-    expect(slideoverMock.openProposalDetail).toHaveBeenCalledWith("add-project-overview-page");
+    expect(slideoverMock.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-a",
+      changeId: "add-project-overview-page",
+    });
     expect(routerMock.push).not.toHaveBeenCalled();
+  });
+
+  it("keeps same-name active proposals separated by owner and opens the selected ProposalRef", async () => {
+    const data = overview();
+    data.activeChanges.push({
+      ...data.activeChanges[0]!,
+      proposalRef: { folderId: "folder-b", changeId: "add-project-overview-page" },
+      folderName: "Repository B",
+      title: "Secondary Overview",
+      worktreePath: undefined,
+    });
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({ ok: true, data });
+
+    const wrapper = mountPage();
+    await flushPromises();
+    const cards = wrapper.findAll('[data-test="overview-active-changes"] button');
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0]!.text()).toContain("Repository A");
+    expect(cards[1]!.text()).toContain("Repository B");
+    await cards[1]!.trigger("click");
+
+    expect(slideoverMock.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-b",
+      changeId: "add-project-overview-page",
+    });
+  });
+
+  it("marks repository totals and evolution as partial without hiding ready Folder data", async () => {
+    const data = overview();
+    data.repository.folders.push({
+      folderId: "folder-b",
+      folderName: "Repository B",
+      folderPath: "/tmp/project-2",
+      isPrimary: false,
+      status: "error",
+      items: [],
+      warnings: [],
+      error: "git unavailable",
+    });
+    data.repository.completeness = "partial";
+    data.repository.excludedFolderIds = ["folder-b"];
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({ ok: true, data });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="overview-partial-alert"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("未计入 Repository B");
+    expect(wrapper.get('[data-test="overview-partial-stats-label"]').text()).toContain(
+      "Repository 数据不完整"
+    );
+    expect(wrapper.get('[data-test="overview-specs-value"]').text()).toBe("74+");
+    expect(wrapper.text()).toContain("Add Project Overview Page");
+    expect(wrapper.text()).toContain("IPC.md");
+  });
+
+  it("rejects a late overview response from the previous Workspace", async () => {
+    let resolveFirst!: (value: Awaited<ReturnType<typeof overviewApi.getProjectOverview>>) => void;
+    let resolveSecond!: (value: Awaited<ReturnType<typeof overviewApi.getProjectOverview>>) => void;
+    vi.mocked(overviewApi.getProjectOverview)
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveSecond = resolve)));
+    const wrapper = mountPage();
+    await wrapper.vm.$nextTick();
+
+    useWorkspaceStore().currentWorkspace = workspaceInfo({
+      id: "project-2",
+      name: "Project 2",
+      folderPath: "/tmp/project-2",
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    await wrapper.vm.$nextTick();
+    const current = overview();
+    current.activeChanges[0]!.title = "Current Workspace Change";
+    resolveSecond({ ok: true, data: current });
+    await flushPromises();
+    const stale = overview();
+    stale.activeChanges[0]!.title = "Stale Workspace Change";
+    resolveFirst({ ok: true, data: stale });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Current Workspace Change");
+    expect(wrapper.text()).not.toContain("Stale Workspace Change");
+    expect(overviewApi.getProjectOverview).toHaveBeenNthCalledWith(2, "project-2");
   });
 
   it("navigates from interactive overview stat cards", async () => {

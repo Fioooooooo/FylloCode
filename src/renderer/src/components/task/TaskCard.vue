@@ -114,6 +114,15 @@ function formatEntryTime(entry: LinkedSessionEntry): string {
           {{ label.name }}
         </UBadge>
       </div>
+      <UBadge
+        v-if="(task.staleTargetFolderIds?.length ?? 0) > 0"
+        color="warning"
+        variant="soft"
+        size="xs"
+        data-test="task-stale-targets"
+      >
+        {{ task.staleTargetFolderIds!.length }} 个目标已失效
+      </UBadge>
     </div>
 
     <div

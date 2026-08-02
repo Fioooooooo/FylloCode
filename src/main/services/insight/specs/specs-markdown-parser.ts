@@ -48,7 +48,7 @@ export function parseSpecMarkdown(
   sourcePath: string,
   content: string,
   updatedAt: string
-): SpecBrowserItem {
+): Omit<SpecBrowserItem, "ref" | "folderName"> {
   const purposeLines: string[] = [];
   const requirementGroups: MutableRequirementGroup[] = [];
   let section: ParserSection = "none";

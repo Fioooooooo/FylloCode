@@ -29,10 +29,10 @@ import {
 import {
   createEmptyWorkspaceIntegrationConfig,
   loadWorkspaceIntegrationConfig,
-  projectIntegrationPath,
+  workspaceIntegrationPath,
   saveWorkspaceIntegrationConfig,
   setStageResources,
-} from "@main/infra/storage/project-integration-store";
+} from "@main/infra/storage/workspace-integration-store";
 
 beforeEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
@@ -169,8 +169,34 @@ describe("Workspace integration store", () => {
   });
 
   it("stores integration under the Workspace directory", () => {
-    expect(projectIntegrationPath("project-3")).toBe(
+    expect(workspaceIntegrationPath("project-3")).toBe(
       `${tempRoot}/workspaces/project-3/integrations/config.json`
     );
+  });
+
+  it("persists Folder binding but omits current/stale read projections", () => {
+    saveWorkspaceIntegrationConfig("workspace-a", {
+      ...createEmptyWorkspaceIntegrationConfig(),
+      "source-control": [
+        {
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+          resourceId: "repo-1",
+          folderId: "folder-a",
+          currentFolderId: "folder-a",
+          staleFolderId: "removed",
+        },
+      ],
+    });
+
+    const raw = JSON.parse(readFileSync(workspaceIntegrationPath("workspace-a"), "utf8")) as {
+      "source-control": Array<Record<string, unknown>>;
+    };
+    expect(raw["source-control"][0]).toEqual({
+      providerId: "yunxiao",
+      resourceType: "codeup-repo",
+      resourceId: "repo-1",
+      folderId: "folder-a",
+    });
   });
 });

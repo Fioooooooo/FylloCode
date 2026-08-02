@@ -54,7 +54,7 @@ export {
   AutomationTaskChannels,
   AutomationTaskChannels as TaskChannels,
 } from "@shared/ipc/automation/task.channels";
-export { AutomationProjectIntegrationChannels } from "@shared/ipc/automation/project-integration.channels";
+export { AutomationWorkspaceIntegrationChannels } from "@shared/ipc/automation/workspace-integration.channels";
 export { IntegrationChannels } from "@shared/ipc/integration.compat";
 
 export const SettingsChannels = {

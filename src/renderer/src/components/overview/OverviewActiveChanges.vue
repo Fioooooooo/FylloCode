@@ -5,14 +5,14 @@ import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktre
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
-import { useWorkspaceStore, type ActiveChange } from "@renderer/stores";
+import { type ActiveChange } from "@renderer/stores";
+import { proposalRefKey, type ProposalRef } from "@shared/types/proposal";
 
 const props = defineProps<{
   changes: ActiveChange[];
 }>();
 
 const { openProposalDetail } = useProposalDetailSlideover();
-const workspaceStore = useWorkspaceStore();
 
 function taskLine(change: ActiveChange): string {
   return change.taskTitle ?? "自由讨论";
@@ -22,11 +22,8 @@ function createdLabel(change: ActiveChange): string {
   return change.createdAt ? timeAgo(new Date(change.createdAt)) : "未知时间";
 }
 
-function openChange(changeId: string): void {
-  const folderId = workspaceStore.currentWorkspace?.primaryFolderId;
-  if (folderId) {
-    void openProposalDetail({ folderId, changeId });
-  }
+function openChange(proposalRef: ProposalRef): void {
+  void openProposalDetail(proposalRef);
 }
 </script>
 
@@ -53,18 +50,21 @@ function openChange(changeId: string): void {
     <div v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <UiSurface
         v-for="change in props.changes"
-        :key="change.id"
+        :key="proposalRefKey(change.proposalRef)"
         as="button"
         variant="flat"
         padding="sm"
         class="cursor-pointer border border-default !bg-default text-left hover:!bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-        @click="openChange(change.id)"
+        @click="openChange(change.proposalRef)"
       >
         <div class="flex min-w-0 items-start justify-between gap-3">
           <div class="min-w-0 space-y-2">
             <p class="truncate text-sm font-semibold text-highlighted">
               {{ change.title }}
             </p>
+            <UBadge color="neutral" variant="soft" size="sm">
+              {{ change.folderName }}
+            </UBadge>
             <p class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <UIcon name="i-lucide-list-checks" class="size-3.5 shrink-0" />
               <span class="truncate">{{ taskLine(change) }}</span>

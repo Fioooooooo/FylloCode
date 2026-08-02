@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { providersApi } from "@renderer/api/platform/providers";
-import { useProjectIntegrationStore } from "../automation/project-integration";
+import { useWorkspaceIntegrationStore } from "../automation/workspace-integration";
 import {
   integrationCategories,
   providers as providerManifest,
@@ -20,9 +20,9 @@ import type {
 } from "@shared/types/integration";
 
 export const useIntegrationProvidersStore = defineStore("integration-providers", () => {
-  const projectIntegrationStore = useProjectIntegrationStore();
+  const workspaceIntegrationStore = useWorkspaceIntegrationStore();
   const providers = ref<Array<Provider & { connection: ProviderConnection | null }>>([]);
-  const projectIntegration = ref<WorkspaceIntegrationConfig | null>(null);
+  const workspaceIntegration = ref<WorkspaceIntegrationConfig | null>(null);
   const loadingProviderIds = ref<string[]>([]);
   const resourceLoadingKeys = ref<string[]>([]);
   const resourceOptions = ref<Record<string, ProviderResource[]>>({});
@@ -113,29 +113,29 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
     );
   }
 
-  async function loadProjectIntegration(workspaceId: string): Promise<void> {
+  async function loadWorkspaceIntegration(workspaceId: string): Promise<void> {
     if (!workspaceId) {
-      projectIntegration.value = null;
+      workspaceIntegration.value = null;
       return;
     }
-    const result = await projectIntegrationStore.getProjectIntegration(workspaceId);
+    const result = await workspaceIntegrationStore.getWorkspaceIntegration(workspaceId);
     if (result.ok) {
-      projectIntegration.value = result.data;
+      workspaceIntegration.value = result.data;
     }
   }
 
-  async function saveProjectIntegrationStage(
+  async function saveWorkspaceIntegrationStage(
     workspaceId: string,
     stage: keyof WorkspaceIntegrationConfig,
     resources: WorkspaceIntegrationEntry[]
   ): Promise<void> {
-    const result = await projectIntegrationStore.setProjectIntegration(
+    const result = await workspaceIntegrationStore.setWorkspaceIntegration(
       workspaceId,
       stage,
       resources
     );
     if (result.ok) {
-      projectIntegration.value = result.data;
+      workspaceIntegration.value = result.data;
     }
   }
 
@@ -156,7 +156,7 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
   }
 
   function getStageEntries(stage: keyof WorkspaceIntegrationConfig): WorkspaceIntegrationEntry[] {
-    return projectIntegration.value?.[stage] ?? [];
+    return workspaceIntegration.value?.[stage] ?? [];
   }
 
   function getMountedEntries(
@@ -183,7 +183,7 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
   return {
     providers,
     categories,
-    projectIntegration,
+    workspaceIntegration,
     searchQuery,
     filteredProviders,
     providersById,
@@ -193,8 +193,8 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
     disconnectProvider,
     probeProvider,
     probeConnectedProviders,
-    loadProjectIntegration,
-    saveProjectIntegrationStage,
+    loadWorkspaceIntegration,
+    saveWorkspaceIntegrationStage,
     loadProviderResources,
     setSearchQuery,
     getStageEntries,

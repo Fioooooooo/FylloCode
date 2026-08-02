@@ -1,4 +1,5 @@
-import type { ProposalStatus } from "./proposal";
+import type { ProposalRef, ProposalStatus } from "./proposal";
+import type { RepositoryAggregate } from "./repository-browser";
 
 export type ActiveChangeStatus = Exclude<ProposalStatus, "archived">;
 
@@ -15,6 +16,8 @@ export type OverviewStats = {
 
 export type ActiveChange = {
   id: string;
+  proposalRef: ProposalRef;
+  folderName: string;
   title: string;
   createdAt: string | null;
   taskTitle: string | null;
@@ -38,11 +41,15 @@ export type RecentLineage = {
 };
 
 export type SpecsGrowthBucket = {
+  folderId: string;
+  folderName: string;
   weekStart: string;
   cumulativeCount: number;
 };
 
 export type GuidelineChange = {
+  folderId: string;
+  folderName: string;
   fileName: string;
   lastCommitDate: string;
   lastCommitMessage: string;
@@ -53,9 +60,30 @@ export type GovernanceEvolution = {
   recentGuidelines: GuidelineChange[];
 };
 
+export type RepositoryGovernanceSnapshot = {
+  folderId: string;
+  folderName: string;
+  stats: Pick<
+    OverviewStats,
+    | "specsCount"
+    | "specsThisMonth"
+    | "archiveCount"
+    | "archiveThisMonth"
+    | "guidelinesCount"
+    | "guidelinesLastUpdated"
+  >;
+  activeChanges: ActiveChange[];
+  proposalStatuses: Array<{
+    proposalRef: ProposalRef;
+    status: ProposalStatus;
+  }>;
+  governance: GovernanceEvolution;
+};
+
 export type ProjectOverview = {
   stats: OverviewStats;
   activeChanges: ActiveChange[];
   recentLineages: RecentLineage[];
   governance: GovernanceEvolution;
+  repository: RepositoryAggregate<RepositoryGovernanceSnapshot>;
 };

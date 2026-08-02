@@ -1701,10 +1701,10 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - missing primary/secondary；
 - member removal；
 - active Session 引用成员时移除被阻止；非 active Session 不阻止移除，但确认界面列出受影响 Session，移除后恢复返回 `SESSION_FOLDER_REMOVED`，重新加入同一 Folder 后才允许继续执行 path stale 检测；
-- task target 不阻止成员移除；移除后保留 stale ID、UI 显示失效数量，原始多 target 不因过滤后只剩一个而自动预选 owner；
+- task target 不阻止成员移除、保留 stale ID 与 owner suggestion 歧义 → `aggregate-workspace-folder-features` proposal / `workspace-automation-storage` spec；
 - multi-member local preview、per-member worktree degradation、member-derived trust、external exact-path grant 与 longest owner match → `add-acp-multi-root-sessions` proposal / `local-file-link-preview` spec；
 - Workspace watcher/stream/probe key isolation → `introduce-workspace-model` proposal / `workspace-window` spec；
-- partial repository scan。
+- per-Folder repository scan、ready/missing/error 与 partial envelope → `aggregate-workspace-folder-features` proposal / `repository-browser-aggregation` spec。
 
 ### 23.4 ACP
 
@@ -1738,17 +1738,16 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 ### 23.7 Cortex/Insight
 
 - guidelines 显式 owner、Chat 聚合 reminder 与 Apply/Archive owner-only reminder → `make-cortex-workspace-aware` proposal / `fyllo-cortex-guidelines`、`mcp-workspace-authorization` specs；
-- spec/guideline aggregate 对每个 Folder 返回 ready/missing/error；合法空目录与 permission/I/O 失败可区分，单项 parse warning 可见；
-- SpecRef 与 GuidelineRef 贯穿列表 key、选择、详情 lookup/IPC 和缓存；不同 Folder 的同名 spec ID / guideline path 同时可见且不串详情；
+- spec/guideline aggregate 状态、warning 与完整 Ref identity → `aggregate-workspace-folder-features` proposal / `repository-browser-aggregation`、`specs-browser`、`guidelines-browser` specs；
 - Workspace knowledge 独立存储、Folder-qualified file/package/commit evidence 与 owner 授权 → `make-cortex-workspace-aware` proposal / `fyllo-cortex-knowledge`、`mcp-workspace-authorization` specs；
 - repository-qualified file/commit/proposal trace、main/registered linked worktree target 与逃逸拒绝 → `make-cortex-workspace-aware` proposal / `repository-lineage`、`mcp-workspace-authorization` specs；
 - proposal/commit 唯一 origin、多 Workspace 幂等 reference、origin conflict 与并发原子 mutation → `make-cortex-workspace-aware` proposal / `repository-lineage` spec；
 - lineage v1 owner-qualified migration、歧义保留与 warning → `make-cortex-workspace-aware` proposal / `repository-lineage`、`fyllo-cortex-knowledge` specs；
 - Folder repository reverse index 可从任意授权 Workspace 查询唯一 origin 与全部 references → `make-cortex-workspace-aware` proposal / `repository-lineage` spec；
-- aggregate browser partial error 保留其他 Folder data；多成员 degraded Workspace 即使只有一个 available Folder 也显示 missing member 与 owner scope；
-- Overview 的 Workspace work 只从当前 workspaceDataDir 读取一次，不按 Folder 重复；repository governance 独立读取并只汇总 ready 结果，partial aggregate 标记未计入 Folder；
+- aggregate browser partial/degraded 呈现与 ready-only 汇总 → `aggregate-workspace-folder-features` proposal / `repository-browser-aggregation` spec；
+- Overview 的 Workspace work 单次读取、per-Folder governance 与 partial totals → `aggregate-workspace-folder-features` proposal / `project-overview` spec；
 - Lineage Browser 使用完整 `ProposalRef`、Folder owner metadata 与 composite key，且共享 Folder proposal enrichment 只读取当前 Workspace subject/reference → `make-cortex-workspace-aware` proposal / `lineage-browser`、`repository-lineage` specs；
-- overview 计数不按 changeId 跨 repo dedupe。
+- Overview 的 owner-qualified active proposal 与跨 repository 同名计数 → `aggregate-workspace-folder-features` proposal / `project-overview` spec。
 
 ### 23.8 Renderer
 
@@ -1762,9 +1761,9 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - Agent picker gating → `add-acp-multi-root-sessions` proposal / `acp-agent-capability-cache`、`workspace-window` specs；
 - route meta 与 activity bar 使用同一 `requiresWorkspace`/capability evaluator；secondary member missing 不禁用 task/knowledge/workflow；
 - Chat header 的 Session/current scope diff 与 `window-only` preview 呈现 → `add-acp-multi-root-sessions` proposal / `workspace-window`、`local-file-link-preview` specs；
-- repository filter → 待 `aggregate-workspace-folder-features` proposal；owner badge与linked target呈现 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser` spec；
+- Specs、Guidelines、Proposal 的 Folder filter、owner badge 与 per-Folder 状态 → `aggregate-workspace-folder-features` proposal / `specs-browser`、`guidelines-browser`、`proposal-browser` specs；linked target 呈现 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser` spec；
 - 同名 proposal detail、status与run state隔离 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser`、`repository-owned-proposals` specs；
-- 同名 spec/guideline 的 composite selection；Folder-level missing/error/empty state；
+- 同名 spec/guideline 的 composite selection 与 Folder-level missing/error/empty state → `aggregate-workspace-folder-features` proposal / `specs-browser`、`guidelines-browser` specs；
 - Folder Workspace 不显示成员编辑 UI；
 - 窄窗口、键盘焦点、错误和空状态。
 

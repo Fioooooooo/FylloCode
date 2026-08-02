@@ -13,7 +13,7 @@ import { sessionActionApi } from "./api/session/action";
 import { proposalArchiveApi } from "./api/proposal/archive";
 import { proposalApplyApi } from "./api/proposal/apply";
 import { proposalBrowserApi } from "./api/proposal/browser";
-import { projectIntegrationApi } from "./api/automation/project-integration";
+import { workspaceIntegrationApi } from "./api/automation/workspace-integration";
 import { taskApi } from "./api/automation/task";
 import { workflowApi } from "./api/automation/workflow";
 import { guidelinesApi } from "./api/insight/guidelines";
@@ -54,7 +54,7 @@ const api = {
   automation: {
     workflow: workflowApi,
     task: taskApi,
-    projectIntegration: projectIntegrationApi,
+    workspaceIntegration: workspaceIntegrationApi,
   },
 };
 

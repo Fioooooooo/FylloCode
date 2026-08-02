@@ -1,15 +1,50 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, watch } from "vue";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
-import { useProposalStore } from "@renderer/stores";
+import { useProposalStore, useWorkspaceStore } from "@renderer/stores";
 import { proposalRefKey, type ProposalRef, type ProposalStatus } from "@shared/types/proposal";
 
 const store = useProposalStore();
+const workspaceStore = useWorkspaceStore();
 const { openProposalDetail } = useProposalDetailSlideover();
+const selectedFolder = computed(
+  () => store.folders.find((folder) => folder.folderId === store.selectedFolderId) ?? null
+);
+const affectedFolderNames = computed(() =>
+  store.folders
+    .filter((folder) => folder.status !== "ready")
+    .map((folder) => folder.folderName)
+    .join("、")
+);
+const emptyState = computed(() => {
+  const folder = selectedFolder.value;
+  if (!folder) {
+    return {
+      title: "暂无 proposal",
+      description: "当前 Workspace 的所有可用 Folder 都没有变更提案。",
+    };
+  }
+  if (folder.status === "missing") {
+    return {
+      title: "Folder 不可用",
+      description: `${folder.folderName} 当前不存在，未读取该 Folder 的 proposal。`,
+    };
+  }
+  if (folder.status === "error") {
+    return {
+      title: "Folder 读取失败",
+      description: folder.error ?? `${folder.folderName} 的 proposal 暂时无法读取。`,
+    };
+  }
+  return {
+    title: "此 Folder 暂无 proposal",
+    description: `${folder.folderName} 当前没有变更提案。`,
+  };
+});
 
 const statusConfig: Record<
   ProposalStatus,
@@ -29,9 +64,22 @@ function openDetail(proposalRef: ProposalRef): void {
   void openProposalDetail(proposalRef);
 }
 
-onMounted(() => {
-  void store.loadProposals();
-});
+function folderStatusLabel(status: "ready" | "missing" | "error"): string {
+  return { ready: "可用", missing: "缺失", error: "错误" }[status];
+}
+
+watch(
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
+    store.setFolderFilter(null);
+    if (workspaceId) {
+      void store.loadProposals(workspaceId);
+    } else {
+      store.clear();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -44,6 +92,25 @@ onMounted(() => {
             title="变更提案"
             description="当前项目的 OpenSpec 变更提案列表。"
           />
+          <label v-if="store.data" class="mt-3 block text-xs text-muted">
+            <span class="sr-only">按 Folder 筛选变更提案</span>
+            <select
+              :value="store.selectedFolderId ?? ''"
+              class="w-full rounded-md border border-default bg-default px-2 py-1.5 text-sm text-highlighted"
+              aria-label="按 Folder 筛选变更提案"
+              data-test="proposal-folder-filter"
+              @change="store.setFolderFilter(($event.target as HTMLSelectElement).value || null)"
+            >
+              <option value="">全部 Folder</option>
+              <option
+                v-for="folder in store.folders"
+                :key="folder.folderId"
+                :value="folder.folderId"
+              >
+                {{ folder.folderName }} · {{ folderStatusLabel(folder.status) }}
+              </option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -66,17 +133,48 @@ onMounted(() => {
             </div>
           </div>
 
+          <UAlert
+            v-else-if="store.data?.completeness === 'partial'"
+            color="warning"
+            variant="soft"
+            icon="i-lucide-triangle-alert"
+            title="部分 Folder 未计入"
+            :description="affectedFolderNames || '部分 Folder 暂不可用。'"
+            data-test="proposal-partial-alert"
+          />
+
+          <div
+            v-if="!store.loading && !store.error && store.data"
+            class="space-y-1"
+            data-test="proposal-folder-statuses"
+          >
+            <div
+              v-for="folder in store.folders"
+              :key="folder.folderId"
+              class="flex items-center justify-between gap-2 rounded-md bg-elevated/50 px-3 py-1.5 text-xs text-muted"
+              :aria-label="`${folder.folderName}：${folderStatusLabel(folder.status)}`"
+              data-test="proposal-folder-status"
+            >
+              <span class="truncate">{{ folder.folderName }}</span>
+              <span>{{ folderStatusLabel(folder.status) }}</span>
+            </div>
+          </div>
+
           <AppEmptyState
-            v-else-if="store.proposals.length === 0"
+            v-if="!store.loading && !store.error && store.visibleProposals.length === 0"
             icon="i-lucide-file-question"
-            title="暂无 proposal"
-            description="当前项目还没有变更提案。"
+            :title="emptyState.title"
+            :description="emptyState.description"
             data-test="proposal-empty-state"
           />
 
-          <div v-else class="space-y-3" data-test="proposal-list">
+          <div
+            v-if="!store.loading && !store.error && store.visibleProposals.length > 0"
+            class="space-y-3"
+            data-test="proposal-list"
+          >
             <UiSurface
-              v-for="proposal in store.proposals"
+              v-for="proposal in store.visibleProposals"
               :key="proposalRefKey(proposal.proposalRef)"
               as="button"
               interactive

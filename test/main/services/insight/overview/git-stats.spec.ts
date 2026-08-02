@@ -127,14 +127,10 @@ describe("overview git stats", () => {
     expect(result.recentGuidelines[0]?.lastCommitMessage).toHaveLength(80);
   });
 
-  it("falls back to empty governance when git fails", async () => {
+  it("propagates git failures so the Folder aggregate can mark an error", async () => {
     mockSpawnRouter(() => ({ stderr: "fatal: not a git repository", code: 128 }));
 
-    await expect(getGitGovernance("/repo")).resolves.toEqual({
-      specsGrowth: [],
-      recentGuidelines: [],
-      guidelinesLastUpdated: null,
-    });
+    await expect(getGitGovernance("/repo")).rejects.toThrow("fatal: not a git repository");
   });
 
   it("caches git governance results for sixty seconds", async () => {

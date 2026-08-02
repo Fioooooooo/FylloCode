@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { useTaskStore } from "@renderer/stores/automation/task";
-import { projectIntegrationApi } from "@renderer/api/automation/project-integration";
+import { suggestTaskProposalOwner, useTaskStore } from "@renderer/stores/automation/task";
+import { workspaceIntegrationApi } from "@renderer/api/automation/workspace-integration";
 import { taskApi } from "@renderer/api/automation/task";
 import type { WorkspaceIntegrationConfig } from "@shared/types/integration";
 import type { TaskItem } from "@shared/types/task";
+import type { WorkspaceFolderInfo } from "@shared/types/workspace";
 
 const workspaceStoreState = vi.hoisted(() => ({
-  currentWorkspace: { id: "project-1" } as { id: string } | null,
+  currentWorkspace: { id: "project-1" } as {
+    id: string;
+    folders?: WorkspaceFolderInfo[];
+  } | null,
 }));
 
 vi.mock("@renderer/api/automation/task", () => ({
@@ -20,9 +24,9 @@ vi.mock("@renderer/api/automation/task", () => ({
   },
 }));
 
-vi.mock("@renderer/api/automation/project-integration", () => ({
-  projectIntegrationApi: {
-    getProjectIntegration: vi.fn(),
+vi.mock("@renderer/api/automation/workspace-integration", () => ({
+  workspaceIntegrationApi: {
+    getWorkspaceIntegration: vi.fn(),
   },
 }));
 
@@ -76,7 +80,7 @@ describe("useTaskStore", () => {
         updatedAt: new Date("2026-05-10T08:00:00.000Z"),
       },
     });
-    vi.mocked(projectIntegrationApi.getProjectIntegration).mockResolvedValue({
+    vi.mocked(workspaceIntegrationApi.getWorkspaceIntegration).mockResolvedValue({
       ok: true,
       data: integrationConfig(false),
     });
@@ -92,7 +96,7 @@ describe("useTaskStore", () => {
   });
 
   it("shows yunxiao source when the project has mounted yunxiao resources", async () => {
-    vi.mocked(projectIntegrationApi.getProjectIntegration).mockResolvedValue({
+    vi.mocked(workspaceIntegrationApi.getWorkspaceIntegration).mockResolvedValue({
       ok: true,
       data: integrationConfig(true),
     });
@@ -108,7 +112,7 @@ describe("useTaskStore", () => {
   });
 
   it("keeps yunxiao visible even if provider connectivity is not queried here", async () => {
-    vi.mocked(projectIntegrationApi.getProjectIntegration).mockResolvedValue({
+    vi.mocked(workspaceIntegrationApi.getWorkspaceIntegration).mockResolvedValue({
       ok: true,
       data: integrationConfig(true),
     });
@@ -117,11 +121,11 @@ describe("useTaskStore", () => {
     await store.loadTasks("yunxiao");
 
     expect(store.availableSources).toContain("yunxiao");
-    expect(projectIntegrationApi.getProjectIntegration).toHaveBeenCalledWith("project-1");
+    expect(workspaceIntegrationApi.getWorkspaceIntegration).toHaveBeenCalledWith("project-1");
   });
 
   it("falls back to local when the selected source becomes unavailable after project switch", async () => {
-    vi.mocked(projectIntegrationApi.getProjectIntegration)
+    vi.mocked(workspaceIntegrationApi.getWorkspaceIntegration)
       .mockResolvedValueOnce({
         ok: true,
         data: integrationConfig(true),
@@ -170,6 +174,39 @@ describe("useTaskStore", () => {
     expect(store.buildTaskRef({ ...base, id: "task-b" } as TaskItem)).toBe("local:task-b");
   });
 
+  it("adds an explicit confirmed owner suggestion to the task discussion prompt", () => {
+    workspaceStoreState.currentWorkspace = {
+      id: "project-1",
+      folders: [
+        {
+          folderId: "folder-a",
+          folderName: "Repository A",
+          folderPath: "/repos/a",
+          pathMissing: false,
+          isPrimary: true,
+        },
+      ],
+    };
+    const store = useTaskStore();
+    const prompt = store.buildTaskPrompt({
+      id: "task-a",
+      workspaceId: "project-1",
+      title: "Targeted task",
+      description: { format: "plain_text", content: "" },
+      status: "open",
+      source: "local",
+      sourceMeta: { source: "local" },
+      labels: [],
+      targetFolderIds: ["folder-a"],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    expect(prompt).toContain("建议 Proposal Owner");
+    expect(prompt).toContain("Repository A (folderId: folder-a)");
+    expect(prompt).toContain("显式传入 folderId");
+  });
+
   it("keeps list error clean when detail loading fails", async () => {
     vi.mocked(taskApi.getTask).mockResolvedValueOnce({
       ok: false,
@@ -186,5 +223,65 @@ describe("useTaskStore", () => {
     expect(store.detailLoadingTaskId).toBeNull();
     expect(store.detailErrorTaskId).toBe("yunxiao:space-1:missing");
     expect(store.detailErrorMessage).toBe("missing");
+  });
+});
+
+describe("suggestTaskProposalOwner", () => {
+  const folders = [
+    {
+      folderId: "folder-a",
+      folderName: "App",
+      folderPath: "/repos/app",
+      pathMissing: false,
+      isPrimary: true,
+    },
+    {
+      folderId: "folder-b",
+      folderName: "API",
+      folderPath: "/repos/api",
+      pathMissing: false,
+      isPrimary: false,
+    },
+  ];
+  const task = (overrides: Partial<TaskItem> = {}): TaskItem => ({
+    id: "task-1",
+    workspaceId: "workspace-1",
+    title: "Task",
+    description: { format: "plain_text", content: "" },
+    status: "open",
+    source: "local",
+    sourceMeta: { source: "local" },
+    labels: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  });
+
+  const targetCases: Array<[string, string[] | undefined, string | null]> = [
+    ["no targets", undefined, null],
+    ["one valid target", ["folder-b"], "folder-b"],
+    ["one stale target", ["removed"], null],
+    ["multiple original targets", ["folder-a", "removed"], null],
+    ["duplicate targets normalize to one", ["folder-a", "folder-a"], "folder-a"],
+  ];
+
+  it.each(targetCases)("handles %s", (_label, targetFolderIds, expected) => {
+    expect(suggestTaskProposalOwner(task({ targetFolderIds }), folders)).toBe(expected);
+  });
+
+  it("accepts a unique external repository match only when it is a current available member", () => {
+    const external = task({
+      source: "github",
+      sourceMeta: { source: "github", repository: "example/api", number: 12 },
+    });
+
+    expect(suggestTaskProposalOwner(external, folders)).toBe("folder-b");
+    expect(
+      suggestTaskProposalOwner(external, [
+        ...folders,
+        { ...folders[1]!, folderId: "folder-c", folderPath: "/other/api" },
+      ])
+    ).toBeNull();
+    expect(suggestTaskProposalOwner(external, [{ ...folders[1]!, pathMissing: true }])).toBeNull();
   });
 });

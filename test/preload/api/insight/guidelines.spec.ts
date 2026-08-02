@@ -15,7 +15,10 @@ describe("preload guidelinesApi", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocks.ipcRenderer.invoke.mockResolvedValue({ ok: true, data: { items: [] } });
+    mocks.ipcRenderer.invoke.mockResolvedValue({
+      ok: true,
+      data: { folders: [], items: [], completeness: "complete", excludedFolderIds: [] },
+    });
   });
 
   it("invokes guidelines browser channel with workspaceId", async () => {

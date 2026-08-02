@@ -5,3 +5,4 @@ export {
   linkTaskSession,
 } from "../lineage/lineage-service";
 export { ensureLineageEventConsumer } from "../lineage/mcp-event-consumer";
+export { aggregateWorkspaceRepositories } from "../repository-browser/aggregate";

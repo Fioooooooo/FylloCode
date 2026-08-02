@@ -1,23 +1,19 @@
 import type { ChildProcessWithoutNullStreams } from "child_process";
 import { basename } from "path";
 import spawn from "cross-spawn";
-import type {
-  GovernanceEvolution,
-  GuidelineChange,
-  SpecsGrowthBucket,
-} from "@shared/types/overview";
+import type { GuidelineChange, SpecsGrowthBucket } from "@shared/types/overview";
 
-export type GitGovernanceStats = GovernanceEvolution & {
+export type RepositorySpecsGrowthBucket = Omit<SpecsGrowthBucket, "folderId" | "folderName">;
+export type RepositoryGuidelineChange = Omit<GuidelineChange, "folderId" | "folderName">;
+
+export type GitGovernanceStats = {
+  specsGrowth: RepositorySpecsGrowthBucket[];
+  recentGuidelines: RepositoryGuidelineChange[];
   guidelinesLastUpdated: string | null;
 };
 
 const GIT_TIMEOUT_MS = 10_000;
 const CACHE_TTL_MS = 60_000;
-const EMPTY_GOVERNANCE: GitGovernanceStats = {
-  specsGrowth: [],
-  recentGuidelines: [],
-  guidelinesLastUpdated: null,
-};
 const cache = new Map<string, { data: GitGovernanceStats; expireAt: number }>();
 
 function collectWeekRanges(now = new Date()): { weekStart: Date; weekEnd: Date }[] {
@@ -93,8 +89,10 @@ export function runGit(
   });
 }
 
-export async function computeSpecsGrowth(projectPath: string): Promise<SpecsGrowthBucket[]> {
-  const buckets: SpecsGrowthBucket[] = [];
+export async function computeSpecsGrowth(
+  projectPath: string
+): Promise<RepositorySpecsGrowthBucket[]> {
+  const buckets: RepositorySpecsGrowthBucket[] = [];
 
   for (const { weekStart, weekEnd } of collectWeekRanges()) {
     const sha = (
@@ -117,9 +115,10 @@ function truncateMessage(message: string): string {
   return message.length > 80 ? message.slice(0, 80) : message;
 }
 
-export async function computeRecentGuidelines(
-  projectPath: string
-): Promise<{ recentGuidelines: GuidelineChange[]; guidelinesLastUpdated: string | null }> {
+export async function computeRecentGuidelines(projectPath: string): Promise<{
+  recentGuidelines: RepositoryGuidelineChange[];
+  guidelinesLastUpdated: string | null;
+}> {
   const output = await runGit(projectPath, [
     "log",
     "--format=%aI%x09%s",
@@ -128,7 +127,7 @@ export async function computeRecentGuidelines(
     "guidelines/",
   ]);
   const seen = new Set<string>();
-  const recentGuidelines: GuidelineChange[] = [];
+  const recentGuidelines: RepositoryGuidelineChange[] = [];
   let current: { date: string; message: string } | null = null;
   let guidelinesLastUpdated: string | null = null;
 
@@ -180,20 +179,15 @@ export async function getGitGovernance(projectPath: string): Promise<GitGovernan
     return cached.data;
   }
 
-  try {
-    const [specsGrowth, guidelineStats] = await Promise.all([
-      computeSpecsGrowth(projectPath),
-      computeRecentGuidelines(projectPath),
-    ]);
-    const data: GitGovernanceStats = {
-      specsGrowth,
-      recentGuidelines: guidelineStats.recentGuidelines,
-      guidelinesLastUpdated: guidelineStats.guidelinesLastUpdated,
-    };
-    cache.set(projectPath, { data, expireAt: now + CACHE_TTL_MS });
-    return data;
-  } catch {
-    cache.set(projectPath, { data: EMPTY_GOVERNANCE, expireAt: now + CACHE_TTL_MS });
-    return EMPTY_GOVERNANCE;
-  }
+  const [specsGrowth, guidelineStats] = await Promise.all([
+    computeSpecsGrowth(projectPath),
+    computeRecentGuidelines(projectPath),
+  ]);
+  const data: GitGovernanceStats = {
+    specsGrowth,
+    recentGuidelines: guidelineStats.recentGuidelines,
+    guidelinesLastUpdated: guidelineStats.guidelinesLastUpdated,
+  };
+  cache.set(projectPath, { data, expireAt: now + CACHE_TTL_MS });
+  return data;
 }

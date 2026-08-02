@@ -1,4 +1,5 @@
 import type { WorkflowStage } from "./workflow";
+import type { RepositoryAggregate } from "./repository-browser";
 
 export type ProposalStatus = "creating" | "draft" | "applying" | "archived";
 
@@ -34,6 +35,8 @@ export interface ProposalMeta {
   worktreeMode: ProposalWorktreeMode;
   worktreePath: string;
 }
+
+export type ProposalBrowserOverview = RepositoryAggregate<ProposalMeta>;
 
 export type ProposalSpecDeltaType = "ADDED" | "MODIFIED" | "REMOVED" | "RENAMED";
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcMain } from "electron";
 import { rmSync } from "fs";
-import { AutomationProjectIntegrationChannels } from "@shared/ipc/automation/project-integration.channels";
+import { AutomationWorkspaceIntegrationChannels } from "@shared/ipc/automation/workspace-integration.channels";
 import { PlatformProvidersChannels } from "@shared/ipc/platform/providers.channels";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 
@@ -30,6 +30,20 @@ vi.mock("@main/infra/integration/yunxiao/organization", () => ({
 
 vi.mock("@main/infra/integration/yunxiao/projex", () => ({
   searchProjects: mocks.searchProjects,
+}));
+
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: vi.fn(async (workspaceId: string) => ({
+    workspaceId,
+    folders: [
+      {
+        folderId: `${workspaceId}-folder`,
+        folderName: workspaceId,
+        folderPath: `/repos/${workspaceId}`,
+        pathMissing: false,
+      },
+    ],
+  })),
 }));
 
 describe("registerIntegrationHandlers", () => {
@@ -68,10 +82,10 @@ describe("registerIntegrationHandlers", () => {
     });
 
     const { registerProviderHandlers } = await import("@main/ipc/platform/providers");
-    const { registerProjectIntegrationHandlers } =
-      await import("@main/ipc/automation/project-integration");
+    const { registerWorkspaceIntegrationHandlers } =
+      await import("@main/ipc/automation/workspace-integration");
     registerProviderHandlers();
-    registerProjectIntegrationHandlers();
+    registerWorkspaceIntegrationHandlers();
   });
 
   afterEach(() => {
@@ -206,9 +220,9 @@ describe("registerIntegrationHandlers", () => {
     expect(getConnection("yunxiao")).toBeNull();
   });
 
-  it("persists project integration per project without cross-project bleed", async () => {
-    const setHandler = handler(AutomationProjectIntegrationChannels.set);
-    const getHandler = handler(AutomationProjectIntegrationChannels.get);
+  it("persists Workspace integration without cross-Workspace bleed", async () => {
+    const setHandler = handler(AutomationWorkspaceIntegrationChannels.set);
+    const getHandler = handler(AutomationWorkspaceIntegrationChannels.get);
 
     await setHandler(
       {},
@@ -269,8 +283,8 @@ describe("registerIntegrationHandlers", () => {
     });
   });
 
-  it("rejects invalid project integration tuples", async () => {
-    const setHandler = handler(AutomationProjectIntegrationChannels.set);
+  it("rejects invalid Workspace integration tuples", async () => {
+    const setHandler = handler(AutomationWorkspaceIntegrationChannels.set);
 
     const result = await setHandler(
       {},
@@ -291,6 +305,131 @@ describe("registerIntegrationHandlers", () => {
       ok: false,
       error: expect.objectContaining({
         code: IpcErrorCodes.INTEGRATION_RESOURCE_TYPE_NOT_SUPPORTED,
+      }),
+    });
+  });
+
+  it("requires current Folder binding for repository-bound stages", async () => {
+    const setHandler = handler(AutomationWorkspaceIntegrationChannels.set);
+    const missingBinding = await setHandler(
+      {},
+      {
+        workspaceId: "project-a",
+        stage: "source-control",
+        resources: [{ providerId: "yunxiao", resourceType: "codeup-repo", resourceId: "repo-a" }],
+      }
+    );
+    const staleBinding = await setHandler(
+      {},
+      {
+        workspaceId: "project-a",
+        stage: "source-control",
+        resources: [
+          {
+            providerId: "yunxiao",
+            resourceType: "codeup-repo",
+            resourceId: "repo-a",
+            folderId: "removed",
+          },
+        ],
+      }
+    );
+    const currentBinding = await setHandler(
+      {},
+      {
+        workspaceId: "project-a",
+        stage: "source-control",
+        resources: [
+          {
+            providerId: "yunxiao",
+            resourceType: "codeup-repo",
+            resourceId: "repo-a",
+            folderId: "project-a-folder",
+          },
+        ],
+      }
+    );
+
+    expect(missingBinding).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(staleBinding).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(currentBinding).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        "source-control": [
+          expect.objectContaining({
+            folderId: "project-a-folder",
+            currentFolderId: "project-a-folder",
+          }),
+        ],
+      }),
+    });
+  });
+
+  it("keeps Workspace-level resources unbound", async () => {
+    const result = await handler(AutomationWorkspaceIntegrationChannels.set)(
+      {},
+      {
+        workspaceId: "project-a",
+        stage: "project-management",
+        resources: [
+          {
+            providerId: "yunxiao",
+            resourceType: "projex-project",
+            resourceId: "proj-a",
+            folderId: "project-a-folder",
+          },
+        ],
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+  });
+
+  it("preserves legacy unbound and removed-member entries in read projection", async () => {
+    const { saveWorkspaceIntegrationConfig } =
+      await import("@main/infra/storage/workspace-integration-store");
+    saveWorkspaceIntegrationConfig("project-a", {
+      "project-management": [],
+      "source-control": [
+        {
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+          resourceId: "legacy-unbound",
+        },
+        {
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+          resourceId: "stale-bound",
+          folderId: "removed",
+        },
+      ],
+      "ci-cd": [],
+      deployment: [],
+      communication: [],
+      observability: [],
+    });
+
+    const result = await handler(AutomationWorkspaceIntegrationChannels.get)(
+      {},
+      { workspaceId: "project-a" }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        "source-control": [
+          expect.not.objectContaining({ folderId: expect.anything() }),
+          expect.objectContaining({ folderId: "removed", staleFolderId: "removed" }),
+        ],
       }),
     });
   });

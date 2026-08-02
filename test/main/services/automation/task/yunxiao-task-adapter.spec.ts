@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock("@main/infra/storage/project-integration-store", () => ({
+vi.mock("@main/infra/storage/workspace-integration-store", () => ({
   loadWorkspaceIntegrationConfig: mocks.loadWorkspaceIntegrationConfig,
 }));
 

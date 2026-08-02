@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useIntegrationProvidersStore } from "@renderer/stores/platform/providers";
-import { projectIntegrationApi } from "@renderer/api/automation/project-integration";
+import { workspaceIntegrationApi } from "@renderer/api/automation/workspace-integration";
 import { providersApi } from "@renderer/api/platform/providers";
 
 vi.mock("@renderer/api/platform/providers", () => ({
@@ -14,10 +14,10 @@ vi.mock("@renderer/api/platform/providers", () => ({
   },
 }));
 
-vi.mock("@renderer/api/automation/project-integration", () => ({
-  projectIntegrationApi: {
-    getProjectIntegration: vi.fn(),
-    setProjectIntegration: vi.fn(),
+vi.mock("@renderer/api/automation/workspace-integration", () => ({
+  workspaceIntegrationApi: {
+    getWorkspaceIntegration: vi.fn(),
+    setWorkspaceIntegration: vi.fn(),
   },
 }));
 
@@ -63,8 +63,8 @@ describe("useIntegrationProvidersStore", () => {
     expect(store.filteredProviders).toHaveLength(0);
   });
 
-  it("persists project integration stage updates", async () => {
-    vi.mocked(projectIntegrationApi.setProjectIntegration).mockResolvedValue({
+  it("persists Workspace integration stage updates", async () => {
+    vi.mocked(workspaceIntegrationApi.setWorkspaceIntegration).mockResolvedValue({
       ok: true,
       data: {
         "project-management": [
@@ -83,7 +83,7 @@ describe("useIntegrationProvidersStore", () => {
     });
 
     const store = useIntegrationProvidersStore();
-    await store.saveProjectIntegrationStage("project-1", "project-management", [
+    await store.saveWorkspaceIntegrationStage("project-1", "project-management", [
       {
         providerId: "yunxiao",
         resourceType: "projex-project",
@@ -91,7 +91,7 @@ describe("useIntegrationProvidersStore", () => {
       },
     ]);
 
-    expect(store.projectIntegration?.["project-management"]).toHaveLength(1);
+    expect(store.workspaceIntegration?.["project-management"]).toHaveLength(1);
   });
 
   it("loads provider resources into keyed cache", async () => {

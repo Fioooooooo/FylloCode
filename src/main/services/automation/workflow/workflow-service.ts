@@ -41,10 +41,7 @@ function toWorkflowFileName(name: string): string {
   return `${normalizeWorkflowName(name)}.yaml`;
 }
 
-export async function resolveWorkspaceWorkflowDirectory(
-  workspaceId?: string
-): Promise<string | null> {
-  if (!workspaceId) return null;
+export async function resolveWorkspaceWorkflowDirectory(workspaceId: string): Promise<string> {
   return workflowsDir(workspaceId);
 }
 
@@ -74,33 +71,24 @@ export async function readWorkflowDirectory(
   }
 }
 
-export async function listWorkflows(workspaceId?: string): Promise<WorkflowListResult> {
+export async function listWorkflows(workspaceId: string): Promise<WorkflowListResult> {
   const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
   const userTemplates = await readWorkflowDirectory(getUserWorkflowDirectory(), "custom");
   const workspaceWorkflowDirectory = await resolveWorkspaceWorkflowDirectory(workspaceId);
-  const workspaceTemplates = workspaceWorkflowDirectory
-    ? await readWorkflowDirectory(workspaceWorkflowDirectory, "custom")
-    : [];
+  const workspaceTemplates = await readWorkflowDirectory(workspaceWorkflowDirectory, "custom");
 
   // Built-in templates live in the user directory (so they can be customized) but are
   // reported with source "built-in". Custom templates take precedence in display order.
   const builtInTemplates = userTemplates
     .filter((template) => builtInFileNames.has(toWorkflowFileName(template.id)))
     .map((template) => ({ ...template, source: "built-in" as const }));
-  const customUserTemplates = userTemplates.filter(
-    (template) => !builtInFileNames.has(toWorkflowFileName(template.id))
-  );
-
   return {
-    templates: [...customUserTemplates, ...workspaceTemplates, ...builtInTemplates],
+    templates: [...workspaceTemplates, ...builtInTemplates],
   };
 }
 
 export async function saveWorkflow(request: WorkflowSaveRequest): Promise<void> {
   const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
-  if (!directory) {
-    throw ipcError(IpcErrorCodes.PROJECT_REQUIRED, "Project is required to save workflow");
-  }
   await fs.mkdir(directory, { recursive: true });
   await fs.writeFile(join(directory, toWorkflowFileName(request.name)), request.yaml, "utf8");
 }
@@ -113,9 +101,6 @@ export async function deleteWorkflow(request: WorkflowDeleteRequest): Promise<vo
   }
 
   const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
-  if (!directory) {
-    throw ipcError(IpcErrorCodes.PROJECT_REQUIRED, "Project is required to delete workflow");
-  }
   await fs.rm(join(directory, fileName), { force: true });
 }
 

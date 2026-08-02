@@ -4,17 +4,17 @@ import type {
   WorkspaceIntegrationEntry,
 } from "@shared/types/integration";
 
-export const projectIntegrationApi = {
-  getProjectIntegration(workspaceId: string): Promise<IpcResponse<WorkspaceIntegrationConfig>> {
-    return window.api.automation.projectIntegration.getProjectIntegration(workspaceId);
+export const workspaceIntegrationApi = {
+  getWorkspaceIntegration(workspaceId: string): Promise<IpcResponse<WorkspaceIntegrationConfig>> {
+    return window.api.automation.workspaceIntegration.getWorkspaceIntegration(workspaceId);
   },
 
-  setProjectIntegration(
+  setWorkspaceIntegration(
     workspaceId: string,
     stage: keyof WorkspaceIntegrationConfig,
     resources: WorkspaceIntegrationEntry[]
   ): Promise<IpcResponse<WorkspaceIntegrationConfig>> {
-    return window.api.automation.projectIntegration.setProjectIntegration(
+    return window.api.automation.workspaceIntegration.setWorkspaceIntegration(
       workspaceId,
       stage,
       resources

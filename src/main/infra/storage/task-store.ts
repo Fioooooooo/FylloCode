@@ -3,6 +3,7 @@ import {
   tasksDir as resolveTasksDir,
   tasksPath as resolveTasksPath,
 } from "@main/infra/storage/workspace-paths";
+import { normalizeTaskTargetFolderIds } from "@shared/types/task";
 import type {
   TaskDescription,
   TaskDescriptionFormat,
@@ -21,7 +22,13 @@ type PersistedDate = string;
 
 interface PersistedTaskItem extends Omit<
   TaskItem,
-  "createdAt" | "updatedAt" | "sourceMeta" | "labels" | "assignee"
+  | "createdAt"
+  | "updatedAt"
+  | "sourceMeta"
+  | "labels"
+  | "assignee"
+  | "currentTargetFolderIds"
+  | "staleTargetFolderIds"
 > {
   createdAt: PersistedDate;
   updatedAt: PersistedDate;
@@ -196,6 +203,8 @@ function normalizeTaskItem(raw: unknown, fallbackWorkspaceId: string): TaskItem 
     return null;
   }
 
+  const targetFolderIds = normalizeTaskTargetFolderIds(item.targetFolderIds);
+
   return {
     id: item.id,
     workspaceId:
@@ -214,14 +223,20 @@ function normalizeTaskItem(raw: unknown, fallbackWorkspaceId: string): TaskItem 
         ? item.originSessionId
         : undefined,
     actionId: typeof item.actionId === "string" && item.actionId ? item.actionId : undefined,
+    targetFolderIds: targetFolderIds.length > 0 ? targetFolderIds : undefined,
+    currentTargetFolderIds: [],
+    staleTargetFolderIds: [],
     createdAt: toDate(item.createdAt),
     updatedAt: toDate(item.updatedAt),
   };
 }
 
 function serializeTaskItem(task: TaskItem): PersistedTaskItem {
+  const persisted = { ...task };
+  delete persisted.currentTargetFolderIds;
+  delete persisted.staleTargetFolderIds;
   return {
-    ...task,
+    ...persisted,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };

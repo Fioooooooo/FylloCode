@@ -7,7 +7,7 @@ import type {
 } from "@shared/types/workflow";
 
 export const workflowApi = {
-  list(request: WorkflowListRequest = {}): Promise<IpcResponse<WorkflowListResult>> {
+  list(request: WorkflowListRequest): Promise<IpcResponse<WorkflowListResult>> {
     return window.api.automation.workflow.list(request);
   },
 

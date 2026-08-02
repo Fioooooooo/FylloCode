@@ -20,12 +20,18 @@ const knowledgeAttentionCount = computed(
       (entry) => entry.status === "suspect" || entry.status === "unknown"
     ).length ?? 0) + (knowledgeStore.data?.errors.length ?? 0)
 );
+const excludedFolderNames = computed(
+  () =>
+    overviewStore.data?.repository.folders
+      .filter((folder) => folder.status !== "ready")
+      .map((folder) => folder.folderName) ?? []
+);
 
 watch(
   () => workspaceStore.currentWorkspace?.id,
   (workspaceId) => {
     if (workspaceId) {
-      void overviewStore.load();
+      void overviewStore.load(workspaceId);
       void knowledgeStore.load(workspaceId);
     } else {
       overviewStore.clear();
@@ -107,6 +113,16 @@ watch(
         class="grid grid-cols-1 gap-6 xl:grid-cols-12"
         data-test="overview-content-grid"
       >
+        <UAlert
+          v-if="overviewStore.data.repository.completeness === 'partial'"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          title="Repository 治理数据不完整"
+          :description="`未计入 ${excludedFolderNames.join('、')}`"
+          class="xl:col-span-12"
+          data-test="overview-partial-alert"
+        />
         <div class="space-y-6 xl:col-span-8" data-test="overview-dynamic-column">
           <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
 
@@ -120,6 +136,8 @@ watch(
             :knowledge-attention-count="knowledgeAttentionCount"
             :knowledge-loading="knowledgeStore.loading"
             :knowledge-error="knowledgeStore.error"
+            :repository-completeness="overviewStore.data.repository.completeness"
+            :excluded-folder-names="excludedFolderNames"
           />
 
           <OverviewGovernance :governance="overviewStore.data.governance" />

@@ -29,20 +29,24 @@ export const useOverviewStore = defineStore("overview", () => {
   const data = ref<ProjectOverview | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  let loadGeneration = 0;
 
-  async function load(): Promise<void> {
-    const project = workspaceStore.currentWorkspace;
-    if (!project) {
+  async function load(workspaceId?: string): Promise<void> {
+    const resolvedWorkspaceId = workspaceId ?? workspaceStore.currentWorkspace?.id;
+    if (!resolvedWorkspaceId) {
       clear();
       return;
     }
 
-    const workspaceId = project.id;
+    const requestGeneration = ++loadGeneration;
     loading.value = true;
     error.value = null;
     try {
-      const response = await overviewApi.getProjectOverview(workspaceId);
-      if (workspaceStore.currentWorkspace?.id !== workspaceId) {
+      const response = await overviewApi.getProjectOverview(resolvedWorkspaceId);
+      if (
+        requestGeneration !== loadGeneration ||
+        workspaceStore.currentWorkspace?.id !== resolvedWorkspaceId
+      ) {
         return;
       }
       if (response.ok) {
@@ -52,19 +56,26 @@ export const useOverviewStore = defineStore("overview", () => {
         error.value = response.error.message;
       }
     } catch (err: unknown) {
-      if (workspaceStore.currentWorkspace?.id !== workspaceId) {
+      if (
+        requestGeneration !== loadGeneration ||
+        workspaceStore.currentWorkspace?.id !== resolvedWorkspaceId
+      ) {
         return;
       }
       data.value = null;
       error.value = err instanceof Error ? err.message : "项目概览加载失败";
     } finally {
-      if (workspaceStore.currentWorkspace?.id === workspaceId) {
+      if (
+        requestGeneration === loadGeneration &&
+        workspaceStore.currentWorkspace?.id === resolvedWorkspaceId
+      ) {
         loading.value = false;
       }
     }
   }
 
   function clear(): void {
+    loadGeneration += 1;
     data.value = null;
     loading.value = false;
     error.value = null;

@@ -3,7 +3,7 @@ import {
   getYunxiaoOrganizationId,
   getYunxiaoUserId,
 } from "@main/infra/storage/yunxiao-credentials";
-import { loadWorkspaceIntegrationConfig } from "@main/infra/storage/project-integration-store";
+import { loadWorkspaceIntegrationConfig } from "@main/infra/storage/workspace-integration-store";
 import {
   getWorkitem,
   searchWorkitems,

@@ -3,11 +3,23 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getSpecsBrowser } from "@main/services/insight/specs/specs-browser-service";
+import type { ResolvedWorkspaceFolder } from "@shared/types/workspace";
 
-let projectPath: string;
+let roots: string[];
 
-async function writeSpec(id: string, content: string, updatedAt: Date): Promise<void> {
-  const specDir = join(projectPath, "openspec", "specs", id);
+async function createFolder(folderId: string): Promise<ResolvedWorkspaceFolder> {
+  const folderPath = await fs.mkdtemp(join(tmpdir(), `fyllocode-specs-${folderId}-`));
+  roots.push(folderPath);
+  return { folderId, folderName: folderId.toUpperCase(), folderPath, pathMissing: false };
+}
+
+async function writeSpec(
+  folder: ResolvedWorkspaceFolder,
+  id: string,
+  content: string,
+  updatedAt = new Date("2026-06-20T10:00:00.000Z")
+): Promise<void> {
+  const specDir = join(folder.folderPath, "openspec", "specs", id);
   const specPath = join(specDir, "spec.md");
   await fs.mkdir(specDir, { recursive: true });
   await fs.writeFile(specPath, content, "utf8");
@@ -15,79 +27,99 @@ async function writeSpec(id: string, content: string, updatedAt: Date): Promise<
 }
 
 describe("specs-browser-service", () => {
-  beforeEach(async () => {
-    projectPath = await fs.mkdtemp(join(tmpdir(), "fyllocode-specs-browser-"));
+  beforeEach(() => {
+    roots = [];
   });
 
   afterEach(async () => {
-    await fs.rm(projectPath, { recursive: true, force: true });
+    await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
   });
 
-  it("returns specs sorted by capability id with parsed counts and updatedAt", async () => {
-    const alphaUpdatedAt = new Date("2026-06-20T10:00:00.000Z");
-    const betaUpdatedAt = new Date("2026-06-21T11:00:00.000Z");
+  it("returns owner-qualified same-ID specs from two Folders", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB = await createFolder("folder-b");
+    await writeSpec(folderA, "same-capability", "# A\n## Purpose\nFolder A spec.");
+    await writeSpec(folderB, "same-capability", "# B\n## Purpose\nFolder B spec.");
 
-    await writeSpec(
-      "beta-capability",
-      [
-        "# Beta",
-        "## Purpose",
-        "定义 Beta 能力。",
-        "## Requirements",
-        "### Requirement: Beta requirement",
-        "系统 SHALL 支持 Beta。",
-        "#### Scenario: Beta scenario",
-        "- **WHEN** 用户查看 Beta",
-        "- **THEN** 返回 Beta 内容",
-      ].join("\n"),
-      betaUpdatedAt
-    );
-    await writeSpec(
-      "alpha-capability",
-      [
-        "# Alpha",
-        "## Purpose",
-        "定义 Alpha 能力。",
-        "## Requirements",
-        "### Requirement: Alpha requirement",
-        "系统 SHALL 支持 Alpha。",
-      ].join("\n"),
-      alphaUpdatedAt
-    );
-
-    const result = await getSpecsBrowser(projectPath);
-
-    expect(result.items.map((item) => item.id)).toEqual(["alpha-capability", "beta-capability"]);
-    expect(result.items[0]).toMatchObject({
-      id: "alpha-capability",
-      purpose: "定义 Alpha 能力。",
-      sourcePath: "openspec/specs/alpha-capability/spec.md",
-      requirementsCount: 1,
-      scenariosCount: 0,
+    const result = await getSpecsBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
     });
-    expect(result.items[0].updatedAt).toBe(alphaUpdatedAt.toISOString());
-    expect(result.items[1]).toMatchObject({
-      id: "beta-capability",
-      requirementsCount: 1,
-      scenariosCount: 1,
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map(({ ref }) => ref)).toEqual([
+      { folderId: "folder-a", specId: "same-capability" },
+      { folderId: "folder-b", specId: "same-capability" },
+    ]);
+    expect(result.folders.map(({ status }) => status)).toEqual(["ready", "ready"]);
+  });
+
+  it("returns ready-empty when openspec specs directory is missing", async () => {
+    const member = await createFolder("folder-a");
+
+    const result = await getSpecsBrowser({
+      primaryFolderId: member.folderId,
+      folders: [member],
     });
-    expect(result.items[1].updatedAt).toBe(betaUpdatedAt.toISOString());
+
+    expect(result).toMatchObject({
+      items: [],
+      completeness: "complete",
+      folders: [{ folderId: "folder-a", status: "ready", items: [] }],
+    });
   });
 
-  it("returns an empty list when openspec specs directory is missing", async () => {
-    await expect(getSpecsBrowser(projectPath)).resolves.toEqual({ items: [] });
-  });
+  it("isolates an unreadable spec as an item warning", async () => {
+    const member = await createFolder("folder-a");
+    await fs.mkdir(join(member.folderPath, "openspec", "specs", "missing-spec"), {
+      recursive: true,
+    });
+    await writeSpec(member, "available-spec", "# Available\n## Purpose\n可读能力规约。");
 
-  it("skips capability directories without a readable spec.md", async () => {
-    await fs.mkdir(join(projectPath, "openspec", "specs", "missing-spec"), { recursive: true });
-    await writeSpec(
-      "available-spec",
-      "# Available\n## Purpose\n可读能力规约。",
-      new Date("2026-06-22T12:00:00.000Z")
-    );
-
-    const result = await getSpecsBrowser(projectPath);
+    const result = await getSpecsBrowser({
+      primaryFolderId: member.folderId,
+      folders: [member],
+    });
 
     expect(result.items.map((item) => item.id)).toEqual(["available-spec"]);
+    expect(result.folders[0].warnings).toEqual([
+      expect.objectContaining({ itemPath: "openspec/specs/missing-spec/spec.md" }),
+    ]);
+    expect(result.completeness).toBe("complete");
+  });
+
+  it("marks a Folder error without discarding another Folder", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB = await createFolder("folder-b");
+    await writeSpec(folderA, "available-spec", "# Available\n## Purpose\n可读能力规约。");
+    await fs.mkdir(join(folderB.folderPath, "openspec"), { recursive: true });
+    await fs.writeFile(join(folderB.folderPath, "openspec", "specs"), "not-a-directory", "utf8");
+
+    const result = await getSpecsBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["available-spec"]);
+    expect(result.folders[1].status).toBe("error");
+    expect(result.completeness).toBe("partial");
+    expect(result.excludedFolderIds).toEqual(["folder-b"]);
+  });
+
+  it("keeps missing Workspace members visible", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB: ResolvedWorkspaceFolder = {
+      folderId: "folder-b",
+      folderName: "FOLDER-B",
+      folderPath: "/missing/folder-b",
+      pathMissing: true,
+    };
+
+    const result = await getSpecsBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
+    });
+
+    expect(result.folders[1]).toMatchObject({ folderId: "folder-b", status: "missing" });
   });
 });

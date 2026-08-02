@@ -3,111 +3,136 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getGuidelinesBrowser } from "@main/services/insight/guidelines/guidelines-browser-service";
+import type { ResolvedWorkspaceFolder } from "@shared/types/workspace";
 
-let projectPath: string;
+let roots: string[];
+
+async function createFolder(folderId: string): Promise<ResolvedWorkspaceFolder> {
+  const folderPath = await fs.mkdtemp(join(tmpdir(), `fyllocode-guidelines-${folderId}-`));
+  roots.push(folderPath);
+  return { folderId, folderName: folderId.toUpperCase(), folderPath, pathMissing: false };
+}
 
 async function writeGuideline(
+  folder: ResolvedWorkspaceFolder,
   relativePath: string,
   content: string,
-  updatedAt: Date
+  updatedAt = new Date("2026-06-20T10:00:00.000Z")
 ): Promise<void> {
-  const absolutePath = join(projectPath, relativePath);
+  const absolutePath = join(folder.folderPath, relativePath);
   await fs.mkdir(join(absolutePath, ".."), { recursive: true });
   await fs.writeFile(absolutePath, content, "utf8");
   await fs.utimes(absolutePath, updatedAt, updatedAt);
 }
 
 describe("guidelines-browser-service", () => {
-  beforeEach(async () => {
-    projectPath = await fs.mkdtemp(join(tmpdir(), "fyllocode-guidelines-browser-"));
+  beforeEach(() => {
+    roots = [];
   });
 
   afterEach(async () => {
-    await fs.rm(projectPath, { recursive: true, force: true });
+    await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
   });
 
-  it("recursively returns sorted guideline metadata, updatedAt, and markdown content", async () => {
-    const architectureUpdatedAt = new Date("2026-06-20T10:00:00.000Z");
-    const routingUpdatedAt = new Date("2026-06-21T11:00:00.000Z");
+  it("returns owner-qualified same-path guidelines from two Folders", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB = await createFolder("folder-b");
+    const content = [
+      "---",
+      'name: "Architecture"',
+      'description: "Top-level boundaries"',
+      'keywords: ["architecture"]',
+      "---",
+      "# Architecture",
+    ].join("\n");
+    await writeGuideline(folderA, "guidelines/Architecture.md", content);
+    await writeGuideline(folderB, "guidelines/Architecture.md", content);
 
-    await writeGuideline(
-      "guidelines/frontend/Routing.md",
-      [
-        "---",
-        'name: "Routing"',
-        'description: "Renderer routes"',
-        'keywords: ["frontend", "routing"]',
-        "---",
-        "# Routing",
-        "",
-        "Renderer pages live under `src/renderer/src/pages`.",
-      ].join("\n"),
-      routingUpdatedAt
-    );
-    await writeGuideline(
-      "guidelines/Architecture.md",
-      [
-        "---",
-        'name: "Architecture"',
-        'description: "Top-level boundaries"',
-        'keywords: ["architecture"]',
-        "---",
-        "# Architecture",
-        "",
-        "Keep process boundaries explicit.",
-      ].join("\n"),
-      architectureUpdatedAt
-    );
-    await writeGuideline(
-      "guidelines/draft.txt",
-      "not markdown",
-      new Date("2026-06-22T12:00:00.000Z")
-    );
+    const result = await getGuidelinesBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
+    });
 
-    const result = await getGuidelinesBrowser(projectPath);
-
-    expect(result.items.map((item) => item.path)).toEqual([
-      "guidelines/Architecture.md",
-      "guidelines/frontend/Routing.md",
+    expect(result.items.map(({ ref }) => ref)).toEqual([
+      { folderId: "folder-a", path: "guidelines/Architecture.md" },
+      { folderId: "folder-b", path: "guidelines/Architecture.md" },
     ]);
     expect(result.items[0]).toMatchObject({
+      folderName: "FOLDER-A",
       name: "Architecture",
-      description: "Top-level boundaries",
-      keywords: ["architecture"],
-      updatedAt: architectureUpdatedAt.toISOString(),
-      content: "# Architecture\n\nKeep process boundaries explicit.",
-    });
-    expect(result.items[0]?.content).not.toContain("name:");
-    expect(result.items[1]).toMatchObject({
-      name: "Routing",
-      description: "Renderer routes",
-      keywords: ["frontend", "routing"],
-      updatedAt: routingUpdatedAt.toISOString(),
+      content: "# Architecture",
     });
   });
 
-  it("keeps guidelines with invalid frontmatter and surfaces parse error", async () => {
+  it("keeps invalid frontmatter as an owner-qualified warning", async () => {
+    const member = await createFolder("folder-a");
     await writeGuideline(
+      member,
       "guidelines/Bad.md",
-      ["---", ": : :", "---", "# Bad", "", "Still readable."].join("\n"),
-      new Date("2026-06-23T12:00:00.000Z")
+      ["---", ": : :", "---", "# Bad", "", "Still readable."].join("\n")
     );
 
-    const result = await getGuidelinesBrowser(projectPath);
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toMatchObject({
-      path: "guidelines/Bad.md",
-      name: "Bad",
-      description: null,
-      keywords: null,
-      content: "# Bad\n\nStill readable.",
-      parseError: expect.any(String),
+    const result = await getGuidelinesBrowser({
+      primaryFolderId: member.folderId,
+      folders: [member],
     });
-    expect(result.items[0]?.parseError).not.toBe("");
+
+    expect(result.items[0]).toMatchObject({
+      ref: { folderId: "folder-a", path: "guidelines/Bad.md" },
+      path: "guidelines/Bad.md",
+      parseError: expect.any(String),
+      content: "# Bad\n\nStill readable.",
+    });
+    expect(result.folders[0].warnings).toEqual([
+      expect.objectContaining({ itemPath: "guidelines/Bad.md" }),
+    ]);
   });
 
-  it("returns an empty list when guidelines directory is missing", async () => {
-    await expect(getGuidelinesBrowser(projectPath)).resolves.toEqual({ items: [] });
+  it("returns ready-empty when guidelines directory is missing", async () => {
+    const member = await createFolder("folder-a");
+
+    const result = await getGuidelinesBrowser({
+      primaryFolderId: member.folderId,
+      folders: [member],
+    });
+
+    expect(result).toMatchObject({
+      completeness: "complete",
+      items: [],
+      folders: [{ status: "ready", items: [] }],
+    });
+  });
+
+  it("isolates a Folder scan error and preserves ready guidelines", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB = await createFolder("folder-b");
+    await writeGuideline(folderA, "guidelines/Architecture.md", "# Architecture");
+    await fs.writeFile(join(folderB.folderPath, "guidelines"), "not-a-directory", "utf8");
+
+    const result = await getGuidelinesBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.folders[1].status).toBe("error");
+    expect(result.completeness).toBe("partial");
+  });
+
+  it("keeps a missing Folder in the aggregate", async () => {
+    const folderA = await createFolder("folder-a");
+    const folderB: ResolvedWorkspaceFolder = {
+      folderId: "folder-b",
+      folderName: "FOLDER-B",
+      folderPath: "/missing/folder-b",
+      pathMissing: true,
+    };
+
+    const result = await getGuidelinesBrowser({
+      primaryFolderId: folderA.folderId,
+      folders: [folderA, folderB],
+    });
+
+    expect(result.folders[1]).toMatchObject({ folderId: "folder-b", status: "missing" });
   });
 });

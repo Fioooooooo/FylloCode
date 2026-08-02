@@ -47,7 +47,8 @@ describe("proposal service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolveWorkspace.mockResolvedValue({
-      availableFolders: [
+      primaryFolderId: "folder-a",
+      folders: [
         { folderId: "folder-a", folderName: "A", folderPath: "/repo-a" },
         { folderId: "folder-b", folderName: "B", folderPath: "/repo-b" },
       ],
@@ -60,11 +61,42 @@ describe("proposal service", () => {
 
   it("keeps same-name proposals from different Folder repositories", async () => {
     const result = await listProposals("workspace-1");
-    expect(result).toHaveLength(2);
-    expect(result.map((item) => item.proposalRef.folderId).sort()).toEqual([
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map((item) => item.proposalRef.folderId).sort()).toEqual([
       "folder-a",
       "folder-b",
     ]);
+    expect(result.folders.map(({ status }) => status)).toEqual(["ready", "ready"]);
+  });
+
+  it("keeps ready proposals when another Folder scan fails", async () => {
+    mocks.readRepositoryProposalFiles.mockImplementation(
+      async ({ folderId, folderName, folderPath }) => {
+        if (folderId === "folder-b") throw new Error("scan failed");
+        return [proposal(folderId, folderName, folderPath)];
+      }
+    );
+
+    const result = await listProposals("workspace-1");
+
+    expect(result.items.map((item) => item.proposalRef.folderId)).toEqual(["folder-a"]);
+    expect(result.folders[1]).toMatchObject({ status: "error", error: "scan failed" });
+    expect(result.completeness).toBe("partial");
+  });
+
+  it("returns a missing result for an unavailable Folder", async () => {
+    mocks.resolveWorkspace.mockResolvedValue({
+      primaryFolderId: "folder-a",
+      folders: [
+        { folderId: "folder-a", folderName: "A", folderPath: "/repo-a", pathMissing: false },
+        { folderId: "folder-b", folderName: "B", folderPath: "/repo-b", pathMissing: true },
+      ],
+    });
+
+    const result = await listProposals("workspace-1");
+
+    expect(result.folders[1]).toMatchObject({ folderId: "folder-b", status: "missing" });
+    expect(mocks.readRepositoryProposalFiles).toHaveBeenCalledTimes(1);
   });
 
   it("reads detail and delta files from the ProposalRef owner target", async () => {

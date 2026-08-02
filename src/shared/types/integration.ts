@@ -123,9 +123,18 @@ export interface WorkspaceIntegrationEntry {
   providerId: ProviderId;
   resourceType: ProviderResourceType;
   resourceId: string;
+  folderId?: string;
+  /** Read projection for a binding that remains in current Workspace membership. */
+  currentFolderId?: string;
+  /** Read projection for a preserved binding whose Folder is no longer a member. */
+  staleFolderId?: string;
 }
 
 export type WorkspaceIntegrationConfig = Record<IntegrationStageId, WorkspaceIntegrationEntry[]>;
+
+export function isRepositoryBoundIntegrationStage(stage: IntegrationStageId): boolean {
+  return stage === "source-control" || stage === "ci-cd";
+}
 
 export interface ToolParameterField {
   key: string;

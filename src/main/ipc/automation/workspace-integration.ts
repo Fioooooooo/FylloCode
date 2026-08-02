@@ -1,31 +1,31 @@
 import { ipcMain } from "electron";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { providerMap } from "@shared/constants/integration-providers";
-import { AutomationProjectIntegrationChannels } from "@shared/ipc/automation/project-integration.channels";
+import { AutomationWorkspaceIntegrationChannels } from "@shared/ipc/automation/workspace-integration.channels";
 import {
-  getProjectIntegrationInputSchema,
-  setProjectIntegrationInputSchema,
-} from "@shared/ipc/automation/project-integration.schemas";
+  getWorkspaceIntegrationInputSchema,
+  setWorkspaceIntegrationInputSchema,
+} from "@shared/ipc/automation/workspace-integration.schemas";
 import { ipcError } from "@shared/errors/ipc-error";
 import type { WorkspaceIntegrationEntry, ProviderId } from "@shared/types/integration";
 import {
-  getProjectIntegration,
-  setProjectIntegrationStage,
-} from "@main/services/automation/project-integration/project-integration-service";
+  getWorkspaceIntegration,
+  setWorkspaceIntegrationStage,
+} from "@main/services/automation/workspace-integration/workspace-integration-service";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
 
-export function registerProjectIntegrationHandlers(): void {
-  ipcMain.handle(AutomationProjectIntegrationChannels.get, (_event, input: unknown) =>
-    wrapHandler(() => {
-      const { workspaceId } = validate(getProjectIntegrationInputSchema, input);
-      return getProjectIntegration(workspaceId);
+export function registerWorkspaceIntegrationHandlers(): void {
+  ipcMain.handle(AutomationWorkspaceIntegrationChannels.get, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { workspaceId } = validate(getWorkspaceIntegrationInputSchema, input);
+      return getWorkspaceIntegration(workspaceId);
     })
   );
 
-  ipcMain.handle(AutomationProjectIntegrationChannels.set, (_event, input: unknown) =>
-    wrapHandler(() => {
-      const { workspaceId, stage, resources } = validate(setProjectIntegrationInputSchema, input);
+  ipcMain.handle(AutomationWorkspaceIntegrationChannels.set, (_event, input: unknown) =>
+    wrapHandler(async () => {
+      const { workspaceId, stage, resources } = validate(setWorkspaceIntegrationInputSchema, input);
       for (const resource of resources) {
         const provider = providerMap.get(resource.providerId as ProviderId);
         const isValid = provider?.capabilities.some(
@@ -39,9 +39,9 @@ export function registerProjectIntegrationHandlers(): void {
           );
         }
       }
-      return setProjectIntegrationStage(
+      return setWorkspaceIntegrationStage(
         workspaceId,
-        stage as Parameters<typeof setProjectIntegrationStage>[1],
+        stage as Parameters<typeof setWorkspaceIntegrationStage>[1],
         resources as WorkspaceIntegrationEntry[]
       );
     })

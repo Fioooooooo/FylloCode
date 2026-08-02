@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { taskApi } from "@renderer/api/automation/task";
-import { projectIntegrationApi } from "@renderer/api/automation/project-integration";
+import { workspaceIntegrationApi } from "@renderer/api/automation/workspace-integration";
 import { useChatStore } from "../session/chat";
 import { useLineageStore } from "../insight/lineage";
 import { useWorkspaceStore } from "../workspace/workspace";
@@ -15,6 +15,7 @@ import type {
   TaskStatus,
   UpdateTaskInput,
 } from "@shared/types/task";
+import { normalizeTaskTargetFolderIds } from "@shared/types/task";
 import type {
   LineageSessionLink,
   LineageTaskRef,
@@ -26,6 +27,7 @@ import type {
   WorkspaceIntegrationConfig,
   WorkspaceIntegrationEntry,
 } from "@shared/types/integration";
+import type { WorkspaceFolderInfo } from "@shared/types/workspace";
 
 type TaskSourceFilter = TaskSource | "all";
 type TaskSourceTab = { label: string; value: TaskSource };
@@ -64,6 +66,41 @@ function sortTasks(tasks: TaskItem[]): TaskItem[] {
   return [...tasks].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 }
 
+function repositoryName(value: string): string {
+  return (value.split("/").at(-1) ?? value).replace(/\.git$/i, "").toLocaleLowerCase();
+}
+
+export function suggestTaskProposalOwner(
+  task: TaskItem,
+  folders: readonly WorkspaceFolderInfo[]
+): string | null {
+  const availableFolders = folders.filter((folder) => !folder.pathMissing);
+  const targetFolderIds = normalizeTaskTargetFolderIds(task.targetFolderIds);
+  if (targetFolderIds.length > 0) {
+    if (targetFolderIds.length !== 1) {
+      return null;
+    }
+    return availableFolders.some((folder) => folder.folderId === targetFolderIds[0])
+      ? targetFolderIds[0]!
+      : null;
+  }
+
+  if (task.sourceMeta.source !== "github" || !task.sourceMeta.repository) {
+    return null;
+  }
+
+  const repository = task.sourceMeta.repository.toLocaleLowerCase();
+  const name = repositoryName(repository);
+  const matches = availableFolders.filter(
+    (folder) =>
+      folder.folderId.toLocaleLowerCase() === repository ||
+      folder.folderId.toLocaleLowerCase() === name ||
+      folder.folderName.toLocaleLowerCase() === name ||
+      repositoryName(folder.folderPath) === name
+  );
+  return matches.length === 1 ? matches[0]!.folderId : null;
+}
+
 export const useTaskStore = defineStore("task", () => {
   const tasks = ref<TaskItem[]>([]);
   const loading = ref(false);
@@ -74,7 +111,7 @@ export const useTaskStore = defineStore("task", () => {
   const sourceFilter = ref<TaskSourceFilter>("all");
   const statusFilter = ref<TaskStatus>("open");
   const availableSources = ref<TaskSource[]>(["local"]);
-  const projectIntegration = ref<WorkspaceIntegrationConfig | null>(null);
+  const workspaceIntegration = ref<WorkspaceIntegrationConfig | null>(null);
   let tasksLoadGeneration = 0;
 
   // 动态 tab：local 始终存在；当项目接入 yunxiao projex 项目后追加云效 tab。
@@ -120,6 +157,17 @@ export const useTaskStore = defineStore("task", () => {
       sections.push("", "**描述**:", descriptionText);
     }
 
+    const workspace = useWorkspaceStore().currentWorkspace;
+    const ownerFolderId = suggestTaskProposalOwner(task, workspace?.folders ?? []);
+    if (ownerFolderId) {
+      const owner = workspace?.folders.find((folder) => folder.folderId === ownerFolderId);
+      sections.push(
+        "",
+        `**建议 Proposal Owner**: ${owner?.folderName ?? ownerFolderId} (folderId: ${ownerFolderId})`,
+        "创建 proposal 时请让用户确认 owner，并显式传入 folderId。"
+      );
+    }
+
     sections.push("", "请帮我规划这个任务的方案");
 
     return sections.join("\n");
@@ -133,7 +181,7 @@ export const useTaskStore = defineStore("task", () => {
 
   function normalizeAvailableSources(): void {
     const sources: TaskSource[] = ["local"];
-    if (hasYunxiaoTaskSource(projectIntegration.value)) {
+    if (hasYunxiaoTaskSource(workspaceIntegration.value)) {
       sources.push("yunxiao");
     }
     availableSources.value = sources;
@@ -144,7 +192,7 @@ export const useTaskStore = defineStore("task", () => {
 
   async function refreshAvailableSources(workspaceId?: string): Promise<void> {
     if (!workspaceId) {
-      projectIntegration.value = null;
+      workspaceIntegration.value = null;
       availableSources.value = ["local"];
       if (sourceFilter.value !== "all") {
         sourceFilter.value = "local";
@@ -152,7 +200,7 @@ export const useTaskStore = defineStore("task", () => {
       return;
     }
 
-    const result = await projectIntegrationApi.getProjectIntegration(workspaceId);
+    const result = await workspaceIntegrationApi.getWorkspaceIntegration(workspaceId);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -161,7 +209,7 @@ export const useTaskStore = defineStore("task", () => {
       return;
     }
 
-    projectIntegration.value = result.data;
+    workspaceIntegration.value = result.data;
     normalizeAvailableSources();
   }
 
@@ -190,7 +238,7 @@ export const useTaskStore = defineStore("task", () => {
     if (!workspaceId) {
       tasks.value = [];
       availableSources.value = ["local"];
-      projectIntegration.value = null;
+      workspaceIntegration.value = null;
       resetDetailState();
       loading.value = false;
       error.value = "当前没有选中的工作区";
@@ -397,7 +445,7 @@ export const useTaskStore = defineStore("task", () => {
     detailErrorMessage,
     availableSources,
     sourceTabs,
-    projectIntegration,
+    workspaceIntegration,
     sourceFilter,
     statusFilter,
     tasksBySource,
@@ -409,6 +457,7 @@ export const useTaskStore = defineStore("task", () => {
     deleteTask,
     loadTaskDetail,
     buildTaskRef,
+    buildTaskPrompt,
     ensureTaskSubject,
     getTaskLineage,
     startDiscussionFromTask,

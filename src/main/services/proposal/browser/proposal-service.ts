@@ -1,4 +1,9 @@
-import type { ProposalMeta, ProposalRef, ProposalSpecDeltaOverview } from "@shared/types/proposal";
+import type {
+  ProposalBrowserOverview,
+  ProposalMeta,
+  ProposalRef,
+  ProposalSpecDeltaOverview,
+} from "@shared/types/proposal";
 import { resolveWorkspace } from "@main/services/workspace/_public";
 import {
   readChangeFileInTarget,
@@ -6,34 +11,37 @@ import {
 } from "@main/infra/proposal/openspec-reader";
 import { listRegisteredWorktreePaths } from "@main/infra/git/worktree-reader";
 import { getProposalSpecDeltas as readProposalSpecDeltas } from "./proposal-spec-delta-service";
+import { aggregateWorkspaceRepositories } from "@main/services/insight/_public";
 
-export async function listProposals(workspaceId: string): Promise<ProposalMeta[]> {
+export async function listProposals(workspaceId: string): Promise<ProposalBrowserOverview> {
   const workspace = await resolveWorkspace(workspaceId);
-  const perFolder = await Promise.all(
-    workspace.availableFolders.map(async (folder) => {
-      try {
-        const registered = await listRegisteredWorktreePaths(folder.folderPath);
-        return await readRepositoryProposalFiles({
-          folderId: folder.folderId,
-          folderName: folder.folderName,
-          folderPath: folder.folderPath,
-          registeredWorktreePaths: registered.paths,
-        });
-      } catch {
-        return [];
-      }
-    })
-  );
-  return perFolder
-    .flat()
-    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+  const aggregate = await aggregateWorkspaceRepositories(workspace, async (folder) => {
+    const registered = await listRegisteredWorktreePaths(folder.folderPath);
+    const items = await readRepositoryProposalFiles({
+      folderId: folder.folderId,
+      folderName: folder.folderName,
+      folderPath: folder.folderPath,
+      registeredWorktreePaths: registered.paths,
+    });
+    return {
+      items,
+      warnings: registered.warning ? [{ message: registered.warning }] : [],
+    };
+  });
+
+  return {
+    ...aggregate,
+    items: [...aggregate.items].sort(
+      (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
+    ),
+  };
 }
 
 export async function resolveProposalMeta(
   workspaceId: string,
   proposalRef: ProposalRef
 ): Promise<ProposalMeta> {
-  const proposal = (await listProposals(workspaceId)).find(
+  const proposal = (await listProposals(workspaceId)).items.find(
     (candidate) =>
       candidate.proposalRef.folderId === proposalRef.folderId &&
       candidate.proposalRef.changeId === proposalRef.changeId

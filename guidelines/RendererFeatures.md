@@ -176,7 +176,7 @@ Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed co
 
 ### 共享数据与共享 UI
 
-- MUST 区分“共享同一份领域数据”和“依赖另一个 feature”。如果两个 feature 都需要 provider connection、session 或 proposal 状态，应分别通过现有 domain store/API/shared contract 获取，而不是让其中一个 feature 暴露内部状态给另一个。（规划例：`project-integrations` 与 `provider-connections` 均依赖 platform provider domain，但彼此不依赖。）
+- MUST 区分“共享同一份领域数据”和“依赖另一个 feature”。如果两个 feature 都需要 provider connection、session 或 proposal 状态，应分别通过现有 domain store/API/shared contract 获取，而不是让其中一个 feature 暴露内部状态给另一个。（现有例：`workspace-integrations` 与 `provider-connections` 均依赖 platform provider domain，但彼此不依赖。）
 - MUST NOT 为跨 feature 复用创建第二套 durable store。共享可复用异步状态继续归 `stores/<domain>/`，跨进程类型继续归 `src/shared/**`。
 - SHOULD 只把语义中立且确有多个消费者的视觉原语提升到 `components/shared/**`。包含某个 feature 业务词汇、用例状态或 handler 的组件不得提升为 shared UI。
 - MUST NOT 创建 renderer feature 专用的 `features/shared`、`features/common` 或跨 feature `utils`。无法确定 owner 的代码应先重新判断用例所有权；只有满足既有 shared/store/API 职责时才提升到对应现有层。

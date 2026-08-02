@@ -8,7 +8,7 @@ import {
   type WorkspaceIntegrationConfig,
 } from "@shared/types/integration";
 
-export function projectIntegrationPath(workspaceId: string): string {
+export function workspaceIntegrationPath(workspaceId: string): string {
   return join(workspaceDataDir(workspaceId), "integrations", "config.json");
 }
 
@@ -31,7 +31,7 @@ function normalizeConfig(
 export function loadWorkspaceIntegrationConfig(workspaceId: string): WorkspaceIntegrationConfig {
   try {
     const raw = JSON.parse(
-      readFileSync(projectIntegrationPath(workspaceId), "utf8")
+      readFileSync(workspaceIntegrationPath(workspaceId), "utf8")
     ) as Partial<WorkspaceIntegrationConfig>;
     return normalizeConfig(raw);
   } catch {
@@ -44,7 +44,15 @@ export function saveWorkspaceIntegrationConfig(
   config: WorkspaceIntegrationConfig
 ): WorkspaceIntegrationConfig {
   const normalized = normalizeConfig(config);
-  writeFileAtomicSync(projectIntegrationPath(workspaceId), JSON.stringify(normalized, null, 2));
+  for (const stage of integrationCategoryIds) {
+    normalized[stage] = normalized[stage].map((entry) => {
+      const persisted = { ...entry };
+      delete persisted.currentFolderId;
+      delete persisted.staleFolderId;
+      return persisted;
+    });
+  }
+  writeFileAtomicSync(workspaceIntegrationPath(workspaceId), JSON.stringify(normalized, null, 2));
   return normalized;
 }
 

@@ -43,7 +43,7 @@ const provider: Provider = {
   comingSoon: false,
 };
 
-function createEmptyProjectIntegration(): WorkspaceIntegrationConfig {
+function createEmptyWorkspaceIntegration(): WorkspaceIntegrationConfig {
   return {
     "project-management": [],
     "source-control": [],
@@ -72,8 +72,8 @@ describe("ProviderStageSection", () => {
         },
       },
     ];
-    store.projectIntegration = {
-      ...createEmptyProjectIntegration(),
+    store.workspaceIntegration = {
+      ...createEmptyWorkspaceIntegration(),
       "project-management": [
         {
           providerId: "yunxiao",
@@ -84,10 +84,10 @@ describe("ProviderStageSection", () => {
     };
 
     const saveSpy = vi
-      .spyOn(store, "saveProjectIntegrationStage")
+      .spyOn(store, "saveWorkspaceIntegrationStage")
       .mockImplementation(async (_workspaceId, stage, resources) => {
-        store.projectIntegration = {
-          ...(store.projectIntegration ?? createEmptyProjectIntegration()),
+        store.workspaceIntegration = {
+          ...(store.workspaceIntegration ?? createEmptyWorkspaceIntegration()),
           [stage]: resources,
         };
       });
@@ -145,7 +145,7 @@ describe("ProviderStageSection", () => {
         resourceId: "proj-new",
       },
     ]);
-    expect(store.projectIntegration?.["project-management"]).toEqual([
+    expect(store.workspaceIntegration?.["project-management"]).toEqual([
       {
         providerId: "yunxiao",
         resourceType: "projex-project",
@@ -184,7 +184,7 @@ describe("ProviderStageSection", () => {
         },
       },
     ];
-    store.projectIntegration = createEmptyProjectIntegration();
+    store.workspaceIntegration = createEmptyWorkspaceIntegration();
 
     vi.spyOn(store, "loadProviderResources").mockImplementation(async () => {
       const resources: ProviderResource[] = [
@@ -226,8 +226,8 @@ describe("ProviderStageSection", () => {
         connection: null,
       },
     ];
-    store.projectIntegration = {
-      ...createEmptyProjectIntegration(),
+    store.workspaceIntegration = {
+      ...createEmptyWorkspaceIntegration(),
       "project-management": [
         {
           providerId: "yunxiao",
@@ -267,7 +267,7 @@ describe("ProviderStageSection", () => {
         connection: null,
       },
     ];
-    store.projectIntegration = createEmptyProjectIntegration();
+    store.workspaceIntegration = createEmptyWorkspaceIntegration();
 
     const wrapper = mount(ProviderStageSection, {
       props: {
@@ -285,5 +285,141 @@ describe("ProviderStageSection", () => {
         focus: "yunxiao",
       },
     });
+  });
+
+  it("requires explicit Folder binding for repository-bound resources", async () => {
+    const sourceControlCategory: IntegrationCategory = {
+      id: "source-control",
+      name: "源码管理",
+      description: "Repository resources",
+    };
+    const sourceControlProvider: Provider = {
+      ...provider,
+      capabilities: [
+        {
+          stage: "source-control",
+          resourceType: "codeup-repo",
+          label: "Codeup 仓库",
+          description: "Repository",
+        },
+      ],
+    };
+    const store = useIntegrationProvidersStore();
+    store.providers = [
+      {
+        ...sourceControlProvider,
+        connection: { providerId: "yunxiao", state: "connected" },
+      },
+    ];
+    store.workspaceIntegration = createEmptyWorkspaceIntegration();
+    vi.spyOn(store, "loadProviderResources").mockImplementation(async () => {
+      const resources: ProviderResource[] = [
+        {
+          id: "repo-1",
+          name: "Repository One",
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+        },
+      ];
+      store.resourceOptions["yunxiao:codeup-repo"] = resources;
+      return resources;
+    });
+    const saveSpy = vi.spyOn(store, "saveWorkspaceIntegrationStage").mockResolvedValue();
+    const wrapper = mount(ProviderStageSection, {
+      props: {
+        category: sourceControlCategory,
+        providers: store.providers,
+        currentWorkspaceId: "workspace-a",
+        workspaceFolders: [
+          {
+            folderId: "folder-a",
+            folderName: "Repository A",
+            folderPath: "/repos/a",
+            pathMissing: false,
+            isPrimary: true,
+          },
+        ],
+      },
+    });
+
+    await wrapper.get('[data-test="add-provider-yunxiao"]').trigger("click");
+    await flushPromises();
+    await wrapper
+      .get('[data-test="resource-option-yunxiao-codeup-repo-repo-1"] input')
+      .setValue(true);
+    await wrapper.get('[data-test="confirm-picker-yunxiao-codeup-repo"]').trigger("click");
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("必须为每一项选择当前 Workspace Folder");
+
+    await wrapper.get('[aria-label="为 Repository One 选择 Folder"]').setValue("folder-a");
+    await wrapper.get('[data-test="confirm-picker-yunxiao-codeup-repo"]').trigger("click");
+    await flushPromises();
+
+    expect(saveSpy).toHaveBeenCalledWith("workspace-a", "source-control", [
+      {
+        providerId: "yunxiao",
+        resourceType: "codeup-repo",
+        resourceId: "repo-1",
+        folderId: "folder-a",
+      },
+    ]);
+  });
+
+  it("shows stale and legacy unbound repository bindings without guessing primary", async () => {
+    const store = useIntegrationProvidersStore();
+    store.providers = [
+      {
+        ...provider,
+        capabilities: [
+          {
+            stage: "source-control",
+            resourceType: "codeup-repo",
+            label: "Codeup 仓库",
+            description: "Repository",
+          },
+        ],
+        connection: { providerId: "yunxiao", state: "connected" },
+      },
+    ];
+    store.workspaceIntegration = {
+      ...createEmptyWorkspaceIntegration(),
+      "source-control": [
+        {
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+          resourceId: "unbound",
+        },
+        {
+          providerId: "yunxiao",
+          resourceType: "codeup-repo",
+          resourceId: "stale",
+          folderId: "removed",
+          staleFolderId: "removed",
+        },
+      ],
+    };
+
+    const wrapper = mount(ProviderStageSection, {
+      props: {
+        category: { id: "source-control", name: "源码管理", description: "Repository" },
+        providers: store.providers,
+        currentWorkspaceId: "workspace-a",
+        workspaceFolders: [
+          {
+            folderId: "folder-a",
+            folderName: "Repository A",
+            folderPath: "/repos/a",
+            pathMissing: false,
+            isPrimary: true,
+          },
+        ],
+      },
+    });
+
+    await wrapper.get('[data-test="toggle-provider-yunxiao"]').trigger("click");
+
+    expect(wrapper.text()).toContain("未绑定");
+    expect(wrapper.text()).toContain("已失效：removed");
+    expect(wrapper.text()).not.toContain("unbound · Repository A");
   });
 });

@@ -2,14 +2,14 @@ import { ipcRenderer } from "electron";
 import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
-  ProposalMeta,
+  ProposalBrowserOverview,
   ProposalRef,
   ProposalSpecDeltaOverview,
   ProposalStatusChangedPayload,
 } from "@shared/types/proposal";
 
 export const proposalBrowserApi = {
-  list(workspaceId: string): Promise<IpcResponse<ProposalMeta[]>> {
+  list(workspaceId: string): Promise<IpcResponse<ProposalBrowserOverview>> {
     return ipcRenderer.invoke(ProposalBrowserChannels.list, { workspaceId });
   },
 

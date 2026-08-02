@@ -7,6 +7,7 @@ import type { WorkflowTemplate } from "@shared/types/workflow";
 export const useWorkflowStore = defineStore("workflow", () => {
   const templates = ref<WorkflowTemplate[]>([]);
   const isLoading = ref(false);
+  let loadGeneration = 0;
 
   const builtInTemplates = computed(() =>
     templates.value.filter((template) => template.source === "built-in")
@@ -15,49 +16,67 @@ export const useWorkflowStore = defineStore("workflow", () => {
     templates.value.filter((template) => template.source === "custom")
   );
 
-  function getCurrentProjectId(): string | undefined {
-    return useWorkspaceStore().currentWorkspace?.id;
+  function getCurrentWorkspaceId(): string {
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id;
+    if (!workspaceId) {
+      throw new Error("当前没有选中的工作区");
+    }
+    return workspaceId;
   }
 
-  async function fetchTemplates(): Promise<void> {
+  async function fetchTemplates(workspaceId = getCurrentWorkspaceId()): Promise<void> {
+    const requestGeneration = ++loadGeneration;
     isLoading.value = true;
     try {
-      const result = await workflowApi.list({ workspaceId: getCurrentProjectId() });
+      const result = await workflowApi.list({ workspaceId });
       if (!result.ok) {
         throw new Error(result.error.message);
       }
 
+      if (
+        requestGeneration !== loadGeneration ||
+        useWorkspaceStore().currentWorkspace?.id !== workspaceId
+      ) {
+        return;
+      }
       templates.value = result.data.templates;
     } finally {
-      isLoading.value = false;
+      if (
+        requestGeneration === loadGeneration &&
+        useWorkspaceStore().currentWorkspace?.id === workspaceId
+      ) {
+        isLoading.value = false;
+      }
     }
   }
 
   async function saveTemplate(name: string, yaml: string): Promise<void> {
+    const workspaceId = getCurrentWorkspaceId();
     const result = await workflowApi.save({
       name,
       yaml,
-      workspaceId: getCurrentProjectId(),
+      workspaceId,
     });
 
     if (!result.ok) {
       throw new Error(result.error.message);
     }
 
-    await fetchTemplates();
+    await fetchTemplates(workspaceId);
   }
 
   async function deleteTemplate(name: string): Promise<void> {
+    const workspaceId = getCurrentWorkspaceId();
     const result = await workflowApi.delete({
       name,
-      workspaceId: getCurrentProjectId(),
+      workspaceId,
     });
 
     if (!result.ok) {
       throw new Error(result.error.message);
     }
 
-    await fetchTemplates();
+    await fetchTemplates(workspaceId);
   }
 
   return {

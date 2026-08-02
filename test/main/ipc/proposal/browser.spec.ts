@@ -67,6 +67,22 @@ describe("proposal browser IPC", () => {
     expect(result).toEqual({ ok: true, data: undefined });
   });
 
+  it("returns the per-Folder proposal aggregate", async () => {
+    registerProposalHandlers();
+    const overview = {
+      folders: [],
+      items: [],
+      completeness: "partial",
+      excludedFolderIds: ["folder-b"],
+    };
+    mocks.listProposals.mockResolvedValue(overview);
+
+    const result = await handler(ProposalChannels.list)({}, { workspaceId: "workspace-1" });
+
+    expect(mocks.listProposals).toHaveBeenCalledWith("workspace-1");
+    expect(result).toEqual({ ok: true, data: overview });
+  });
+
   it("routes owner-qualified status updates to the matching Workspace", () => {
     const manager = { sendToWorkspace: vi.fn() } as unknown as WorkspaceWindowManager;
     setupProposalStatusBroadcast(manager);

@@ -37,7 +37,6 @@ import {
   loadSessionMessages,
   persistSessionMessage,
   removeSession,
-  resolveWorkspaceCwd,
   updateSession,
 } from "@main/services/session/chat/chat-service";
 import {
@@ -98,7 +97,7 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
       const query = validate(listSessionsInputSchema, input);
-      await resolveWorkspaceCwd(query.workspaceId);
+      await resolveWorkspace(query.workspaceId);
       ensureLineageEventConsumer(query.workspaceId);
       return listSessions(query.workspaceId);
     })
