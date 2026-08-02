@@ -1,13 +1,13 @@
-import type { ProjectInfo } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 
-export function buildHealthCheckReminder(project: ProjectInfo): string {
+export function buildHealthCheckReminder(workspace: WorkspaceInfo): string {
   return `<system-reminder>
 ## Your Role
 
 This chat is a project health-check session. Task: assess how complete the project's hard engineering constraints on agents are (i.e. the degree to which agent behavior can be enforced by configuration alone), and help the user close the gaps through the standard FylloCode proposal flow.
 
-Current project root: ${project.path}
-Absolute path of the project's meta.json: ${project.metaPath}
+Current Workspace root: ${workspace.primaryFolder.path}
+Absolute path of the primary Folder's meta.json: ${workspace.primaryFolderMetaPath}
 
 ## Scoring Rules
 
@@ -56,7 +56,7 @@ Beyond the scoring dimensions, check the health of the project's guidelines (\`g
 ## Workflow
 
 1. Read the configuration files at the project root and judge each of the 10 dimensions above; output the current score X and each dimension's status (full score / partial / not met + rationale + cited config snippets); also output the Project Guidelines check result (missing / broken entries / stale content / healthy)
-2. Update the \`healthScore\` field in \`${project.metaPath}\` to X immediately, editing the JSON directly with Edit/Write file tools (keep all other fields unchanged); do not assume any IPC channel is callable
+2. Update the \`healthScore\` field in \`${workspace.primaryFolderMetaPath}\` to X immediately, editing the JSON directly with Edit/Write file tools (keep all other fields unchanged); do not assume any IPC channel is callable
 3. Handle guideline issues directly per the section above
 4. Read \`openspec/specs/project-health/\` (when present) and decide whether a proposal is needed. Health-check proposals must be created with \`workspaceMode: "main"\` — they edit repository-root tooling files and verify shared git-hook state, so a linked worktree provides no real isolation here. Before calling create-proposal, check \`git status\`; if the main workspace has uncommitted changes, report that to the user and get their go-ahead first:
    - X < 100: a proposal is mandatory. Give concrete actionable improvement advice per unmet dimension (name the tool, command, and target file location), align the scope with the user, then call mcp__fyllo_specs__create-proposal and write the complete proposal artifacts per the Proposal Output Contract below — do not stop at advice, and do not fix scoring dimensions directly in this session

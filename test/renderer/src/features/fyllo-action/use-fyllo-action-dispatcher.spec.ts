@@ -7,7 +7,7 @@ const setSessionOriginTaskRefMock = vi.hoisted(() => vi.fn());
 const openPlanReviewMock = vi.hoisted(() => vi.fn());
 const openKnowledgeReviewMock = vi.hoisted(() => vi.fn());
 const sendMessageAndAwaitDurableAppendMock = vi.hoisted(() => vi.fn());
-const currentProject = vi.hoisted(() => ({
+const currentWorkspace = vi.hoisted(() => ({
   value: { id: "project-1" } as { id: string } | null,
 }));
 const activeSession = vi.hoisted(() => ({
@@ -41,10 +41,10 @@ vi.mock("@renderer/composables/useKnowledgeReviewSlideover", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    get currentProject() {
-      return currentProject.value;
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    get currentWorkspace() {
+      return currentWorkspace.value;
     },
   }),
 }));
@@ -75,7 +75,7 @@ describe("useFylloActionDispatcher", () => {
     openPlanReviewMock.mockReset();
     openKnowledgeReviewMock.mockReset();
     sendMessageAndAwaitDurableAppendMock.mockReset();
-    currentProject.value = { id: "project-1" };
+    currentWorkspace.value = { id: "project-1" };
     activeSession.value = null;
     chatStatus.value = "ready";
   });
@@ -191,6 +191,7 @@ describe("useFylloActionDispatcher", () => {
     );
 
     expect(openPlanReviewMock).toHaveBeenCalledWith({
+      workspaceId: "project-1",
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
       mode: "review",
@@ -228,10 +229,26 @@ describe("useFylloActionDispatcher", () => {
     expect(openPlanReviewMock).not.toHaveBeenCalled();
   });
 
+  it("rejects an action whose Workspace scope does not match the current window", async () => {
+    const { dispatchFylloAction } = useFylloActionDispatcher();
+
+    const result = await dispatchFylloAction(
+      "plan.create",
+      { slug: "2026-06-29-plan-a", goal: "Need review" },
+      { workspaceId: "workspace-other", sessionId: "session-1" }
+    );
+
+    expect(result).toEqual({
+      outcome: "failed",
+      error: "Action 所属工作区与当前窗口不一致，已拒绝执行。",
+    });
+    expect(openPlanReviewMock).not.toHaveBeenCalled();
+  });
+
   it("routes knowledge.flag confirm to a hidden capture reminder and visible user request", async () => {
     activeSession.value = {
       id: "session-1",
-      projectId: "project-1",
+      workspaceId: "project-1",
       agentId: "claude-code",
       title: "Session",
       status: "ended",
@@ -350,6 +367,7 @@ describe("useFylloActionDispatcher", () => {
     );
 
     expect(openKnowledgeReviewMock).toHaveBeenCalledWith({
+      workspaceId: "project-1",
       sessionId: "session-1",
       name: "markstream-vue-theme-subscription",
     });

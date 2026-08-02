@@ -10,14 +10,14 @@ import {
 
 export class ApplyStageAcpSessionStore implements AcpSessionStore {
   constructor(
-    private readonly projectPath: string,
+    private readonly workspaceId: string,
     private readonly changeId: string,
     private readonly runId: string,
     private readonly stageIndex: number
   ) {}
 
   async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
-    const meta = await loadApplyRunMeta(this.projectPath, this.changeId);
+    const meta = await loadApplyRunMeta(this.workspaceId, this.changeId);
     if (!meta) {
       logger.warn(`[apply-stage-acp-session-store] run meta missing for change ${this.changeId}`);
       return { acpSessionId: null, configOptions: [] };
@@ -38,7 +38,7 @@ export class ApplyStageAcpSessionStore implements AcpSessionStore {
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
     await updateApplyRunStageAcpSessionId(
-      this.projectPath,
+      this.workspaceId,
       this.changeId,
       this.runId,
       this.stageIndex,

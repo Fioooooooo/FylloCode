@@ -12,7 +12,6 @@ import { validate } from "../_kit/schema";
 import {
   createTask as createLocalTask,
   deleteTask as deleteLocalTask,
-  resolveTaskProjectPath,
   updateTask as updateLocalTask,
 } from "@main/services/automation/task/task-service";
 import {
@@ -25,8 +24,8 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 export function registerTaskHandlers(): void {
   ipcMain.handle(AutomationTaskChannels.get, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { projectId, taskId } = validate(getTaskInputSchema, input);
-      const task = await getAggregatedTask(projectId, taskId);
+      const { workspaceId, taskId } = validate(getTaskInputSchema, input);
+      const task = await getAggregatedTask(workspaceId, taskId);
       if (!task) {
         throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
       }
@@ -36,16 +35,15 @@ export function registerTaskHandlers(): void {
 
   ipcMain.handle(AutomationTaskChannels.list, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { projectId, source } = validate(listTasksInputSchema, input);
-      return listAggregatedTasks(projectId, source);
+      const { workspaceId, source } = validate(listTasksInputSchema, input);
+      return listAggregatedTasks(workspaceId, source);
     })
   );
 
   ipcMain.handle(AutomationTaskChannels.create, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createTaskInputSchema, input);
-      const projectPath = await resolveTaskProjectPath(form.projectId);
-      return createLocalTask(projectPath, {
+      return createLocalTask(form.workspaceId, {
         title: form.title,
         description: form.description,
       });
@@ -55,16 +53,14 @@ export function registerTaskHandlers(): void {
   ipcMain.handle(AutomationTaskChannels.update, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(updateTaskInputSchema, input);
-      const projectPath = await resolveTaskProjectPath(form.projectId);
-      return updateLocalTask(projectPath, form.taskId, form.patch);
+      return updateLocalTask(form.workspaceId, form.taskId, form.patch);
     })
   );
 
   ipcMain.handle(AutomationTaskChannels.delete, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { projectId, taskId } = validate(deleteTaskInputSchema, input);
-      const projectPath = await resolveTaskProjectPath(projectId);
-      await deleteLocalTask(projectPath, taskId);
+      const { workspaceId, taskId } = validate(deleteTaskInputSchema, input);
+      await deleteLocalTask(workspaceId, taskId);
     })
   );
 }

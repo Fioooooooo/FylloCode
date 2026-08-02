@@ -16,6 +16,7 @@ vi.mock("@main/infra/logger", () => ({
 function createContext(overrides: Partial<SystemReminderContext> = {}): SystemReminderContext {
   return {
     owner: "apply",
+    workspaceId: "workspace-1",
     projectPath: "/abs/project",
     cwd: "/abs/project",
     fylloSessionId: "session-1",
@@ -67,6 +68,7 @@ describe("renderSystemReminderTemplate", () => {
   it("encodes angle brackets in worktreePath instead of dropping the reminder", () => {
     const reminder = renderSystemReminderTemplate("cwd={{worktreePath}}", {
       ...createContext({ owner: "apply" }),
+      workspaceId: "workspace-1",
       worktreePath: "/abs/<bad>",
     });
 
@@ -75,6 +77,7 @@ describe("renderSystemReminderTemplate", () => {
       "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "apply",
+        workspaceId: "workspace-1",
         field: "worktreePath",
         fylloSessionId: "session-1",
       })
@@ -84,6 +87,7 @@ describe("renderSystemReminderTemplate", () => {
   it("encodes angle brackets in mainProjectPath via projectPath instead of dropping the reminder", () => {
     const reminder = renderSystemReminderTemplate("main={{mainProjectPath}}", {
       ...createContext({ owner: "chat" }),
+      workspaceId: "workspace-1",
       projectPath: "/abs/project>",
     });
 
@@ -92,6 +96,7 @@ describe("renderSystemReminderTemplate", () => {
       "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
+        workspaceId: "workspace-1",
         field: "projectPath",
         fylloSessionId: "session-1",
       })

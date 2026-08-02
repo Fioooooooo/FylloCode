@@ -30,15 +30,15 @@ export interface LocalFilePreviewSender {
 }
 
 export interface LocalFilePreviewContext {
-  projectId: string;
-  projectPath: string;
+  workspaceId: string;
+  folderPath: string;
   sender: LocalFilePreviewSender;
 }
 
 interface PendingAuthorization {
   authorizationId: string;
   webContentsId: number;
-  projectId: string;
+  workspaceId: string;
   requestedPath: string;
   canonicalPath: string;
   size: number;
@@ -53,7 +53,7 @@ export interface LocalFilePreviewServiceDependencies {
   resolveTarget: (requestedPath: string) => Promise<ResolvedLocalFileTarget>;
   inspectFile: (canonicalPath: string) => Promise<LocalFileMetadata>;
   readFile: (canonicalPath: string) => Promise<LocalTextFileSnapshot>;
-  listWorktrees: (projectPath: string) => Promise<RegisteredWorktreeResult>;
+  listWorktrees: (folderPath: string) => Promise<RegisteredWorktreeResult>;
   createAuthorizationId: () => string;
   now: () => number;
 }
@@ -114,8 +114,8 @@ function isWithinRoot(root: string, target: string): boolean {
   );
 }
 
-function grantKey(projectId: string, canonicalPath: string): string {
-  return `${projectId}\0${canonicalPath}`;
+function grantKey(workspaceId: string, canonicalPath: string): string {
+  return `${workspaceId}\0${canonicalPath}`;
 }
 
 function errorResult(
@@ -180,10 +180,10 @@ export class LocalFilePreviewService {
     }
 
     try {
-      const trustedRoots = await this.getTrustedRoots(context.projectPath);
+      const trustedRoots = await this.getTrustedRoots(context.folderPath);
       const remembered = this.rememberedGrants
         .get(context.sender.id)
-        ?.has(grantKey(context.projectId, target.canonicalPath));
+        ?.has(grantKey(context.workspaceId, target.canonicalPath));
       if (remembered || trustedRoots.some((root) => isWithinRoot(root, target.canonicalPath))) {
         return await this.readReadyResult(target);
       }
@@ -192,7 +192,7 @@ export class LocalFilePreviewService {
       const pending: PendingAuthorization = {
         authorizationId,
         webContentsId: context.sender.id,
-        projectId: context.projectId,
+        workspaceId: context.workspaceId,
         requestedPath: input.requestedPath,
         canonicalPath: target.canonicalPath,
         size: target.size,
@@ -232,11 +232,11 @@ export class LocalFilePreviewService {
     }
     if (
       pending.webContentsId !== context.sender.id ||
-      pending.projectId !== context.projectId ||
+      pending.workspaceId !== context.workspaceId ||
       pending.expiresAt <= this.dependencies.now()
     ) {
       return authorizationError(
-        "预览授权与当前窗口或项目不匹配",
+        "预览授权与当前窗口或 Workspace 不匹配",
         pending.requestedPath,
         pending.canonicalPath
       );
@@ -279,7 +279,7 @@ export class LocalFilePreviewService {
 
       if (input.rememberForWindow) {
         const grants = this.rememberedGrants.get(context.sender.id) ?? new Set<string>();
-        grants.add(grantKey(context.projectId, pending.canonicalPath));
+        grants.add(grantKey(context.workspaceId, pending.canonicalPath));
         this.rememberedGrants.set(context.sender.id, grants);
       }
       return ready;
@@ -298,10 +298,25 @@ export class LocalFilePreviewService {
     }
   }
 
-  private async getTrustedRoots(projectPath: string): Promise<string[]> {
-    const projectRoot = await this.dependencies.canonicalizePath(projectPath);
-    const worktrees = await this.dependencies.listWorktrees(projectPath);
-    return [...new Set([projectRoot, ...worktrees.paths])];
+  private async getTrustedRoots(folderPath: string): Promise<string[]> {
+    const folderRoot = await this.dependencies.canonicalizePath(folderPath);
+    let worktreePaths: string[] = [];
+    try {
+      worktreePaths = (await this.dependencies.listWorktrees(folderPath)).paths;
+    } catch {
+      // Git probe failures safely fall back to the current Folder root only.
+    }
+    const canonicalWorktrees = await Promise.all(
+      worktreePaths.map((worktreePath) =>
+        this.dependencies.canonicalizePath(worktreePath).catch(() => null)
+      )
+    );
+    return [
+      ...new Set([
+        folderRoot,
+        ...canonicalWorktrees.filter((path): path is string => Boolean(path)),
+      ]),
+    ];
   }
 
   private async readReadyResult(target: ResolvedLocalFileTarget): Promise<LocalFilePreviewResult> {

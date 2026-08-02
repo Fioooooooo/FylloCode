@@ -77,7 +77,7 @@ describe("preload chatApi.streamMessage", () => {
 
     const cancel = chatApi.streamMessage(
       "session-1",
-      "project-1",
+      "workspace-1",
       "agent-1",
       [{ type: "text", text: "hello" }],
       {
@@ -95,7 +95,7 @@ describe("preload chatApi.streamMessage", () => {
     cancel();
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamCancel, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
     });
     expect(
@@ -112,7 +112,7 @@ describe("preload chatApi.streamMessage", () => {
 
     const cancel = chatApi.streamMessage(
       "session-1",
-      "project-1",
+      "workspace-1",
       "agent-1",
       [{ type: "text", text: "hello" }],
       {
@@ -126,7 +126,7 @@ describe("preload chatApi.streamMessage", () => {
     emitStreamPort(port);
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamCancel, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
     });
     expect(port.close).toHaveBeenCalledTimes(1);
@@ -141,8 +141,8 @@ describe("preload chatApi.streamMessage", () => {
     const portA = createPort();
     const portB = createPort();
 
-    chatApi.streamMessage("session-a", "project-1", "agent-1", textParts("A"), callbacksA);
-    chatApi.streamMessage("session-b", "project-1", "agent-1", textParts("B"), callbacksB);
+    chatApi.streamMessage("session-a", "workspace-1", "agent-1", textParts("A"), callbacksA);
+    chatApi.streamMessage("session-b", "workspace-1", "agent-1", textParts("B"), callbacksB);
 
     const streamA = streamInvokePayload(0).streamId;
     const streamB = streamInvokePayload(1).streamId;
@@ -166,7 +166,7 @@ describe("preload chatApi.streamMessage", () => {
     const callbacks = { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
     const unmatchedPort = createPort();
 
-    chatApi.streamMessage("session-1", "project-1", "agent-1", textParts("hello"), callbacks);
+    chatApi.streamMessage("session-1", "workspace-1", "agent-1", textParts("hello"), callbacks);
     emitStreamPort(unmatchedPort, "missing-stream");
 
     expect(unmatchedPort.close).toHaveBeenCalledTimes(1);
@@ -191,7 +191,7 @@ describe("preload chatApi.streamMessage", () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
     await chatApi.setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "s1",
       configId: "model",
       type: "select",
@@ -199,7 +199,7 @@ describe("preload chatApi.streamMessage", () => {
     });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.setConfigOption, {
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "s1",
       configId: "model",
       type: "select",
@@ -210,12 +210,12 @@ describe("preload chatApi.streamMessage", () => {
   it("invokes updateSession with a pin patch", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
-    await chatApi.updateSession("session-1", { isPinned: true }, "project-1");
+    await chatApi.updateSession("session-1", { isPinned: true }, "workspace-1");
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.updateSession, {
       id: "session-1",
       patch: { isPinned: true },
-      projectId: "project-1",
+      workspaceId: "workspace-1",
     });
   });
 
@@ -224,7 +224,7 @@ describe("preload chatApi.streamMessage", () => {
 
     chatApi.streamMessage(
       "session-1",
-      "project-1",
+      "workspace-1",
       "agent-1",
       [{ type: "text", text: "hello" }],
       {
@@ -238,7 +238,7 @@ describe("preload chatApi.streamMessage", () => {
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamMessage, {
       streamId: expect.any(String),
       sessionId: "session-1",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "agent-1",
       prompt: [{ type: "text", text: "hello" }],
       acpSessionId: "acp-probe",
@@ -248,10 +248,10 @@ describe("preload chatApi.streamMessage", () => {
   it("invokes probe methods on the correct channels", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
-    await chatApi.probeEnsure({ agentId: "agent-1", projectId: "project-1" });
-    await chatApi.probeClose({ agentId: "agent-1", projectId: "project-1" });
+    await chatApi.probeEnsure({ agentId: "agent-1", workspaceId: "workspace-1" });
+    await chatApi.probeClose({ agentId: "agent-1", workspaceId: "workspace-1" });
     await chatApi.probeSetConfigOption({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "agent-1",
       configId: "model",
       type: "select",
@@ -260,14 +260,14 @@ describe("preload chatApi.streamMessage", () => {
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.ensure, {
       agentId: "agent-1",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.close, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "agent-1",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.setConfigOption, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "agent-1",
       configId: "model",
       type: "select",

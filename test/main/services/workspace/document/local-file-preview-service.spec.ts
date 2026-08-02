@@ -31,7 +31,9 @@ const baseSnapshot = {
 function createHarness(overrides: Partial<LocalFilePreviewServiceDependencies> = {}) {
   let now = 1_000;
   const dependencies: LocalFilePreviewServiceDependencies = {
-    canonicalizePath: vi.fn().mockResolvedValue(canonicalProject),
+    canonicalizePath: vi.fn(async (path: string) =>
+      path === "/project" ? canonicalProject : path
+    ),
     resolveTarget: vi.fn().mockResolvedValue(baseTarget),
     inspectFile: vi.fn().mockResolvedValue({
       canonicalPath: externalPath,
@@ -49,7 +51,7 @@ function createHarness(overrides: Partial<LocalFilePreviewServiceDependencies> =
   };
   const service = new LocalFilePreviewService(dependencies);
   const sender = new FakeSender(7);
-  const context = { projectId: "project-1", projectPath: "/project", sender };
+  const context = { workspaceId: "workspace-1", folderPath: "/project", sender };
   return {
     service,
     dependencies,
@@ -180,7 +182,7 @@ describe("LocalFilePreviewService", () => {
     });
   });
 
-  it("remembers a successfully read path for the same window and project", async () => {
+  it("remembers a successfully read path for the same window and Workspace", async () => {
     const harness = createHarness();
     const authorizationId = await requestAuthorization(harness);
 
@@ -197,7 +199,7 @@ describe("LocalFilePreviewService", () => {
     expect(harness.dependencies.readFile).toHaveBeenCalledTimes(2);
   });
 
-  it("does not reuse grants for another project or changed canonical target", async () => {
+  it("does not reuse grants for another Workspace or changed canonical target", async () => {
     const harness = createHarness();
     const authorizationId = await requestAuthorization(harness);
     await harness.service.confirmPreview(
@@ -205,9 +207,9 @@ describe("LocalFilePreviewService", () => {
       harness.context
     );
 
-    const otherProject = await harness.service.preparePreview(
+    const otherWorkspace = await harness.service.preparePreview(
       { requestedPath: externalPath },
-      { ...harness.context, projectId: "project-2" }
+      { ...harness.context, workspaceId: "workspace-2" }
     );
     vi.mocked(harness.dependencies.resolveTarget).mockResolvedValueOnce({
       ...baseTarget,
@@ -218,7 +220,7 @@ describe("LocalFilePreviewService", () => {
       harness.context
     );
 
-    expect(otherProject.status).toBe("confirmation-required");
+    expect(otherWorkspace.status).toBe("confirmation-required");
     expect(changedTarget.status).toBe("confirmation-required");
   });
 
@@ -233,6 +235,47 @@ describe("LocalFilePreviewService", () => {
     await expect(
       harness.service.confirmPreview({ authorizationId, rememberForWindow: true }, harness.context)
     ).resolves.toMatchObject({ status: "error", code: "AUTHORIZATION_INVALID" });
+  });
+
+  it("rejects authorization after the sender switches Workspace", async () => {
+    const harness = createHarness();
+    const authorizationId = await requestAuthorization(harness);
+
+    await expect(
+      harness.service.confirmPreview(
+        { authorizationId, rememberForWindow: true },
+        { ...harness.context, workspaceId: "workspace-2" }
+      )
+    ).resolves.toMatchObject({ status: "error", code: "AUTHORIZATION_INVALID" });
+    expect(harness.dependencies.readFile).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the canonical Folder root when worktree discovery fails", async () => {
+    const harness = createHarness({
+      listWorktrees: vi.fn().mockRejectedValue(new Error("git unavailable")),
+      resolveTarget: vi.fn().mockResolvedValue({
+        ...baseTarget,
+        canonicalPath: "/canonical/project/src/app.ts",
+      }),
+      readFile: vi.fn().mockResolvedValue({
+        ...baseSnapshot,
+        canonicalPath: "/canonical/project/src/app.ts",
+      }),
+    });
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: externalPath }, harness.context)
+    ).resolves.toMatchObject({ status: "ready" });
+
+    const externalHarness = createHarness({
+      listWorktrees: vi.fn().mockRejectedValue(new Error("git unavailable")),
+    });
+    await expect(
+      externalHarness.service.preparePreview(
+        { requestedPath: externalPath },
+        externalHarness.context
+      )
+    ).resolves.toMatchObject({ status: "confirmation-required" });
   });
 
   it("rejects expired and changed authorizations", async () => {

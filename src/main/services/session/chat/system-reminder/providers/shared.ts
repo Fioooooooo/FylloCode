@@ -34,6 +34,7 @@ function sanitizeValue(
 
   logger.warn("[system-reminder] encoding angle brackets in reminder variable", {
     owner: ctx.owner,
+    workspaceId: ctx.workspaceId,
     field,
     fylloSessionId: ctx.fylloSessionId,
   });

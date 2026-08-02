@@ -17,7 +17,7 @@ export function registerWorkflowHandlers(): void {
   ipcMain.handle(AutomationWorkflowChannels.list, (_event, input: unknown) =>
     wrapHandler(async () => {
       const request = validate(listWorkflowsInputSchema, input);
-      return listWorkflows(request.projectId);
+      return listWorkflows(request.workspaceId);
     })
   );
 

@@ -1,35 +1,30 @@
-import type { ProjectInfo } from "@shared/types/project";
-
 export type WindowContext =
   | {
       windowId: number;
       role: "launcher";
-      projectId: null;
+      workspaceId: null;
     }
   | {
       windowId: number;
-      role: "project";
-      projectId: string;
+      role: "workspace";
+      workspaceId: string;
     };
 
-export type OpenProjectWindowResult =
+export type OpenWorkspaceWindowResult =
   | {
       status: "bound-current";
-      project: ProjectInfo;
-      context: Extract<WindowContext, { role: "project" }>;
+      context: Extract<WindowContext, { role: "workspace" }>;
     }
   | {
       status: "created";
-      project: ProjectInfo;
-      context: Extract<WindowContext, { role: "project" }>;
+      context: Extract<WindowContext, { role: "workspace" }>;
     }
   | {
       status: "focused-existing";
-      project: ProjectInfo;
-      context: Extract<WindowContext, { role: "project" }>;
+      context: Extract<WindowContext, { role: "workspace" }>;
     };
 
-export type OpenFolderWindowResult = OpenProjectWindowResult | { status: "cancelled" };
+export type OpenFolderWindowResult = OpenWorkspaceWindowResult | { status: "cancelled" };
 
 export interface OpenLauncherWindowResult {
   context: Extract<WindowContext, { role: "launcher" }>;

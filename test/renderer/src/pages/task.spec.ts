@@ -87,13 +87,13 @@ function buildTaskPromptStub(task: TaskItem): string {
 }
 
 async function startDiscussionFromTaskStub(task: TaskItem): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
-  if (!projectId) {
+  const workspaceId = workspaceStore.currentWorkspace?.id;
+  if (!workspaceId) {
     return;
   }
 
   const taskRef = buildTaskRefStub(task);
-  const result = await ensureTaskSubjectMock(projectId, {
+  const result = await ensureTaskSubjectMock(workspaceId, {
     ref: taskRef,
     snapshot: JSON.parse(JSON.stringify(task)) as TaskItem,
     capturedAt: new Date().toISOString(),
@@ -151,16 +151,16 @@ const taskStore = reactive<TaskStoreStub>({
   resetDetailState: vi.fn(),
 });
 
-const projectStore = reactive({
-  currentProject: { id: "project-1" } as { id: string } | null,
+const workspaceStore = reactive({
+  currentWorkspace: { id: "project-1" } as { id: string } | null,
 });
 
 vi.mock("@renderer/stores/automation/task", () => ({
   useTaskStore: () => taskStore,
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => projectStore,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => workspaceStore,
 }));
 
 vi.mock("@renderer/stores/session/chat", () => ({
@@ -234,7 +234,7 @@ describe("task page", () => {
     openChatSessionMock.mockResolvedValue(undefined);
     sendMessageMock.mockResolvedValue(undefined);
     pushMock.mockResolvedValue(undefined);
-    projectStore.currentProject = { id: "project-1" };
+    workspaceStore.currentWorkspace = { id: "project-1" };
     taskStore.loading = false;
     taskStore.error = null;
     taskStore.availableSources = ["local"];
@@ -318,7 +318,7 @@ describe("task page", () => {
     taskStore.filteredTasks = [
       {
         id: "yx-1",
-        projectId: "project-1",
+        workspaceId: "project-1",
         title: "云效任务",
         description: { format: "plain_text", content: "" },
         status: "open",
@@ -352,7 +352,7 @@ describe("task page", () => {
     taskStore.filteredTasks = [
       {
         id: "yunxiao:space-1:102",
-        projectId: "project-1",
+        workspaceId: "project-1",
         title: "云效任务",
         description: {
           format: "html",
@@ -403,7 +403,7 @@ describe("task page", () => {
   it("does not start chat when ensureTaskSubject fails", async () => {
     const task = {
       id: "task-1",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "本地任务",
       description: { format: "plain_text", content: "详情" },
       status: "open",
@@ -447,7 +447,7 @@ describe("task page", () => {
   it("loads yunxiao task detail after opening the modal", async () => {
     const detailTask = {
       id: "yunxiao:space-1:102",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "云效任务详情",
       description: {
         format: "markdown",
@@ -501,7 +501,7 @@ describe("task page", () => {
     taskStore.filteredTasks = [
       {
         id: "yunxiao:space-1:103",
-        projectId: "project-1",
+        workspaceId: "project-1",
         title: "云效任务",
         description: { format: "plain_text", content: "" },
         status: "open",
@@ -547,7 +547,7 @@ describe("task page", () => {
   it("shows linked conversation trigger when a task has linked sessions", async () => {
     const task = {
       id: "task-linked",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "已关联任务",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -586,7 +586,7 @@ describe("task page", () => {
   it("hides linked conversation trigger when a task has no linked sessions", async () => {
     const task = {
       id: "task-no-link",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "无关联任务",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -609,7 +609,7 @@ describe("task page", () => {
   it("does not block the task list when linked conversation query fails", async () => {
     const task = {
       id: "task-fail-link",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "关联查询失败任务",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -633,7 +633,7 @@ describe("task page", () => {
   it("opens the linked session when the trigger is clicked", async () => {
     const task = {
       id: "task-open-session",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "打开关联会话",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -673,7 +673,7 @@ describe("task page", () => {
   it("closes a local task when TaskCard emits close", async () => {
     const task = {
       id: "task-close",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "待关闭任务",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -698,7 +698,7 @@ describe("task page", () => {
   it("deletes a local task when TaskDetailModal emits delete and clears detail state", async () => {
     const task = {
       id: "task-delete",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "待删除任务",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -737,7 +737,7 @@ describe("task page", () => {
   it("keeps the detail modal open when deleting a task fails", async () => {
     const task = {
       id: "task-delete-fail",
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "删除失败任务",
       description: { format: "plain_text", content: "" },
       status: "open",

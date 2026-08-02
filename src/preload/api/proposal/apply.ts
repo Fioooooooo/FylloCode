@@ -9,7 +9,7 @@ import { startProposalStream, type StreamCallbacks } from "./stream";
 
 export const proposalApplyApi = {
   apply(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     workflowId: string;
   }): Promise<IpcResponse<{ runId: string; stages: WorkflowStage[] }>> {
@@ -20,7 +20,7 @@ export const proposalApplyApi = {
     input: {
       runId: string;
       stageIndex: number;
-      projectId: string;
+      workspaceId: string;
       changeId: string;
     },
     callbacks: StreamCallbacks
@@ -32,7 +32,7 @@ export const proposalApplyApi = {
       callbacks,
       () => {
         void ipcRenderer.invoke(ProposalApplyChannels.stageStreamCancel, {
-          projectId: input.projectId,
+          workspaceId: input.workspaceId,
           runId: input.runId,
         });
       }
@@ -40,14 +40,14 @@ export const proposalApplyApi = {
   },
 
   loadRun(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<ApplyRunMeta | null>> {
     return ipcRenderer.invoke(ProposalApplyChannels.loadRun, input);
   },
 
   loadRunMessages(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     stageIndex: number;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {

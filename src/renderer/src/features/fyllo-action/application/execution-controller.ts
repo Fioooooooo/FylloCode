@@ -11,7 +11,7 @@ import type { FylloActionExecutionRuntime } from "./execution-runtime";
 
 export interface TransitionActionPort {
   (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionId: string;
     command: FylloActionCommand;
@@ -22,7 +22,7 @@ export interface TransitionActionPort {
 
 export interface TransitionActionsPort {
   (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionIds: string[];
     command: FylloActionCommand;
@@ -39,7 +39,7 @@ export interface GetActionStatePort {
 }
 
 export interface FylloActionExecutionControllerInput<Type extends FylloActionType> {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   actionId: string;
   type: Type;
@@ -74,10 +74,10 @@ function resolveExpectedRevision(getActionState: GetActionStatePort, actionId: s
 export function createFylloActionExecutionController<Type extends FylloActionType>(
   input: FylloActionExecutionControllerInput<Type>
 ): FylloActionExecutionController {
-  // Freeze the execution context at creation time so project/session switches during a
+  // Freeze the execution context at creation time so Workspace/session switches during a
   // long-running handler or retry do not write state to the wrong context.
   const {
-    projectId,
+    workspaceId,
     sessionId,
     actionId,
     handler,
@@ -103,7 +103,7 @@ export function createFylloActionExecutionController<Type extends FylloActionTyp
     try {
       if (allActionIds.length === 1) {
         const state = await transitionAction({
-          projectId,
+          workspaceId,
           sessionId,
           actionId,
           command,
@@ -117,7 +117,7 @@ export function createFylloActionExecutionController<Type extends FylloActionTyp
         );
 
         const results = await transitionActions({
-          projectId,
+          workspaceId,
           sessionId,
           actionIds: allActionIds,
           command,
@@ -154,7 +154,7 @@ export function createFylloActionExecutionController<Type extends FylloActionTyp
     let result: FylloActionHandlerResult;
     try {
       result = await handler(payload as never, {
-        context: { projectId, sessionId, actionId },
+        context: { workspaceId, sessionId, actionId },
       });
     } catch (error) {
       const message = getErrorMessage(error);

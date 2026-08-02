@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcMain } from "electron";
 import { ProposalBrowserChannels as ProposalChannels } from "@shared/ipc/proposal/browser.channels";
 import type { IpcResponse } from "@shared/types/ipc";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
 const mocks = vi.hoisted(() => ({
-  loadProject: vi.fn(),
+  resolveWorkspace: vi.fn(),
   listProposals: vi.fn(),
   readProposalFile: vi.fn(),
   getProposalSpecDeltas: vi.fn(),
@@ -13,8 +13,8 @@ const mocks = vi.hoisted(() => ({
   statusChangedListener: null as ((payload: unknown) => void) | null,
 }));
 
-vi.mock("@main/infra/storage/project-store", () => ({
-  loadProject: mocks.loadProject,
+vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 vi.mock("@main/services/proposal/browser/proposal-status-service", () => ({
@@ -51,22 +51,22 @@ describe("registerProposalHandlers", () => {
     return call![1] as (event: unknown, input: unknown) => Promise<IpcResponse<unknown>>;
   }
 
-  it("watches a proposal by projectId/changeId/sessionId", async () => {
+  it("watches a proposal by workspaceId/changeId/sessionId", async () => {
     registerProposalHandlers();
-    mocks.loadProject.mockResolvedValue({ id: "project-1", path: "/tmp/project" });
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: "/tmp/project" });
 
     const result = await handler(ProposalChannels.watch)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         changeId: "change-1",
         sessionId: "session-1",
       }
     );
 
-    expect(mocks.loadProject).toHaveBeenCalledWith("project-1");
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
     expect(mocks.watchProposal).toHaveBeenCalledWith(
-      "project-1",
+      "workspace-1",
       "/tmp/project",
       "change-1",
       "session-1"
@@ -76,14 +76,14 @@ describe("registerProposalHandlers", () => {
 
   it("routes proposal status updates to the matching project window", () => {
     const manager = {
-      sendToProject: vi.fn(),
-    } as unknown as ProjectWindowManager;
+      sendToWorkspace: vi.fn(),
+    } as unknown as WorkspaceWindowManager;
 
     setupProposalStatusBroadcast(manager);
     expect(mocks.statusChangedListener).toBeTypeOf("function");
 
     mocks.statusChangedListener?.({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       changeId: "change-1",
       sessionId: "session-1",
       projectPath: "/tmp/project",
@@ -91,21 +91,23 @@ describe("registerProposalHandlers", () => {
       updatedAt: "2026-07-07T00:00:00.000Z",
     });
 
-    expect(manager.sendToProject).toHaveBeenCalledWith(
-      "project-1",
+    expect(manager.sendToWorkspace).toHaveBeenCalledWith(
+      "workspace-1",
       ProposalChannels.statusChanged,
-      expect.objectContaining({ projectId: "project-1", changeId: "change-1" })
+      expect.objectContaining({ workspaceId: "workspace-1", changeId: "change-1" })
     );
   });
 
-  it("rejects watch when project is not found", async () => {
+  it("rejects watch when Workspace is not found", async () => {
     registerProposalHandlers();
-    mocks.loadProject.mockResolvedValue(null);
+    mocks.resolveWorkspace.mockRejectedValue(
+      Object.assign(new Error("Workspace does not exist"), { code: "WORKSPACE_NOT_FOUND" })
+    );
 
     const result = await handler(ProposalChannels.watch)(
       {},
       {
-        projectId: "missing-project",
+        workspaceId: "missing-project",
         changeId: "change-1",
         sessionId: "session-1",
       }
@@ -113,7 +115,7 @@ describe("registerProposalHandlers", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe("PROJECT_NOT_FOUND");
+      expect(result.error.code).toBe("WORKSPACE_NOT_FOUND");
     }
   });
 
@@ -136,12 +138,12 @@ describe("registerProposalHandlers", () => {
     const result = await handler(ProposalChannels.getSpecDeltas)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         changeId: "change-1",
       }
     );
 
-    expect(mocks.getProposalSpecDeltas).toHaveBeenCalledWith("project-1", "change-1");
+    expect(mocks.getProposalSpecDeltas).toHaveBeenCalledWith("workspace-1", "change-1");
     expect(result).toEqual({
       ok: true,
       data: {
@@ -166,7 +168,7 @@ describe("registerProposalHandlers", () => {
     const result = await handler(ProposalChannels.getSpecDeltas)(
       {},
       {
-        projectId: "missing-project",
+        workspaceId: "missing-project",
         changeId: "change-1",
       }
     );
@@ -183,7 +185,7 @@ describe("registerProposalHandlers", () => {
     const result = await handler(ProposalChannels.getSpecDeltas)(
       {},
       {
-        projectId: "",
+        workspaceId: "",
         changeId: "change-1",
       }
     );

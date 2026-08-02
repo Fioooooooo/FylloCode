@@ -5,6 +5,7 @@ import KnowledgeReviewSlideover, {
 
 export function useKnowledgeReviewSlideover(): {
   openKnowledgeReview: (input: {
+    workspaceId: string;
     sessionId: string;
     name: string;
   }) => Promise<KnowledgeReviewSlideoverResult>;
@@ -12,6 +13,7 @@ export function useKnowledgeReviewSlideover(): {
   const overlay = useOverlay();
 
   async function openKnowledgeReview(input: {
+    workspaceId: string;
     sessionId: string;
     name: string;
   }): Promise<KnowledgeReviewSlideoverResult> {
@@ -20,6 +22,7 @@ export function useKnowledgeReviewSlideover(): {
     });
 
     const instance = slideover.open({
+      workspaceId: input.workspaceId,
       sessionId: input.sessionId,
       name: input.name,
     });

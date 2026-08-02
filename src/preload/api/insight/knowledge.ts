@@ -8,36 +8,36 @@ import type {
 import type { IpcResponse } from "@shared/types/ipc";
 
 export const knowledgeApi = {
-  getBrowser(projectId: string): Promise<IpcResponse<KnowledgeBrowserOverview>> {
-    return ipcRenderer.invoke(InsightKnowledgeChannels.getBrowser, { projectId });
+  getBrowser(workspaceId: string): Promise<IpcResponse<KnowledgeBrowserOverview>> {
+    return ipcRenderer.invoke(InsightKnowledgeChannels.getBrowser, { workspaceId });
   },
 
   readEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string }
   ): Promise<IpcResponse<KnowledgeEntryDocument>> {
     return ipcRenderer.invoke(InsightKnowledgeChannels.readEntry, {
-      projectId,
+      workspaceId,
       ...input,
     });
   },
 
   saveEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string; content: string }
   ): Promise<IpcResponse<KnowledgeEntryDocument>> {
     return ipcRenderer.invoke(InsightKnowledgeChannels.saveEntry, {
-      projectId,
+      workspaceId,
       ...input,
     });
   },
 
   deleteEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string }
   ): Promise<IpcResponse<KnowledgeEntryDeleteResult>> {
     return ipcRenderer.invoke(InsightKnowledgeChannels.deleteEntry, {
-      projectId,
+      workspaceId,
       ...input,
     });
   },

@@ -44,12 +44,12 @@ function buildProposalMap(proposals: ProposalMeta[]): Map<string, ProposalMeta> 
 }
 
 async function projectPlan(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   link: LineagePlanLink
 ): Promise<LineageBrowserPlan> {
   try {
-    const document = await readPlan(projectPath, sessionId, link.slug);
+    const document = await readPlan(workspaceId, sessionId, link.slug);
     return {
       slug: link.slug,
       createdAt: link.createdAt,
@@ -81,14 +81,14 @@ function projectProposal(
 }
 
 async function projectSession(
-  projectPath: string,
+  workspaceId: string,
   link: LineageSessionLink,
   sessionMap: Map<string, Awaited<ReturnType<typeof listSessionMetas>>[number]>,
   proposalMap: Map<string, ProposalMeta>
 ): Promise<LineageBrowserSession> {
   const meta = sessionMap.get(link.sessionId);
   const plans = await Promise.all(
-    link.plans.map((plan) => projectPlan(projectPath, link.sessionId, plan))
+    link.plans.map((plan) => projectPlan(workspaceId, link.sessionId, plan))
   );
 
   return {
@@ -103,13 +103,13 @@ async function projectSession(
 }
 
 async function projectSubject(
-  projectPath: string,
+  workspaceId: string,
   subject: Subject,
   sessionMap: Map<string, Awaited<ReturnType<typeof listSessionMetas>>[number]>,
   proposalMap: Map<string, ProposalMeta>
 ): Promise<LineageBrowserEntry> {
   const sessions = await Promise.all(
-    subject.links.map((link) => projectSession(projectPath, link, sessionMap, proposalMap))
+    subject.links.map((link) => projectSession(workspaceId, link, sessionMap, proposalMap))
   );
   const proposalStatuses = sessions.flatMap((session) =>
     session.proposals.map((proposal) => proposal.status)
@@ -127,16 +127,19 @@ async function projectSubject(
   };
 }
 
-export async function getLineageBrowser(projectPath: string): Promise<LineageBrowserData> {
+export async function getLineageBrowser(
+  workspaceId: string,
+  workspaceCwd: string
+): Promise<LineageBrowserData> {
   const [subjects, sessionMetas, proposals] = await Promise.all([
-    listSubjects(projectPath),
-    listSessionMetas(projectPath),
-    readProposalFiles(projectPath),
+    listSubjects(workspaceId),
+    listSessionMetas(workspaceId),
+    readProposalFiles(workspaceCwd),
   ]);
   const sessionMap = new Map(sessionMetas.map((session) => [session.sessionId, session]));
   const proposalMap = buildProposalMap(proposals);
   const entries = await Promise.all(
-    subjects.map((subject) => projectSubject(projectPath, subject, sessionMap, proposalMap))
+    subjects.map((subject) => projectSubject(workspaceId, subject, sessionMap, proposalMap))
   );
 
   return {

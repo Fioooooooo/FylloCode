@@ -3,10 +3,11 @@ import { createPinia, setActivePinia } from "pinia";
 import { useTaskStore } from "@renderer/stores/automation/task";
 import { projectIntegrationApi } from "@renderer/api/automation/project-integration";
 import { taskApi } from "@renderer/api/automation/task";
-import type { ProjectIntegrationConfig } from "@shared/types/integration";
+import type { WorkspaceIntegrationConfig } from "@shared/types/integration";
+import type { TaskItem } from "@shared/types/task";
 
-const projectStoreState = vi.hoisted(() => ({
-  currentProject: { id: "project-1" } as { id: string } | null,
+const workspaceStoreState = vi.hoisted(() => ({
+  currentWorkspace: { id: "project-1" } as { id: string } | null,
 }));
 
 vi.mock("@renderer/api/automation/task", () => ({
@@ -25,11 +26,11 @@ vi.mock("@renderer/api/automation/project-integration", () => ({
   },
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => projectStoreState,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => workspaceStoreState,
 }));
 
-function integrationConfig(hasYunxiao: boolean): ProjectIntegrationConfig {
+function integrationConfig(hasYunxiao: boolean): WorkspaceIntegrationConfig {
   return {
     "project-management": hasYunxiao
       ? [
@@ -52,7 +53,7 @@ describe("useTaskStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    projectStoreState.currentProject = { id: "project-1" };
+    workspaceStoreState.currentWorkspace = { id: "project-1" };
     vi.mocked(taskApi.listTasks).mockResolvedValue({
       ok: true,
       data: [],
@@ -61,7 +62,7 @@ describe("useTaskStore", () => {
       ok: true,
       data: {
         id: "yunxiao:space-1:task-1",
-        projectId: "project-1",
+        workspaceId: "project-1",
         title: "云效任务",
         description: {
           format: "html",
@@ -134,7 +135,7 @@ describe("useTaskStore", () => {
     await store.loadTasks("yunxiao");
     expect(store.sourceFilter).toBe("yunxiao");
 
-    projectStoreState.currentProject = { id: "project-2" };
+    workspaceStoreState.currentWorkspace = { id: "project-2" };
     await store.loadTasks("yunxiao");
 
     expect(store.availableSources).toEqual(["local"]);
@@ -155,6 +156,18 @@ describe("useTaskStore", () => {
     expect(store.detailErrorTaskId).toBeNull();
     expect(store.error).toBeNull();
     expect(taskApi.getTask).toHaveBeenCalledWith("project-1", "yunxiao:space-1:task-1");
+  });
+
+  it("builds distinct lineage refs for same-name tasks with different IDs", () => {
+    const store = useTaskStore();
+    const base = {
+      workspaceId: "project-1",
+      title: "同名任务",
+      source: "local" as const,
+    };
+
+    expect(store.buildTaskRef({ ...base, id: "task-a" } as TaskItem)).toBe("local:task-a");
+    expect(store.buildTaskRef({ ...base, id: "task-b" } as TaskItem)).toBe("local:task-b");
   });
 
   it("keeps list error clean when detail loading fails", async () => {

@@ -1,4 +1,5 @@
-export function timeAgo(date: Date): string {
+export function timeAgo(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
   const diff = Date.now() - date.getTime();
   const minute = 60 * 1000;
   const hour = 60 * minute;

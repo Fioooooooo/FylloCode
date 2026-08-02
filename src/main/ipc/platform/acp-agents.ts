@@ -23,17 +23,17 @@ import {
 import { onAgentUnavailable } from "@main/infra/process/acp-process-pool";
 import { loadCache } from "@main/infra/storage/agent-capability-store";
 import { readCustomAgents } from "@main/infra/storage/custom-agent-config-store";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
-let agentEventManager: ProjectWindowManager | null = null;
+let agentEventManager: WorkspaceWindowManager | null = null;
 let agentEventSubscribed = false;
 
 /**
  * 将 acp-process-pool（infra）与 acp-agent-service（services）发出的事件
  * 转发到所有活跃渲染进程。下层只发事件、不持有 BrowserWindow；窗口 fanout
- * 统一通过 ProjectWindowManager 完成，订阅只挂一次。
+ * 统一通过 WorkspaceWindowManager 完成，订阅只挂一次。
  */
-export function setupAgentEventBroadcast(manager: ProjectWindowManager): void {
+export function setupAgentEventBroadcast(manager: WorkspaceWindowManager): void {
   agentEventManager = manager;
   if (agentEventSubscribed) {
     return;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useLineageStore, useChatStore, useProjectStore, useSessionStore } from "@renderer/stores";
+import { useLineageStore, useChatStore, useSessionStore } from "@renderer/stores";
 import type { PlanDocument } from "@shared/types/lineage";
 
 export type PlanSlideoverMode = "review" | "readonly";
@@ -8,6 +8,7 @@ export type PlanSlideoverResult = { status: "approved" } | { status: "dismissed"
 
 const props = withDefaults(
   defineProps<{
+    workspaceId: string;
     sessionId: string;
     slug: string;
     mode?: PlanSlideoverMode;
@@ -21,7 +22,6 @@ const emit = defineEmits<{
   close: [result: PlanSlideoverResult];
 }>();
 
-const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 const lineageStore = useLineageStore();
@@ -38,18 +38,17 @@ const loaded = ref(false);
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let savePromise: Promise<void> | null = null;
 
-const projectId = computed(() => projectStore.currentProject?.id ?? "");
 const isReadonly = computed(() => props.mode === "readonly");
 const dirty = computed(() => body.value !== lastSavedBody.value);
 const statusColor = computed(() =>
   planDocument.value?.status === "approved" ? "success" : "neutral"
 );
 
-function getProjectId(): string {
-  if (!projectId.value) {
-    throw new Error("当前没有选中的项目");
+function getWorkspaceId(): string {
+  if (!props.workspaceId) {
+    throw new Error("当前没有选中的工作区");
   }
-  return projectId.value;
+  return props.workspaceId;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -63,7 +62,7 @@ async function loadPlan(): Promise<void> {
   loaded.value = false;
 
   try {
-    const result = await lineageStore.readPlan(getProjectId(), {
+    const result = await lineageStore.readPlan(getWorkspaceId(), {
       sessionId: props.sessionId,
       slug: props.slug,
     });
@@ -83,7 +82,7 @@ async function loadPlan(): Promise<void> {
 }
 
 async function saveSnapshot(snapshot: string): Promise<void> {
-  const result = await lineageStore.savePlanBody(getProjectId(), {
+  const result = await lineageStore.savePlanBody(getWorkspaceId(), {
     sessionId: props.sessionId,
     slug: props.slug,
     body: snapshot,
@@ -166,7 +165,7 @@ async function approve(): Promise<void> {
     }
     await saveNow();
 
-    const result = await lineageStore.approvePlan(getProjectId(), {
+    const result = await lineageStore.approvePlan(getWorkspaceId(), {
       sessionId: props.sessionId,
       slug: props.slug,
     });

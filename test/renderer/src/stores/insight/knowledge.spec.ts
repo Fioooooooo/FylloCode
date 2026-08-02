@@ -2,15 +2,15 @@ import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  project: { currentProject: { id: "project-1" } as { id: string } | null },
+  project: { currentWorkspace: { id: "project-1" } as { id: string } | null },
   getBrowser: vi.fn(),
   readEntry: vi.fn(),
   saveEntry: vi.fn(),
   deleteEntry: vi.fn(),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => mocks.project,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => mocks.project,
 }));
 
 vi.mock("@renderer/api/insight/knowledge", () => ({
@@ -39,7 +39,7 @@ describe("useKnowledgeStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    mocks.project.currentProject = { id: "project-1" };
+    mocks.project.currentWorkspace = { id: "project-1" };
   });
 
   it("loads the current project browser index", async () => {
@@ -92,7 +92,7 @@ describe("useKnowledgeStore", () => {
     const store = useKnowledgeStore();
 
     const loading = store.load("project-1");
-    mocks.project.currentProject = { id: "project-2" };
+    mocks.project.currentWorkspace = { id: "project-2" };
     pending.resolve({ ok: true, data: { entries: [], errors: [] } });
     await loading;
 

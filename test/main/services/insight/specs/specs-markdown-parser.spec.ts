@@ -19,11 +19,11 @@ describe("specs-markdown-parser", () => {
         "系统 SHALL 提供 `insight:overview:getProjectOverview` IPC 通道。",
         "",
         "#### Scenario: 成功返回完整概览",
-        "- **WHEN** renderer 以有效 `projectId` 调用 IPC",
+        "- **WHEN** renderer 以有效 `workspaceId` 调用 IPC",
         "- **THEN** 返回 `{ ok: true }`",
         "",
-        "#### Scenario: projectId 无法解析",
-        "- **WHEN** 传入无效 `projectId`",
+        "#### Scenario: workspaceId 无法解析",
+        "- **WHEN** 传入无效 `workspaceId`",
         "- **THEN** 返回 `{ ok: false }`",
       ].join("\n"),
       UPDATED_AT
@@ -46,13 +46,15 @@ describe("specs-markdown-parser", () => {
           {
             title: "成功返回完整概览",
             body: [
-              "- **WHEN** renderer 以有效 `projectId` 调用 IPC",
+              "- **WHEN** renderer 以有效 `workspaceId` 调用 IPC",
               "- **THEN** 返回 `{ ok: true }`",
             ].join("\n"),
           },
           {
-            title: "projectId 无法解析",
-            body: ["- **WHEN** 传入无效 `projectId`", "- **THEN** 返回 `{ ok: false }`"].join("\n"),
+            title: "workspaceId 无法解析",
+            body: ["- **WHEN** 传入无效 `workspaceId`", "- **THEN** 返回 `{ ok: false }`"].join(
+              "\n"
+            ),
           },
         ],
       },

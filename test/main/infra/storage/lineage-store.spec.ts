@@ -22,16 +22,16 @@ import {
   writeIndex,
   writeSubject,
 } from "@main/infra/storage/lineage-store";
-import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
+import { lineageDir, lineageSubjectsDir } from "@main/infra/storage/workspace-paths";
 
-const projectPath = "/tmp/project";
+const workspaceId = "workspace-1";
 const now = "2026-06-09T00:00:00.000Z";
 
 function task(overrides: Partial<TaskItem> = {}): TaskItem {
   const createdAt = new Date("2026-06-01T00:00:00.000Z");
   return {
     id: "task-1",
-    projectId: "tmp-project",
+    workspaceId: "workspace-1",
     title: "Lineage task",
     description: { format: "plain_text", content: "Details" },
     status: "open",
@@ -86,11 +86,11 @@ function index(overrides: Partial<LineageIndex> = {}): LineageIndex {
 }
 
 function subjectFilePath(subjectId = "subject-1"): string {
-  return `${subjectsDir(projectPath)}/${subjectId}.json`;
+  return `${lineageSubjectsDir(workspaceId)}/${subjectId}.json`;
 }
 
 function indexFilePath(): string {
-  return `${lineageDir(projectPath)}/index.json`;
+  return `${lineageDir(workspaceId)}/index.json`;
 }
 
 beforeEach(() => {
@@ -102,19 +102,19 @@ afterEach(() => {
 });
 
 describe("lineage-store", () => {
-  it("keeps lineage index and subject files under projects/<encoded>/lineage", async () => {
-    await writeSubject(projectPath, subject());
-    await writeIndex(projectPath, index());
+  it("keeps lineage index and subject files under workspaces/<workspaceId>/lineage", async () => {
+    await writeSubject(workspaceId, subject());
+    await writeIndex(workspaceId, index());
 
     expect(subjectFilePath()).toBe(
-      `${tempRoot}/projects/tmp-project/lineage/subjects/subject-1.json`
+      `${tempRoot}/workspaces/workspace-1/lineage/subjects/subject-1.json`
     );
-    expect(indexFilePath()).toBe(`${tempRoot}/projects/tmp-project/lineage/index.json`);
+    expect(indexFilePath()).toBe(`${tempRoot}/workspaces/workspace-1/lineage/index.json`);
   });
 
   it("round-trips subjects and index files under lineage paths", async () => {
-    await writeSubject(projectPath, subject());
-    await writeIndex(projectPath, index());
+    await writeSubject(workspaceId, subject());
+    await writeIndex(workspaceId, index());
 
     expect(JSON.parse(readFileSync(subjectFilePath(), "utf8"))).toMatchObject({
       id: "subject-1",
@@ -124,8 +124,8 @@ describe("lineage-store", () => {
       version: 1,
       tasks: { "local:task-1": "subject-1" },
     });
-    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
-    await expect(readIndex(projectPath)).resolves.toEqual(index());
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subject());
+    await expect(readIndex(workspaceId)).resolves.toEqual(index());
   });
 
   it("round-trips proposal commit hashes on subject links", async () => {
@@ -140,7 +140,7 @@ describe("lineage-store", () => {
       ],
     });
 
-    await writeSubject(projectPath, subjectWithCommitHash);
+    await writeSubject(workspaceId, subjectWithCommitHash);
 
     expect(JSON.parse(readFileSync(subjectFilePath(), "utf8"))).toMatchObject({
       links: [
@@ -150,18 +150,18 @@ describe("lineage-store", () => {
         },
       ],
     });
-    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subjectWithCommitHash);
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subjectWithCommitHash);
   });
 
   it("reads old subject proposal links without commitHash", async () => {
-    mkdirSync(subjectsDir(projectPath), { recursive: true });
+    mkdirSync(lineageSubjectsDir(workspaceId), { recursive: true });
     writeFileSync(subjectFilePath(), JSON.stringify(subject(), null, 2), "utf8");
 
-    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subject());
   });
 
   it("normalizes old subject session links missing plans", async () => {
-    mkdirSync(subjectsDir(projectPath), { recursive: true });
+    mkdirSync(lineageSubjectsDir(workspaceId), { recursive: true });
     writeFileSync(
       subjectFilePath(),
       JSON.stringify(
@@ -181,21 +181,21 @@ describe("lineage-store", () => {
       "utf8"
     );
 
-    await expect(readSubject(projectPath, "subject-1")).resolves.toEqual(subject());
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subject());
   });
 
   it("drops plans from index normalization", async () => {
-    await writeIndex(projectPath, {
+    await writeIndex(workspaceId, {
       ...index(),
       plans: { "2026-06-29-plan-a": "subject-1" },
     } as unknown as LineageIndex);
 
     expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).not.toHaveProperty("plans");
-    await expect(readIndex(projectPath)).resolves.toEqual(index());
+    await expect(readIndex(workspaceId)).resolves.toEqual(index());
   });
 
   it("normalizes old index files missing commitHashes", async () => {
-    mkdirSync(lineageDir(projectPath), { recursive: true });
+    mkdirSync(lineageDir(workspaceId), { recursive: true });
     writeFileSync(
       indexFilePath(),
       JSON.stringify(
@@ -212,11 +212,11 @@ describe("lineage-store", () => {
       "utf8"
     );
 
-    await expect(readIndex(projectPath)).resolves.toEqual(index({ commitHashes: {} }));
+    await expect(readIndex(workspaceId)).resolves.toEqual(index({ commitHashes: {} }));
   });
 
   it("writes index commitHashes", async () => {
-    await writeIndex(projectPath, index({ commitHashes: { abc123: "subject-1" } }));
+    await writeIndex(workspaceId, index({ commitHashes: { abc123: "subject-1" } }));
 
     expect(JSON.parse(readFileSync(indexFilePath(), "utf8"))).toMatchObject({
       version: 1,
@@ -225,25 +225,25 @@ describe("lineage-store", () => {
   });
 
   it("returns null or empty results for missing and corrupt files", async () => {
-    await expect(readSubject(projectPath, "missing")).resolves.toBeNull();
-    await expect(readIndex(projectPath)).resolves.toBeNull();
-    await expect(listSubjects(projectPath)).resolves.toEqual([]);
+    await expect(readSubject(workspaceId, "missing")).resolves.toBeNull();
+    await expect(readIndex(workspaceId)).resolves.toBeNull();
+    await expect(listSubjects(workspaceId)).resolves.toEqual([]);
 
-    mkdirSync(subjectsDir(projectPath), { recursive: true });
+    mkdirSync(lineageSubjectsDir(workspaceId), { recursive: true });
     writeFileSync(subjectFilePath("subject-bad"), "{not-json", "utf8");
-    mkdirSync(lineageDir(projectPath), { recursive: true });
+    mkdirSync(lineageDir(workspaceId), { recursive: true });
     writeFileSync(indexFilePath(), "{not-json", "utf8");
 
-    await expect(readSubject(projectPath, "subject-bad")).resolves.toBeNull();
-    await expect(readIndex(projectPath)).resolves.toBeNull();
-    await expect(listSubjects(projectPath)).resolves.toEqual([]);
+    await expect(readSubject(workspaceId, "subject-bad")).resolves.toBeNull();
+    await expect(readIndex(workspaceId)).resolves.toBeNull();
+    await expect(listSubjects(workspaceId)).resolves.toEqual([]);
   });
 
   it("skips corrupt subject files while listing valid subjects", async () => {
-    await writeSubject(projectPath, subject());
+    await writeSubject(workspaceId, subject());
     writeFileSync(subjectFilePath("subject-bad"), "not-json", "utf8");
 
-    await expect(listSubjects(projectPath)).resolves.toEqual([subject()]);
+    await expect(listSubjects(workspaceId)).resolves.toEqual([subject()]);
   });
 
   it("serializes concurrent writes to the same subject file", async () => {
@@ -272,15 +272,15 @@ describe("lineage-store", () => {
 
     try {
       await Promise.all([
-        writeSubject(projectPath, subject({ updatedAt: "2026-06-09T00:00:01.000Z" })),
-        writeSubject(projectPath, subject({ updatedAt: "2026-06-09T00:00:02.000Z" })),
+        writeSubject(workspaceId, subject({ updatedAt: "2026-06-09T00:00:01.000Z" })),
+        writeSubject(workspaceId, subject({ updatedAt: "2026-06-09T00:00:02.000Z" })),
       ]);
     } finally {
       writeSpy.mockRestore();
     }
 
     expect(maxConcurrentWrites).toBe(1);
-    await expect(readSubject(projectPath, "subject-1")).resolves.toMatchObject({
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toMatchObject({
       id: "subject-1",
     });
   });
@@ -304,7 +304,7 @@ describe("lineage-store", () => {
     });
 
     try {
-      await writeIndex(projectPath, index());
+      await writeIndex(workspaceId, index());
     } finally {
       writeSpy.mockRestore();
       renameSpy.mockRestore();

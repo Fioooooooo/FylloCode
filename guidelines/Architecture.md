@@ -26,6 +26,8 @@ domain-first 请求路径在跨进程 contract 上必须显式带 domain 和 are
 
 当前产品领域固定为六个：`platform`、`workspace`、`session`、`proposal`、`insight`、`automation`。
 
+正常运行期的工作上下文由稳定 `Workspace` identity 和 repository-owning `Folder` identity 分离表达：Workspace-owned session、task、knowledge、lineage 与运行记录按 `workspaceId` 落在 app data；repository path 只从 Workspace resolver 返回的 Folder/registered worktree 获得，不参与 ID 推导。legacy `Project` 类型和 path encoding 仅允许出现在 `20260802_001_project-to-workspace` cutover migration 输入中。证据：`src/shared/types/workspace.ts`、`src/main/services/workspace/resolver/workspace-resolver.ts`、`src/main/infra/storage/workspace-paths.ts`、`src/main/migrations/scripts/20260802_001_project-to-workspace.ts`。
+
 证据：`AGENTS.md`、`electron.vite.config.ts`、`tsconfig.node.json`、`tsconfig.web.json`、`src/preload/index.ts`、`src/main/ipc/index.ts`。
 
 ## 区域与所有权
@@ -48,6 +50,7 @@ domain-first 请求路径在跨进程 contract 上必须显式带 domain 和 are
 - MUST 按专题读取更窄的 guideline：主进程、preload、IPC、services、domain、infra 和 MCP server 变更先读 `guidelines/MainProcess.md`；renderer 路由、store、bootstrap 和 API wrapper 变更先读 `guidelines/RendererProcess.md`；UI/UX 视觉和交互变更先读 `guidelines/UiDesign.md`。
 - MUST 将行为契约变更交给 OpenSpec proposal，不在 guideline 中直接改写用户可见行为要求。证据：`openspec/specs/project-health/spec.md`、`openspec/specs/task-linked-conversations/spec.md`。
 - MUST 将 domain taxonomy、IPC/preload public shape、持久化格式、用户可见默认/空/错误状态等行为契约变更放入 OpenSpec proposal；guideline 只记录已采纳的工程边界。
+- MUST 让正常运行期跨进程 scope 使用 `workspaceId`，repository target 使用 resolver 校验后的 `folderId`/registered `worktreePath`；不得把绝对 path 当作 Workspace identity、storage namespace 或 renderer 自报授权。证据：`src/shared/types/workspace.ts`、`src/main/ipc/_kit/workspace-scope.ts`、`src/main/services/workspace/resolver/workspace-resolver.ts`。
 
 ## 失效信号
 

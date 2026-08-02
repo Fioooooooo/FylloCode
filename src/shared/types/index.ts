@@ -12,3 +12,4 @@ export * from "./proposal";
 export * from "./settings";
 export * from "./task";
 export * from "./workflow";
+export * from "./workspace";

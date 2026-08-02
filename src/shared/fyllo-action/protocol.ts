@@ -98,14 +98,14 @@ export interface FylloActionState {
 export type FylloActionCommand = "succeed" | "fail" | "cancel";
 
 export interface RegisterFylloActionInput {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   actionId: string;
   type: FylloConfirmActionType;
 }
 
 export interface TransitionFylloActionInput {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   actionId: string;
   command: FylloActionCommand;
@@ -114,7 +114,7 @@ export interface TransitionFylloActionInput {
 }
 
 export interface TransitionFylloActionsInput {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   actionIds: string[];
   command: FylloActionCommand;

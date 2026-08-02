@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
-  resolveTaskProjectPath: vi.fn(),
 }));
 
 vi.mock("@main/services/automation/task/task-aggregator", () => ({
@@ -21,7 +20,6 @@ vi.mock("@main/services/automation/task/task-service", () => ({
   createTask: mocks.createTask,
   updateTask: mocks.updateTask,
   deleteTask: mocks.deleteTask,
-  resolveTaskProjectPath: mocks.resolveTaskProjectPath,
 }));
 
 describe("registerTaskHandlers", () => {
@@ -29,7 +27,7 @@ describe("registerTaskHandlers", () => {
     vi.clearAllMocks();
     const task = {
       id: "task-1",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "任务 1",
       description: {
         format: "plain_text",
@@ -45,7 +43,6 @@ describe("registerTaskHandlers", () => {
     mocks.getTask.mockResolvedValue(task);
     mocks.createTask.mockResolvedValue(task);
     mocks.updateTask.mockResolvedValue(task);
-    mocks.resolveTaskProjectPath.mockResolvedValue("/tmp/project-1");
 
     const { registerTaskHandlers } = await import("@main/ipc/automation/task");
     registerTaskHandlers();
@@ -62,7 +59,7 @@ describe("registerTaskHandlers", () => {
   it("returns task detail for automation:task:get", async () => {
     const result = await handler(TaskChannels.get)(
       {},
-      { projectId: "project-1", taskId: "task-1" }
+      { workspaceId: "workspace-1", taskId: "task-1" }
     );
 
     expect(result).toEqual({
@@ -75,11 +72,11 @@ describe("registerTaskHandlers", () => {
         },
       }),
     });
-    expect(mocks.getTask).toHaveBeenCalledWith("project-1", "task-1");
+    expect(mocks.getTask).toHaveBeenCalledWith("workspace-1", "task-1");
   });
 
   it("returns validation error for invalid automation:task:get payload", async () => {
-    const result = await handler(TaskChannels.get)({}, { projectId: "project-1", taskId: "" });
+    const result = await handler(TaskChannels.get)({}, { workspaceId: "workspace-1", taskId: "" });
 
     expect(result).toEqual({
       ok: false,
@@ -95,7 +92,7 @@ describe("registerTaskHandlers", () => {
 
     const result = await handler(TaskChannels.get)(
       {},
-      { projectId: "project-1", taskId: "missing" }
+      { workspaceId: "workspace-1", taskId: "missing" }
     );
 
     expect(result).toEqual({
@@ -110,7 +107,7 @@ describe("registerTaskHandlers", () => {
     const createResult = await handler(TaskChannels.create)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         title: "任务 1",
         description: {
           format: "plain_text",
@@ -121,7 +118,7 @@ describe("registerTaskHandlers", () => {
     const updateResult = await handler(TaskChannels.update)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         taskId: "task-1",
         patch: {
           description: {
@@ -149,6 +146,13 @@ describe("registerTaskHandlers", () => {
           content: "详情",
         },
       }),
+    });
+    expect(mocks.createTask).toHaveBeenCalledWith("workspace-1", {
+      title: "任务 1",
+      description: { format: "plain_text", content: "详情" },
+    });
+    expect(mocks.updateTask).toHaveBeenCalledWith("workspace-1", "task-1", {
+      description: { format: "plain_text", content: "详情" },
     });
   });
 });

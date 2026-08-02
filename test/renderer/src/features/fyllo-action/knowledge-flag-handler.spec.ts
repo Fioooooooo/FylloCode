@@ -31,7 +31,7 @@ describe("knowledge-flag handler", () => {
     const { handler, sendMessageAndAwaitDurableAppend } = setup();
 
     const result = await handler({ summary: "candidate" } as FylloActionPayload<"knowledge.flag">, {
-      context: { projectId: "project-1", sessionId: "session-1", actionId: "action-1" },
+      context: { workspaceId: "project-1", sessionId: "session-1", actionId: "action-1" },
     });
 
     expect(sendMessageAndAwaitDurableAppend).toHaveBeenCalledTimes(1);
@@ -47,7 +47,7 @@ describe("knowledge-flag handler", () => {
     });
 
     const result = await handler({ summary: "first" } as FylloActionPayload<"knowledge.flag">, {
-      context: { projectId: "project-1", sessionId: "session-1", actionId: "action-1" },
+      context: { workspaceId: "project-1", sessionId: "session-1", actionId: "action-1" },
     });
 
     expect(sendMessageAndAwaitDurableAppend).toHaveBeenCalledTimes(1);
@@ -63,7 +63,7 @@ describe("knowledge-flag handler", () => {
     });
 
     const result = await handler({ summary: "candidate" } as FylloActionPayload<"knowledge.flag">, {
-      context: { projectId: "project-1", sessionId: "session-1", actionId: "action-1" },
+      context: { workspaceId: "project-1", sessionId: "session-1", actionId: "action-1" },
     });
 
     expect(sendMessageAndAwaitDurableAppend).toHaveBeenCalledTimes(1);
@@ -74,7 +74,7 @@ describe("knowledge-flag handler", () => {
     const { handler, sendMessageAndAwaitDurableAppend } = setup({ chatStatus: "streaming" });
 
     const result = await handler({ summary: "candidate" } as FylloActionPayload<"knowledge.flag">, {
-      context: { projectId: "project-1", sessionId: "session-1", actionId: "action-1" },
+      context: { workspaceId: "project-1", sessionId: "session-1", actionId: "action-1" },
     });
 
     expect(sendMessageAndAwaitDurableAppend).not.toHaveBeenCalled();

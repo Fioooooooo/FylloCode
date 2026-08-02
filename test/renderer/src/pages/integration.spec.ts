@@ -32,16 +32,16 @@ const integrationProvidersStore = {
   setSearchQuery: setSearchQueryMock,
 };
 
-const projectStore = reactive<{
-  currentProject: { id: string } | null;
+const workspaceStore = reactive<{
+  currentWorkspace: { id: string } | null;
 }>({
-  currentProject: {
+  currentWorkspace: {
     id: "project-1",
   },
 });
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => projectStore,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => workspaceStore,
 }));
 
 vi.mock("@renderer/stores/platform/providers", () => ({
@@ -49,16 +49,16 @@ vi.mock("@renderer/stores/platform/providers", () => ({
 }));
 
 const providerStageSectionStub = {
-  props: ["category", "providers", "currentProjectId"],
+  props: ["category", "providers", "currentWorkspaceId"],
   template:
-    '<div :data-test="`stage-${category.id}`">{{ category.name }}|{{ providers.length }}|{{ currentProjectId }}</div>',
+    '<div :data-test="`stage-${category.id}`">{{ category.name }}|{{ providers.length }}|{{ currentWorkspaceId }}</div>',
 };
 
 describe("integration page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     integrationProvidersStore.searchQuery = "";
-    projectStore.currentProject = { id: "project-1" };
+    workspaceStore.currentWorkspace = { id: "project-1" };
   });
 
   it("loads providers and project integration on mount", async () => {
@@ -91,7 +91,7 @@ describe("integration page", () => {
   });
 
   it("shows empty state when no project is open", async () => {
-    projectStore.currentProject = null;
+    workspaceStore.currentWorkspace = null;
 
     const wrapper = mount(IntegrationPage, {
       global: {
@@ -104,11 +104,11 @@ describe("integration page", () => {
     await flushPromises();
 
     expect(loadProjectIntegrationMock).toHaveBeenCalledWith("");
-    expect(wrapper.text()).toContain("请先打开一个项目");
+    expect(wrapper.text()).toContain("请先打开一个工作区");
   });
 
   it("loads project integration when the current project becomes available after mount", async () => {
-    projectStore.currentProject = null;
+    workspaceStore.currentWorkspace = null;
 
     mount(IntegrationPage, {
       global: {
@@ -121,7 +121,7 @@ describe("integration page", () => {
     await flushPromises();
     expect(loadProjectIntegrationMock).toHaveBeenCalledWith("");
 
-    projectStore.currentProject = { id: "project-late" };
+    workspaceStore.currentWorkspace = { id: "project-late" };
     await flushPromises();
 
     expect(loadProjectIntegrationMock).toHaveBeenCalledWith("project-late");

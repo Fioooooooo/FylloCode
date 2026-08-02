@@ -1,6 +1,6 @@
 import logger from "@main/infra/logger";
 import { readKnowledgeIndex, type KnowledgeIndexEntry } from "@main/infra/storage/knowledge";
-import { knowledgeDir } from "@main/infra/storage/project-paths";
+import { knowledgeDir } from "@main/infra/storage/workspace-paths";
 import type { KnowledgeEntryType } from "@shared/types/knowledge";
 import type { SystemReminderContext } from "../types";
 import { escapeAngleBrackets } from "./shared";
@@ -28,7 +28,7 @@ function renderGroup(title: string, entries: KnowledgeIndexEntry[]): string | nu
 }
 
 export async function resolveKnowledgeSection(ctx: SystemReminderContext): Promise<string | null> {
-  const root = knowledgeDir(ctx.projectPath);
+  const root = knowledgeDir(ctx.workspaceId);
   const workspaceRoot = ctx.worktreePath || ctx.projectPath;
 
   let entries: KnowledgeIndexEntry[];

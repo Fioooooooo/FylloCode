@@ -5,10 +5,10 @@ import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
-import { useProjectStore, useSpecsStore } from "@renderer/stores";
+import { useWorkspaceStore, useSpecsStore } from "@renderer/stores";
 
 const isDark = useDark();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const specsStore = useSpecsStore();
 const selectedId = ref<string | null>(null);
 const activeRequirementIndex = ref(0);
@@ -23,13 +23,13 @@ const selectedSpec = computed(() => {
 });
 
 watch(
-  () => projectStore.currentProject?.id,
-  (projectId) => {
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
     selectedId.value = null;
     activeRequirementIndex.value = 0;
 
-    if (projectId) {
-      void specsStore.load(projectId);
+    if (workspaceId) {
+      void specsStore.load(workspaceId);
     } else {
       specsStore.clear();
     }

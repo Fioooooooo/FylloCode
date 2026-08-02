@@ -12,7 +12,7 @@ vi.mock("@renderer/composables/useConfirmDialog", () => ({
 function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
   return {
     id: "task-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     title: "修复登录失败",
     description: { format: "plain_text", content: "排查 token 过期逻辑" },
     status: "open",

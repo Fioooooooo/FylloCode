@@ -7,48 +7,48 @@ import {
 } from "@shared/ipc/workspace/document.schemas";
 import type { LocalFilePreviewResult } from "@shared/types/local-file-preview";
 import {
-  projectWindowManager,
-  type ProjectWindowManager,
-} from "@main/bootstrap/project-window-manager";
+  workspaceWindowManager,
+  type WorkspaceWindowManager,
+} from "@main/bootstrap/workspace-window-manager";
 import {
   localFilePreviewService,
   type LocalFilePreviewService,
 } from "@main/services/workspace/document/local-file-preview-service";
-import { getRequiredProject } from "@main/services/workspace/project/project-service";
+import { resolveWorkspace } from "@main/services/workspace/_public";
 import { ipcError } from "../_kit/errors";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
 
 interface DocumentHandlerDependencies {
-  manager?: ProjectWindowManager;
+  manager?: WorkspaceWindowManager;
   service?: LocalFilePreviewService;
 }
 
-function getProjectContext(
-  manager: ProjectWindowManager,
+function getWorkspaceContext(
+  manager: WorkspaceWindowManager,
   sender: WebContents
 ): {
-  projectId: string;
+  workspaceId: string;
 } {
   const context = manager.getContextByWebContents(sender);
-  if (context?.role !== "project") {
-    throw ipcError(IpcErrorCodes.PROJECT_REQUIRED, "本地文件预览需要项目窗口");
+  if (context?.role !== "workspace") {
+    throw ipcError(IpcErrorCodes.WORKSPACE_REQUIRED, "本地文件预览需要 Workspace 窗口");
   }
-  return { projectId: context.projectId };
+  return { workspaceId: context.workspaceId };
 }
 
 export function registerDocumentHandlers(dependencies: DocumentHandlerDependencies = {}): void {
-  const manager = dependencies.manager ?? projectWindowManager;
+  const manager = dependencies.manager ?? workspaceWindowManager;
   const service = dependencies.service ?? localFilePreviewService;
 
   ipcMain.handle(WorkspaceDocumentChannels.preparePreview, (event, input: unknown) =>
     wrapHandler(async (): Promise<LocalFilePreviewResult> => {
       const form = validate(prepareLocalFilePreviewInputSchema, input);
-      const { projectId } = getProjectContext(manager, event.sender);
-      const project = await getRequiredProject(projectId);
+      const { workspaceId } = getWorkspaceContext(manager, event.sender);
+      const workspace = await resolveWorkspace(workspaceId);
       return service.preparePreview(form, {
-        projectId,
-        projectPath: project.path,
+        workspaceId,
+        folderPath: workspace.cwd,
         sender: event.sender,
       });
     })
@@ -57,11 +57,11 @@ export function registerDocumentHandlers(dependencies: DocumentHandlerDependenci
   ipcMain.handle(WorkspaceDocumentChannels.confirmPreview, (event, input: unknown) =>
     wrapHandler(async (): Promise<LocalFilePreviewResult> => {
       const form = validate(confirmLocalFilePreviewInputSchema, input);
-      const { projectId } = getProjectContext(manager, event.sender);
-      const project = await getRequiredProject(projectId);
+      const { workspaceId } = getWorkspaceContext(manager, event.sender);
+      const workspace = await resolveWorkspace(workspaceId);
       return service.confirmPreview(form, {
-        projectId,
-        projectPath: project.path,
+        workspaceId,
+        folderPath: workspace.cwd,
         sender: event.sender,
       });
     })

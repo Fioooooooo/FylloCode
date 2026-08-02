@@ -3,17 +3,17 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables";
 import { buildHealthCheckReminder } from "@renderer/constants/health-check-reminder";
-import { useChatStore, useProjectStore, useSessionStore } from "@renderer/stores";
+import { useChatStore, useWorkspaceStore, useSessionStore } from "@renderer/stores";
 
 const router = useRouter();
 const toast = useToast();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
 
 const open = ref(false);
 
-const healthScore = computed(() => projectStore.currentProject?.healthScore ?? 0);
+const healthScore = computed(() => workspaceStore.currentWorkspace?.primaryFolder.healthScore ?? 0);
 const iconColorClass = computed(() => {
   if (healthScore.value >= 60) {
     return "text-green-500";
@@ -26,28 +26,28 @@ const iconColorClass = computed(() => {
   return "text-muted";
 });
 const statusText = computed(() =>
-  healthScore.value > 0 ? `上次健康检查得分：${healthScore.value} 分` : "当前项目尚未进行健康检查"
+  healthScore.value > 0 ? `上次健康检查得分：${healthScore.value} 分` : "当前工作区尚未进行健康检查"
 );
 
 function handleIconClick(): void {
   open.value = true;
-  void projectStore.refreshCurrentProject().catch(() => {});
+  void workspaceStore.refreshCurrentWorkspace().catch(() => {});
 }
 
 async function startHealthCheck(): Promise<void> {
   open.value = false;
-  const project = projectStore.currentProject;
-  if (!project) {
+  const workspace = workspaceStore.currentWorkspace;
+  if (!workspace) {
     return;
   }
 
   try {
     sessionStore.beginDraftSession();
     await chatStore.sendMessage([
-      { type: "text", text: buildHealthCheckReminder(project) },
+      { type: "text", text: buildHealthCheckReminder(workspace) },
       {
         type: "text",
-        text: "帮我根据当前项目技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
+        text: "帮我根据当前工作区技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
       },
     ]);
     await router.push("/chat");
@@ -63,7 +63,7 @@ async function startHealthCheck(): Promise<void> {
 
 <template>
   <UPopover
-    v-if="projectStore.currentProject"
+    v-if="workspaceStore.currentWorkspace"
     :open="open"
     :content="{ align: 'center', side: 'bottom', sideOffset: 6 }"
     :ui="{ content: 'w-64 p-3' }"
@@ -77,7 +77,7 @@ async function startHealthCheck(): Promise<void> {
           color="neutral"
           class="w-5.5 h-5.5 rounded-full border border-default flex items-center justify-center p-0"
           style="-webkit-app-region: no-drag"
-          aria-label="项目健康度"
+          aria-label="工作区健康度"
           @click="handleIconClick"
         >
           <UIcon

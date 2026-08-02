@@ -1,63 +1,59 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { getDataSubPath } from "@main/infra/paths";
 import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
+import { workspaceDataDir } from "@main/infra/storage/workspace-paths";
 import {
   integrationCategoryIds,
   type IntegrationStageId,
-  type ProjectIntegrationConfig,
+  type WorkspaceIntegrationConfig,
 } from "@shared/types/integration";
 
-function projectDir(projectId: string): string {
-  return join(getDataSubPath("projects"), projectId);
+export function projectIntegrationPath(workspaceId: string): string {
+  return join(workspaceDataDir(workspaceId), "integrations", "config.json");
 }
 
-export function projectIntegrationPath(projectId: string): string {
-  return join(projectDir(projectId), "integrations", "config.json");
-}
-
-export function createEmptyProjectIntegrationConfig(): ProjectIntegrationConfig {
+export function createEmptyWorkspaceIntegrationConfig(): WorkspaceIntegrationConfig {
   return Object.fromEntries(
-    integrationCategoryIds.map((stage) => [stage, [] as ProjectIntegrationConfig[typeof stage]])
-  ) as unknown as ProjectIntegrationConfig;
+    integrationCategoryIds.map((stage) => [stage, [] as WorkspaceIntegrationConfig[typeof stage]])
+  ) as unknown as WorkspaceIntegrationConfig;
 }
 
 function normalizeConfig(
-  raw: Partial<ProjectIntegrationConfig> | null | undefined
-): ProjectIntegrationConfig {
-  const config = createEmptyProjectIntegrationConfig();
+  raw: Partial<WorkspaceIntegrationConfig> | null | undefined
+): WorkspaceIntegrationConfig {
+  const config = createEmptyWorkspaceIntegrationConfig();
   for (const stage of integrationCategoryIds) {
     config[stage] = Array.isArray(raw?.[stage]) ? raw[stage] : [];
   }
   return config;
 }
 
-export function loadProjectIntegrationConfig(projectId: string): ProjectIntegrationConfig {
+export function loadWorkspaceIntegrationConfig(workspaceId: string): WorkspaceIntegrationConfig {
   try {
     const raw = JSON.parse(
-      readFileSync(projectIntegrationPath(projectId), "utf8")
-    ) as Partial<ProjectIntegrationConfig>;
+      readFileSync(projectIntegrationPath(workspaceId), "utf8")
+    ) as Partial<WorkspaceIntegrationConfig>;
     return normalizeConfig(raw);
   } catch {
-    return createEmptyProjectIntegrationConfig();
+    return createEmptyWorkspaceIntegrationConfig();
   }
 }
 
-export function saveProjectIntegrationConfig(
-  projectId: string,
-  config: ProjectIntegrationConfig
-): ProjectIntegrationConfig {
+export function saveWorkspaceIntegrationConfig(
+  workspaceId: string,
+  config: WorkspaceIntegrationConfig
+): WorkspaceIntegrationConfig {
   const normalized = normalizeConfig(config);
-  writeFileAtomicSync(projectIntegrationPath(projectId), JSON.stringify(normalized, null, 2));
+  writeFileAtomicSync(projectIntegrationPath(workspaceId), JSON.stringify(normalized, null, 2));
   return normalized;
 }
 
 export function setStageResources(
-  projectId: string,
+  workspaceId: string,
   stage: IntegrationStageId,
-  resources: ProjectIntegrationConfig[IntegrationStageId]
-): ProjectIntegrationConfig {
-  const config = loadProjectIntegrationConfig(projectId);
+  resources: WorkspaceIntegrationConfig[IntegrationStageId]
+): WorkspaceIntegrationConfig {
+  const config = loadWorkspaceIntegrationConfig(workspaceId);
   config[stage] = resources;
-  return saveProjectIntegrationConfig(projectId, config);
+  return saveWorkspaceIntegrationConfig(workspaceId, config);
 }

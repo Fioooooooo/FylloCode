@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProjectIntegrationConfig } from "@shared/types/integration";
+import type { WorkspaceIntegrationConfig } from "@shared/types/integration";
 import type { Workitem } from "@main/infra/integration/yunxiao/projex";
 
 const mocks = vi.hoisted(() => ({
-  loadProjectIntegrationConfig: vi.fn(),
+  loadWorkspaceIntegrationConfig: vi.fn(),
   getYunxiaoOrganizationId: vi.fn(() => "org-1"),
   getYunxiaoUserId: vi.fn(() => "user-1"),
   searchWorkitems: vi.fn(),
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@main/infra/storage/project-integration-store", () => ({
-  loadProjectIntegrationConfig: mocks.loadProjectIntegrationConfig,
+  loadWorkspaceIntegrationConfig: mocks.loadWorkspaceIntegrationConfig,
 }));
 
 vi.mock("@main/infra/storage/yunxiao-credentials", () => ({
@@ -40,7 +40,7 @@ import {
   yunxiaoTaskAdapter,
 } from "@main/services/automation/task/adapters/yunxiao-task-adapter";
 
-function createEmptyIntegrationConfig(): ProjectIntegrationConfig {
+function createEmptyIntegrationConfig(): WorkspaceIntegrationConfig {
   return {
     "project-management": [],
     "source-control": [],
@@ -90,14 +90,14 @@ describe("yunxiao-task-adapter", () => {
   });
 
   it("returns an empty list when the project has no mounted yunxiao space", async () => {
-    mocks.loadProjectIntegrationConfig.mockReturnValue(createEmptyIntegrationConfig());
+    mocks.loadWorkspaceIntegrationConfig.mockReturnValue(createEmptyIntegrationConfig());
 
-    await expect(yunxiaoTaskAdapter.list("project-1")).resolves.toEqual([]);
+    await expect(yunxiaoTaskAdapter.list("workspace-1")).resolves.toEqual([]);
     expect(mocks.searchWorkitems).not.toHaveBeenCalled();
   });
 
   it("queries req task bug and maps them into task items", async () => {
-    mocks.loadProjectIntegrationConfig.mockReturnValue({
+    mocks.loadWorkspaceIntegrationConfig.mockReturnValue({
       ...createEmptyIntegrationConfig(),
       "project-management": [
         {
@@ -159,7 +159,7 @@ describe("yunxiao-task-adapter", () => {
       ];
     });
 
-    const result = await yunxiaoTaskAdapter.list("project-1");
+    const result = await yunxiaoTaskAdapter.list("workspace-1");
 
     expect(mocks.searchWorkitems).toHaveBeenCalledTimes(3);
     expect(result).toHaveLength(3);
@@ -169,7 +169,7 @@ describe("yunxiao-task-adapter", () => {
       "yunxiao:space-1:103",
     ]);
     expect(result[0]).toMatchObject({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       source: "yunxiao",
       status: "open",
       title: "Task 101",
@@ -228,7 +228,7 @@ describe("yunxiao-task-adapter", () => {
   });
 
   it("keeps successful results when some spaces or categories fail", async () => {
-    mocks.loadProjectIntegrationConfig.mockReturnValue({
+    mocks.loadWorkspaceIntegrationConfig.mockReturnValue({
       ...createEmptyIntegrationConfig(),
       "project-management": [
         {
@@ -267,7 +267,7 @@ describe("yunxiao-task-adapter", () => {
     expect(mocks.warn).toHaveBeenCalledWith(
       "[task][yunxiao] failed to load workitems",
       expect.objectContaining({
-        projectId: "project-2",
+        workspaceId: "project-2",
         spaceId: "space-2",
         category: "Bug",
       })
@@ -338,7 +338,7 @@ describe("yunxiao-task-adapter", () => {
       })
     );
 
-    const result = await yunxiaoTaskAdapter.get("yunxiao:space-1:detail-102", "project-1");
+    const result = await yunxiaoTaskAdapter.get("yunxiao:space-1:detail-102", "workspace-1");
 
     expect(mocks.getWorkitem).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -359,7 +359,7 @@ describe("yunxiao-task-adapter", () => {
   });
 
   it("returns null for invalid namespaced task ids", async () => {
-    const result = await yunxiaoTaskAdapter.get("yunxiao:missing", "project-1");
+    const result = await yunxiaoTaskAdapter.get("yunxiao:missing", "workspace-1");
 
     expect(result).toBeNull();
     expect(mocks.getWorkitem).not.toHaveBeenCalled();
@@ -377,7 +377,7 @@ describe("yunxiao-task-adapter", () => {
       })
     );
 
-    const result = await yunxiaoTaskAdapter.get("yunxiao:space-1:detail-201", "project-1");
+    const result = await yunxiaoTaskAdapter.get("yunxiao:space-1:detail-201", "workspace-1");
 
     expect(result?.description).toEqual({
       format: "html",

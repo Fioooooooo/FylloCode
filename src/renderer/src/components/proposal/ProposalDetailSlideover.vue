@@ -10,7 +10,7 @@ import ProposalMarkdownContent, {
 } from "@renderer/components/proposal/ProposalMarkdownContent.vue";
 import ProposalApplySidePanel from "@renderer/components/proposal/ProposalApplySidePanel.vue";
 import {
-  useProjectStore,
+  useWorkspaceStore,
   useProposalRunStore,
   useProposalStore,
   useWorkflowStore,
@@ -27,7 +27,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
 const workflowStore = useWorkflowStore();
 // This remains a global run store: Chat EventRail and the detail Slideover share run state.
@@ -145,9 +145,9 @@ async function refreshProposalMeta(requestId: number): Promise<void> {
 }
 
 async function loadMarkdownFiles(requestId: number): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const changeIdSnapshot = currentChangeId.value;
-  if (!projectId || !changeIdSnapshot) {
+  if (!workspaceId || !changeIdSnapshot) {
     return;
   }
 
@@ -164,7 +164,7 @@ async function loadMarkdownFiles(requestId: number): Promise<void> {
     const results = await Promise.all(
       fileRequests.map(async (tab) => {
         const filename = tab.filename ?? "";
-        const result = await proposalBrowserApi.readFile(projectId, changeIdSnapshot, filename);
+        const result = await proposalBrowserApi.readFile(workspaceId, changeIdSnapshot, filename);
         if (!result.ok) {
           throw new Error(result.error.message);
         }
@@ -196,9 +196,9 @@ async function loadMarkdownFiles(requestId: number): Promise<void> {
 }
 
 async function loadSpecDeltas(requestId: number): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const changeIdSnapshot = currentChangeId.value;
-  if (!projectId || !changeIdSnapshot) {
+  if (!workspaceId || !changeIdSnapshot) {
     return;
   }
 
@@ -206,7 +206,7 @@ async function loadSpecDeltas(requestId: number): Promise<void> {
   specsError.value = null;
 
   try {
-    const result = await proposalBrowserApi.getSpecDeltas(projectId, changeIdSnapshot);
+    const result = await proposalBrowserApi.getSpecDeltas(workspaceId, changeIdSnapshot);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -240,14 +240,14 @@ async function loadDetailFiles(requestId: number): Promise<void> {
 }
 
 async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const changeIdSnapshot = currentChangeId.value;
-  if (!projectId || !changeIdSnapshot) {
+  if (!workspaceId || !changeIdSnapshot) {
     return;
   }
 
   try {
-    await proposalRunStore.startRun(projectId, changeIdSnapshot, workflow.id);
+    await proposalRunStore.startRun(workspaceId, changeIdSnapshot, workflow.id);
     sidePanelOpen.value = true;
     if (currentProposal.value) {
       currentProposal.value.status = "applying";
@@ -258,15 +258,15 @@ async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
 }
 
 async function archiveProposal(): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const previousChangeId = currentChangeId.value;
-  if (!projectId || !previousChangeId) {
+  if (!workspaceId || !previousChangeId) {
     return;
   }
 
   try {
     sidePanelOpen.value = true;
-    await proposalRunStore.startArchive(projectId, previousChangeId);
+    await proposalRunStore.startArchive(workspaceId, previousChangeId);
     await proposalStore.loadProposals();
 
     const nextProposal =
@@ -292,15 +292,15 @@ async function archiveProposal(): Promise<void> {
 async function viewRunHistory(): Promise<void> {
   sidePanelOpen.value = true;
 
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const changeIdSnapshot = currentChangeId.value;
-  if (!projectId || !changeIdSnapshot) {
+  if (!workspaceId || !changeIdSnapshot) {
     return;
   }
 
   try {
-    await proposalRunStore.resumeRun(projectId, changeIdSnapshot);
-    await proposalRunStore.resumeArchive(projectId, changeIdSnapshot);
+    await proposalRunStore.resumeRun(workspaceId, changeIdSnapshot);
+    await proposalRunStore.resumeArchive(workspaceId, changeIdSnapshot);
   } catch (error: unknown) {
     console.error("Failed to load proposal run history:", error);
   }
@@ -336,17 +336,17 @@ onMounted(() => {
       return;
     }
 
-    const projectId = projectStore.currentProject?.id;
+    const workspaceId = workspaceStore.currentWorkspace?.id;
     const proposal = currentProposal.value;
-    if (projectId && proposal?.status === "applying") {
-      await proposalRunStore.resumeRun(projectId, currentChangeId.value);
+    if (workspaceId && proposal?.status === "applying") {
+      await proposalRunStore.resumeRun(workspaceId, currentChangeId.value);
       if (proposalRunStore.runMeta) {
         sidePanelOpen.value = true;
       }
     }
 
-    if (projectId) {
-      const hasArchive = await proposalRunStore.resumeArchive(projectId, currentChangeId.value);
+    if (workspaceId) {
+      const hasArchive = await proposalRunStore.resumeArchive(workspaceId, currentChangeId.value);
       if (hasArchive) {
         sidePanelOpen.value = true;
       }

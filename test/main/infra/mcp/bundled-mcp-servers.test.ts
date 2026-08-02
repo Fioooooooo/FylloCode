@@ -6,7 +6,7 @@ import {
   resolveBundledMcpServers,
   toAcpMcpServer,
 } from "@main/infra/mcp/bundled-mcp-servers";
-import { mcpEventsDir, projectDir } from "@main/infra/storage/project-paths";
+import { mcpEventsDir, workspaceDataDir } from "@main/infra/storage/workspace-paths";
 
 const hostMocks = vi.hoisted(() => ({
   waitForBundledMcpInitialReadiness: vi.fn<() => Promise<void>>(),
@@ -31,6 +31,7 @@ describe("bundled mcp servers", () => {
 
   it("returns dev stdio fallback specs in stable order", async () => {
     const specs = await resolveBundledMcpServers({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       supportsHttp: false,
     });
@@ -48,9 +49,9 @@ describe("bundled mcp servers", () => {
       expect.objectContaining({
         ELECTRON_RUN_AS_NODE: "1",
         FYLLO_PROJECT_PATH: "/tmp/project",
-        FYLLO_PROJECT_DATA_DIR: projectDir("/tmp/project"),
+        FYLLO_PROJECT_DATA_DIR: workspaceDataDir("workspace-1"),
         FYLLO_MCP_TELEMETRY: "0",
-        FYLLO_MCP_EVENT_DIR: mcpEventsDir("/tmp/project"),
+        FYLLO_MCP_EVENT_DIR: mcpEventsDir("workspace-1"),
       })
     );
     expect(stdioSpecs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
@@ -68,6 +69,7 @@ describe("bundled mcp servers", () => {
     });
 
     const specs = await resolveBundledMcpServers({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       supportsHttp: false,
     });
@@ -103,6 +105,7 @@ describe("bundled mcp servers", () => {
     );
 
     const specs = await resolveBundledMcpServers({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/中文 project",
       fylloSessionId: "session-1",
       supportsHttp: true,
@@ -134,6 +137,7 @@ describe("bundled mcp servers", () => {
     });
 
     const specs = await resolveBundledMcpServers({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       supportsHttp: false,
     });
@@ -145,7 +149,11 @@ describe("bundled mcp servers", () => {
   it("respects the complete disable flag without waiting for host", async () => {
     process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
     await expect(
-      resolveBundledMcpServers({ projectPath: "/tmp/project", supportsHttp: true })
+      resolveBundledMcpServers({
+        workspaceId: "workspace-1",
+        projectPath: "/tmp/project",
+        supportsHttp: true,
+      })
     ).resolves.toEqual([]);
     expect(hostMocks.waitForBundledMcpInitialReadiness).not.toHaveBeenCalled();
   });

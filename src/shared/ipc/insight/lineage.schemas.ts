@@ -50,32 +50,32 @@ const lineageTaskSnapshotSchema = z.object({
 });
 
 export const ensureTaskSubjectInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   snapshot: lineageTaskSnapshotSchema,
 });
 
 export const linkTaskSessionInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   taskRef: lineageTaskRefSchema,
   sessionId: z.string().min(1),
 });
 
 export const getByTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   ref: lineageTaskRefSchema,
 });
 
 export const getBySessionInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: z.string().min(1),
 });
 
 export const getBrowserInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 
 export const createSessionTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -83,7 +83,7 @@ export const createSessionTaskInputSchema = z.object({
 });
 
 export const readPlanInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: lineagePlanSessionIdSchema,
   slug: lineagePlanSlugSchema,
 });

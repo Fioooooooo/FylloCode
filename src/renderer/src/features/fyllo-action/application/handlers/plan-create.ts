@@ -10,6 +10,7 @@ export type PlanReviewResult =
 
 interface PlanCreateActionHandlerDependencies {
   openPlanReview: (input: {
+    workspaceId: string;
     sessionId: string;
     slug: string;
     mode: "review";
@@ -20,9 +21,10 @@ export function createPlanCreateActionHandler(
   dependencies: PlanCreateActionHandlerDependencies
 ): FylloActionDispatchHandler<"plan.create"> {
   return async (payload, runtime) => {
-    const { sessionId } = runtime.context;
+    const { workspaceId, sessionId } = runtime.context;
 
     const result = await dependencies.openPlanReview({
+      workspaceId,
       sessionId,
       slug: payload.slug,
       mode: "review",

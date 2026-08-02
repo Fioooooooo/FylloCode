@@ -4,7 +4,7 @@ import logger from "@main/infra/logger";
 
 /**
  * Categories of in-flight ACP sessions. Each owner has its own key space
- * so that chat `sessionId`, apply `runId`, and archive `projectId:changeId`
+ * so that chat `sessionId`, apply `runId`, and archive `workspaceId:changeId`
  * cannot collide.
  */
 export type SessionOwner = "chat" | "apply" | "archive";
@@ -53,9 +53,9 @@ export const sessionRegistry = {
     }
   },
 
-  cancelProject(projectId: string): void {
-    // archive owner 的 key 形如 "projectId:changeId"，按 projectId 前缀批量取消。
-    const keyPrefix = `${projectId}:`;
+  cancelWorkspace(workspaceId: string): void {
+    // archive owner 的 key 形如 "workspaceId:changeId"，按 workspaceId 前缀批量取消。
+    const keyPrefix = `${workspaceId}:`;
 
     for (const [k, entry] of byOwnerKey) {
       if (!entry.key.startsWith(keyPrefix)) continue;

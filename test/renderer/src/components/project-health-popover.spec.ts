@@ -3,9 +3,10 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ProjectHealthPopover from "@renderer/components/layout/ProjectHealthPopover.vue";
 import { useChatStore } from "@renderer/stores/session/chat";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useSessionStore } from "@renderer/stores/session/session";
-import type { ProjectInfo } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 
 const routerPush = vi.fn();
 const toastAdd = vi.fn();
@@ -35,23 +36,22 @@ const popoverStub = {
   `,
 };
 
-function makeProject(healthScore?: number): ProjectInfo {
-  return {
+function makeProject(healthScore?: number): WorkspaceInfo {
+  return workspaceInfo({
     id: "project-1",
     name: "Project 1",
-    path: "/tmp/project-1",
-    metaPath: "/tmp/fyllocode/data/projects/project-1/meta.json",
+    folderPath: "/tmp/project-1",
     healthScore,
     createdAt: new Date("2026-04-30T08:00:00.000Z"),
     lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-  };
+  });
 }
 
-function mountPopover(project: ProjectInfo | null = makeProject()): ReturnType<typeof mount> {
-  const projectStore = useProjectStore();
-  projectStore.currentProject = project;
+function mountPopover(project: WorkspaceInfo | null = makeProject()): ReturnType<typeof mount> {
+  const workspaceStore = useWorkspaceStore();
+  workspaceStore.currentWorkspace = project;
   if (project) {
-    projectStore.projects = [project];
+    workspaceStore.workspaces = [project];
   }
 
   const sessionStore = useSessionStore();
@@ -84,34 +84,34 @@ describe("ProjectHealthPopover", () => {
     const wrapper = mountPopover(makeProject());
     expect(wrapper.get('[data-test="project-health-icon"]').classes()).toContain("text-muted");
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = makeProject(20);
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = makeProject(20);
     await wrapper.vm.$nextTick();
     expect(wrapper.get('[data-test="project-health-icon"]').classes()).toContain("text-orange-500");
 
-    projectStore.currentProject = makeProject(60);
+    workspaceStore.currentWorkspace = makeProject(60);
     await wrapper.vm.$nextTick();
     expect(wrapper.get('[data-test="project-health-icon"]').classes()).toContain("text-green-500");
   });
 
   it("opens popover immediately and keeps it open when refresh fails", async () => {
     const wrapper = mountPopover(makeProject(20));
-    const projectStore = useProjectStore();
-    vi.spyOn(projectStore, "refreshCurrentProject").mockRejectedValue(new Error("failed"));
+    const workspaceStore = useWorkspaceStore();
+    vi.spyOn(workspaceStore, "refreshCurrentWorkspace").mockRejectedValue(new Error("failed"));
 
     await wrapper.get('[data-test="project-health-button"]').trigger("click");
 
     expect(wrapper.get('[data-test="project-health-status"]').text()).toContain("20 分");
-    expect(projectStore.refreshCurrentProject).toHaveBeenCalledTimes(1);
+    expect(workspaceStore.refreshCurrentWorkspace).toHaveBeenCalledTimes(1);
     await Promise.resolve();
     expect(wrapper.find('[data-test="project-health-status"]').exists()).toBe(true);
   });
 
   it("updates popover copy after refresh succeeds", async () => {
     const wrapper = mountPopover(makeProject(20));
-    const projectStore = useProjectStore();
-    vi.spyOn(projectStore, "refreshCurrentProject").mockImplementation(async () => {
-      projectStore.currentProject = makeProject(75);
+    const workspaceStore = useWorkspaceStore();
+    vi.spyOn(workspaceStore, "refreshCurrentWorkspace").mockImplementation(async () => {
+      workspaceStore.currentWorkspace = makeProject(75);
     });
 
     await wrapper.get('[data-test="project-health-button"]').trigger("click");
@@ -146,7 +146,7 @@ describe("ProjectHealthPopover", () => {
     );
     expect(parts[1]).toEqual({
       type: "text",
-      text: "帮我根据当前项目技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
+      text: "帮我根据当前工作区技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
     });
     expect(routerPush).toHaveBeenCalledWith("/chat");
   });

@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe("window-state-store", () => {
-  it("keeps window state files under the legacy window-state directory", () => {
+  it("writes launcher and Workspace state without using the Project namespace", () => {
     const state = {
       bounds: { x: 10, y: 20, width: 1100, height: 700 },
       isMaximized: false,
@@ -37,11 +37,12 @@ describe("window-state-store", () => {
 
     saveMainWindowState(state);
     saveWindowState({ role: "launcher" }, state);
-    saveWindowState({ role: "project", projectId: "project-a" }, state);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-a" }, state);
 
     expect(existsSync(`${tempRoot}/window-state/main-window.json`)).toBe(true);
     expect(existsSync(`${tempRoot}/window-state/launcher.json`)).toBe(true);
-    expect(existsSync(`${tempRoot}/window-state/projects/project-a.json`)).toBe(true);
+    expect(existsSync(`${tempRoot}/window-state/workspaces/workspace-a.json`)).toBe(true);
+    expect(existsSync(`${tempRoot}/window-state/projects`)).toBe(false);
   });
 
   it("returns null when the state file does not exist", () => {
@@ -78,21 +79,23 @@ describe("window-state-store", () => {
     expect(loadMainWindowState()).toBeNull();
   });
 
-  it("round-trips launcher and project window state through separate files", () => {
+  it("round-trips launcher and Workspace window state through separate files", () => {
     const launcherState = {
       bounds: { x: 10, y: 20, width: 1100, height: 700 },
       isMaximized: false,
     };
-    const projectState = {
+    const workspaceState = {
       bounds: { x: 300, y: 220, width: 1300, height: 820 },
       isMaximized: true,
     };
 
     saveWindowState({ role: "launcher" }, launcherState);
-    saveWindowState({ role: "project", projectId: "project-a" }, projectState);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-a" }, workspaceState);
 
     expect(loadWindowState({ role: "launcher" })).toEqual(launcherState);
-    expect(loadWindowState({ role: "project", projectId: "project-a" })).toEqual(projectState);
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-a" })).toEqual(
+      workspaceState
+    );
   });
 
   it("falls back to the legacy main-window file for launcher state", () => {
@@ -122,20 +125,39 @@ describe("window-state-store", () => {
     expect(loadWindowState({ role: "launcher" })).toBeNull();
   });
 
-  it("keeps project window states isolated by project id", () => {
-    const projectAState = {
+  it("keeps Workspace window states isolated by Workspace ID", () => {
+    const workspaceAState = {
       bounds: { x: 0, y: 0, width: 1000, height: 700 },
       isMaximized: false,
     };
-    const projectBState = {
+    const workspaceBState = {
       bounds: { x: 200, y: 200, width: 1400, height: 900 },
       isMaximized: true,
     };
 
-    saveWindowState({ role: "project", projectId: "project-a" }, projectAState);
-    saveWindowState({ role: "project", projectId: "project-b" }, projectBState);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-a" }, workspaceAState);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-b" }, workspaceBState);
 
-    expect(loadWindowState({ role: "project", projectId: "project-a" })).toEqual(projectAState);
-    expect(loadWindowState({ role: "project", projectId: "project-b" })).toEqual(projectBState);
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-a" })).toEqual(
+      workspaceAState
+    );
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-b" })).toEqual(
+      workspaceBState
+    );
+  });
+
+  it("does not read a legacy Project state as Workspace state", () => {
+    const legacyProjectDir = `${tempRoot}/window-state/projects`;
+    mkdirSync(legacyProjectDir, { recursive: true });
+    writeFileSync(
+      `${legacyProjectDir}/workspace-a.json`,
+      JSON.stringify({
+        bounds: { x: 1, y: 2, width: 1000, height: 700 },
+        isMaximized: false,
+      }),
+      "utf8"
+    );
+
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-a" })).toBeNull();
   });
 });

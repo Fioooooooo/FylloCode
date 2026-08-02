@@ -5,10 +5,10 @@ import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import MarkStream from "@renderer/components/shared/MarkStream.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
-import { useGuidelinesStore, useProjectStore } from "@renderer/stores";
+import { useGuidelinesStore, useWorkspaceStore } from "@renderer/stores";
 
 const isDark = useDark();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const guidelinesStore = useGuidelinesStore();
 const selectedPath = ref<string | null>(null);
 
@@ -30,12 +30,12 @@ const selectedMarkdownId = computed(() => {
 });
 
 watch(
-  () => projectStore.currentProject?.id,
-  (projectId) => {
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
     selectedPath.value = null;
 
-    if (projectId) {
-      void guidelinesStore.load(projectId);
+    if (workspaceId) {
+      void guidelinesStore.load(workspaceId);
     } else {
       guidelinesStore.clear();
     }

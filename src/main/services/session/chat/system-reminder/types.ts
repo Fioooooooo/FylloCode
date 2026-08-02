@@ -3,6 +3,7 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 
 export interface SystemReminderContext {
   owner: SessionOwner;
+  workspaceId: string;
   projectPath: string;
   cwd: string;
   fylloSessionId: string;

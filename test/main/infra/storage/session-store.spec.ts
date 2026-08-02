@@ -24,9 +24,9 @@ import {
   sessionMessagesPath,
   updateSessionOriginTaskRef,
 } from "@main/infra/storage/session-store";
-import { sessionsDir } from "@main/infra/storage/project-paths";
+import { sessionsDir } from "@main/infra/storage/workspace-paths";
 
-const projectPath = "/tmp/project";
+const workspaceId = "workspace-1";
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -45,7 +45,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
 }
 
 function sessionMetaPath(sessionId = "session-1"): string {
-  return `${sessionsDir(projectPath)}/${sessionId}.json`;
+  return `${sessionsDir(workspaceId)}/${sessionId}.json`;
 }
 
 beforeEach(() => {
@@ -57,16 +57,16 @@ afterEach(() => {
 });
 
 describe("session-store", () => {
-  it("keeps session meta and messages under projects/<encoded>/sessions", () => {
-    expect(sessionMetaPath()).toBe(`${tempRoot}/projects/tmp-project/sessions/session-1.json`);
-    expect(sessionMessagesPath(projectPath, "session-1")).toBe(
-      `${tempRoot}/projects/tmp-project/sessions/session-1.messages.jsonl`
+  it("keeps session meta and messages under workspaces/<workspaceId>/sessions", () => {
+    expect(sessionMetaPath()).toBe(`${tempRoot}/workspaces/workspace-1/sessions/session-1.json`);
+    expect(sessionMessagesPath(workspaceId, "session-1")).toBe(
+      `${tempRoot}/workspaces/workspace-1/sessions/session-1.messages.jsonl`
     );
   });
 
   it("round-trips available commands with the snake_case storage key", async () => {
     await saveSessionMeta(
-      projectPath,
+      workspaceId,
       meta({
         available_commands: [{ name: "review", description: "Review code", hint: "path" }],
       })
@@ -77,7 +77,7 @@ describe("session-store", () => {
       { name: "review", description: "Review code", hint: "path" },
     ]);
     expect(raw.availableCommands).toBeUndefined();
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
       meta({
         available_commands: [{ name: "review", description: "Review code", hint: "path" }],
       })
@@ -85,19 +85,19 @@ describe("session-store", () => {
   });
 
   it("preserves an explicit empty available commands array", async () => {
-    await saveSessionMeta(projectPath, meta({ available_commands: [] }));
+    await saveSessionMeta(workspaceId, meta({ available_commands: [] }));
 
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
       meta({ available_commands: [] })
     );
   });
 
   it("round-trips a pinned session and ignores an invalid pinned value", async () => {
-    await saveSessionMeta(projectPath, meta({ isPinned: true }));
+    await saveSessionMeta(workspaceId, meta({ isPinned: true }));
 
     const raw = JSON.parse(readFileSync(sessionMetaPath(), "utf8")) as Record<string, unknown>;
     expect(raw.isPinned).toBe(true);
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
       meta({ isPinned: true })
     );
 
@@ -107,14 +107,14 @@ describe("session-store", () => {
       "utf8"
     );
 
-    await expect(loadSessionMeta(projectPath, "session-2")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
       meta({ sessionId: "session-2" })
     );
   });
 
   it("keeps missing or invalid available commands as undefined", async () => {
-    await saveSessionMeta(projectPath, meta());
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(meta());
+    await saveSessionMeta(workspaceId, meta());
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(meta());
 
     mkdirSync(dirname(sessionMetaPath("session-2")), { recursive: true });
     writeFileSync(
@@ -123,21 +123,21 @@ describe("session-store", () => {
       "utf8"
     );
 
-    await expect(loadSessionMeta(projectPath, "session-2")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
       meta({ sessionId: "session-2" })
     );
   });
 
   it("patches token usage without dropping available commands", async () => {
     await createSessionMeta(
-      projectPath,
+      workspaceId,
       meta({
         available_commands: [{ name: "review", description: "Review code" }],
       })
     );
 
     await expect(
-      patchSessionMeta(projectPath, "session-1", {
+      patchSessionMeta(workspaceId, "session-1", {
         tokenUsage: {
           used: 42,
           size: 1024,
@@ -158,7 +158,7 @@ describe("session-store", () => {
 
   it("round-trips actionStates and preserves them while patching other meta fields", async () => {
     await createSessionMeta(
-      projectPath,
+      workspaceId,
       meta({
         actionStates: {
           "chat:session-1:0:0:0": {
@@ -172,7 +172,7 @@ describe("session-store", () => {
     );
 
     await expect(
-      patchSessionMeta(projectPath, "session-1", {
+      patchSessionMeta(workspaceId, "session-1", {
         available_commands: [{ name: "review", description: "Review code" }],
       })
     ).resolves.toEqual(
@@ -226,7 +226,7 @@ describe("session-store", () => {
       "utf8"
     );
 
-    const loaded = await loadSessionMeta(projectPath, "session-1");
+    const loaded = await loadSessionMeta(workspaceId, "session-1");
 
     expect(loaded?.actionStates?.[actionId]).toEqual({
       type: "task.create",
@@ -266,7 +266,7 @@ describe("session-store", () => {
       "utf8"
     );
 
-    await expect(loadSessionMeta(projectPath, "session-2")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
       meta({
         sessionId: "session-2",
         actionStates: {
@@ -294,7 +294,7 @@ describe("session-store", () => {
       "utf8"
     );
 
-    await patchSessionMeta(projectPath, "session-1", {
+    await patchSessionMeta(workspaceId, "session-1", {
       title: "Updated Session",
     });
 
@@ -318,12 +318,12 @@ describe("session-store", () => {
       "utf8"
     );
 
-    await expect(listSessionMetas(projectPath)).resolves.toEqual([
+    await expect(listSessionMetas(workspaceId)).resolves.toEqual([
       meta({
         available_commands: [{ name: "review", description: "Review code" }],
       }),
     ]);
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual(
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
       meta({
         available_commands: [{ name: "review", description: "Review code" }],
       })
@@ -357,15 +357,15 @@ describe("session-store", () => {
 
     try {
       await Promise.all([
-        saveSessionMeta(projectPath, meta({ title: "First Save" })),
-        saveSessionMeta(projectPath, meta({ title: "Second Save" })),
+        saveSessionMeta(workspaceId, meta({ title: "First Save" })),
+        saveSessionMeta(workspaceId, meta({ title: "Second Save" })),
       ]);
     } finally {
       writeSpy.mockRestore();
     }
 
     expect(maxConcurrentWrites).toBe(1);
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toMatchObject({
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toMatchObject({
       sessionId: "session-1",
     });
   });
@@ -374,7 +374,7 @@ describe("session-store", () => {
     await expect(
       import("@main/infra/storage/session-store").then(({ upsertSessionMeta }) =>
         upsertSessionMeta(
-          projectPath,
+          workspaceId,
           "session-3",
           () => ({
             ...meta({ sessionId: "session-3" }),
@@ -395,7 +395,7 @@ describe("session-store", () => {
   describe("updateSessionOriginTaskRef", () => {
     it("updates originTaskRef and updatedAt while preserving other fields", async () => {
       await createSessionMeta(
-        projectPath,
+        workspaceId,
         meta({
           available_commands: [{ name: "review", description: "Review code" }],
           originTaskRef: "yunxiao:STORY-1",
@@ -403,7 +403,7 @@ describe("session-store", () => {
       );
 
       const before = Date.now();
-      const result = await updateSessionOriginTaskRef(projectPath, "session-1", "local:task-new");
+      const result = await updateSessionOriginTaskRef(workspaceId, "session-1", "local:task-new");
       const after = Date.now();
 
       expect(result).toMatchObject({
@@ -423,7 +423,7 @@ describe("session-store", () => {
 
     it("returns null when the session meta does not exist", async () => {
       const result = await updateSessionOriginTaskRef(
-        projectPath,
+        workspaceId,
         "missing-session",
         "local:task-new"
       );
@@ -431,12 +431,12 @@ describe("session-store", () => {
     });
 
     it("allows originTaskRef to be overwritten by the controlled writer", async () => {
-      await createSessionMeta(projectPath, meta({ originTaskRef: "local:task-old" }));
+      await createSessionMeta(workspaceId, meta({ originTaskRef: "local:task-old" }));
 
-      const result = await updateSessionOriginTaskRef(projectPath, "session-1", "local:task-new");
+      const result = await updateSessionOriginTaskRef(workspaceId, "session-1", "local:task-new");
 
       expect(result?.originTaskRef).toBe("local:task-new");
-      const loaded = await loadSessionMeta(projectPath, "session-1");
+      const loaded = await loadSessionMeta(workspaceId, "session-1");
       expect(loaded?.originTaskRef).toBe("local:task-new");
     });
   });

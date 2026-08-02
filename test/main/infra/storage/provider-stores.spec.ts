@@ -27,10 +27,10 @@ import {
   saveConnection,
 } from "@main/infra/storage/provider-connection-store";
 import {
-  createEmptyProjectIntegrationConfig,
-  loadProjectIntegrationConfig,
+  createEmptyWorkspaceIntegrationConfig,
+  loadWorkspaceIntegrationConfig,
   projectIntegrationPath,
-  saveProjectIntegrationConfig,
+  saveWorkspaceIntegrationConfig,
   setStageResources,
 } from "@main/infra/storage/project-integration-store";
 
@@ -105,9 +105,9 @@ describe("provider connection store", () => {
   });
 });
 
-describe("project integration store", () => {
+describe("Workspace integration store", () => {
   it("creates an empty config with all stages", () => {
-    expect(createEmptyProjectIntegrationConfig()).toEqual({
+    expect(createEmptyWorkspaceIntegrationConfig()).toEqual({
       "project-management": [],
       "source-control": [],
       "ci-cd": [],
@@ -117,9 +117,9 @@ describe("project integration store", () => {
     });
   });
 
-  it("round-trips project integration config", () => {
-    saveProjectIntegrationConfig("project-1", {
-      ...createEmptyProjectIntegrationConfig(),
+  it("round-trips Workspace integration config", () => {
+    saveWorkspaceIntegrationConfig("project-1", {
+      ...createEmptyWorkspaceIntegrationConfig(),
       "project-management": [
         {
           providerId: "yunxiao",
@@ -129,7 +129,7 @@ describe("project integration store", () => {
       ],
     });
 
-    expect(loadProjectIntegrationConfig("project-1")["project-management"]).toEqual([
+    expect(loadWorkspaceIntegrationConfig("project-1")["project-management"]).toEqual([
       {
         providerId: "yunxiao",
         resourceType: "projex-project",
@@ -139,8 +139,8 @@ describe("project integration store", () => {
   });
 
   it("updates a single stage without affecting other stages", () => {
-    saveProjectIntegrationConfig("project-2", {
-      ...createEmptyProjectIntegrationConfig(),
+    saveWorkspaceIntegrationConfig("project-2", {
+      ...createEmptyWorkspaceIntegrationConfig(),
       "project-management": [
         {
           providerId: "yunxiao",
@@ -168,9 +168,9 @@ describe("project integration store", () => {
     ]);
   });
 
-  it("stores project integration under the project directory", () => {
+  it("stores integration under the Workspace directory", () => {
     expect(projectIntegrationPath("project-3")).toBe(
-      `${tempRoot}/projects/project-3/integrations/config.json`
+      `${tempRoot}/workspaces/project-3/integrations/config.json`
     );
   });
 });

@@ -21,33 +21,33 @@ describe("preload lineageApi", () => {
   it("invokes plan channels with structured identifiers", async () => {
     const { lineageApi } = await import("@preload/api/insight/lineage");
 
-    await lineageApi.readPlan("project-1", {
+    await lineageApi.readPlan("workspace-1", {
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
     });
-    await lineageApi.savePlanBody("project-1", {
+    await lineageApi.savePlanBody("workspace-1", {
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
       body: "body",
     });
-    await lineageApi.approvePlan("project-1", {
+    await lineageApi.approvePlan("workspace-1", {
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
     });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(LineageChannels.readPlan, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(LineageChannels.savePlanBody, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
       body: "body",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(LineageChannels.approvePlan, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
     });
@@ -56,10 +56,10 @@ describe("preload lineageApi", () => {
   it("invokes the browser channel with the project id", async () => {
     const { lineageApi } = await import("@preload/api/insight/lineage");
 
-    await lineageApi.getBrowser("project-1");
+    await lineageApi.getBrowser("workspace-1");
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(LineageChannels.getBrowser, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
     });
   });
 });

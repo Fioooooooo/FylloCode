@@ -44,7 +44,7 @@ describe("FylloActionRegistrationController", () => {
 
     expect(registerAction).toHaveBeenCalledTimes(1);
     expect(registerAction).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       actionId: "action-1",
       type: "task.create",
@@ -85,6 +85,21 @@ describe("FylloActionRegistrationController", () => {
 
     expect(registerAction).toHaveBeenCalledTimes(1);
     expect(persistActionState).toHaveBeenCalledTimes(1);
+  });
+
+  it("scopes duplicate action IDs by Workspace and session", async () => {
+    const { controller, registerAction, persistActionState } = setup();
+    registerAction.mockResolvedValue(makeReadyState());
+
+    await controller.register("workspace-a", "session-1", "action-1", makeReadyParseResult());
+    await controller.register("workspace-b", "session-1", "action-1", makeReadyParseResult());
+
+    expect(registerAction).toHaveBeenCalledTimes(2);
+    expect(registerAction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ workspaceId: "workspace-b", actionId: "action-1" })
+    );
+    expect(persistActionState).toHaveBeenCalledTimes(2);
   });
 
   it("records a registration error on failure and allows retry", async () => {
@@ -133,7 +148,7 @@ describe("FylloActionRegistrationController", () => {
 
     expect(registerAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "action-1",
         type: "knowledge.flag",

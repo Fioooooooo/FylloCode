@@ -47,7 +47,7 @@
 
 Renderer SHALL 通过 `transitionAction` 发送命令 `succeed`、`fail` 或 `cancel`，SHALL NOT 直接向 Main 提交包含 `status` 和 `updatedAt` 的完整 `FylloActionState`。
 
-`transitionAction` IPC SHALL 携带 `projectId`、`sessionId`、`actionId`、`command`、`expectedRevision`，`fail` 命令可额外携带可选 `error` 字符串。
+`transitionAction` IPC SHALL 携带 `workspaceId`、`sessionId`、`actionId`、`command`、`expectedRevision`，`fail` 命令可额外携带可选 `error` 字符串。
 
 Renderer 在发送 transition 前可进行乐观更新，但 IPC 失败后 SHALL 回滚到 Main 返回的 authoritative record 或提供重试入口。
 
@@ -92,9 +92,9 @@ Main 生成新的 `revision` 和 `updatedAt`；`updatedAt` SHALL 由 Main 产生
 
 ### Requirement: Batch transition updates multiple actions atomically
 
-系统 SHALL 支持 `transitionActions` IPC，携带 `projectId`、`sessionId`、`actionIds`、`command` 和 `expectedRevisions`；`expectedRevisions` SHALL 是 `Record<string, number>`，以 `actionId` 为键、期望 revision 为值。
+系统 SHALL 支持 `transitionActions` IPC，携带 `workspaceId`、`sessionId`、`actionIds`、`command` 和 `expectedRevisions`；`expectedRevisions` SHALL 是 `Record<string, number>`，以 `actionId` 为键、期望 revision 为值。
 
-Main SHALL 在一次 session meta patch 中完成所有指定 Action 的迁移；任一 Action 非法迁移或 CAS 失败时，整个 batch SHALL 不修改 session meta。
+Main SHALL 在一次 Workspace-owned session meta patch 中完成所有指定 Action 的迁移；任一 Action 非法迁移或 CAS 失败时，整个 batch SHALL 不修改 session meta。
 
 `transitionActions` 返回结果 SHALL 为 `Array<{ actionId: string; success: boolean; record?: FylloActionState; error?: string }>`，使 Renderer 能区分哪几个 Action 需要重试。
 
@@ -102,7 +102,7 @@ Main SHALL 在一次 session meta patch 中完成所有指定 Action 的迁移�
 
 - **WHEN** 用户确认一个 knowledge flag，触发同批所有 pending flags 的 capture
 - **AND** durable message append 已成功
-- **THEN** Renderer SHALL 调用 `transitionActions` 并传入所有对应 `actionIds`
+- **THEN** Renderer SHALL 调用 `transitionActions` 并传入当前 `workspaceId` 与所有对应 `actionIds`
 - **AND** Main SHALL 在一次 patch 中将它们全部更新为 `succeeded`
 - **AND** attentionCount SHALL 一次性减少
 

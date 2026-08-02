@@ -38,7 +38,7 @@
 
 系统 SHALL 在 Markstream 解析到合法 `ready` Fyllo Action 后立即通过 IPC 向 Main 注册，注册 SHALL 发生在 Action UI 展示之后或同时，且 SHALL 不等待用户确认。
 
-`registerAction` IPC SHALL 携带 `projectId`、`sessionId`、`actionId` 和 `type`。Renderer 提供的 `actionId` SHALL 使用当前位置型规则构造；Main 不生成或重写 `actionId`。
+`registerAction` IPC SHALL 携带 `workspaceId`、`sessionId`、`actionId` 和 `type`。Renderer 提供的 `actionId` SHALL 使用当前位置型规则构造；Main 不生成或重写 `actionId`。
 
 Renderer 注册前应检查本地 persistedState，若已存在同一 `actionId` 则跳过注册；注册失败后 SHALL 保留 Action UI 并允许用户重试同步。
 
@@ -57,7 +57,7 @@ Renderer 注册前应检查本地 persistedState，若已存在同一 `actionId`
 
 ### Requirement: Main creates ready state idempotently
 
-`registerAction` handler SHALL 校验 sender 所属 project、session 归属、`sessionId` 安全性、`actionId` 非空、`type` 为支持的 confirm Action。
+`registerAction` handler SHALL 校验 sender 所属 Workspace、session 归属、`sessionId` 安全性、`actionId` 非空、`type` 为支持的 confirm Action。
 
 若 `actionId` 不存在，Main SHALL 创建 `status="ready"`、`revision=1` 的 `FylloActionState`，使用 Main 生成的 `updatedAt`，并返回当前 record。
 
@@ -97,13 +97,13 @@ Renderer 注册前应检查本地 persistedState，若已存在同一 `actionId`
 
 系统 SHALL 抽取 `safeSessionIdSchema`，限制 `sessionId` 只能包含 `a-z`、`A-Z`、`0-9`、`_`、`-`，即正则 `^[a-zA-Z0-9_-]+$`；该字符集与现有 `session-{nanoid(10)}` 格式兼容，并拒绝路径分隔符、`..`、空字符串等危险输入。
 
-`registerAction` handler SHALL 从 sender `WebContents` 通过 `ProjectWindowManager.getContextByWebContents()` 获取窗口所属 `projectId`，并校验 Renderer 提供的 `projectId` 与该上下文一致；Renderer 单独提供的 `projectId` 不能作为唯一授权依据。
+`registerAction` handler SHALL 从 sender `WebContents` 通过 `WorkspaceWindowManager.getContextByWebContents()` 获取窗口所属 `workspaceId`，并校验 Renderer 提供的 `workspaceId` 与该上下文一致；Renderer 单独提供的 `workspaceId` 不能作为唯一授权依据。
 
-`registerAction` SHALL 校验目标 session 属于该校验后的 project。
+`registerAction` SHALL 校验目标 session 属于该校验后的 Workspace。
 
-#### Scenario: Cross-project registration is rejected
+#### Scenario: Cross-Workspace registration is rejected
 
-- **WHEN** Renderer 提交的 `projectId` 与 sender 窗口实际所属 project 不一致
+- **WHEN** Renderer 提交的 `workspaceId` 与 sender 窗口实际所属 Workspace 不一致
 - **THEN** Main SHALL 拒绝该请求
 - **AND** 任何 session meta SHALL 不被修改
 

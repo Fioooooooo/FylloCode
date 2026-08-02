@@ -45,16 +45,16 @@ const workflowStore = {
   deleteTemplate: vi.fn().mockResolvedValue(undefined),
 };
 
-const projectStore = {
-  currentProject: null,
+const workspaceStore = {
+  currentWorkspace: null,
 };
 
 vi.mock("@renderer/stores/automation/workflow", () => ({
   useWorkflowStore: vi.fn(() => workflowStore),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: vi.fn(() => projectStore),
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: vi.fn(() => workspaceStore),
 }));
 
 const workflowSidebarStub = {

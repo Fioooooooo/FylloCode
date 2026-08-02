@@ -3,9 +3,10 @@ import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guidelinesApi } from "@renderer/api/insight/guidelines";
 import GuidelinesPage from "@renderer/pages/guidelines.vue";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import type { GuidelinesBrowserOverview } from "@shared/types/guidelines";
-import type { ProjectInfo } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 
 vi.mock("@renderer/api/insight/guidelines", () => ({
   guidelinesApi: {
@@ -27,15 +28,14 @@ const badgeStub = {
   template: '<span data-test="badge"><slot /></span>',
 };
 
-function project(): ProjectInfo {
-  return {
+function project(): WorkspaceInfo {
+  return workspaceInfo({
     id: "project-1",
     name: "Project 1",
-    path: "/tmp/project-1",
-    metaPath: "/tmp/project-1.json",
+    folderPath: "/tmp/project-1",
     createdAt: new Date("2026-06-01T00:00:00.000Z"),
     lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
-  };
+  });
 }
 
 function guidelinesOverview(): GuidelinesBrowserOverview {
@@ -65,7 +65,7 @@ function guidelinesOverview(): GuidelinesBrowserOverview {
 function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useProjectStore().currentProject = project();
+  useWorkspaceStore().currentWorkspace = project();
   const target = document.createElement("div");
   document.body.appendChild(target);
 

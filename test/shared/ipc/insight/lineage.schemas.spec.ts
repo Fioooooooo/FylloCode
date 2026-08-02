@@ -17,8 +17,8 @@ describe("lineage ipc schemas", () => {
   };
 
   it("accepts valid ensureTaskSubject input", () => {
-    expect(ensureTaskSubjectInputSchema.parse({ projectId: "project-1", snapshot })).toEqual({
-      projectId: "project-1",
+    expect(ensureTaskSubjectInputSchema.parse({ workspaceId: "workspace-1", snapshot })).toEqual({
+      workspaceId: "workspace-1",
       snapshot,
     });
   });
@@ -28,7 +28,7 @@ describe("lineage ipc schemas", () => {
     void ref;
 
     const result = ensureTaskSubjectInputSchema.safeParse({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       snapshot: snapshotWithoutRef,
     });
 
@@ -38,7 +38,7 @@ describe("lineage ipc schemas", () => {
   it("rejects invalid task refs", () => {
     expect(
       linkTaskSessionInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         taskRef: "slack:task-1",
         sessionId: "session-1",
       }).success
@@ -46,7 +46,7 @@ describe("lineage ipc schemas", () => {
 
     expect(
       getByTaskInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         ref: "local:",
       }).success
     ).toBe(false);
@@ -54,7 +54,7 @@ describe("lineage ipc schemas", () => {
 
   it("rejects empty project ids", () => {
     const result = getByTaskInputSchema.safeParse({
-      projectId: "",
+      workspaceId: "",
       ref: "github:42",
     });
 
@@ -62,14 +62,16 @@ describe("lineage ipc schemas", () => {
   });
 
   it("accepts browser input and strips unrelated fields", () => {
-    expect(getBrowserInputSchema.parse({ projectId: "project-1", unrelated: "ignored" })).toEqual({
-      projectId: "project-1",
+    expect(
+      getBrowserInputSchema.parse({ workspaceId: "workspace-1", unrelated: "ignored" })
+    ).toEqual({
+      workspaceId: "workspace-1",
     });
   });
 
   it("rejects invalid browser project ids", () => {
-    expect(getBrowserInputSchema.safeParse({ projectId: "" }).success).toBe(false);
-    expect(getBrowserInputSchema.safeParse({ projectId: 42 }).success).toBe(false);
+    expect(getBrowserInputSchema.safeParse({ workspaceId: "" }).success).toBe(false);
+    expect(getBrowserInputSchema.safeParse({ workspaceId: 42 }).success).toBe(false);
     expect(getBrowserInputSchema.safeParse({}).success).toBe(false);
   });
 });

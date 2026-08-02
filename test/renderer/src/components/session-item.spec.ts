@@ -73,7 +73,7 @@ vi.mock("@renderer/composables/useOpenChatSession", () => ({
 function makeSession(id: string): Session {
   return {
     id,
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: `Session ${id}`,
     isPinned: false,

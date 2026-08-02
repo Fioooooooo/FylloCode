@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { workflowApi } from "@renderer/api/automation/workflow";
-import { useProjectStore } from "../workspace/project";
+import { useWorkspaceStore } from "../workspace/workspace";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
 export const useWorkflowStore = defineStore("workflow", () => {
@@ -16,13 +16,13 @@ export const useWorkflowStore = defineStore("workflow", () => {
   );
 
   function getCurrentProjectId(): string | undefined {
-    return useProjectStore().currentProject?.id;
+    return useWorkspaceStore().currentWorkspace?.id;
   }
 
   async function fetchTemplates(): Promise<void> {
     isLoading.value = true;
     try {
-      const result = await workflowApi.list({ projectId: getCurrentProjectId() });
+      const result = await workflowApi.list({ workspaceId: getCurrentProjectId() });
       if (!result.ok) {
         throw new Error(result.error.message);
       }
@@ -37,7 +37,7 @@ export const useWorkflowStore = defineStore("workflow", () => {
     const result = await workflowApi.save({
       name,
       yaml,
-      projectId: getCurrentProjectId(),
+      workspaceId: getCurrentProjectId(),
     });
 
     if (!result.ok) {
@@ -50,7 +50,7 @@ export const useWorkflowStore = defineStore("workflow", () => {
   async function deleteTemplate(name: string): Promise<void> {
     const result = await workflowApi.delete({
       name,
-      projectId: getCurrentProjectId(),
+      workspaceId: getCurrentProjectId(),
     });
 
     if (!result.ok) {

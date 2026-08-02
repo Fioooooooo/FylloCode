@@ -28,9 +28,9 @@ vi.mock("vue-router", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    hasCurrentProject: true,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    hasCurrentWorkspace: true,
   }),
 }));
 

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useKnowledgeStore, useProjectStore, useSessionStore } from "@renderer/stores";
+import { useKnowledgeStore, useSessionStore } from "@renderer/stores";
 import type { KnowledgeEntryDocument } from "@shared/types/knowledge";
 
 export type KnowledgeReviewSlideoverResult = { status: "approved" } | { status: "dismissed" };
 
 const props = defineProps<{
+  workspaceId: string;
   sessionId: string;
   name: string;
 }>();
@@ -14,7 +15,6 @@ const emit = defineEmits<{
   close: [result: KnowledgeReviewSlideoverResult];
 }>();
 
-const projectStore = useProjectStore();
 const sessionStore = useSessionStore();
 const knowledgeStore = useKnowledgeStore();
 
@@ -30,14 +30,13 @@ const loaded = ref(false);
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let savePromise: Promise<boolean> | null = null;
 
-const projectId = computed(() => projectStore.currentProject?.id ?? "");
 const dirty = computed(() => content.value !== lastSavedContent.value);
 
-function getProjectId(): string {
-  if (!projectId.value) {
-    throw new Error("当前没有选中的项目");
+function getWorkspaceId(): string {
+  if (!props.workspaceId) {
+    throw new Error("当前没有选中的工作区");
   }
-  return projectId.value;
+  return props.workspaceId;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -51,7 +50,7 @@ async function loadEntry(): Promise<void> {
   loaded.value = false;
 
   try {
-    const result = await knowledgeStore.readEntry(getProjectId(), {
+    const result = await knowledgeStore.readEntry(getWorkspaceId(), {
       name: props.name,
     });
     if (!result.ok) {
@@ -70,7 +69,7 @@ async function loadEntry(): Promise<void> {
 }
 
 async function performSave(snapshot: string): Promise<void> {
-  const result = await knowledgeStore.saveEntry(getProjectId(), {
+  const result = await knowledgeStore.saveEntry(getWorkspaceId(), {
     name: props.name,
     content: snapshot,
   });

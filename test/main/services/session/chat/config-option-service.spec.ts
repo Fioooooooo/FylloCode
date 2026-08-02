@@ -3,7 +3,7 @@ import type { SessionMeta } from "@main/infra/storage/session-store";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const mocks = vi.hoisted(() => ({
-  loadProject: vi.fn(),
+  resolveWorkspaceCwd: vi.fn(),
   loadSessionMeta: vi.fn(),
   patchSessionMeta: vi.fn(),
   getOrStartProcess: vi.fn(),
@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   toAcpMcpServer: vi.fn(),
 }));
 
-vi.mock("@main/infra/storage/project-store", () => ({
-  loadProject: mocks.loadProject,
+vi.mock("@main/services/session/chat/chat-service", () => ({
+  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
 }));
 
 vi.mock("@main/infra/storage/session-store", () => ({
@@ -94,7 +94,7 @@ describe("setConfigOption", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.activeSessionIds.clear();
-    mocks.loadProject.mockResolvedValue({ id: "p1", path: "/tmp/project" });
+    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.getOrStartProcess.mockResolvedValue({
       connection: {
         resumeSession: mocks.resumeSession,
@@ -126,7 +126,7 @@ describe("setConfigOption", () => {
     mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [flatModelSchema] }));
 
     const result = await setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "session-1",
       configId: "model",
       type: "select",
@@ -139,7 +139,7 @@ describe("setConfigOption", () => {
       value: "haiku",
     });
     expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-      "/tmp/project",
+      "w1",
       "session-1",
       expect.objectContaining({
         configOptions: result.configOptions,
@@ -154,7 +154,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -169,7 +169,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -183,7 +183,7 @@ describe("setConfigOption", () => {
     mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: [groupedModelSchema] }));
 
     await setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "session-1",
       configId: "model",
       type: "select",
@@ -202,7 +202,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -220,7 +220,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -235,7 +235,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -248,7 +248,7 @@ describe("setConfigOption", () => {
     mocks.loadSessionMeta.mockResolvedValue(makeMeta({ configOptions: undefined }));
 
     await setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "session-1",
       configId: "model",
       type: "select",
@@ -273,7 +273,7 @@ describe("setConfigOption", () => {
     });
 
     await setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "session-1",
       configId: "stream",
       type: "boolean",
@@ -307,7 +307,7 @@ describe("setConfigOption", () => {
       });
 
     await setConfigOption({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "session-1",
       configId: "model",
       type: "select",
@@ -330,7 +330,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",
@@ -356,7 +356,7 @@ describe("setConfigOption", () => {
 
     await expect(
       setConfigOption({
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "session-1",
         configId: "model",
         type: "select",

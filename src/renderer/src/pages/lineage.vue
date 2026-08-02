@@ -6,7 +6,7 @@ import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
-import { useLineageStore, useProjectStore } from "@renderer/stores";
+import { useLineageStore, useWorkspaceStore } from "@renderer/stores";
 import { timeAgo } from "@renderer/utils/time";
 import type {
   LineageBrowserEntry,
@@ -17,7 +17,7 @@ import type { ProposalStatus } from "@shared/types/proposal";
 
 type LineageFilter = "all" | "active" | "completed" | "unlinked";
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const lineageStore = useLineageStore();
 const router = useRouter();
 const toast = useToast();
@@ -175,12 +175,12 @@ watch(
 );
 
 watch(
-  () => projectStore.currentProject?.id,
-  (projectId) => {
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
     selectedId.value = null;
     activeFilter.value = "all";
-    if (projectId) {
-      void lineageStore.loadBrowser(projectId);
+    if (workspaceId) {
+      void lineageStore.loadBrowser(workspaceId);
     } else {
       lineageStore.clearBrowser();
     }

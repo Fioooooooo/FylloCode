@@ -213,7 +213,7 @@ describe("registerIntegrationHandlers", () => {
     await setHandler(
       {},
       {
-        projectId: "project-a",
+        workspaceId: "project-a",
         stage: "project-management",
         resources: [
           {
@@ -228,7 +228,7 @@ describe("registerIntegrationHandlers", () => {
     await setHandler(
       {},
       {
-        projectId: "project-b",
+        workspaceId: "project-b",
         stage: "project-management",
         resources: [
           {
@@ -240,8 +240,8 @@ describe("registerIntegrationHandlers", () => {
       }
     );
 
-    const projectA = await getHandler({}, { projectId: "project-a" });
-    const projectB = await getHandler({}, { projectId: "project-b" });
+    const projectA = await getHandler({}, { workspaceId: "project-a" });
+    const projectB = await getHandler({}, { workspaceId: "project-b" });
 
     expect(projectA).toEqual({
       ok: true,
@@ -275,7 +275,7 @@ describe("registerIntegrationHandlers", () => {
     const result = await setHandler(
       {},
       {
-        projectId: "project-a",
+        workspaceId: "project-a",
         stage: "communication",
         resources: [
           {

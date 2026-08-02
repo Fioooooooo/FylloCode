@@ -5,7 +5,7 @@ import type {
 } from "@shared/fyllo-action/protocol";
 
 export interface FylloActionDispatchContext {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   actionId: string;
 }

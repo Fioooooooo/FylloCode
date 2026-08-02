@@ -10,7 +10,7 @@ import type {
 } from "@shared/types/knowledge";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { readKnowledgeIndex } from "@main/infra/storage/knowledge";
-import { knowledgeDir } from "@main/infra/storage/project-paths";
+import { knowledgeDir } from "@main/infra/storage/workspace-paths";
 
 export interface SaveKnowledgeEntryInput {
   name: string;
@@ -61,11 +61,12 @@ function parseErrorEntryName(filePath: string): string | undefined {
 }
 
 export async function getKnowledgeBrowser(
-  projectPath: string,
+  workspaceId: string,
+  workspaceRoot: string,
   options: KnowledgeDocumentServiceOptions = {}
 ): Promise<KnowledgeBrowserOverview> {
-  const root = options.knowledgeRoot ?? knowledgeDir(projectPath);
-  const index = await readKnowledgeIndex(root, projectPath);
+  const root = options.knowledgeRoot ?? knowledgeDir(workspaceId);
+  const index = await readKnowledgeIndex(root, workspaceRoot);
 
   return {
     entries: index.entries.map((entry) => ({
@@ -88,12 +89,12 @@ export async function getKnowledgeBrowser(
 }
 
 export async function readKnowledgeEntry(
-  projectPath: string,
+  workspaceId: string,
   name: string,
   options: KnowledgeDocumentServiceOptions = {}
 ): Promise<KnowledgeEntryDocument> {
   const filePath = resolveKnowledgeEntryPath(
-    options.knowledgeRoot ?? knowledgeDir(projectPath),
+    options.knowledgeRoot ?? knowledgeDir(workspaceId),
     name
   );
 
@@ -111,11 +112,11 @@ export async function readKnowledgeEntry(
 }
 
 export async function saveKnowledgeEntry(
-  projectPath: string,
+  workspaceId: string,
   input: SaveKnowledgeEntryInput,
   options: KnowledgeDocumentServiceOptions = {}
 ): Promise<KnowledgeEntryDocument> {
-  const root = options.knowledgeRoot ?? knowledgeDir(projectPath);
+  const root = options.knowledgeRoot ?? knowledgeDir(workspaceId);
   const name = parseKnowledgeEntryName(input.name);
   const filePath = resolveKnowledgeEntryPath(root, name);
   await mkdir(root, { recursive: true });
@@ -136,11 +137,11 @@ export async function saveKnowledgeEntry(
 }
 
 export async function deleteKnowledgeEntry(
-  projectPath: string,
+  workspaceId: string,
   name: string,
   options: KnowledgeDocumentServiceOptions = {}
 ): Promise<KnowledgeEntryDeleteResult> {
-  const root = options.knowledgeRoot ?? knowledgeDir(projectPath);
+  const root = options.knowledgeRoot ?? knowledgeDir(workspaceId);
   const parsedName = parseKnowledgeEntryName(name);
   const filePath = resolveKnowledgeEntryPath(root, parsedName);
 

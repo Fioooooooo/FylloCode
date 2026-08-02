@@ -60,15 +60,16 @@
 
 ### Requirement: 主进程拥有预览路径和项目上下文
 
-系统 SHALL 通过 `workspace.document` domain-first IPC 提供 `preparePreview` 与 `confirmPreview`。主进程 SHALL 从 IPC sender 对应的 `ProjectWindowManager` context 取得 `projectId`，SHALL NOT 接受 renderer 提供的 project scope 或 webContents identity。
+系统 SHALL 通过 `workspace.document` domain-first IPC 提供 `preparePreview` 与 `confirmPreview`。主进程 SHALL 从 IPC sender 对应的 `WorkspaceWindowManager` context 取得 `workspaceId`，SHALL NOT 接受 renderer 提供的 Workspace scope 或 webContents identity。
 
-#### Scenario: Project window 发起预览
+#### Scenario: Workspace window 发起预览
 
-- **WHEN** project window 调用 `preparePreview`
-- **THEN** handler SHALL 使用 `event.sender` 解析绑定的项目上下文和项目路径
+- **WHEN** workspace window 调用 `preparePreview`
+- **THEN** handler SHALL 使用 `event.sender` 解析绑定的 Workspace 上下文
+- **AND** 本阶段 SHALL 通过 Workspace resolver 取得 Folder Workspace 的唯一 Folder path
 - **AND** SHALL 在该上下文内判断可信根与授权
 
-#### Scenario: 无项目上下文不能读取文件
+#### Scenario: 无 Workspace 上下文不能读取文件
 
 - **WHEN** launcher window、未知 sender 或已销毁 sender 调用预览 IPC
 - **THEN** 系统 SHALL 返回受控错误
@@ -78,43 +79,43 @@
 
 - **WHEN** renderer 调用 `confirmPreview`
 - **THEN** 输入 SHALL 只包含主进程签发的 authorization ID 和 `rememberForWindow`
-- **AND** SHALL NOT 接受新的文件路径、project ID 或 webContents ID
+- **AND** SHALL NOT 接受新的文件路径、Workspace ID 或 webContents ID
 
 ### Requirement: 可信根使用 canonical path 和已注册 worktree
 
-系统 SHALL 将当前项目根及 `git worktree list --porcelain` 返回的 registered worktree 作为可信根。目标和可信根 SHALL 先经过 `realpath`，再以路径分段 containment 判断是否可信；SHALL NOT 使用字符串前缀判断。
+系统 SHALL 将当前 Folder Workspace 的唯一 Folder root 及该 repository 的 `git worktree list --porcelain` 返回的 registered worktree 作为可信根。目标和可信根 SHALL 先经过 `realpath`，再以路径分段 containment 判断是否可信；SHALL NOT 使用字符串前缀判断。本 proposal SHALL NOT 把尚未开放的其他 Workspace 成员加入实时 trust。
 
-#### Scenario: 项目内普通文件直接预览
+#### Scenario: Folder repository 内普通文件直接预览
 
-- **WHEN** 目标 canonical path 位于当前项目 canonical root 内
+- **WHEN** 目标 canonical path 位于当前 Folder Workspace 的 canonical Folder root 内
 - **THEN** `preparePreview` SHALL 在文件校验成功后返回 `ready`
 - **AND** SHALL NOT 要求用户二次确认
 
 #### Scenario: Registered linked worktree 文件直接预览
 
-- **WHEN** 目标 canonical path 位于当前项目的 registered linked worktree canonical root 内
+- **WHEN** 目标 canonical path 位于当前 Folder repository 的 registered linked worktree canonical root 内
 - **THEN** `preparePreview` SHALL 在文件校验成功后返回 `ready`
-- **AND** SHALL NOT 因文件不在 main project path 下而要求确认
+- **AND** SHALL NOT 因文件不在 main Folder path 下而要求确认
 
-#### Scenario: 项目内 symlink 指向外部
+#### Scenario: Folder root 内 symlink 指向外部
 
-- **WHEN** 链接的表面路径位于项目内但其 canonical target 位于所有可信根之外
-- **THEN** 系统 SHALL 将该文件视为项目外文件
+- **WHEN** 链接的表面路径位于 Folder root 内但其 canonical target 位于所有可信根之外
+- **THEN** 系统 SHALL 将该文件视为 Workspace 外文件
 - **AND** SHALL 在返回任何文件内容前要求二次确认
 
 #### Scenario: Worktree 枚举失败时安全降级
 
 - **WHEN** 主进程无法取得 registered worktree 列表
-- **THEN** 系统 SHALL 只把当前项目 canonical root 视为可信
+- **THEN** 系统 SHALL 只把当前 Folder Workspace 的 canonical Folder root 视为可信
 - **AND** SHALL NOT 因探测失败扩大可信目录范围
 
 ### Requirement: 项目外文件在读取前提供两个授权动作
 
 当目标 canonical path 不位于可信根且当前窗口尚未记住该路径时，`preparePreview` SHALL 返回 `confirmation-required`，其中包含完整 canonical path、文件 size、mtime、line/column 和短期 authorization ID，但 SHALL NOT 包含文件 content。Slideover SHALL 提供“取消”“仅打开一次”“打开并在此窗口中信任”三个动作。
 
-#### Scenario: 外部文件确认状态不泄露内容
+#### Scenario: Workspace 外文件确认状态不泄露内容
 
-- **WHEN** 未授权的项目外文件通过基础类型和大小检查
+- **WHEN** 未授权的 Workspace 外文件通过基础类型和大小检查
 - **THEN** Slideover SHALL 显示完整 canonical path 和文件元数据
 - **AND** 主进程 SHALL NOT 在用户确认前读取或返回文件内容
 
@@ -128,8 +129,8 @@
 #### Scenario: 当前窗口信任
 
 - **WHEN** 用户选择“打开并在此窗口中信任”
-- **THEN** 系统 SHALL 在读取成功后将 `{ projectId, canonicalPath }` 加入该 `webContents.id` 的内存 grant
-- **AND** 当前窗口在相同项目上下文中再次读取该 canonical path SHALL 直接进入 `ready`
+- **THEN** 系统 SHALL 在读取成功后将 `{ workspaceId, canonicalPath }` 加入该 `webContents.id` 的内存 grant
+- **AND** 当前窗口在相同 Workspace 上下文中再次读取该 canonical path SHALL 直接进入 `ready`
 
 #### Scenario: 取消外部预览
 
@@ -139,7 +140,7 @@
 
 ### Requirement: 外部文件授权绑定 sender、项目、路径和文件版本
 
-每个 pending authorization SHALL 使用不可预测 ID，绑定 `webContents.id`、`projectId`、canonical path、size、mtime、line/column，并在 60 秒后过期。`confirmPreview` SHALL 重新验证 sender、项目、有效期和文件 metadata，并 SHALL 在一次确认尝试后使 token 失效。
+每个 pending authorization SHALL 使用不可预测 ID，绑定 `webContents.id`、`workspaceId`、canonical path、size、mtime、line/column，并在 60 秒后过期。`confirmPreview` SHALL 重新验证 sender、Workspace、有效期和文件 metadata，并 SHALL 在一次确认尝试后使 token 失效。
 
 #### Scenario: 其他窗口不能复用 authorization
 
@@ -167,25 +168,25 @@
 
 ### Requirement: Remembered grant 仅存在于当前 Renderer Window 生命周期
 
-系统 SHALL 将 remembered grants 保存在主进程内存中并按 `webContents.id` 隔离，grant key SHALL 同时包含 `projectId` 与 canonical path。Sender 销毁时 SHALL 清除其 grants 和 pending authorizations；grant SHALL NOT 持久化。
+系统 SHALL 将 remembered grants 保存在主进程内存中并按 `webContents.id` 隔离，grant key SHALL 同时包含 `workspaceId` 与 canonical path。Sender 销毁时 SHALL 清除其 grants 和 pending authorizations；grant SHALL NOT 持久化。
 
 #### Scenario: 同一窗口导航后继续信任
 
-- **WHEN** 用户已在 project window 中信任某个 canonical path，随后在同一 BrowserWindow 内导航或重新加载页面
+- **WHEN** 用户已在 workspace window 中信任某个 canonical path，随后在同一 BrowserWindow 内导航或重新加载页面
 - **THEN** 主进程中的 grant SHALL 继续有效
-- **AND** 相同 project context 再次读取该 path SHALL 不再确认
+- **AND** 相同 Workspace context 再次读取该 path SHALL 不再确认
 
 #### Scenario: 窗口关闭后信任消失
 
-- **WHEN** project window 的 webContents 被销毁
+- **WHEN** workspace window 的 webContents 被销毁
 - **THEN** 系统 SHALL 清除该 sender 的 remembered grants 和 pending authorizations
 - **AND** 新窗口或应用重启后读取同一路径 SHALL 再次确认
 
-#### Scenario: 项目上下文变化不复用信任
+#### Scenario: Workspace 上下文变化不复用信任
 
-- **WHEN** 同一 webContents 从一个 project context 切换或绑定到另一个项目
-- **THEN** 旧 projectId 下记录的 grant SHALL NOT 在新项目上下文命中
-- **AND** 外部路径 SHALL 按新项目重新判断可信与授权
+- **WHEN** 同一 webContents 从一个 Workspace context 切换或绑定到另一个 Workspace
+- **THEN** 旧 `workspaceId` 下记录的 grant SHALL NOT 在新 Workspace 上下文命中
+- **AND** 外部路径 SHALL 按新 Workspace 重新判断可信与授权
 
 #### Scenario: Symlink 指向变化不复用信任
 

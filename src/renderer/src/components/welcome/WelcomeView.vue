@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { useProjectStore } from "@renderer/stores";
+import { useWorkspaceStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import ProjectList from "@renderer/components/welcome/ProjectList.vue";
 import Logo from "@renderer/components/shared/Logo.vue";
-import type { RecentProject } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 
 const { goToDefault } = useDefaultAppRoute();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 
 async function handleOpenFolder(): Promise<void> {
-  const project = await projectStore.openFolderWindow();
+  const project = await workspaceStore.openFolderWindow();
   if (project) {
     await goToDefault();
   }
 }
 
-async function handleOpenRecent(project: RecentProject): Promise<void> {
-  const openedProject = await projectStore.openRecentProject(project);
-  if (openedProject) {
+async function handleOpenRecent(workspace: WorkspaceInfo): Promise<void> {
+  const openedWorkspace = await workspaceStore.openRecentWorkspace(workspace);
+  if (openedWorkspace) {
     await goToDefault();
   }
 }
 
-async function handleRemove(projectId: string): Promise<void> {
-  await projectStore.removeRecentProject(projectId);
+async function handleRemove(workspaceId: string): Promise<void> {
+  await workspaceStore.removeRecentWorkspace(workspaceId);
 }
 </script>
 
@@ -52,7 +52,7 @@ async function handleRemove(projectId: string): Promise<void> {
         </UButton>
       </div>
 
-      <!-- Recent Projects -->
+      <!-- Recent Workspaces -->
       <ProjectList @open="handleOpenRecent" @remove="handleRemove" />
     </div>
   </div>

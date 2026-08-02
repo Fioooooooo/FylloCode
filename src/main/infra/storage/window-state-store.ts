@@ -9,7 +9,7 @@ export interface MainWindowState {
   isMaximized: boolean;
 }
 
-export type WindowStateKey = { role: "launcher" } | { role: "project"; projectId: string };
+export type WindowStateKey = { role: "launcher" } | { role: "workspace"; workspaceId: string };
 
 function mainWindowStateDir(): string {
   return getDataSubPath("window-state");
@@ -24,7 +24,7 @@ function windowStatePath(key: WindowStateKey): string {
     return join(mainWindowStateDir(), "launcher.json");
   }
 
-  return join(mainWindowStateDir(), "projects", `${key.projectId}.json`);
+  return join(mainWindowStateDir(), "workspaces", `${key.workspaceId}.json`);
 }
 
 function isFiniteNumber(value: unknown): value is number {

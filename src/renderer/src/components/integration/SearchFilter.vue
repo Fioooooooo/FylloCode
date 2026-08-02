@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { FilterOption } from "@shared/types/integration";
-import { useIntegrationStore, useProjectStore } from "@renderer/stores";
+import { useIntegrationStore, useWorkspaceStore } from "@renderer/stores";
 
 const integrationStore = useIntegrationStore();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 
 const searchQuery = computed({
   get: () => integrationStore.searchQuery,
@@ -19,7 +19,11 @@ const filterOption = computed({
 const filterOptions = computed<{ label: string; value: FilterOption; disabled?: boolean }[]>(() => [
   { label: "全部", value: "all" },
   { label: "已连接", value: "connected" },
-  { label: "项目中已启用", value: "enabled-in-project", disabled: !projectStore.hasCurrentProject },
+  {
+    label: "项目中已启用",
+    value: "enabled-in-project",
+    disabled: !workspaceStore.hasCurrentWorkspace,
+  },
 ]);
 
 function onSearchInput(event: Event): void {

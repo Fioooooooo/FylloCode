@@ -26,11 +26,11 @@ export type WorkflowTemplate = {
 export type WorkflowSaveRequest = {
   name: string;
   yaml: string;
-  projectId?: string;
+  workspaceId?: string;
 };
 
 export type WorkflowListRequest = {
-  projectId?: string;
+  workspaceId?: string;
 };
 
 export type WorkflowListResult = {
@@ -39,5 +39,5 @@ export type WorkflowListResult = {
 
 export type WorkflowDeleteRequest = {
   name: string;
-  projectId?: string;
+  workspaceId?: string;
 };

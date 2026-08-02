@@ -6,28 +6,28 @@ import type {
 import type { IpcResponse } from "@shared/types/ipc";
 
 export const knowledgeApi = {
-  getBrowser(projectId: string): Promise<IpcResponse<KnowledgeBrowserOverview>> {
-    return window.api.insight.knowledge.getBrowser(projectId);
+  getBrowser(workspaceId: string): Promise<IpcResponse<KnowledgeBrowserOverview>> {
+    return window.api.insight.knowledge.getBrowser(workspaceId);
   },
 
   readEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string }
   ): Promise<IpcResponse<KnowledgeEntryDocument>> {
-    return window.api.insight.knowledge.readEntry(projectId, input);
+    return window.api.insight.knowledge.readEntry(workspaceId, input);
   },
 
   saveEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string; content: string }
   ): Promise<IpcResponse<KnowledgeEntryDocument>> {
-    return window.api.insight.knowledge.saveEntry(projectId, input);
+    return window.api.insight.knowledge.saveEntry(workspaceId, input);
   },
 
   deleteEntry(
-    projectId: string,
+    workspaceId: string,
     input: { name: string }
   ): Promise<IpcResponse<KnowledgeEntryDeleteResult>> {
-    return window.api.insight.knowledge.deleteEntry(projectId, input);
+    return window.api.insight.knowledge.deleteEntry(workspaceId, input);
   },
 };

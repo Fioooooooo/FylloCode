@@ -5,7 +5,7 @@ import type { FylloActionDispatchHandler } from "../types";
 
 interface TaskCreateActionHandlerDependencies {
   createSessionTask: (
-    projectId: string,
+    workspaceId: string,
     input: CreateSessionTaskInput
   ) => Promise<IpcResponse<TaskItem>>;
   setSessionOriginTaskRef: (sessionId: string, originTaskRef: LineageTaskRef) => void;
@@ -15,9 +15,9 @@ export function createTaskCreateActionHandler(
   dependencies: TaskCreateActionHandlerDependencies
 ): FylloActionDispatchHandler<"task.create"> {
   return async (payload, runtime) => {
-    const { projectId, sessionId, actionId } = runtime.context;
+    const { workspaceId, sessionId, actionId } = runtime.context;
 
-    const result = await dependencies.createSessionTask(projectId, {
+    const result = await dependencies.createSessionTask(workspaceId, {
       sessionId,
       title: payload.title,
       description: payload.description,

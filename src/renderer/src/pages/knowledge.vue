@@ -4,11 +4,11 @@ import KnowledgeBrowserList from "@renderer/components/knowledge/KnowledgeBrowse
 import KnowledgeDocumentReader from "@renderer/components/knowledge/KnowledgeDocumentReader.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import { useConfirmDialog } from "@renderer/composables/useConfirmDialog";
-import { useKnowledgeStore, useProjectStore } from "@renderer/stores";
+import { useKnowledgeStore, useWorkspaceStore } from "@renderer/stores";
 import { knowledgeSelectableNames } from "@renderer/utils/knowledge-browser";
 import { prepareKnowledgeMarkdownForDisplay } from "@renderer/utils/knowledge-markdown";
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const knowledgeStore = useKnowledgeStore();
 const confirm = useConfirmDialog();
 
@@ -40,8 +40,8 @@ function resetDetail(): void {
 }
 
 async function selectKnowledge(name: string): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
-  if (!projectId) {
+  const workspaceId = workspaceStore.currentWorkspace?.id;
+  if (!workspaceId) {
     return;
   }
 
@@ -53,10 +53,10 @@ async function selectKnowledge(name: string): Promise<void> {
   const requestId = ++detailRequestId;
 
   try {
-    const response = await knowledgeStore.readEntry(projectId, { name });
+    const response = await knowledgeStore.readEntry(workspaceId, { name });
     if (
       requestId !== detailRequestId ||
-      projectStore.currentProject?.id !== projectId ||
+      workspaceStore.currentWorkspace?.id !== workspaceId ||
       selectedName.value !== name
     ) {
       return;
@@ -70,7 +70,7 @@ async function selectKnowledge(name: string): Promise<void> {
   } catch (error: unknown) {
     if (
       requestId === detailRequestId &&
-      projectStore.currentProject?.id === projectId &&
+      workspaceStore.currentWorkspace?.id === workspaceId &&
       selectedName.value === name
     ) {
       detailError.value = error instanceof Error ? error.message : "知识正文加载失败";
@@ -82,9 +82,9 @@ async function selectKnowledge(name: string): Promise<void> {
   }
 }
 
-async function loadProjectKnowledge(projectId: string): Promise<void> {
-  await knowledgeStore.load(projectId);
-  if (projectStore.currentProject?.id !== projectId || knowledgeStore.error) {
+async function loadWorkspaceKnowledge(workspaceId: string): Promise<void> {
+  await knowledgeStore.load(workspaceId);
+  if (workspaceStore.currentWorkspace?.id !== workspaceId || knowledgeStore.error) {
     return;
   }
 
@@ -95,9 +95,9 @@ async function loadProjectKnowledge(projectId: string): Promise<void> {
 }
 
 async function deleteSelectedKnowledge(): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
+  const workspaceId = workspaceStore.currentWorkspace?.id;
   const name = selectedName.value;
-  if (!projectId || !name || deleting.value) {
+  if (!workspaceId || !name || deleting.value) {
     return;
   }
 
@@ -112,18 +112,29 @@ async function deleteSelectedKnowledge(): Promise<void> {
     return;
   }
 
+  if (workspaceStore.currentWorkspace?.id !== workspaceId || selectedName.value !== name) {
+    return;
+  }
+
   deleting.value = true;
   deleteError.value = null;
   const previousNames = selectableNames.value;
   const previousIndex = previousNames.indexOf(name);
 
   try {
-    const response = await knowledgeStore.deleteEntry(projectId, { name });
+    const response = await knowledgeStore.deleteEntry(workspaceId, { name });
     if (!response.ok) {
       throw new Error(response.error.message);
     }
 
-    await knowledgeStore.load(projectId);
+    if (workspaceStore.currentWorkspace?.id !== workspaceId) {
+      return;
+    }
+
+    await knowledgeStore.load(workspaceId);
+    if (workspaceStore.currentWorkspace?.id !== workspaceId) {
+      return;
+    }
     if (knowledgeStore.error) {
       throw new Error(`知识已删除，但列表刷新失败：${knowledgeStore.error}。请重新打开页面。`);
     }
@@ -147,13 +158,13 @@ async function deleteSelectedKnowledge(): Promise<void> {
 }
 
 watch(
-  () => projectStore.currentProject?.id,
-  (projectId) => {
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
     selectedName.value = null;
     resetDetail();
 
-    if (projectId) {
-      void loadProjectKnowledge(projectId);
+    if (workspaceId) {
+      void loadWorkspaceKnowledge(workspaceId);
     } else {
       knowledgeStore.clear();
     }
@@ -170,7 +181,7 @@ watch(
           <PageHeader
             eyebrow="Knowledge"
             title="知识沉淀"
-            description="浏览、核查当前项目已沉淀的知识。"
+            description="浏览、核查当前工作区已沉淀的知识。"
           />
         </div>
 

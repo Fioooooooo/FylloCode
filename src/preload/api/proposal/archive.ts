@@ -9,7 +9,7 @@ import { startProposalStream, type StreamCallbacks } from "./stream";
 export const proposalArchiveApi = {
   archive(
     input: {
-      projectId: string;
+      workspaceId: string;
       changeId: string;
     },
     callbacks: StreamCallbacks
@@ -26,14 +26,14 @@ export const proposalArchiveApi = {
   },
 
   loadArchive(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<ArchiveRunMeta | null>> {
     return ipcRenderer.invoke(ProposalArchiveChannels.loadArchive, input);
   },
 
   loadArchiveMessages(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return ipcRenderer.invoke(ProposalArchiveChannels.loadArchiveMessages, input);

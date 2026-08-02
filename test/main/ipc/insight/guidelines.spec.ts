@@ -4,12 +4,12 @@ import { InsightGuidelinesChannels as GuidelinesChannels } from "@shared/ipc/ins
 import type { IpcResponse } from "@shared/types/ipc";
 
 const mocks = vi.hoisted(() => ({
-  loadProject: vi.fn(),
+  resolveWorkspace: vi.fn(),
   getGuidelinesBrowser: vi.fn(),
 }));
 
-vi.mock("@main/infra/storage/project-store", () => ({
-  loadProject: mocks.loadProject,
+vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 vi.mock("@main/services/insight/guidelines/guidelines-browser-service", () => ({
@@ -35,14 +35,14 @@ describe("registerGuidelinesHandlers", () => {
 
   it("returns guidelines browser data for a resolved project", async () => {
     registerGuidelinesHandlers();
-    mocks.loadProject.mockResolvedValue({ id: "project-1", path: "/tmp/project" });
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: "/tmp/project" });
     mocks.getGuidelinesBrowser.mockResolvedValue({
       items: [{ path: "guidelines/Architecture.md", name: "Architecture" }],
     });
 
-    const result = await handler(GuidelinesChannels.getBrowser)({}, { projectId: "project-1" });
+    const result = await handler(GuidelinesChannels.getBrowser)({}, { workspaceId: "workspace-1" });
 
-    expect(mocks.loadProject).toHaveBeenCalledWith("project-1");
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
     expect(mocks.getGuidelinesBrowser).toHaveBeenCalledWith("/tmp/project");
     expect(result).toEqual({
       ok: true,
@@ -52,25 +52,27 @@ describe("registerGuidelinesHandlers", () => {
     });
   });
 
-  it("returns PROJECT_NOT_FOUND when project cannot be resolved", async () => {
+  it("returns WORKSPACE_NOT_FOUND when Workspace cannot be resolved", async () => {
     registerGuidelinesHandlers();
-    mocks.loadProject.mockResolvedValue(null);
+    mocks.resolveWorkspace.mockRejectedValue(
+      Object.assign(new Error("Workspace does not exist"), { code: "WORKSPACE_NOT_FOUND" })
+    );
 
-    const result = await handler(GuidelinesChannels.getBrowser)({}, { projectId: "missing" });
+    const result = await handler(GuidelinesChannels.getBrowser)({}, { workspaceId: "missing" });
 
     expect(mocks.getGuidelinesBrowser).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe("PROJECT_NOT_FOUND");
+      expect(result.error.code).toBe("WORKSPACE_NOT_FOUND");
     }
   });
 
   it("rejects invalid input", async () => {
     registerGuidelinesHandlers();
 
-    const result = await handler(GuidelinesChannels.getBrowser)({}, { projectId: "" });
+    const result = await handler(GuidelinesChannels.getBrowser)({}, { workspaceId: "" });
 
-    expect(mocks.loadProject).not.toHaveBeenCalled();
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled();
     expect(mocks.getGuidelinesBrowser).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
     if (!result.ok) {

@@ -6,7 +6,7 @@ import type { UIMessage } from "ai";
 export const proposalArchiveApi = {
   archive(
     input: {
-      projectId: string;
+      workspaceId: string;
       changeId: string;
     },
     callbacks: Parameters<typeof window.api.proposal.archive.archive>[1]
@@ -15,14 +15,14 @@ export const proposalArchiveApi = {
   },
 
   loadArchive(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<ArchiveRunMeta | null>> {
     return window.api.proposal.archive.loadArchive(input);
   },
 
   loadArchiveMessages(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return window.api.proposal.archive.loadArchiveMessages(input);

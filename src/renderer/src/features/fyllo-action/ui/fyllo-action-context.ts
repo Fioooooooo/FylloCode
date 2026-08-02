@@ -8,7 +8,7 @@ export interface FylloActionOrdinalNode {
 }
 
 export interface FylloActionHostContext {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   messageIndex: number;
   partIndex: number;
@@ -18,7 +18,7 @@ export interface FylloActionHostContext {
   retryRegistration: (actionId: string, type: FylloActionType) => Promise<void>;
   persistActionState: (actionId: string, state: FylloActionState) => Promise<void>;
   transitionAction: (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionId: string;
     command: "succeed" | "fail" | "cancel";
@@ -26,7 +26,7 @@ export interface FylloActionHostContext {
     error?: string;
   }) => Promise<FylloActionState>;
   transitionActions: (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionIds: string[];
     command: "succeed" | "fail" | "cancel";

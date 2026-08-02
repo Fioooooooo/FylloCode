@@ -4,7 +4,7 @@ import type { Session } from "@shared/types/chat";
 
 export interface RegisterActionPort {
   (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionId: string;
     type: "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review";
@@ -17,14 +17,14 @@ export interface PersistActionStatePort {
 
 export interface FylloActionRegistrationController {
   register(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     actionId: string,
     parseResult: FylloActionParseResult
   ): Promise<void>;
   isInFlight(actionId: string): boolean;
   retry(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     actionId: string,
     type: "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review"
@@ -41,11 +41,15 @@ export function createFylloActionRegistrationController(
   const registered = new Set<string>();
   const registrationErrors = ref<Map<string, string>>(new Map());
 
-  function setInFlight(actionId: string, value: boolean): void {
+  function registrationKey(workspaceId: string, sessionId: string, actionId: string): string {
+    return `${workspaceId}\u0000${sessionId}\u0000${actionId}`;
+  }
+
+  function setInFlight(key: string, value: boolean): void {
     if (value) {
-      inFlight.add(actionId);
+      inFlight.add(key);
     } else {
-      inFlight.delete(actionId);
+      inFlight.delete(key);
     }
   }
 
@@ -60,7 +64,7 @@ export function createFylloActionRegistrationController(
   }
 
   async function register(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     actionId: string,
     parseResult: FylloActionParseResult
@@ -69,62 +73,64 @@ export function createFylloActionRegistrationController(
       return;
     }
 
-    if (inFlight.has(actionId) || attempted.has(actionId)) {
+    const key = registrationKey(workspaceId, sessionId, actionId);
+    if (inFlight.has(key) || attempted.has(key)) {
       return;
     }
 
-    attempted.add(actionId);
-    setInFlight(actionId, true);
+    attempted.add(key);
+    setInFlight(key, true);
     setRegistrationError(actionId, null);
 
     try {
       const state = await registerAction({
-        projectId,
+        workspaceId,
         sessionId,
         actionId,
         type: parseResult.type,
       });
       await persistActionState(sessionId, actionId, state);
-      registered.add(actionId);
+      registered.add(key);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRegistrationError(actionId, message);
     } finally {
-      setInFlight(actionId, false);
+      setInFlight(key, false);
     }
   }
 
   function isInFlight(actionId: string): boolean {
-    return inFlight.has(actionId);
+    return [...inFlight].some((key) => key.endsWith(`\u0000${actionId}`));
   }
 
   async function retry(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     actionId: string,
     type: "task.create" | "plan.create" | "knowledge.flag" | "knowledge.review"
   ): Promise<void> {
-    if (inFlight.has(actionId) || registered.has(actionId)) {
+    const key = registrationKey(workspaceId, sessionId, actionId);
+    if (inFlight.has(key) || registered.has(key)) {
       return;
     }
 
-    setInFlight(actionId, true);
+    setInFlight(key, true);
     setRegistrationError(actionId, null);
 
     try {
       const state = await registerAction({
-        projectId,
+        workspaceId,
         sessionId,
         actionId,
         type,
       });
       await persistActionState(sessionId, actionId, state);
-      registered.add(actionId);
+      registered.add(key);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRegistrationError(actionId, message);
     } finally {
-      setInFlight(actionId, false);
+      setInFlight(key, false);
     }
   }
 

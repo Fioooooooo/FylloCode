@@ -10,6 +10,7 @@ export type KnowledgeReviewResult =
 
 interface KnowledgeReviewActionHandlerDependencies {
   openKnowledgeReview: (input: {
+    workspaceId: string;
     sessionId: string;
     name: string;
   }) => Promise<KnowledgeReviewResult>;
@@ -19,9 +20,10 @@ export function createKnowledgeReviewActionHandler(
   dependencies: KnowledgeReviewActionHandlerDependencies
 ): FylloActionDispatchHandler<"knowledge.review"> {
   return async (payload, runtime) => {
-    const { sessionId } = runtime.context;
+    const { workspaceId, sessionId } = runtime.context;
 
     const result = await dependencies.openKnowledgeReview({
+      workspaceId,
       sessionId,
       name: payload.name,
     });

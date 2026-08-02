@@ -7,9 +7,9 @@ const routeMocks = vi.hoisted(() => ({
   goToDefault: vi.fn(),
 }));
 
-const projectStoreMock = vi.hoisted(() => ({
-  currentProject: { name: "FylloCode" },
-  recentProjects: [] as Array<{
+const workspaceStoreMock = vi.hoisted(() => ({
+  currentWorkspace: { name: "FylloCode" },
+  recentWorkspaces: [] as Array<{
     id: string;
     name: string;
     path: string;
@@ -18,8 +18,8 @@ const projectStoreMock = vi.hoisted(() => ({
     pathMissing?: boolean;
   }>,
   openFolderWindow: vi.fn(),
-  openProjectWindow: vi.fn(),
-  openRecentProject: vi.fn(),
+  openWorkspaceWindow: vi.fn(),
+  openRecentWorkspace: vi.fn(),
 }));
 
 vi.mock("@renderer/api/platform/app", () => ({
@@ -34,8 +34,8 @@ vi.mock("@renderer/composables/useDefaultAppRoute", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => projectStoreMock,
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => workspaceStoreMock,
 }));
 
 vi.mock("@vueuse/core", async (importOriginal) => ({
@@ -64,10 +64,10 @@ function mountAppHeader() {
 describe("AppHeader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    projectStoreMock.recentProjects = [];
-    projectStoreMock.openFolderWindow.mockResolvedValue(null);
-    projectStoreMock.openProjectWindow.mockResolvedValue(null);
-    projectStoreMock.openRecentProject.mockResolvedValue(null);
+    workspaceStoreMock.recentWorkspaces = [];
+    workspaceStoreMock.openFolderWindow.mockResolvedValue(null);
+    workspaceStoreMock.openWorkspaceWindow.mockResolvedValue(null);
+    workspaceStoreMock.openRecentWorkspace.mockResolvedValue(null);
   });
 
   it("keeps tooltip hover behavior scoped to header controls", () => {
@@ -93,17 +93,17 @@ describe("AppHeader", () => {
       createdAt: new Date("2026-07-06T00:00:00.000Z"),
       lastOpenedAt: new Date("2026-07-07T00:00:00.000Z"),
     };
-    projectStoreMock.recentProjects = [project];
+    workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();
 
     await wrapper.get('[data-test="dropdown-item-Project B"]').trigger("click");
     await flushPromises();
 
-    expect(projectStoreMock.openRecentProject).toHaveBeenCalledWith(project);
-    expect(projectStoreMock.openProjectWindow).not.toHaveBeenCalled();
+    expect(workspaceStoreMock.openRecentWorkspace).toHaveBeenCalledWith(project);
+    expect(workspaceStoreMock.openWorkspaceWindow).not.toHaveBeenCalled();
   });
 
-  it("routes missing-path recent projects through openRecentProject without direct window open", async () => {
+  it("routes missing-path recent projects through openRecentWorkspace without direct window open", async () => {
     const project = {
       id: "project-missing",
       name: "Missing Project",
@@ -112,18 +112,18 @@ describe("AppHeader", () => {
       lastOpenedAt: new Date("2026-07-07T00:00:00.000Z"),
       pathMissing: true,
     };
-    projectStoreMock.recentProjects = [project];
+    workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();
 
     await wrapper.get('[data-test="dropdown-item-Missing Project"]').trigger("click");
     await flushPromises();
 
-    expect(projectStoreMock.openRecentProject).toHaveBeenCalledWith(project);
-    expect(projectStoreMock.openProjectWindow).not.toHaveBeenCalled();
+    expect(workspaceStoreMock.openRecentWorkspace).toHaveBeenCalledWith(project);
+    expect(workspaceStoreMock.openWorkspaceWindow).not.toHaveBeenCalled();
   });
 
   it("navigates only when opening a folder binds the current window", async () => {
-    projectStoreMock.openFolderWindow.mockResolvedValueOnce({
+    workspaceStoreMock.openFolderWindow.mockResolvedValueOnce({
       id: "project-a",
       name: "Project A",
       path: "/tmp/project-a",
@@ -133,10 +133,10 @@ describe("AppHeader", () => {
     });
     const wrapper = mountAppHeader();
 
-    await wrapper.get('[data-test="dropdown-item-打开项目"]').trigger("click");
+    await wrapper.get('[data-test="dropdown-item-打开工作区"]').trigger("click");
     await flushPromises();
 
-    expect(projectStoreMock.openFolderWindow).toHaveBeenCalled();
+    expect(workspaceStoreMock.openFolderWindow).toHaveBeenCalled();
     expect(routeMocks.goToDefault).toHaveBeenCalled();
   });
 });

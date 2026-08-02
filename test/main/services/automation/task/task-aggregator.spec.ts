@@ -36,7 +36,7 @@ import { getTask, listTasks } from "@main/services/automation/task/task-aggregat
 function buildTask(id: string, source: TaskItem["source"], updatedAt: string): TaskItem {
   return {
     id,
-    projectId: "project-1",
+    workspaceId: "workspace-1",
     title: id,
     description: { format: "plain_text", content: "" },
     status: "open",
@@ -68,8 +68,8 @@ describe("task-aggregator", () => {
     const yunxiaoTask = buildTask("yx-1", "yunxiao", "2026-05-10T10:00:00.000Z");
     mocks.yunxiaoList.mockResolvedValue([yunxiaoTask]);
 
-    await expect(listTasks("project-1", "yunxiao")).resolves.toEqual([yunxiaoTask]);
-    expect(mocks.yunxiaoList).toHaveBeenCalledWith("project-1");
+    await expect(listTasks("workspace-1", "yunxiao")).resolves.toEqual([yunxiaoTask]);
+    expect(mocks.yunxiaoList).toHaveBeenCalledWith("workspace-1");
     expect(mocks.localList).not.toHaveBeenCalled();
     expect(mocks.githubList).not.toHaveBeenCalled();
   });
@@ -80,15 +80,15 @@ describe("task-aggregator", () => {
     mocks.localList.mockResolvedValue([localTask]);
     mocks.yunxiaoList.mockResolvedValue([yunxiaoTask]);
 
-    await expect(listTasks("project-1")).resolves.toEqual([yunxiaoTask, localTask]);
+    await expect(listTasks("workspace-1")).resolves.toEqual([yunxiaoTask, localTask]);
   });
 
   it("dispatches getTask to yunxiao adapter when taskId starts with yunxiao", async () => {
     const yunxiaoTask = buildTask("yunxiao:space-1:102", "yunxiao", "2026-05-10T10:00:00.000Z");
     mocks.yunxiaoGet.mockResolvedValue(yunxiaoTask);
 
-    await expect(getTask("project-1", "yunxiao:space-1:102")).resolves.toEqual(yunxiaoTask);
-    expect(mocks.yunxiaoGet).toHaveBeenCalledWith("yunxiao:space-1:102", "project-1");
+    await expect(getTask("workspace-1", "yunxiao:space-1:102")).resolves.toEqual(yunxiaoTask);
+    expect(mocks.yunxiaoGet).toHaveBeenCalledWith("yunxiao:space-1:102", "workspace-1");
     expect(mocks.localGet).not.toHaveBeenCalled();
   });
 
@@ -96,8 +96,8 @@ describe("task-aggregator", () => {
     const localTask = buildTask("task-1", "local", "2026-05-10T08:00:00.000Z");
     mocks.localGet.mockResolvedValue(localTask);
 
-    await expect(getTask("project-1", "task-1")).resolves.toEqual(localTask);
-    expect(mocks.localGet).toHaveBeenCalledWith("task-1", "project-1");
+    await expect(getTask("workspace-1", "task-1")).resolves.toEqual(localTask);
+    expect(mocks.localGet).toHaveBeenCalledWith("task-1", "workspace-1");
     expect(mocks.yunxiaoGet).not.toHaveBeenCalled();
   });
 });

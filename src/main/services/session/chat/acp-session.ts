@@ -74,6 +74,7 @@ interface ReconciledRecoveryOutcome extends RecoveryOutcome {
 export interface AcpSessionOpts {
   fylloSessionId: string;
   agentId: string;
+  workspaceId: string;
   projectPath: string;
   cwd: string;
   owner: SessionOwner;
@@ -159,6 +160,7 @@ export class AcpSession extends EventEmitter {
     const supportsHttp = entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
     const mcpServers: AcpMcpServers = (
       await resolveBundledMcpServers({
+        workspaceId: this.opts.workspaceId,
         projectPath: this.opts.projectPath,
         fylloSessionId: this.opts.fylloSessionId,
         supportsHttp,
@@ -597,6 +599,7 @@ export class AcpSession extends EventEmitter {
 
     const reminderPart = await resolveSystemReminder({
       owner: this.opts.owner,
+      workspaceId: this.opts.workspaceId,
       projectPath: args.projectPath,
       cwd: args.cwd,
       fylloSessionId: args.fylloSessionId,

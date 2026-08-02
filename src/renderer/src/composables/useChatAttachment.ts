@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, ref, type ComputedRef, type Ref } from "vue"
 import { storeToRefs } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import { chatApi } from "@renderer/api/session/chat";
-import { useProjectStore, useSessionStore } from "@renderer/stores";
+import { useWorkspaceStore, useSessionStore } from "@renderer/stores";
 import {
   createChatPromptAttachment,
   revokeChatPromptAttachmentPreview,
@@ -28,7 +28,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
 } {
-  const projectStore = useProjectStore();
+  const workspaceStore = useWorkspaceStore();
   const sessionStore = useSessionStore();
   const toast = useToast();
   const { activeSession, draftAgentId } = storeToRefs(sessionStore);
@@ -89,17 +89,17 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   }
 
   async function ensureAttachmentSession(): Promise<{
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
   } | null> {
     const active = activeSession.value;
-    const projectId = projectStore.currentProject?.id ?? active?.projectId;
-    if (!projectId) {
+    const workspaceId = workspaceStore.currentWorkspace?.id ?? active?.workspaceId;
+    if (!workspaceId) {
       toast.add({ title: "请先打开项目", color: "warning" });
       return null;
     }
     if (active) {
-      return { projectId, sessionId: active.id };
+      return { workspaceId, sessionId: active.id };
     }
 
     // No active session yet: create a draft session so the attachment has somewhere to live.
@@ -114,11 +114,11 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     }
 
     const createdSession = await sessionStore.createSession({
-      projectId,
+      workspaceId,
       agentId,
       title: "New Session",
     });
-    return { projectId, sessionId: createdSession.id };
+    return { workspaceId, sessionId: createdSession.id };
   }
 
   async function persistAttachment(file: File, attachment: ChatPromptAttachment): Promise<void> {
@@ -131,7 +131,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
 
       const base64Data = await readFileAsBase64(file);
       const response = await chatApi.saveAttachment(
-        target.projectId,
+        target.workspaceId,
         target.sessionId,
         file.name,
         attachment.mediaType,

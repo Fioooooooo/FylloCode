@@ -26,7 +26,7 @@ vi.mock("@main/infra/logger", () => ({
 import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-session-store";
 import { loadApplyRunMeta, saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
 
-const projectPath = "/tmp/project";
+const workspaceId = "workspace-1";
 
 function runMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
   return {
@@ -57,7 +57,7 @@ afterEach(() => {
 
 describe("apply-stage-acp-session-store", () => {
   it("returns null when run meta is missing", async () => {
-    const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 0);
+    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 0);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -67,9 +67,9 @@ describe("apply-stage-acp-session-store", () => {
   });
 
   it("returns null when runId does not match", async () => {
-    await saveApplyRunMeta(projectPath, runMeta({ runId: "run-2" }));
+    await saveApplyRunMeta(workspaceId, runMeta({ runId: "run-2" }));
 
-    const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 0);
+    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 0);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -79,9 +79,9 @@ describe("apply-stage-acp-session-store", () => {
   });
 
   it("loads stage acpSessionId from run meta", async () => {
-    await saveApplyRunMeta(projectPath, runMeta({ stageAcpSessionIds: { 1: "acp-existing" } }));
+    await saveApplyRunMeta(workspaceId, runMeta({ stageAcpSessionIds: { 1: "acp-existing" } }));
 
-    const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 1);
+    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 1);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: "acp-existing",
@@ -91,18 +91,18 @@ describe("apply-stage-acp-session-store", () => {
 
   it("persists stage acpSessionId without dropping other fields", async () => {
     await saveApplyRunMeta(
-      projectPath,
+      workspaceId,
       runMeta({
         stageAcpSessionIds: { 0: "acp-0" },
         status: "done",
       })
     );
 
-    const store = new ApplyStageAcpSessionStore(projectPath, "change-1", "run-1", 1);
+    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 1);
 
     await store.persistAcpSessionId("acp-1");
 
-    await expect(loadApplyRunMeta(projectPath, "change-1")).resolves.toEqual({
+    await expect(loadApplyRunMeta(workspaceId, "change-1")).resolves.toEqual({
       runId: "run-1",
       changeId: "change-1",
       workflowId: "workflow-1",

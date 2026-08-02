@@ -10,14 +10,14 @@ export const useLineageStore = defineStore("lineage", () => {
   const browserError = ref<string | null>(null);
   let browserRequestId = 0;
 
-  async function loadBrowser(projectId: string): Promise<void> {
+  async function loadBrowser(workspaceId: string): Promise<void> {
     const requestId = ++browserRequestId;
     browserData.value = null;
     browserLoading.value = true;
     browserError.value = null;
 
     try {
-      const response = await lineageApi.getBrowser(projectId);
+      const response = await lineageApi.getBrowser(workspaceId);
       if (requestId !== browserRequestId) {
         return;
       }

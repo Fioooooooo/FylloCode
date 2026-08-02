@@ -4,43 +4,43 @@ import { WorkspaceWindowChannels } from "@shared/ipc/workspace/window.channels";
 import type {
   OpenFolderWindowResult,
   OpenLauncherWindowResult,
-  OpenProjectWindowResult,
+  OpenWorkspaceWindowResult,
 } from "@shared/types/window";
 import {
   getContextInputSchema,
   openFolderInputSchema,
   openLauncherInputSchema,
-  openProjectInputSchema,
+  openWorkspaceInputSchema,
 } from "@shared/ipc/workspace/window.schemas";
 import {
-  projectWindowManager,
-  type ProjectWindowManager,
-} from "@main/bootstrap/project-window-manager";
+  workspaceWindowManager,
+  type WorkspaceWindowManager,
+} from "@main/bootstrap/workspace-window-manager";
 import {
-  adoptExistingFolder,
-  getRequiredProject,
-  touchProjectLastOpened,
-} from "@main/services/workspace/project/project-service";
+  getRequiredWorkspaceInfo,
+  resolveOrCreateFolderWorkspace,
+  touchWorkspaceLastOpened,
+} from "@main/services/workspace/workspace/workspace-service";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 import { ipcError } from "../_kit/errors";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
 
 interface WindowHandlerDeps {
-  manager?: ProjectWindowManager;
+  manager?: WorkspaceWindowManager;
 }
 
-function assertProjectPathAvailable(project: {
-  id: string;
-  path: string;
-  pathMissing?: boolean;
-}): void {
-  if (project.pathMissing) {
-    throw ipcError(IpcErrorCodes.PROJECT_PATH_MISSING, `Project path is missing: ${project.path}`);
+function assertWorkspacePrimaryAvailable(workspace: WorkspaceInfo): void {
+  if (workspace.pathMissing) {
+    throw ipcError(
+      IpcErrorCodes.WORKSPACE_PRIMARY_FOLDER_MISSING,
+      `Workspace primary Folder path is missing: ${workspace.primaryFolder.path}`
+    );
   }
 }
 
 export function registerWindowHandlers(deps: WindowHandlerDeps = {}): void {
-  const manager = deps.manager ?? projectWindowManager;
+  const manager = deps.manager ?? workspaceWindowManager;
 
   ipcMain.handle(WorkspaceWindowChannels.getContext, (event, input: unknown) =>
     wrapHandler(() => {
@@ -53,16 +53,16 @@ export function registerWindowHandlers(deps: WindowHandlerDeps = {}): void {
     })
   );
 
-  ipcMain.handle(WorkspaceWindowChannels.openProject, (event, input: unknown) =>
-    wrapHandler(async (): Promise<OpenProjectWindowResult> => {
-      const { projectId } = validate(openProjectInputSchema, input);
-      const project = await getRequiredProject(projectId);
-      assertProjectPathAvailable(project);
+  ipcMain.handle(WorkspaceWindowChannels.openWorkspace, (event, input: unknown) =>
+    wrapHandler(async (): Promise<OpenWorkspaceWindowResult> => {
+      const { workspaceId } = validate(openWorkspaceInputSchema, input);
+      const workspace = await getRequiredWorkspaceInfo(workspaceId);
+      assertWorkspacePrimaryAvailable(workspace);
 
-      const openedProject = await touchProjectLastOpened(project.id);
-      const result = manager.openProjectWindow(openedProject.id, event.sender);
+      const openedWorkspace = await touchWorkspaceLastOpened(workspace.id);
+      const result = manager.openWorkspaceWindow(openedWorkspace.id, event.sender);
 
-      return { ...result, project: openedProject };
+      return result;
     })
   );
 
@@ -80,11 +80,11 @@ export function registerWindowHandlers(deps: WindowHandlerDeps = {}): void {
         return { status: "cancelled" };
       }
 
-      const project = await adoptExistingFolder(result.filePaths[0]);
-      assertProjectPathAvailable(project);
+      const workspace = await resolveOrCreateFolderWorkspace(result.filePaths[0]);
+      assertWorkspacePrimaryAvailable(workspace);
 
-      const openResult = manager.openProjectWindow(project.id, event.sender);
-      return { ...openResult, project };
+      const openResult = manager.openWorkspaceWindow(workspace.id, event.sender);
+      return openResult;
     })
   );
 

@@ -1,50 +1,50 @@
 <script setup lang="ts">
-import { useProjectStore } from "@renderer/stores";
+import { useWorkspaceStore } from "@renderer/stores";
 import { timeAgo } from "@renderer/utils/time";
-import type { RecentProject } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 
 const emit = defineEmits<{
-  open: [project: RecentProject];
-  remove: [projectId: string];
+  open: [workspace: WorkspaceInfo];
+  remove: [workspaceId: string];
 }>();
 
-function handleOpen(project: RecentProject): void {
-  emit("open", project);
+function handleOpen(workspace: WorkspaceInfo): void {
+  emit("open", workspace);
 }
 
-function handleRemove(projectId: string): void {
-  emit("remove", projectId);
+function handleRemove(workspaceId: string): void {
+  emit("remove", workspaceId);
 }
 </script>
 
 <template>
   <div class="w-full">
-    <h2 class="text-sm font-semibold text-muted uppercase tracking-wider mb-3">最近项目</h2>
+    <h2 class="text-sm font-semibold text-muted uppercase tracking-wider mb-3">最近工作区</h2>
 
     <!-- Empty State -->
-    <div v-if="projectStore.recentProjects.length === 0" class="text-center text-muted py-8">
-      暂无最近项目
+    <div v-if="workspaceStore.recentWorkspaces.length === 0" class="text-center text-muted py-8">
+      暂无最近工作区
     </div>
 
     <!-- Project List -->
     <div v-else class="max-h-80 overflow-y-auto space-y-1">
       <div
-        v-for="project in projectStore.recentProjects"
-        :key="project.id"
+        v-for="workspace in workspaceStore.recentWorkspaces"
+        :key="workspace.id"
         class="group flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer hover:bg-elevated transition-colors"
-        @click="handleOpen(project)"
+        @click="handleOpen(workspace)"
       >
         <div class="min-w-0 flex-1">
           <div class="font-semibold text-highlighted truncate">
-            {{ project.name }}
+            {{ workspace.name }}
           </div>
-          <div class="text-xs text-muted truncate">{{ project.path }}</div>
+          <div class="text-xs text-muted truncate">{{ workspace.primaryFolder.path }}</div>
         </div>
         <div class="flex items-center gap-3 ml-4">
           <span class="text-xs text-muted whitespace-nowrap">
-            {{ timeAgo(project.lastOpenedAt) }}
+            {{ timeAgo(workspace.lastOpenedAt) }}
           </span>
           <UButton
             icon="i-lucide-x"
@@ -52,7 +52,7 @@ function handleRemove(projectId: string): void {
             size="xs"
             color="neutral"
             class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-            @click.stop="handleRemove(project.id)"
+            @click.stop="handleRemove(workspace.id)"
           />
         </div>
       </div>

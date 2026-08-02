@@ -65,10 +65,10 @@ export interface ArchiveRunMeta {
 }
 
 export type ProposalStatusChangedPayload = {
-  projectId: string;
+  workspaceId: string;
   changeId: string;
   sessionId: string;
-  projectPath: string;
+  repositoryPath: string;
   status: ProposalStatus;
   updatedAt: string;
   removed?: boolean;

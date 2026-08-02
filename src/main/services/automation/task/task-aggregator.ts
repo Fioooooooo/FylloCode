@@ -7,34 +7,34 @@ function sortTasks(tasks: TaskItem[]): TaskItem[] {
   return [...tasks].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 }
 
-export async function listTasks(projectId: string, source?: TaskSource): Promise<TaskItem[]> {
+export async function listTasks(workspaceId: string, source?: TaskSource): Promise<TaskItem[]> {
   if (source === "local") {
-    return localTaskAdapter.list(projectId);
+    return localTaskAdapter.list(workspaceId);
   }
 
   if (source === "yunxiao") {
-    return yunxiaoTaskAdapter.list(projectId);
+    return yunxiaoTaskAdapter.list(workspaceId);
   }
 
   if (source === "github") {
-    return githubTaskAdapter.list(projectId);
+    return githubTaskAdapter.list(workspaceId);
   }
 
   return sortTasks([
-    ...(await localTaskAdapter.list(projectId)),
-    ...(await yunxiaoTaskAdapter.list(projectId)),
-    ...(await githubTaskAdapter.list(projectId)),
+    ...(await localTaskAdapter.list(workspaceId)),
+    ...(await yunxiaoTaskAdapter.list(workspaceId)),
+    ...(await githubTaskAdapter.list(workspaceId)),
   ]);
 }
 
-export async function getTask(projectId: string, taskId: string): Promise<TaskItem | null> {
+export async function getTask(workspaceId: string, taskId: string): Promise<TaskItem | null> {
   if (taskId.startsWith("yunxiao:")) {
-    return yunxiaoTaskAdapter.get(taskId, projectId);
+    return yunxiaoTaskAdapter.get(taskId, workspaceId);
   }
 
   if (taskId.startsWith("github:")) {
-    return githubTaskAdapter.get(taskId, projectId);
+    return githubTaskAdapter.get(taskId, workspaceId);
   }
 
-  return localTaskAdapter.get(taskId, projectId);
+  return localTaskAdapter.get(taskId, workspaceId);
 }

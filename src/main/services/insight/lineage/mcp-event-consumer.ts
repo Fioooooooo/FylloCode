@@ -2,7 +2,7 @@ import * as nodeFs from "fs";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
-import { encodeProjectPath, mcpEventsDir } from "@main/infra/storage/project-paths";
+import { mcpEventsDir } from "@main/infra/storage/workspace-paths";
 import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
@@ -52,7 +52,8 @@ function isMcpEvent(value: unknown): value is McpEvent {
 }
 
 async function consumeEventFile(
-  projectPath: string,
+  workspaceId: string,
+  repositoryPath: string,
   eventDir: string,
   fileName: string
 ): Promise<void> {
@@ -73,15 +74,15 @@ async function consumeEventFile(
   try {
     let subject =
       event.tool === "create-proposal"
-        ? await recordProposal(projectPath, event.sessionId, event.changeId)
-        : await recordPlan(projectPath, event.sessionId, event.planSlug);
+        ? await recordProposal(workspaceId, event.sessionId, event.changeId)
+        : await recordPlan(workspaceId, event.sessionId, event.planSlug);
 
     if (!subject) {
-      await ensureChatSubject(projectPath, event.sessionId);
+      await ensureChatSubject(workspaceId, event.sessionId);
       subject =
         event.tool === "create-proposal"
-          ? await recordProposal(projectPath, event.sessionId, event.changeId)
-          : await recordPlan(projectPath, event.sessionId, event.planSlug);
+          ? await recordProposal(workspaceId, event.sessionId, event.changeId)
+          : await recordPlan(workspaceId, event.sessionId, event.planSlug);
     }
 
     if (!subject) {
@@ -95,8 +96,8 @@ async function consumeEventFile(
 
     if (event.tool === "create-proposal") {
       proposalStatusService.watchProposal(
-        encodeProjectPath(projectPath),
-        projectPath,
+        workspaceId,
+        repositoryPath,
         event.changeId,
         event.sessionId
       );
@@ -108,8 +109,8 @@ async function consumeEventFile(
   }
 }
 
-async function scanProjectEvents(projectPath: string): Promise<void> {
-  const eventDir = mcpEventsDir(projectPath);
+async function scanWorkspaceEvents(workspaceId: string, repositoryPath: string): Promise<void> {
+  const eventDir = mcpEventsDir(workspaceId);
   let files: string[];
   try {
     files = await fs.readdir(eventDir);
@@ -125,11 +126,15 @@ async function scanProjectEvents(projectPath: string): Promise<void> {
     if (!fileName.endsWith(".json")) {
       continue;
     }
-    await consumeEventFile(projectPath, eventDir, fileName);
+    await consumeEventFile(workspaceId, repositoryPath, eventDir, fileName);
   }
 }
 
-function triggerScan(projectPath: string, state: ConsumerState): Promise<void> {
+function triggerScan(
+  workspaceId: string,
+  repositoryPath: string,
+  state: ConsumerState
+): Promise<void> {
   if (state.closed) {
     return Promise.resolve();
   }
@@ -139,9 +144,9 @@ function triggerScan(projectPath: string, state: ConsumerState): Promise<void> {
     return state.scanPromise;
   }
 
-  state.scanPromise = scanProjectEvents(projectPath)
+  state.scanPromise = scanWorkspaceEvents(workspaceId, repositoryPath)
     .catch((error: unknown) => {
-      logger.error(`[lineage-mcp-event] scan failed for project=${projectPath}`, error);
+      logger.error(`[lineage-mcp-event] scan failed for workspace=${workspaceId}`, error);
     })
     .finally(() => {
       state.scanPromise = null;
@@ -149,36 +154,43 @@ function triggerScan(projectPath: string, state: ConsumerState): Promise<void> {
         return;
       }
       state.scanQueued = false;
-      void triggerScan(projectPath, state);
+      void triggerScan(workspaceId, repositoryPath, state);
     });
 
   return state.scanPromise;
 }
 
-async function startConsumer(projectPath: string, state: ConsumerState): Promise<void> {
-  const eventDir = mcpEventsDir(projectPath);
+async function startConsumer(
+  workspaceId: string,
+  repositoryPath: string,
+  state: ConsumerState
+): Promise<void> {
+  const eventDir = mcpEventsDir(workspaceId);
   try {
     await fs.mkdir(eventDir, { recursive: true });
-    await triggerScan(projectPath, state);
+    await triggerScan(workspaceId, repositoryPath, state);
     if (state.closed) {
       return;
     }
 
     const watcher = nodeFs.watch(eventDir, () => {
-      void triggerScan(projectPath, state);
+      void triggerScan(workspaceId, repositoryPath, state);
     });
     watcher.on("error", (error) => {
-      logger.warn(`[lineage-mcp-event] watcher error for project=${projectPath}`, error);
+      logger.warn(`[lineage-mcp-event] watcher error for workspace=${workspaceId}`, error);
     });
     state.watcher = watcher;
   } catch (error: unknown) {
-    consumers.delete(projectPath);
-    logger.error(`[lineage-mcp-event] failed to start consumer for project=${projectPath}`, error);
+    consumers.delete(workspaceId);
+    logger.error(
+      `[lineage-mcp-event] failed to start consumer for workspace=${workspaceId}`,
+      error
+    );
   }
 }
 
-export function ensureLineageEventConsumer(projectPath: string): void {
-  if (consumers.has(projectPath)) {
+export function ensureLineageEventConsumer(workspaceId: string, repositoryPath: string): void {
+  if (consumers.has(workspaceId)) {
     return;
   }
 
@@ -188,19 +200,19 @@ export function ensureLineageEventConsumer(projectPath: string): void {
     scanPromise: null,
     scanQueued: false,
   };
-  consumers.set(projectPath, state);
-  void startConsumer(projectPath, state);
+  consumers.set(workspaceId, state);
+  void startConsumer(workspaceId, repositoryPath, state);
 }
 
-export function disposeProject(projectPath: string): void {
-  const state = consumers.get(projectPath);
+export function disposeWorkspace(workspaceId: string): void {
+  const state = consumers.get(workspaceId);
   if (!state) {
     return;
   }
 
   state.closed = true;
   state.watcher?.close();
-  consumers.delete(projectPath);
+  consumers.delete(workspaceId);
 }
 
 function dispose(): void {

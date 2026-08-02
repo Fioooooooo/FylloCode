@@ -104,7 +104,7 @@ function getRegistrationController(
   context: FylloActionHostContextInput
 ): FylloActionRegistrationController {
   const contextKey = JSON.stringify([
-    context.projectId,
+    context.workspaceId,
     context.sessionId,
     context.messageIndex,
     context.partIndex,
@@ -123,8 +123,8 @@ function getRegistrationController(
 
 // 通过注入向嵌套 Action node 提供源码 ordinal 与状态端口，避免穿透 Markstream 逐层传参。
 provide(fylloActionHostContextKey, {
-  get projectId() {
-    return props.actionContext?.projectId ?? "";
+  get workspaceId() {
+    return props.actionContext?.workspaceId ?? "";
   },
   get sessionId() {
     return props.actionContext?.sessionId ?? "";
@@ -150,7 +150,7 @@ provide(fylloActionHostContextKey, {
       return Promise.resolve();
     }
     return getRegistrationController(context).retry(
-      context.projectId,
+      context.workspaceId,
       context.sessionId,
       actionId,
       type

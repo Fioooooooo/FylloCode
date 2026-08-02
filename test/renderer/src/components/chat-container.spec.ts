@@ -98,7 +98,7 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
 function makeSession(commands: AcpAvailableCommand[] = []): Session {
   return {
     id: "session-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: "Session",
     isPinned: false,

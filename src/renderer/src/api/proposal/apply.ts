@@ -6,7 +6,7 @@ import type { UIMessage } from "ai";
 
 export const proposalApplyApi = {
   apply(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     workflowId: string;
   }): Promise<IpcResponse<{ runId: string; stages: WorkflowStage[] }>> {
@@ -17,7 +17,7 @@ export const proposalApplyApi = {
     input: {
       runId: string;
       stageIndex: number;
-      projectId: string;
+      workspaceId: string;
       changeId: string;
     },
     callbacks: Parameters<typeof window.api.proposal.apply.stageStream>[1]
@@ -26,14 +26,14 @@ export const proposalApplyApi = {
   },
 
   loadRun(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
   }): Promise<IpcResponse<ApplyRunMeta | null>> {
     return window.api.proposal.apply.loadRun(input);
   },
 
   loadRunMessages(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     stageIndex: number;
   }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {

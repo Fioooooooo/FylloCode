@@ -25,7 +25,7 @@ import {
   saveAttachment,
 } from "@main/infra/storage/attachment-store";
 
-const projectPath = "/tmp/项目 with spaces";
+const workspaceId = "workspace-with-spaces";
 
 beforeEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
@@ -38,7 +38,7 @@ afterEach(() => {
 describe("attachment-store", () => {
   it("saves attachments with unicode and spaces in the original name", async () => {
     const saved = await saveAttachment(
-      projectPath,
+      workspaceId,
       "session-1",
       "截图 demo.png",
       "image/png",
@@ -54,7 +54,7 @@ describe("attachment-store", () => {
 
   it("uses the mime subtype as extension when the original file has no extension", async () => {
     const saved = await saveAttachment(
-      projectPath,
+      workspaceId,
       "session-1",
       "README",
       "text/markdown",
@@ -77,7 +77,7 @@ describe("attachment-store", () => {
 
   it("rejects attachments larger than 25MB at the IPC schema boundary", () => {
     const payload = {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       sessionId: "session-1",
       fileName: "large.bin",
       mimeType: "application/octet-stream",
@@ -113,15 +113,15 @@ describe("attachment-store", () => {
 
   it("removes session attachments and ignores missing directories", async () => {
     const saved = await saveAttachment(
-      projectPath,
+      workspaceId,
       "session-1",
       "notes.txt",
       "text/plain",
       Buffer.from("notes").toString("base64")
     );
 
-    await removeSessionAttachments(projectPath, "session-1");
+    await removeSessionAttachments(workspaceId, "session-1");
     expect(existsSync(saved.absolutePath)).toBe(false);
-    await expect(removeSessionAttachments(projectPath, "missing")).resolves.toBeUndefined();
+    await expect(removeSessionAttachments(workspaceId, "missing")).resolves.toBeUndefined();
   });
 });

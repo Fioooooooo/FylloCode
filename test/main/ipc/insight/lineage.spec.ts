@@ -5,7 +5,7 @@ import { InsightLineageChannels as LineageChannels } from "@shared/ipc/insight/l
 import type { IpcResponse } from "@shared/types/ipc";
 
 const mocks = vi.hoisted(() => ({
-  resolveProjectPath: vi.fn(),
+  resolveWorkspaceCwd: vi.fn(),
   ensureTaskSubject: vi.fn(),
   linkTaskSession: vi.fn(),
   getByTask: vi.fn(),
@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
-  resolveProjectPath: mocks.resolveProjectPath,
+  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
 }));
 
 vi.mock("@main/services/insight/lineage/lineage-service", () => ({
@@ -44,7 +44,7 @@ import { registerLineageHandlers } from "@main/ipc/insight/lineage";
 describe("registerLineageHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.getLineageBrowser.mockResolvedValue({ entries: [] });
     mocks.readPlan.mockResolvedValue({
       slug: "2026-06-29-plan-a",
@@ -80,18 +80,18 @@ describe("registerLineageHandlers", () => {
     return call![1] as (event: unknown, input: unknown) => Promise<IpcResponse<unknown>>;
   }
 
-  it("reads plans through projectId/sessionId/slug", async () => {
+  it("reads plans through workspaceId/sessionId/slug", async () => {
     const result = await handler(LineageChannels.readPlan)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         slug: "2026-06-29-plan-a",
       }
     );
 
-    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
-    expect(mocks.readPlan).toHaveBeenCalledWith("/tmp/project", "session-1", "2026-06-29-plan-a");
+    expect(mocks.resolveWorkspaceCwd).not.toHaveBeenCalled();
+    expect(mocks.readPlan).toHaveBeenCalledWith("workspace-1", "session-1", "2026-06-29-plan-a");
     expect(result).toEqual({
       ok: true,
       data: expect.objectContaining({ slug: "2026-06-29-plan-a" }),
@@ -99,15 +99,15 @@ describe("registerLineageHandlers", () => {
   });
 
   it("loads the lineage browser through a resolved project path", async () => {
-    const result = await handler(LineageChannels.getBrowser)({}, { projectId: "project-1" });
+    const result = await handler(LineageChannels.getBrowser)({}, { workspaceId: "workspace-1" });
 
-    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
-    expect(mocks.getLineageBrowser).toHaveBeenCalledWith("/tmp/project");
+    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.getLineageBrowser).toHaveBeenCalledWith("workspace-1", "/tmp/project");
     expect(result).toEqual({ ok: true, data: { entries: [] } });
   });
 
   it("validates browser input and wraps service failures", async () => {
-    const invalid = await handler(LineageChannels.getBrowser)({}, { projectId: "" });
+    const invalid = await handler(LineageChannels.getBrowser)({}, { workspaceId: "" });
 
     expect(invalid).toEqual({
       ok: false,
@@ -116,7 +116,7 @@ describe("registerLineageHandlers", () => {
     expect(mocks.getLineageBrowser).not.toHaveBeenCalled();
 
     mocks.getLineageBrowser.mockRejectedValueOnce(new Error("browser failed"));
-    const failed = await handler(LineageChannels.getBrowser)({}, { projectId: "project-1" });
+    const failed = await handler(LineageChannels.getBrowser)({}, { workspaceId: "workspace-1" });
     expect(failed).toEqual({
       ok: false,
       error: expect.objectContaining({ message: "browser failed" }),
@@ -128,7 +128,7 @@ describe("registerLineageHandlers", () => {
       handler(LineageChannels.savePlanBody)(
         {},
         {
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           slug: "2026-06-29-plan-a",
           body: "new body",
@@ -139,7 +139,7 @@ describe("registerLineageHandlers", () => {
       data: expect.objectContaining({ body: "new body" }),
     });
     expect(mocks.savePlanBody).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       "2026-06-29-plan-a",
       "new body"
@@ -149,7 +149,7 @@ describe("registerLineageHandlers", () => {
       handler(LineageChannels.approvePlan)(
         {},
         {
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           slug: "2026-06-29-plan-a",
         }
@@ -158,18 +158,14 @@ describe("registerLineageHandlers", () => {
       ok: true,
       data: expect.objectContaining({ status: "approved" }),
     });
-    expect(mocks.approvePlan).toHaveBeenCalledWith(
-      "/tmp/project",
-      "session-1",
-      "2026-06-29-plan-a"
-    );
+    expect(mocks.approvePlan).toHaveBeenCalledWith("workspace-1", "session-1", "2026-06-29-plan-a");
   });
 
   it("rejects invalid plan slug before calling services", async () => {
     const result = await handler(LineageChannels.readPlan)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         slug: "../secret",
       }

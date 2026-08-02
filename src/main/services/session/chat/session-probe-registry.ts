@@ -3,7 +3,7 @@ import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 
 export interface ProbeEntry {
-  projectId: string;
+  workspaceId: string;
   agentId: string;
   status: ProbeStatus;
   fylloSessionId: string;
@@ -18,23 +18,23 @@ export interface ProbeEntry {
 class SessionProbeRegistry {
   private readonly entries = new Map<string, ProbeEntry>();
 
-  get(projectId: string, agentId: string): ProbeEntry | undefined {
-    return this.entries.get(this.entryKey(projectId, agentId));
+  get(workspaceId: string, agentId: string): ProbeEntry | undefined {
+    return this.entries.get(this.entryKey(workspaceId, agentId));
   }
 
-  set(projectId: string, agentId: string, entry: ProbeEntry): void {
-    this.entries.set(this.entryKey(projectId, agentId), entry);
+  set(workspaceId: string, agentId: string, entry: ProbeEntry): void {
+    this.entries.set(this.entryKey(workspaceId, agentId), entry);
   }
 
-  delete(projectId: string, agentId: string): ProbeEntry | undefined {
-    const key = this.entryKey(projectId, agentId);
+  delete(workspaceId: string, agentId: string): ProbeEntry | undefined {
+    const key = this.entryKey(workspaceId, agentId);
     const entry = this.entries.get(key);
     this.entries.delete(key);
     return entry;
   }
 
-  takeFor(projectId: string, agentId: string, expectedAcpSessionId: string): ProbeEntry | null {
-    const key = this.entryKey(projectId, agentId);
+  takeFor(workspaceId: string, agentId: string, expectedAcpSessionId: string): ProbeEntry | null {
+    const key = this.entryKey(workspaceId, agentId);
     const entry = this.entries.get(key);
     if (!entry || entry.acpSessionId !== expectedAcpSessionId) {
       return null;
@@ -43,10 +43,10 @@ class SessionProbeRegistry {
     return entry;
   }
 
-  deleteProject(projectId: string): ProbeEntry[] {
+  deleteWorkspace(workspaceId: string): ProbeEntry[] {
     const removed: ProbeEntry[] = [];
     for (const [key, entry] of this.entries) {
-      if (entry.projectId === projectId) {
+      if (entry.workspaceId === workspaceId) {
         this.entries.delete(key);
         removed.push(entry);
       }
@@ -73,8 +73,8 @@ class SessionProbeRegistry {
     return [...this.entries.keys()];
   }
 
-  private entryKey(projectId: string, agentId: string): string {
-    return `${projectId}::${agentId}`;
+  private entryKey(workspaceId: string, agentId: string): string {
+    return `${workspaceId}::${agentId}`;
   }
 }
 

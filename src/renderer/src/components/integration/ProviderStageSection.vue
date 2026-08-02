@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import { useIntegrationProvidersStore } from "@renderer/stores";
 import type {
   IntegrationCategory,
-  ProjectIntegrationConfig,
+  WorkspaceIntegrationConfig,
   Provider,
   ProviderCapability,
   ProviderResource,
@@ -14,7 +14,7 @@ import type {
 const props = defineProps<{
   category: IntegrationCategory;
   providers: Provider[];
-  currentProjectId: string;
+  currentWorkspaceId: string;
 }>();
 
 const router = useRouter();
@@ -30,7 +30,7 @@ const stageProviders = computed(() => {
     const hasMountedEntries =
       integrationProvidersStore.getMountedEntries(
         provider.id,
-        props.category.id as keyof ProjectIntegrationConfig
+        props.category.id as keyof WorkspaceIntegrationConfig
       ).length > 0;
     const isConnected = integrationProvidersStore.getProviderStatus(provider.id) === "connected";
     return hasMountedEntries || isConnected;
@@ -50,8 +50,8 @@ function capabilityLabels(provider: Provider): string {
     .join(" · ");
 }
 
-function stageId(): keyof ProjectIntegrationConfig {
-  return props.category.id as keyof ProjectIntegrationConfig;
+function stageId(): keyof WorkspaceIntegrationConfig {
+  return props.category.id as keyof WorkspaceIntegrationConfig;
 }
 
 function resourceKey(providerId: Provider["id"], resourceType: ProviderResourceType): string {
@@ -81,7 +81,7 @@ function openSettings(providerId: string): void {
 function getCapabilityEntries(
   providerId: Provider["id"],
   resourceType: ProviderResourceType
-): ProjectIntegrationConfig[keyof ProjectIntegrationConfig] {
+): WorkspaceIntegrationConfig[keyof WorkspaceIntegrationConfig] {
   return integrationProvidersStore
     .getMountedEntries(providerId, stageId())
     .filter((entry) => entry.resourceType === resourceType);
@@ -182,7 +182,7 @@ async function applyResourceSelection(
   }
 
   await integrationProvidersStore.saveProjectIntegrationStage(
-    props.currentProjectId,
+    props.currentWorkspaceId,
     stageId(),
     nextEntries
   );
@@ -205,7 +205,7 @@ async function handleRemoveResource(
         )
     );
   await integrationProvidersStore.saveProjectIntegrationStage(
-    props.currentProjectId,
+    props.currentWorkspaceId,
     stageId(),
     nextEntries
   );

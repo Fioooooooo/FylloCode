@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { rmSync } from "fs";
+import { randomUUID } from "crypto";
 import { createTask } from "@main/services/automation/task/task-service";
 import { loadTasks, tasksPath } from "@main/infra/storage/task-store";
 
 function tempProjectPath(): string {
-  return mkdtempSync(join(tmpdir(), "fyllo-task-concurrency-"));
+  return `workspace-${randomUUID()}`;
 }
 
 function cleanupProject(projectPath: string): void {

@@ -33,7 +33,7 @@ import {
   loadSessionMessages,
   persistSessionMessage,
   removeSession,
-  resolveProjectPath,
+  resolveWorkspaceCwd,
   updateSession,
 } from "@main/services/session/chat/chat-service";
 import {
@@ -66,22 +66,22 @@ import {
 import { toMessageChunk } from "@main/services/session/chat/session-event-mapper";
 import logger from "@main/infra/logger";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
-let probeBroadcastManager: ProjectWindowManager | null = null;
+let probeBroadcastManager: WorkspaceWindowManager | null = null;
 let probeBroadcastSubscribed = false;
 
-// Wire probe lifecycle updates from the main-process bus to all project windows.
+// Wire probe lifecycle updates from the main-process bus to all Workspace windows.
 // Called once during bootstrap after the window manager is available.
-export function setupProbeBroadcast(manager: ProjectWindowManager): void {
+export function setupProbeBroadcast(manager: WorkspaceWindowManager): void {
   probeBroadcastManager = manager;
   if (probeBroadcastSubscribed) {
     return;
   }
 
   sessionProbeBus.onUpdate((payload) => {
-    probeBroadcastManager?.sendToProject(
-      payload.projectId,
+    probeBroadcastManager?.sendToWorkspace(
+      payload.workspaceId,
       SessionChatProbeChannels.update,
       payload
     );
@@ -93,33 +93,32 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
       const query = validate(listSessionsInputSchema, input);
-      const projectPath = await resolveProjectPath(query.projectId);
-      ensureLineageEventConsumer(projectPath);
-      return listSessions(query.projectId);
+      const workspaceCwd = await resolveWorkspaceCwd(query.workspaceId);
+      ensureLineageEventConsumer(query.workspaceId, workspaceCwd);
+      return listSessions(query.workspaceId);
     })
   );
 
   ipcMain.handle(SessionChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
       const session = await createSession(form);
       if (!form.taskRef) {
         return session;
       }
 
       try {
-        const linked = await linkTaskSession(projectPath, form.taskRef, session.id);
+        const linked = await linkTaskSession(form.workspaceId, form.taskRef, session.id);
         if (!linked) {
           logger.error("[chat] failed to link task session: subject not found", {
-            projectId: form.projectId,
+            workspaceId: form.workspaceId,
             taskRef: form.taskRef,
             sessionId: session.id,
           });
         }
       } catch (error: unknown) {
         logger.error("[chat] failed to link task session", {
-          projectId: form.projectId,
+          workspaceId: form.workspaceId,
           taskRef: form.taskRef,
           sessionId: session.id,
           error,
@@ -140,9 +139,8 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.removeSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(removeSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
       await removeSession(form);
-      await removeSessionAttachments(projectPath, form.id);
+      await removeSessionAttachments(form.workspaceId, form.id);
     })
   );
 
@@ -165,7 +163,7 @@ export function registerChatHandlers(): void {
       );
       await persistSessionMessage({
         sessionId: form.sessionId,
-        projectId: form.projectId,
+        workspaceId: form.workspaceId,
         message,
       });
       logger.debug("[chat] persistMessage done");
@@ -175,9 +173,8 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.saveAttachment, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(saveAttachmentInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
       const saved = await saveAttachment(
-        projectPath,
+        form.workspaceId,
         form.sessionId,
         form.fileName,
         form.mimeType,
@@ -209,15 +206,15 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatProbeChannels.ensure, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeEnsureInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return ensureProbe(form.projectId, form.agentId, projectPath);
+      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
+      return ensureProbe(form.workspaceId, form.agentId, workspaceCwd);
     })
   );
 
   ipcMain.handle(SessionChatProbeChannels.close, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeCloseInputSchema, input);
-      await closeProbe(form.projectId, form.agentId);
+      await closeProbe(form.workspaceId, form.agentId);
     })
   );
 
@@ -233,7 +230,7 @@ export function registerChatHandlers(): void {
     const {
       sessionId,
       streamId,
-      projectId,
+      workspaceId,
       agentId: inputAgentId,
       prompt,
       acpSessionId,
@@ -245,8 +242,8 @@ export function registerChatHandlers(): void {
       portPayload: { streamId },
       logTag: "chat",
       onReady: async (sink) => {
-        const projectPath = await resolveProjectPath(projectId);
-        const meta = await loadSessionMeta(projectPath, sessionId);
+        const workspaceCwd = await resolveWorkspaceCwd(workspaceId);
+        const meta = await loadSessionMeta(workspaceId, sessionId);
         const agentId = inputAgentId || meta?.agentId;
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
@@ -256,7 +253,7 @@ export function registerChatHandlers(): void {
         let taskTitle: string | undefined;
         if (meta?.originTaskRef) {
           try {
-            const taskProjection = await getByTask(projectPath, meta.originTaskRef);
+            const taskProjection = await getByTask(workspaceId, meta.originTaskRef);
             const snapshotTitle = taskProjection?.task?.snapshot.title;
             taskTitle = snapshotTitle ? snapshotTitle : undefined;
           } catch (error: unknown) {
@@ -268,7 +265,7 @@ export function registerChatHandlers(): void {
         // or create its own ACP session.
         let presetAcpSessionId: string | undefined;
         if (acpSessionId) {
-          const probeEntry = await takeProbeFor(projectId, agentId, acpSessionId);
+          const probeEntry = await takeProbeFor(workspaceId, agentId, acpSessionId);
           if (!probeEntry) {
             sink.sendError(
               IpcErrorCodes.VALIDATION_ERROR,
@@ -279,7 +276,7 @@ export function registerChatHandlers(): void {
               cancel: () => {},
             };
           }
-          await patchSessionMeta(projectPath, sessionId, {
+          await patchSessionMeta(workspaceId, sessionId, {
             acpSessionId,
             agentId,
             configOptions: probeEntry.configOptions,
@@ -288,13 +285,14 @@ export function registerChatHandlers(): void {
           });
           presetAcpSessionId = acpSessionId;
         }
-        const sessionStore = new ChatAcpSessionStore(projectPath, sessionId, agentId);
+        const sessionStore = new ChatAcpSessionStore(workspaceId, sessionId, agentId);
 
         const session = new AcpSession({
           fylloSessionId: sessionId,
           agentId,
-          projectPath,
-          cwd: projectPath,
+          workspaceId,
+          projectPath: workspaceCwd,
+          cwd: workspaceCwd,
           owner: "chat",
           sessionStore,
           reminderContext: {
@@ -303,13 +301,13 @@ export function registerChatHandlers(): void {
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
-              sessionMessagesPath(projectPath, sessionId),
+              sessionMessagesPath(workspaceId, sessionId),
               reminderPart
             );
           },
           recoveryContext: {
             hasPersistedHistory: true,
-            loadPersistedHistory: async () => loadMessages(projectPath, sessionId),
+            loadPersistedHistory: async () => loadMessages(workspaceId, sessionId),
           },
           ...(presetAcpSessionId ? { presetAcpSessionId } : {}),
         });
@@ -322,7 +320,7 @@ export function registerChatHandlers(): void {
         ): void => {
           sessionMetaPersist = sessionMetaPersist
             .then(async () => {
-              const nextMeta = await patchSessionMeta(projectPath, sessionId, update);
+              const nextMeta = await patchSessionMeta(workspaceId, sessionId, update);
               if (!nextMeta) {
                 logger.warn(
                   `[chat] skipped session meta update because meta was missing: ${sessionId}`
@@ -336,13 +334,13 @@ export function registerChatHandlers(): void {
         return driveAcpStream({
           session,
           owner: "chat",
-          registryKey: `${projectId}:${sessionId}`,
+          registryKey: `${workspaceId}:${sessionId}`,
           messageSessionId: sessionId,
           output: sink,
           logTag: "chat",
           start: () => session.start(prompt),
           hooks: {
-            persistMessage: (message) => appendMessage(projectPath, sessionId, message),
+            persistMessage: (message) => appendMessage(workspaceId, sessionId, message),
             onControlEvent: (ev, output) => {
               // Control events update session meta and/or forward renderer-visible chunks.
               // agenda_update is runtime-only and intentionally not persisted.
@@ -404,7 +402,7 @@ export function registerChatHandlers(): void {
             },
             onDone: async ({ totalTokens }) => {
               await sessionMetaPersist;
-              await patchSessionMeta(projectPath, sessionId, (currentMeta) => ({
+              await patchSessionMeta(workspaceId, sessionId, (currentMeta) => ({
                 tokenUsage: {
                   used: currentMeta.tokenUsage.used + totalTokens,
                   size: currentMeta.tokenUsage.size,
@@ -421,8 +419,8 @@ export function registerChatHandlers(): void {
 
   ipcMain.handle(SessionChatStreamChannels.streamCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { projectId, sessionId } = validate(streamCancelInputSchema, input);
-      sessionRegistry.cancel("chat", `${projectId}:${sessionId}`);
+      const { workspaceId, sessionId } = validate(streamCancelInputSchema, input);
+      sessionRegistry.cancel("chat", `${workspaceId}:${sessionId}`);
     })
   );
 }

@@ -1,6 +1,5 @@
 import type { UIMessage, ChatStatus } from "ai";
 import type { AcpSessionConfigOption } from "./acp-config";
-import type { ChatAgent } from "./chat-agent";
 import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "./lineage";
 
@@ -38,7 +37,7 @@ export interface AgendaEntry {
 
 export interface Session {
   id: string;
-  projectId: string;
+  workspaceId: string;
   agentId: string;
   title: string;
   isPinned: boolean;
@@ -55,5 +54,3 @@ export interface Session {
   // 运行时态：ACP Agent 行动清单，全量替换、不持久化（不写入 session meta）。
   agentAgenda?: AgendaEntry[];
 }
-
-export type ProjectAgent = ChatAgent;

@@ -38,7 +38,7 @@ function message(
 function session(messages: UIMessage<MessageMeta>[]): Session {
   return {
     id: "session-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "agent-1",
     title: "Session",
     isPinned: false,

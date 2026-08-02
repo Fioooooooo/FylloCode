@@ -3,9 +3,10 @@ import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { lineageApi } from "@renderer/api/insight/lineage";
 import LineagePage from "@renderer/pages/lineage.vue";
-import { useProjectStore } from "@renderer/stores";
+import { useWorkspaceStore } from "@renderer/stores";
 import type { LineageBrowserData } from "@shared/types/lineage";
-import type { ProjectInfo } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 
 const routerMock = vi.hoisted(() => ({ push: vi.fn() }));
 const sessionMock = vi.hoisted(() => ({ openChatSession: vi.fn() }));
@@ -42,21 +43,20 @@ vi.mock("@nuxt/ui/composables", () => ({
   useToast: () => toastMock,
 }));
 
-function project(id = "project-1"): ProjectInfo {
-  return {
+function project(id = "project-1"): WorkspaceInfo {
+  return workspaceInfo({
     id,
     name: id,
-    path: `/tmp/${id}`,
-    metaPath: `/tmp/${id}.json`,
+    folderPath: `/tmp/${id}`,
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
     lastOpenedAt: new Date("2026-07-15T00:00:00.000Z"),
-  };
+  });
 }
 
 function browserData(): LineageBrowserData {
   const taskSnapshot = {
     id: "task-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     title: "实现 Lineage 浏览器",
     description: { format: "markdown" as const, content: "串联讨论、计划、提案与提交。" },
     status: "open" as const,
@@ -178,10 +178,10 @@ function browserData(): LineageBrowserData {
   };
 }
 
-function mountPage(currentProject: ProjectInfo | null = project()) {
+function mountPage(currentWorkspace: WorkspaceInfo | null = project()) {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useProjectStore().currentProject = currentProject;
+  useWorkspaceStore().currentWorkspace = currentWorkspace;
   return mount(LineagePage, { global: { plugins: [pinia] } });
 }
 
@@ -261,12 +261,12 @@ describe("lineage page", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = project("project-2");
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = project("project-2");
     await flushPromises();
     expect(lineageApi.getBrowser).toHaveBeenLastCalledWith("project-2");
 
-    projectStore.currentProject = null;
+    workspaceStore.currentWorkspace = null;
     await flushPromises();
     expect(wrapper.find('[data-test="lineage-empty"]').exists()).toBe(true);
   });
@@ -300,7 +300,7 @@ describe("lineage page", () => {
       ok: true,
       data: { entries: browserData().entries.filter((entry) => entry.status !== "completed") },
     });
-    useProjectStore().currentProject = project("project-filtered");
+    useWorkspaceStore().currentWorkspace = project("project-filtered");
     await flushPromises();
     await filteredWrapper.get('[data-test="lineage-filter-completed"]').trigger("click");
     expect(filteredWrapper.find('[data-test="lineage-filter-empty"]').exists()).toBe(true);

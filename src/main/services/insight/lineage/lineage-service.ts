@@ -52,9 +52,9 @@ function emptyIndex(updatedAt: string): LineageIndex {
   };
 }
 
-async function readWritableIndex(projectPath: string, updatedAt: string): Promise<LineageIndex> {
+async function readWritableIndex(workspaceId: string, updatedAt: string): Promise<LineageIndex> {
   // Return the existing index, or rebuild it from subjects if it is missing/corrupt.
-  return (await readIndex(projectPath)) ?? rebuildIndex(projectPath, updatedAt);
+  return (await readIndex(workspaceId)) ?? rebuildIndex(workspaceId, updatedAt);
 }
 
 function removeSubjectEntries(
@@ -91,81 +91,81 @@ function mergeSubjectIntoIndex(index: LineageIndex, subject: Subject): LineageIn
 }
 
 async function writeSubjectWithIndex(
-  projectPath: string,
+  workspaceId: string,
   subject: Subject,
   currentIndex: LineageIndex
 ): Promise<void> {
   // Persist the subject file first, then update the derived index. The index can always be
   // rebuilt from subjects, so subject integrity takes priority.
-  await writeSubject(projectPath, subject);
-  await writeIndex(projectPath, mergeSubjectIntoIndex(currentIndex, subject));
+  await writeSubject(workspaceId, subject);
+  await writeIndex(workspaceId, mergeSubjectIntoIndex(currentIndex, subject));
 }
 
 export async function rebuildIndex(
-  projectPath: string,
+  workspaceId: string,
   emptyUpdatedAt = new Date(0).toISOString()
 ): Promise<LineageIndex> {
-  const subjects = await listSubjects(projectPath);
+  const subjects = await listSubjects(workspaceId);
   const index = subjects.length > 0 ? buildIndexFromSubjects(subjects) : emptyIndex(emptyUpdatedAt);
   if (subjects.length > 0) {
-    await writeIndex(projectPath, index);
+    await writeIndex(workspaceId, index);
   }
   return index;
 }
 
-async function readQueryIndex(projectPath: string): Promise<LineageIndex> {
-  return (await readIndex(projectPath)) ?? rebuildIndex(projectPath);
+async function readQueryIndex(workspaceId: string): Promise<LineageIndex> {
+  return (await readIndex(workspaceId)) ?? rebuildIndex(workspaceId);
 }
 
 async function projectFromIndex<T>(
-  projectPath: string,
+  workspaceId: string,
   selectSubjectId: (index: LineageIndex) => string | undefined,
   project: (subject: Subject) => T | null
 ): Promise<T | null> {
   // Look up the subject id in the index, read the subject file, and project the requested view.
   // If the subject file is missing while the index still references it, rebuild the index
   // (which removes stale references) and retry once.
-  let index = await readQueryIndex(projectPath);
+  let index = await readQueryIndex(workspaceId);
   let subjectId = selectSubjectId(index);
   if (!subjectId) {
     return null;
   }
 
-  let subject = await readSubject(projectPath, subjectId);
+  let subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
-    index = await rebuildIndex(projectPath);
+    index = await rebuildIndex(workspaceId);
     subjectId = selectSubjectId(index);
-    subject = subjectId ? await readSubject(projectPath, subjectId) : null;
+    subject = subjectId ? await readSubject(workspaceId, subjectId) : null;
   }
 
   return subject ? project(subject) : null;
 }
 
 export async function ensureTaskSubject(
-  projectPath: string,
+  workspaceId: string,
   taskSnapshot: LineageTaskSnapshot
 ): Promise<Subject> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const existingSubjectId = index.tasks[taskSnapshot.ref];
   if (existingSubjectId) {
-    const existingSubject = await readSubject(projectPath, existingSubjectId);
+    const existingSubject = await readSubject(workspaceId, existingSubjectId);
     if (existingSubject) {
       return existingSubject;
     }
   }
 
   const subject = buildSubject("task", taskSnapshot, now, newSubjectId());
-  await writeSubjectWithIndex(projectPath, subject, index);
+  await writeSubjectWithIndex(workspaceId, subject, index);
   return subject;
 }
 
-export async function ensureChatSubject(projectPath: string, sessionId: string): Promise<Subject> {
+export async function ensureChatSubject(workspaceId: string, sessionId: string): Promise<Subject> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const existingSubjectId = index.sessions[sessionId];
   if (existingSubjectId) {
-    const existingSubject = await readSubject(projectPath, existingSubjectId);
+    const existingSubject = await readSubject(workspaceId, existingSubjectId);
     if (existingSubject) {
       return existingSubject;
     }
@@ -176,104 +176,104 @@ export async function ensureChatSubject(projectPath: string, sessionId: string):
     sessionId,
     now
   );
-  await writeSubjectWithIndex(projectPath, subject, index);
+  await writeSubjectWithIndex(workspaceId, subject, index);
   return subject;
 }
 
 export async function linkSession(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   subjectId: string
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const existingSubjectId = index.sessions[sessionId];
   if (existingSubjectId) {
-    return readSubject(projectPath, existingSubjectId);
+    return readSubject(workspaceId, existingSubjectId);
   }
 
-  const subject = await readSubject(projectPath, subjectId);
+  const subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
     return null;
   }
 
   const nextSubject = upsertSessionLink(subject, sessionId, now);
-  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
 
 export async function linkTaskSession(
-  projectPath: string,
+  workspaceId: string,
   taskRef: LineageTaskRef,
   sessionId: string
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const subjectId = index.tasks[taskRef];
   if (!subjectId) {
     return null;
   }
 
-  return linkSession(projectPath, sessionId, subjectId);
+  return linkSession(workspaceId, sessionId, subjectId);
 }
 
 export async function recordProposal(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   changeId: string
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const subjectId = index.sessions[sessionId];
   if (!subjectId) {
     return null;
   }
 
-  const subject = await readSubject(projectPath, subjectId);
+  const subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
     return null;
   }
 
   const nextSubject = appendProposal(subject, sessionId, changeId, now);
-  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
 
 export async function recordPlan(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   slug: string
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const subjectId = index.sessions[sessionId];
   if (!subjectId) {
     return null;
   }
 
-  const subject = await readSubject(projectPath, subjectId);
+  const subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
     return null;
   }
 
   const nextSubject = appendPlan(subject, sessionId, slug, now);
-  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
 
 export async function recordProposalCommitHash(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   commitHash: string
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
+  const index = await readWritableIndex(workspaceId, now);
   const subjectId = index.proposals[changeId];
   if (!subjectId) {
     return null;
   }
 
-  const subject = await readSubject(projectPath, subjectId);
+  const subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
     return null;
   }
@@ -286,34 +286,34 @@ export async function recordProposalCommitHash(
   }
 
   const nextSubject = attachProposalCommitHash(subject, changeId, commitHash, now);
-  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
 
 export async function backfillTask(
-  projectPath: string,
+  workspaceId: string,
   subjectId: string,
   taskSnapshot: LineageTaskSnapshot
 ): Promise<Subject | null> {
   const now = nowIso();
-  const index = await readWritableIndex(projectPath, now);
-  const subject = await readSubject(projectPath, subjectId);
+  const index = await readWritableIndex(workspaceId, now);
+  const subject = await readSubject(workspaceId, subjectId);
   if (!subject) {
     return null;
   }
 
   const nextSubject = attachTask(subject, taskSnapshot);
-  await writeSubjectWithIndex(projectPath, nextSubject, index);
+  await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
 
 export async function createSessionTask(
-  projectPath: string,
+  workspaceId: string,
   input: CreateSessionTaskInput
 ): Promise<TaskItem> {
   // 1. Create the actual task through the automation service.
   const task = await createTask(
-    projectPath,
+    workspaceId,
     {
       title: input.title,
       description: {
@@ -332,30 +332,30 @@ export async function createSessionTask(
   // 2. Bind the new task to the session's lineage subject.
   // 3. Update the session meta so the chat UI can show the originating task.
   try {
-    const existingSubject = await getBySession(projectPath, input.sessionId);
+    const existingSubject = await getBySession(workspaceId, input.sessionId);
     const subjectId =
-      existingSubject?.subjectId ?? (await ensureChatSubject(projectPath, input.sessionId)).id;
-    const backfilled = await backfillTask(projectPath, subjectId, taskSnapshot);
+      existingSubject?.subjectId ?? (await ensureChatSubject(workspaceId, input.sessionId)).id;
+    const backfilled = await backfillTask(workspaceId, subjectId, taskSnapshot);
     if (!backfilled) {
       throw new Error(
-        `[lineage] failed to backfill session task; subject missing project=${projectPath} session=${input.sessionId} task=${task.id}`
+        `[lineage] failed to backfill session task; subject missing workspace=${workspaceId} session=${input.sessionId} task=${task.id}`
       );
     }
 
     const updated = await updateSessionOriginTaskRef(
-      projectPath,
+      workspaceId,
       input.sessionId,
       taskSnapshot.ref
     );
     if (!updated) {
       throw new Error(
-        `[lineage] failed to update session originTaskRef; session missing project=${projectPath} session=${input.sessionId} task=${task.id}`
+        `[lineage] failed to update session originTaskRef; session missing workspace=${workspaceId} session=${input.sessionId} task=${task.id}`
       );
     }
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `[lineage] failed to bind session task project=${projectPath} session=${input.sessionId} task=${task.id}: ${reason}`
+      `[lineage] failed to bind session task workspace=${workspaceId} session=${input.sessionId} task=${task.id}: ${reason}`
     );
   }
 
@@ -363,40 +363,40 @@ export async function createSessionTask(
 }
 
 export async function getByTask(
-  projectPath: string,
+  workspaceId: string,
   ref: LineageTaskRef
 ): Promise<TaskDownstreamProjection | null> {
   return projectFromIndex(
-    projectPath,
+    workspaceId,
     (index) => index.tasks[ref],
     (subject) => projectTaskDownstream(subject)
   );
 }
 
 export async function getBySession(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string
 ): Promise<SessionLineageProjection | null> {
   return projectFromIndex(
-    projectPath,
+    workspaceId,
     (index) => index.sessions[sessionId],
     (subject) => projectSessionLineage(subject, sessionId)
   );
 }
 
 export async function getByProposal(
-  projectPath: string,
+  workspaceId: string,
   changeId: string
 ): Promise<ProposalOriginProjection | null> {
   return projectFromIndex(
-    projectPath,
+    workspaceId,
     (index) => index.proposals[changeId],
     (subject) => projectProposalOrigin(subject, changeId)
   );
 }
 
-export async function listRecentSubjects(projectPath: string, limit: number): Promise<Subject[]> {
-  const subjects = await listSubjects(projectPath);
+export async function listRecentSubjects(workspaceId: string, limit: number): Promise<Subject[]> {
+  const subjects = await listSubjects(workspaceId);
   return subjects
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
     .slice(0, limit);

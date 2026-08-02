@@ -16,10 +16,7 @@ export {
   PlatformAcpAgentChannels as AcpAgentChannels,
 } from "@shared/ipc/platform/acp-agents.channels";
 export { PlatformProvidersChannels } from "@shared/ipc/platform/providers.channels";
-export {
-  WorkspaceProjectChannels,
-  WorkspaceProjectChannels as ProjectChannels,
-} from "@shared/ipc/workspace/project.channels";
+export { WorkspaceChannels } from "@shared/ipc/workspace/workspace.channels";
 export {
   WorkspaceWindowChannels,
   WorkspaceWindowChannels as WindowChannels,

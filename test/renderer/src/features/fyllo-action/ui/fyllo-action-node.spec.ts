@@ -42,7 +42,7 @@ function createHostContext(
   retryRegistration = vi.fn().mockResolvedValue(undefined)
 ) {
   return {
-    projectId: "project-1",
+    workspaceId: "project-1",
     sessionId: "session-1",
     messageIndex: 3,
     partIndex: 0,
@@ -105,7 +105,7 @@ describe("FylloActionNode", () => {
         description: "整理异常分支",
       },
       {
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "chat:session-1:3:0:0",
       }
@@ -148,14 +148,14 @@ describe("FylloActionNode", () => {
         title: "补齐错误处理",
       },
       {
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "chat:session-1:3:0:0",
       }
     );
     expect(transitionActionMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "chat:session-1:3:0:0",
         command: "succeed",
@@ -271,7 +271,7 @@ describe("FylloActionNode", () => {
         contextPaths: ["src/renderer/src/components/chat/MessageMarkdown.vue"],
       },
       {
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "chat:session-1:3:0:0",
       }
@@ -311,7 +311,7 @@ describe("FylloActionNode", () => {
         summary: "Review saved markdown.",
       },
       {
-        projectId: "project-1",
+        workspaceId: "project-1",
         sessionId: "session-1",
         actionId: "chat:session-1:3:0:0",
       }

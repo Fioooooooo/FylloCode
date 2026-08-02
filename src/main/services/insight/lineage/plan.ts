@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { dump, load } from "js-yaml";
-import { sessionPlansDir } from "@main/infra/storage/project-paths";
+import { sessionPlansDir } from "@main/infra/storage/workspace-paths";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
 import type { PlanDocument, PlanDocumentStatus } from "@shared/types/lineage";
@@ -57,11 +57,11 @@ function assertPlanSlug(slug: string): void {
   }
 }
 
-function planPath(projectPath: string, sessionId: string, slug: string): string {
+function planPath(workspaceId: string, sessionId: string, slug: string): string {
   assertSafePathSegment(sessionId, "sessionId");
   assertPlanSlug(slug);
 
-  const dir = sessionPlansDir(projectPath, sessionId);
+  const dir = sessionPlansDir(workspaceId, sessionId);
   const filePath = path.join(dir, `${slug}.md`);
   const resolvedDir = path.resolve(dir);
   const resolvedFile = path.resolve(filePath);
@@ -139,36 +139,36 @@ async function writePlanFile(filePath: string, content: string): Promise<void> {
 }
 
 export async function readPlan(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   slug: string
 ): Promise<PlanDocument> {
-  const filePath = planPath(projectPath, sessionId, slug);
+  const filePath = planPath(workspaceId, sessionId, slug);
   return (await readPlanFile(filePath, slug)).document;
 }
 
 export async function savePlanBody(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   slug: string,
   body: string
 ): Promise<PlanDocument> {
-  const filePath = planPath(projectPath, sessionId, slug);
+  const filePath = planPath(workspaceId, sessionId, slug);
   const parsed = await readPlanFile(filePath, slug);
   await writePlanFile(filePath, serializePlan(parsed.frontmatter, body));
-  return readPlan(projectPath, sessionId, slug);
+  return readPlan(workspaceId, sessionId, slug);
 }
 
 export async function approvePlan(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   slug: string
 ): Promise<PlanDocument> {
-  const filePath = planPath(projectPath, sessionId, slug);
+  const filePath = planPath(workspaceId, sessionId, slug);
   const parsed = await readPlanFile(filePath, slug);
   await writePlanFile(
     filePath,
     serializePlan({ ...parsed.frontmatter, status: "approved" }, parsed.document.body)
   );
-  return readPlan(projectPath, sessionId, slug);
+  return readPlan(workspaceId, sessionId, slug);
 }

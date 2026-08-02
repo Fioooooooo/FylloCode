@@ -14,10 +14,10 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
-import { sessionPlansDir } from "@main/infra/storage/project-paths";
+import { sessionPlansDir } from "@main/infra/storage/workspace-paths";
 import { approvePlan, readPlan, savePlanBody } from "@main/services/insight/lineage/plan";
 
-const projectPath = "/tmp/project";
+const projectPath = "workspace-1";
 const sessionId = "session-1";
 const slug = "2026-06-29-plan-a";
 

@@ -9,7 +9,7 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 import { chatApi, type StreamError } from "@renderer/api/session/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
-import { useProjectStore } from "../workspace/project";
+import { useWorkspaceStore } from "../workspace/workspace";
 import { useSessionStore } from "./session";
 
 const DEFAULT_SESSION_TITLE = "New Session";
@@ -231,9 +231,9 @@ export const useChatStore = defineStore("chat", () => {
     return userMessage;
   }
 
-  function persistMessage(sessionId: string, projectId: string, message: Message): Promise<void> {
+  function persistMessage(sessionId: string, workspaceId: string, message: Message): Promise<void> {
     return chatApi
-      .persistMessage(sessionId, projectId, JSON.parse(JSON.stringify(message)) as Message)
+      .persistMessage(sessionId, workspaceId, JSON.parse(JSON.stringify(message)) as Message)
       .then(() => undefined)
       .catch((err: unknown) => {
         console.error("Failed to persist message:", err);
@@ -243,7 +243,7 @@ export const useChatStore = defineStore("chat", () => {
 
   function streamSessionMessage(
     activeSession: Session,
-    projectId: string,
+    workspaceId: string,
     parts: ChatPromptPart[],
     sessionStore: ReturnType<typeof useSessionStore>,
     streamRunId: number,
@@ -258,7 +258,7 @@ export const useChatStore = defineStore("chat", () => {
     const sessionId = activeSession.id;
     const cancel = chatApi.streamMessage(
       activeSession.id,
-      projectId,
+      workspaceId,
       activeSession.agentId,
       parts,
       {
@@ -376,11 +376,11 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     const sessionStore = useSessionStore();
-    const projectStore = useProjectStore();
+    const workspaceStore = useWorkspaceStore();
     const currentSession = sessionStore.activeSession;
-    const projectIdSnapshot = projectStore.currentProject?.id ?? currentSession?.projectId;
+    const workspaceIdSnapshot = workspaceStore.currentWorkspace?.id ?? currentSession?.workspaceId;
 
-    if (!projectIdSnapshot) {
+    if (!workspaceIdSnapshot) {
       return {};
     }
 
@@ -424,13 +424,17 @@ export const useChatStore = defineStore("chat", () => {
 
       try {
         const createdSession = await sessionStore.createSession({
-          projectId: projectIdSnapshot,
+          workspaceId: workspaceIdSnapshot,
           agentId: draftAgentIdSnapshot,
           title: fallbackTitleSnapshot,
           ...(options?.taskRef ? { taskRef: options.taskRef } : {}),
           ...(carryProbe ?? {}),
         });
-        if (!isCurrentDraftRun(streamRunId)) {
+        if (
+          !isCurrentDraftRun(streamRunId) ||
+          workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot
+        ) {
+          clearDraftRunIfCurrent(streamRunId);
           return {};
         }
         activeSession = sessionStore.activeSession ?? createdSession;
@@ -467,7 +471,7 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     const userMessage = queueUserMessage(activeSession, parts, sessionStore);
-    const persistPromise = persistMessage(activeSession.id, projectIdSnapshot, userMessage).catch(
+    const persistPromise = persistMessage(activeSession.id, workspaceIdSnapshot, userMessage).catch(
       (err: unknown) => {
         console.error("Failed to persist message:", err);
         throw err;
@@ -482,7 +486,7 @@ export const useChatStore = defineStore("chat", () => {
 
     streamSessionMessage(
       activeSession,
-      projectIdSnapshot,
+      workspaceIdSnapshot,
       parts,
       sessionStore,
       streamRunId,
@@ -569,7 +573,7 @@ export const useChatStore = defineStore("chat", () => {
 
     try {
       const result = await chatApi.setConfigOption({
-        projectId: session.projectId,
+        workspaceId: session.workspaceId,
         sessionId: input.sessionId,
         configId: input.configId,
         type: input.type,

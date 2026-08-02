@@ -5,9 +5,9 @@ import OverviewGovernance from "@renderer/components/overview/OverviewGovernance
 import OverviewRecentLineages from "@renderer/components/overview/OverviewRecentLineages.vue";
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
-import { useKnowledgeStore, useOverviewStore, useProjectStore } from "@renderer/stores";
+import { useKnowledgeStore, useOverviewStore, useWorkspaceStore } from "@renderer/stores";
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const overviewStore = useOverviewStore();
 const knowledgeStore = useKnowledgeStore();
 
@@ -22,11 +22,11 @@ const knowledgeAttentionCount = computed(
 );
 
 watch(
-  () => projectStore.currentProject?.id,
-  (projectId) => {
-    if (projectId) {
+  () => workspaceStore.currentWorkspace?.id,
+  (workspaceId) => {
+    if (workspaceId) {
       void overviewStore.load();
-      void knowledgeStore.load(projectId);
+      void knowledgeStore.load(workspaceId);
     } else {
       overviewStore.clear();
       knowledgeStore.clear();

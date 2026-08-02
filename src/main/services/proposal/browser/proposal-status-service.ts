@@ -10,8 +10,8 @@ import logger from "@main/infra/logger";
 
 interface WatchedProposal {
   watcher: FSWatcher;
-  projectId: string;
-  projectPath: string;
+  workspaceId: string;
+  repositoryPath: string;
   sessionIds: Set<string>;
   changeId: string;
   currentStatus: ProposalStatus;
@@ -22,8 +22,8 @@ interface WatchedProposal {
 // watch requests for the same proposal and to make cancellation safe before the watcher
 // has been created.
 interface PendingWatch {
-  projectId: string;
-  projectPath: string;
+  workspaceId: string;
+  repositoryPath: string;
   changeId: string;
   sessionIds: Set<string>;
   cancelled: boolean;
@@ -34,8 +34,13 @@ class ProposalStatusService {
   private readonly pendingWatches = new Map<string, PendingWatch>();
   private readonly listeners = new Set<(payload: ProposalStatusChangedPayload) => void>();
 
-  watchProposal(projectId: string, projectPath: string, changeId: string, sessionId: string): void {
-    const key = this.watchKey(projectPath, changeId);
+  watchProposal(
+    workspaceId: string,
+    repositoryPath: string,
+    changeId: string,
+    sessionId: string
+  ): void {
+    const key = this.watchKey(workspaceId, changeId);
 
     // Already watching: just add the session and immediately emit the current status.
     const watched = this.watches.get(key);
@@ -54,8 +59,8 @@ class ProposalStatusService {
 
     // First request for this proposal: register a pending watch and start resolving the path.
     const pendingWatch: PendingWatch = {
-      projectId,
-      projectPath,
+      workspaceId,
+      repositoryPath,
       changeId,
       sessionIds: new Set([sessionId]),
       cancelled: false,
@@ -67,8 +72,8 @@ class ProposalStatusService {
   }
 
   private async startWatch(key: string, pending: PendingWatch): Promise<void> {
-    const { projectId, projectPath, changeId, sessionIds } = pending;
-    const resolved = await resolveChangeDirAnywhere(projectPath, changeId);
+    const { workspaceId, repositoryPath, changeId, sessionIds } = pending;
+    const resolved = await resolveChangeDirAnywhere(repositoryPath, changeId);
     if (pending.cancelled || this.pendingWatches.get(key) !== pending) {
       return;
     }
@@ -76,10 +81,10 @@ class ProposalStatusService {
     if (!resolved) {
       for (const sessionId of sessionIds) {
         this.emit({
-          projectId,
+          workspaceId,
           changeId,
           sessionId,
-          projectPath,
+          repositoryPath,
           status: "draft",
           updatedAt: new Date().toISOString(),
           removed: true,
@@ -95,7 +100,7 @@ class ProposalStatusService {
     }
 
     const watcher = watch(watchedPath, () => {
-      void this.handleWatchEvent(this.watchKey(projectPath, changeId));
+      void this.handleWatchEvent(this.watchKey(workspaceId, changeId));
     });
     watcher.on("error", (error: unknown) => {
       logger.warn(`[proposal-status] watcher error for ${changeId}`, error);
@@ -103,8 +108,8 @@ class ProposalStatusService {
 
     const watched: WatchedProposal = {
       watcher,
-      projectId,
-      projectPath,
+      workspaceId,
+      repositoryPath,
       sessionIds: new Set(sessionIds),
       changeId,
       currentStatus,
@@ -141,7 +146,7 @@ class ProposalStatusService {
 
     // The file disappeared from the watched path. It may have been archived/unarchived,
     // so try to find it elsewhere in the project. If it cannot be found, treat as removed.
-    const resolved = await resolveChangeDirAnywhere(watched.projectPath, watched.changeId);
+    const resolved = await resolveChangeDirAnywhere(watched.repositoryPath, watched.changeId);
     if (!resolved) {
       this.emitForAllSessions(watched, { status: watched.currentStatus, removed: true });
       this.unwatchByKey(key);
@@ -168,8 +173,8 @@ class ProposalStatusService {
     }
   }
 
-  unwatchProposal(projectPath: string, changeId: string, sessionId?: string): void {
-    const key = this.watchKey(projectPath, changeId);
+  unwatchProposal(workspaceId: string, changeId: string, sessionId?: string): void {
+    const key = this.watchKey(workspaceId, changeId);
     if (!sessionId) {
       const pending = this.pendingWatches.get(key);
       if (pending) {
@@ -201,16 +206,16 @@ class ProposalStatusService {
     }
   }
 
-  unwatchProject(projectPath: string): void {
+  unwatchWorkspace(workspaceId: string): void {
     for (const [key, pending] of this.pendingWatches) {
-      if (pending.projectPath === projectPath) {
+      if (pending.workspaceId === workspaceId) {
         pending.cancelled = true;
         this.pendingWatches.delete(key);
       }
     }
 
     for (const [key, watched] of this.watches) {
-      if (watched.projectPath === projectPath) {
+      if (watched.workspaceId === workspaceId) {
         this.unwatchByKey(key);
       }
     }
@@ -259,10 +264,10 @@ class ProposalStatusService {
       Partial<Pick<ProposalStatusChangedPayload, "removed">>
   ): void {
     this.emit({
-      projectId: watched.projectId,
+      workspaceId: watched.workspaceId,
       changeId: watched.changeId,
       sessionId,
-      projectPath: watched.projectPath,
+      repositoryPath: watched.repositoryPath,
       status: event.status,
       updatedAt: new Date().toISOString(),
       ...(event.removed ? { removed: true } : {}),
@@ -279,8 +284,8 @@ class ProposalStatusService {
     }
   }
 
-  private watchKey(projectPath: string, changeId: string): string {
-    return `${projectPath}::${changeId}`;
+  private watchKey(workspaceId: string, changeId: string): string {
+    return `${workspaceId}::${changeId}`;
   }
 }
 

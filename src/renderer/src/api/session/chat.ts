@@ -21,7 +21,7 @@ export interface StreamCallbacks {
 }
 
 type ProbeConfigOptionInput = {
-  projectId: string;
+  workspaceId: string;
   agentId: string;
   configId: string;
   type: "select" | "boolean";
@@ -30,7 +30,7 @@ type ProbeConfigOptionInput = {
 
 export const chatApi = {
   listSessions(query: {
-    projectId: string;
+    workspaceId: string;
     page?: number;
     limit?: number;
   }): Promise<IpcResponse<Session[]>> {
@@ -38,7 +38,7 @@ export const chatApi = {
   },
 
   createSession(input: {
-    projectId: string;
+    workspaceId: string;
     title: string;
     agentId?: string;
     configOptions?: AcpSessionConfigOption[];
@@ -50,29 +50,33 @@ export const chatApi = {
     return window.api.session.chat.createSession(input);
   },
 
-  updateSession(id: string, patch: SessionPatch, projectId: string): Promise<IpcResponse<Session>> {
-    return window.api.session.chat.updateSession(id, patch, projectId);
+  updateSession(
+    id: string,
+    patch: SessionPatch,
+    workspaceId: string
+  ): Promise<IpcResponse<Session>> {
+    return window.api.session.chat.updateSession(id, patch, workspaceId);
   },
 
-  removeSession(id: string, projectId: string): Promise<IpcResponse<void>> {
-    return window.api.session.chat.removeSession(id, projectId);
+  removeSession(id: string, workspaceId: string): Promise<IpcResponse<void>> {
+    return window.api.session.chat.removeSession(id, workspaceId);
   },
 
-  loadMessages(sessionId: string, projectId: string): Promise<IpcResponse<Message[]>> {
-    return window.api.session.chat.loadMessages(sessionId, projectId);
+  loadMessages(sessionId: string, workspaceId: string): Promise<IpcResponse<Message[]>> {
+    return window.api.session.chat.loadMessages(sessionId, workspaceId);
   },
 
   persistMessage(
     sessionId: string,
-    projectId: string,
+    workspaceId: string,
     message: Message
   ): Promise<IpcResponse<void>> {
-    return window.api.session.chat.persistMessage(sessionId, projectId, message);
+    return window.api.session.chat.persistMessage(sessionId, workspaceId, message);
   },
 
   streamMessage(
     sessionId: string,
-    projectId: string,
+    workspaceId: string,
     agentId: string,
     parts: ChatPromptPart[],
     callbacks: StreamCallbacks,
@@ -80,7 +84,7 @@ export const chatApi = {
   ): () => void {
     return window.api.session.chat.streamMessage(
       sessionId,
-      projectId,
+      workspaceId,
       agentId,
       parts,
       callbacks,
@@ -89,14 +93,14 @@ export const chatApi = {
   },
 
   saveAttachment(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     fileName: string,
     mimeType: string,
     base64Data: string
   ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
     return window.api.session.chat.saveAttachment(
-      projectId,
+      workspaceId,
       sessionId,
       fileName,
       mimeType,
@@ -109,7 +113,7 @@ export const chatApi = {
   },
 
   setConfigOption(input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     configId: string;
     type: "select" | "boolean";
@@ -118,11 +122,14 @@ export const chatApi = {
     return window.api.session.chat.setConfigOption(input);
   },
 
-  probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>> {
+  probeEnsure(input: {
+    agentId: string;
+    workspaceId: string;
+  }): Promise<IpcResponse<ProbeSnapshot>> {
     return window.api.session.chat.probeEnsure(input);
   },
 
-  probeClose(input: { projectId: string; agentId: string }): Promise<IpcResponse<void>> {
+  probeClose(input: { workspaceId: string; agentId: string }): Promise<IpcResponse<void>> {
     return window.api.session.chat.probeClose(input);
   },
 
@@ -132,7 +139,7 @@ export const chatApi = {
 
   onProbeUpdate(
     handler: (payload: {
-      projectId: string;
+      workspaceId: string;
       agentId: string;
       snapshot: ProbeSnapshot | null;
     }) => void

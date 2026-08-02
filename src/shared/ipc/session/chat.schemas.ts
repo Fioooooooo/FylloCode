@@ -50,13 +50,13 @@ const userMessagePartsSchema = z
   });
 
 export const listSessionsInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   page: z.number().int().nonnegative().optional(),
   limit: z.number().int().positive().optional(),
 });
 
 export const createSessionInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   title: z.string().min(1),
   agentId: z.string().min(1),
   taskRef: lineageTaskRefSchema.optional(),
@@ -76,7 +76,7 @@ export const createSessionInputSchema = z.object({
 
 export const updateSessionInputSchema = z.object({
   id: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   patch: z.object({
     title: z.string().min(1).optional(),
     agentId: z.string().min(1).optional(),
@@ -86,17 +86,17 @@ export const updateSessionInputSchema = z.object({
 
 export const removeSessionInputSchema = z.object({
   id: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 
 export const loadMessagesInputSchema = z.object({
   sessionId: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 
 export const persistMessageInputSchema = z.object({
   sessionId: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   message: z
     .object({
       id: z.string().min(1),
@@ -108,7 +108,7 @@ export const persistMessageInputSchema = z.object({
 });
 
 export const saveAttachmentInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: z.string().min(1),
   fileName: z.string().min(1),
   mimeType: z.string().min(1),
@@ -142,19 +142,19 @@ export const readAttachmentDataUrlInputSchema = z.object({
 export const streamMessageInputSchema = z.object({
   streamId: z.string().min(1),
   sessionId: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   agentId: z.string(),
   prompt: z.array(chatPromptPartSchema).min(1),
   acpSessionId: z.string().min(1).optional(),
 });
 
 export const streamCancelInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: z.string().min(1),
 });
 
 const setConfigOptionBaseSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: z.string().min(1),
   configId: z.string().min(1),
 });
@@ -178,16 +178,16 @@ export type SetConfigOptionInput = z.infer<typeof setConfigOptionInputSchema>;
 
 export const probeEnsureInputSchema = z.object({
   agentId: z.string().min(1),
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 
 export const probeCloseInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   agentId: z.string().min(1),
 });
 
 const probeSetConfigOptionBaseSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   agentId: z.string().min(1),
   configId: z.string().min(1),
 });

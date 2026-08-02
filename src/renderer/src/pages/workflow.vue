@@ -3,13 +3,13 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useToast } from "@nuxt/ui/composables";
 import WorkflowDetail from "@renderer/components/workflow/WorkflowDetail.vue";
 import WorkflowSidebar from "@renderer/components/workflow/WorkflowSidebar.vue";
-import { useProjectStore, useWorkflowStore } from "@renderer/stores";
+import { useWorkspaceStore, useWorkflowStore } from "@renderer/stores";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
 type CurrentView = "empty" | "template-editor";
 
 const workflowStore = useWorkflowStore();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const toast = useToast();
 
 const currentView = ref<CurrentView>("empty");
@@ -165,7 +165,7 @@ onMounted(() => {
 });
 
 watch(
-  () => projectStore.currentProject?.id,
+  () => workspaceStore.currentWorkspace?.id,
   async () => {
     cancelEditing();
     await fetchTemplates();

@@ -23,23 +23,23 @@ const taskDescriptionSchema = z.object({
 });
 
 export const listTasksInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   source: taskSourceSchema.optional(),
 });
 
 export const getTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   taskId: z.string().min(1),
 });
 
 export const createTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   title: z.string().min(1),
   description: taskDescriptionSchema.optional(),
 });
 
 export const updateTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   taskId: z.string().min(1),
   patch: z.object({
     title: z.string().min(1).optional(),
@@ -51,6 +51,6 @@ export const updateTaskInputSchema = z.object({
 });
 
 export const deleteTaskInputSchema = z.object({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   taskId: z.string().min(1),
 });

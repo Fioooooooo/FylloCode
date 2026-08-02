@@ -109,7 +109,7 @@ describe("window helpers", () => {
   it("uses the provided state key when creating and saving a window", async () => {
     vi.resetModules();
 
-    const stateKey = { role: "project" as const, projectId: "project-a" };
+    const stateKey = { role: "workspace" as const, workspaceId: "workspace-a" };
     const loadWindowState = vi.fn(() => ({
       bounds: { x: 123, y: 100, width: 1200, height: 740 },
       isMaximized: false,
@@ -142,6 +142,7 @@ describe("window helpers", () => {
       saveWindowState,
     }));
     vi.doMock("electron", () => ({
+      app: { getAppPath: vi.fn(() => "/app") },
       BrowserWindow,
       screen: {
         getPrimaryDisplay: vi.fn(() => ({
@@ -164,8 +165,10 @@ describe("window helpers", () => {
         y: 100,
         width: 1200,
         height: 740,
+        webPreferences: expect.objectContaining({ preload: "/app/out/preload/index.js" }),
       })
     );
+    expect(browserWindow.loadFile).toHaveBeenCalledWith("/app/out/renderer/index.html");
 
     eventHandlers.get("close")?.();
 

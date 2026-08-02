@@ -6,7 +6,7 @@ import {
   readKnowledgeEntryInputSchema,
   saveKnowledgeEntryInputSchema,
 } from "@shared/ipc/insight/knowledge.schemas";
-import { resolveProjectPath } from "@main/services/session/chat/chat-service";
+import { resolveWorkspaceCwd } from "@main/services/session/chat/chat-service";
 import {
   deleteKnowledgeEntry,
   getKnowledgeBrowser,
@@ -15,40 +15,42 @@ import {
 } from "@main/services/insight/knowledge/knowledge-document-service";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
+import { requireWorkspaceSender } from "../_kit/workspace-scope";
 
 export function registerKnowledgeHandlers(): void {
-  ipcMain.handle(InsightKnowledgeChannels.getBrowser, (_event, input: unknown) =>
+  ipcMain.handle(InsightKnowledgeChannels.getBrowser, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getKnowledgeBrowserInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return getKnowledgeBrowser(projectPath);
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
+      return getKnowledgeBrowser(form.workspaceId, workspaceCwd);
     })
   );
 
-  ipcMain.handle(InsightKnowledgeChannels.readEntry, (_event, input: unknown) =>
+  ipcMain.handle(InsightKnowledgeChannels.readEntry, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(readKnowledgeEntryInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return readKnowledgeEntry(projectPath, form.name);
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      return readKnowledgeEntry(form.workspaceId, form.name);
     })
   );
 
-  ipcMain.handle(InsightKnowledgeChannels.saveEntry, (_event, input: unknown) =>
+  ipcMain.handle(InsightKnowledgeChannels.saveEntry, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(saveKnowledgeEntryInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return saveKnowledgeEntry(projectPath, {
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      return saveKnowledgeEntry(form.workspaceId, {
         name: form.name,
         content: form.content,
       });
     })
   );
 
-  ipcMain.handle(InsightKnowledgeChannels.deleteEntry, (_event, input: unknown) =>
+  ipcMain.handle(InsightKnowledgeChannels.deleteEntry, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(deleteKnowledgeEntryInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return deleteKnowledgeEntry(projectPath, form.name);
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      return deleteKnowledgeEntry(form.workspaceId, form.name);
     })
   );
 }

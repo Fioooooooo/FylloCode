@@ -26,13 +26,13 @@ describe("preload windowApi", () => {
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(WindowChannels.getContext);
   });
 
-  it("invokes openProject with projectId", async () => {
+  it("invokes openWorkspace with workspaceId", async () => {
     const { windowApi } = await import("@preload/api/workspace/window");
 
-    await windowApi.openProject("project-1");
+    await windowApi.openWorkspace("workspace-1");
 
-    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(WindowChannels.openProject, {
-      projectId: "project-1",
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(WindowChannels.openWorkspace, {
+      workspaceId: "workspace-1",
     });
   });
 

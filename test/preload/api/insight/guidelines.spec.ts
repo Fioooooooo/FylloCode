@@ -18,13 +18,13 @@ describe("preload guidelinesApi", () => {
     mocks.ipcRenderer.invoke.mockResolvedValue({ ok: true, data: { items: [] } });
   });
 
-  it("invokes guidelines browser channel with projectId", async () => {
+  it("invokes guidelines browser channel with workspaceId", async () => {
     const { guidelinesApi } = await import("@preload/api/insight/guidelines");
 
-    await guidelinesApi.getBrowser("project-1");
+    await guidelinesApi.getBrowser("workspace-1");
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(GuidelinesChannels.getBrowser, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
     });
   });
 });

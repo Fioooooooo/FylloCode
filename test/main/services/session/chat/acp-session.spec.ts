@@ -149,6 +149,7 @@ describe("AcpSession", () => {
     return new AcpSession({
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       owner: "chat",
@@ -182,6 +183,7 @@ describe("AcpSession", () => {
     await session.start([{ type: "text", text: "hello" }]);
 
     expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       fylloSessionId: "session-1",
       supportsHttp: false,

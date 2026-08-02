@@ -3,8 +3,9 @@ import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { specsApi } from "@renderer/api/insight/specs";
 import SpecsPage from "@renderer/pages/specs.vue";
-import { useProjectStore } from "@renderer/stores/workspace/project";
-import type { ProjectInfo } from "@shared/types/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
+import type { WorkspaceInfo } from "@shared/types/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 import type { SpecsBrowserOverview } from "@shared/types/specs";
 
 vi.mock("@renderer/api/insight/specs", () => ({
@@ -23,15 +24,14 @@ const alertStub = {
   template: '<div data-test="specs-error-alert">{{ title }} {{ description }}</div>',
 };
 
-function project(): ProjectInfo {
-  return {
+function project(): WorkspaceInfo {
+  return workspaceInfo({
     id: "project-1",
     name: "Project 1",
-    path: "/tmp/project-1",
-    metaPath: "/tmp/project-1.json",
+    folderPath: "/tmp/project-1",
     createdAt: new Date("2026-06-01T00:00:00.000Z"),
     lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
-  };
+  });
 }
 
 function specsOverview(): SpecsBrowserOverview {
@@ -54,8 +54,8 @@ function specsOverview(): SpecsBrowserOverview {
                 body: "- **WHEN** renderer 调用 IPC\n- **THEN** 返回完整概览",
               },
               {
-                title: "projectId 无法解析",
-                body: "- **WHEN** projectId 无效\n- **THEN** 返回错误",
+                title: "workspaceId 无法解析",
+                body: "- **WHEN** workspaceId 无效\n- **THEN** 返回错误",
               },
             ],
           },
@@ -98,7 +98,7 @@ function specsOverview(): SpecsBrowserOverview {
 function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useProjectStore().currentProject = project();
+  useWorkspaceStore().currentWorkspace = project();
   const target = document.createElement("div");
   document.body.appendChild(target);
 

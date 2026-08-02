@@ -2,32 +2,32 @@
 import { computed } from "vue";
 import { appApi } from "@renderer/api/platform/app";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
-import { useProjectStore } from "@renderer/stores";
+import { useWorkspaceStore } from "@renderer/stores";
 import { useColorMode } from "@vueuse/core";
-import type { RecentProject } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 import ProjectHealthPopover from "./ProjectHealthPopover.vue";
 
 const { goToDefault } = useDefaultAppRoute();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const colorMode = useColorMode();
 
 const dropdownItems = computed(() => {
-  const projectItems = projectStore.recentProjects.map((project: RecentProject) => ({
-    label: project.name,
+  const workspaceItems = workspaceStore.recentWorkspaces.map((workspace: WorkspaceInfo) => ({
+    label: workspace.name,
     onSelect: async () => {
-      await projectStore.openRecentProject(project);
+      await workspaceStore.openRecentWorkspace(workspace);
     },
   }));
 
   return [
-    ...projectItems,
+    ...workspaceItems,
     { type: "separator" as const },
     {
-      label: "打开项目",
+      label: "打开工作区",
       icon: "i-lucide-folder-open",
       onSelect: async () => {
-        const project = await projectStore.openFolderWindow();
-        if (project) {
+        const workspace = await workspaceStore.openFolderWindow();
+        if (workspace) {
           await goToDefault();
         }
       },
@@ -55,7 +55,7 @@ async function openDevTools(): Promise<void> {
     <!-- Left: Empty placeholder for macOS traffic lights -->
     <div class="w-[20%] h-full" />
 
-    <!-- Center: Project Switcher -->
+    <!-- Center: Workspace Switcher -->
     <div class="w-[60%] h-full flex items-center justify-center gap-2">
       <UDropdownMenu
         :items="dropdownItems"
@@ -73,7 +73,7 @@ async function openDevTools(): Promise<void> {
           style="-webkit-app-region: no-drag"
         >
           <span class="truncate max-w-48 text-sm font-normal text-highlighted">
-            {{ projectStore.currentProject?.name ?? "未选择项目" }}
+            {{ workspaceStore.currentWorkspace?.name ?? "未选择工作区" }}
           </span>
           <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" />
         </div>

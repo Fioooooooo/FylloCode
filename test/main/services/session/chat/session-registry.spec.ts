@@ -67,20 +67,20 @@ describe("sessionRegistry", () => {
     expect(sessionRegistry.get("apply", "a")).toBe(applyA);
   });
 
-  it("cancelProject() cancels only sessions whose key belongs to the project", () => {
+  it("cancelWorkspace() cancels only sessions whose key belongs to the Workspace", () => {
     const projectAChat = fakeSession();
     const projectAApply = fakeSession();
     const projectBChat = fakeSession();
-    sessionRegistry.register("chat", "project-a:session-1", projectAChat);
-    sessionRegistry.register("apply", "project-a:run-1", projectAApply);
-    sessionRegistry.register("chat", "project-b:session-1", projectBChat);
+    sessionRegistry.register("chat", "workspace-a:session-1", projectAChat);
+    sessionRegistry.register("apply", "workspace-a:run-1", projectAApply);
+    sessionRegistry.register("chat", "workspace-b:session-1", projectBChat);
 
-    sessionRegistry.cancelProject("project-a");
+    sessionRegistry.cancelWorkspace("workspace-a");
 
     expect(projectAChat.cancel).toHaveBeenCalled();
     expect(projectAApply.cancel).toHaveBeenCalled();
     expect(projectBChat.cancel).not.toHaveBeenCalled();
-    expect(sessionRegistry.get("chat", "project-b:session-1")).toBe(projectBChat);
+    expect(sessionRegistry.get("chat", "workspace-b:session-1")).toBe(projectBChat);
   });
 
   it("cancelAll() cancels across every owner and empties the registry", () => {

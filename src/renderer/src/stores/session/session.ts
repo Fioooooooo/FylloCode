@@ -18,7 +18,7 @@ import { chatApi } from "@renderer/api/session/chat";
 import { useAcpAgentsStore } from "../platform/acp-agents";
 import { useLineageStore } from "../insight/lineage";
 import { useChatStore } from "./chat";
-import { useProjectStore } from "../workspace/project";
+import { useWorkspaceStore } from "../workspace/workspace";
 import { useProposalStore } from "../proposal/browser";
 
 type SerializableDate = Date | string;
@@ -66,14 +66,14 @@ export interface SessionStore {
   sessionProposals: Ref<Record<string, ProposalMeta[]>>;
   isLoading: Ref<boolean>;
   isLoadingMessages: Ref<boolean>;
-  loadSessions: (projectId: string) => Promise<void>;
+  loadSessions: (workspaceId: string) => Promise<void>;
   ensureSessionOriginTaskInfo: (session: Session) => Promise<void>;
   getSessionProposals: (sessionId: string) => ProposalMeta[];
   upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
   removeSessionProposal: (sessionId: string, changeId: string) => void;
   subscribeProposalStatus: () => () => void;
   createSession: (input: {
-    projectId: string;
+    workspaceId: string;
     agentId: string;
     title?: string;
     configOptions?: AcpSessionConfigOption[];
@@ -97,7 +97,7 @@ export interface SessionStore {
     state: FylloActionState
   ) => Promise<void>;
   setSessionAgentAgenda: (sessionId: string, entries: AgendaEntry[]) => void;
-  ensureDraftProbe: (agentId: string, projectId: string) => Promise<void>;
+  ensureDraftProbe: (agentId: string, workspaceId: string) => Promise<void>;
   closeDraftProbe: (agentId: string) => Promise<void>;
   setDraftConfigOption: (input: {
     agentId: string;
@@ -195,6 +195,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     () => activeSession.value?.agentId ?? draftAgentId.value ?? null
   );
   const loadedSessionIds = new Set<string>();
+  let sessionsLoadGeneration = 0;
   let ensureDraftProbeTimer: ReturnType<typeof setTimeout> | null = null;
 
   function syncDraftAgentId(preferredAgentId: string | null = draftAgentId.value): void {
@@ -204,13 +205,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   // Schedule a debounced draft probe for the given agent. Shared by the agent
   // switch watcher and beginDraftSession so entering the draft state always
   // ensures a probe even when effectiveAgentId itself does not change.
-  function scheduleDraftProbe(agentId: string | null, projectId: string | null): void {
+  function scheduleDraftProbe(agentId: string | null, workspaceId: string | null): void {
     if (ensureDraftProbeTimer) {
       clearTimeout(ensureDraftProbeTimer);
       ensureDraftProbeTimer = null;
     }
 
-    if (activeSessionId.value !== null || !agentId || !projectId) {
+    if (activeSessionId.value !== null || !agentId || !workspaceId) {
       return;
     }
 
@@ -221,7 +222,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     ensureDraftProbeTimer = setTimeout(() => {
       ensureDraftProbeTimer = null;
       if (activeSessionId.value === null && draftAgentId.value === agentId) {
-        void ensureDraftProbe(agentId, projectId);
+        void ensureDraftProbe(agentId, workspaceId);
       }
     }, 200);
   }
@@ -294,17 +295,17 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function ensureProposalWatched(proposal: ProposalMeta, sessionId: string): void {
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id;
-    if (!projectId) {
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id;
+    if (!workspaceId) {
       return;
     }
-    void useProposalStore().watchProposal({ projectId, changeId: proposal.id, sessionId });
+    void useProposalStore().watchProposal({ workspaceId, changeId: proposal.id, sessionId });
   }
 
   async function handleProposalStatusChanged(payload: ProposalStatusChangedPayload): Promise<void> {
     try {
-      if (payload.projectId !== useProjectStore().currentProject?.id) {
+      if (payload.workspaceId !== useWorkspaceStore().currentWorkspace?.id) {
         return;
       }
 
@@ -357,9 +358,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       return;
     }
 
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id;
-    if (!projectId) {
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id;
+    if (!workspaceId) {
       return;
     }
 
@@ -369,7 +370,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     try {
-      const result = await lineageStore.getBySession(projectId, sessionId);
+      const result = await lineageStore.getBySession(workspaceId, sessionId);
       if (!result.ok) {
         return;
       }
@@ -395,6 +396,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function clearSessions(): void {
+    sessionsLoadGeneration += 1;
+    isLoading.value = false;
+    isLoadingMessages.value = false;
     sessions.value = [];
     activeSessionId.value = null;
     loadedSessionIds.clear();
@@ -409,7 +413,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     // effectiveAgentId may not change when re-entering the draft state with the
     // same agent, so the agent-switch watcher won't fire. Schedule the probe
     // explicitly so the config options bar renders for the carried-over agent.
-    scheduleDraftProbe(draftAgentId.value, useProjectStore().currentProject?.id ?? null);
+    scheduleDraftProbe(draftAgentId.value, useWorkspaceStore().currentWorkspace?.id ?? null);
   }
 
   function setDraftAgent(agentId: string): void {
@@ -429,7 +433,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       return null;
     }
 
-    session.projectId = nextSession.projectId;
+    session.workspaceId = nextSession.workspaceId;
     session.agentId = nextSession.agentId;
     session.title = nextSession.title;
     session.isPinned = nextSession.isPinned;
@@ -457,10 +461,10 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
     const source = parseTaskSource(ref);
     const fallback: OriginTaskInfo = { source, title: ref, ref };
-    const projectId = useProjectStore().currentProject?.id ?? session.projectId;
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id ?? session.workspaceId;
 
     try {
-      const result = await lineageStore.getByTask(projectId, ref);
+      const result = await lineageStore.getByTask(workspaceId, ref);
       if (!result.ok) {
         setOriginTaskInfo(session.id, fallback);
         return;
@@ -546,7 +550,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     });
   }
 
-  async function ensureDraftProbe(agentId: string, projectId: string): Promise<void> {
+  async function ensureDraftProbe(agentId: string, workspaceId: string): Promise<void> {
     const starting = new Map(draftProbeByAgent.value);
     starting.set(agentId, {
       agentId,
@@ -559,7 +563,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftProbeByAgent.value = starting;
 
     try {
-      const result = await chatApi.probeEnsure({ agentId, projectId });
+      const result = await chatApi.probeEnsure({ agentId, workspaceId });
       if (result.ok) {
         setDraftProbe(agentId, result.data);
         return;
@@ -594,13 +598,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     const next = new Map(draftProbeByAgent.value);
     next.delete(agentId);
     draftProbeByAgent.value = next;
-    const projectId = useProjectStore().currentProject?.id;
-    if (!projectId) {
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id;
+    if (!workspaceId) {
       return;
     }
 
     try {
-      await chatApi.probeClose({ projectId, agentId });
+      await chatApi.probeClose({ workspaceId, agentId });
     } catch {
       // close is best-effort; local draft state has already been cleared.
     }
@@ -623,8 +627,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     type: "select" | "boolean";
     value: string | boolean;
   }): Promise<void> {
-    const projectId = useProjectStore().currentProject?.id;
-    if (!projectId) {
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id;
+    if (!workspaceId) {
       throw new Error("Project is required to set draft config options");
     }
 
@@ -646,7 +650,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     chatStore.markConfigOptionPending(input.configId);
 
     try {
-      const result = await chatApi.probeSetConfigOption({ ...input, projectId });
+      const result = await chatApi.probeSetConfigOption({ ...input, workspaceId });
       if (!result.ok) {
         throw new Error(result.error.message || result.error.code);
       }
@@ -676,8 +680,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function subscribeProbeUpdates(): () => void {
-    return chatApi.onProbeUpdate(({ projectId, agentId, snapshot }) => {
-      if (projectId !== useProjectStore().currentProject?.id) {
+    return chatApi.onProbeUpdate(({ workspaceId, agentId, snapshot }) => {
+      if (workspaceId !== useWorkspaceStore().currentWorkspace?.id) {
         return;
       }
 
@@ -685,13 +689,21 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     });
   }
 
-  async function loadSessions(projectId: string): Promise<void> {
+  async function loadSessions(workspaceId: string): Promise<void> {
+    const requestGeneration = ++sessionsLoadGeneration;
     isLoading.value = true;
 
     try {
-      const result = await chatApi.listSessions({ projectId });
+      const result = await chatApi.listSessions({ workspaceId });
       if (!result.ok) {
         throw new Error(result.error.message);
+      }
+
+      if (
+        requestGeneration !== sessionsLoadGeneration ||
+        useWorkspaceStore().currentWorkspace?.id !== workspaceId
+      ) {
+        return;
       }
 
       loadedSessionIds.clear();
@@ -699,12 +711,17 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       activeSessionId.value = null;
       syncDraftAgentId();
     } finally {
-      isLoading.value = false;
+      if (
+        requestGeneration === sessionsLoadGeneration &&
+        useWorkspaceStore().currentWorkspace?.id === workspaceId
+      ) {
+        isLoading.value = false;
+      }
     }
   }
 
   async function createSession(input: {
-    projectId: string;
+    workspaceId: string;
     agentId: string;
     title?: string;
     configOptions?: AcpSessionConfigOption[];
@@ -714,7 +731,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     taskRef?: LineageTaskRef;
   }): Promise<Session> {
     const result = await chatApi.createSession({
-      projectId: input.projectId,
+      workspaceId: input.workspaceId,
       title: input.title ?? "New Session",
       agentId: input.agentId,
       ...(input.configOptions !== undefined ? { configOptions: input.configOptions } : {}),
@@ -730,6 +747,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     const session = normalizeSession(result.data);
+    if (useWorkspaceStore().currentWorkspace?.id !== input.workspaceId) {
+      return session;
+    }
     sessions.value = [session, ...sessions.value.filter((item) => item.id !== session.id)];
     activeSessionId.value = session.id;
     loadedSessionIds.add(session.id);
@@ -754,11 +774,18 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
     isLoadingMessages.value = true;
     try {
-      const projectStore = useProjectStore();
-      const projectId = projectStore.currentProject?.id ?? session.projectId;
-      const result = await chatApi.loadMessages(sessionId, projectId);
+      const workspaceStore = useWorkspaceStore();
+      const workspaceId = workspaceStore.currentWorkspace?.id ?? session.workspaceId;
+      const result = await chatApi.loadMessages(sessionId, workspaceId);
       if (!result.ok) {
         throw new Error(result.error.message);
+      }
+
+      if (
+        useWorkspaceStore().currentWorkspace?.id !== workspaceId ||
+        sessions.value.find((item) => item.id === sessionId) !== session
+      ) {
+        return;
       }
 
       session.messages = result.data.map((message) => normalizeMessage(message));
@@ -769,13 +796,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   async function renameSession(sessionId: string, title: string): Promise<void> {
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id;
-    if (!projectId) {
-      throw new Error("Cannot rename session without an active project");
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id;
+    if (!workspaceId) {
+      throw new Error("Cannot rename session without an active Workspace");
     }
 
-    const result = await chatApi.updateSession(sessionId, { title }, projectId);
+    const result = await chatApi.updateSession(sessionId, { title }, workspaceId);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -790,11 +817,11 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    const projectId = useProjectStore().currentProject?.id ?? session.projectId;
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id ?? session.workspaceId;
     const actionLabel = isPinned ? "置顶会话" : "取消置顶";
 
     try {
-      const result = await chatApi.updateSession(sessionId, { isPinned }, projectId);
+      const result = await chatApi.updateSession(sessionId, { isPinned }, workspaceId);
       if (!result.ok) {
         throw new Error(result.error.message);
       }
@@ -811,13 +838,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   async function deleteSession(sessionId: string): Promise<void> {
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id;
-    if (!projectId) {
-      throw new Error("Cannot delete session without an active project");
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id;
+    if (!workspaceId) {
+      throw new Error("Cannot delete session without an active Workspace");
     }
 
-    const result = await chatApi.removeSession(sessionId, projectId);
+    const result = await chatApi.removeSession(sessionId, workspaceId);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -846,9 +873,9 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       return;
     }
 
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id ?? session.projectId;
-    const result = await chatApi.updateSession(session.id, { agentId }, projectId);
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id ?? session.workspaceId;
+    const result = await chatApi.updateSession(session.id, { agentId }, workspaceId);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -872,8 +899,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   // probe lifecycle) live here so future additions stay in one place.
   // ChatPromptPanel.vue intentionally has no agent watcher of its own.
   watch(
-    () => [effectiveAgentId.value, useProjectStore().currentProject?.id ?? null] as const,
-    ([nextAgentId, projectId], oldValues) => {
+    () => [effectiveAgentId.value, useWorkspaceStore().currentWorkspace?.id ?? null] as const,
+    ([nextAgentId, workspaceId], oldValues) => {
       const previousAgentId = oldValues?.[0] ?? null;
 
       if (nextAgentId && nextAgentId !== previousAgentId) {
@@ -889,7 +916,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         }
       }
 
-      scheduleDraftProbe(nextAgentId, projectId);
+      scheduleDraftProbe(nextAgentId, workspaceId);
     },
     { immediate: true }
   );

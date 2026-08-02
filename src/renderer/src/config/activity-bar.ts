@@ -4,7 +4,7 @@ export interface ActivityBarItem {
   label: string;
   path: string;
   group: "top" | "bottom";
-  requiresProject: boolean;
+  requiresWorkspace: boolean;
   isDefault?: boolean;
 }
 
@@ -15,7 +15,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "概览",
     path: "/overview",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
     isDefault: true,
   },
   {
@@ -24,7 +24,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "对话",
     path: "/chat",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
   },
   {
     id: "task",
@@ -32,7 +32,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "任务",
     path: "/task",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
   },
   {
     id: "workflow",
@@ -40,7 +40,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "工作流",
     path: "/workflow",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
   },
   {
     id: "cron",
@@ -48,7 +48,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "定时",
     path: "/cron",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
   },
   {
     id: "integration",
@@ -56,7 +56,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "集成",
     path: "/integration",
     group: "top",
-    requiresProject: true,
+    requiresWorkspace: true,
   },
   {
     id: "setting",
@@ -64,11 +64,11 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     label: "设置",
     path: "/settings",
     group: "bottom",
-    requiresProject: false,
+    requiresWorkspace: false,
   },
 ];
 
-// 运行期断言：必须有且仅有一个默认 activity item，保证无项目时始终有稳定的回落页面。
+// 运行期断言：必须有且仅有一个默认 activity item，保证无工作区时始终有稳定的回落页面。
 const defaults = activityBarItems.filter((i) => i.isDefault);
 
 if (import.meta.env.DEV || import.meta.env.VITEST) {

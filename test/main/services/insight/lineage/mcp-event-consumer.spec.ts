@@ -4,7 +4,6 @@ import type { FSWatcher } from "fs";
 import { join } from "path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { Disposable } from "@main/bootstrap/lifecycle";
-import { encodeProjectPath, mcpEventsDir } from "@main/infra/storage/project-paths";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { createTestTempRoot } from "@test/main/test-temp-root";
 
@@ -26,6 +25,14 @@ const mocks = vi.hoisted(() => ({
   watch: vi.fn(),
   watchCallbacks: [] as WatchCallback[],
   watcherCloseFns: [] as Array<{ path: string; close: ReturnType<typeof vi.fn> }>,
+}));
+
+function mcpEventsDir(workspaceId: string): string {
+  return join(workspaceId, "mcp-events");
+}
+
+vi.mock("@main/infra/storage/workspace-paths", () => ({
+  mcpEventsDir: (workspaceId: string) => `${workspaceId}/mcp-events`,
 }));
 
 vi.mock("fs", async (importOriginal) => {
@@ -57,7 +64,7 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
-  disposeProject,
+  disposeWorkspace,
   ensureLineageEventConsumer,
 } from "@main/services/insight/lineage/mcp-event-consumer";
 
@@ -125,8 +132,8 @@ describe("lineage mcp event consumer", () => {
   it("creates one watcher for repeated ensure calls on the same project", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-idempotent-");
 
-    ensureLineageEventConsumer(projectPath);
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(mocks.watch).toHaveBeenCalledTimes(1);
@@ -137,7 +144,7 @@ describe("lineage mcp event consumer", () => {
     const projectPath = createTestTempRoot("fyllo-lineage-task-");
     const filePath = await writeEventFile(projectPath, "event.json", proposalEvent());
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -145,7 +152,7 @@ describe("lineage mcp event consumer", () => {
     expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-1");
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
     expect(mocks.watchProposal).toHaveBeenCalledWith(
-      encodeProjectPath(projectPath),
+      projectPath,
       projectPath,
       "change-1",
       "session-1"
@@ -156,7 +163,7 @@ describe("lineage mcp event consumer", () => {
     const projectPath = createTestTempRoot("fyllo-lineage-plan-");
     const filePath = await writeEventFile(projectPath, "event.json", planEvent());
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -171,7 +178,7 @@ describe("lineage mcp event consumer", () => {
     const filePath = await writeEventFile(projectPath, "event.json", proposalEvent());
     mocks.recordProposal.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "chat-subject" });
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -185,7 +192,7 @@ describe("lineage mcp event consumer", () => {
     const filePath = await writeEventFile(projectPath, "event.json", planEvent());
     mocks.recordPlan.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "chat-subject" });
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -203,7 +210,7 @@ describe("lineage mcp event consumer", () => {
       proposalEvent({ changeId: "change-good" })
     );
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(validPath)).toBe(false);
@@ -216,7 +223,7 @@ describe("lineage mcp event consumer", () => {
   it("rescans the full directory when fs.watch emits an event", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-watch-");
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
     await vi.waitFor(() => {
       expect(mocks.watchCallbacks).toHaveLength(1);
     });
@@ -237,7 +244,7 @@ describe("lineage mcp event consumer", () => {
   it("closes watchers on lifecycle dispose", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-dispose-");
 
-    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath, projectPath);
     await vi.waitFor(() => {
       expect(mocks.watcherCloseFns).toHaveLength(1);
     });
@@ -251,13 +258,13 @@ describe("lineage mcp event consumer", () => {
     const projectA = createTestTempRoot("fyllo-lineage-project-a-");
     const projectB = createTestTempRoot("fyllo-lineage-project-b-");
 
-    ensureLineageEventConsumer(projectA);
-    ensureLineageEventConsumer(projectB);
+    ensureLineageEventConsumer(projectA, projectA);
+    ensureLineageEventConsumer(projectB, projectB);
     await vi.waitFor(() => {
       expect(mocks.watcherCloseFns).toHaveLength(2);
     });
 
-    disposeProject(projectA);
+    disposeWorkspace(projectA);
 
     const projectAClose = mocks.watcherCloseFns.find(
       (watcher) => watcher.path === mcpEventsDir(projectA)

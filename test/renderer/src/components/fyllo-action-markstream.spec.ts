@@ -86,7 +86,7 @@ function actionContext() {
 
   return {
     context: {
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       messageIndex: 2,
       partIndex: 0,
@@ -261,7 +261,7 @@ describe("MarkStream Fyllo action integration", () => {
 
     expect(registerAction).toHaveBeenCalledTimes(1);
     expect(registerAction).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       actionId: "chat:session-1:2:0:0",
       type: "task.create",
@@ -317,7 +317,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
         enableSignals: true,
         sessionId: "session-1",
         messageIndex: 0,
-        projectId: "project-1",
+        workspaceId: "project-1",
       },
       global: {
         plugins: [createPinia()],
@@ -333,7 +333,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
               actionContext: Object,
             },
             template:
-              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-project-id="actionContext?.projectId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
+              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-project-id="actionContext?.workspaceId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
           },
           UChatReasoning: true,
           UChatTool: {

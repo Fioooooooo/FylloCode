@@ -13,13 +13,13 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId" | "isPinned">>;
 type ProbeConfigOptionInput = {
-  projectId: string;
+  workspaceId: string;
   agentId: string;
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
 };
-type ProbeUpdatePayload = { projectId: string; agentId: string; snapshot: ProbeSnapshot | null };
+type ProbeUpdatePayload = { workspaceId: string; agentId: string; snapshot: ProbeSnapshot | null };
 export interface StreamCallbacks {
   onChunk: (data: MessageChunkData) => void;
   onDone: (data: { totalTokens: number }) => void;
@@ -28,7 +28,7 @@ export interface StreamCallbacks {
 
 interface PendingChatStream {
   sessionId: string;
-  projectId: string;
+  workspaceId: string;
   callbacks: StreamCallbacks;
   port: MessagePort | null;
   cancelled: boolean;
@@ -119,7 +119,7 @@ function ensureStreamPortListener(): void {
 
 export const chatApi = {
   listSessions(query: {
-    projectId: string;
+    workspaceId: string;
     page?: number;
     limit?: number;
   }): Promise<IpcResponse<Session[]>> {
@@ -127,7 +127,7 @@ export const chatApi = {
   },
 
   createSession(input: {
-    projectId: string;
+    workspaceId: string;
     title: string;
     agentId?: string;
     configOptions?: AcpSessionConfigOption[];
@@ -139,33 +139,37 @@ export const chatApi = {
     return ipcRenderer.invoke(SessionChatChannels.createSession, input);
   },
 
-  updateSession(id: string, patch: SessionPatch, projectId: string): Promise<IpcResponse<Session>> {
-    return ipcRenderer.invoke(SessionChatChannels.updateSession, { id, patch, projectId });
+  updateSession(
+    id: string,
+    patch: SessionPatch,
+    workspaceId: string
+  ): Promise<IpcResponse<Session>> {
+    return ipcRenderer.invoke(SessionChatChannels.updateSession, { id, patch, workspaceId });
   },
 
-  removeSession(id: string, projectId: string): Promise<IpcResponse<void>> {
-    return ipcRenderer.invoke(SessionChatChannels.removeSession, { id, projectId });
+  removeSession(id: string, workspaceId: string): Promise<IpcResponse<void>> {
+    return ipcRenderer.invoke(SessionChatChannels.removeSession, { id, workspaceId });
   },
 
-  loadMessages(sessionId: string, projectId: string): Promise<IpcResponse<Message[]>> {
-    return ipcRenderer.invoke(SessionChatChannels.loadMessages, { sessionId, projectId });
+  loadMessages(sessionId: string, workspaceId: string): Promise<IpcResponse<Message[]>> {
+    return ipcRenderer.invoke(SessionChatChannels.loadMessages, { sessionId, workspaceId });
   },
 
   persistMessage(
     sessionId: string,
-    projectId: string,
+    workspaceId: string,
     message: Message
   ): Promise<IpcResponse<void>> {
     return ipcRenderer.invoke(SessionChatChannels.persistMessage, {
       sessionId,
-      projectId,
+      workspaceId,
       message,
     });
   },
 
   streamMessage(
     sessionId: string,
-    projectId: string,
+    workspaceId: string,
     agentId: string,
     parts: ChatPromptPart[],
     callbacks: StreamCallbacks,
@@ -176,7 +180,7 @@ export const chatApi = {
     const streamId = createStreamId();
     pendingChatStreams.set(streamId, {
       sessionId,
-      projectId,
+      workspaceId,
       callbacks,
       port: null,
       cancelled: false,
@@ -187,7 +191,7 @@ export const chatApi = {
       .invoke(SessionChatStreamChannels.streamMessage, {
         streamId,
         sessionId,
-        projectId,
+        workspaceId,
         agentId,
         prompt: parts,
         ...(options?.acpSessionId ? { acpSessionId: options.acpSessionId } : {}),
@@ -214,21 +218,21 @@ export const chatApi = {
       }
 
       pending.cancelled = true;
-      void ipcRenderer.invoke(SessionChatStreamChannels.streamCancel, { projectId, sessionId });
+      void ipcRenderer.invoke(SessionChatStreamChannels.streamCancel, { workspaceId, sessionId });
       closePort(pending.port);
       pendingChatStreams.delete(streamId);
     };
   },
 
   saveAttachment(
-    projectId: string,
+    workspaceId: string,
     sessionId: string,
     fileName: string,
     mimeType: string,
     base64Data: string
   ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
     return ipcRenderer.invoke(SessionChatChannels.saveAttachment, {
-      projectId,
+      workspaceId,
       sessionId,
       fileName,
       mimeType,
@@ -244,7 +248,7 @@ export const chatApi = {
   },
 
   setConfigOption(input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     configId: string;
     type: "select" | "boolean";
@@ -253,11 +257,14 @@ export const chatApi = {
     return ipcRenderer.invoke(SessionChatChannels.setConfigOption, input);
   },
 
-  probeEnsure(input: { agentId: string; projectId: string }): Promise<IpcResponse<ProbeSnapshot>> {
+  probeEnsure(input: {
+    agentId: string;
+    workspaceId: string;
+  }): Promise<IpcResponse<ProbeSnapshot>> {
     return ipcRenderer.invoke(SessionChatProbeChannels.ensure, input);
   },
 
-  probeClose(input: { projectId: string; agentId: string }): Promise<IpcResponse<void>> {
+  probeClose(input: { workspaceId: string; agentId: string }): Promise<IpcResponse<void>> {
     return ipcRenderer.invoke(SessionChatProbeChannels.close, input);
   },
 

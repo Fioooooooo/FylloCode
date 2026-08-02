@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
-import { useProjectStore, useIntegrationProvidersStore } from "@renderer/stores";
+import { useWorkspaceStore, useIntegrationProvidersStore } from "@renderer/stores";
 import ProviderStageSection from "@renderer/components/integration/ProviderStageSection.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const integrationProvidersStore = useIntegrationProvidersStore();
 
-const currentProjectId = computed(() => projectStore.currentProject?.id ?? "");
+const currentWorkspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
 
 const searchQuery = computed({
   get: () => integrationProvidersStore.searchQuery,
@@ -19,9 +19,9 @@ onMounted(async () => {
 });
 
 watch(
-  currentProjectId,
-  async (projectId) => {
-    await integrationProvidersStore.loadProjectIntegration(projectId);
+  currentWorkspaceId,
+  async (workspaceId) => {
+    await integrationProvidersStore.loadProjectIntegration(workspaceId);
   },
   { immediate: true }
 );
@@ -33,7 +33,7 @@ watch(
       <PageHeader
         eyebrow="Integrations"
         title="集成"
-        description="为当前项目挂载各阶段需要的 provider 资源。连接与凭证管理统一在设置页处理。"
+        description="为当前工作区挂载各阶段需要的 provider 资源。连接与凭证管理统一在设置页处理。"
       />
 
       <UInput v-model="searchQuery" placeholder="搜索 provider…" size="sm" class="w-full sm:w-96">
@@ -42,21 +42,21 @@ watch(
         </template>
       </UInput>
 
-      <div v-if="currentProjectId" class="space-y-10">
+      <div v-if="currentWorkspaceId" class="space-y-10">
         <ProviderStageSection
           v-for="category in integrationProvidersStore.categories"
           :key="category.id"
           :category="category"
           :providers="integrationProvidersStore.filteredProviders"
-          :current-project-id="currentProjectId"
+          :current-workspace-id="currentWorkspaceId"
         />
       </div>
 
       <AppEmptyState
         v-else
         icon="i-lucide-folder-open"
-        title="请先打开一个项目"
-        description="选择或创建一个项目后，即可为项目配置集成资源。"
+        title="请先打开一个工作区"
+        description="选择或创建一个工作区后，即可为工作区配置集成资源。"
       />
     </div>
   </div>

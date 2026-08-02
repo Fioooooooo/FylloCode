@@ -1,9 +1,9 @@
 import { registerDocumentHandlers } from "./document";
-import { registerProjectHandlers } from "./project";
+import { registerWorkspaceHandlers } from "./workspace";
 import { registerWindowHandlers } from "./window";
 
 export function registerWorkspaceIpcHandlers(): void {
   registerDocumentHandlers();
   registerWindowHandlers();
-  registerProjectHandlers();
+  registerWorkspaceHandlers();
 }

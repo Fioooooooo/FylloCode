@@ -5,6 +5,8 @@ import { is } from "@electron-toolkit/utils";
 
 type SubPath =
   | "projects"
+  | "workspaces"
+  | "workspace-folders"
   | "settings"
   | "window-state"
   | "sessions"

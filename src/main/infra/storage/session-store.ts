@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { sessionsDir } from "@main/infra/storage/project-paths";
+import { sessionsDir } from "@main/infra/storage/workspace-paths";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import { getFylloActionContract } from "@shared/fyllo-action/registry";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
@@ -37,12 +37,12 @@ const DEFAULT_TOKEN_USAGE: Pick<TokenUsage, "used" | "size"> = { used: 0, size: 
 const sessionMetaWriteQueues = new Map<string, Promise<void>>();
 let sessionMetaTempWriteCounter = 0;
 
-function metaPath(projectPath: string, sessionId: string): string {
-  return join(sessionsDir(projectPath), `${sessionId}.json`);
+function metaPath(workspaceId: string, sessionId: string): string {
+  return join(sessionsDir(workspaceId), `${sessionId}.json`);
 }
 
-export function sessionMessagesPath(projectPath: string, sessionId: string): string {
-  return join(sessionsDir(projectPath), `${sessionId}.messages.jsonl`);
+export function sessionMessagesPath(workspaceId: string, sessionId: string): string {
+  return join(sessionsDir(workspaceId), `${sessionId}.messages.jsonl`);
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -141,11 +141,11 @@ function parseSessionMetaRecordContent(content: string): {
 // 按 session 文件串行化写入：并发 patch 可能来自 UI 状态更新与 ACP 事件处理，
 // 队列可避免后写覆盖前写的 race condition。
 async function withSessionMetaWriteLock<T>(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   task: () => Promise<T>
 ): Promise<T> {
-  const filePath = metaPath(projectPath, sessionId);
+  const filePath = metaPath(workspaceId, sessionId);
   const previous = sessionMetaWriteQueues.get(filePath) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => {
@@ -178,7 +178,7 @@ async function writeSessionMetaFile(filePath: string, content: string): Promise<
 }
 
 async function writeSessionMetaRecordUnlocked(
-  projectPath: string,
+  workspaceId: string,
   record: SessionMetaRecord
 ): Promise<SessionMetaRecord> {
   const normalized = normalizeSessionMetaRecord(record);
@@ -187,17 +187,17 @@ async function writeSessionMetaRecordUnlocked(
     throw new TypeError("session meta record must include a string sessionId");
   }
 
-  await ensureDir(sessionsDir(projectPath));
-  await writeSessionMetaFile(metaPath(projectPath, sessionId), JSON.stringify(normalized, null, 2));
+  await ensureDir(sessionsDir(workspaceId));
+  await writeSessionMetaFile(metaPath(workspaceId, sessionId), JSON.stringify(normalized, null, 2));
   return normalized;
 }
 
 async function readSessionMetaRecord(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string
 ): Promise<SessionMetaRecord | null> {
   try {
-    const content = await fs.readFile(metaPath(projectPath, sessionId), "utf8");
+    const content = await fs.readFile(metaPath(workspaceId, sessionId), "utf8");
     const parsed = parseSessionMetaRecordContent(content);
     if (!parsed) {
       return null;
@@ -307,7 +307,7 @@ function toSessionMeta(record: SessionMetaRecord): SessionMeta {
 }
 
 async function writeSessionMetaRecord(
-  projectPath: string,
+  workspaceId: string,
   record: SessionMetaRecord
 ): Promise<SessionMetaRecord> {
   const sessionId = record.sessionId;
@@ -315,8 +315,8 @@ async function writeSessionMetaRecord(
     throw new TypeError("session meta record must include a string sessionId");
   }
 
-  return withSessionMetaWriteLock(projectPath, sessionId, async () =>
-    writeSessionMetaRecordUnlocked(projectPath, record)
+  return withSessionMetaWriteLock(workspaceId, sessionId, async () =>
+    writeSessionMetaRecordUnlocked(workspaceId, record)
   );
 }
 
@@ -342,35 +342,35 @@ function mergeSessionMetaRecord(
 }
 
 export async function createSessionMeta(
-  projectPath: string,
+  workspaceId: string,
   meta: SessionMeta
 ): Promise<SessionMeta> {
-  await writeSessionMetaRecord(projectPath, meta as unknown as SessionMetaRecord);
+  await writeSessionMetaRecord(workspaceId, meta as unknown as SessionMetaRecord);
   return meta;
 }
 
-export async function saveSessionMeta(projectPath: string, meta: SessionMeta): Promise<void> {
-  await writeSessionMetaRecord(projectPath, meta as unknown as SessionMetaRecord);
+export async function saveSessionMeta(workspaceId: string, meta: SessionMeta): Promise<void> {
+  await writeSessionMetaRecord(workspaceId, meta as unknown as SessionMetaRecord);
 }
 
 export async function loadSessionMeta(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string
 ): Promise<SessionMeta | null> {
-  const record = await readSessionMetaRecord(projectPath, sessionId);
+  const record = await readSessionMetaRecord(workspaceId, sessionId);
   return record ? toSessionMeta(record) : null;
 }
 
-export async function listSessionMetas(projectPath: string): Promise<SessionMeta[]> {
+export async function listSessionMetas(workspaceId: string): Promise<SessionMeta[]> {
   try {
-    const dir = sessionsDir(projectPath);
+    const dir = sessionsDir(workspaceId);
     const files = await fs.readdir(dir);
     const metas: SessionMeta[] = [];
     for (const file of files) {
       if (!file.startsWith("session") || !file.endsWith(".json")) continue;
       try {
         const sessionId = file.slice(0, -".json".length);
-        const meta = await loadSessionMeta(projectPath, sessionId);
+        const meta = await loadSessionMeta(workspaceId, sessionId);
         if (meta) {
           metas.push(meta);
         }
@@ -385,12 +385,12 @@ export async function listSessionMetas(projectPath: string): Promise<SessionMeta
 }
 
 export async function patchSessionMeta(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   patch: SessionMetaPatch | ((currentMeta: SessionMeta) => SessionMetaPatch)
 ): Promise<SessionMeta | null> {
-  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
-    const currentRecord = await readSessionMetaRecord(projectPath, sessionId);
+  return withSessionMetaWriteLock(workspaceId, sessionId, async () => {
+    const currentRecord = await readSessionMetaRecord(workspaceId, sessionId);
     if (!currentRecord) {
       return null;
     }
@@ -399,7 +399,7 @@ export async function patchSessionMeta(
     const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
     return toSessionMeta(
       await writeSessionMetaRecordUnlocked(
-        projectPath,
+        workspaceId,
         mergeSessionMetaRecord(currentRecord, nextPatch)
       )
     );
@@ -407,20 +407,20 @@ export async function patchSessionMeta(
 }
 
 export async function upsertSessionMeta(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   create: () => SessionMeta,
   patch: SessionMetaPatch | ((currentMeta: SessionMeta) => SessionMetaPatch)
 ): Promise<SessionMeta> {
-  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
+  return withSessionMetaWriteLock(workspaceId, sessionId, async () => {
     const currentRecord =
-      (await readSessionMetaRecord(projectPath, sessionId)) ??
+      (await readSessionMetaRecord(workspaceId, sessionId)) ??
       (create() as unknown as SessionMetaRecord);
     const currentMeta = toSessionMeta(currentRecord);
     const nextPatch = typeof patch === "function" ? patch(currentMeta) : patch;
     return toSessionMeta(
       await writeSessionMetaRecordUnlocked(
-        projectPath,
+        workspaceId,
         mergeSessionMetaRecord(currentRecord, nextPatch)
       )
     );
@@ -428,18 +428,18 @@ export async function upsertSessionMeta(
 }
 
 export async function updateSessionOriginTaskRef(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   originTaskRef: LineageTaskRef
 ): Promise<SessionMeta | null> {
-  return withSessionMetaWriteLock(projectPath, sessionId, async () => {
-    const currentRecord = await readSessionMetaRecord(projectPath, sessionId);
+  return withSessionMetaWriteLock(workspaceId, sessionId, async () => {
+    const currentRecord = await readSessionMetaRecord(workspaceId, sessionId);
     if (!currentRecord) {
       return null;
     }
 
     return toSessionMeta(
-      await writeSessionMetaRecordUnlocked(projectPath, {
+      await writeSessionMetaRecordUnlocked(workspaceId, {
         ...currentRecord,
         originTaskRef,
         updatedAt: new Date().toISOString(),
@@ -448,29 +448,29 @@ export async function updateSessionOriginTaskRef(
   });
 }
 
-export async function deleteSession(projectPath: string, sessionId: string): Promise<void> {
+export async function deleteSession(workspaceId: string, sessionId: string): Promise<void> {
   await Promise.allSettled([
-    fs.unlink(metaPath(projectPath, sessionId)),
-    fs.unlink(sessionMessagesPath(projectPath, sessionId)),
+    fs.unlink(metaPath(workspaceId, sessionId)),
+    fs.unlink(sessionMessagesPath(workspaceId, sessionId)),
   ]);
 }
 
 export async function appendMessage(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(sessionsDir(projectPath));
+  await ensureDir(sessionsDir(workspaceId));
   const line = JSON.stringify(message) + "\n";
-  await fs.appendFile(sessionMessagesPath(projectPath, sessionId), line, "utf8");
+  await fs.appendFile(sessionMessagesPath(workspaceId, sessionId), line, "utf8");
 }
 
 export async function loadMessages(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
-    const content = await fs.readFile(sessionMessagesPath(projectPath, sessionId), "utf8");
+    const content = await fs.readFile(sessionMessagesPath(workspaceId, sessionId), "utf8");
     return parseJsonlLines<UIMessage<MessageMeta>>(content, "session-store");
   } catch {
     return [];

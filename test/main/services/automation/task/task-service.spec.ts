@@ -31,7 +31,7 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
   const updatedAt = new Date("2026-05-10T00:00:00.000Z");
   return {
     id: "task-1",
-    projectId: "tmp-project",
+    workspaceId: "workspace-1",
     title: "Task",
     description: { format: "plain_text", content: "" },
     status: "open",
@@ -70,18 +70,18 @@ describe("task-service", () => {
     const newer = task({ id: "task-new", updatedAt: new Date("2026-05-10T00:00:00.000Z") });
     mocks.loadTasks.mockResolvedValue([older, newer]);
 
-    await expect(listTasks("/tmp/project")).resolves.toEqual([newer, older]);
+    await expect(listTasks("workspace-1")).resolves.toEqual([newer, older]);
   });
 
   it("creates a local task with generated id, timestamps, and defaults", async () => {
     const existing = task();
     mocks.loadTasks.mockResolvedValue([existing]);
 
-    const created = await createTask("/tmp/project", { title: "New task" });
+    const created = await createTask("workspace-1", { title: "New task" });
 
     expect(created).toMatchObject({
       id: "task-generated",
-      projectId: "tmp-project",
+      workspaceId: "workspace-1",
       title: "New task",
       description: { format: "plain_text", content: "" },
       status: "open",
@@ -92,14 +92,14 @@ describe("task-service", () => {
     expect(created.createdAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
     expect(created.updatedAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
     expect(created.originSessionId).toBeUndefined();
-    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [existing, created]);
+    expect(mocks.saveTasks).toHaveBeenCalledWith("workspace-1", [existing, created]);
   });
 
   it("updates a task with partial patch and refreshes updatedAt", async () => {
     const existing = task();
     mocks.loadTasks.mockResolvedValue([existing]);
 
-    const updated = await updateTask("/tmp/project", "task-1", {
+    const updated = await updateTask("workspace-1", "task-1", {
       title: "Updated",
       status: "closed",
     });
@@ -111,31 +111,31 @@ describe("task-service", () => {
       description: { format: "plain_text", content: "" },
     });
     expect(updated.updatedAt.toISOString()).toBe("2026-05-10T12:00:00.000Z");
-    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [updated]);
+    expect(mocks.saveTasks).toHaveBeenCalledWith("workspace-1", [updated]);
   });
 
   it("does not let task patches change originSessionId", async () => {
     const existing = task({ originSessionId: "session-original" });
     mocks.loadTasks.mockResolvedValue([existing]);
 
-    const updated = await updateTask("/tmp/project", "task-1", {
+    const updated = await updateTask("workspace-1", "task-1", {
       title: "Updated",
       originSessionId: "session-next",
     } as never);
 
     expect(updated.originSessionId).toBe("session-original");
-    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [updated]);
+    expect(mocks.saveTasks).toHaveBeenCalledWith("workspace-1", [updated]);
   });
 
   it("persists structured plain text descriptions for create and update", async () => {
     const existing = task();
     mocks.loadTasks.mockResolvedValueOnce([]).mockResolvedValueOnce([existing]);
 
-    const created = await createTask("/tmp/project", {
+    const created = await createTask("workspace-1", {
       title: "Task with description",
       description: { format: "plain_text", content: "create body" },
     });
-    const updated = await updateTask("/tmp/project", "task-1", {
+    const updated = await updateTask("workspace-1", "task-1", {
       description: { format: "plain_text", content: "updated body" },
     });
 
@@ -148,18 +148,18 @@ describe("task-service", () => {
     const second = task({ id: "task-2" });
     mocks.loadTasks.mockResolvedValue([first, second]);
 
-    await deleteTask("/tmp/project", "task-1");
+    await deleteTask("workspace-1", "task-1");
 
-    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [second]);
+    expect(mocks.saveTasks).toHaveBeenCalledWith("workspace-1", [second]);
   });
 
   it("rejects update and delete for missing task ids", async () => {
     mocks.loadTasks.mockResolvedValue([]);
 
-    await expect(updateTask("/tmp/project", "missing", { title: "x" })).rejects.toMatchObject({
+    await expect(updateTask("workspace-1", "missing", { title: "x" })).rejects.toMatchObject({
       code: IpcErrorCodes.TASK_NOT_FOUND,
     });
-    await expect(deleteTask("/tmp/project", "missing")).rejects.toMatchObject({
+    await expect(deleteTask("workspace-1", "missing")).rejects.toMatchObject({
       code: IpcErrorCodes.TASK_NOT_FOUND,
     });
     expect(mocks.saveTasks).not.toHaveBeenCalled();
@@ -170,7 +170,7 @@ describe("task-service", () => {
     mocks.loadTasks.mockResolvedValue([existing]);
 
     const created = await createTask(
-      "/tmp/project",
+      "workspace-1",
       { title: "New task" },
       { actionId: "fyllo-action-1" }
     );
@@ -184,12 +184,12 @@ describe("task-service", () => {
     mocks.loadTasks.mockResolvedValue([]);
 
     const created = await createTask(
-      "/tmp/project",
+      "workspace-1",
       { title: "New task" },
       { actionId: "fyllo-action-1" }
     );
 
     expect(created.actionId).toBe("fyllo-action-1");
-    expect(mocks.saveTasks).toHaveBeenCalledWith("/tmp/project", [created]);
+    expect(mocks.saveTasks).toHaveBeenCalledWith("workspace-1", [created]);
   });
 });

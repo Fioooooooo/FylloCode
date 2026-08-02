@@ -16,9 +16,9 @@ vi.mock("@renderer/stores/insight/knowledge", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    currentProject: { id: "project-1" },
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    currentWorkspace: { id: "project-1" },
   }),
 }));
 
@@ -41,6 +41,7 @@ function buttonByText(wrapper: VueWrapper, text: string): DOMWrapper<HTMLButtonE
 async function mountKnowledgeReview(): Promise<VueWrapper> {
   const wrapper = mount(KnowledgeReviewSlideover, {
     props: {
+      workspaceId: "project-1",
       sessionId: "session-1",
       name: "markstream-vue-theme-subscription",
     },
@@ -61,7 +62,7 @@ describe("KnowledgeReviewSlideover", () => {
         content: rawContent,
       },
     });
-    saveEntryMock.mockImplementation((_projectId, input) =>
+    saveEntryMock.mockImplementation((_workspaceId, input) =>
       Promise.resolve({
         ok: true,
         data: {

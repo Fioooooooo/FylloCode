@@ -8,13 +8,13 @@
 
 ### Requirement: Knowledge browser exposes a project-scoped index
 
-系统 SHALL 通过 `insight:knowledge` domain-first contract 为当前项目提供 knowledge browser index，并复用现有 knowledge scanner 计算条目元数据、computed status 和扫描错误。
+系统 SHALL 通过 `insight:knowledge` domain-first contract 为当前 Workspace 提供 knowledge browser index，并复用现有 knowledge scanner 计算条目元数据、computed status 和扫描错误。Knowledge 目录 SHALL 位于由稳定 `workspaceId` 定位的 Workspace-owned app-data 中。
 
 Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、`updatedAt` 和 `status`，但 SHALL NOT 包含完整 Markdown body；`status` SHALL 为 `active`、`suspect` 或 `unknown`。扫描错误 SHALL 包含文件 path、错误类型和错误信息；仅当 path 对应合法 knowledge name 时才 SHALL 暴露该 name 供 raw document 操作。
 
 #### Scenario: Browser query returns valid entries and isolated errors
 
-- **WHEN** 当前项目的 knowledge 目录同时包含合法条目和无法读取或解析的 Markdown 文件
+- **WHEN** 当前 Workspace 的 knowledge 目录同时包含合法条目和无法读取或解析的 Markdown 文件
 - **THEN** `insight:knowledge:getBrowser` SHALL 返回合法条目的摘要与 computed status
 - **AND** SHALL 在 `errors` 中返回每个隔离错误的 path、类型和信息
 - **AND** 单个损坏文件 SHALL NOT 阻止其他合法条目显示
@@ -22,24 +22,24 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 
 #### Scenario: Missing knowledge directory is an empty browser
 
-- **WHEN** 当前项目 app data 中不存在 knowledge 目录
+- **WHEN** 当前 Workspace app-data 中不存在 knowledge 目录
 - **THEN** browser index SHALL 返回空 `entries` 和空 `errors`
 - **AND** SHALL NOT 将目录缺失作为页面加载错误
 
-#### Scenario: Browser query remains project scoped
+#### Scenario: Browser query remains Workspace scoped
 
-- **WHEN** renderer 请求一个项目的 knowledge browser index
-- **THEN** main SHALL 通过受校验的 `projectId` 解析项目路径
-- **AND** SHALL 只扫描该项目 app data 下的 knowledge 目录
+- **WHEN** renderer 请求一个 Workspace 的 knowledge browser index
+- **THEN** main SHALL 从 sender context 校验 `workspaceId`
+- **AND** SHALL 只扫描 `<appData>/workspaces/<workspaceId>/knowledge`
 - **AND** SHALL NOT 接受 renderer 提供的任意文件系统路径
 
 ### Requirement: Knowledge browser provides an independent two-pane page
 
-系统 SHALL 提供独立 `/knowledge` 页面，以左侧 knowledge 列表和右侧只读正文组成双栏 reader，并 SHALL NOT 将该页面注册为 ActivityBar item。
+系统 SHALL 提供独立 `/knowledge` 页面，以左侧 knowledge 列表和右侧只读正文组成双栏 reader，并 SHALL NOT 将该页面注册为 ActivityBar item。页面数据 SHALL 始终属于当前 Workspace。
 
 #### Scenario: Loaded knowledge appears in grouped list
 
-- **WHEN** `/knowledge` 成功加载非空 browser index
+- **WHEN** `/knowledge` 成功加载当前 Workspace 的非空 browser index
 - **THEN** 左侧列表 SHALL 按 `project`、`reference`、`feedback` 分组展示正常条目
 - **AND** 每个条目 SHALL 展示可辨认的 name、description 或回退文本、更新时间和 computed status
 - **AND** computed status SHALL 使用文字 badge 标明 `active`、`suspect` 或 `unknown`，不得只靠颜色表达
@@ -54,25 +54,25 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 
 #### Scenario: Empty knowledge page remains explicit
 
-- **WHEN** browser index 的 `entries` 和 `errors` 都为空
+- **WHEN** 当前 Workspace browser index 的 `entries` 和 `errors` 都为空
 - **THEN** 页面 SHALL 展示包含图标、标题和描述的 knowledge 空状态
-- **AND** 页面 SHALL 保持双栏页面的治理语境，不显示过期项目数据
+- **AND** 页面 SHALL 保持双栏页面的治理语境，不显示过期 Workspace 数据
 
 #### Scenario: Browser loading fails
 
-- **WHEN** browser index 请求失败
+- **WHEN** 当前 Workspace 的 browser index 请求失败
 - **THEN** 页面 SHALL 展示明确加载错误和错误信息
-- **AND** SHALL NOT 将上一项目的 index 作为当前结果展示
+- **AND** SHALL NOT 将上一 Workspace 的 index 作为当前结果展示
 
 ### Requirement: Knowledge detail renders complete raw markdown as read-only content
 
-系统 SHALL 在用户选择可读取条目后，通过现有 `insight:knowledge:readEntry` 获取完整 raw Markdown，并在右侧以只读 Markdown 渲染。
+系统 SHALL 在用户选择可读取条目后，通过现有 `insight:knowledge:readEntry` 和当前 `workspaceId` 获取完整 raw Markdown，并在右侧以只读 Markdown 渲染。
 
 展示层 SHALL 只识别文件开头 YAML frontmatter 的 `---` 边界，并将包含边界的完整 frontmatter 包装为 YAML code block；展示层 SHALL NOT 解析、排序、裁剪、重组或保存 frontmatter 字段，也 SHALL NOT 限制 anchors 或其他数组的展示条数。
 
 #### Scenario: Selected entry renders frontmatter and body
 
-- **WHEN** 用户选择一个包含合法 YAML frontmatter 和正文的 knowledge 条目
+- **WHEN** 用户选择当前 Workspace 中一个包含合法 YAML frontmatter 和正文的 knowledge 条目
 - **THEN** 右侧 SHALL 渲染该文件的完整 frontmatter 和正文
 - **AND** frontmatter SHALL 作为 YAML code block 可读展示
 - **AND** 正文 SHALL 继续按 Markdown 渲染
@@ -83,7 +83,7 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 - **WHEN** 页面为 Markdown renderer 包装 frontmatter
 - **THEN** 该转换 SHALL 只作用于内存中的展示内容
 - **AND** SHALL NOT 调用 knowledge save API
-- **AND** SHALL NOT 修改 app data 中的 knowledge 文件
+- **AND** SHALL NOT 修改 Workspace app-data 中的 knowledge 文件
 
 #### Scenario: Markdown without recognized frontmatter remains readable
 
@@ -93,12 +93,12 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 
 #### Scenario: Stale detail response is ignored
 
-- **WHEN** 用户在前一个 raw document 请求完成前选择另一个条目
-- **THEN** 迟到的前一个响应 SHALL NOT 覆盖当前条目的正文、错误或 loading 状态
+- **WHEN** 用户在前一个 raw document 请求完成前切换 Workspace 或选择另一个条目
+- **THEN** 迟到的前一个响应 SHALL NOT 覆盖当前 Workspace/条目的正文、错误或 loading 状态
 
 ### Requirement: Users delete one knowledge entry after destructive confirmation
 
-系统 SHALL 允许用户从 knowledge reader 删除一个具有合法 knowledge name 的条目，并在调用删除 API 前要求二次确认。删除 API SHALL 只允许删除当前项目 app data 中 `knowledge/<validated-name>.md`，不得接受任意 path。
+系统 SHALL 允许用户从 knowledge reader 删除一个具有合法 knowledge name 的条目，并在调用删除 API 前要求二次确认。删除 API SHALL 只允许删除当前 Workspace app-data 中 `knowledge/<validated-name>.md`，不得接受任意 path。
 
 #### Scenario: User cancels knowledge deletion
 
@@ -109,11 +109,11 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 #### Scenario: Confirmed deletion succeeds
 
 - **WHEN** 用户在包含 knowledge name 和不可撤销说明的确认弹窗中点击“删除知识”
-- **AND** `insight:knowledge:deleteEntry` 成功删除目标文件
-- **THEN** 页面 SHALL 刷新 browser index
+- **AND** `insight:knowledge:deleteEntry` 在校验后的 `workspaceId` 下成功删除目标文件
+- **THEN** 页面 SHALL 刷新当前 Workspace 的 browser index
 - **AND** SHALL 优先选择原列表中的下一可读条目，没有下一项时选择上一项
 - **AND** 删除后没有条目时 SHALL 展示空状态
-- **AND** 系统 SHALL NOT 删除其他 knowledge 文件或仓库文件
+- **AND** 系统 SHALL NOT 删除其他 Workspace 的 knowledge 文件或 repository 文件
 
 #### Scenario: Confirmed deletion fails
 
@@ -130,11 +130,11 @@ Browser index 中的正常条目 SHALL 包含 `name`、`description`、`type`、
 
 ### Requirement: Knowledge browser reacts safely to project changes
 
-系统 SHALL 让 knowledge browser index 和 detail 始终绑定当前项目，并隔离旧项目的迟到请求。
+系统 SHALL 让 knowledge browser index 和 detail 始终绑定当前 `workspaceId`，并隔离旧 Workspace 的迟到请求。
 
-#### Scenario: Current project changes while browser is loading
+#### Scenario: Current Workspace changes while browser is loading
 
-- **WHEN** knowledge browser 请求进行中且当前项目切换
-- **THEN** store SHALL 清除旧选择和旧项目展示状态
-- **AND** 旧请求完成后 SHALL NOT 提交为新项目结果
-- **AND** 页面 SHALL 加载新项目的 browser index
+- **WHEN** knowledge browser 请求进行中且当前 Workspace 切换
+- **THEN** store SHALL 清除旧选择和旧 Workspace 展示状态
+- **AND** 旧请求完成后 SHALL NOT 提交为新 Workspace 结果
+- **AND** 页面 SHALL 加载新 Workspace 的 browser index

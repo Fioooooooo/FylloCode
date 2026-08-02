@@ -52,7 +52,7 @@ describe("action-service", () => {
       });
 
       const state = await registerAction({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "task:session-1:0:0:0",
         type: "task.create",
@@ -64,7 +64,7 @@ describe("action-service", () => {
         revision: 1,
       });
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.objectContaining({
           actionStates: {
@@ -92,7 +92,7 @@ describe("action-service", () => {
       mocks.loadSessionMeta.mockResolvedValue(currentMeta);
 
       const state = await registerAction({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "task:session-1:0:0:0",
         type: "task.create",
@@ -122,7 +122,7 @@ describe("action-service", () => {
 
       await expect(
         registerAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "task:session-1:0:0:0",
           type: "plan.create",
@@ -135,7 +135,7 @@ describe("action-service", () => {
 
       await expect(
         registerAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "unknown:session-1:0:0:0",
           // Cast to satisfy the input type while exercising runtime validation.
@@ -149,7 +149,7 @@ describe("action-service", () => {
 
       await expect(
         registerAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "task:session-1:0:0:0",
           type: "task.create",
@@ -177,7 +177,7 @@ describe("action-service", () => {
       });
 
       const state = await transitionAction({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "task:session-1:0:0:0",
         command: "succeed",
@@ -206,7 +206,7 @@ describe("action-service", () => {
 
       await expect(
         transitionAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "task:session-1:0:0:0",
           command: "succeed",
@@ -230,7 +230,7 @@ describe("action-service", () => {
 
       await expect(
         transitionAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "task:session-1:0:0:0",
           command: "succeed",
@@ -257,7 +257,7 @@ describe("action-service", () => {
       });
 
       const state = await transitionAction({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "task:session-1:0:0:0",
         command: "fail",
@@ -277,7 +277,7 @@ describe("action-service", () => {
 
       await expect(
         transitionAction({
-          projectId: "project-1",
+          workspaceId: "workspace-1",
           sessionId: "session-1",
           actionId: "task:session-1:0:0:0",
           command: "succeed",
@@ -312,7 +312,7 @@ describe("action-service", () => {
       });
 
       const results = await transitionActions({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionIds: ["task:session-1:0:0:0", "plan:session-1:0:0:1"],
         command: "succeed",
@@ -350,7 +350,7 @@ describe("action-service", () => {
       });
 
       const results = await transitionActions({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionIds: ["task:session-1:0:0:0", "plan:session-1:0:0:1"],
         command: "succeed",
@@ -385,7 +385,7 @@ describe("action-service", () => {
       mocks.loadSessionMeta.mockResolvedValue(currentMeta);
 
       const results = await transitionActions({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionIds: ["task:session-1:0:0:0", "missing:session-1:0:0:1"],
         command: "succeed",

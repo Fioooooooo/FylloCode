@@ -46,7 +46,7 @@ export type TaskSourceMeta = LocalTaskMeta | YunxiaoTaskMeta | GithubTaskMeta;
 
 export interface TaskItem {
   id: string;
-  projectId: string;
+  workspaceId: string;
   title: string;
   description: TaskDescription;
   status: TaskStatus;

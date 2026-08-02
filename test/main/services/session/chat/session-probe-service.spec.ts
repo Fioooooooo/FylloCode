@@ -150,10 +150,11 @@ describe("session-probe-service", () => {
     const onUpdate = vi.fn((payload) => updates.push(payload));
     sessionProbeBus.onUpdate(onUpdate);
 
-    const snapshot = await ensureProbe("project-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
     expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       fylloSessionId: snapshot.fylloSessionId,
       supportsHttp: false,
@@ -179,7 +180,7 @@ describe("session-probe-service", () => {
     expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
     expect(updates).toEqual([
       expect.objectContaining({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-code",
         snapshot: expect.objectContaining({
           status: "ready",
@@ -201,8 +202,8 @@ describe("session-probe-service", () => {
       })
     );
 
-    const first = ensureProbe("project-1", "claude-code", "/tmp/project");
-    const second = ensureProbe("project-1", "claude-code", "/tmp/project");
+    const first = ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const second = ensureProbe("workspace-1", "claude-code", "/tmp/project");
     resolveNewSession({ sessionId: "acp-1", configOptions: [] });
 
     await expect(Promise.all([first, second])).resolves.toEqual([
@@ -221,7 +222,7 @@ describe("session-probe-service", () => {
       })
     );
 
-    const probe = ensureProbe("project-1", "claude-code", "/tmp/project");
+    const probe = ensureProbe("workspace-1", "claude-code", "/tmp/project");
     await vi.waitFor(() => expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce());
     expect(mocks.newSession).not.toHaveBeenCalled();
 
@@ -263,11 +264,11 @@ describe("session-probe-service", () => {
       expect.objectContaining({ acpSessionId: "acp-b" }),
     ]);
     expect(sessionProbeRegistry.get("project-a", "claude-code")).toMatchObject({
-      projectId: "project-a",
+      workspaceId: "project-a",
       acpSessionId: "acp-a",
     });
     expect(sessionProbeRegistry.get("project-b", "claude-code")).toMatchObject({
-      projectId: "project-b",
+      workspaceId: "project-b",
       acpSessionId: "acp-b",
     });
     expect(mocks.sessionHandlers.get("acp-b")).toBeTypeOf("function");
@@ -282,8 +283,8 @@ describe("session-probe-service", () => {
       })
     );
 
-    const promise = ensureProbe("project-1", "claude-code", "/tmp/project");
-    const startingEntry = sessionProbeRegistry.get("project-1", "claude-code");
+    const promise = ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const startingEntry = sessionProbeRegistry.get("workspace-1", "claude-code");
 
     expect(startingEntry).toMatchObject({
       status: "starting",
@@ -292,6 +293,7 @@ describe("session-probe-service", () => {
 
     await vi.waitFor(() => {
       expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
         projectPath: "/tmp/project",
         fylloSessionId: startingEntry?.fylloSessionId,
         supportsHttp: false,
@@ -308,17 +310,17 @@ describe("session-probe-service", () => {
   it("closes a ready probe and emits null", async () => {
     const { closeProbe, ensureProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
-    await closeProbe("project-1", "claude-code");
+    await closeProbe("workspace-1", "claude-code");
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-1" });
     expect(mocks.activeSessionIds.has("acp-1")).toBe(false);
     expect(onUpdate).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "claude-code",
       snapshot: null,
     });
@@ -329,22 +331,22 @@ describe("session-probe-service", () => {
   it("does not throw when closeSession fails", async () => {
     const { closeProbe, ensureProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
     mocks.closeSession.mockRejectedValueOnce(new Error("not implemented"));
 
-    await expect(closeProbe("project-1", "claude-code")).resolves.toBeUndefined();
+    await expect(closeProbe("workspace-1", "claude-code")).resolves.toBeUndefined();
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(mocks.logger.error).toHaveBeenCalled();
   });
 
   it("sets a probe config option and returns the latest snapshot", async () => {
     const { ensureProbe, setProbeConfigOption } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     const snapshot = await setProbeConfigOption({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "claude-code",
       configId: "model",
       type: "select",
@@ -362,11 +364,11 @@ describe("session-probe-service", () => {
   it("rejects invalid probe config option values", async () => {
     const { ensureProbe, setProbeConfigOption } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     await expect(
       setProbeConfigOption({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-code",
         configId: "model",
         type: "select",
@@ -378,15 +380,15 @@ describe("session-probe-service", () => {
 
   it("cleans probe state when the agent process is invalidated", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
     processInvalidatedListener()({ agentId: "claude-code", reason: "crashed" });
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(onUpdate).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "claude-code",
       snapshot: null,
     });
@@ -414,12 +416,12 @@ describe("session-probe-service", () => {
       acpSessionId: "acp-other",
     });
     expect(onUpdate).toHaveBeenCalledWith({
-      projectId: "project-a",
+      workspaceId: "project-a",
       agentId: "claude-code",
       snapshot: null,
     });
     expect(onUpdate).toHaveBeenCalledWith({
-      projectId: "project-b",
+      workspaceId: "project-b",
       agentId: "claude-code",
       snapshot: null,
     });
@@ -433,10 +435,10 @@ describe("session-probe-service", () => {
     mocks.newSession
       .mockResolvedValueOnce({ sessionId: "acp-old", configOptions: [] })
       .mockResolvedValueOnce({ sessionId: "acp-new", configOptions: [] });
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     processInvalidatedListener()({ agentId: "claude-code", reason: "upgrade" });
-    const snapshot = await ensureProbe("project-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     expect(mocks.newSession).toHaveBeenCalledTimes(2);
     expect(snapshot.acpSessionId).toBe("acp-new");
@@ -456,7 +458,7 @@ describe("session-probe-service", () => {
       return { sessionId: "acp-1", configOptions: [] };
     });
 
-    const snapshot = await ensureProbe("project-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     expect(callOrder).toEqual(["setPendingProbeHandler", "newSession"]);
     expect(mocks.pendingProbeHandlers.has("claude-code")).toBe(false);
@@ -466,7 +468,7 @@ describe("session-probe-service", () => {
 
   it("updates the entry and re-emits when the probe handler receives available_commands_update", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     const updates: unknown[] = [];
     const onUpdate = vi.fn((payload) => updates.push(payload));
@@ -485,13 +487,13 @@ describe("session-probe-service", () => {
       },
     } as unknown as SessionNotification);
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")?.availableCommands).toEqual([
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.availableCommands).toEqual([
       { name: "init", description: "Initialize", hint: "path" },
       { name: "review", description: "Review", hint: undefined },
     ]);
     expect(updates).toEqual([
       expect.objectContaining({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-code",
         snapshot: expect.objectContaining({
           availableCommands: [
@@ -540,20 +542,20 @@ describe("session-probe-service", () => {
   it("takes a probe for chat and clears its probe-only session handler", async () => {
     const { ensureProbe, takeProbeFor } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
     expect(mocks.sessionHandlers.has("acp-1")).toBe(true);
 
-    const entry = await takeProbeFor("project-1", "claude-code", "acp-1");
+    const entry = await takeProbeFor("workspace-1", "claude-code", "acp-1");
 
-    expect(entry).toMatchObject({ projectId: "project-1", agentId: "claude-code" });
-    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
+    expect(entry).toMatchObject({ workspaceId: "workspace-1", agentId: "claude-code" });
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(mocks.sessionHandlers.has("acp-1")).toBe(false);
     expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
   });
 
   it("broadcasts an empty array when the agent declares no commands", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     const updates: unknown[] = [];
     const onUpdate = vi.fn((payload) => updates.push(payload));
@@ -564,10 +566,10 @@ describe("session-probe-service", () => {
       update: { sessionUpdate: "available_commands_update", availableCommands: [] },
     } as unknown as SessionNotification);
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")?.availableCommands).toEqual([]);
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.availableCommands).toEqual([]);
     expect(updates).toEqual([
       expect.objectContaining({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         snapshot: expect.objectContaining({ availableCommands: [] }),
       }),
     ]);
@@ -577,7 +579,7 @@ describe("session-probe-service", () => {
 
   it("ignores message-stream events in the probe handler", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
 
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
@@ -588,7 +590,7 @@ describe("session-probe-service", () => {
     } as unknown as SessionNotification);
 
     expect(onUpdate).not.toHaveBeenCalled();
-    expect(sessionProbeRegistry.get("project-1", "claude-code")?.availableCommands).toEqual([]);
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.availableCommands).toEqual([]);
 
     sessionProbeBus.offUpdate(onUpdate);
   });
@@ -596,10 +598,10 @@ describe("session-probe-service", () => {
   it("clears the probe handler on close", async () => {
     const { ensureProbe, closeProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("project-1", "claude-code", "/tmp/project");
+    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
     expect(mocks.sessionHandlers.has("acp-1")).toBe(true);
 
-    await closeProbe("project-1", "claude-code");
+    await closeProbe("workspace-1", "claude-code");
 
     expect(mocks.clearPendingProbeHandler).toHaveBeenCalledWith(
       "claude-code",

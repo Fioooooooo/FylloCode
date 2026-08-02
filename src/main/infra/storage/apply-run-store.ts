@@ -1,55 +1,55 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import logger from "@main/infra/logger";
-import { applyRunsDir } from "@main/infra/storage/project-paths";
+import { applyRunsDir } from "@main/infra/storage/workspace-paths";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
-export function applyRunDir(projectPath: string, changeId: string): string {
-  return join(applyRunsDir(projectPath), changeId);
+export function applyRunDir(workspaceId: string, changeId: string): string {
+  return join(applyRunsDir(workspaceId), changeId);
 }
 
-function runMetaPath(projectPath: string, changeId: string): string {
-  return join(applyRunDir(projectPath, changeId), "run.json");
+function runMetaPath(workspaceId: string, changeId: string): string {
+  return join(applyRunDir(workspaceId, changeId), "run.json");
 }
 
 export function stageMessagesPath(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   stageIndex: number
 ): string {
-  return join(applyRunDir(projectPath, changeId), `stage-${stageIndex}.messages.jsonl`);
+  return join(applyRunDir(workspaceId, changeId), `stage-${stageIndex}.messages.jsonl`);
 }
 
-export function archiveRunMetaPath(projectPath: string, changeId: string): string {
-  return join(applyRunDir(projectPath, changeId), "archive.json");
+export function archiveRunMetaPath(workspaceId: string, changeId: string): string {
+  return join(applyRunDir(workspaceId, changeId), "archive.json");
 }
 
-export function archiveMessagesPath(projectPath: string, changeId: string): string {
-  return join(applyRunDir(projectPath, changeId), "archive.messages.jsonl");
+export function archiveMessagesPath(workspaceId: string, changeId: string): string {
+  return join(applyRunDir(workspaceId, changeId), "archive.messages.jsonl");
 }
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
-export async function saveApplyRunMeta(projectPath: string, meta: ApplyRunMeta): Promise<void> {
-  await ensureDir(applyRunDir(projectPath, meta.changeId));
+export async function saveApplyRunMeta(workspaceId: string, meta: ApplyRunMeta): Promise<void> {
+  await ensureDir(applyRunDir(workspaceId, meta.changeId));
   await fs.writeFile(
-    runMetaPath(projectPath, meta.changeId),
+    runMetaPath(workspaceId, meta.changeId),
     JSON.stringify(meta, null, 2),
     "utf8"
   );
 }
 
 export async function loadApplyRunMeta(
-  projectPath: string,
+  workspaceId: string,
   changeId: string
 ): Promise<ApplyRunMeta | null> {
   try {
-    const content = await fs.readFile(runMetaPath(projectPath, changeId), "utf8");
+    const content = await fs.readFile(runMetaPath(workspaceId, changeId), "utf8");
     return JSON.parse(content) as ApplyRunMeta;
   } catch {
     return null;
@@ -57,24 +57,24 @@ export async function loadApplyRunMeta(
 }
 
 export async function updateRunMetaIfCurrent(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   runId: string,
   updater: (meta: ApplyRunMeta) => ApplyRunMeta
 ): Promise<void> {
-  const current = await loadApplyRunMeta(projectPath, changeId);
+  const current = await loadApplyRunMeta(workspaceId, changeId);
   if (!current || current.runId !== runId) return;
-  await saveApplyRunMeta(projectPath, updater(current));
+  await saveApplyRunMeta(workspaceId, updater(current));
 }
 
 export async function updateApplyRunStageAcpSessionId(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   runId: string,
   stageIndex: number,
   acpSessionId: string
 ): Promise<void> {
-  await updateRunMetaIfCurrent(projectPath, changeId, runId, (meta) => ({
+  await updateRunMetaIfCurrent(workspaceId, changeId, runId, (meta) => ({
     ...meta,
     stageAcpSessionIds: {
       ...meta.stageAcpSessionIds,
@@ -85,47 +85,47 @@ export async function updateApplyRunStageAcpSessionId(
 }
 
 export async function appendApplyRunMessage(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   stageIndex: number,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(projectPath, changeId));
+  await ensureDir(applyRunDir(workspaceId, changeId));
   await fs.appendFile(
-    stageMessagesPath(projectPath, changeId, stageIndex),
+    stageMessagesPath(workspaceId, changeId, stageIndex),
     `${JSON.stringify(message)}\n`,
     "utf8"
   );
 }
 
 export async function loadApplyRunMessages(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   stageIndex: number
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
-    const content = await fs.readFile(stageMessagesPath(projectPath, changeId, stageIndex), "utf8");
+    const content = await fs.readFile(stageMessagesPath(workspaceId, changeId, stageIndex), "utf8");
     return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
     return [];
   }
 }
 
-export async function saveArchiveRunMeta(projectPath: string, meta: ArchiveRunMeta): Promise<void> {
-  await ensureDir(applyRunDir(projectPath, meta.changeId));
+export async function saveArchiveRunMeta(workspaceId: string, meta: ArchiveRunMeta): Promise<void> {
+  await ensureDir(applyRunDir(workspaceId, meta.changeId));
   await fs.writeFile(
-    archiveRunMetaPath(projectPath, meta.changeId),
+    archiveRunMetaPath(workspaceId, meta.changeId),
     JSON.stringify(meta, null, 2),
     "utf8"
   );
 }
 
 export async function loadArchiveRunMeta(
-  projectPath: string,
+  workspaceId: string,
   changeId: string
 ): Promise<ArchiveRunMeta | null> {
   try {
-    const content = await fs.readFile(archiveRunMetaPath(projectPath, changeId), "utf8");
+    const content = await fs.readFile(archiveRunMetaPath(workspaceId, changeId), "utf8");
     return JSON.parse(content) as ArchiveRunMeta;
   } catch {
     return null;
@@ -133,11 +133,11 @@ export async function loadArchiveRunMeta(
 }
 
 export async function updateArchiveRunAcpSessionId(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   acpSessionId: string
 ): Promise<void> {
-  const existing = await loadArchiveRunMeta(projectPath, changeId);
+  const existing = await loadArchiveRunMeta(workspaceId, changeId);
   if (!existing) {
     logger.warn(
       `[apply-run-store] archive run meta missing while persisting acpSessionId for change ${changeId}`
@@ -145,7 +145,7 @@ export async function updateArchiveRunAcpSessionId(
     return;
   }
 
-  await saveArchiveRunMeta(projectPath, {
+  await saveArchiveRunMeta(workspaceId, {
     ...existing,
     acpSessionId,
     updatedAt: new Date().toISOString(),
@@ -153,24 +153,24 @@ export async function updateArchiveRunAcpSessionId(
 }
 
 export async function appendArchiveMessage(
-  projectPath: string,
+  workspaceId: string,
   changeId: string,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(projectPath, changeId));
+  await ensureDir(applyRunDir(workspaceId, changeId));
   await fs.appendFile(
-    archiveMessagesPath(projectPath, changeId),
+    archiveMessagesPath(workspaceId, changeId),
     `${JSON.stringify(message)}\n`,
     "utf8"
   );
 }
 
 export async function loadArchiveMessages(
-  projectPath: string,
+  workspaceId: string,
   changeId: string
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
-    const content = await fs.readFile(archiveMessagesPath(projectPath, changeId), "utf8");
+    const content = await fs.readFile(archiveMessagesPath(workspaceId, changeId), "utf8");
     return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
     return [];

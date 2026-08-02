@@ -50,7 +50,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
 describe("chat-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.loadProject.mockResolvedValue({ id: "project-1", path: "/tmp/project" });
+    mocks.loadProject.mockResolvedValue({ id: "workspace-1", path: "/tmp/project" });
     mocks.newSessionId.mockReturnValue("session-generated");
   });
 
@@ -71,7 +71,7 @@ describe("chat-service", () => {
       }),
     ]);
 
-    const sessions = await listSessions("project-1");
+    const sessions = await listSessions("workspace-1");
 
     expect(sessions.map((session) => [session.id, session.availableCommands])).toEqual([
       ["legacy", undefined],
@@ -96,7 +96,7 @@ describe("chat-service", () => {
       }),
     ]);
 
-    const sessions = await listSessions("project-1");
+    const sessions = await listSessions("workspace-1");
 
     expect(sessions[0]?.configOptions).toEqual([
       expect.objectContaining({ id: "model", currentValue: "sonnet" }),
@@ -117,7 +117,7 @@ describe("chat-service", () => {
       }),
     ]);
 
-    const sessions = await listSessions("project-1");
+    const sessions = await listSessions("workspace-1");
 
     expect(sessions[0]?.actionStates).toEqual({
       "chat:session-1:0:0:0": {
@@ -135,7 +135,7 @@ describe("chat-service", () => {
       meta({ sessionId: "pinned", isPinned: true }),
     ]);
 
-    const sessions = await listSessions("project-1");
+    const sessions = await listSessions("workspace-1");
 
     expect(sessions.map((session) => [session.id, session.isPinned])).toEqual([
       ["legacy", false],
@@ -157,7 +157,7 @@ describe("chat-service", () => {
     ];
 
     const session = await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
       configOptions: probeOptions,
@@ -188,11 +188,11 @@ describe("chat-service", () => {
 
     const updated = await updateSession({
       id: "session-1",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       patch: { isPinned: true },
     });
 
-    expect(mocks.patchSessionMeta).toHaveBeenCalledWith("/tmp/project", "session-1", {
+    expect(mocks.patchSessionMeta).toHaveBeenCalledWith("workspace-1", "session-1", {
       isPinned: true,
     });
     expect(updated.isPinned).toBe(true);
@@ -203,7 +203,7 @@ describe("chat-service", () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
     const session = await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
       fylloSessionId: "session-probe",
@@ -220,7 +220,7 @@ describe("chat-service", () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
     const session = await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
     });
@@ -235,7 +235,7 @@ describe("chat-service", () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
     await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
       fylloSessionId: "session-probe",
@@ -252,7 +252,7 @@ describe("chat-service", () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
     const session = await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
       availableCommands: [],
@@ -267,7 +267,7 @@ describe("chat-service", () => {
     mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
 
     const session = await createSession({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       title: "draft",
       agentId: "claude-acp",
     });

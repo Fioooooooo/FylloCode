@@ -28,9 +28,9 @@ vi.mock("@renderer/api/proposal/browser", () => ({
   },
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    currentProject: { id: "project-1" },
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    currentWorkspace: { id: "project-1" },
   }),
 }));
 
@@ -136,7 +136,7 @@ function specOverview(): ProposalSpecDeltaOverview {
 
 function mockSuccessfulReads(): void {
   vi.mocked(proposalBrowserApi.readFile).mockImplementation(
-    async (_projectId: string, changeId: string, filename: string) => ({
+    async (_workspaceId: string, changeId: string, filename: string) => ({
       ok: true,
       data: filename === "design.md" ? null : `# ${filename} for ${changeId}`,
     })

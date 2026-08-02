@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { WorkspaceDocumentChannels } from "@shared/ipc/workspace/document.channels";
 import type { IpcResponse } from "@shared/types/ipc";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 import type { LocalFilePreviewService } from "@main/services/workspace/document/local-file-preview-service";
 
 const mocks = vi.hoisted(() => ({
-  getRequiredProject: vi.fn(),
+  resolveWorkspace: vi.fn(),
 }));
 
-vi.mock("@main/services/workspace/project/project-service", () => ({
-  getRequiredProject: mocks.getRequiredProject,
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 function handler(channel: string) {
@@ -26,7 +26,7 @@ function handler(channel: string) {
 describe("registerDocumentHandlers", () => {
   const manager = {
     getContextByWebContents: vi.fn(),
-  } as unknown as ProjectWindowManager;
+  } as unknown as WorkspaceWindowManager;
   const service = {
     preparePreview: vi.fn(),
     confirmPreview: vi.fn(),
@@ -38,14 +38,14 @@ describe("registerDocumentHandlers", () => {
     registerDocumentHandlers({ manager, service });
   });
 
-  it("derives project context from the sender before preparing", async () => {
+  it("derives Workspace context from the sender before preparing", async () => {
     const sender = { id: 7, once: vi.fn() };
     vi.mocked(manager.getContextByWebContents).mockReturnValue({
       windowId: 1,
-      role: "project",
-      projectId: "project-1",
+      role: "workspace",
+      workspaceId: "workspace-1",
     });
-    mocks.getRequiredProject.mockResolvedValue({ id: "project-1", path: "/project" });
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: "/project" });
     vi.mocked(service.preparePreview).mockResolvedValue({
       status: "error",
       code: "FILE_NOT_FOUND",
@@ -60,15 +60,15 @@ describe("registerDocumentHandlers", () => {
     expect(result.ok).toBe(true);
     expect(service.preparePreview).toHaveBeenCalledWith(
       { requestedPath: "/project/missing.ts" },
-      { projectId: "project-1", projectPath: "/project", sender }
+      { workspaceId: "workspace-1", folderPath: "/project", sender }
     );
   });
 
-  it("rejects launcher senders before loading a project or reading files", async () => {
+  it("rejects launcher senders before resolving a Workspace or reading files", async () => {
     vi.mocked(manager.getContextByWebContents).mockReturnValue({
       windowId: 1,
       role: "launcher",
-      projectId: null,
+      workspaceId: null,
     });
 
     const result = await handler(WorkspaceDocumentChannels.preparePreview)(
@@ -79,11 +79,11 @@ describe("registerDocumentHandlers", () => {
     expect(result).toEqual({
       ok: false,
       error: {
-        code: IpcErrorCodes.PROJECT_REQUIRED,
-        message: "本地文件预览需要项目窗口",
+        code: IpcErrorCodes.WORKSPACE_REQUIRED,
+        message: "本地文件预览需要 Workspace 窗口",
       },
     });
-    expect(mocks.getRequiredProject).not.toHaveBeenCalled();
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled();
     expect(service.preparePreview).not.toHaveBeenCalled();
   });
 
@@ -94,7 +94,7 @@ describe("registerDocumentHandlers", () => {
         authorizationId: "00000000-0000-4000-8000-000000000001",
         rememberForWindow: true,
         requestedPath: "/outside/other.ts",
-        projectId: "project-2",
+        workspaceId: "workspace-2",
       }
     );
 
@@ -103,5 +103,33 @@ describe("registerDocumentHandlers", () => {
       expect(result.error.code).toBe(IpcErrorCodes.VALIDATION_ERROR);
     }
     expect(service.confirmPreview).not.toHaveBeenCalled();
+  });
+
+  it("re-resolves the sender Workspace before confirming", async () => {
+    const sender = { id: 7, once: vi.fn() };
+    vi.mocked(manager.getContextByWebContents).mockReturnValue({
+      windowId: 1,
+      role: "workspace",
+      workspaceId: "workspace-2",
+    });
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-2", cwd: "/other" });
+    vi.mocked(service.confirmPreview).mockResolvedValue({
+      status: "error",
+      code: "AUTHORIZATION_INVALID",
+      message: "mismatch",
+    });
+
+    const input = {
+      authorizationId: "00000000-0000-4000-8000-000000000001",
+      rememberForWindow: true,
+    };
+    const result = await handler(WorkspaceDocumentChannels.confirmPreview)({ sender }, input);
+
+    expect(result.ok).toBe(true);
+    expect(service.confirmPreview).toHaveBeenCalledWith(input, {
+      workspaceId: "workspace-2",
+      folderPath: "/other",
+      sender,
+    });
   });
 });

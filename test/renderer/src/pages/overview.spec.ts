@@ -5,10 +5,11 @@ import { overviewApi } from "@renderer/api/insight/overview";
 import OverviewPage from "@renderer/pages/overview.vue";
 import { useKnowledgeStore } from "@renderer/stores/insight/knowledge";
 import { useOverviewStore } from "@renderer/stores/insight/overview";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
 import type { ProjectOverview } from "@shared/types/overview";
-import type { ProjectInfo } from "@shared/types/project";
+import type { WorkspaceInfo } from "@shared/types/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 
 const routerMock = vi.hoisted(() => ({
   push: vi.fn(),
@@ -43,15 +44,14 @@ vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
   useProposalDetailSlideover: () => slideoverMock,
 }));
 
-function project(): ProjectInfo {
-  return {
+function project(): WorkspaceInfo {
+  return workspaceInfo({
     id: "project-1",
     name: "Project 1",
-    path: "/tmp/project-1",
-    metaPath: "/tmp/project-1.json",
+    folderPath: "/tmp/project-1",
     createdAt: new Date("2026-06-01T00:00:00.000Z"),
     lastOpenedAt: new Date("2026-06-10T00:00:00.000Z"),
-  };
+  });
 }
 
 function overview(): ProjectOverview {
@@ -122,7 +122,7 @@ function overview(): ProjectOverview {
 function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useProjectStore().currentProject = project();
+  useWorkspaceStore().currentWorkspace = project();
   return mount(OverviewPage, {
     global: {
       plugins: [pinia],
@@ -383,13 +383,13 @@ describe("overview page", () => {
     mountPage();
     await flushPromises();
 
-    const projectStore = useProjectStore();
+    const workspaceStore = useWorkspaceStore();
     const overviewStore = useOverviewStore();
     const knowledgeStore = useKnowledgeStore();
     expect(overviewStore.data).not.toBeNull();
     expect(knowledgeStore.data).not.toBeNull();
 
-    projectStore.currentProject = null;
+    workspaceStore.currentWorkspace = null;
     await flushPromises();
 
     expect(overviewStore.data).toBeNull();

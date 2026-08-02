@@ -15,11 +15,11 @@ export interface ProposalRunStore {
   isStreaming: Ref<boolean>;
   isArchiving: Ref<boolean>;
   cancelFn: Ref<(() => void) | null>;
-  startRun: (projectId: string, changeId: string, workflowId: string) => Promise<void>;
-  startArchive: (projectId: string, changeId: string) => Promise<void>;
-  streamCurrentStage: (projectId: string, changeId: string) => void;
-  resumeRun: (projectId: string, changeId: string) => Promise<void>;
-  resumeArchive: (projectId: string, changeId: string) => Promise<boolean>;
+  startRun: (workspaceId: string, changeId: string, workflowId: string) => Promise<void>;
+  startArchive: (workspaceId: string, changeId: string) => Promise<void>;
+  streamCurrentStage: (workspaceId: string, changeId: string) => void;
+  resumeRun: (workspaceId: string, changeId: string) => Promise<void>;
+  resumeArchive: (workspaceId: string, changeId: string) => Promise<boolean>;
   cancelRun: () => void;
 }
 
@@ -43,8 +43,12 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     assembler.resetActive();
   }
 
-  async function startRun(projectId: string, changeId: string, workflowId: string): Promise<void> {
-    const result = await proposalApplyApi.apply({ projectId, changeId, workflowId });
+  async function startRun(
+    workspaceId: string,
+    changeId: string,
+    workflowId: string
+  ): Promise<void> {
+    const result = await proposalApplyApi.apply({ workspaceId, changeId, workflowId });
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -63,7 +67,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     };
     archiveRunMeta.value = null;
     assembler.setMessages([]);
-    streamCurrentStage(projectId, changeId);
+    streamCurrentStage(workspaceId, changeId);
   }
 
   function buildArchiveRunMeta(changeId: string): ApplyRunMeta {
@@ -108,7 +112,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     };
   }
 
-  function streamCurrentStage(projectId: string, changeId: string): void {
+  function streamCurrentStage(workspaceId: string, changeId: string): void {
     const meta = runMeta.value;
     if (!meta) {
       return;
@@ -128,7 +132,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
       {
         runId: meta.runId,
         stageIndex,
-        projectId,
+        workspaceId,
         changeId,
       },
       {
@@ -155,7 +159,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
           };
 
           if (nextIndex < current.stages.length) {
-            streamCurrentStage(projectId, changeId);
+            streamCurrentStage(workspaceId, changeId);
           }
         },
         onError(error) {
@@ -176,10 +180,10 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     );
   }
 
-  async function resumeRun(projectId: string, changeId: string): Promise<void> {
+  async function resumeRun(workspaceId: string, changeId: string): Promise<void> {
     clearRunState();
 
-    const result = await proposalApplyApi.loadRun({ projectId, changeId });
+    const result = await proposalApplyApi.loadRun({ workspaceId, changeId });
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -198,7 +202,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
         : Math.min(result.data.currentStageIndex, maxStageIndex);
 
     const messagesResult = await proposalApplyApi.loadRunMessages({
-      projectId,
+      workspaceId,
       changeId,
       stageIndex,
     });
@@ -209,8 +213,8 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     assembler.setMessages(messagesResult.data);
   }
 
-  async function resumeArchive(projectId: string, changeId: string): Promise<boolean> {
-    const archiveResult = await proposalArchiveApi.loadArchive({ projectId, changeId });
+  async function resumeArchive(workspaceId: string, changeId: string): Promise<boolean> {
+    const archiveResult = await proposalArchiveApi.loadArchive({ workspaceId, changeId });
     if (!archiveResult.ok) {
       throw new Error(archiveResult.error.message);
     }
@@ -219,7 +223,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
       return false;
     }
 
-    const messagesResult = await proposalArchiveApi.loadArchiveMessages({ projectId, changeId });
+    const messagesResult = await proposalArchiveApi.loadArchiveMessages({ workspaceId, changeId });
     if (!messagesResult.ok) {
       throw new Error(messagesResult.error.message);
     }
@@ -233,7 +237,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     return true;
   }
 
-  async function startArchive(projectId: string, changeId: string): Promise<void> {
+  async function startArchive(workspaceId: string, changeId: string): Promise<void> {
     const previousMeta = runMeta.value;
     const previousArchiveMeta = archiveRunMeta.value;
     runMeta.value = buildArchiveRunMeta(changeId);
@@ -246,7 +250,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
       let settled = false;
       cancelFn.value = proposalArchiveApi.archive(
         {
-          projectId,
+          workspaceId,
           changeId,
         },
         {

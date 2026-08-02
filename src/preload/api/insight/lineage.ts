@@ -14,68 +14,68 @@ import type {
 import type { TaskItem } from "@shared/types/task";
 
 export const lineageApi = {
-  getBrowser(projectId: string): Promise<IpcResponse<LineageBrowserData>> {
-    return ipcRenderer.invoke(InsightLineageChannels.getBrowser, { projectId });
+  getBrowser(workspaceId: string): Promise<IpcResponse<LineageBrowserData>> {
+    return ipcRenderer.invoke(InsightLineageChannels.getBrowser, { workspaceId });
   },
 
   ensureTaskSubject(
-    projectId: string,
+    workspaceId: string,
     snapshot: LineageTaskSnapshot
   ): Promise<IpcResponse<Subject>> {
-    return ipcRenderer.invoke(InsightLineageChannels.ensureTaskSubject, { projectId, snapshot });
+    return ipcRenderer.invoke(InsightLineageChannels.ensureTaskSubject, { workspaceId, snapshot });
   },
 
   linkTaskSession(
-    projectId: string,
+    workspaceId: string,
     taskRef: LineageTaskRef,
     sessionId: string
   ): Promise<IpcResponse<Subject | null>> {
     return ipcRenderer.invoke(InsightLineageChannels.linkTaskSession, {
-      projectId,
+      workspaceId,
       taskRef,
       sessionId,
     });
   },
 
   getByTask(
-    projectId: string,
+    workspaceId: string,
     ref: LineageTaskRef
   ): Promise<IpcResponse<TaskDownstreamProjection | null>> {
-    return ipcRenderer.invoke(InsightLineageChannels.getByTask, { projectId, ref });
+    return ipcRenderer.invoke(InsightLineageChannels.getByTask, { workspaceId, ref });
   },
 
   getBySession(
-    projectId: string,
+    workspaceId: string,
     sessionId: string
   ): Promise<IpcResponse<SessionLineageProjection | null>> {
-    return ipcRenderer.invoke(InsightLineageChannels.getBySession, { projectId, sessionId });
+    return ipcRenderer.invoke(InsightLineageChannels.getBySession, { workspaceId, sessionId });
   },
 
   createSessionTask(
-    projectId: string,
+    workspaceId: string,
     input: CreateSessionTaskInput
   ): Promise<IpcResponse<TaskItem>> {
-    return ipcRenderer.invoke(InsightLineageChannels.createSessionTask, { projectId, ...input });
+    return ipcRenderer.invoke(InsightLineageChannels.createSessionTask, { workspaceId, ...input });
   },
 
   readPlan(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return ipcRenderer.invoke(InsightLineageChannels.readPlan, { projectId, ...input });
+    return ipcRenderer.invoke(InsightLineageChannels.readPlan, { workspaceId, ...input });
   },
 
   savePlanBody(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string; body: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return ipcRenderer.invoke(InsightLineageChannels.savePlanBody, { projectId, ...input });
+    return ipcRenderer.invoke(InsightLineageChannels.savePlanBody, { workspaceId, ...input });
   },
 
   approvePlan(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return ipcRenderer.invoke(InsightLineageChannels.approvePlan, { projectId, ...input });
+    return ipcRenderer.invoke(InsightLineageChannels.approvePlan, { workspaceId, ...input });
   },
 };

@@ -95,19 +95,19 @@ const controller = computed(() => {
   const type = parseResult.value.type;
 
   // Capture context values at controller creation time so the handler and state sync
-  // always target the same project/session/action, even if the host context changes.
-  const frozenProjectId = hostContext.projectId;
+  // always target the same Workspace/session/action, even if the host context changes.
+  const frozenWorkspaceId = hostContext.workspaceId;
   const frozenSessionId = hostContext.sessionId;
   const frozenActionId = actionId.value;
 
   return createFylloActionExecutionController({
-    projectId: frozenProjectId,
+    workspaceId: frozenWorkspaceId,
     sessionId: frozenSessionId,
     actionId: frozenActionId,
     type,
     handler: (payload) =>
       dispatchFylloAction(type, payload as never, {
-        projectId: frozenProjectId,
+        workspaceId: frozenWorkspaceId,
         sessionId: frozenSessionId,
         actionId: frozenActionId,
       }),

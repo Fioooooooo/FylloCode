@@ -46,7 +46,7 @@ function getMessageActionStates(message: UIMessage<MessageMeta>) {
   return sessionStore.sessions.find((session) => session.id === sessionId)?.actionStates;
 }
 
-function getMessageProjectId(message: UIMessage<MessageMeta>): string | undefined {
+function getMessageWorkspaceId(message: UIMessage<MessageMeta>): string | undefined {
   if (props.type !== "chat") {
     return undefined;
   }
@@ -55,11 +55,11 @@ function getMessageProjectId(message: UIMessage<MessageMeta>): string | undefine
   if (sessionId) {
     const session = sessionStore.sessions.find((s) => s.id === sessionId);
     if (session) {
-      return session.projectId;
+      return session.workspaceId;
     }
   }
 
-  return sessionStore.activeSession?.projectId;
+  return sessionStore.activeSession?.workspaceId;
 }
 
 function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
@@ -104,7 +104,7 @@ function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
           :session-id="getMessageSessionId(message)"
           :message-index="getMessageIndex(message)"
           :action-states="getMessageActionStates(message)"
-          :project-id="getMessageProjectId(message)"
+          :workspace-id="getMessageWorkspaceId(message)"
           :stream-started-at="getStreamStartedAt(message)"
         />
       </template>

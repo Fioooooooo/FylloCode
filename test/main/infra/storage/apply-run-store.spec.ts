@@ -81,24 +81,24 @@ afterEach(() => {
 });
 
 describe("apply-run-store archive storage", () => {
-  it("keeps apply/archive runs under projects/<encoded>/apply-runs", () => {
-    expect(applyRunDir("/tmp/project", "change-1")).toBe(
-      `${tempRoot}/projects/tmp-project/apply-runs/change-1`
+  it("keeps apply/archive runs under workspaces/<workspaceId>/apply-runs", () => {
+    expect(applyRunDir("workspace-1", "change-1")).toBe(
+      `${tempRoot}/workspaces/workspace-1/apply-runs/change-1`
     );
-    expect(stageMessagesPath("/tmp/project", "change-1", 2)).toBe(
-      `${tempRoot}/projects/tmp-project/apply-runs/change-1/stage-2.messages.jsonl`
+    expect(stageMessagesPath("workspace-1", "change-1", 2)).toBe(
+      `${tempRoot}/workspaces/workspace-1/apply-runs/change-1/stage-2.messages.jsonl`
     );
-    expect(archiveRunMetaPath("/tmp/project", "change-1")).toBe(
-      `${tempRoot}/projects/tmp-project/apply-runs/change-1/archive.json`
+    expect(archiveRunMetaPath("workspace-1", "change-1")).toBe(
+      `${tempRoot}/workspaces/workspace-1/apply-runs/change-1/archive.json`
     );
-    expect(archiveMessagesPath("/tmp/project", "change-1")).toBe(
-      `${tempRoot}/projects/tmp-project/apply-runs/change-1/archive.messages.jsonl`
+    expect(archiveMessagesPath("workspace-1", "change-1")).toBe(
+      `${tempRoot}/workspaces/workspace-1/apply-runs/change-1/archive.messages.jsonl`
     );
   });
 
   it("returns empty archive data when files do not exist", async () => {
-    await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toBeNull();
-    await expect(loadArchiveMessages("/tmp/project", "change-1")).resolves.toEqual([]);
+    await expect(loadArchiveRunMeta("workspace-1", "change-1")).resolves.toBeNull();
+    await expect(loadArchiveMessages("workspace-1", "change-1")).resolves.toEqual([]);
   });
 
   it("round-trips archive run meta", async () => {
@@ -110,30 +110,30 @@ describe("apply-run-store archive storage", () => {
       updatedAt: "2026-05-08T00:00:00.000Z",
     };
 
-    await saveArchiveRunMeta("/tmp/project", meta);
+    await saveArchiveRunMeta("workspace-1", meta);
 
-    await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toEqual(meta);
+    await expect(loadArchiveRunMeta("workspace-1", "change-1")).resolves.toEqual(meta);
   });
 
   it("appends archive messages in order", async () => {
     const first = message("message-1", "first");
     const second = message("message-2", "second");
 
-    await appendArchiveMessage("/tmp/project", "change-1", first);
-    await appendArchiveMessage("/tmp/project", "change-1", second);
+    await appendArchiveMessage("workspace-1", "change-1", first);
+    await appendArchiveMessage("workspace-1", "change-1", second);
 
-    await expect(loadArchiveMessages("/tmp/project", "change-1")).resolves.toEqual([
+    await expect(loadArchiveMessages("workspace-1", "change-1")).resolves.toEqual([
       persisted(first),
       persisted(second),
     ]);
   });
 
   it("updates only the target stage acpSessionId for the current run", async () => {
-    await saveApplyRunMeta("/tmp/project", runMeta());
+    await saveApplyRunMeta("workspace-1", runMeta());
 
-    await updateApplyRunStageAcpSessionId("/tmp/project", "change-1", "run-1", 1, "acp-1");
+    await updateApplyRunStageAcpSessionId("workspace-1", "change-1", "run-1", 1, "acp-1");
 
-    await expect(loadApplyRunMeta("/tmp/project", "change-1")).resolves.toEqual({
+    await expect(loadApplyRunMeta("workspace-1", "change-1")).resolves.toEqual({
       runId: "run-1",
       changeId: "change-1",
       workflowId: "workflow-1",
@@ -147,11 +147,11 @@ describe("apply-run-store archive storage", () => {
   });
 
   it("does nothing when updating a stage for a stale runId", async () => {
-    await saveApplyRunMeta("/tmp/project", runMeta({ runId: "run-2" }));
+    await saveApplyRunMeta("workspace-1", runMeta({ runId: "run-2" }));
 
-    await updateApplyRunStageAcpSessionId("/tmp/project", "change-1", "run-1", 1, "acp-1");
+    await updateApplyRunStageAcpSessionId("workspace-1", "change-1", "run-1", 1, "acp-1");
 
-    await expect(loadApplyRunMeta("/tmp/project", "change-1")).resolves.toEqual(
+    await expect(loadApplyRunMeta("workspace-1", "change-1")).resolves.toEqual(
       runMeta({ runId: "run-2" })
     );
   });
@@ -164,11 +164,11 @@ describe("apply-run-store archive storage", () => {
       startedAt: "2026-05-08T00:00:00.000Z",
       updatedAt: "2026-05-08T00:00:00.000Z",
     };
-    await saveArchiveRunMeta("/tmp/project", meta);
+    await saveArchiveRunMeta("workspace-1", meta);
 
-    await updateArchiveRunAcpSessionId("/tmp/project", "change-1", "acp-archive");
+    await updateArchiveRunAcpSessionId("workspace-1", "change-1", "acp-archive");
 
-    await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toEqual({
+    await expect(loadArchiveRunMeta("workspace-1", "change-1")).resolves.toEqual({
       ...meta,
       acpSessionId: "acp-archive",
       updatedAt: "2026-05-18T11:00:00.000Z",
@@ -176,24 +176,24 @@ describe("apply-run-store archive storage", () => {
   });
 
   it("warns and no-ops when archive meta is missing", async () => {
-    await updateArchiveRunAcpSessionId("/tmp/project", "change-1", "acp-archive");
+    await updateArchiveRunAcpSessionId("workspace-1", "change-1", "acp-archive");
 
-    await expect(loadArchiveRunMeta("/tmp/project", "change-1")).resolves.toBeNull();
+    await expect(loadArchiveRunMeta("workspace-1", "change-1")).resolves.toBeNull();
     expect(loggerWarn).toHaveBeenCalledOnce();
   });
 
   it("loads saved apply run meta with worktreePath omitted as undefined", async () => {
-    await saveApplyRunMeta("/tmp/project", runMeta({ worktreePath: undefined }));
+    await saveApplyRunMeta("workspace-1", runMeta({ worktreePath: undefined }));
 
-    const raw = readFileSync(`${applyRunDir("/tmp/project", "change-1")}/run.json`, "utf8");
+    const raw = readFileSync(`${applyRunDir("workspace-1", "change-1")}/run.json`, "utf8");
     expect(raw).not.toContain("worktreePath");
 
-    const meta = await loadApplyRunMeta("/tmp/project", "change-1");
+    const meta = await loadApplyRunMeta("workspace-1", "change-1");
     expect(meta?.worktreePath).toBeUndefined();
   });
 
   it("loads legacy apply run meta without a worktreePath field", async () => {
-    const dir = applyRunDir("/tmp/project", "change-1");
+    const dir = applyRunDir("workspace-1", "change-1");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       `${dir}/run.json`,
@@ -211,18 +211,18 @@ describe("apply-run-store archive storage", () => {
       "utf8"
     );
 
-    const meta = await loadApplyRunMeta("/tmp/project", "change-1");
+    const meta = await loadApplyRunMeta("workspace-1", "change-1");
     expect(meta?.worktreePath).toBeUndefined();
   });
 
   it("round-trips an absolute worktreePath for apply run meta", async () => {
     await saveApplyRunMeta(
-      "/tmp/project",
-      runMeta({ worktreePath: "/tmp/project/.worktrees/change-1" })
+      "workspace-1",
+      runMeta({ worktreePath: "workspace-1/.worktrees/change-1" })
     );
 
-    await expect(loadApplyRunMeta("/tmp/project", "change-1")).resolves.toEqual(
-      runMeta({ worktreePath: "/tmp/project/.worktrees/change-1" })
+    await expect(loadApplyRunMeta("workspace-1", "change-1")).resolves.toEqual(
+      runMeta({ worktreePath: "workspace-1/.worktrees/change-1" })
     );
   });
 });

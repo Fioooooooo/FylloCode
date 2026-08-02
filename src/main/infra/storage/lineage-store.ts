@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
+import { lineageDir, lineageSubjectsDir } from "@main/infra/storage/workspace-paths";
 import type {
   LineageIndex,
   LineageOrigin,
@@ -32,12 +32,12 @@ const lineageWriteQueues = new Map<string, Promise<void>>();
 // Monotonic counter for temp file names during atomic writes.
 let lineageTempWriteCounter = 0;
 
-function subjectPath(projectPath: string, subjectId: string): string {
-  return join(subjectsDir(projectPath), `${subjectId}.json`);
+function subjectPath(workspaceId: string, subjectId: string): string {
+  return join(lineageSubjectsDir(workspaceId), `${subjectId}.json`);
 }
 
-function indexPath(projectPath: string): string {
-  return join(lineageDir(projectPath), "index.json");
+function indexPath(workspaceId: string): string {
+  return join(lineageDir(workspaceId), "index.json");
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -173,7 +173,7 @@ function normalizeTaskItem(value: unknown): TaskItem | null {
 
   if (
     typeof value.id !== "string" ||
-    typeof value.projectId !== "string" ||
+    typeof value.workspaceId !== "string" ||
     typeof value.title !== "string" ||
     !source ||
     !status ||
@@ -186,7 +186,7 @@ function normalizeTaskItem(value: unknown): TaskItem | null {
 
   return {
     id: value.id,
-    projectId: value.projectId,
+    workspaceId: value.workspaceId,
     title: value.title,
     description,
     status,
@@ -369,36 +369,36 @@ async function readJsonFile(filePath: string): Promise<unknown | null> {
   }
 }
 
-export async function readSubject(projectPath: string, subjectId: string): Promise<Subject | null> {
-  const parsed = await readJsonFile(subjectPath(projectPath, subjectId));
+export async function readSubject(workspaceId: string, subjectId: string): Promise<Subject | null> {
+  const parsed = await readJsonFile(subjectPath(workspaceId, subjectId));
   return normalizeSubject(parsed);
 }
 
-export async function writeSubject(projectPath: string, subject: Subject): Promise<void> {
+export async function writeSubject(workspaceId: string, subject: Subject): Promise<void> {
   const normalized = normalizeSubject(subject);
   if (!normalized) {
     throw new TypeError("subject must match the lineage subject schema");
   }
 
-  await ensureDir(subjectsDir(projectPath));
-  await withLineageWriteLock(subjectPath(projectPath, normalized.id), async () => {
+  await ensureDir(lineageSubjectsDir(workspaceId));
+  await withLineageWriteLock(subjectPath(workspaceId, normalized.id), async () => {
     await writeLineageFile(
-      subjectPath(projectPath, normalized.id),
+      subjectPath(workspaceId, normalized.id),
       JSON.stringify(normalized, null, 2)
     );
   });
 }
 
-export async function listSubjects(projectPath: string): Promise<Subject[]> {
+export async function listSubjects(workspaceId: string): Promise<Subject[]> {
   try {
-    const files = await fs.readdir(subjectsDir(projectPath));
+    const files = await fs.readdir(lineageSubjectsDir(workspaceId));
     const subjects: Subject[] = [];
     for (const file of files) {
       if (!file.endsWith(".json")) {
         continue;
       }
 
-      const subject = await readSubject(projectPath, file.slice(0, -".json".length));
+      const subject = await readSubject(workspaceId, file.slice(0, -".json".length));
       if (subject) {
         subjects.push(subject);
       }
@@ -409,19 +409,19 @@ export async function listSubjects(projectPath: string): Promise<Subject[]> {
   }
 }
 
-export async function readIndex(projectPath: string): Promise<LineageIndex | null> {
-  const parsed = await readJsonFile(indexPath(projectPath));
+export async function readIndex(workspaceId: string): Promise<LineageIndex | null> {
+  const parsed = await readJsonFile(indexPath(workspaceId));
   return normalizeIndex(parsed);
 }
 
-export async function writeIndex(projectPath: string, index: LineageIndex): Promise<void> {
+export async function writeIndex(workspaceId: string, index: LineageIndex): Promise<void> {
   const normalized = normalizeIndex(index);
   if (!normalized) {
     throw new TypeError("index must match the lineage index schema");
   }
 
-  await ensureDir(lineageDir(projectPath));
-  await withLineageWriteLock(indexPath(projectPath), async () => {
-    await writeLineageFile(indexPath(projectPath), JSON.stringify(normalized, null, 2));
+  await ensureDir(lineageDir(workspaceId));
+  await withLineageWriteLock(indexPath(workspaceId), async () => {
+    await writeLineageFile(indexPath(workspaceId), JSON.stringify(normalized, null, 2));
   });
 }

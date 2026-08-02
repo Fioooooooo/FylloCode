@@ -70,7 +70,7 @@ describe("driveAcpStream", () => {
     driveAcpStream({
       session,
       owner: "chat",
-      registryKey: "project-1:session-1",
+      registryKey: "workspace-1:session-1",
       messageSessionId: "session-1",
       output,
       logTag: "test",
@@ -82,7 +82,7 @@ describe("driveAcpStream", () => {
       },
     });
 
-    expect(sessionRegistry.get("chat", "project-1:session-1")).toBe(session);
+    expect(sessionRegistry.get("chat", "workspace-1:session-1")).toBe(session);
     session.emit("event", { kind: "text_delta", text: "hi" } satisfies SessionEvent);
     session.emit("event", { kind: "done", totalTokens: 1 } satisfies SessionEvent);
     await flush();

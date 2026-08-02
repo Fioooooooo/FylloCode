@@ -1,17 +1,17 @@
-import type { ProjectIntegrationConfig } from "@shared/types/integration";
+import type { WorkspaceIntegrationConfig } from "@shared/types/integration";
 import {
-  loadProjectIntegrationConfig,
+  loadWorkspaceIntegrationConfig,
   setStageResources,
 } from "@main/infra/storage/project-integration-store";
 
-export function getProjectIntegration(projectId: string): ProjectIntegrationConfig {
-  return loadProjectIntegrationConfig(projectId);
+export function getProjectIntegration(workspaceId: string): WorkspaceIntegrationConfig {
+  return loadWorkspaceIntegrationConfig(workspaceId);
 }
 
 export function setProjectIntegrationStage(
-  projectId: string,
-  stage: keyof ProjectIntegrationConfig,
-  resources: ProjectIntegrationConfig[keyof ProjectIntegrationConfig]
-): ProjectIntegrationConfig {
-  return setStageResources(projectId, stage, resources);
+  workspaceId: string,
+  stage: keyof WorkspaceIntegrationConfig,
+  resources: WorkspaceIntegrationConfig[keyof WorkspaceIntegrationConfig]
+): WorkspaceIntegrationConfig {
+  return setStageResources(workspaceId, stage, resources);
 }

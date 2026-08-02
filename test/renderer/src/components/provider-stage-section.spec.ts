@@ -5,7 +5,7 @@ import ProviderStageSection from "@renderer/components/integration/ProviderStage
 import { useIntegrationProvidersStore } from "@renderer/stores/platform/providers";
 import type {
   IntegrationCategory,
-  ProjectIntegrationConfig,
+  WorkspaceIntegrationConfig,
   Provider,
   ProviderResource,
 } from "@shared/types/integration";
@@ -43,7 +43,7 @@ const provider: Provider = {
   comingSoon: false,
 };
 
-function createEmptyProjectIntegration(): ProjectIntegrationConfig {
+function createEmptyProjectIntegration(): WorkspaceIntegrationConfig {
   return {
     "project-management": [],
     "source-control": [],
@@ -85,7 +85,7 @@ describe("ProviderStageSection", () => {
 
     const saveSpy = vi
       .spyOn(store, "saveProjectIntegrationStage")
-      .mockImplementation(async (_projectId, stage, resources) => {
+      .mockImplementation(async (_workspaceId, stage, resources) => {
         store.projectIntegration = {
           ...(store.projectIntegration ?? createEmptyProjectIntegration()),
           [stage]: resources,
@@ -115,7 +115,7 @@ describe("ProviderStageSection", () => {
       props: {
         category,
         providers: store.providers,
-        currentProjectId: "project-1",
+        currentWorkspaceId: "project-1",
       },
     });
 
@@ -203,7 +203,7 @@ describe("ProviderStageSection", () => {
       props: {
         category,
         providers: store.providers,
-        currentProjectId: "project-1",
+        currentWorkspaceId: "project-1",
       },
     });
 
@@ -241,7 +241,7 @@ describe("ProviderStageSection", () => {
       props: {
         category,
         providers: store.providers,
-        currentProjectId: "project-1",
+        currentWorkspaceId: "project-1",
       },
     });
 
@@ -273,7 +273,7 @@ describe("ProviderStageSection", () => {
       props: {
         category,
         providers: store.providers,
-        currentProjectId: "project-1",
+        currentWorkspaceId: "project-1",
       },
     });
 

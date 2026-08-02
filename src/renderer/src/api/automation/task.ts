@@ -7,27 +7,27 @@ import type {
 } from "@shared/types/task";
 
 export const taskApi = {
-  getTask(projectId: string, taskId: string): Promise<IpcResponse<TaskItem>> {
-    return window.api.automation.task.getTask(projectId, taskId);
+  getTask(workspaceId: string, taskId: string): Promise<IpcResponse<TaskItem>> {
+    return window.api.automation.task.getTask(workspaceId, taskId);
   },
 
-  listTasks(projectId: string, source?: TaskSource): Promise<IpcResponse<TaskItem[]>> {
-    return window.api.automation.task.listTasks(projectId, source);
+  listTasks(workspaceId: string, source?: TaskSource): Promise<IpcResponse<TaskItem[]>> {
+    return window.api.automation.task.listTasks(workspaceId, source);
   },
 
-  createTask(projectId: string, input: CreateLocalTaskInput): Promise<IpcResponse<TaskItem>> {
-    return window.api.automation.task.createTask(projectId, input);
+  createTask(workspaceId: string, input: CreateLocalTaskInput): Promise<IpcResponse<TaskItem>> {
+    return window.api.automation.task.createTask(workspaceId, input);
   },
 
   updateTask(
-    projectId: string,
+    workspaceId: string,
     taskId: string,
     updates: UpdateTaskInput
   ): Promise<IpcResponse<TaskItem>> {
-    return window.api.automation.task.updateTask(projectId, taskId, updates);
+    return window.api.automation.task.updateTask(workspaceId, taskId, updates);
   },
 
-  deleteTask(projectId: string, taskId: string): Promise<IpcResponse<void>> {
-    return window.api.automation.task.deleteTask(projectId, taskId);
+  deleteTask(workspaceId: string, taskId: string): Promise<IpcResponse<void>> {
+    return window.api.automation.task.deleteTask(workspaceId, taskId);
   },
 };

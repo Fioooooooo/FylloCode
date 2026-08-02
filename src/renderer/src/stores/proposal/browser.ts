@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { proposalBrowserApi } from "@renderer/api/proposal/browser";
-import { useProjectStore } from "../workspace/project";
+import { useWorkspaceStore } from "../workspace/workspace";
 import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
 
 export const useProposalStore = defineStore("proposal", () => {
@@ -10,10 +10,10 @@ export const useProposalStore = defineStore("proposal", () => {
   const error = ref<string | null>(null);
 
   async function loadProposals(): Promise<void> {
-    const projectStore = useProjectStore();
-    const projectId = projectStore.currentProject?.id;
+    const workspaceStore = useWorkspaceStore();
+    const workspaceId = workspaceStore.currentWorkspace?.id;
 
-    if (!projectId) {
+    if (!workspaceId) {
       proposals.value = [];
       error.value = "当前没有选中的项目";
       return;
@@ -23,7 +23,7 @@ export const useProposalStore = defineStore("proposal", () => {
     error.value = null;
 
     try {
-      const result = await proposalBrowserApi.list(projectId);
+      const result = await proposalBrowserApi.list(workspaceId);
       if (!result.ok) {
         throw new Error(result.error.message);
       }
@@ -38,7 +38,7 @@ export const useProposalStore = defineStore("proposal", () => {
   }
 
   function watchProposal(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     sessionId: string;
   }): ReturnType<typeof proposalBrowserApi.watch> {

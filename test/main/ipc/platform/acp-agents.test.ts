@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -121,7 +121,7 @@ describe("registerAcpAgentHandlers", () => {
   it("broadcasts global agent events to every active window through the manager", () => {
     const manager = {
       sendToAll: vi.fn(),
-    } as unknown as ProjectWindowManager;
+    } as unknown as WorkspaceWindowManager;
 
     setupAgentEventBroadcast(manager);
 

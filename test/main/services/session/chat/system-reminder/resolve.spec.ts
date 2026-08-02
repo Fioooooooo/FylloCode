@@ -46,6 +46,7 @@ describe("resolveSystemReminder", () => {
     await expect(
       resolveSystemReminder({
         owner: "unknown" as never,
+        workspaceId: "workspace-1",
         projectPath: "/tmp/project",
         cwd: "/tmp/project",
         fylloSessionId: "session-1",
@@ -59,6 +60,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -78,6 +80,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "apply",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -110,6 +113,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = renderSystemReminderTemplate("Project {{projectPath}} {{unknownField}}", {
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -125,6 +129,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -142,6 +147,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -160,6 +166,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -177,6 +184,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -192,6 +200,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -208,6 +217,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -221,6 +231,7 @@ describe("resolveSystemReminder", () => {
       "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
+        workspaceId: "workspace-1",
         field: "taskRef",
         fylloSessionId: "session-1",
       })
@@ -232,6 +243,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -246,6 +258,7 @@ describe("resolveSystemReminder", () => {
       "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "chat",
+        workspaceId: "workspace-1",
         field: "taskTitle",
         fylloSessionId: "session-1",
       })
@@ -257,6 +270,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -281,6 +295,7 @@ describe("resolveSystemReminder", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
@@ -302,6 +317,7 @@ describe("resolveSystemReminder", () => {
     for (const owner of ["apply", "archive"] as const) {
       const reminder = await resolveSystemReminder({
         owner,
+        workspaceId: "workspace-1",
         projectPath: "/tmp/project",
         cwd: "/tmp/project",
         fylloSessionId: "session-1",

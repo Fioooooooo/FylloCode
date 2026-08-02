@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import { extname, join } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { sessionsDir } from "@main/infra/storage/project-paths";
+import { sessionsDir } from "@main/infra/storage/workspace-paths";
 
 export interface SavedAttachment {
   absolutePath: string;
@@ -11,8 +11,8 @@ export interface SavedAttachment {
   mimeType: string;
 }
 
-function attachmentsDir(projectPath: string, sessionId: string): string {
-  return join(sessionsDir(projectPath), sessionId, "attachments");
+function attachmentsDir(workspaceId: string, sessionId: string): string {
+  return join(sessionsDir(workspaceId), sessionId, "attachments");
 }
 
 function inferExtension(fileName: string, mimeType: string): string {
@@ -31,13 +31,13 @@ function inferExtension(fileName: string, mimeType: string): string {
 }
 
 export async function saveAttachment(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string,
   fileName: string,
   mimeType: string,
   base64Data: string
 ): Promise<SavedAttachment> {
-  const dir = attachmentsDir(projectPath, sessionId);
+  const dir = attachmentsDir(workspaceId, sessionId);
   await fs.mkdir(dir, { recursive: true });
 
   const absolutePath = join(dir, `${randomUUID()}${inferExtension(fileName, mimeType)}`);
@@ -57,8 +57,8 @@ export async function readAttachmentDataUrl(uri: string, mediaType: string): Pro
 }
 
 export async function removeSessionAttachments(
-  projectPath: string,
+  workspaceId: string,
   sessionId: string
 ): Promise<void> {
-  await fs.rm(attachmentsDir(projectPath, sessionId), { recursive: true, force: true });
+  await fs.rm(attachmentsDir(workspaceId, sessionId), { recursive: true, force: true });
 }

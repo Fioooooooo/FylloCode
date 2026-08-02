@@ -119,13 +119,13 @@ export interface ProviderResourceListQuery {
   perPage?: number;
 }
 
-export interface ProjectIntegrationEntry {
+export interface WorkspaceIntegrationEntry {
   providerId: ProviderId;
   resourceType: ProviderResourceType;
   resourceId: string;
 }
 
-export type ProjectIntegrationConfig = Record<IntegrationStageId, ProjectIntegrationEntry[]>;
+export type WorkspaceIntegrationConfig = Record<IntegrationStageId, WorkspaceIntegrationEntry[]>;
 
 export interface ToolParameterField {
   key: string;
@@ -165,8 +165,8 @@ export interface ToolConfig {
   parameters: Record<string, unknown>;
 }
 
-export interface ProjectToolConfig {
-  projectId: string;
+export interface WorkspaceToolConfig {
+  workspaceId: string;
   toolId: string;
   enabled: boolean;
   overrides: Record<string, unknown>;

@@ -1,4 +1,4 @@
-import { shell, BrowserWindow, screen, type Rectangle } from "electron";
+import { app, shell, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "path";
 import { is, platform } from "@electron-toolkit/utils";
 import {
@@ -196,7 +196,7 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
         }
       : {}),
     webPreferences: {
-      preload: join(__dirname, "../preload/index.js"),
+      preload: join(app.getAppPath(), "out/preload/index.js"),
       sandbox: false,
     },
   });
@@ -241,7 +241,7 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
     mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
-    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+    mainWindow.loadFile(join(app.getAppPath(), "out/renderer/index.html"));
   }
 
   return mainWindow;

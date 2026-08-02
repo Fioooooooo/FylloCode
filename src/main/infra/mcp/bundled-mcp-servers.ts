@@ -1,5 +1,5 @@
 import type { McpServer as AcpMcpServer } from "@agentclientprotocol/sdk";
-import { mcpEventsDir, projectDir } from "@main/infra/storage/project-paths";
+import { mcpEventsDir, workspaceDataDir } from "@main/infra/storage/workspace-paths";
 import type { McpServerSpec, McpServerSpecHttp, McpServerSpecStdio } from "@shared/types/mcp";
 import {
   getMcpServerEndpoint,
@@ -19,7 +19,7 @@ export function encodeMcpHeaderValue(value: string): string {
 function buildHttpSpec(
   server: BundledMcpServerRegistration,
   endpoint: BundledMcpEndpoint,
-  opts: { projectPath: string; fylloSessionId?: string }
+  opts: { workspaceId: string; projectPath: string; fylloSessionId?: string }
 ): McpServerSpecHttp {
   return {
     type: "http",
@@ -28,8 +28,8 @@ function buildHttpSpec(
     headers: {
       Authorization: `Bearer ${endpoint.token}`,
       "X-Fyllo-Project-Path": encodeMcpHeaderValue(opts.projectPath),
-      "X-Fyllo-Project-Data-Dir": encodeMcpHeaderValue(projectDir(opts.projectPath)),
-      "X-Fyllo-Mcp-Event-Dir": encodeMcpHeaderValue(mcpEventsDir(opts.projectPath)),
+      "X-Fyllo-Project-Data-Dir": encodeMcpHeaderValue(workspaceDataDir(opts.workspaceId)),
+      "X-Fyllo-Mcp-Event-Dir": encodeMcpHeaderValue(mcpEventsDir(opts.workspaceId)),
       ...(opts.fylloSessionId
         ? { "X-Fyllo-Session-Id": encodeMcpHeaderValue(opts.fylloSessionId) }
         : {}),
@@ -39,7 +39,7 @@ function buildHttpSpec(
 
 function buildStdioSpec(
   server: BundledMcpServerRegistration,
-  opts: { projectPath: string; fylloSessionId?: string }
+  opts: { workspaceId: string; projectPath: string; fylloSessionId?: string }
 ): McpServerSpecStdio {
   return {
     type: "stdio",
@@ -49,9 +49,9 @@ function buildStdioSpec(
     env: {
       ELECTRON_RUN_AS_NODE: "1",
       FYLLO_PROJECT_PATH: opts.projectPath,
-      FYLLO_PROJECT_DATA_DIR: projectDir(opts.projectPath),
+      FYLLO_PROJECT_DATA_DIR: workspaceDataDir(opts.workspaceId),
       FYLLO_MCP_TELEMETRY: "0",
-      FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.projectPath),
+      FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.workspaceId),
       ...(opts.fylloSessionId ? { FYLLO_SESSION_ID: opts.fylloSessionId } : {}),
       ...(server.processEnv?.() ?? {}),
     },
@@ -59,6 +59,7 @@ function buildStdioSpec(
 }
 
 export async function resolveBundledMcpServers(opts: {
+  workspaceId: string;
   projectPath: string;
   fylloSessionId?: string;
   supportsHttp: boolean;

@@ -8,13 +8,13 @@ const DEFAULT_TOKEN_USAGE = { used: 0, size: 0 };
 
 export class ChatAcpSessionStore implements AcpSessionStore {
   constructor(
-    private readonly projectPath: string,
+    private readonly workspaceId: string,
     private readonly sessionId: string,
     private readonly agentId: string
   ) {}
 
   async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
-    const meta = await loadSessionMeta(this.projectPath, this.sessionId);
+    const meta = await loadSessionMeta(this.workspaceId, this.sessionId);
     return {
       acpSessionId: meta?.acpSessionId ?? null,
       configOptions: structuredClone(meta?.configOptions ?? []),
@@ -22,12 +22,12 @@ export class ChatAcpSessionStore implements AcpSessionStore {
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
-    const meta = await loadSessionMeta(this.projectPath, this.sessionId);
+    const meta = await loadSessionMeta(this.workspaceId, this.sessionId);
     const now = new Date().toISOString();
     const nextTurnCount = (meta?.turnCount ?? 0) + 1;
 
     await upsertSessionMeta(
-      this.projectPath,
+      this.workspaceId,
       this.sessionId,
       () => ({
         sessionId: this.sessionId,

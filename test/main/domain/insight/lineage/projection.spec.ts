@@ -11,7 +11,7 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
   const createdAt = new Date("2026-06-01T00:00:00.000Z");
   return {
     id: "task-1",
-    projectId: "tmp-project",
+    workspaceId: "tmp-project",
     title: "Lineage task",
     description: { format: "plain_text", content: "Details" },
     status: "open",

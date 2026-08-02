@@ -6,27 +6,27 @@ import type {
 } from "@shared/types/proposal";
 
 export const proposalBrowserApi = {
-  list(projectId: string): Promise<IpcResponse<ProposalMeta[]>> {
-    return window.api.proposal.browser.list(projectId);
+  list(workspaceId: string): Promise<IpcResponse<ProposalMeta[]>> {
+    return window.api.proposal.browser.list(workspaceId);
   },
 
   readFile(
-    projectId: string,
+    workspaceId: string,
     changeId: string,
     filename: string
   ): Promise<IpcResponse<string | null>> {
-    return window.api.proposal.browser.readFile(projectId, changeId, filename);
+    return window.api.proposal.browser.readFile(workspaceId, changeId, filename);
   },
 
   getSpecDeltas(
-    projectId: string,
+    workspaceId: string,
     changeId: string
   ): Promise<IpcResponse<ProposalSpecDeltaOverview>> {
-    return window.api.proposal.browser.getSpecDeltas(projectId, changeId);
+    return window.api.proposal.browser.getSpecDeltas(workspaceId, changeId);
   },
 
   watch(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     sessionId: string;
   }): Promise<IpcResponse<void>> {

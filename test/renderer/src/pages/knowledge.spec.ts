@@ -1,7 +1,6 @@
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProjectInfo } from "@shared/types/project";
 
 const mocks = vi.hoisted(() => ({
   getBrowser: vi.fn(),
@@ -33,17 +32,17 @@ vi.mock("@renderer/components/shared/MarkStream.vue", () => ({
 }));
 
 import KnowledgePage from "@renderer/pages/knowledge.vue";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
+import { workspaceInfo } from "../fixtures/workspace";
 
-const project = {
+const project = workspaceInfo({
   id: "project-1",
   name: "Project",
-  path: "/tmp/project",
-  metaPath: "/tmp/project.json",
+  folderPath: "/tmp/project",
   createdAt: new Date("2026-07-01T00:00:00.000Z"),
   lastOpenedAt: new Date("2026-07-01T00:00:00.000Z"),
   pathMissing: false,
-} satisfies ProjectInfo;
+});
 
 const firstEntry = {
   name: "first-entry",
@@ -72,8 +71,8 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
-  const projectStore = useProjectStore();
-  projectStore.$patch({ currentProject: project });
+  const workspaceStore = useWorkspaceStore();
+  workspaceStore.$patch({ currentWorkspace: project });
   return mount(KnowledgePage, { global: { plugins: [pinia] } });
 }
 
@@ -84,7 +83,7 @@ describe("knowledge page", () => {
       ok: true,
       data: { entries: [firstEntry, secondEntry], errors: [] },
     });
-    mocks.readEntry.mockImplementation((_projectId: string, input: { name: string }) =>
+    mocks.readEntry.mockImplementation((_workspaceId: string, input: { name: string }) =>
       Promise.resolve({
         ok: true,
         data: { name: input.name, content: `---\nname: ${input.name}\n---\n\nBody` },
@@ -100,7 +99,7 @@ describe("knowledge page", () => {
 
     expect(mocks.getBrowser).toHaveBeenCalledWith("project-1");
     expect(mocks.readEntry).toHaveBeenCalledWith("project-1", { name: "first-entry" });
-    expect(wrapper.text()).toContain("浏览、核查当前项目已沉淀的知识。");
+    expect(wrapper.text()).toContain("浏览、核查当前工作区已沉淀的知识。");
     expect(wrapper.get('[data-test="markstream-stub"]').text()).toContain("```yaml");
     expect(wrapper.get('[data-test="markstream-stub"]').text()).toContain("name: first-entry");
   });
@@ -123,7 +122,7 @@ describe("knowledge page", () => {
       ok: true;
       data: { name: string; content: string };
     }>();
-    mocks.readEntry.mockImplementation((_projectId: string, input: { name: string }) => {
+    mocks.readEntry.mockImplementation((_workspaceId: string, input: { name: string }) => {
       if (input.name === "first-entry") {
         return firstResponse.promise;
       }
@@ -167,6 +166,20 @@ describe("knowledge page", () => {
     expect(mocks.deleteEntry).toHaveBeenCalledWith("project-1", { name: "first-entry" });
     expect(mocks.readEntry).toHaveBeenLastCalledWith("project-1", { name: "second-entry" });
     expect(wrapper.text()).toContain("second-entry");
+  });
+
+  it("does not delete after the confirmation returns in another Workspace", async () => {
+    const confirmation = Promise.withResolvers<boolean>();
+    mocks.confirm.mockReturnValue(confirmation.promise);
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.get('[data-test="knowledge-delete-button"]').trigger("click");
+    useWorkspaceStore().currentWorkspace = workspaceInfo({ id: "workspace-b" });
+    confirmation.resolve(true);
+    await flushPromises();
+
+    expect(mocks.deleteEntry).not.toHaveBeenCalled();
   });
 
   it("keeps the current selection and shows a retryable deletion error", async () => {

@@ -3,7 +3,7 @@ import {
   getYunxiaoOrganizationId,
   getYunxiaoUserId,
 } from "@main/infra/storage/yunxiao-credentials";
-import { loadProjectIntegrationConfig } from "@main/infra/storage/project-integration-store";
+import { loadWorkspaceIntegrationConfig } from "@main/infra/storage/project-integration-store";
 import {
   getWorkitem,
   searchWorkitems,
@@ -11,7 +11,7 @@ import {
   type Workitem,
 } from "@main/infra/integration/yunxiao/projex";
 import type { TaskDescription, TaskItem, TaskLabel, YunxiaoTaskMeta } from "@shared/types/task";
-import type { ProjectIntegrationEntry } from "@shared/types/integration";
+import type { WorkspaceIntegrationEntry } from "@shared/types/integration";
 import type { TaskAdapter } from "./task-adapter";
 
 type YunxiaoCategory = "Req" | "Task" | "Bug";
@@ -126,8 +126,8 @@ export function buildSearchWorkitemsParams(
   };
 }
 
-function getMountedYunxiaoSpaces(projectId: string): string[] {
-  const config = loadProjectIntegrationConfig(projectId);
+function getMountedYunxiaoSpaces(workspaceId: string): string[] {
+  const config = loadWorkspaceIntegrationConfig(workspaceId);
   const entries = config[PROJECT_MANAGEMENT_STAGE] ?? [];
   return entries
     .filter(isMountedYunxiaoProjexProject)
@@ -135,7 +135,7 @@ function getMountedYunxiaoSpaces(projectId: string): string[] {
     .filter((spaceId, index, list) => list.indexOf(spaceId) === index);
 }
 
-function isMountedYunxiaoProjexProject(entry: ProjectIntegrationEntry): boolean {
+function isMountedYunxiaoProjexProject(entry: WorkspaceIntegrationEntry): boolean {
   return entry.providerId === "yunxiao" && entry.resourceType === "projex-project";
 }
 
@@ -236,7 +236,7 @@ export function mapYunxiaoDescription(workitem: Workitem): TaskDescription {
 }
 
 function mapToTaskItem(
-  projectId: string,
+  workspaceId: string,
   spaceId: string,
   category: YunxiaoCategory,
   workitem: Workitem
@@ -253,7 +253,7 @@ function mapToTaskItem(
 
   const task: TaskItem = {
     id: `yunxiao:${spaceId}:${workitem.id}`,
-    projectId,
+    workspaceId,
     title: workitem.subject,
     description: mapYunxiaoDescription(workitem),
     status: "open",
@@ -279,7 +279,7 @@ function sortTasks(tasks: TaskItem[]): TaskItem[] {
 }
 
 async function searchByCategory(
-  projectId: string,
+  workspaceId: string,
   spaceId: string,
   category: YunxiaoCategory,
   organizationId: string,
@@ -287,17 +287,17 @@ async function searchByCategory(
 ): Promise<TaskItem[]> {
   const params = buildSearchWorkitemsParams(spaceId, category, organizationId, yunxiaoUserId);
   const workitems = await searchWorkitems(params);
-  return workitems.map((workitem) => mapToTaskItem(projectId, spaceId, category, workitem));
+  return workitems.map((workitem) => mapToTaskItem(workspaceId, spaceId, category, workitem));
 }
 
 function logQueryFailure(
-  projectId: string,
+  workspaceId: string,
   spaceId: string,
   category: YunxiaoCategory,
   error: unknown
 ): void {
   logger.warn("[task][yunxiao] failed to load workitems", {
-    projectId,
+    workspaceId,
     spaceId,
     category,
     error: error instanceof Error ? error.message : String(error),
@@ -305,8 +305,8 @@ function logQueryFailure(
 }
 
 export class YunxiaoTaskAdapter implements TaskAdapter {
-  async list(projectId: string): Promise<TaskItem[]> {
-    const spaceIds = getMountedYunxiaoSpaces(projectId);
+  async list(workspaceId: string): Promise<TaskItem[]> {
+    const spaceIds = getMountedYunxiaoSpaces(workspaceId);
     if (spaceIds.length === 0) {
       return [];
     }
@@ -323,7 +323,7 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
               spaceId,
               category,
               tasks: await searchByCategory(
-                projectId,
+                workspaceId,
                 spaceId,
                 category,
                 organizationId,
@@ -332,7 +332,7 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
             };
           } catch (error) {
             throw {
-              projectId,
+              workspaceId,
               spaceId,
               category,
               cause: error,
@@ -351,11 +351,11 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
       }
 
       const payload = result.reason as
-        | { projectId?: string; spaceId?: string; category?: YunxiaoCategory; cause?: unknown }
+        | { workspaceId?: string; spaceId?: string; category?: YunxiaoCategory; cause?: unknown }
         | undefined;
 
       logQueryFailure(
-        payload?.projectId ?? projectId,
+        payload?.workspaceId ?? workspaceId,
         payload?.spaceId ?? "unknown",
         payload?.category ?? "Task",
         payload?.cause ?? result.reason
@@ -365,7 +365,7 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
     return sortTasks(tasks);
   }
 
-  async get(taskId: string, projectId: string): Promise<TaskItem | null> {
+  async get(taskId: string, workspaceId: string): Promise<TaskItem | null> {
     const parsed = parseYunxiaoTaskId(taskId);
     if (!parsed) {
       return null;
@@ -378,7 +378,7 @@ export class YunxiaoTaskAdapter implements TaskAdapter {
     });
     logger.info(JSON.stringify(workitem));
     const category = resolveCategory(workitem);
-    return mapToTaskItem(projectId, parsed.spaceId, category, workitem);
+    return mapToTaskItem(workspaceId, parsed.spaceId, category, workitem);
   }
 }
 

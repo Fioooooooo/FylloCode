@@ -18,7 +18,7 @@ vi.mock("@main/infra/paths", () => ({
 
 import { readIndex, readSubject } from "@main/infra/storage/lineage-store";
 import { createSessionMeta } from "@main/infra/storage/session-store";
-import { lineageDir, subjectsDir } from "@main/infra/storage/project-paths";
+import { lineageDir, lineageSubjectsDir } from "@main/infra/storage/workspace-paths";
 import {
   backfillTask,
   createSessionTask,
@@ -35,7 +35,7 @@ import {
   recordProposalCommitHash,
 } from "@main/services/insight/lineage/lineage-service";
 
-const projectPath = "/tmp/project";
+const projectPath = "workspace-1";
 
 function setNow(iso: string): void {
   vi.setSystemTime(new Date(iso));
@@ -45,7 +45,7 @@ function task(overrides: Partial<TaskItem> = {}): TaskItem {
   const createdAt = new Date("2026-06-01T00:00:00.000Z");
   return {
     id: "task-1",
-    projectId: "tmp-project",
+    workspaceId: "tmp-project",
     title: "Lineage task",
     description: { format: "plain_text", content: "Details" },
     status: "open",
@@ -499,8 +499,8 @@ describe("lineage-service", () => {
   it("rebuilds index from valid subjects while skipping corrupt subject files", async () => {
     const subject = await ensureChatSubject(projectPath, "session-chat");
     await recordProposal(projectPath, "session-chat", "change-chat");
-    mkdirSync(subjectsDir(projectPath), { recursive: true });
-    writeFileSync(`${subjectsDir(projectPath)}/subject-bad.json`, "{not-json", "utf8");
+    mkdirSync(lineageSubjectsDir(projectPath), { recursive: true });
+    writeFileSync(`${lineageSubjectsDir(projectPath)}/subject-bad.json`, "{not-json", "utf8");
     unlinkSync(indexFilePath());
 
     await expect(rebuildIndex(projectPath)).resolves.toMatchObject({

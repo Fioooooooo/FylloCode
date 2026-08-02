@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { useProjectStore } from "@renderer/stores";
+import { useWorkspaceStore } from "@renderer/stores";
 import { activityBarItems } from "@renderer/config/activity-bar";
 import Logo from "@renderer/components/shared/Logo.vue";
 
 const route = useRoute();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 
-const hasProject = computed(() => projectStore.hasCurrentProject);
+const hasWorkspace = computed(() => workspaceStore.hasCurrentWorkspace);
 
 const items = computed(() => activityBarItems.filter((i) => i.group === "top"));
 const bottomItems = computed(() => activityBarItems.filter((i) => i.group === "bottom"));
@@ -59,8 +59,8 @@ const isDev = import.meta.env.DEV;
                 ? 'bg-primary/15 text-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-primary'
                 : 'text-muted hover:bg-elevated',
             ]"
-            :disabled="!hasProject"
-            :to="hasProject ? item.path : undefined"
+            :disabled="!hasWorkspace"
+            :to="hasWorkspace ? item.path : undefined"
             :data-test="`activity-bar-item-${item.id}`"
           >
             <UIcon :name="item.icon" class="size-5" />

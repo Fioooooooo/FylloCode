@@ -3,10 +3,11 @@ import { createPinia, setActivePinia } from "pinia";
 import { watch } from "vue";
 import { useAcpAgentsStore } from "@renderer/stores/platform/acp-agents";
 import { useChatStore } from "@renderer/stores/session/chat";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useSessionStore } from "@renderer/stores/session/session";
 import { chatApi, type StreamCallbacks } from "@renderer/api/session/chat";
-import { projectApi } from "@renderer/api/workspace/project";
+import { workspaceApi } from "@renderer/api/workspace/workspace";
+import { workspaceInfo } from "../../fixtures/workspace";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 import type { Session } from "@shared/types/chat";
 
@@ -27,8 +28,8 @@ vi.mock("@renderer/api/session/chat", () => ({
   },
 }));
 
-vi.mock("@renderer/api/workspace/project", () => ({
-  projectApi: {
+vi.mock("@renderer/api/workspace/workspace", () => ({
+  workspaceApi: {
     list: vi.fn(),
     getById: vi.fn(),
     getDefaultPath: vi.fn(),
@@ -98,7 +99,7 @@ function textParts(text: string): [{ type: "text"; text: string }] {
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
     id: "session-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: "Session",
     isPinned: false,
@@ -117,15 +118,14 @@ function prepareDraftConversation(): void {
   acpAgentsStore.registry = mockRegistry;
   acpAgentsStore.statuses = mockStatuses;
 
-  const projectStore = useProjectStore();
-  projectStore.currentProject = {
+  const workspaceStore = useWorkspaceStore();
+  workspaceStore.currentWorkspace = workspaceInfo({
     id: "project-1",
     name: "Project 1",
-    path: "/tmp/project-1",
-    metaPath: "/tmp/project-1-meta.json",
+    folderPath: "/tmp/project-1",
     createdAt: new Date("2026-04-30T08:00:00.000Z"),
     lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-  };
+  });
 
   useSessionStore().beginDraftSession();
 }
@@ -141,7 +141,7 @@ describe("useChatStore", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
 
-    vi.mocked(projectApi.list).mockResolvedValue({
+    vi.mocked(workspaceApi.list).mockResolvedValue({
       ok: true,
       data: [],
     });
@@ -149,7 +149,7 @@ describe("useChatStore", () => {
       ok: true,
       data: {
         id: "session-1",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "hello world",
         isPinned: false,
@@ -174,15 +174,14 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     const sessionStore = useSessionStore();
     sessionStore.beginDraftSession();
@@ -191,7 +190,7 @@ describe("useChatStore", () => {
     await chatStore.sendMessage(textParts("hello world"));
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "hello world",
       agentId: "claude-code",
     });
@@ -231,7 +230,7 @@ describe("useChatStore", () => {
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -264,7 +263,7 @@ describe("useChatStore", () => {
 
     const callbacksBySession = new Map<string, StreamCallbacks>();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+      (sessionId, _workspaceId, _agentId, _prompt, callbacks) => {
         callbacksBySession.set(sessionId, callbacks);
         return () => {};
       }
@@ -296,7 +295,7 @@ describe("useChatStore", () => {
     prepareDraftConversation();
     const callbacks: StreamCallbacks[] = [];
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks.push(nextCallbacks);
         return () => {};
       }
@@ -340,7 +339,7 @@ describe("useChatStore", () => {
       ok: true,
       data: {
         id: "session-setup",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "hello world",
         isPinned: false,
@@ -367,7 +366,7 @@ describe("useChatStore", () => {
     let callbacks: StreamCallbacks | null = null;
     const cancel = vi.fn();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return cancel;
       }
@@ -400,15 +399,14 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     const sessionStore = useSessionStore();
     sessionStore.beginDraftSession();
@@ -452,7 +450,7 @@ describe("useChatStore", () => {
     });
     const applyProbeUpdateSpy = vi.spyOn(sessionStore, "applyProbeUpdate");
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, _callbacks, options) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, _callbacks, options) => {
         expect(applyProbeUpdateSpy).toHaveBeenCalledWith("claude-code", null);
         expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(false);
         expect(options).toEqual({ acpSessionId: "acp-probe" });
@@ -463,7 +461,7 @@ describe("useChatStore", () => {
     await useChatStore().sendMessage(textParts("hello world"));
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "hello world",
       agentId: "claude-code",
       configOptions: probeConfigOptions,
@@ -513,7 +511,7 @@ describe("useChatStore", () => {
     sessionStore.sessions = [
       {
         id: "session-1",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "Session",
         isPinned: false,
@@ -534,15 +532,14 @@ describe("useChatStore", () => {
       configOptions: [],
       availableCommands: [],
     });
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
 
     await useChatStore().sendMessage(textParts("hello again"));
 
@@ -563,21 +560,20 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     vi.mocked(chatApi.createSession).mockResolvedValueOnce({
       ok: true,
       data: {
         id: "session-2",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "hello world this message is in",
         isPinned: false,
@@ -599,7 +595,7 @@ describe("useChatStore", () => {
     );
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "hello world this message is in",
       agentId: "claude-code",
     });
@@ -613,7 +609,7 @@ describe("useChatStore", () => {
       ok: true,
       data: {
         id: "session-2",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "hello world this message is in",
         isPinned: false,
@@ -636,7 +632,7 @@ describe("useChatStore", () => {
     ]);
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "hello world this message is in",
       agentId: "claude-code",
     });
@@ -650,7 +646,7 @@ describe("useChatStore", () => {
       ok: true,
       data: {
         id: "session-2",
-        projectId: "project-1",
+        workspaceId: "project-1",
         agentId: "claude-code",
         title: "New Session",
         isPinned: false,
@@ -669,7 +665,7 @@ describe("useChatStore", () => {
     ]);
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "New Session",
       agentId: "claude-code",
     });
@@ -686,7 +682,7 @@ describe("useChatStore", () => {
     ]);
 
     expect(chatApi.createSession).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       title: "修复解析器内存泄漏",
       agentId: "claude-code",
     });
@@ -697,19 +693,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -732,19 +727,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -775,19 +769,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -816,19 +809,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -857,19 +849,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -898,19 +889,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -937,20 +927,19 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     const cancel = vi.fn();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return cancel;
       }
@@ -985,7 +974,7 @@ describe("useChatStore", () => {
 
   it("keeps receiving background session chunks after switching sessions", async () => {
     prepareDraftConversation();
-    const projectStore = useProjectStore();
+    const workspaceStore = useWorkspaceStore();
     const sessionStore = useSessionStore();
     sessionStore.sessions = [
       makeSession({
@@ -1017,7 +1006,7 @@ describe("useChatStore", () => {
 
     const callbacksBySession = new Map<string, StreamCallbacks>();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+      (sessionId, _workspaceId, _agentId, _prompt, callbacks) => {
         callbacksBySession.set(sessionId, callbacks);
         return () => {};
       }
@@ -1040,7 +1029,7 @@ describe("useChatStore", () => {
     });
     expect(sessionB.messages).toHaveLength(1);
     expect(chatStore.chatStatus).toBe("ready");
-    expect(projectStore.currentProject?.id).toBe("project-1");
+    expect(workspaceStore.currentWorkspace?.id).toBe("project-1");
   });
 
   it("keeps background completion in memory when switching back to the session", async () => {
@@ -1077,7 +1066,7 @@ describe("useChatStore", () => {
 
     const callbacksBySession = new Map<string, StreamCallbacks>();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+      (sessionId, _workspaceId, _agentId, _prompt, callbacks) => {
         callbacksBySession.set(sessionId, callbacks);
         return () => {};
       }
@@ -1134,7 +1123,7 @@ describe("useChatStore", () => {
     const callbacksBySession = new Map<string, StreamCallbacks>();
     const cancelBySession = new Map<string, ReturnType<typeof vi.fn>>();
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (sessionId, _projectId, _agentId, _prompt, callbacks) => {
+      (sessionId, _workspaceId, _agentId, _prompt, callbacks) => {
         callbacksBySession.set(sessionId, callbacks);
         const cancel = vi.fn();
         cancelBySession.set(sessionId, cancel);
@@ -1171,19 +1160,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     let callbacks: StreamCallbacks | null = null;
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         callbacks = nextCallbacks;
         return () => {};
       }
@@ -1221,19 +1209,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     const streamCallbacks: StreamCallbacks[] = [];
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         streamCallbacks.push(nextCallbacks);
         return () => {};
       }
@@ -1264,19 +1251,18 @@ describe("useChatStore", () => {
     acpAgentsStore.registry = mockRegistry;
     acpAgentsStore.statuses = mockStatuses;
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project 1",
-      path: "/tmp/project-1",
-      metaPath: "/tmp/project-1-meta.json",
+      folderPath: "/tmp/project-1",
       createdAt: new Date("2026-04-30T08:00:00.000Z"),
       lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-    };
+    });
 
     const streamCallbacks: StreamCallbacks[] = [];
     vi.mocked(chatApi.streamMessage).mockImplementation(
-      (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+      (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
         streamCallbacks.push(nextCallbacks);
         return () => {};
       }
@@ -1309,21 +1295,20 @@ describe("useChatStore", () => {
       acpAgentsStore.registry = mockRegistry;
       acpAgentsStore.statuses = mockStatuses;
 
-      const projectStore = useProjectStore();
-      projectStore.currentProject = {
+      const workspaceStore = useWorkspaceStore();
+      workspaceStore.currentWorkspace = workspaceInfo({
         id: "project-1",
         name: "Project 1",
-        path: "/tmp/project-1",
-        metaPath: "/tmp/project-1-meta.json",
+        folderPath: "/tmp/project-1",
         createdAt: new Date("2026-04-30T08:00:00.000Z"),
         lastOpenedAt: new Date("2026-04-30T08:00:00.000Z"),
-      };
+      });
 
       const sessionStore = useSessionStore();
       sessionStore.sessions = [
         {
           id: "session-1",
-          projectId: "project-1",
+          workspaceId: "project-1",
           agentId: "claude-code",
           title: "Session",
           isPinned: false,
@@ -1357,7 +1342,7 @@ describe("useChatStore", () => {
       const { sessionStore } = withSession();
       let callbacks: StreamCallbacks | null = null;
       vi.mocked(chatApi.streamMessage).mockImplementation(
-        (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
           callbacks = nextCallbacks;
           return () => {};
         }
@@ -1446,7 +1431,7 @@ describe("useChatStore", () => {
       const { sessionStore, chatStore } = withSession();
       let callbacks: StreamCallbacks | null = null;
       vi.mocked(chatApi.streamMessage).mockImplementation(
-        (_sessionId, _projectId, _agentId, _prompt, nextCallbacks) => {
+        (_sessionId, _workspaceId, _agentId, _prompt, nextCallbacks) => {
           callbacks = nextCallbacks;
           return () => {};
         }

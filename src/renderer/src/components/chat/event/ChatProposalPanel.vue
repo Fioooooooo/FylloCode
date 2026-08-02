@@ -5,7 +5,7 @@ import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktre
 import { timeAgo } from "@renderer/utils/time";
 import {
   useWorkflowStore,
-  useProjectStore,
+  useWorkspaceStore,
   useProposalRunStore,
   useProposalStore,
   useSessionStore,
@@ -23,13 +23,13 @@ defineProps<{
 const collapsed = ref(false);
 
 const { openProposalDetail } = useProposalDetailSlideover();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
 const workflowStore = useWorkflowStore();
 const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
 
-const projectId = computed(() => projectStore.currentProject?.id ?? "");
+const workspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
 
 function buildWorkflowMenuItems(proposal: ProposalMeta) {
   return [
@@ -58,10 +58,10 @@ async function ensureWorkflowsLoaded(): Promise<void> {
 }
 
 async function startApply(proposal: ProposalMeta, workflowId: string): Promise<void> {
-  if (!projectId.value) {
+  if (!workspaceId.value) {
     return;
   }
-  await proposalRunStore.startRun(projectId.value, proposal.id, workflowId);
+  await proposalRunStore.startRun(workspaceId.value, proposal.id, workflowId);
   // Optimistically update the rail status so the UI reflects "applying"
   // immediately, even if the watcher was not active before the apply started.
   const sessionId = sessionStore.activeSession?.id;
@@ -71,11 +71,11 @@ async function startApply(proposal: ProposalMeta, workflowId: string): Promise<v
 }
 
 async function startArchive(proposal: ProposalMeta): Promise<void> {
-  if (!projectId.value) {
+  if (!workspaceId.value) {
     return;
   }
   const previousChangeId = proposal.id;
-  await proposalRunStore.startArchive(projectId.value, previousChangeId);
+  await proposalRunStore.startArchive(workspaceId.value, previousChangeId);
   await proposalStore.loadProposals();
 
   const sessionId = sessionStore.activeSession?.id;

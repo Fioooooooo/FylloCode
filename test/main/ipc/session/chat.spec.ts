@@ -9,7 +9,7 @@ import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import type { AcpSessionOpts } from "@main/services/session/chat/acp-session";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
 const mocks = vi.hoisted(() => {
   let eventHandler: ((ev: SessionEvent) => void) | null = null;
@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => {
     listSessions: vi.fn(),
     updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
-    resolveProjectPath: vi.fn(),
+    resolveWorkspaceCwd: vi.fn(),
     getByTask: vi.fn(),
     linkTaskSession: vi.fn(),
     loadSessionMeta: vi.fn(),
@@ -76,7 +76,7 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   loadSessionMessages: vi.fn(),
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
-  resolveProjectPath: mocks.resolveProjectPath,
+  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
   updateSession: mocks.updateSession,
 }));
 
@@ -169,7 +169,7 @@ describe("registerChatHandlers", () => {
     mocks.eventHandler = null;
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
-    mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.getByTask.mockResolvedValue(null);
     mocks.linkTaskSession.mockResolvedValue(null);
     mocks.listSessions.mockResolvedValue([]);
@@ -233,17 +233,17 @@ describe("registerChatHandlers", () => {
     const { setupProbeBroadcast } = await import("@main/ipc/session/chat");
     const { sessionProbeBus } = await import("@main/services/session/chat/session-probe-bus");
     const manager = {
-      sendToProject: vi.fn(),
-    } as unknown as ProjectWindowManager;
+      sendToWorkspace: vi.fn(),
+    } as unknown as WorkspaceWindowManager;
 
     setupProbeBroadcast(manager);
     const listener = vi.mocked(sessionProbeBus.onUpdate).mock.calls[0]?.[0];
     expect(listener).toBeTypeOf("function");
 
-    listener?.({ projectId: "project-1", agentId: "codex", snapshot: null });
+    listener?.({ workspaceId: "workspace-1", agentId: "codex", snapshot: null });
 
-    expect(manager.sendToProject).toHaveBeenCalledWith("project-1", ChatProbeChannels.update, {
-      projectId: "project-1",
+    expect(manager.sendToWorkspace).toHaveBeenCalledWith("workspace-1", ChatProbeChannels.update, {
+      workspaceId: "workspace-1",
       agentId: "codex",
       snapshot: null,
     });
@@ -253,7 +253,7 @@ describe("registerChatHandlers", () => {
     const result = await handler(ChatChannels.listSessions)(
       {},
       {
-        projectId: "project-1",
+        workspaceId: "workspace-1",
       }
     );
 
@@ -261,9 +261,9 @@ describe("registerChatHandlers", () => {
       ok: true,
       data: [],
     });
-    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
-    expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("/tmp/project");
-    expect(mocks.listSessions).toHaveBeenCalledWith("project-1");
+    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("workspace-1", "/tmp/project");
+    expect(mocks.listSessions).toHaveBeenCalledWith("workspace-1");
   });
 
   it("routes a pin patch through the existing updateSession handler", async () => {
@@ -271,13 +271,13 @@ describe("registerChatHandlers", () => {
 
     const result = await handler(ChatChannels.updateSession)(
       {},
-      { id: "session-1", projectId: "project-1", patch: { isPinned: true } }
+      { id: "session-1", workspaceId: "workspace-1", patch: { isPinned: true } }
     );
 
     expect(result).toEqual({ ok: true, data: { id: "session-1", isPinned: true } });
     expect(mocks.updateSession).toHaveBeenCalledWith({
       id: "session-1",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       patch: { isPinned: true },
     });
   });
@@ -287,7 +287,7 @@ describe("registerChatHandlers", () => {
       {},
       {
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         message: {
           id: "message-1",
           role: "assistant",
@@ -369,7 +369,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -390,7 +390,7 @@ describe("registerChatHandlers", () => {
       expect(sink.sendDone).toHaveBeenCalledWith(4);
     });
     expect(mocks.appendMessage).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({ id: "assistant-message-1", role: "assistant" })
     );
@@ -402,7 +402,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-custom",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -419,11 +419,11 @@ describe("registerChatHandlers", () => {
   it("cancels chat streams by project and session id", async () => {
     const resultA = await handler(ChatStreamChannels.streamCancel)(
       {},
-      { projectId: "project-a", sessionId: "same-session" }
+      { workspaceId: "project-a", sessionId: "same-session" }
     );
     const resultB = await handler(ChatStreamChannels.streamCancel)(
       {},
-      { projectId: "project-b", sessionId: "same-session" }
+      { workspaceId: "project-b", sessionId: "same-session" }
     );
 
     expect(resultA).toEqual({ ok: true, data: undefined });
@@ -448,7 +448,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -464,12 +464,12 @@ describe("registerChatHandlers", () => {
       expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
     });
     expect(mocks.appendMessage).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({ id: "assistant-message-err", role: "assistant" })
     );
     expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "boom");
-    expect(mocks.unregister).toHaveBeenCalledWith("chat", "project-1:session-1");
+    expect(mocks.unregister).toHaveBeenCalledWith("chat", "workspace-1:session-1");
   });
 
   it("persists assembled assistant message when the runner is cancelled", async () => {
@@ -488,7 +488,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -504,12 +504,12 @@ describe("registerChatHandlers", () => {
       expect(mocks.appendMessage).toHaveBeenCalledTimes(1);
     });
     expect(mocks.appendMessage).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({ id: "assistant-message-cancel", role: "assistant" })
     );
     expect(mocks.sessionCancel).toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("chat", "project-1:session-1");
+    expect(mocks.unregister).toHaveBeenCalledWith("chat", "workspace-1:session-1");
   });
 
   it("does not persist the assistant message twice across error then cancel", async () => {
@@ -528,7 +528,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -554,7 +554,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -578,7 +578,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -606,7 +606,7 @@ describe("registerChatHandlers", () => {
     });
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.objectContaining({
           tokenUsage: {
@@ -641,7 +641,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -658,7 +658,7 @@ describe("registerChatHandlers", () => {
 
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.any(Function)
       );
@@ -682,7 +682,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -709,7 +709,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -742,7 +742,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -775,7 +775,7 @@ describe("registerChatHandlers", () => {
     await opts.onReminderInjected(reminderPart);
 
     expect(mocks.prependReminderToLastUserMessage).toHaveBeenCalledWith(
-      "/tmp/project/session-1.messages.jsonl",
+      "workspace-1/session-1.messages.jsonl",
       reminderPart
     );
     expect(sink.sendChunk).not.toHaveBeenCalledWith(
@@ -801,7 +801,7 @@ describe("registerChatHandlers", () => {
         ref: "local:task-1",
         snapshot: {
           id: "task-1",
-          projectId: "tmp-project",
+          workspaceId: "tmp-project",
           title: "修复登录超时",
           description: { format: "plain_text", content: "登录超时的完整复现步骤" },
           status: "open",
@@ -821,7 +821,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -834,7 +834,7 @@ describe("registerChatHandlers", () => {
     };
     await mocks.onReady!(sink);
 
-    expect(mocks.getByTask).toHaveBeenCalledWith("/tmp/project", "local:task-1");
+    expect(mocks.getByTask).toHaveBeenCalledWith("workspace-1", "local:task-1");
     const acpSessionMock = vi.mocked(
       (await import("@main/services/session/chat/acp-session")).AcpSession
     );
@@ -851,7 +851,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -877,7 +877,7 @@ describe("registerChatHandlers", () => {
     });
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.objectContaining({
           available_commands: [{ name: "review", description: "Review code" }],
@@ -892,7 +892,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -916,7 +916,7 @@ describe("registerChatHandlers", () => {
     });
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.objectContaining({
           available_commands: [],
@@ -931,7 +931,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -962,7 +962,7 @@ describe("registerChatHandlers", () => {
     });
     await vi.waitFor(() => {
       expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-        "/tmp/project",
+        "workspace-1",
         "session-1",
         expect.objectContaining({ configOptions: options })
       );
@@ -975,7 +975,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }
@@ -993,7 +993,7 @@ describe("registerChatHandlers", () => {
       message: "config recovery failed",
     });
     expect(mocks.patchSessionMeta).not.toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({ configOptions: expect.any(Array) })
     );
@@ -1023,7 +1023,7 @@ describe("registerChatHandlers", () => {
   it("rejects setConfigOption input missing configId before calling service", async () => {
     const result = await handler(ChatChannels.setConfigOption)(
       {},
-      { projectId: "p1", sessionId: "s1", type: "select", value: "haiku" }
+      { workspaceId: "w1", sessionId: "s1", type: "select", value: "haiku" }
     );
 
     expect(result).toEqual({
@@ -1048,7 +1048,7 @@ describe("registerChatHandlers", () => {
     const result = await handler(ChatChannels.setConfigOption)(
       {},
       {
-        projectId: "p1",
+        workspaceId: "w1",
         sessionId: "s1",
         configId: "model",
         type: "select",
@@ -1058,7 +1058,7 @@ describe("registerChatHandlers", () => {
 
     expect(result).toEqual({ ok: true, data: { configOptions } });
     expect(mocks.setConfigOption).toHaveBeenCalledWith({
-      projectId: "p1",
+      workspaceId: "w1",
       sessionId: "s1",
       configId: "model",
       type: "select",
@@ -1069,29 +1069,29 @@ describe("registerChatHandlers", () => {
   it("registers probe ensure/close/setConfigOption handlers", async () => {
     const ensureResult = await handler(ChatProbeChannels.ensure)(
       {},
-      { agentId: "claude-acp", projectId: "project-1" }
+      { agentId: "claude-acp", workspaceId: "workspace-1" }
     );
     const closeResult = await handler(ChatProbeChannels.close)(
       {},
-      { agentId: "claude-acp", projectId: "project-1" }
+      { agentId: "claude-acp", workspaceId: "workspace-1" }
     );
     const setResult = await handler(ChatProbeChannels.setConfigOption)(
       {},
       {
         agentId: "claude-acp",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         configId: "model",
         type: "select",
         value: "sonnet",
       }
     );
 
-    expect(mocks.resolveProjectPath).toHaveBeenCalledWith("project-1");
-    expect(mocks.ensureProbe).toHaveBeenCalledWith("project-1", "claude-acp", "/tmp/project");
-    expect(mocks.closeProbe).toHaveBeenCalledWith("project-1", "claude-acp");
+    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.ensureProbe).toHaveBeenCalledWith("workspace-1", "claude-acp", "/tmp/project");
+    expect(mocks.closeProbe).toHaveBeenCalledWith("workspace-1", "claude-acp");
     expect(mocks.setProbeConfigOption).toHaveBeenCalledWith({
       agentId: "claude-acp",
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       configId: "model",
       type: "select",
       value: "sonnet",
@@ -1118,7 +1118,7 @@ describe("registerChatHandlers", () => {
       },
     ];
     mocks.takeProbeFor.mockReturnValueOnce({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       agentId: "claude-acp",
       status: "ready",
       fylloSessionId: "session-probe",
@@ -1133,7 +1133,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
         acpSessionId: "acp-probe",
@@ -1147,9 +1147,9 @@ describe("registerChatHandlers", () => {
     };
     const control = await mocks.onReady!(sink);
 
-    expect(mocks.takeProbeFor).toHaveBeenCalledWith("project-1", "claude-acp", "acp-probe");
+    expect(mocks.takeProbeFor).toHaveBeenCalledWith("workspace-1", "claude-acp", "acp-probe");
     expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({
         acpSessionId: "acp-probe",
@@ -1174,7 +1174,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
         acpSessionId: "acp-probe",
@@ -1193,7 +1193,7 @@ describe("registerChatHandlers", () => {
       expect.stringContaining("probe acpSessionId")
     );
     expect(mocks.patchSessionMeta).not.toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "session-1",
       expect.objectContaining({ acpSessionId: "acp-probe" })
     );
@@ -1209,7 +1209,7 @@ describe("registerChatHandlers", () => {
       {
         streamId: "stream-1",
         sessionId: "session-1",
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         agentId: "claude-acp",
         prompt: [{ type: "text", text: "hello" }],
       }

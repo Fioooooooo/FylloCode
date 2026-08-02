@@ -1,6 +1,4 @@
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { encodeProjectPath } from "@main/infra/storage/project-paths";
-import { loadProject } from "@main/infra/storage/project-store";
 import { ipcError } from "@main/ipc/_kit/errors";
 import type {
   CreateLocalTaskInput,
@@ -24,15 +22,6 @@ interface CreateTaskOptions {
   actionId?: string;
 }
 
-export async function resolveTaskProjectPath(projectId: string): Promise<string> {
-  const project = await loadProject(projectId);
-  if (!project) {
-    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
-  }
-
-  return project.path;
-}
-
 function sortTasks(tasks: TaskItem[]): TaskItem[] {
   return [...tasks].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 }
@@ -53,12 +42,12 @@ function applyPatch(task: TaskItem, patch: UpdateTaskInput): TaskItem {
   };
 }
 
-export async function listTasks(projectPath: string): Promise<TaskItem[]> {
-  return sortTasks(await loadTaskItems(projectPath));
+export async function listTasks(workspaceId: string): Promise<TaskItem[]> {
+  return sortTasks(await loadTaskItems(workspaceId));
 }
 
 export async function createTask(
-  projectPath: string,
+  workspaceId: string,
   input: CreateLocalTaskInput,
   options: CreateTaskOptions = {}
 ): Promise<TaskItem> {
@@ -66,7 +55,7 @@ export async function createTask(
   // return it immediately without generating a new id. The atomic update below still
   // guards against duplicates that appear between this check and the write.
   if (options.actionId) {
-    const currentTasks = await loadTaskItems(projectPath);
+    const currentTasks = await loadTaskItems(workspaceId);
     const existing = currentTasks.find((task) => task.actionId === options.actionId);
     if (existing) {
       return existing;
@@ -74,10 +63,9 @@ export async function createTask(
   }
 
   const now = new Date();
-  const projectId = encodeProjectPath(projectPath);
   const task: TaskItem = {
     id: newTaskId(),
-    projectId,
+    workspaceId,
     title: input.title,
     description: createLocalDescription(input.description),
     status: "open",
@@ -91,7 +79,7 @@ export async function createTask(
     updatedAt: now,
   };
 
-  const nextTasks = await updateTaskItems(projectPath, (current) => {
+  const nextTasks = await updateTaskItems(workspaceId, (current) => {
     if (options.actionId) {
       const existing = current.find((item) => item.actionId === options.actionId);
       if (existing) {
@@ -114,13 +102,13 @@ export async function createTask(
 }
 
 export async function updateTask(
-  projectPath: string,
+  workspaceId: string,
   taskId: string,
   patch: UpdateTaskInput
 ): Promise<TaskItem> {
   let nextTask: TaskItem | undefined;
 
-  await updateTaskItems(projectPath, (current) => {
+  await updateTaskItems(workspaceId, (current) => {
     const index = current.findIndex((task) => task.id === taskId);
     if (index === -1) {
       throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
@@ -135,8 +123,8 @@ export async function updateTask(
   return nextTask!;
 }
 
-export async function deleteTask(projectPath: string, taskId: string): Promise<void> {
-  await updateTaskItems(projectPath, (current) => {
+export async function deleteTask(workspaceId: string, taskId: string): Promise<void> {
+  await updateTaskItems(workspaceId, (current) => {
     const nextTasks = current.filter((task) => task.id !== taskId);
     if (nextTasks.length === current.length) {
       throw ipcError(IpcErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);

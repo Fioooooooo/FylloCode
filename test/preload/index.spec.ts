@@ -62,12 +62,13 @@ describe("preload index API shape", () => {
           providers: expect.any(Object),
         }),
         workspace: expect.objectContaining({
-          project: expect.any(Object),
+          workspace: expect.any(Object),
           window: expect.any(Object),
           document: expect.any(Object),
         }),
         session: expect.objectContaining({
           chat: expect.any(Object),
+          action: expect.any(Object),
         }),
         proposal: expect.objectContaining({
           browser: expect.any(Object),
@@ -79,6 +80,7 @@ describe("preload index API shape", () => {
           specs: expect.any(Object),
           guidelines: expect.any(Object),
           lineage: expect.any(Object),
+          knowledge: expect.any(Object),
         }),
         automation: expect.objectContaining({
           workflow: expect.any(Object),

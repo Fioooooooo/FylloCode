@@ -240,7 +240,7 @@ function makeSubject(options: {
     ref: string;
     snapshot: {
       id: string;
-      projectId: string;
+      workspaceId: string;
       title: string;
       description: { format: string; content: string };
       status: string;
@@ -1003,7 +1003,7 @@ describe("fyllo-cortex tools", () => {
                 ref: "github:42",
                 snapshot: {
                   id: "task-1",
-                  projectId: "proj-1",
+                  workspaceId: "proj-1",
                   title: "Task title",
                   description: { format: "markdown", content: "Task description" },
                   status: "open",
@@ -1085,7 +1085,7 @@ describe("fyllo-cortex tools", () => {
                   ref: "github:42",
                   snapshot: {
                     id: "task-1",
-                    projectId: "proj-1",
+                    workspaceId: "proj-1",
                     title: "Task title",
                     description: { format: "markdown", content: "Task description" },
                     status: "open",
@@ -1181,7 +1181,7 @@ describe("fyllo-cortex tools", () => {
                 ref: "local:1",
                 snapshot: {
                   id: "task-1",
-                  projectId: "proj-1",
+                  workspaceId: "proj-1",
                   title: "Task title",
                   description: { format: "markdown", content: "Desc" },
                   status: "open",

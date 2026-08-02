@@ -58,6 +58,7 @@ describe("system-reminder guidelines section", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: projectDir,
       cwd: projectDir,
       fylloSessionId: "session-1",
@@ -88,6 +89,7 @@ describe("system-reminder guidelines section", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "apply",
+      workspaceId: "workspace-1",
       projectPath: projectDir,
       cwd: projectDir,
       fylloSessionId: "session-1",
@@ -110,6 +112,7 @@ describe("system-reminder guidelines section", () => {
     for (const owner of ["chat", "apply"] as const) {
       const reminder = await resolveSystemReminder({
         owner,
+        workspaceId: "workspace-1",
         projectPath: projectDir,
         cwd: projectDir,
         fylloSessionId: "session-1",
@@ -142,6 +145,7 @@ describe("system-reminder guidelines section", () => {
 
       const reminder = await resolveSystemReminder({
         owner: "apply",
+        workspaceId: "workspace-1",
         projectPath: projectDir,
         cwd: worktreeDir,
         fylloSessionId: "session-1",
@@ -170,6 +174,7 @@ describe("system-reminder guidelines section", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "chat",
+      workspaceId: "workspace-1",
       projectPath: projectDir,
       cwd: projectDir,
       fylloSessionId: "session-1",
@@ -191,6 +196,7 @@ describe("system-reminder guidelines section", () => {
 
     const reminder = await resolveSystemReminder({
       owner: "archive",
+      workspaceId: "workspace-1",
       projectPath: projectDir,
       cwd: projectDir,
       fylloSessionId: "session-1",

@@ -4,9 +4,10 @@ import { flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { useAcpAgentsStore } from "@renderer/stores/platform/acp-agents";
 import { useChatStore } from "@renderer/stores/session/chat";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useProposalStore } from "@renderer/stores/proposal/browser";
 import { useSessionStore } from "@renderer/stores/session/session";
+import { workspaceInfo } from "../../fixtures/workspace";
 import type { Session } from "@shared/types/chat";
 import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
 
@@ -68,7 +69,7 @@ vi.mock("@renderer/api/insight/lineage", () => ({
 function session(overrides: Partial<Session> = {}): Session {
   return {
     id: "session-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: "Session",
     isPinned: false,
@@ -87,6 +88,7 @@ describe("useSessionStore", () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     setActivePinia(createPinia());
+    useWorkspaceStore().currentWorkspace = workspaceInfo({ id: "project-1" });
     mocks.probeEnsure.mockResolvedValue({
       ok: true,
       data: {
@@ -206,6 +208,26 @@ describe("useSessionStore", () => {
       ["legacy", false],
       ["pinned", true],
     ]);
+  });
+
+  it("ignores a late session list after switching Workspaces", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "workspace-a" });
+    const pending = Promise.withResolvers<{
+      ok: true;
+      data: Session[];
+    }>();
+    mocks.listSessions.mockReturnValue(pending.promise);
+    const store = useSessionStore();
+
+    const loadPromise = store.loadSessions("workspace-a");
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "workspace-b" });
+    store.clearSessions();
+    pending.resolve({ ok: true, data: [session({ workspaceId: "workspace-a" })] });
+    await loadPromise;
+
+    expect(store.sessions).toEqual([]);
+    expect(store.isLoading).toBe(false);
   });
 
   it("updates a pin only after the IPC request succeeds", async () => {
@@ -393,7 +415,7 @@ describe("useSessionStore", () => {
     });
 
     await store.createSession({
-      projectId: "project-1",
+      workspaceId: "project-1",
       agentId: "claude-code",
       taskRef: "yunxiao:STORY-99",
     });
@@ -414,7 +436,7 @@ describe("useSessionStore", () => {
       data: session({ id: "session-new" }),
     });
 
-    await store.createSession({ projectId: "project-1", agentId: "claude-code" });
+    await store.createSession({ workspaceId: "project-1", agentId: "claude-code" });
     await nextTick();
 
     expect(mocks.getByTask).not.toHaveBeenCalled();
@@ -503,7 +525,7 @@ describe("useSessionStore", () => {
 
     expect(mocks.probeEnsure).toHaveBeenCalledWith({
       agentId: "claude-code",
-      projectId: "project-1",
+      workspaceId: "project-1",
     });
     expect(store.draftProbeByAgent.get("claude-code")).toMatchObject({
       status: "ready",
@@ -540,15 +562,14 @@ describe("useSessionStore", () => {
   });
 
   it("closeDraftProbe clears local state before awaiting IPC", async () => {
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
@@ -564,21 +585,20 @@ describe("useSessionStore", () => {
     expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
     await promise;
     expect(mocks.probeClose).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       agentId: "claude-code",
     });
   });
 
   it("setDraftConfigOption optimistically updates and clears pending", async () => {
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const store = useSessionStore();
     const chatStore = useChatStore();
     store.applyProbeUpdate("claude-code", {
@@ -615,7 +635,7 @@ describe("useSessionStore", () => {
     await promise;
     expect(chatStore.pendingConfigIds.has("model")).toBe(false);
     expect(mocks.probeSetConfigOption).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       agentId: "claude-code",
       configId: "model",
       type: "select",
@@ -630,15 +650,14 @@ describe("useSessionStore", () => {
       "claude-code": { id: "claude-code", installed: true },
       codex: { id: "codex", installed: true },
     } as never;
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
@@ -661,7 +680,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
-    expect(mocks.probeEnsure).toHaveBeenCalledWith({ agentId: "codex", projectId: "project-1" });
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({ agentId: "codex", workspaceId: "project-1" });
   });
 
   it("draftAgentId watcher does not probe established sessions", async () => {
@@ -670,15 +689,14 @@ describe("useSessionStore", () => {
     acpAgentsStore.statuses = {
       codex: { id: "codex", installed: true },
     } as never;
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const store = useSessionStore();
     store.sessions = [session()];
     store.activeSessionId = "session-1";
@@ -696,15 +714,14 @@ describe("useSessionStore", () => {
     acpAgentsStore.statuses = {
       "claude-code": { id: "claude-code", installed: true },
     } as never;
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const store = useSessionStore();
     // Simulate the post-send state: an established session for agent A whose
     // draft probe entry was already cleared by applyProbeUpdate(agentId, null).
@@ -723,7 +740,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
     expect(mocks.probeEnsure).toHaveBeenCalledWith({
       agentId: "claude-code",
-      projectId: "project-1",
+      workspaceId: "project-1",
     });
   });
 
@@ -785,15 +802,14 @@ describe("useSessionStore", () => {
   }
 
   it("backfills a draft proposal from session lineage and starts watching it", async () => {
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const proposal = proposalMeta({ id: "fix-login", status: "draft" });
     const proposalStore = useProposalStore();
     proposalStore.proposals = [proposal];
@@ -824,22 +840,21 @@ describe("useSessionStore", () => {
     expect(store.sessionProposals["session-1"]).toEqual([proposal]);
     expect(proposalMocks.watch).toHaveBeenCalledTimes(1);
     expect(proposalMocks.watch).toHaveBeenCalledWith({
-      projectId: "project-1",
+      workspaceId: "project-1",
       changeId: "fix-login",
       sessionId: "session-1",
     });
   });
 
   it("backfills an archived prefixed proposal from session lineage without watching it", async () => {
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     const proposal = proposalMeta({
       id: "2026-06-25-fix-login",
       status: "archived",
@@ -886,15 +901,14 @@ describe("useSessionStore", () => {
   ])(
     "keeps session selection and proposal state stable when lineage getBySession returns %s",
     async (_label, configureGetBySession) => {
-      const projectStore = useProjectStore();
-      projectStore.currentProject = {
+      const workspaceStore = useWorkspaceStore();
+      workspaceStore.currentWorkspace = workspaceInfo({
         id: "project-1",
         name: "Project",
-        path: "/tmp/project",
-        metaPath: "/tmp/project/meta.json",
+        folderPath: "/tmp/project",
         createdAt: new Date(),
         lastOpenedAt: new Date(),
-      };
+      });
       const proposalStore = useProposalStore();
       proposalStore.proposals = [proposalMeta({ id: "other-change" })];
       mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
@@ -913,15 +927,14 @@ describe("useSessionStore", () => {
   );
 
   it("refreshes proposal store when a statusChanged event arrives for an unknown proposal", async () => {
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
     proposalMocks.list.mockResolvedValue({ ok: true, data: [proposalMeta()] });
     proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
 
@@ -930,10 +943,10 @@ describe("useSessionStore", () => {
     store.activeSessionId = "session-1";
 
     proposalMocks.statusHandler?.({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       changeId: "change-1",
-      projectPath: "/tmp/project",
+      repositoryPath: "/tmp/project",
       status: "creating",
       updatedAt: new Date().toISOString(),
     });
@@ -949,25 +962,24 @@ describe("useSessionStore", () => {
     proposalMocks.list.mockResolvedValue({ ok: true, data: [] });
     proposalMocks.watch.mockResolvedValue({ ok: true, data: undefined });
 
-    const projectStore = useProjectStore();
-    projectStore.currentProject = {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({
       id: "project-1",
       name: "Project",
-      path: "/tmp/project",
-      metaPath: "/tmp/project/meta.json",
+      folderPath: "/tmp/project",
       createdAt: new Date(),
       lastOpenedAt: new Date(),
-    };
+    });
 
     const store = useSessionStore();
     store.sessions = [session()];
     store.activeSessionId = "session-1";
 
     proposalMocks.statusHandler?.({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       changeId: "change-1",
-      projectPath: "/tmp/project",
+      repositoryPath: "/tmp/project",
       status: "creating",
       updatedAt: new Date().toISOString(),
     });

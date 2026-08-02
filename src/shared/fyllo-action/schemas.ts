@@ -84,7 +84,7 @@ export const safeSessionIdSchema = z
   );
 
 export const registerFylloActionInputSchema = z.strictObject({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: safeSessionIdSchema,
   actionId: z.string().min(1),
   type: fylloActionTypeSchema,
@@ -93,7 +93,7 @@ export const registerFylloActionInputSchema = z.strictObject({
 export const fylloActionCommandSchema = z.enum(["succeed", "fail", "cancel"]);
 
 export const transitionFylloActionInputSchema = z.strictObject({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: safeSessionIdSchema,
   actionId: z.string().min(1),
   command: fylloActionCommandSchema,
@@ -102,7 +102,7 @@ export const transitionFylloActionInputSchema = z.strictObject({
 });
 
 export const transitionFylloActionsInputSchema = z.strictObject({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
   sessionId: safeSessionIdSchema,
   actionIds: z.array(z.string().min(1)).min(1),
   command: fylloActionCommandSchema,

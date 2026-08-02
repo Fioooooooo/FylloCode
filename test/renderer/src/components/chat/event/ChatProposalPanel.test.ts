@@ -27,7 +27,7 @@ vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
 }));
 
 vi.mock("@renderer/stores/workspace", () => ({
-  useProjectStore: () => ({ currentProject: { id: "project-1" } }),
+  useWorkspaceStore: () => ({ currentWorkspace: { id: "project-1" } }),
 }));
 
 vi.mock("@renderer/stores/automation", () => ({

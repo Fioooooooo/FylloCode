@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 
 export interface SessionProbeUpdatePayload {
-  projectId: string;
+  workspaceId: string;
   agentId: string;
   snapshot: ProbeSnapshot | null;
 }

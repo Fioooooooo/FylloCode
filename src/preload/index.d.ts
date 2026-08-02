@@ -3,7 +3,7 @@ import type { appApi } from "./api/platform/app";
 import type { providersApi } from "./api/platform/providers";
 import type { releaseApi } from "./api/platform/release";
 import type { settingsApi } from "./api/platform/settings";
-import type { projectApi } from "./api/workspace/project";
+import type { workspaceApi } from "./api/workspace/workspace";
 import type { windowApi } from "./api/workspace/window";
 import type { documentApi } from "./api/workspace/document";
 import type { chatApi } from "./api/session/chat";
@@ -29,7 +29,7 @@ export interface AppApi {
     providers: typeof providersApi;
   };
   workspace: {
-    project: typeof projectApi;
+    workspace: typeof workspaceApi;
     window: typeof windowApi;
     document: typeof documentApi;
   };

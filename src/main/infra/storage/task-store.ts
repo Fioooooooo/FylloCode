@@ -1,7 +1,8 @@
 import { promises as fs } from "fs";
-import { join } from "path";
-import { encodeProjectPath } from "@main/infra/storage/project-paths";
-import { getDataSubPath } from "@main/infra/paths";
+import {
+  tasksDir as resolveTasksDir,
+  tasksPath as resolveTasksPath,
+} from "@main/infra/storage/workspace-paths";
 import type {
   TaskDescription,
   TaskDescriptionFormat,
@@ -31,19 +32,19 @@ interface PersistedTaskItem extends Omit<
 
 const TASK_STORE_VERSION = 1 as const;
 
-// Serialize read-modify-write operations per project so concurrent task edits do not
+// Serialize read-modify-write operations per Workspace so concurrent task edits do not
 // interleave loads and saves, which could lose updates.
-const projectWriteLocks = new Map<string, Promise<unknown>>();
+const workspaceWriteLocks = new Map<string, Promise<unknown>>();
 
-async function withProjectLock<T>(projectPath: string, fn: () => Promise<T>): Promise<T> {
+async function withWorkspaceLock<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
 
-  const previous = projectWriteLocks.get(projectPath);
+  const previous = workspaceWriteLocks.get(workspaceId);
   const next = (previous ?? Promise.resolve()).then(() => gate);
-  projectWriteLocks.set(projectPath, next);
+  workspaceWriteLocks.set(workspaceId, next);
 
   if (previous) {
     await previous;
@@ -53,22 +54,22 @@ async function withProjectLock<T>(projectPath: string, fn: () => Promise<T>): Pr
     return await fn();
   } finally {
     release();
-    if (projectWriteLocks.get(projectPath) === next) {
-      projectWriteLocks.delete(projectPath);
+    if (workspaceWriteLocks.get(workspaceId) === next) {
+      workspaceWriteLocks.delete(workspaceId);
     }
   }
 }
 
-export function tasksPath(projectPath: string): string {
-  return join(getDataSubPath("projects"), encodeProjectPath(projectPath), "tasks", "tasks.json");
+export function tasksPath(workspaceId: string): string {
+  return resolveTasksPath(workspaceId);
 }
 
-function tasksDir(projectPath: string): string {
-  return join(getDataSubPath("projects"), encodeProjectPath(projectPath), "tasks");
+function tasksDir(workspaceId: string): string {
+  return resolveTasksDir(workspaceId);
 }
 
-export async function ensureTasksDir(projectPath: string): Promise<void> {
-  await fs.mkdir(tasksDir(projectPath), { recursive: true });
+export async function ensureTasksDir(workspaceId: string): Promise<void> {
+  await fs.mkdir(tasksDir(workspaceId), { recursive: true });
 }
 
 function isTaskSource(value: unknown): value is TaskSource {
@@ -170,7 +171,7 @@ function normalizeDescription(value: unknown): TaskDescription | null {
   };
 }
 
-function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | null {
+function normalizeTaskItem(raw: unknown, fallbackWorkspaceId: string): TaskItem | null {
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -197,8 +198,10 @@ function normalizeTaskItem(raw: unknown, fallbackProjectId: string): TaskItem | 
 
   return {
     id: item.id,
-    projectId:
-      typeof item.projectId === "string" && item.projectId ? item.projectId : fallbackProjectId,
+    workspaceId:
+      typeof item.workspaceId === "string" && item.workspaceId
+        ? item.workspaceId
+        : fallbackWorkspaceId,
     title: item.title,
     description,
     status: isTaskStatus(item.status) ? item.status : "open",
@@ -224,8 +227,7 @@ function serializeTaskItem(task: TaskItem): PersistedTaskItem {
   };
 }
 
-function normalizeDocument(raw: unknown, projectPath: string): TaskItem[] {
-  const projectId = encodeProjectPath(projectPath);
+function normalizeDocument(raw: unknown, workspaceId: string): TaskItem[] {
   const tasks = Array.isArray(raw)
     ? raw
     : raw && typeof raw === "object" && Array.isArray((raw as { tasks?: unknown }).tasks)
@@ -233,22 +235,22 @@ function normalizeDocument(raw: unknown, projectPath: string): TaskItem[] {
       : [];
 
   return tasks
-    .map((task) => normalizeTaskItem(task, projectId))
+    .map((task) => normalizeTaskItem(task, workspaceId))
     .filter((task): task is TaskItem => task !== null);
 }
 
-async function loadTasksUnlocked(projectPath: string): Promise<TaskItem[]> {
+async function loadTasksUnlocked(workspaceId: string): Promise<TaskItem[]> {
   try {
-    const content = await fs.readFile(tasksPath(projectPath), "utf8");
-    return normalizeDocument(JSON.parse(content) as unknown, projectPath);
+    const content = await fs.readFile(tasksPath(workspaceId), "utf8");
+    return normalizeDocument(JSON.parse(content) as unknown, workspaceId);
   } catch {
     return [];
   }
 }
 
-async function saveTasksUnlocked(projectPath: string, tasks: TaskItem[]): Promise<void> {
-  await ensureTasksDir(projectPath);
-  const targetPath = tasksPath(projectPath);
+async function saveTasksUnlocked(workspaceId: string, tasks: TaskItem[]): Promise<void> {
+  await ensureTasksDir(workspaceId);
+  const targetPath = tasksPath(workspaceId);
   const tempPath = `${targetPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   const document: TaskStoreDocument = {
     version: TASK_STORE_VERSION,
@@ -268,22 +270,22 @@ async function saveTasksUnlocked(projectPath: string, tasks: TaskItem[]): Promis
   }
 }
 
-export async function loadTasks(projectPath: string): Promise<TaskItem[]> {
-  return withProjectLock(projectPath, () => loadTasksUnlocked(projectPath));
+export async function loadTasks(workspaceId: string): Promise<TaskItem[]> {
+  return withWorkspaceLock(workspaceId, () => loadTasksUnlocked(workspaceId));
 }
 
-export async function saveTasks(projectPath: string, tasks: TaskItem[]): Promise<void> {
-  return withProjectLock(projectPath, () => saveTasksUnlocked(projectPath, tasks));
+export async function saveTasks(workspaceId: string, tasks: TaskItem[]): Promise<void> {
+  return withWorkspaceLock(workspaceId, () => saveTasksUnlocked(workspaceId, tasks));
 }
 
 export async function updateTasks(
-  projectPath: string,
+  workspaceId: string,
   updater: (tasks: TaskItem[]) => TaskItem[]
 ): Promise<TaskItem[]> {
-  return withProjectLock(projectPath, async () => {
-    const current = await loadTasksUnlocked(projectPath);
+  return withWorkspaceLock(workspaceId, async () => {
+    const current = await loadTasksUnlocked(workspaceId);
     const next = updater(current);
-    await saveTasksUnlocked(projectPath, next);
+    await saveTasksUnlocked(workspaceId, next);
     return next;
   });
 }

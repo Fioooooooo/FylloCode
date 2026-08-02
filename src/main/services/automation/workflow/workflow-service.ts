@@ -7,8 +7,7 @@ import type {
   WorkflowTemplate,
 } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { loadProject } from "@main/infra/storage/project-store";
-import { workflowsDir } from "@main/infra/storage/project-paths";
+import { workflowsDir } from "@main/infra/storage/workspace-paths";
 import {
   getUserWorkflowDirectory,
   listBuiltInWorkflowFileNames,
@@ -42,14 +41,11 @@ function toWorkflowFileName(name: string): string {
   return `${normalizeWorkflowName(name)}.yaml`;
 }
 
-export async function resolveProjectWorkflowDirectory(projectId?: string): Promise<string | null> {
-  if (!projectId) return null;
-
-  const project = await loadProject(projectId);
-  if (!project) {
-    throw ipcError(IpcErrorCodes.PROJECT_NOT_FOUND, `Project not found: ${projectId}`);
-  }
-  return workflowsDir(project.path);
+export async function resolveWorkspaceWorkflowDirectory(
+  workspaceId?: string
+): Promise<string | null> {
+  if (!workspaceId) return null;
+  return workflowsDir(workspaceId);
 }
 
 export async function readWorkflowDirectory(
@@ -78,12 +74,12 @@ export async function readWorkflowDirectory(
   }
 }
 
-export async function listWorkflows(projectId?: string): Promise<WorkflowListResult> {
+export async function listWorkflows(workspaceId?: string): Promise<WorkflowListResult> {
   const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
   const userTemplates = await readWorkflowDirectory(getUserWorkflowDirectory(), "custom");
-  const projectWorkflowDirectory = await resolveProjectWorkflowDirectory(projectId);
-  const projectTemplates = projectWorkflowDirectory
-    ? await readWorkflowDirectory(projectWorkflowDirectory, "custom")
+  const workspaceWorkflowDirectory = await resolveWorkspaceWorkflowDirectory(workspaceId);
+  const workspaceTemplates = workspaceWorkflowDirectory
+    ? await readWorkflowDirectory(workspaceWorkflowDirectory, "custom")
     : [];
 
   // Built-in templates live in the user directory (so they can be customized) but are
@@ -96,12 +92,12 @@ export async function listWorkflows(projectId?: string): Promise<WorkflowListRes
   );
 
   return {
-    templates: [...customUserTemplates, ...projectTemplates, ...builtInTemplates],
+    templates: [...customUserTemplates, ...workspaceTemplates, ...builtInTemplates],
   };
 }
 
 export async function saveWorkflow(request: WorkflowSaveRequest): Promise<void> {
-  const directory = await resolveProjectWorkflowDirectory(request.projectId);
+  const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
   if (!directory) {
     throw ipcError(IpcErrorCodes.PROJECT_REQUIRED, "Project is required to save workflow");
   }
@@ -116,14 +112,14 @@ export async function deleteWorkflow(request: WorkflowDeleteRequest): Promise<vo
     throw ipcError(IpcErrorCodes.BUILT_IN_WORKFLOW, "Built-in workflow cannot be deleted");
   }
 
-  const directory = await resolveProjectWorkflowDirectory(request.projectId);
+  const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
   if (!directory) {
     throw ipcError(IpcErrorCodes.PROJECT_REQUIRED, "Project is required to delete workflow");
   }
   await fs.rm(join(directory, fileName), { force: true });
 }
 
-export async function loadAllWorkflowTemplates(projectId: string): Promise<WorkflowTemplate[]> {
-  const { templates } = await listWorkflows(projectId);
+export async function loadAllWorkflowTemplates(workspaceId: string): Promise<WorkflowTemplate[]> {
+  const { templates } = await listWorkflows(workspaceId);
   return templates;
 }

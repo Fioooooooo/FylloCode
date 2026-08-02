@@ -2,44 +2,58 @@ import { BrowserWindow, dialog, ipcMain } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { WorkspaceWindowChannels as WindowChannels } from "@shared/ipc/workspace/window.channels";
-import type { ProjectInfo } from "@shared/types/project";
-import type { ProjectWindowManager } from "@main/bootstrap/project-window-manager";
+import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 import type { IpcResponse } from "@shared/types/ipc";
+import type { WorkspaceInfo } from "@shared/types/workspace";
 
 const mocks = vi.hoisted(() => ({
-  adoptExistingFolder: vi.fn(),
-  getRequiredProject: vi.fn(),
-  touchProjectLastOpened: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
+  resolveOrCreateFolderWorkspace: vi.fn(),
+  touchWorkspaceLastOpened: vi.fn(),
 }));
 
-vi.mock("@main/services/workspace/project/project-service", () => ({
-  adoptExistingFolder: mocks.adoptExistingFolder,
-  getRequiredProject: mocks.getRequiredProject,
-  touchProjectLastOpened: mocks.touchProjectLastOpened,
+vi.mock("@main/services/workspace/workspace/workspace-service", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
+  resolveOrCreateFolderWorkspace: mocks.resolveOrCreateFolderWorkspace,
+  touchWorkspaceLastOpened: mocks.touchWorkspaceLastOpened,
+}));
+vi.mock("@main/bootstrap/workspace-window-manager", () => ({
+  workspaceWindowManager: {},
 }));
 
-function project(overrides: Partial<ProjectInfo> = {}): ProjectInfo {
+function workspace(overrides: Partial<WorkspaceInfo> = {}): WorkspaceInfo {
   return {
-    id: "project-a",
-    name: "Project A",
-    path: "/tmp/project-a",
-    metaPath: "/tmp/project-a/meta.json",
-    createdAt: new Date("2026-01-01T00:00:00.000Z"),
-    lastOpenedAt: new Date("2026-01-02T00:00:00.000Z"),
+    version: 2,
+    id: "workspace-a",
+    name: "Workspace A",
+    kind: "folder",
+    isDeleted: false,
+    folderIds: ["workspace-a"],
+    primaryFolderId: "workspace-a",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastOpenedAt: "2026-01-02T00:00:00.000Z",
+    primaryFolder: {
+      version: 1,
+      id: "workspace-a",
+      name: "Workspace A",
+      path: "/tmp/workspace-a",
+    },
+    primaryFolderMetaPath: "/tmp/app-data/workspace-folders/workspace-a/meta.json",
+    pathMissing: false,
     ...overrides,
   };
 }
 
-function createManager(): ProjectWindowManager {
+function createManager(): WorkspaceWindowManager {
   return {
     getContextByWebContents: vi.fn(),
-    openProjectWindow: vi.fn(),
+    openWorkspaceWindow: vi.fn(),
     openLauncherWindow: vi.fn(),
-  } as unknown as ProjectWindowManager;
+  } as unknown as WorkspaceWindowManager;
 }
 
 describe("registerWindowHandlers", () => {
-  let manager: ProjectWindowManager;
+  let manager: WorkspaceWindowManager;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -67,76 +81,75 @@ describe("registerWindowHandlers", () => {
     vi.mocked(manager.getContextByWebContents).mockReturnValue({
       windowId: 1,
       role: "launcher",
-      projectId: null,
+      workspaceId: null,
     });
 
     const result = await handler(WindowChannels.getContext)({ sender }, undefined);
 
     expect(result).toEqual({
       ok: true,
-      data: { windowId: 1, role: "launcher", projectId: null },
+      data: { windowId: 1, role: "launcher", workspaceId: null },
     });
     expect(manager.getContextByWebContents).toHaveBeenCalledWith(sender);
   });
 
-  it("returns project window context for a project sender", async () => {
+  it("returns Workspace window context for a Workspace sender", async () => {
     const sender = { id: 11 };
     vi.mocked(manager.getContextByWebContents).mockReturnValue({
       windowId: 2,
-      role: "project",
-      projectId: "project-a",
+      role: "workspace",
+      workspaceId: "workspace-a",
     });
 
     const result = await handler(WindowChannels.getContext)({ sender }, undefined);
 
     expect(result).toEqual({
       ok: true,
-      data: { windowId: 2, role: "project", projectId: "project-a" },
+      data: { windowId: 2, role: "workspace", workspaceId: "workspace-a" },
     });
     expect(manager.getContextByWebContents).toHaveBeenCalledWith(sender);
   });
 
-  it("opens an existing project window by focusing it", async () => {
+  it("opens an existing Workspace window by focusing it", async () => {
     const sender = { id: 10 };
-    const openedProject = project({ lastOpenedAt: new Date("2026-01-03T00:00:00.000Z") });
-    mocks.getRequiredProject.mockResolvedValue(project());
-    mocks.touchProjectLastOpened.mockResolvedValue(openedProject);
-    vi.mocked(manager.openProjectWindow).mockReturnValue({
+    const openedWorkspace = workspace({ lastOpenedAt: "2026-01-03T00:00:00.000Z" });
+    mocks.getRequiredWorkspaceInfo.mockResolvedValue(workspace());
+    mocks.touchWorkspaceLastOpened.mockResolvedValue(openedWorkspace);
+    vi.mocked(manager.openWorkspaceWindow).mockReturnValue({
       status: "focused-existing",
-      context: { windowId: 2, role: "project", projectId: "project-a" },
+      context: { windowId: 2, role: "workspace", workspaceId: "workspace-a" },
     });
 
-    const result = await handler(WindowChannels.openProject)(
+    const result = await handler(WindowChannels.openWorkspace)(
       { sender },
-      { projectId: "project-a" }
+      { workspaceId: "workspace-a" }
     );
 
     expect(result).toEqual({
       ok: true,
       data: {
         status: "focused-existing",
-        context: { windowId: 2, role: "project", projectId: "project-a" },
-        project: openedProject,
+        context: { windowId: 2, role: "workspace", workspaceId: "workspace-a" },
       },
     });
-    expect(mocks.getRequiredProject).toHaveBeenCalledWith("project-a");
-    expect(mocks.touchProjectLastOpened).toHaveBeenCalledWith("project-a");
-    expect(manager.openProjectWindow).toHaveBeenCalledWith("project-a", sender);
+    expect(mocks.getRequiredWorkspaceInfo).toHaveBeenCalledWith("workspace-a");
+    expect(mocks.touchWorkspaceLastOpened).toHaveBeenCalledWith("workspace-a");
+    expect(manager.openWorkspaceWindow).toHaveBeenCalledWith("workspace-a", sender);
   });
 
-  it("does not create a project window when the project path is missing", async () => {
-    mocks.getRequiredProject.mockResolvedValue(project({ pathMissing: true }));
+  it("does not create a Workspace window when the Workspace primary Folder path is missing", async () => {
+    mocks.getRequiredWorkspaceInfo.mockResolvedValue(workspace({ pathMissing: true }));
 
-    const result = await handler(WindowChannels.openProject)(
+    const result = await handler(WindowChannels.openWorkspace)(
       { sender: {} },
-      { projectId: "project-a" }
+      { workspaceId: "workspace-a" }
     );
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe(IpcErrorCodes.PROJECT_PATH_MISSING);
+      expect(result.error.code).toBe(IpcErrorCodes.WORKSPACE_PRIMARY_FOLDER_MISSING);
     }
-    expect(manager.openProjectWindow).not.toHaveBeenCalled();
+    expect(manager.openWorkspaceWindow).not.toHaveBeenCalled();
   });
 
   it("returns cancelled when open folder is cancelled", async () => {
@@ -151,23 +164,33 @@ describe("registerWindowHandlers", () => {
     expect(dialog.showOpenDialog).toHaveBeenCalledWith(parentWindow, {
       properties: ["openDirectory"],
     });
-    expect(mocks.adoptExistingFolder).not.toHaveBeenCalled();
-    expect(manager.openProjectWindow).not.toHaveBeenCalled();
+    expect(mocks.resolveOrCreateFolderWorkspace).not.toHaveBeenCalled();
+    expect(manager.openWorkspaceWindow).not.toHaveBeenCalled();
   });
 
-  it("uses the sender window as open folder dialog parent and opens the adopted project", async () => {
+  it("uses the sender window as open folder dialog parent and opens the resolved Folder Workspace", async () => {
     const parentWindow = { id: 1 } as unknown as BrowserWindow;
     const sender = { id: 10 };
-    const adoptedProject = project({ id: "project-b", path: "/tmp/project-b" });
+    const adoptedWorkspace = workspace({
+      id: "workspace-b",
+      folderIds: ["workspace-b"],
+      primaryFolderId: "workspace-b",
+      primaryFolder: {
+        version: 1,
+        id: "workspace-b",
+        name: "Workspace B",
+        path: "/tmp/workspace-b",
+      },
+    });
     vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(parentWindow);
     vi.mocked(dialog.showOpenDialog).mockResolvedValue({
       canceled: false,
-      filePaths: ["/tmp/project-b"],
+      filePaths: ["/tmp/workspace-b"],
     });
-    mocks.adoptExistingFolder.mockResolvedValue(adoptedProject);
-    vi.mocked(manager.openProjectWindow).mockReturnValue({
+    mocks.resolveOrCreateFolderWorkspace.mockResolvedValue(adoptedWorkspace);
+    vi.mocked(manager.openWorkspaceWindow).mockReturnValue({
       status: "created",
-      context: { windowId: 3, role: "project", projectId: "project-b" },
+      context: { windowId: 3, role: "workspace", workspaceId: "workspace-b" },
     });
 
     const result = await handler(WindowChannels.openFolder)({ sender }, undefined);
@@ -176,14 +199,13 @@ describe("registerWindowHandlers", () => {
       ok: true,
       data: {
         status: "created",
-        context: { windowId: 3, role: "project", projectId: "project-b" },
-        project: adoptedProject,
+        context: { windowId: 3, role: "workspace", workspaceId: "workspace-b" },
       },
     });
     expect(dialog.showOpenDialog).toHaveBeenCalledWith(parentWindow, {
       properties: ["openDirectory"],
     });
-    expect(mocks.adoptExistingFolder).toHaveBeenCalledWith("/tmp/project-b");
-    expect(manager.openProjectWindow).toHaveBeenCalledWith("project-b", sender);
+    expect(mocks.resolveOrCreateFolderWorkspace).toHaveBeenCalledWith("/tmp/workspace-b");
+    expect(manager.openWorkspaceWindow).toHaveBeenCalledWith("workspace-b", sender);
   });
 });

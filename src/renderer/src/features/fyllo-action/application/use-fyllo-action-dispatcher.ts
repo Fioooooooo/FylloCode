@@ -1,6 +1,11 @@
 import { usePlanSlideover } from "@renderer/composables/usePlanSlideover";
 import { useKnowledgeReviewSlideover } from "@renderer/composables/useKnowledgeReviewSlideover";
-import { useChatStore, useLineageStore, useProjectStore, useSessionStore } from "@renderer/stores";
+import {
+  useChatStore,
+  useLineageStore,
+  useWorkspaceStore,
+  useSessionStore,
+} from "@renderer/stores";
 import type {
   FylloActionHandlerResult,
   FylloActionPayloadByType,
@@ -23,14 +28,14 @@ function getDispatchHandler<Type extends FylloActionType>(
 }
 
 /**
- * Compose the Fyllo action handler map for the current project/session context.
+ * Compose the Fyllo action handler map for the current Workspace/session context.
  *
  * Each enabled action type gets a handler wired with the stores/composables it needs.
  * `dispatchFylloAction` catches handler errors and normalizes them to a failed result so
  * the UI can show the error without unmounting.
  */
 interface DispatcherContext {
-  projectId?: string;
+  workspaceId?: string;
   sessionId?: string;
   actionId?: string;
 }
@@ -54,7 +59,7 @@ export function useFylloActionDispatcher(): {
     contextPaths?: string[];
   }>;
 } {
-  const projectStore = useProjectStore();
+  const workspaceStore = useWorkspaceStore();
   const sessionStore = useSessionStore();
   const chatStore = useChatStore();
   const lineageStore = useLineageStore();
@@ -113,11 +118,20 @@ export function useFylloActionDispatcher(): {
       };
     }
 
+    const activeWorkspaceId = workspaceStore.currentWorkspace?.id;
+    const workspaceId = context.workspaceId ?? activeWorkspaceId;
+    if (!workspaceId || workspaceId !== activeWorkspaceId) {
+      return {
+        outcome: "failed",
+        error: "Action 所属工作区与当前窗口不一致，已拒绝执行。",
+      };
+    }
+
     try {
       const handler = getDispatchHandler(handlers, type);
       return await handler(payload, {
         context: {
-          projectId: context.projectId ?? projectStore.currentProject?.id ?? "",
+          workspaceId,
           sessionId,
           actionId: context.actionId ?? "",
         },

@@ -17,7 +17,7 @@ vi.mock("@main/infra/paths", () => ({
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
 import { loadSessionMeta, saveSessionMeta } from "@main/infra/storage/session-store";
 
-const projectPath = "/tmp/project";
+const workspaceId = "workspace-1";
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -45,7 +45,7 @@ afterEach(() => {
 
 describe("chat-acp-session-store", () => {
   it("returns empty recovery state when session meta is missing", async () => {
-    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const store = new ChatAcpSessionStore(workspaceId, "session-1", "agent-1");
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -55,7 +55,7 @@ describe("chat-acp-session-store", () => {
 
   it("loads an independent recovery snapshot from session meta", async () => {
     await saveSessionMeta(
-      projectPath,
+      workspaceId,
       meta({
         acpSessionId: "acp-existing",
         configOptions: [
@@ -70,7 +70,7 @@ describe("chat-acp-session-store", () => {
       })
     );
 
-    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const store = new ChatAcpSessionStore(workspaceId, "session-1", "agent-1");
     const recovery = await store.loadRecoveryState();
 
     expect(recovery).toEqual({
@@ -101,9 +101,9 @@ describe("chat-acp-session-store", () => {
   });
 
   it("loads an empty config snapshot when session meta has no configOptions", async () => {
-    await saveSessionMeta(projectPath, meta({ acpSessionId: "acp-existing" }));
+    await saveSessionMeta(workspaceId, meta({ acpSessionId: "acp-existing" }));
 
-    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const store = new ChatAcpSessionStore(workspaceId, "session-1", "agent-1");
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: "acp-existing",
@@ -112,11 +112,11 @@ describe("chat-acp-session-store", () => {
   });
 
   it("creates session meta when persisting for the first time", async () => {
-    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const store = new ChatAcpSessionStore(workspaceId, "session-1", "agent-1");
 
     await store.persistAcpSessionId("acp-new");
 
-    const saved = await loadSessionMeta(projectPath, "session-1");
+    const saved = await loadSessionMeta(workspaceId, "session-1");
 
     expect(saved).toMatchObject({
       sessionId: "session-1",
@@ -134,7 +134,7 @@ describe("chat-acp-session-store", () => {
 
   it("preserves existing fields while updating acpSessionId", async () => {
     await saveSessionMeta(
-      projectPath,
+      workspaceId,
       meta({
         acpSessionId: "acp-old",
         available_commands: [{ name: "review", description: "Review code" }],
@@ -155,11 +155,11 @@ describe("chat-acp-session-store", () => {
       })
     );
 
-    const store = new ChatAcpSessionStore(projectPath, "session-1", "agent-1");
+    const store = new ChatAcpSessionStore(workspaceId, "session-1", "agent-1");
 
     await store.persistAcpSessionId("acp-new");
 
-    await expect(loadSessionMeta(projectPath, "session-1")).resolves.toEqual({
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual({
       sessionId: "session-1",
       acpSessionId: "acp-new",
       agentId: "agent-1",

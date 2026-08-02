@@ -2,7 +2,7 @@ import { z } from "zod";
 import { knowledgeEntryNameSchema } from "@shared/schemas/knowledge";
 
 export const getKnowledgeBrowserInputSchema = z.strictObject({
-  projectId: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 
 export const readKnowledgeEntryInputSchema = getKnowledgeBrowserInputSchema.extend({

@@ -24,12 +24,12 @@ describe("preload knowledgeApi", () => {
   it("invokes readEntry with project and entry name", async () => {
     const { knowledgeApi } = await import("@preload/api/insight/knowledge");
 
-    await knowledgeApi.readEntry("project-1", {
+    await knowledgeApi.readEntry("workspace-1", {
       name: "markstream-vue-theme-subscription",
     });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(KnowledgeChannels.readEntry, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       name: "markstream-vue-theme-subscription",
     });
   });
@@ -37,23 +37,23 @@ describe("preload knowledgeApi", () => {
   it("invokes getBrowser with the project id", async () => {
     const { knowledgeApi } = await import("@preload/api/insight/knowledge");
 
-    await knowledgeApi.getBrowser("project-1");
+    await knowledgeApi.getBrowser("workspace-1");
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(KnowledgeChannels.getBrowser, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
     });
   });
 
   it("invokes saveEntry with raw markdown content", async () => {
     const { knowledgeApi } = await import("@preload/api/insight/knowledge");
 
-    await knowledgeApi.saveEntry("project-1", {
+    await knowledgeApi.saveEntry("workspace-1", {
       name: "markstream-vue-theme-subscription",
       content: "---\nname: markstream-vue-theme-subscription\n---\n\nBody",
     });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(KnowledgeChannels.saveEntry, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       name: "markstream-vue-theme-subscription",
       content: "---\nname: markstream-vue-theme-subscription\n---\n\nBody",
     });
@@ -62,12 +62,12 @@ describe("preload knowledgeApi", () => {
   it("invokes deleteEntry with project and entry name", async () => {
     const { knowledgeApi } = await import("@preload/api/insight/knowledge");
 
-    await knowledgeApi.deleteEntry("project-1", {
+    await knowledgeApi.deleteEntry("workspace-1", {
       name: "markstream-vue-theme-subscription",
     });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(KnowledgeChannels.deleteEntry, {
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       name: "markstream-vue-theme-subscription",
     });
   });

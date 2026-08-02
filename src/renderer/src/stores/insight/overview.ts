@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { overviewApi } from "@renderer/api/insight/overview";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import type {
   ActiveChange,
   ActiveChangeStatus,
@@ -25,24 +25,24 @@ export type {
 };
 
 export const useOverviewStore = defineStore("overview", () => {
-  const projectStore = useProjectStore();
+  const workspaceStore = useWorkspaceStore();
   const data = ref<ProjectOverview | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
   async function load(): Promise<void> {
-    const project = projectStore.currentProject;
+    const project = workspaceStore.currentWorkspace;
     if (!project) {
       clear();
       return;
     }
 
-    const projectId = project.id;
+    const workspaceId = project.id;
     loading.value = true;
     error.value = null;
     try {
-      const response = await overviewApi.getProjectOverview(projectId);
-      if (projectStore.currentProject?.id !== projectId) {
+      const response = await overviewApi.getProjectOverview(workspaceId);
+      if (workspaceStore.currentWorkspace?.id !== workspaceId) {
         return;
       }
       if (response.ok) {
@@ -52,13 +52,13 @@ export const useOverviewStore = defineStore("overview", () => {
         error.value = response.error.message;
       }
     } catch (err: unknown) {
-      if (projectStore.currentProject?.id !== projectId) {
+      if (workspaceStore.currentWorkspace?.id !== workspaceId) {
         return;
       }
       data.value = null;
       error.value = err instanceof Error ? err.message : "项目概览加载失败";
     } finally {
-      if (projectStore.currentProject?.id === projectId) {
+      if (workspaceStore.currentWorkspace?.id === workspaceId) {
         loading.value = false;
       }
     }

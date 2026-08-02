@@ -5,7 +5,7 @@ import { appApi } from "./api/platform/app";
 import { providersApi } from "./api/platform/providers";
 import { releaseApi } from "./api/platform/release";
 import { settingsApi } from "./api/platform/settings";
-import { projectApi } from "./api/workspace/project";
+import { workspaceApi } from "./api/workspace/workspace";
 import { windowApi } from "./api/workspace/window";
 import { documentApi } from "./api/workspace/document";
 import { chatApi } from "./api/session/chat";
@@ -31,7 +31,7 @@ const api = {
     providers: providersApi,
   },
   workspace: {
-    project: projectApi,
+    workspace: workspaceApi,
     window: windowApi,
     document: documentApi,
   },

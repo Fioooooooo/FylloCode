@@ -7,7 +7,7 @@ import {
 
 function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
   return {
-    projectId: "project-1",
+    workspaceId: "workspace-1",
     agentId: "claude-code",
     status: "ready",
     fylloSessionId: "session-probe",
@@ -40,21 +40,21 @@ describe("session-probe-registry", () => {
     const entry = makeEntry({
       availableCommands: [{ name: "review", description: "Review" }],
     });
-    sessionProbeRegistry.set("project-1", "claude-code", entry);
+    sessionProbeRegistry.set("workspace-1", "claude-code", entry);
 
-    expect(sessionProbeRegistry.get("project-1", "claude-code")?.availableCommands).toEqual([
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.availableCommands).toEqual([
       { name: "review", description: "Review" },
     ]);
   });
 
   it("keeps entries for the same agent isolated by project", () => {
     const projectAEntry = makeEntry({
-      projectId: "project-a",
+      workspaceId: "project-a",
       acpSessionId: "acp-a",
       availableCommands: [{ name: "a", description: "Project A" }],
     });
     const projectBEntry = makeEntry({
-      projectId: "project-b",
+      workspaceId: "project-b",
       acpSessionId: "acp-b",
       availableCommands: [{ name: "b", description: "Project B" }],
     });
@@ -67,10 +67,10 @@ describe("session-probe-registry", () => {
   });
 
   it("deleteAgent returns every project entry for that agent only", () => {
-    const projectAEntry = makeEntry({ projectId: "project-a", acpSessionId: "acp-a" });
-    const projectBEntry = makeEntry({ projectId: "project-b", acpSessionId: "acp-b" });
+    const projectAEntry = makeEntry({ workspaceId: "project-a", acpSessionId: "acp-a" });
+    const projectBEntry = makeEntry({ workspaceId: "project-b", acpSessionId: "acp-b" });
     const otherAgentEntry = makeEntry({
-      projectId: "project-a",
+      workspaceId: "project-a",
       agentId: "codex",
       acpSessionId: "acp-other",
     });
@@ -91,12 +91,12 @@ describe("session-probe-registry", () => {
       acpSessionId: "acp-x",
       availableCommands: [{ name: "plan", description: "Plan" }],
     });
-    sessionProbeRegistry.set("project-1", "claude-code", entry);
+    sessionProbeRegistry.set("workspace-1", "claude-code", entry);
 
-    const taken = sessionProbeRegistry.takeFor("project-1", "claude-code", "acp-x");
+    const taken = sessionProbeRegistry.takeFor("workspace-1", "claude-code", "acp-x");
 
     expect(taken?.availableCommands).toEqual([{ name: "plan", description: "Plan" }]);
     expect(taken?.fylloSessionId).toBe("session-probe");
-    expect(sessionProbeRegistry.get("project-1", "claude-code")).toBeUndefined();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
   });
 });

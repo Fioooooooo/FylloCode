@@ -108,7 +108,7 @@ describe("knowledge document service", () => {
     await writeFile(join(knowledgeRoot, "broken-entry.md"), "not frontmatter", "utf8");
     await writeFile(join(knowledgeRoot, "broken entry.md"), "still broken", "utf8");
 
-    await expect(getKnowledgeBrowser(tempRoot, { knowledgeRoot })).resolves.toEqual({
+    await expect(getKnowledgeBrowser(tempRoot, tempRoot, { knowledgeRoot })).resolves.toEqual({
       entries: [
         {
           name: "markstream-vue-theme-subscription",
@@ -135,7 +135,7 @@ describe("knowledge document service", () => {
   });
 
   it("treats a missing knowledge directory as an empty browser", async () => {
-    await expect(getKnowledgeBrowser(tempRoot, { knowledgeRoot })).resolves.toEqual({
+    await expect(getKnowledgeBrowser(tempRoot, tempRoot, { knowledgeRoot })).resolves.toEqual({
       entries: [],
       errors: [],
     });

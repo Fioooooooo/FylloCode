@@ -1,5 +1,5 @@
 import { registerAcpAgentsTask } from "./tasks/acp-agents";
-import { registerProjectsTask } from "./tasks/projects";
+import { registerWorkspacesTask } from "./tasks/workspaces";
 
 let registered = false;
 
@@ -9,6 +9,6 @@ export function registerBootstrapTasks(): void {
   }
 
   registerAcpAgentsTask();
-  registerProjectsTask();
+  registerWorkspacesTask();
   registered = true;
 }

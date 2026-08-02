@@ -26,7 +26,7 @@ vi.mock("@main/infra/logger", () => ({
 import { ArchiveAcpSessionStore } from "@main/infra/storage/archive-acp-session-store";
 import { loadArchiveRunMeta, saveArchiveRunMeta } from "@main/infra/storage/apply-run-store";
 
-const projectPath = "/tmp/project";
+const workspaceId = "workspace-1";
 
 function archiveMeta(overrides: Partial<ArchiveRunMeta> = {}): ArchiveRunMeta {
   return {
@@ -53,7 +53,7 @@ afterEach(() => {
 
 describe("archive-acp-session-store", () => {
   it("returns null when archive meta is missing", async () => {
-    const store = new ArchiveAcpSessionStore(projectPath, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -62,9 +62,9 @@ describe("archive-acp-session-store", () => {
   });
 
   it("loads acpSessionId from archive meta", async () => {
-    await saveArchiveRunMeta(projectPath, archiveMeta({ acpSessionId: "acp-existing" }));
+    await saveArchiveRunMeta(workspaceId, archiveMeta({ acpSessionId: "acp-existing" }));
 
-    const store = new ArchiveAcpSessionStore(projectPath, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: "acp-existing",
@@ -74,17 +74,17 @@ describe("archive-acp-session-store", () => {
 
   it("persists acpSessionId without dropping archive fields", async () => {
     await saveArchiveRunMeta(
-      projectPath,
+      workspaceId,
       archiveMeta({
         status: "done",
       })
     );
 
-    const store = new ArchiveAcpSessionStore(projectPath, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
 
     await store.persistAcpSessionId("acp-new");
 
-    await expect(loadArchiveRunMeta(projectPath, "change-1")).resolves.toEqual({
+    await expect(loadArchiveRunMeta(workspaceId, "change-1")).resolves.toEqual({
       runId: "archive-1",
       changeId: "change-1",
       status: "done",

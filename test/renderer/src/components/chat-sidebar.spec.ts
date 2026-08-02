@@ -31,7 +31,7 @@ function makeSession(
   const timestamp = new Date(options.updatedAt ?? "2026-05-12T00:00:00.000Z");
   return {
     id,
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: id,
     isPinned: options.isPinned ?? false,

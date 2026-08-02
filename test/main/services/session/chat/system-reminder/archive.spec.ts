@@ -14,6 +14,7 @@ vi.mock("@main/infra/logger", () => ({
 function createContext(overrides: Partial<SystemReminderContext> = {}): SystemReminderContext {
   return {
     owner: "archive",
+    workspaceId: "workspace-1",
     projectPath: "/abs",
     cwd: "/abs",
     fylloSessionId: "archive-session-1",
@@ -137,6 +138,7 @@ describe("archive system-reminder template", () => {
       "[system-reminder] encoding angle brackets in reminder variable",
       expect.objectContaining({
         owner: "archive",
+        workspaceId: "workspace-1",
         field: "changeId",
         fylloSessionId: "archive-session-1",
       })

@@ -11,7 +11,7 @@ import {
   readPlanInputSchema,
   savePlanBodyInputSchema,
 } from "@shared/ipc/insight/lineage.schemas";
-import { resolveProjectPath } from "@main/services/session/chat/chat-service";
+import { resolveWorkspaceCwd } from "@main/services/session/chat/chat-service";
 import {
   createSessionTask,
   ensureTaskSubject,
@@ -28,48 +28,43 @@ export function registerLineageHandlers(): void {
   ipcMain.handle(InsightLineageChannels.ensureTaskSubject, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(ensureTaskSubjectInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return ensureTaskSubject(projectPath, form.snapshot);
+      return ensureTaskSubject(form.workspaceId, form.snapshot);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.linkTaskSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(linkTaskSessionInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return linkTaskSession(projectPath, form.taskRef, form.sessionId);
+      return linkTaskSession(form.workspaceId, form.taskRef, form.sessionId);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.getByTask, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getByTaskInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return getByTask(projectPath, form.ref);
+      return getByTask(form.workspaceId, form.ref);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.getBySession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getBySessionInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return getBySession(projectPath, form.sessionId);
+      return getBySession(form.workspaceId, form.sessionId);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.getBrowser, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(getBrowserInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return getLineageBrowser(projectPath);
+      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
+      return getLineageBrowser(form.workspaceId, workspaceCwd);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.createSessionTask, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionTaskInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return createSessionTask(projectPath, {
+      return createSessionTask(form.workspaceId, {
         sessionId: form.sessionId,
         title: form.title,
         description: form.description,
@@ -81,24 +76,21 @@ export function registerLineageHandlers(): void {
   ipcMain.handle(InsightLineageChannels.readPlan, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(readPlanInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return readPlan(projectPath, form.sessionId, form.slug);
+      return readPlan(form.workspaceId, form.sessionId, form.slug);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.savePlanBody, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(savePlanBodyInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return savePlanBody(projectPath, form.sessionId, form.slug, form.body);
+      return savePlanBody(form.workspaceId, form.sessionId, form.slug, form.body);
     })
   );
 
   ipcMain.handle(InsightLineageChannels.approvePlan, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(approvePlanInputSchema, input);
-      const projectPath = await resolveProjectPath(form.projectId);
-      return approvePlan(projectPath, form.sessionId, form.slug);
+      return approvePlan(form.workspaceId, form.sessionId, form.slug);
     })
   );
 }

@@ -29,7 +29,7 @@ const fylloActionTransportConfig = {
 export const fylloActionMarkstreamCustomHtmlTags = [INTERNAL_FYLLO_ACTION_TAG] as const;
 
 export interface FylloActionHostContextInput {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   messageIndex: number;
   partIndex: number;
@@ -37,7 +37,7 @@ export interface FylloActionHostContextInput {
   registerAction: (input: RegisterFylloActionInput) => Promise<FylloActionState>;
   persistActionState: (actionId: string, state: FylloActionState) => Promise<void>;
   transitionAction: (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionId: string;
     command: "succeed" | "fail" | "cancel";
@@ -45,7 +45,7 @@ export interface FylloActionHostContextInput {
     error?: string;
   }) => Promise<FylloActionState>;
   transitionActions: (input: {
-    projectId: string;
+    workspaceId: string;
     sessionId: string;
     actionIds: string[];
     command: "succeed" | "fail" | "cancel";
@@ -97,7 +97,7 @@ export async function registerPreparedFylloActions(
         return;
       }
 
-      await controller.register(context.projectId, context.sessionId, actionId, parseResult);
+      await controller.register(context.workspaceId, context.sessionId, actionId, parseResult);
     })
   );
 }

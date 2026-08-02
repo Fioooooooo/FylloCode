@@ -8,27 +8,31 @@ import type {
 } from "@shared/types/proposal";
 
 export const proposalBrowserApi = {
-  list(projectId: string): Promise<IpcResponse<ProposalMeta[]>> {
-    return ipcRenderer.invoke(ProposalBrowserChannels.list, { projectId });
+  list(workspaceId: string): Promise<IpcResponse<ProposalMeta[]>> {
+    return ipcRenderer.invoke(ProposalBrowserChannels.list, { workspaceId });
   },
 
   readFile(
-    projectId: string,
+    workspaceId: string,
     changeId: string,
     filename: string
   ): Promise<IpcResponse<string | null>> {
-    return ipcRenderer.invoke(ProposalBrowserChannels.readFile, { projectId, changeId, filename });
+    return ipcRenderer.invoke(ProposalBrowserChannels.readFile, {
+      workspaceId,
+      changeId,
+      filename,
+    });
   },
 
   getSpecDeltas(
-    projectId: string,
+    workspaceId: string,
     changeId: string
   ): Promise<IpcResponse<ProposalSpecDeltaOverview>> {
-    return ipcRenderer.invoke(ProposalBrowserChannels.getSpecDeltas, { projectId, changeId });
+    return ipcRenderer.invoke(ProposalBrowserChannels.getSpecDeltas, { workspaceId, changeId });
   },
 
   watch(input: {
-    projectId: string;
+    workspaceId: string;
     changeId: string;
     sessionId: string;
   }): Promise<IpcResponse<void>> {

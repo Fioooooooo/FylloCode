@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
     saveArchiveRunMeta: vi.fn(),
     updateApplyRunStageAcpSessionId: vi.fn(),
     updateArchiveRunAcpSessionId: vi.fn(),
-    resolveProjectPath: vi.fn(),
+    resolveWorkspaceCwd: vi.fn(),
     resolveApplyRunChangeId: vi.fn(),
     updateRunMetaIfCurrent: vi.fn(),
     getCompletedApplyStageIndex: vi.fn(),
@@ -92,7 +92,7 @@ vi.mock("@main/services/proposal/runtime/apply-run-service", () => ({
   createApplyRun: vi.fn(),
   getCompletedApplyStageIndex: mocks.getCompletedApplyStageIndex,
   resolveApplyRunChangeId: mocks.resolveApplyRunChangeId,
-  resolveProjectPath: mocks.resolveProjectPath,
+  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
   updateRunMetaIfCurrent: mocks.updateRunMetaIfCurrent,
 }));
 
@@ -149,7 +149,7 @@ describe("registerProposalApplyHandlers", () => {
     vi.clearAllMocks();
     mocks.eventHandler = null;
     mocks.onReady = null;
-    mocks.resolveProjectPath.mockResolvedValue("/tmp/project");
+    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.resolveApplyRunChangeId.mockResolvedValue("change-1");
     mocks.loadApplyRunMeta.mockResolvedValue(runMeta);
     mocks.loadArchiveRunMeta.mockResolvedValue(null);
@@ -180,7 +180,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -194,14 +194,14 @@ describe("registerProposalApplyHandlers", () => {
   it("persists and sends stage user message before registering the session", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       0,
       expect.objectContaining({ role: "user" })
@@ -220,7 +220,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -240,7 +240,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -255,7 +255,7 @@ describe("registerProposalApplyHandlers", () => {
       expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
     });
     expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       0,
       expect.objectContaining({ id: "stage-assistant-err", role: "assistant" })
@@ -274,7 +274,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -288,13 +288,13 @@ describe("registerProposalApplyHandlers", () => {
       expect(mocks.appendApplyRunMessage).toHaveBeenCalledTimes(2);
     });
     expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       0,
       expect.objectContaining({ id: "stage-assistant-cancel", role: "assistant" })
     );
     expect(mocks.sessionCancel).toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("apply", "project-1:run-1");
+    expect(mocks.unregister).toHaveBeenCalledWith("apply", "workspace-1:run-1");
   });
 
   it("does not persist the stage message twice across error then cancel", async () => {
@@ -307,7 +307,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -328,11 +328,11 @@ describe("registerProposalApplyHandlers", () => {
   it("cancels apply stage streams by project and run id", async () => {
     const resultA = await handler(ProposalChannels.stageStreamCancel)(
       {},
-      { projectId: "project-a", runId: "same-run" }
+      { workspaceId: "project-a", runId: "same-run" }
     );
     const resultB = await handler(ProposalChannels.stageStreamCancel)(
       {},
-      { projectId: "project-b", runId: "same-run" }
+      { workspaceId: "project-b", runId: "same-run" }
     );
 
     expect(resultA).toEqual({ ok: true, data: undefined });
@@ -355,18 +355,18 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
     await mocks.onReady!(sink);
 
     expect(mocks.saveArchiveRunMeta).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       expect.objectContaining({ status: "running" })
     );
     expect(mocks.appendArchiveMessage).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       expect.objectContaining({ role: "user" })
     );
@@ -377,12 +377,12 @@ describe("registerProposalApplyHandlers", () => {
     await vi.waitFor(() => {
       expect(sink.sendDone).toHaveBeenCalledWith(2);
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
-        "/tmp/project",
+        "workspace-1",
         expect.objectContaining({ status: "done" })
       );
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       expect.objectContaining({ id: "archive-assistant-1", role: "assistant" })
     );
@@ -393,7 +393,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -403,7 +403,7 @@ describe("registerProposalApplyHandlers", () => {
 
     await vi.waitFor(() => {
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
-        "/tmp/project",
+        "workspace-1",
         expect.objectContaining({ status: "error" })
       );
       expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "failed");
@@ -421,7 +421,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -436,13 +436,13 @@ describe("registerProposalApplyHandlers", () => {
       expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       expect.objectContaining({ id: "archive-assistant-err", role: "assistant" })
     );
     await vi.waitFor(() => {
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
-        "/tmp/project",
+        "workspace-1",
         expect.objectContaining({ status: "error" })
       );
       expect(sink.sendError).toHaveBeenCalledWith(IpcErrorCodes.ACP_ERROR, "boom");
@@ -460,7 +460,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -474,12 +474,12 @@ describe("registerProposalApplyHandlers", () => {
       expect(mocks.appendArchiveMessage).toHaveBeenCalledTimes(2);
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       expect.objectContaining({ id: "archive-assistant-cancel", role: "assistant" })
     );
     expect(mocks.sessionCancel).toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("archive", "project-1:change-1");
+    expect(mocks.unregister).toHaveBeenCalledWith("archive", "workspace-1:change-1");
   });
 
   it("does not persist the archive message twice across error then cancel", async () => {
@@ -493,7 +493,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -516,12 +516,15 @@ describe("registerProposalApplyHandlers", () => {
     mocks.loadArchiveMessages.mockResolvedValue([{ id: "message-1" }]);
 
     await expect(
-      handler(ProposalChannels.loadArchive)({}, { projectId: "project-1", changeId: "change-1" })
+      handler(ProposalChannels.loadArchive)(
+        {},
+        { workspaceId: "workspace-1", changeId: "change-1" }
+      )
     ).resolves.toEqual({ ok: true, data: { runId: "archive-1" } });
     await expect(
       handler(ProposalChannels.loadArchiveMessages)(
         {},
-        { projectId: "project-1", changeId: "change-1" }
+        { workspaceId: "workspace-1", changeId: "change-1" }
       )
     ).resolves.toEqual({ ok: true, data: [{ id: "message-1" }] });
   });
@@ -533,7 +536,7 @@ describe("registerProposalApplyHandlers", () => {
     } as const;
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -563,7 +566,7 @@ describe("registerProposalApplyHandlers", () => {
     expect(opts.sessionStore).toBeInstanceOf(ApplyStageAcpSessionStore);
     await opts.sessionStore.persistAcpSessionId("acp-stage-2");
     expect(mocks.updateApplyRunStageAcpSessionId).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       "run-1",
       0,
@@ -573,7 +576,7 @@ describe("registerProposalApplyHandlers", () => {
     await opts.onReminderInjected(reminderPart);
 
     expect(mocks.prependReminderToLastUserMessage).toHaveBeenCalledWith(
-      "/tmp/project/change-1/stage-0.messages.jsonl",
+      "workspace-1/change-1/stage-0.messages.jsonl",
       reminderPart
     );
     expect(
@@ -584,7 +587,7 @@ describe("registerProposalApplyHandlers", () => {
   it("does not persist stage acpSessionId from the session_id_resolved event in the handler", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -603,7 +606,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -627,7 +630,7 @@ describe("registerProposalApplyHandlers", () => {
   it("forwards stage reasoning_delta through assembler and sink", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -647,7 +650,7 @@ describe("registerProposalApplyHandlers", () => {
   it("ignores stage available_commands_update", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, projectId: "project-1", changeId: "change-1" }
+      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -674,7 +677,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -708,7 +711,7 @@ describe("registerProposalApplyHandlers", () => {
     });
     await typedOpts.sessionStore.persistAcpSessionId("acp-archive");
     expect(mocks.updateArchiveRunAcpSessionId).toHaveBeenCalledWith(
-      "/tmp/project",
+      "workspace-1",
       "change-1",
       "acp-archive"
     );
@@ -716,7 +719,7 @@ describe("registerProposalApplyHandlers", () => {
     await typedOpts.onReminderInjected(reminderPart);
 
     expect(mocks.prependReminderToLastUserMessage).toHaveBeenCalledWith(
-      "/tmp/project/change-1/archive.messages.jsonl",
+      "workspace-1/change-1/archive.messages.jsonl",
       reminderPart
     );
     expect(
@@ -733,7 +736,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -763,7 +766,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -782,7 +785,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -797,7 +800,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -819,7 +822,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -850,7 +853,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { projectId: "project-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -860,7 +863,7 @@ describe("registerProposalApplyHandlers", () => {
 
     await vi.waitFor(() => {
       expect(mocks.saveArchiveRunMeta).toHaveBeenLastCalledWith(
-        "/tmp/project",
+        "workspace-1",
         expect.objectContaining({
           status: "done",
           acpSessionId: "acp-archive",

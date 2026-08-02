@@ -16,9 +16,9 @@ vi.mock("@renderer/stores/insight/lineage", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    currentProject: { id: "project-1" },
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    currentWorkspace: { id: "project-1" },
   }),
 }));
 
@@ -47,6 +47,7 @@ function buttonByText(wrapper: VueWrapper, text: string): DOMWrapper<HTMLButtonE
 async function mountPlan(): Promise<VueWrapper> {
   const wrapper = mount(PlanSlideover, {
     props: {
+      workspaceId: "project-1",
       sessionId: "session-1",
       slug: "2026-06-29-plan-a",
       mode: "review",
@@ -70,7 +71,7 @@ describe("PlanSlideover", () => {
         body: "Initial body",
       },
     });
-    savePlanBodyMock.mockImplementation((_projectId, input) =>
+    savePlanBodyMock.mockImplementation((_workspaceId, input) =>
       Promise.resolve({
         ok: true,
         data: {

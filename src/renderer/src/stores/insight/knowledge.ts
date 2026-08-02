@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { knowledgeApi } from "@renderer/api/insight/knowledge";
-import { useProjectStore } from "@renderer/stores/workspace/project";
+import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import type { KnowledgeBrowserOverview } from "@shared/types/knowledge";
 
 export type {
@@ -11,23 +11,28 @@ export type {
 } from "@shared/types/knowledge";
 
 export const useKnowledgeStore = defineStore("knowledge", () => {
-  const projectStore = useProjectStore();
+  const workspaceStore = useWorkspaceStore();
   const data = ref<KnowledgeBrowserOverview | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  let loadGeneration = 0;
 
-  async function load(projectId?: string): Promise<void> {
-    const resolvedProjectId = projectId ?? projectStore.currentProject?.id;
-    if (!resolvedProjectId) {
+  async function load(workspaceId?: string): Promise<void> {
+    const resolvedWorkspaceId = workspaceId ?? workspaceStore.currentWorkspace?.id;
+    if (!resolvedWorkspaceId) {
       clear();
       return;
     }
 
+    const requestGeneration = ++loadGeneration;
     loading.value = true;
     error.value = null;
     try {
-      const response = await knowledgeApi.getBrowser(resolvedProjectId);
-      if (projectStore.currentProject?.id !== resolvedProjectId) {
+      const response = await knowledgeApi.getBrowser(resolvedWorkspaceId);
+      if (
+        requestGeneration !== loadGeneration ||
+        workspaceStore.currentWorkspace?.id !== resolvedWorkspaceId
+      ) {
         return;
       }
 
@@ -38,20 +43,27 @@ export const useKnowledgeStore = defineStore("knowledge", () => {
         error.value = response.error.message;
       }
     } catch (err: unknown) {
-      if (projectStore.currentProject?.id !== resolvedProjectId) {
+      if (
+        requestGeneration !== loadGeneration ||
+        workspaceStore.currentWorkspace?.id !== resolvedWorkspaceId
+      ) {
         return;
       }
 
       data.value = null;
       error.value = err instanceof Error ? err.message : "知识沉淀加载失败";
     } finally {
-      if (projectStore.currentProject?.id === resolvedProjectId) {
+      if (
+        requestGeneration === loadGeneration &&
+        workspaceStore.currentWorkspace?.id === resolvedWorkspaceId
+      ) {
         loading.value = false;
       }
     }
   }
 
   function clear(): void {
+    loadGeneration += 1;
     data.value = null;
     loading.value = false;
     error.value = null;

@@ -12,7 +12,7 @@ const { tempRoot, mocks } = await vi.hoisted(async () => {
     mocks: {
       findProposalMetaById: vi.fn(),
       loadAllWorkflowTemplates: vi.fn(),
-      loadProject: vi.fn(),
+      resolveWorkspace: vi.fn(),
       newRunId: vi.fn(),
       resolveChangeDir: vi.fn(),
     },
@@ -23,8 +23,8 @@ vi.mock("@main/infra/paths", () => ({
   getDataSubPath: vi.fn((subPath: string) => `${tempRoot}/${subPath}`),
 }));
 
-vi.mock("@main/infra/storage/project-store", () => ({
-  loadProject: mocks.loadProject,
+vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 vi.mock("@main/services/automation/workflow/workflow-service", () => ({
@@ -86,7 +86,7 @@ describe("apply-run-service", () => {
   beforeEach(() => {
     rmSync(tempRoot, { recursive: true, force: true });
     vi.clearAllMocks();
-    mocks.loadProject.mockResolvedValue({ id: "project-1", path: projectPath });
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: projectPath });
     mocks.loadAllWorkflowTemplates.mockResolvedValue([workflowTemplate()]);
     mocks.newRunId.mockReturnValue("run-1");
     mocks.resolveChangeDir.mockImplementation(async (_projectPath: string, changeId: string) =>
@@ -103,14 +103,17 @@ describe("apply-run-service", () => {
     mocks.findProposalMetaById.mockResolvedValue(proposalMeta({ worktreePath: undefined }));
 
     await createApplyRun({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       changeId: "change-1",
       workflowId: "workflow-1",
     });
 
-    const persisted = readFileSync(join(applyRunDir(projectPath, "change-1"), "run.json"), "utf8");
+    const persisted = readFileSync(
+      join(applyRunDir("workspace-1", "change-1"), "run.json"),
+      "utf8"
+    );
     expect(persisted).not.toContain("worktreePath");
-    const runMeta = await loadApplyRunMeta(projectPath, "change-1");
+    const runMeta = await loadApplyRunMeta("workspace-1", "change-1");
     expect(runMeta?.changeId).toBe("change-1");
     expect(runMeta?.worktreePath).toBeUndefined();
   });
@@ -122,12 +125,12 @@ describe("apply-run-service", () => {
     );
 
     await createApplyRun({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       changeId: "change-2",
       workflowId: "workflow-1",
     });
 
-    await expect(loadApplyRunMeta(projectPath, "change-2")).resolves.toMatchObject({
+    await expect(loadApplyRunMeta("workspace-1", "change-2")).resolves.toMatchObject({
       changeId: "change-2",
       worktreePath: resolve("/tmp/worktrees/foo/"),
     });
@@ -139,13 +142,13 @@ describe("apply-run-service", () => {
     mocks.findProposalMetaById.mockResolvedValue(proposalMeta({ id: "change-3", worktreePath }));
 
     await createApplyRun({
-      projectId: "project-1",
+      workspaceId: "workspace-1",
       changeId: "change-3",
       workflowId: "workflow-1",
     });
 
     const persisted = JSON.parse(
-      readFileSync(join(applyRunDir(projectPath, "change-3"), "run.json"), "utf8")
+      readFileSync(join(applyRunDir("workspace-1", "change-3"), "run.json"), "utf8")
     ) as { worktreePath?: string };
     expect(persisted.worktreePath).toBe(worktreePath);
   });

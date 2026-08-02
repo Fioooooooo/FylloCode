@@ -112,7 +112,7 @@ describe("lineage browser", () => {
       body: "",
     });
 
-    const result = await getLineageBrowser("/tmp/project");
+    const result = await getLineageBrowser("workspace-1", "/tmp/project");
 
     expect(result.entries.map((entry) => entry.subjectId)).toEqual(["newer", "older"]);
     expect(result.entries[0]).toMatchObject({
@@ -151,7 +151,7 @@ describe("lineage browser", () => {
       }),
     ]);
 
-    const result = await getLineageBrowser("/tmp/project");
+    const result = await getLineageBrowser("workspace-1", "/tmp/project");
 
     expect(result.entries[0]).toMatchObject({
       status: "planned",
@@ -170,7 +170,9 @@ describe("lineage browser", () => {
   });
 
   it("returns an empty browser without invoking plan reads or writes", async () => {
-    await expect(getLineageBrowser("/tmp/project")).resolves.toEqual({ entries: [] });
+    await expect(getLineageBrowser("workspace-1", "/tmp/project")).resolves.toEqual({
+      entries: [],
+    });
     expect(mocks.readPlan).not.toHaveBeenCalled();
     expect(mocks.writeSubject).not.toHaveBeenCalled();
     expect(mocks.writeIndex).not.toHaveBeenCalled();

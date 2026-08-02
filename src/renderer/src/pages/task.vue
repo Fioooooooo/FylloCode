@@ -7,7 +7,7 @@ import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 import TaskCard from "@renderer/components/task/TaskCard.vue";
 import TaskDetailModal from "@renderer/components/task/TaskDetailModal.vue";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
-import { useProjectStore, useTaskStore } from "@renderer/stores";
+import { useWorkspaceStore, useTaskStore } from "@renderer/stores";
 import type { LinkedSessionEntry } from "@renderer/components/task/TaskCard.vue";
 import type { LineageSessionLink, LineageTaskRef } from "@shared/types/lineage";
 import type {
@@ -25,7 +25,7 @@ interface TaskLinkState {
 }
 
 const router = useRouter();
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 const taskStore = useTaskStore();
 const toast = useToast();
 const { openChatSession } = useOpenChatSession();
@@ -160,8 +160,8 @@ async function handleOpenSession(sessionId: string): Promise<void> {
 }
 
 async function loadLinkedConversations(): Promise<void> {
-  const projectId = projectStore.currentProject?.id;
-  if (!projectId) {
+  const workspaceId = workspaceStore.currentWorkspace?.id;
+  if (!workspaceId) {
     taskLinkState.value = new Map();
     return;
   }
@@ -186,7 +186,7 @@ async function loadLinkedConversations(): Promise<void> {
       nextState.set(ref, { links: existing?.links ?? [], loading: true, failed: false });
 
       try {
-        const result = await taskStore.getTaskLineage(projectId, ref);
+        const result = await taskStore.getTaskLineage(workspaceId, ref);
         if (batchId !== linkedConversationBatchId) {
           return;
         }
@@ -209,7 +209,7 @@ async function loadLinkedConversations(): Promise<void> {
 }
 
 watch(
-  () => projectStore.currentProject?.id,
+  () => workspaceStore.currentWorkspace?.id,
   () => {
     taskStore.resetDetailState();
     activeDetailTask.value = null;
@@ -220,7 +220,7 @@ watch(
 );
 
 watch(
-  () => [projectStore.currentProject?.id, visibleTasks.value.map((task) => task.id)] as const,
+  () => [workspaceStore.currentWorkspace?.id, visibleTasks.value.map((task) => task.id)] as const,
   () => {
     void loadLinkedConversations();
   },

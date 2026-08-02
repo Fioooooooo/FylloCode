@@ -6,6 +6,7 @@ import PlanSlideover, {
 
 export function usePlanSlideover(): {
   openPlanReview: (input: {
+    workspaceId: string;
     sessionId: string;
     slug: string;
     mode?: PlanSlideoverMode;
@@ -14,6 +15,7 @@ export function usePlanSlideover(): {
   const overlay = useOverlay();
 
   async function openPlanReview(input: {
+    workspaceId: string;
     sessionId: string;
     slug: string;
     mode?: PlanSlideoverMode;
@@ -23,6 +25,7 @@ export function usePlanSlideover(): {
     });
 
     const instance = slideover.open({
+      workspaceId: input.workspaceId,
       sessionId: input.sessionId,
       slug: input.slug,
       mode: input.mode ?? "review",

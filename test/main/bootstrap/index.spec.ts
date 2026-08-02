@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   setAppUserModelId: vi.fn(),
   syncShellPath: vi.fn(),
   runAllMigrations: vi.fn(),
+  validateWorkspaceCutoverState: vi.fn(),
+  showWorkspaceUpgradeFailure: vi.fn(),
   startBundledMcpHost: vi.fn(),
   stopBundledMcpHost: vi.fn(),
   registerDisposable: vi.fn(),
@@ -41,6 +43,11 @@ vi.mock("@main/infra/process/sync-shell-path", () => ({
 }));
 vi.mock("@main/migrations", () => ({
   runAllMigrations: mocks.runAllMigrations,
+  validateWorkspaceCutoverState: mocks.validateWorkspaceCutoverState,
+  WORKSPACE_CUTOVER_MIGRATION_ID: "20260802_001_project-to-workspace",
+}));
+vi.mock("@main/bootstrap/workspace-upgrade-failure", () => ({
+  showWorkspaceUpgradeFailure: mocks.showWorkspaceUpgradeFailure,
 }));
 vi.mock("@main/infra/mcp/bundled-mcp-host", () => ({
   startBundledMcpHost: mocks.startBundledMcpHost,
@@ -68,8 +75,8 @@ vi.mock("@main/ipc/platform/acp-agents", () => ({
 vi.mock("@main/ipc/proposal/browser", () => ({
   setupProposalStatusBroadcast: mocks.setupProposalStatusBroadcast,
 }));
-vi.mock("@main/bootstrap/project-window-manager", () => ({
-  projectWindowManager: {
+vi.mock("@main/bootstrap/workspace-window-manager", () => ({
+  workspaceWindowManager: {
     openLauncherWindow: mocks.openLauncherWindow,
     focusLastActiveWindow: mocks.focusLastActiveWindow,
   },
@@ -88,6 +95,8 @@ describe("main bootstrap", () => {
     mocks.whenReady.mockResolvedValue(undefined);
     mocks.syncShellPath.mockResolvedValue(undefined);
     mocks.runAllMigrations.mockResolvedValue(undefined);
+    mocks.validateWorkspaceCutoverState.mockResolvedValue({ ok: true, issues: [] });
+    mocks.showWorkspaceUpgradeFailure.mockResolvedValue(undefined);
     mocks.initBuiltInWorkflows.mockReturnValue(new Promise<void>(() => undefined));
     mocks.focusLastActiveWindow.mockReturnValue(true);
   });
@@ -162,6 +171,35 @@ describe("main bootstrap", () => {
       "schedule-warmup",
     ]);
     expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
+  });
+
+  it("stops bootstrap at the required cutover gate and shows only native failure UI", async () => {
+    mocks.validateWorkspaceCutoverState.mockResolvedValue({
+      ok: false,
+      status: { state: "failed" },
+      issues: [{ type: "required-migration", message: "copy failed" }],
+    });
+    const onWindowReady = vi.fn();
+
+    const { bootstrapReady } = await import("@main/bootstrap/index");
+    await bootstrapReady(onWindowReady);
+
+    expect(mocks.runAllMigrations).toHaveBeenCalledOnce();
+    expect(mocks.validateWorkspaceCutoverState).toHaveBeenCalledOnce();
+    expect(mocks.showWorkspaceUpgradeFailure).toHaveBeenCalledWith({
+      migrationId: "20260802_001_project-to-workspace",
+      reason: "copy failed",
+    });
+    expect(mocks.startBundledMcpHost).not.toHaveBeenCalled();
+    expect(mocks.registerDisposable).not.toHaveBeenCalled();
+    expect(mocks.registerAllHandlers).not.toHaveBeenCalled();
+    expect(mocks.initBuiltInWorkflows).not.toHaveBeenCalled();
+    expect(mocks.setupProbeBroadcast).not.toHaveBeenCalled();
+    expect(mocks.setupAgentEventBroadcast).not.toHaveBeenCalled();
+    expect(mocks.setupProposalStatusBroadcast).not.toHaveBeenCalled();
+    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
+    expect(mocks.scheduleInstalledAgentConnectionWarmup).not.toHaveBeenCalled();
+    expect(onWindowReady).not.toHaveBeenCalled();
   });
 
   it("defers and coalesces window attention until the first window is ready", async () => {

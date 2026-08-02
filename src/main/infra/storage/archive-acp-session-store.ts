@@ -9,12 +9,12 @@ import {
 
 export class ArchiveAcpSessionStore implements AcpSessionStore {
   constructor(
-    private readonly projectPath: string,
+    private readonly workspaceId: string,
     private readonly changeId: string
   ) {}
 
   async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
-    const meta = await loadArchiveRunMeta(this.projectPath, this.changeId);
+    const meta = await loadArchiveRunMeta(this.workspaceId, this.changeId);
     return {
       acpSessionId: meta?.acpSessionId ?? null,
       configOptions: [],
@@ -22,6 +22,6 @@ export class ArchiveAcpSessionStore implements AcpSessionStore {
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
-    await updateArchiveRunAcpSessionId(this.projectPath, this.changeId, acpSessionId);
+    await updateArchiveRunAcpSessionId(this.workspaceId, this.changeId, acpSessionId);
   }
 }

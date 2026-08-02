@@ -8,8 +8,8 @@ import {
 } from "@shared/constants/integration-providers";
 import type {
   IntegrationCategory,
-  ProjectIntegrationConfig,
-  ProjectIntegrationEntry,
+  WorkspaceIntegrationConfig,
+  WorkspaceIntegrationEntry,
   Provider,
   ProviderConnection,
   ProviderCredentials,
@@ -22,7 +22,7 @@ import type {
 export const useIntegrationProvidersStore = defineStore("integration-providers", () => {
   const projectIntegrationStore = useProjectIntegrationStore();
   const providers = ref<Array<Provider & { connection: ProviderConnection | null }>>([]);
-  const projectIntegration = ref<ProjectIntegrationConfig | null>(null);
+  const projectIntegration = ref<WorkspaceIntegrationConfig | null>(null);
   const loadingProviderIds = ref<string[]>([]);
   const resourceLoadingKeys = ref<string[]>([]);
   const resourceOptions = ref<Record<string, ProviderResource[]>>({});
@@ -113,23 +113,27 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
     );
   }
 
-  async function loadProjectIntegration(projectId: string): Promise<void> {
-    if (!projectId) {
+  async function loadProjectIntegration(workspaceId: string): Promise<void> {
+    if (!workspaceId) {
       projectIntegration.value = null;
       return;
     }
-    const result = await projectIntegrationStore.getProjectIntegration(projectId);
+    const result = await projectIntegrationStore.getProjectIntegration(workspaceId);
     if (result.ok) {
       projectIntegration.value = result.data;
     }
   }
 
   async function saveProjectIntegrationStage(
-    projectId: string,
-    stage: keyof ProjectIntegrationConfig,
-    resources: ProjectIntegrationEntry[]
+    workspaceId: string,
+    stage: keyof WorkspaceIntegrationConfig,
+    resources: WorkspaceIntegrationEntry[]
   ): Promise<void> {
-    const result = await projectIntegrationStore.setProjectIntegration(projectId, stage, resources);
+    const result = await projectIntegrationStore.setProjectIntegration(
+      workspaceId,
+      stage,
+      resources
+    );
     if (result.ok) {
       projectIntegration.value = result.data;
     }
@@ -151,14 +155,14 @@ export const useIntegrationProvidersStore = defineStore("integration-providers",
     return result.data;
   }
 
-  function getStageEntries(stage: keyof ProjectIntegrationConfig): ProjectIntegrationEntry[] {
+  function getStageEntries(stage: keyof WorkspaceIntegrationConfig): WorkspaceIntegrationEntry[] {
     return projectIntegration.value?.[stage] ?? [];
   }
 
   function getMountedEntries(
     providerId: ProviderId,
-    stage: keyof ProjectIntegrationConfig
-  ): ProjectIntegrationEntry[] {
+    stage: keyof WorkspaceIntegrationConfig
+  ): WorkspaceIntegrationEntry[] {
     return getStageEntries(stage).filter((entry) => entry.providerId === providerId);
   }
 

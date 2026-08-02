@@ -26,7 +26,7 @@ describe("FylloActionExecutionController", () => {
     const getActionState = vi.fn();
 
     const controller = createFylloActionExecutionController({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       actionId: "action-1",
       type: "task.create",
@@ -137,7 +137,7 @@ describe("FylloActionExecutionController", () => {
     ]);
 
     const controllerWithHandler = createFylloActionExecutionController({
-      projectId: "project-1",
+      workspaceId: "project-1",
       sessionId: "session-1",
       actionId: "action-1",
       type: "task.create",

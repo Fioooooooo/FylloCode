@@ -1675,55 +1675,21 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### 23.1 Shared/domain
 
-- legacy Project migration 与 Workspace/Folder meta parsing；
-- `WorkspaceKind` 只接受 `folder | collection`；
-- Folder Workspace 单成员、ID 相等、primary 相等和成员不可编辑 invariants；
-- Collection Workspace 至少一名成员、primary membership 和成员可编辑 invariants；
-- 单 Folder Collection Workspace 保持 `collection`，不按数量改写 kind；
-- Workspace resolution 与派生 single/multi-root 状态；
-- Workspace 1–16 Folder 上限；
-- Workspace tombstone invariants：active meta 为 `isDeleted: false` 且无 deletion fields；deleted meta 必有 `deletedAt` 与合法 `cleanupState`；只有 `restorable` 可恢复；
-- Session snapshot 保存明确的 `folderId → folderName + folderPath` 映射，目录列表与 primary/cwd invariants 一致；
-- member/owner validation；
-- canonical path 反向解析先复用稳定 `folderId`，未命中才分配与路径无关的新 ID；
-- 全局 exact canonical path 唯一性，以及同一 Workspace 内的 member path duplicate/nesting；
-- 禁止通过 `encodeProjectPath()` 或其他路径编码重新计算已有 `folderId`；
+- Workspace/Folder identity、kind、成员数量/primary/tombstone invariants、canonical Folder registry、resolver 与 repository target validation → `introduce-workspace-model` proposal / `workspace-model` spec；
+- Project cutover boundary、legacy Session 单 Folder snapshot 与 Workspace-owned schema conversion → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
 - ProposalRef serialization；
 - knowledge anchor/lineage v2 schema；
-- upgrade migration conversion boundary。
 
 ### 23.2 Data migrations
 
-- migration 文件名、ID 与 registry 顺序；
-- fresh install baseline 跳过历史 cutover，并由 storage 直接创建最终 schema；
-- fresh install 被 baseline 覆盖时 required cutover gate 通过，不要求预先存在 Workspace/Folder 记录；
-- 有 `projects` 的旧安装执行 cutover；
-- legacy Project → 同 ID Folder + `kind: "folder"` Workspace；
-- legacy Project 的 `id` 与 `encodeProjectPath(meta.path)` 不一致时保留 legacy ID，并按当前 canonical path 建立反向解析；
-- legacy Project 的 path 曾更新、`id !== encodeProjectPath(meta.path)`，且 `<projects>/<id>` 与 `<projects>/<encodeProjectPath(meta.path)>` 含不同 fixture 时，只从当前 meta path 对应目录迁移 session/task/knowledge；cutover 后三类数据完整可读，旧 ID 目录保持 orphan 且不被合并；
-- 多个 legacy Project 的不同 ID 指向同一 canonical path 时保留全部 source、报告冲突并让 required cutover 失败，不自动择一或合并数据；
-- legacy `ProjectMeta.healthScore` 原样迁移到 `FolderMeta.healthScore`；
-- legacy Project 生成的 Workspace 为 `isDeleted: false`、无 deletion fields；cutover 按当前 meta path 计算 candidate key，只有全局分组中恰好命中一个 Project 时才持久化 `legacyAppDataKey`；fresh Workspace 与编码碰撞组不设置该字段；没有对应 Project meta 的 legacy app-data 孤儿目录保持原样，不猜测 owner、不自动删除；
-- 编码碰撞 fixture：`/Users/tao/work/my-app` 与 `/Users/tao/work/my/app` 得到同一 candidate key；两个 Workspace 均完成既有 source cutover，但都不持久化 `legacyAppDataKey`，共享 legacy source 保持未认领；该 fixture 不把旧目录内可能存在的数据混合纳入 multi-root 修复范围；
-- session、lineage、knowledge 和 Workspace-owned 目录转换；
-- legacy Session 生成包含唯一 `{folderId, folderName, folderPath}` 的 folders snapshot，不只迁移无映射的 path 数组；
-- legacy task 迁移 `projectId → workspaceId`，`targetFolderIds` 保持省略，不根据唯一 Folder 猜测；
-- 已迁移数据、缺失目录和不匹配旧 shape 安全 no-op；
-- 无关 JSON 字段与非目标文件保留；
-- 部分 target 一致时补齐，source/target 冲突时拒绝覆盖；
-- 不可解析单项与其他记录隔离；
-- 意外写入失败向 runner 抛出，并在账本记录 `failed`；
-- failed cutover 不自动重试，后续迁移仍执行；
-- required cutover 有 `failed` 记录，或既无 `success` 又未被 baseline 覆盖时，阻止普通 Workspace bootstrap；
-- legacy source 在首次 cutover 后保留；
-- 若扩展 `isNewInstall` 标记，覆盖 baseline 与 existing-install 判定。
+- Project → Workspace/Folder required migration、candidate source/provenance、全局 preflight、Workspace-owned 数据转换、ledger/baseline gate 与 legacy source 保留 → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
+- Workspace/Folder meta、registry 与运行期 storage namespace → `introduce-workspace-model` proposal / `workspace-model` spec。
 
 ### 23.3 Main
 
 - 单实例启动前置 → `enforce-single-instance-startup` proposal / `single-instance-startup` spec：锁早于 bootstrap 与 app-data writer，第二实例退出或请求主实例窗口注意力；
-- Workspace window 唯一性；
-- Folder Workspace 与引用同一 Folder 的 Collection Workspace 窗口并存；
-- Workspace storage isolation；
+- Workspace/launcher window、main-owned context、window state、runtime 隔离与 Folder Workspace 打开 → `introduce-workspace-model` proposal / `workspace-window` spec；
+- Workspace-owned stable-ID storage 与 cutover bootstrap gate/原生失败对话框 → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
 - soft delete 关闭窗口并取消 runtime 后只写 tombstone，默认 launcher/open 排除该 Workspace，但 Workspace meta、ID、成员与 app-data 均保留；
 - “已删除的 Workspace”视图能发现 `restorable` tombstone；恢复保留原 `workspaceId` 与数据，primary missing 时进入修复而不是伪装可打开；按 Folder path 再次打开 tombstoned Folder Workspace 时提示恢复且不创建重复 Workspace；
 - 永久清理只接受 tombstone，先持久化 `purging`，删除该 Workspace-owned app-data/window state；对 `legacyAppDataKey` 存在的 migrated Workspace 还删除该 key 对应 active legacy source 与同 ID legacy meta record，最后删除 Workspace meta；无 provenance 的碰撞组只清理 current Workspace 数据，不删除共享 legacy source；
@@ -1731,8 +1697,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - migrated Workspace 永久清理不得用 legacy ID 作为目录 key、当前 Folder path 或目录扫描改选 legacy source；provenance 存在但 source 删除失败时保留 `cleanup-failed`，重启后只允许重试且不伪报成功；更晚 cleanup migration 删除 source/record 并清除 provenance 后，永久清理幂等成功；
 - path 更新留下的旧 ID/历史目录不由单 Workspace 永久删除认领；另一个 Project 复用旧 path 时其数据不受影响；
 - soft delete、恢复和永久清理均不修改共享 Folder registry、其他 Workspace、worktree 或 repository-scoped lineage；最后一个 Workspace 引用被清理也不隐式删除 Folder；
-- 重复“打开文件夹”返回同一个 Folder Workspace 和原 Workspace-owned 数据；
-- 多窗口并发打开同一 canonical path 只创建一个 Folder 和一个 Folder Workspace；
+- 重复/并发“打开文件夹”的 Folder identity 原子复用 → `introduce-workspace-model` proposal / `workspace-model`、`workspace-window` specs；
 - Folder 重定位后按新路径打开仍返回原 Folder Workspace 及原 Workspace-owned 数据；
 - 没有对应 Folder Workspace 的 Collection member 也能通过 missing-member repair 重定位，并提示所有受影响 Workspace；
 - 重定位到其他 Folder 已占用的 canonical path 时拒绝且不修改 registry；
@@ -1750,7 +1715,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - 多成员 worktree 枚举并行执行；单成员失败只移除该成员 worktrees 并保留其 canonical folderPath，folderPath canonicalize 失败时排除该成员；
 - member/worktree-derived trust 不写 remembered grant；Folder 重定位后旧 root 不再自动可信，新 root 在下一次请求生效；Workspace 外 user-confirmed exact-path grant 不跨 Workspace/window 复用；
 - linked worktree 文件同时命中 Folder root 与 worktree root 时，longest match 返回该 Folder 的具体 worktree，而不是任意首个 Folder root；
-- watcher/stream/probe key isolation；
+- Workspace watcher/stream/probe key isolation → `introduce-workspace-model` proposal / `workspace-window` spec；
 - partial repository scan。
 
 ### 23.4 ACP

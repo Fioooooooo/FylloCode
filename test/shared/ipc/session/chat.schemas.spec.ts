@@ -6,7 +6,7 @@ import {
 
 describe("createSessionInputSchema", () => {
   const base = {
-    projectId: "p1",
+    workspaceId: "w1",
     title: "Session",
     agentId: "claude-code",
   };
@@ -30,14 +30,14 @@ describe("createSessionInputSchema", () => {
 
 describe("setConfigOptionInputSchema", () => {
   const baseSelect = {
-    projectId: "p1",
+    workspaceId: "w1",
     sessionId: "s1",
     configId: "model",
     type: "select" as const,
     value: "sonnet",
   };
   const baseBoolean = {
-    projectId: "p1",
+    workspaceId: "w1",
     sessionId: "s1",
     configId: "stream",
     type: "boolean" as const,
@@ -74,9 +74,9 @@ describe("setConfigOptionInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects payload missing projectId", () => {
-    const { projectId, ...rest } = baseSelect;
-    void projectId;
+  it("rejects payload missing workspaceId", () => {
+    const { workspaceId, ...rest } = baseSelect;
+    void workspaceId;
     const result = setConfigOptionInputSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

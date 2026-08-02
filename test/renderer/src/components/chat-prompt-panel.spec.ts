@@ -103,9 +103,9 @@ vi.mock("@renderer/stores/platform/acp-agents", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace/project", () => ({
-  useProjectStore: () => ({
-    currentProject: { id: "project-1" },
+vi.mock("@renderer/stores/workspace/workspace", () => ({
+  useWorkspaceStore: () => ({
+    currentWorkspace: { id: "project-1" },
   }),
 }));
 
@@ -139,7 +139,7 @@ vi.mock("pinia", async (importOriginal) => {
 function makeSession(commands: AcpAvailableCommand[] = []): Session {
   return {
     id: "session-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     agentId: "claude-code",
     title: "Session",
     isPinned: false,
@@ -228,9 +228,9 @@ describe("ChatPromptPanel", () => {
       ok: true,
       data: { uri: "file:///tmp/attachment", name: "attachment", mimeType: "image/png" },
     });
-    createSession.mockImplementation(async (input: { projectId: string; agentId: string }) => {
+    createSession.mockImplementation(async (input: { workspaceId: string; agentId: string }) => {
       const session = makeSession();
-      session.projectId = input.projectId;
+      session.workspaceId = input.workspaceId;
       session.agentId = input.agentId;
       activeSessionRef.value = session;
       return session;

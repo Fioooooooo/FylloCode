@@ -2,7 +2,7 @@ import type { IpcResponse } from "@shared/types/ipc";
 import type {
   OpenFolderWindowResult,
   OpenLauncherWindowResult,
-  OpenProjectWindowResult,
+  OpenWorkspaceWindowResult,
   WindowContext,
 } from "@shared/types/window";
 
@@ -11,8 +11,8 @@ export const windowApi = {
     return window.api.workspace.window.getContext();
   },
 
-  openProject(projectId: string): Promise<IpcResponse<OpenProjectWindowResult>> {
-    return window.api.workspace.window.openProject(projectId);
+  openWorkspace(workspaceId: string): Promise<IpcResponse<OpenWorkspaceWindowResult>> {
+    return window.api.workspace.window.openWorkspace(workspaceId);
   },
 
   openFolder(): Promise<IpcResponse<OpenFolderWindowResult>> {

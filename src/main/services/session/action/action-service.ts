@@ -11,7 +11,6 @@ import {
   FylloActionStateMachineError,
 } from "@shared/fyllo-action/state";
 import { getFylloActionContract } from "@shared/fyllo-action/registry";
-import { resolveProjectPath } from "@main/services/session/chat/chat-service";
 import { loadSessionMeta, patchSessionMeta } from "@main/infra/storage/session-store";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
@@ -31,8 +30,7 @@ function now(): string {
 }
 
 export async function registerAction(input: RegisterFylloActionInput): Promise<FylloActionState> {
-  const projectPath = await resolveProjectPath(input.projectId);
-  const currentMeta = await loadSessionMeta(projectPath, input.sessionId);
+  const currentMeta = await loadSessionMeta(input.workspaceId, input.sessionId);
   if (!currentMeta) {
     throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${input.sessionId}`);
   }
@@ -58,7 +56,7 @@ export async function registerAction(input: RegisterFylloActionInput): Promise<F
     return existing;
   }
 
-  const nextMeta = await patchSessionMeta(projectPath, input.sessionId, {
+  const nextMeta = await patchSessionMeta(input.workspaceId, input.sessionId, {
     actionStates: {
       ...records,
       [input.actionId]: createInitialFylloActionState(input.type, { updatedAt: now() }),
@@ -114,7 +112,7 @@ function applyTransition(
 export async function transitionAction(
   input: TransitionFylloActionInput
 ): Promise<FylloActionState> {
-  const { records, projectPath } = await loadActionStates(input.projectId, input.sessionId);
+  const { records } = await loadActionStates(input.workspaceId, input.sessionId);
   const current = records[input.actionId];
 
   if (!current) {
@@ -133,7 +131,7 @@ export async function transitionAction(
     );
   }
 
-  const nextMeta = await patchSessionMeta(projectPath, input.sessionId, {
+  const nextMeta = await patchSessionMeta(input.workspaceId, input.sessionId, {
     actionStates: {
       ...records,
       [input.actionId]: result.record!,
@@ -147,19 +145,18 @@ export async function transitionAction(
   return nextMeta.actionStates![input.actionId];
 }
 
-async function loadActionStates(projectId: string, sessionId: string) {
-  const projectPath = await resolveProjectPath(projectId);
-  const currentMeta = await loadSessionMeta(projectPath, sessionId);
+async function loadActionStates(workspaceId: string, sessionId: string) {
+  const currentMeta = await loadSessionMeta(workspaceId, sessionId);
   if (!currentMeta) {
     throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
   }
-  return { projectPath, records: { ...(currentMeta.actionStates ?? {}) } };
+  return { records: { ...(currentMeta.actionStates ?? {}) } };
 }
 
 export async function transitionActions(
   input: TransitionFylloActionsInput
 ): Promise<TransitionFylloActionResult[]> {
-  const { projectPath, records } = await loadActionStates(input.projectId, input.sessionId);
+  const { records } = await loadActionStates(input.workspaceId, input.sessionId);
   const results: TransitionFylloActionResult[] = [];
   const nextRecords: Record<string, FylloActionState> = { ...records };
 
@@ -192,7 +189,7 @@ export async function transitionActions(
     return results;
   }
 
-  const nextMeta = await patchSessionMeta(projectPath, input.sessionId, {
+  const nextMeta = await patchSessionMeta(input.workspaceId, input.sessionId, {
     actionStates: nextRecords,
   });
 

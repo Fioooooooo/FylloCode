@@ -8,9 +8,14 @@ import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-i
 import { scheduleInstalledAgentConnectionWarmup } from "@main/services/platform/acp-agent/connection-warmup";
 import { syncShellPath } from "@main/infra/process/sync-shell-path";
 import { startBundledMcpHost, stopBundledMcpHost } from "@main/infra/mcp/bundled-mcp-host";
-import { runAllMigrations } from "@main/migrations";
+import {
+  runAllMigrations,
+  validateWorkspaceCutoverState,
+  WORKSPACE_CUTOVER_MIGRATION_ID,
+} from "@main/migrations";
 import { disposeAll, registerDisposable } from "./lifecycle";
-import { projectWindowManager } from "./project-window-manager";
+import { workspaceWindowManager } from "./workspace-window-manager";
+import { showWorkspaceUpgradeFailure } from "./workspace-upgrade-failure";
 import logger from "@main/infra/logger";
 
 let shuttingDown = false;
@@ -28,6 +33,18 @@ export async function bootstrapReady(onWindowReady: () => void = () => undefined
 
   await syncShellPath();
   await runAllMigrations();
+  const cutoverValidation = await validateWorkspaceCutoverState();
+  if (!cutoverValidation.ok) {
+    const reason = cutoverValidation.issues.map((issue) => issue.message).join("; ");
+    logger.error(
+      `[workspace-upgrade] required migration gate failed (${WORKSPACE_CUTOVER_MIGRATION_ID}): ${reason}`
+    );
+    await showWorkspaceUpgradeFailure({
+      migrationId: WORKSPACE_CUTOVER_MIGRATION_ID,
+      ...(reason ? { reason } : {}),
+    });
+    return;
+  }
 
   logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
 
@@ -40,20 +57,20 @@ export async function bootstrapReady(onWindowReady: () => void = () => undefined
   registerAllHandlers();
   void initBuiltInWorkflows();
 
-  setupProbeBroadcast(projectWindowManager);
-  setupAgentEventBroadcast(projectWindowManager);
-  setupProposalStatusBroadcast(projectWindowManager);
-  projectWindowManager.openLauncherWindow();
+  setupProbeBroadcast(workspaceWindowManager);
+  setupAgentEventBroadcast(workspaceWindowManager);
+  setupProposalStatusBroadcast(workspaceWindowManager);
+  workspaceWindowManager.openLauncherWindow();
   onWindowReady();
   scheduleInstalledAgentConnectionWarmup();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      projectWindowManager.openLauncherWindow();
+      workspaceWindowManager.openLauncherWindow();
       return;
     }
 
-    projectWindowManager.focusLastActiveWindow();
+    workspaceWindowManager.focusLastActiveWindow();
   });
 }
 
@@ -62,8 +79,8 @@ export function startApp(): PrimaryInstanceController {
   let hasPendingWindowAttention = false;
 
   const focusOrOpenPrimaryWindow = (): void => {
-    if (!projectWindowManager.focusLastActiveWindow()) {
-      projectWindowManager.openLauncherWindow();
+    if (!workspaceWindowManager.focusLastActiveWindow()) {
+      workspaceWindowManager.openLauncherWindow();
     }
   };
 

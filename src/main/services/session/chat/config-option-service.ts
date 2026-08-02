@@ -9,7 +9,7 @@ import {
 import { loadSessionMeta, patchSessionMeta } from "@main/infra/storage/session-store";
 import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
 import logger from "@main/infra/logger";
-import { resolveProjectPath } from "./chat-service";
+import { resolveWorkspaceCwd } from "./chat-service";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 import { valueExistsInSchema } from "@main/domain/session/chat/session-config-recovery";
 import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
@@ -17,7 +17,7 @@ import { activateAcpSession } from "./acp-session-activation";
 import { recoverSessionConfig } from "./session-config-recovery-service";
 
 export interface SetConfigOptionParams {
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   configId: string;
   type: "select" | "boolean";
@@ -31,10 +31,10 @@ export interface SetConfigOptionResult {
 export async function setConfigOption(
   params: SetConfigOptionParams
 ): Promise<SetConfigOptionResult> {
-  const { projectId, sessionId, configId, type, value } = params;
+  const { workspaceId, sessionId, configId, type, value } = params;
 
-  const projectPath = await resolveProjectPath(projectId);
-  const meta = await loadSessionMeta(projectPath, sessionId);
+  const workspaceCwd = await resolveWorkspaceCwd(workspaceId);
+  const meta = await loadSessionMeta(workspaceId, sessionId);
   if (!meta) {
     throw ipcError(
       IpcErrorCodes.VALIDATION_ERROR,
@@ -69,7 +69,8 @@ export async function setConfigOption(
         entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
       const mcpServers = (
         await resolveBundledMcpServers({
-          projectPath,
+          workspaceId,
+          projectPath: workspaceCwd,
           fylloSessionId: sessionId,
           supportsHttp,
         })
@@ -78,7 +79,7 @@ export async function setConfigOption(
         entry,
         initializeResponse: entry.initializeResponse,
         persistedSessionId: meta.acpSessionId,
-        cwd: projectPath,
+        cwd: workspaceCwd,
         mcpServers,
         allowFreshSession: false,
       });
@@ -144,7 +145,7 @@ export async function setConfigOption(
   const normalized = normalizeAcpSessionConfigOptions(response.configOptions);
 
   try {
-    await patchSessionMeta(projectPath, sessionId, {
+    await patchSessionMeta(workspaceId, sessionId, {
       configOptions: normalized,
       updatedAt: new Date().toISOString(),
     });

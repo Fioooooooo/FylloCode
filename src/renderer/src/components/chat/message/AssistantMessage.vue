@@ -27,7 +27,7 @@ const props = defineProps<{
   sessionId?: string | null;
   messageIndex?: number;
   actionStates?: Record<string, FylloActionState>;
-  projectId?: string | null;
+  workspaceId?: string | null;
   streamStartedAt?: number | null;
 }>();
 
@@ -41,7 +41,7 @@ function buildActionContext(partIndex: number) {
   if (
     !props.enableActions ||
     !props.sessionId ||
-    !props.projectId ||
+    !props.workspaceId ||
     props.messageIndex === undefined ||
     props.messageIndex < 0
   ) {
@@ -49,7 +49,7 @@ function buildActionContext(partIndex: number) {
   }
 
   return {
-    projectId: props.projectId,
+    workspaceId: props.workspaceId,
     sessionId: props.sessionId,
     messageIndex: props.messageIndex,
     partIndex,

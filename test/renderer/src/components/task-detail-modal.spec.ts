@@ -18,7 +18,7 @@ const editorStub = {
 function buildTask(overrides: Partial<TaskItem> = {}): TaskItem {
   return {
     id: "task-1",
-    projectId: "project-1",
+    workspaceId: "project-1",
     title: "修复登录失败",
     description: { format: "plain_text", content: "第一行\n第二行" },
     status: "open",

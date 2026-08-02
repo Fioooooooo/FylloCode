@@ -56,7 +56,7 @@ describe("fyllo-action schemas", () => {
   it("accepts valid register input", () => {
     expect(
       registerFylloActionInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "chat:session-1:0:0:0",
         type: "task.create",
@@ -67,7 +67,7 @@ describe("fyllo-action schemas", () => {
   it("accepts valid transition input with error", () => {
     expect(
       transitionFylloActionInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionId: "chat:session-1:0:0:0",
         command: "fail",
@@ -80,7 +80,7 @@ describe("fyllo-action schemas", () => {
   it("accepts valid batch transition input", () => {
     expect(
       transitionFylloActionsInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionIds: ["chat:session-1:0:0:0", "chat:session-1:0:0:1"],
         command: "succeed",
@@ -95,7 +95,7 @@ describe("fyllo-action schemas", () => {
   it("rejects batch transition with empty actionIds", () => {
     expect(
       transitionFylloActionsInputSchema.safeParse({
-        projectId: "project-1",
+        workspaceId: "workspace-1",
         sessionId: "session-1",
         actionIds: [],
         command: "succeed",

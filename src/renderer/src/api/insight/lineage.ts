@@ -12,64 +12,64 @@ import type {
 import type { TaskItem } from "@shared/types/task";
 
 export const lineageApi = {
-  getBrowser(projectId: string): Promise<IpcResponse<LineageBrowserData>> {
-    return window.api.insight.lineage.getBrowser(projectId);
+  getBrowser(workspaceId: string): Promise<IpcResponse<LineageBrowserData>> {
+    return window.api.insight.lineage.getBrowser(workspaceId);
   },
 
   ensureTaskSubject(
-    projectId: string,
+    workspaceId: string,
     snapshot: LineageTaskSnapshot
   ): Promise<IpcResponse<Subject>> {
-    return window.api.insight.lineage.ensureTaskSubject(projectId, snapshot);
+    return window.api.insight.lineage.ensureTaskSubject(workspaceId, snapshot);
   },
 
   linkTaskSession(
-    projectId: string,
+    workspaceId: string,
     taskRef: LineageTaskRef,
     sessionId: string
   ): Promise<IpcResponse<Subject | null>> {
-    return window.api.insight.lineage.linkTaskSession(projectId, taskRef, sessionId);
+    return window.api.insight.lineage.linkTaskSession(workspaceId, taskRef, sessionId);
   },
 
   getByTask(
-    projectId: string,
+    workspaceId: string,
     ref: LineageTaskRef
   ): Promise<IpcResponse<TaskDownstreamProjection | null>> {
-    return window.api.insight.lineage.getByTask(projectId, ref);
+    return window.api.insight.lineage.getByTask(workspaceId, ref);
   },
 
   getBySession(
-    projectId: string,
+    workspaceId: string,
     sessionId: string
   ): Promise<IpcResponse<SessionLineageProjection | null>> {
-    return window.api.insight.lineage.getBySession(projectId, sessionId);
+    return window.api.insight.lineage.getBySession(workspaceId, sessionId);
   },
 
   createSessionTask(
-    projectId: string,
+    workspaceId: string,
     input: CreateSessionTaskInput
   ): Promise<IpcResponse<TaskItem>> {
-    return window.api.insight.lineage.createSessionTask(projectId, input);
+    return window.api.insight.lineage.createSessionTask(workspaceId, input);
   },
 
   readPlan(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return window.api.insight.lineage.readPlan(projectId, input);
+    return window.api.insight.lineage.readPlan(workspaceId, input);
   },
 
   savePlanBody(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string; body: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return window.api.insight.lineage.savePlanBody(projectId, input);
+    return window.api.insight.lineage.savePlanBody(workspaceId, input);
   },
 
   approvePlan(
-    projectId: string,
+    workspaceId: string,
     input: { sessionId: string; slug: string }
   ): Promise<IpcResponse<PlanDocument>> {
-    return window.api.insight.lineage.approvePlan(projectId, input);
+    return window.api.insight.lineage.approvePlan(workspaceId, input);
   },
 };

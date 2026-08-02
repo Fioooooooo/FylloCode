@@ -18,7 +18,7 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - MUST 将 renderer 页面定义为 `src/renderer/src/pages/` 下的 Vue SFC，并让 `vue-router/auto-routes` 生成 route records。Router 在 `src/renderer/src/config/auto-routes.ts` 中创建，并使用 `createWebHashHistory()` 适配 Electron renderer 导航。证据：`electron.vite.config.ts`、`src/renderer/src/config/auto-routes.ts`、`src/renderer/src/pages/`。
 - MUST 通过 `src/renderer/src/config/activity-bar.ts` 中的 `activityBarItems` 添加主应用导航，不要在组件里硬编码侧边栏入口。`ActivityBar.vue` 渲染该注册表，并根据 route path 计算 active 状态。证据：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`。
 - MUST 保持且仅保持一个默认 activity item，并保持 activity item 的 id 和 path 唯一。该注册表会在 dev/test 中强制默认项数量，renderer 测试会断言注册表形状。证据：`src/renderer/src/config/activity-bar.ts`、`test/renderer/src/config/activity-bar.spec.ts`。
-- MUST 使用 `ActivityBarItem.requiresProject` 表达项目门控导航。当 `useProjectStore().hasCurrentProject` 为 false 时，`ActivityBar.vue` 会禁用项目作用域的 item。证据：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`。
+- MUST 使用 `ActivityBarItem.requiresWorkspace` 表达 Workspace 门控导航。当 `useWorkspaceStore().hasCurrentWorkspace` 为 false 时，`ActivityBar.vue` 会禁用 Workspace 作用域的 item。证据：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`。
 
 ### API 与状态
 
@@ -29,8 +29,9 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - MUST 让每个 renderer store 只直接导入本 domain 的 API wrapper；如果需要组合其他 domain 的能力，应导入其他 domain 的 store 或由本 domain store 提供更高层 action。不得在 `src/renderer/src/stores/<domain>/**` 直接导入 `src/renderer/src/api/<other-domain>/**`。该规则由 `eslint.config.mjs` 强制。证据：`src/renderer/src/stores/session/session.ts`、`src/renderer/src/stores/automation/task.ts`、`eslint.config.mjs`。
 - SHOULD 让页面和组件通过所属流程的 store/composable 取数和提交动作，避免直接导入无关 domain 的 API wrapper。需要跨 domain 组合时，优先把组合逻辑收敛到拥有该页面流程的 store。证据：`src/renderer/src/pages/task.vue`、`src/renderer/src/stores/automation/task.ts`。
 - SHOULD 让页面、组件和关键 composable 的跨 domain store 组合保持流程所有权清晰；当组合逻辑开始承载业务流程，应收敛到 owner store action，而不是在页面里长期堆叠多个领域的细节。该约束通过 review 判断，不再由文件级 lint 白名单维护。证据：`src/renderer/src/pages/task.vue`、`src/renderer/src/stores/automation/task.ts`。
-- MUST 通过 `src/renderer/src/api/workspace/window.ts` 和 `useProjectStore().bootstrapWindowProject()` 绑定当前窗口的项目上下文。当前项目应来自 main 进程返回的 `WindowContext`；组件打开项目或文件夹时调用 project store 的 `openProjectWindow()` / `openFolderWindow()`，不要在组件中直接替换 `currentProject`。证据：`src/renderer/src/api/workspace/window.ts`、`src/renderer/src/stores/workspace/project.ts`、`src/renderer/src/bootstrap/tasks/projects.ts`、`src/renderer/src/components/welcome/WelcomeView.vue`、`src/renderer/src/components/layout/AppHeader.vue`。
-- MUST 在项目窗口上下文不可用、项目不存在或路径缺失时展示页面级错误状态，并清空当前项目会话状态，避免继续渲染过期项目数据。证据：`src/renderer/src/stores/workspace/project.ts`、`src/renderer/src/pages/index.vue`。
+- MUST 通过 `src/renderer/src/api/workspace/window.ts` 和 `useWorkspaceStore().bootstrapWindowWorkspace()` 绑定当前窗口的 Workspace 上下文。当前 Workspace 只能来自 main 返回的 `WindowContext`；组件打开 Workspace 或文件夹时调用 Workspace store 的 `openWorkspaceWindow()` / `openFolderWindow()`，不要在组件中直接替换 `currentWorkspace`。证据：`src/renderer/src/stores/workspace/workspace.ts`、`src/renderer/src/bootstrap/tasks/workspaces.ts`、`src/renderer/src/components/welcome/WelcomeView.vue`。
+- MUST 在 launcher context 中保持 `currentWorkspace` 为空；在 Workspace context 不可用、Workspace 不存在或 primary Folder path 缺失时展示页面级错误状态并清空 session state。Workspace bootstrap 必须在同一任务中按 context、Workspace list、当前 Workspace、session list 的顺序完成。证据：`src/renderer/src/stores/workspace/workspace.ts`、`test/renderer/src/stores/workspace/workspace.spec.ts`、`src/renderer/src/pages/index.vue`。
+- MUST 让 Workspace-scoped 异步结果绑定请求发起时的 `workspaceId` 和请求世代；切换 Workspace 后的迟到 list/detail 响应不得覆盖新 Workspace state，确认式删除和 Action 执行也必须拒绝 scope 已变化的操作。证据：`src/renderer/src/stores/session/session.ts`、`src/renderer/src/stores/insight/knowledge.ts`、`src/renderer/src/features/fyllo-action/application/use-fyllo-action-dispatcher.ts`、`src/renderer/src/pages/knowledge.vue`。
 
 ### Bootstrap
 
