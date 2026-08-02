@@ -51,7 +51,18 @@ function createHarness(overrides: Partial<LocalFilePreviewServiceDependencies> =
   };
   const service = new LocalFilePreviewService(dependencies);
   const sender = new FakeSender(7);
-  const context = { workspaceId: "workspace-1", folderPath: "/project", sender };
+  const context = {
+    workspaceId: "workspace-1",
+    availableFolders: [
+      {
+        folderId: "folder-1",
+        folderName: "Project",
+        folderPath: "/project",
+        pathMissing: false,
+      },
+    ],
+    sender,
+  };
   return {
     service,
     dependencies,
@@ -143,6 +154,122 @@ describe("LocalFilePreviewService", () => {
         worktreeHarness.context
       )
     ).resolves.toMatchObject({ status: "ready" });
+  });
+
+  it("opens files from every available member and projects the owning Folder", async () => {
+    const harness = createHarness({
+      canonicalizePath: vi.fn(async (path: string) => `/canonical${path}`),
+      resolveTarget: vi.fn().mockResolvedValue({
+        ...baseTarget,
+        canonicalPath: "/canonical/secondary/src/app.ts",
+      }),
+      readFile: vi.fn().mockResolvedValue({
+        ...baseSnapshot,
+        canonicalPath: "/canonical/secondary/src/app.ts",
+      }),
+    });
+    harness.context.availableFolders = [
+      {
+        folderId: "folder-primary",
+        folderName: "Primary",
+        folderPath: "/primary",
+        pathMissing: false,
+      },
+      {
+        folderId: "folder-secondary",
+        folderName: "Secondary",
+        folderPath: "/secondary",
+        pathMissing: false,
+      },
+    ];
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: externalPath }, harness.context)
+    ).resolves.toMatchObject({
+      status: "ready",
+      document: {
+        owner: { folderId: "folder-secondary", worktreePath: "/secondary" },
+      },
+    });
+    expect(harness.dependencies.listWorktrees).toHaveBeenCalledTimes(2);
+  });
+
+  it("excludes missing members because only availableFolders enter the trust context", async () => {
+    const harness = createHarness({
+      resolveTarget: vi.fn().mockResolvedValue({
+        ...baseTarget,
+        canonicalPath: "/canonical/missing/src/app.ts",
+      }),
+    });
+    harness.context.availableFolders = [
+      {
+        folderId: "folder-1",
+        folderName: "Project",
+        folderPath: "/project",
+        pathMissing: false,
+      },
+    ];
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: externalPath }, harness.context)
+    ).resolves.toMatchObject({ status: "confirmation-required" });
+    expect(harness.dependencies.listWorktrees).toHaveBeenCalledWith("/project");
+    expect(harness.dependencies.listWorktrees).not.toHaveBeenCalledWith("/missing");
+  });
+
+  it("uses the longest canonical root when a registered worktree is nested", async () => {
+    const canonicalPath = "/canonical/project/packages/nested/src/app.ts";
+    const harness = createHarness({
+      canonicalizePath: vi.fn(async (path: string) => `/canonical${path}`),
+      listWorktrees: vi.fn().mockResolvedValue({ paths: ["/project/packages/nested"] }),
+      resolveTarget: vi.fn().mockResolvedValue({ ...baseTarget, canonicalPath }),
+      readFile: vi.fn().mockResolvedValue({ ...baseSnapshot, canonicalPath }),
+    });
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: externalPath }, harness.context)
+    ).resolves.toMatchObject({
+      status: "ready",
+      document: {
+        owner: {
+          folderId: "folder-1",
+          worktreePath: "/project/packages/nested",
+        },
+      },
+    });
+  });
+
+  it("keeps healthy members when another Folder root cannot be canonicalized", async () => {
+    const canonicalPath = "/canonical/healthy/src/app.ts";
+    const harness = createHarness({
+      canonicalizePath: vi.fn(async (path: string) => {
+        if (path === "/missing") throw new Error("ENOENT");
+        return `/canonical${path}`;
+      }),
+      resolveTarget: vi.fn().mockResolvedValue({ ...baseTarget, canonicalPath }),
+      readFile: vi.fn().mockResolvedValue({ ...baseSnapshot, canonicalPath }),
+    });
+    harness.context.availableFolders = [
+      {
+        folderId: "folder-missing",
+        folderName: "Missing",
+        folderPath: "/missing",
+        pathMissing: false,
+      },
+      {
+        folderId: "folder-healthy",
+        folderName: "Healthy",
+        folderPath: "/healthy",
+        pathMissing: false,
+      },
+    ];
+
+    await expect(
+      harness.service.preparePreview({ requestedPath: externalPath }, harness.context)
+    ).resolves.toMatchObject({
+      status: "ready",
+      document: { owner: { folderId: "folder-healthy", worktreePath: "/healthy" } },
+    });
   });
 
   it("treats a canonical symlink escape as external and returns no content", async () => {

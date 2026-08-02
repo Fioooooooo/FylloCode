@@ -1,6 +1,7 @@
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand } from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 export interface ProbeEntry {
   workspaceId: string;
@@ -10,6 +11,7 @@ export interface ProbeEntry {
   acpSessionId: string | null;
   configOptions: AcpSessionConfigOption[];
   availableCommands: AcpAvailableCommand[];
+  workspaceSnapshot: SessionWorkspaceSnapshot;
   error?: { code: string; message: string };
   startedAt: number;
   inflightEnsure?: Promise<ProbeEntry>;
@@ -41,6 +43,15 @@ class SessionProbeRegistry {
     }
     this.entries.delete(key);
     return entry;
+  }
+
+  getForPromotion(
+    workspaceId: string,
+    agentId: string,
+    expectedAcpSessionId: string
+  ): ProbeEntry | null {
+    const entry = this.get(workspaceId, agentId);
+    return entry?.acpSessionId === expectedAcpSessionId ? entry : null;
   }
 
   deleteWorkspace(workspaceId: string): ProbeEntry[] {

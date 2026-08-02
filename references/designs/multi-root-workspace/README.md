@@ -1566,14 +1566,9 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### Phase 3：ACP multi-root session
 
-- capability cache/selectors 支持 additionalDirectories。
-- ChatEmpty picker 过滤和说明状态。
-- probe/new/load/resume lifecycle 传递 Folder paths。
-- SessionWorkspaceSnapshot 持久化。
-- local preview 从 sender 解析 Workspace，并按每次请求的 `availableFolders` 并行建立 member/worktree trusted roots；missing 成员排除，单成员 Git 探测失败只降级该成员 worktrees。
-- Chat preview 将实时 Window trust 与 Session snapshot 分开表达：响应标记 `authorized | window-only`，header 显示 scope diff；`window-only` target 不得发送给旧 Session Agent。
-- Session attachment copy 使用 Workspace/Session-scoped opaque handle；member file resource link 使用 `folderId + worktreePath + repositoryRelativePath` 并服从 Session snapshot。
-- system reminder 从 Session snapshot 注入完整 Workspace 授权列表，使用结构化安全编码、显示名称截断与总字节上限；stale activation 在 reminder 注入前失败。
+- Agent capability 三态门控、picker、ACP lifecycle 目录参数、Session snapshot/stale 校验、安全 reminder、附件/member resource 与 apply/archive owner-only 文件系统范围 → `add-acp-multi-root-sessions` proposal / `acp-multi-root-session`、`acp-agent-capability-cache` specs。
+- multi-member local preview、owner projection 与 Window trust / Agent Session scope 分离 → `add-acp-multi-root-sessions` proposal / `local-file-link-preview` spec。
+- Collection Chat capability 与 Session/current scope UI → `add-acp-multi-root-sessions` proposal / `workspace-window` spec。
 
 退出条件：需要附加目录时只有兼容 Agent 可以创建、恢复 Workspace chat；没有附加目录时不兼容 Agent 仍可按单 root session 使用。
 
@@ -1707,28 +1702,15 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - member removal；
 - active Session 引用成员时移除被阻止；非 active Session 不阻止移除，但确认界面列出受影响 Session，移除后恢复返回 `SESSION_FOLDER_REMOVED`，重新加入同一 Folder 后才允许继续执行 path stale 检测；
 - task target 不阻止成员移除；移除后保留 stale ID、UI 显示失效数量，原始多 target 不因过滤后只剩一个而自动预选 owner；
-- local preview 从 sender Workspace 的全部 available Folders 建立 trusted roots，missing 成员排除；
-- 多成员 worktree 枚举并行执行；单成员失败只移除该成员 worktrees 并保留其 canonical folderPath，folderPath canonicalize 失败时排除该成员；
-- member/worktree-derived trust 不写 remembered grant；Folder 重定位后旧 root 不再自动可信，新 root 在下一次请求生效；Workspace 外 user-confirmed exact-path grant 不跨 Workspace/window 复用；
-- linked worktree 文件同时命中 Folder root 与 worktree root 时，longest match 返回该 Folder 的具体 worktree，而不是任意首个 Folder root；
+- multi-member local preview、per-member worktree degradation、member-derived trust、external exact-path grant 与 longest owner match → `add-acp-multi-root-sessions` proposal / `local-file-link-preview` spec；
 - Workspace watcher/stream/probe key isolation → `introduce-workspace-model` proposal / `workspace-window` spec；
 - partial repository scan。
 
 ### 23.4 ACP
 
-- 无附加目录时的普通 picker，以及有附加目录时支持、不支持、能力未知的 picker；
-- probe/new/load/resume 的 cwd/additionalDirectories；
-- Session snapshot（含 `folderName`）不随 Workspace 编辑变化；Chat/probe reminder 只从该 snapshot 投影，不回查 registry 扩张或改写；
-- primary change 只影响新 session；
-- snapshot member 已移出当前 Workspace 时，resume/load、MCP descriptor、reminder 与结构化 resource ref 均返回 `SESSION_FOLDER_REMOVED`，即使 Folder 仍存在于全局 registry 也不得恢复或裁剪授权；
-- missing/relocated snapshot folder path 分别返回明确恢复错误，修复或重定位后仍需新建 Session；
-- 旧 Session 中预览新增/恢复成员或 external exact grant 时，文件可按 Window trust 查看但响应标为 `window-only`，Chat header 显示 Session/current scope 差异，且不能把该 target 发送为 Agent resource；
-- reminder Workspace JSON 使用 `JSON.stringify` 与尖括号编码；恶意 `folderName` 不能闭合外层 tag，超长名称按 120 code point 规则截断，授权列表不分页不省略；
-- reminder JSON 超过 64 KiB 时 activation 以 `WORKSPACE_REMINDER_TOO_LARGE` 失败，不发送截断路径；
-- apply/archive reminder 只使用 run 固定 owner 与 worktree target，不从当前 Workspace registry 或 primary 重选；
-- attachment copy 使用 Workspace/Session-scoped opaque handle，成员移除、Folder 重定位或原文件删除后仍可读；跨 Workspace/Session handle 与任意 renderer `file://` URI 被拒绝；
-- member file resource link 校验 `folderId + worktreePath + repositoryRelativePath` 与 Session snapshot；重定位、missing、worktree 移除和 relative path 逃逸均返回明确错误，不回退或重映射；
-- apply/archive 不获得其他成员的 folder paths。
+- picker/capability 三态、probe/new/load/resume 目录集合、Session snapshot/stale error、Chat/probe reminder、preview scope、opaque attachment、member file resource 与 apply/archive owner-only Folder paths → `add-acp-multi-root-sessions` proposal / `acp-multi-root-session`、`acp-agent-capability-cache`、`local-file-link-preview`、`workspace-window` specs；
+- Session snapshot 到 MCP descriptor、bundled MCP activation allowlist 与 stale grant 的投影 → 待 `add-multi-root-mcp-workspace` proposal / MCP Workspace v2 spec；
+- apply/archive reminder 从 run 固定 owner/worktree target 投影且不重选 current primary → 待 `make-openspec-proposals-repository-owned` proposal / repository-owned proposal spec。
 
 ### 23.5 MCP
 
@@ -1786,9 +1768,9 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - Collection Workspace 即使只有一个 Folder 也保持 collection UI；
 - create/edit primary/member；
 - degraded Workspace warning；
-- Agent picker gating；
+- Agent picker gating → `add-acp-multi-root-sessions` proposal / `acp-agent-capability-cache`、`workspace-window` specs；
 - route meta 与 activity bar 使用同一 `requiresWorkspace`/capability evaluator；secondary member missing 不禁用 task/knowledge/workflow；
-- Chat header 使用 Session snapshot 展示 Agent scope，并区分 current-only、snapshot-only、primary 与名称变化；实时 preview 的 `window-only` target 不得被误呈现为 Agent 已授权；
+- Chat header 的 Session/current scope diff 与 `window-only` preview 呈现 → `add-acp-multi-root-sessions` proposal / `workspace-window`、`local-file-link-preview` specs；
 - repository filter 和 owner badge；
 - 同名 proposal detail；
 - 同名 spec/guideline 的 composite selection；Folder-level missing/error/empty state；

@@ -44,7 +44,7 @@ describe("useLocalFilePreview", () => {
   });
 
   it("creates the global slideover only when open is invoked", async () => {
-    const preview = useLocalFilePreview();
+    const preview = useLocalFilePreview({ sessionId: "session-1" });
 
     expect(mocks.create).not.toHaveBeenCalled();
     const opening = preview.openLocalFilePreview("/project/file.ts");
@@ -63,6 +63,7 @@ describe("useLocalFilePreview", () => {
     expect(isRef(Reflect.get(reactive(openProps).controller, "state"))).toBe(true);
     expect(mocks.preparePreview).toHaveBeenCalledWith({
       requestedPath: "/project/file.ts",
+      sessionId: "session-1",
     });
 
     mocks.resolveResult();

@@ -168,17 +168,25 @@ export interface ResolvedRepositoryTarget {
   worktreePath: string;
 }
 
-export interface SessionWorkspaceFolderSnapshot {
-  folderId: string;
-  folderName: string;
-  folderPath: string;
-}
+export const sessionWorkspaceFolderSnapshotSchema = z
+  .object({
+    folderId: z.string().min(1),
+    folderName: z.string().min(1),
+    folderPath: z.string().min(1),
+  })
+  .passthrough();
 
-export interface SessionWorkspaceSnapshot {
-  workspaceId: string;
-  workspaceKind: WorkspaceKind;
-  primaryFolderId: string;
-  folders: SessionWorkspaceFolderSnapshot[];
-  cwd: string;
-  additionalDirectories: string[];
-}
+export type SessionWorkspaceFolderSnapshot = z.infer<typeof sessionWorkspaceFolderSnapshotSchema>;
+
+export const sessionWorkspaceSnapshotSchema = z
+  .object({
+    workspaceId: z.string().min(1),
+    workspaceKind: workspaceKindSchema,
+    primaryFolderId: z.string().min(1),
+    folders: z.array(sessionWorkspaceFolderSnapshotSchema).min(1),
+    cwd: z.string().min(1),
+    additionalDirectories: z.array(z.string().min(1)),
+  })
+  .passthrough();
+
+export type SessionWorkspaceSnapshot = z.infer<typeof sessionWorkspaceSnapshotSchema>;

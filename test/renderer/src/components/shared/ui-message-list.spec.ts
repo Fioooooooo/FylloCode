@@ -960,7 +960,34 @@ describe("UIMessageList", () => {
     expect(wrapper.text()).toContain("assistant output");
   });
 
-  it("resolves file:// image parts through chatApi.readAttachmentDataUrl", async () => {
+  it("resolves opaque image attachments through chatApi.readAttachmentDataUrl", async () => {
+    const wrapper = mountList([
+      userMessage([
+        {
+          type: "attachment",
+          attachmentId: "11111111-1111-4111-8111-111111111111",
+          mediaType: "image/png",
+          filename: "截图 1.png",
+        } as never,
+      ]),
+    ]);
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(chatApi.readAttachmentDataUrl)).toHaveBeenCalledWith(
+        "project-1",
+        "session-1",
+        "11111111-1111-4111-8111-111111111111",
+        "image/png"
+      );
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-test="user-message-image-card"] img').attributes("src")).toBe(
+        "data:image/png;base64,AAAA"
+      );
+    });
+  });
+
+  it("does not resolve legacy file image URLs through IPC", () => {
     const wrapper = mountList([
       userMessage([
         {
@@ -972,17 +999,8 @@ describe("UIMessageList", () => {
       ]),
     ]);
 
-    await vi.waitFor(() => {
-      expect(vi.mocked(chatApi.readAttachmentDataUrl)).toHaveBeenCalledWith(
-        "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
-        "image/png"
-      );
-    });
-    await vi.waitFor(() => {
-      expect(wrapper.get('[data-test="user-message-image-card"] img').attributes("src")).toBe(
-        "data:image/png;base64,AAAA"
-      );
-    });
+    expect(vi.mocked(chatApi.readAttachmentDataUrl)).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="user-message-image-card"] img').attributes("src")).toBe("");
   });
 
   it("uses non-file image URLs directly without IPC", () => {

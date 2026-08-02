@@ -7,6 +7,12 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { resolveWorkspace } from "@main/services/workspace/_public";
 import {
+  createSessionWorkspaceSnapshot,
+  validateSessionWorkspaceSnapshot,
+} from "@main/domain/session/chat/session-workspace-snapshot";
+import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
+import {
   appendMessage,
   createSessionMeta,
   deleteSession as deleteSessionStore,
@@ -22,6 +28,19 @@ import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 
 export async function resolveWorkspaceCwd(workspaceId: string): Promise<string> {
   return (await resolveWorkspace(workspaceId)).cwd;
+}
+
+export async function assertSessionBelongsToWorkspace(
+  workspaceId: string,
+  sessionId: string
+): Promise<void> {
+  if (!(await loadSessionMeta(workspaceId, sessionId))) {
+    throw ipcError(
+      IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+      "Session does not belong to the sender Workspace",
+      { workspaceId, sessionId }
+    );
+  }
 }
 
 // SessionMeta 只保存元数据，返回给 renderer 的 Session 默认 status 为 "ended"。
@@ -43,6 +62,7 @@ export function toSession(meta: SessionMeta, workspaceId: string): Session {
     configOptions: meta.configOptions,
     actionStates: meta.actionStates,
     originTaskRef: meta.originTaskRef,
+    workspaceSnapshot: meta.workspaceSnapshot,
   };
 }
 
@@ -64,14 +84,19 @@ export async function createSession(input: {
   acpSessionId?: string;
   fylloSessionId?: string;
   taskRef?: LineageTaskRef;
+  workspaceSnapshot?: SessionWorkspaceSnapshot;
 }): Promise<Session> {
   const now = new Date();
+  const workspaceSnapshot = input.workspaceSnapshot
+    ? validateSessionWorkspaceSnapshot(input.workspaceSnapshot)
+    : createSessionWorkspaceSnapshot(await resolveWorkspace(input.workspaceId));
   const meta: SessionMeta = {
     sessionId: input.fylloSessionId ? input.fylloSessionId : newSessionId(),
     agentId: input.agentId,
     title: input.title,
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },
+    workspaceSnapshot,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -91,6 +116,36 @@ export async function createSession(input: {
   }
   await createSessionMeta(input.workspaceId, meta);
   return toSession(meta, input.workspaceId);
+}
+
+export async function ensureSessionWorkspaceSnapshot(
+  workspaceId: string,
+  sessionId: string
+): Promise<SessionWorkspaceSnapshot> {
+  const meta = await loadSessionMeta(workspaceId, sessionId);
+  if (!meta) {
+    throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
+  }
+
+  if (meta.workspaceSnapshot) {
+    return assertSessionWorkspaceSnapshotCurrent(meta.workspaceSnapshot);
+  }
+
+  const workspace = await resolveWorkspace(workspaceId);
+  if (workspace.workspaceKind !== "folder") {
+    throw ipcError(
+      IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+      "This legacy Collection Workspace Session has no directory snapshot; create a new Session",
+      { workspaceId, sessionId }
+    );
+  }
+
+  const snapshot = createSessionWorkspaceSnapshot(workspace);
+  const patched = await patchSessionMeta(workspaceId, sessionId, { workspaceSnapshot: snapshot });
+  if (!patched) {
+    throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
+  }
+  return assertSessionWorkspaceSnapshotCurrent(snapshot);
 }
 
 export async function updateSession(input: {

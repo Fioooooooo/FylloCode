@@ -31,6 +31,7 @@ export interface ActivateAcpSessionParams {
   initializeResponse: InitializeResponse;
   persistedSessionId: string | null;
   cwd: string;
+  additionalDirectories: string[];
   mcpServers: AcpMcpServers;
   allowFreshSession: boolean;
   onLoadStart?: (sessionId: string) => void;
@@ -44,6 +45,7 @@ export async function activateAcpSession({
   initializeResponse,
   persistedSessionId,
   cwd,
+  additionalDirectories,
   mcpServers,
   allowFreshSession,
   onLoadStart,
@@ -60,6 +62,7 @@ export async function activateAcpSession({
       const response = await connection.resumeSession({
         sessionId: persistedSessionId,
         cwd,
+        additionalDirectories,
         mcpServers,
       });
       checkCancelled?.("after resumeSession");
@@ -87,6 +90,7 @@ export async function activateAcpSession({
       const response = await connection.loadSession({
         sessionId: persistedSessionId,
         cwd,
+        additionalDirectories,
         mcpServers,
       });
       checkCancelled?.("after loadSession");
@@ -119,7 +123,7 @@ export async function activateAcpSession({
   }
 
   checkCancelled?.("before newSession");
-  const created = await connection.newSession({ cwd, mcpServers });
+  const created = await connection.newSession({ cwd, additionalDirectories, mcpServers });
   onNewSessionCreated?.(created.sessionId);
   checkCancelled?.("after newSession");
   if (persistedSessionId && persistedSessionId !== created.sessionId) {

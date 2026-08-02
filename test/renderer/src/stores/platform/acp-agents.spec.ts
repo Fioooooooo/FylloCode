@@ -125,6 +125,7 @@ describe("useAcpAgentsStore", () => {
             resume: { _meta: { strategy: "remote" } },
             _meta: { history: "remote" },
           },
+          capabilityCompleteness: "complete",
           capturedAgentVersion: "1.2.3",
           capturedAt: "2026-07-28T00:00:00.000Z",
         },
@@ -137,6 +138,7 @@ describe("useAcpAgentsStore", () => {
         promptCapabilities: { image: false, audio: true, embeddedContext: false },
         mcpCapabilities: { sse: true },
         sessionCapabilities: { list: {} },
+        capabilityCompleteness: "complete",
         capturedAgentVersion: "1.2.3",
         capturedAt: "2026-07-28T01:00:00.000Z",
       },
@@ -305,6 +307,7 @@ describe("useAcpAgentsStore", () => {
       data: {
         "claude-code": {
           promptCapabilities: { image: true, audio: false, embeddedContext: false },
+          capabilityCompleteness: "partial",
           capturedAgentVersion: "1.2.3",
           capturedAt: "2026-07-20T00:00:00.000Z",
         },
@@ -316,6 +319,7 @@ describe("useAcpAgentsStore", () => {
 
     expect(store.capabilitiesByAgent.get("claude-code")).toEqual({
       promptCapabilities: { image: true, audio: false, embeddedContext: false },
+      capabilityCompleteness: "partial",
       capturedAgentVersion: "1.2.3",
       capturedAt: "2026-07-20T00:00:00.000Z",
     });
@@ -324,6 +328,58 @@ describe("useAcpAgentsStore", () => {
       audio: false,
       embeddedContext: false,
     });
+    expect(store.getAdditionalDirectoriesCapability("claude-code")).toBe("unknown");
+  });
+
+  it("distinguishes supported, unsupported and unknown additional directories capability", async () => {
+    const store = useAcpAgentsStore();
+
+    expect(store.getAdditionalDirectoriesCapability("missing-agent")).toBe("unknown");
+
+    await store.loadCapabilitiesCache();
+    expect(store.getAdditionalDirectoriesCapability("claude-code")).toBe("unsupported");
+
+    store.capabilitiesByAgent.set("supported-agent", {
+      sessionCapabilities: { additionalDirectories: {} },
+      capabilityCompleteness: "complete",
+      capturedAgentVersion: "1.0.0",
+      capturedAt: "2026-07-28T00:00:00.000Z",
+    });
+    expect(store.getAdditionalDirectoriesCapability("supported-agent")).toBe("supported");
+  });
+
+  it("allows every capability state for a single-root snapshot", async () => {
+    const store = useAcpAgentsStore();
+    const singleRoot = { additionalDirectories: [] };
+
+    expect(store.getAgentWorkspaceCompatibility("missing-agent", singleRoot)).toBe("supported");
+    await store.loadCapabilitiesCache();
+    expect(store.getAgentWorkspaceCompatibility("claude-code", singleRoot)).toBe("supported");
+
+    store.capabilitiesByAgent.set("supported-agent", {
+      sessionCapabilities: { additionalDirectories: {} },
+      capabilityCompleteness: "complete",
+      capturedAgentVersion: "1.0.0",
+      capturedAt: "2026-07-28T00:00:00.000Z",
+    });
+    expect(store.getAgentWorkspaceCompatibility("supported-agent", singleRoot)).toBe("supported");
+  });
+
+  it("requires supported additional directories for a multi-root snapshot", async () => {
+    const store = useAcpAgentsStore();
+    const multiRoot = { additionalDirectories: ["/tmp/secondary"] };
+
+    expect(store.getAgentWorkspaceCompatibility("missing-agent", multiRoot)).toBe("unknown");
+    await store.loadCapabilitiesCache();
+    expect(store.getAgentWorkspaceCompatibility("claude-code", multiRoot)).toBe("unsupported");
+
+    store.capabilitiesByAgent.set("supported-agent", {
+      sessionCapabilities: { additionalDirectories: {} },
+      capabilityCompleteness: "complete",
+      capturedAgentVersion: "1.0.0",
+      capturedAt: "2026-07-28T00:00:00.000Z",
+    });
+    expect(store.getAgentWorkspaceCompatibility("supported-agent", multiRoot)).toBe("supported");
   });
 
   it("uses stale-while-revalidate detectStatus during bootstrap", async () => {

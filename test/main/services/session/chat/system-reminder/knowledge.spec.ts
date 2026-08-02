@@ -63,6 +63,14 @@ async function resolveChatReminder(): Promise<string> {
     cwd: projectDir,
     fylloSessionId: "session-1",
     agentId: "claude-acp",
+    workspaceSnapshot: {
+      workspaceId: "workspace-1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: projectDir }],
+      cwd: projectDir,
+      additionalDirectories: [],
+    },
   });
   return reminder?.text ?? "";
 }

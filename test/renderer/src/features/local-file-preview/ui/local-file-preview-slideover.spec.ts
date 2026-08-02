@@ -1,5 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { shallowRef } from "vue";
+import { computed, shallowRef } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMonaco } from "stream-monaco";
 import LocalFilePreviewSlideover from "@renderer/features/local-file-preview/ui/LocalFilePreviewSlideover.vue";
@@ -53,6 +53,7 @@ const tooltipStub = {
 function controller(initial: LocalFilePreviewState): LocalFilePreviewController {
   return {
     state: shallowRef(initial),
+    canUseAsAgentResource: computed(() => false),
     open: vi.fn(),
     confirm: vi.fn(),
     cancel: vi.fn(),
@@ -90,6 +91,27 @@ describe("LocalFilePreviewSlideover", () => {
     await flushPromises();
 
     expect(monacoMocks.createEditor).not.toHaveBeenCalled();
+  });
+
+  it("warns when a ready document is window-only", async () => {
+    const preview = controller({
+      status: "ready",
+      agentScope: "window-only",
+      document: {
+        requestedPath: "/outside/file.ts",
+        canonicalPath: "/outside/file.ts",
+        content: "const value = 1;",
+        language: "typescript",
+        size: 16,
+        mtimeMs: 10,
+      },
+    });
+    const wrapper = mount(LocalFilePreviewSlideover, { props: { controller: preview } });
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="preview-window-only-warning"]').text()).toContain(
+      "不能作为 Agent resource 发送"
+    );
   });
 
   it("offers one-time and window-trust confirmation choices", async () => {

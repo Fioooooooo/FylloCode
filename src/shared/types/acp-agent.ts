@@ -121,11 +121,15 @@ export interface AcpPromptCapabilities {
   embeddedContext: boolean;
 }
 
+export type AcpCapabilitySnapshotCompleteness = "complete" | "partial";
+export type AdditionalDirectoriesCapability = "supported" | "unsupported" | "unknown";
+
 export interface AcpAgentCapabilitySnapshot {
   authMethods?: AuthMethod[];
   promptCapabilities?: PromptCapabilities;
   mcpCapabilities?: McpCapabilities;
   sessionCapabilities?: SessionCapabilities;
+  capabilityCompleteness?: AcpCapabilitySnapshotCompleteness;
   capturedAgentVersion: string;
   capturedAt: string;
 }
@@ -142,6 +146,16 @@ export function normalizePromptCapabilities(input?: {
     audio: input?.audio === true,
     embeddedContext: input?.embeddedContext === true,
   };
+}
+
+export function resolveAdditionalDirectoriesCapability(
+  snapshot: AcpAgentCapabilitySnapshot | null | undefined
+): AdditionalDirectoriesCapability {
+  if (!snapshot || snapshot.capabilityCompleteness !== "complete") {
+    return "unknown";
+  }
+
+  return snapshot.sessionCapabilities?.additionalDirectories != null ? "supported" : "unsupported";
 }
 
 // distribution.package 可能携带版本/标签后缀（如 @scope/pkg@1.2.3、pkg@latest），

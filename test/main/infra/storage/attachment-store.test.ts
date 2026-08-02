@@ -1,11 +1,7 @@
-import { existsSync, promises as fsPromises, readFileSync, rmSync } from "fs";
-import { join } from "path";
-import { pathToFileURL } from "url";
+import { existsSync, rmSync } from "fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  readAttachmentDataUrlInputSchema,
-  saveAttachmentInputSchema,
-} from "@shared/ipc/session/chat.schemas";
+import { saveAttachmentInputSchema } from "@shared/ipc/session/chat.schemas";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -47,9 +43,12 @@ describe("attachment-store", () => {
 
     expect(saved.name).toBe("截图 demo.png");
     expect(saved.mimeType).toBe("image/png");
-    expect(saved.absolutePath).toMatch(/\.png$/);
-    expect(saved.fileUri).toMatch(/^file:\/\//);
-    expect(readFileSync(saved.absolutePath, "utf8")).toBe("image-data");
+    expect(saved.attachmentId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(saved).not.toHaveProperty("absolutePath");
+    expect(saved).not.toHaveProperty("fileUri");
+    await expect(
+      readAttachmentDataUrl(workspaceId, "session-1", saved.attachmentId, "image/png")
+    ).resolves.toBe(`data:image/png;base64,${Buffer.from("image-data").toString("base64")}`);
   });
 
   it("uses the mime subtype as extension when the original file has no extension", async () => {
@@ -61,18 +60,29 @@ describe("attachment-store", () => {
       Buffer.from("hello").toString("base64")
     );
 
-    expect(saved.absolutePath).toMatch(/\.markdown$/);
+    await expect(
+      readAttachmentDataUrl(workspaceId, "session-1", saved.attachmentId, "text/markdown")
+    ).resolves.toContain(Buffer.from("hello").toString("base64"));
   });
 
-  it("reads a file:// image attachment into a data URL", async () => {
-    const attachmentDir = join(tempRoot, "附件 目录");
-    const filePath = join(attachmentDir, "截图 1.png");
-    await fsPromises.mkdir(attachmentDir, { recursive: true });
-    await fsPromises.writeFile(filePath, Buffer.from("image-data"));
+  it("rejects cross-Workspace, cross-Session and path-like handle access", async () => {
+    const saved = await saveAttachment(
+      workspaceId,
+      "session-1",
+      "image.png",
+      "image/png",
+      Buffer.from("image-data").toString("base64")
+    );
 
     await expect(
-      readAttachmentDataUrl(pathToFileURL(filePath).toString(), "image/png")
-    ).resolves.toBe(`data:image/png;base64,${Buffer.from("image-data").toString("base64")}`);
+      readAttachmentDataUrl("other-workspace", "session-1", saved.attachmentId, "image/png")
+    ).rejects.toMatchObject({ code: IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND });
+    await expect(
+      readAttachmentDataUrl(workspaceId, "other-session", saved.attachmentId, "image/png")
+    ).rejects.toMatchObject({ code: IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND });
+    await expect(
+      readAttachmentDataUrl(workspaceId, "session-1", "../../outside", "image/png")
+    ).rejects.toMatchObject({ code: IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND });
   });
 
   it("rejects attachments larger than 25MB at the IPC schema boundary", () => {
@@ -87,30 +97,6 @@ describe("attachment-store", () => {
     expect(saveAttachmentInputSchema.safeParse(payload).success).toBe(false);
   });
 
-  it("validates readAttachmentDataUrl input without a size limit", () => {
-    expect(
-      readAttachmentDataUrlInputSchema.safeParse({
-        uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
-        mediaType: "image/png",
-      }).success
-    ).toBe(true);
-    expect(
-      readAttachmentDataUrlInputSchema.safeParse({
-        uri: "https://example.com/x.png",
-        mediaType: "image/png",
-      }).success
-    ).toBe(false);
-    expect(
-      readAttachmentDataUrlInputSchema.safeParse({
-        uri: "file:///tmp/doc.pdf",
-        mediaType: "application/pdf",
-      }).success
-    ).toBe(false);
-    expect(readAttachmentDataUrlInputSchema.safeParse({ uri: "file:///tmp/x.png" }).success).toBe(
-      false
-    );
-  });
-
   it("removes session attachments and ignores missing directories", async () => {
     const saved = await saveAttachment(
       workspaceId,
@@ -121,7 +107,12 @@ describe("attachment-store", () => {
     );
 
     await removeSessionAttachments(workspaceId, "session-1");
-    expect(existsSync(saved.absolutePath)).toBe(false);
+    await expect(
+      readAttachmentDataUrl(workspaceId, "session-1", saved.attachmentId, "text/plain")
+    ).rejects.toMatchObject({ code: IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND });
+    expect(existsSync(`${tempRoot}/workspaces/${workspaceId}/sessions/session-1/attachments`)).toBe(
+      false
+    );
     await expect(removeSessionAttachments(workspaceId, "missing")).resolves.toBeUndefined();
   });
 });

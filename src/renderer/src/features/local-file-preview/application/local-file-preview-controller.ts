@@ -1,10 +1,11 @@
-import { shallowRef, type ShallowRef } from "vue";
+import { computed, shallowRef, type ComputedRef, type ShallowRef } from "vue";
 import type { LocalFilePreviewState } from "../model/preview-state";
 import type { WorkspaceDocumentPreviewPort } from "./ports";
 
 export interface LocalFilePreviewController {
   state: ShallowRef<LocalFilePreviewState>;
-  open(requestedPath: string): Promise<void>;
+  canUseAsAgentResource: ComputedRef<boolean>;
+  open(requestedPath: string, context?: { sessionId?: string }): Promise<void>;
   confirm(input: { rememberForWindow: boolean }): Promise<void>;
   cancel(): void;
   dispose(): void;
@@ -23,13 +24,24 @@ export function createLocalFilePreviewController(
   port: WorkspaceDocumentPreviewPort
 ): LocalFilePreviewController {
   const state = shallowRef<LocalFilePreviewState>({ status: "idle" });
+  const canUseAsAgentResource = computed(
+    () =>
+      state.value.status === "ready" &&
+      state.value.agentScope === "authorized" &&
+      state.value.document.owner !== undefined
+  );
   let generation = 0;
+  let comparisonSessionId: string | undefined;
 
-  async function open(requestedPath: string): Promise<void> {
+  async function open(requestedPath: string, context: { sessionId?: string } = {}): Promise<void> {
+    comparisonSessionId = context.sessionId;
     const requestGeneration = ++generation;
     state.value = { status: "loading", requestedPath };
     try {
-      const result = await port.preparePreview({ requestedPath });
+      const result = await port.preparePreview({
+        requestedPath,
+        ...(comparisonSessionId ? { sessionId: comparisonSessionId } : {}),
+      });
       if (requestGeneration !== generation) return;
       state.value = result.ok ? result.data : ipcErrorState(requestedPath, result.error.message);
     } catch (error: unknown) {
@@ -51,6 +63,7 @@ export function createLocalFilePreviewController(
       const result = await port.confirmPreview({
         authorizationId: current.authorizationId,
         rememberForWindow: input.rememberForWindow,
+        ...(comparisonSessionId ? { sessionId: comparisonSessionId } : {}),
       });
       if (requestGeneration !== generation) return;
       state.value = result.ok
@@ -67,6 +80,7 @@ export function createLocalFilePreviewController(
 
   function cancel(): void {
     generation += 1;
+    comparisonSessionId = undefined;
     state.value = { status: "idle" };
   }
 
@@ -74,5 +88,5 @@ export function createLocalFilePreviewController(
     cancel();
   }
 
-  return { state, open, confirm, cancel, dispose };
+  return { state, canUseAsAgentResource, open, confirm, cancel, dispose };
 }

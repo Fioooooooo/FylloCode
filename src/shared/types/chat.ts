@@ -2,6 +2,7 @@ import type { UIMessage, ChatStatus } from "ai";
 import type { AcpSessionConfigOption } from "./acp-config";
 import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "./lineage";
+import type { SessionWorkspaceSnapshot } from "./workspace";
 
 export type { ChatStatus };
 export type ModeType = "auto" | "manual";
@@ -51,6 +52,7 @@ export interface Session {
   configOptions?: AcpSessionConfigOption[];
   actionStates?: Record<string, FylloActionState>;
   originTaskRef?: LineageTaskRef;
+  workspaceSnapshot?: SessionWorkspaceSnapshot;
   // 运行时态：ACP Agent 行动清单，全量替换、不持久化（不写入 session meta）。
   agentAgenda?: AgendaEntry[];
 }

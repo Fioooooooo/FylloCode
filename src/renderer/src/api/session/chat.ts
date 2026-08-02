@@ -98,7 +98,7 @@ export const chatApi = {
     fileName: string,
     mimeType: string,
     base64Data: string
-  ): Promise<IpcResponse<{ uri: string; name: string; mimeType: string }>> {
+  ): Promise<IpcResponse<{ attachmentId: string; name: string; mimeType: string }>> {
     return window.api.session.chat.saveAttachment(
       workspaceId,
       sessionId,
@@ -108,8 +108,18 @@ export const chatApi = {
     );
   },
 
-  readAttachmentDataUrl(uri: string, mediaType: string): Promise<IpcResponse<{ dataUrl: string }>> {
-    return window.api.session.chat.readAttachmentDataUrl(uri, mediaType);
+  readAttachmentDataUrl(
+    workspaceId: string,
+    sessionId: string,
+    attachmentId: string,
+    mediaType: string
+  ): Promise<IpcResponse<{ dataUrl: string }>> {
+    return window.api.session.chat.readAttachmentDataUrl(
+      workspaceId,
+      sessionId,
+      attachmentId,
+      mediaType
+    );
   },
 
   setConfigOption(input: {

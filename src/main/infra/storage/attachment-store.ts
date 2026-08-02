@@ -1,15 +1,18 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import { extname, join } from "path";
-import { fileURLToPath, pathToFileURL } from "url";
 import { sessionsDir } from "@main/infra/storage/workspace-paths";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError } from "@shared/errors/ipc-error";
 
 export interface SavedAttachment {
-  absolutePath: string;
-  fileUri: string;
+  attachmentId: string;
   name: string;
   mimeType: string;
 }
+
+const ATTACHMENT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function attachmentsDir(workspaceId: string, sessionId: string): string {
   return join(sessionsDir(workspaceId), sessionId, "attachments");
@@ -40,19 +43,50 @@ export async function saveAttachment(
   const dir = attachmentsDir(workspaceId, sessionId);
   await fs.mkdir(dir, { recursive: true });
 
-  const absolutePath = join(dir, `${randomUUID()}${inferExtension(fileName, mimeType)}`);
+  const attachmentId = randomUUID();
+  const absolutePath = join(dir, `${attachmentId}${inferExtension(fileName, mimeType)}`);
   await fs.writeFile(absolutePath, Buffer.from(base64Data, "base64"));
 
   return {
-    absolutePath,
-    fileUri: pathToFileURL(absolutePath).toString(),
+    attachmentId,
     name: fileName,
     mimeType,
   };
 }
 
-export async function readAttachmentDataUrl(uri: string, mediaType: string): Promise<string> {
-  const buffer = await fs.readFile(fileURLToPath(uri));
+async function resolveAttachmentPath(
+  workspaceId: string,
+  sessionId: string,
+  attachmentId: string
+): Promise<string> {
+  if (!ATTACHMENT_ID_PATTERN.test(attachmentId)) {
+    throw ipcError(IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND, "Attachment handle is invalid");
+  }
+
+  const dir = attachmentsDir(workspaceId, sessionId);
+  const entries = await fs.readdir(dir).catch(() => []);
+  const matches = entries.filter(
+    (entry) => entry === attachmentId || entry.startsWith(`${attachmentId}.`)
+  );
+  if (matches.length !== 1) {
+    throw ipcError(
+      IpcErrorCodes.SESSION_ATTACHMENT_NOT_FOUND,
+      "Attachment does not exist in this Workspace Session",
+      { workspaceId, sessionId, attachmentId }
+    );
+  }
+  return join(dir, matches[0]!);
+}
+
+export async function readAttachmentDataUrl(
+  workspaceId: string,
+  sessionId: string,
+  attachmentId: string,
+  mediaType: string
+): Promise<string> {
+  const buffer = await fs.readFile(
+    await resolveAttachmentPath(workspaceId, sessionId, attachmentId)
+  );
   return `data:${mediaType};base64,${buffer.toString("base64")}`;
 }
 

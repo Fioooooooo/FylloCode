@@ -8,15 +8,32 @@ vi.mock("@main/infra/logger", () => ({
   default: logger,
 }));
 
-const CHAT_SECTION_TAGS = ["authority", "context", "rules", "workspace", "critical"] as const;
+const CHAT_SECTION_TAGS = [
+  "authority",
+  "context",
+  "rules",
+  "workspace-policy",
+  "critical",
+  "workspace",
+] as const;
 const CHAT_SECTION_TAGS_WITH_TASK = [
   "authority",
   "context",
   "task-context",
   "rules",
-  "workspace",
+  "workspace-policy",
   "critical",
+  "workspace",
 ] as const;
+
+const CHAT_WORKSPACE_SNAPSHOT = {
+  workspaceId: "workspace-1",
+  workspaceKind: "folder" as const,
+  primaryFolderId: "folder-1",
+  folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+  cwd: "/tmp/project",
+  additionalDirectories: [],
+};
 
 function getSection(text: string, tag: string): string | null {
   const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(text);
@@ -27,7 +44,7 @@ function expectNonEmptyOrderedSections(text: string, tags: readonly string[]): v
   let previousIndex = -1;
 
   for (const tag of tags) {
-    const openIndex = text.indexOf(`<${tag}`);
+    const openIndex = new RegExp(`<${tag}(?:\\s[^>]*)?>`).exec(text)?.index ?? -1;
     expect(openIndex, `${tag} should exist`).toBeGreaterThan(previousIndex);
     expect(getSection(text, tag), `${tag} should not be empty`).toEqual(expect.any(String));
     expect(getSection(text, tag)?.length, `${tag} should not be empty`).toBeGreaterThan(0);
@@ -65,6 +82,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "some-other-agent",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
 
     expect(reminder).toEqual({
@@ -118,6 +136,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
 
     expect(reminder).toContain("/tmp/project");
@@ -134,6 +153,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
 
     expect(reminder?.text.trim().startsWith("<system-reminder>")).toBe(true);
@@ -152,6 +172,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
       taskRef: "local:task-1",
       taskTitle: "修复登录超时",
     });
@@ -171,6 +192,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
       taskRef: "local:task-1",
     });
 
@@ -189,6 +211,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
 
     expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS);
@@ -205,6 +228,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
       taskRef: "local:task-1",
       taskTitle: "修复登录超时",
     });
@@ -222,6 +246,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
       taskRef: "local:<bad>",
     });
 
@@ -248,6 +273,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
       taskRef: "local:task-1",
       taskTitle: "bad<title>",
     });
@@ -275,6 +301,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
 
     expect(reminder?.text).toContain("<fyllo-action-contract>");
@@ -300,6 +327,7 @@ describe("resolveSystemReminder", () => {
       cwd: "/tmp/project",
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: CHAT_WORKSPACE_SNAPSHOT,
     });
     const text = reminder?.text ?? "";
 

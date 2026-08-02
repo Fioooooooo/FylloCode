@@ -104,6 +104,7 @@ describe("agent-capability-store", () => {
     await expect(loadCache()).resolves.toEqual({
       "agent-a": {
         ...fullCapabilities,
+        capabilityCompleteness: "complete",
         capturedAgentVersion: "1.0.0",
         capturedAt: "2026-05-24T08:00:00.000Z",
       },
@@ -117,6 +118,7 @@ describe("agent-capability-store", () => {
     await upsertAgentCapabilities("agent-empty", {}, "1.0.0");
 
     await expect(getCachedAgentCapabilities("agent-empty")).resolves.toEqual({
+      capabilityCompleteness: "complete",
       capturedAgentVersion: "1.0.0",
       capturedAt: "2026-05-24T08:00:00.000Z",
     });
@@ -142,7 +144,16 @@ describe("agent-capability-store", () => {
     const legacyJson = JSON.stringify(legacyDocument, null, 2);
     writeFileSync(cachePath, legacyJson, "utf8");
 
-    await expect(loadCache()).resolves.toEqual(legacyDocument.agents);
+    await expect(loadCache()).resolves.toEqual({
+      "agent-a": {
+        ...legacyDocument.agents["agent-a"],
+        capabilityCompleteness: "partial",
+      },
+      "agent-b": {
+        ...legacyDocument.agents["agent-b"],
+        capabilityCompleteness: "partial",
+      },
+    });
     expect(readFileSync(cachePath, "utf8")).toBe(legacyJson);
 
     await upsertAgentCapabilities("agent-a", fullCapabilities, "1.1.0");
@@ -156,7 +167,15 @@ describe("agent-capability-store", () => {
       ...fullCapabilities,
       capturedAgentVersion: "1.1.0",
     });
-    expect(upgraded.agents["agent-b"]).toEqual(legacyDocument.agents["agent-b"]);
+    expect(upgraded.agents["agent-b"]).toEqual({
+      ...legacyDocument.agents["agent-b"],
+      capabilityCompleteness: "partial",
+    });
+
+    await expect(loadCache()).resolves.toMatchObject({
+      "agent-a": { capabilityCompleteness: "complete" },
+      "agent-b": { capabilityCompleteness: "partial" },
+    });
   });
 
   it("serializes concurrent upserts without dropping entries", async () => {

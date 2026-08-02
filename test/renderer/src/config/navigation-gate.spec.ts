@@ -5,7 +5,7 @@ import { workspaceInfo } from "../fixtures/workspace";
 describe("Workspace navigation gate", () => {
   const chatItem = { requiresWorkspace: true, capability: "chat" as const };
 
-  it("uses one capability result for missing, Folder and Collection Workspaces", () => {
+  it("allows Folder and Collection Chat shells when their primary Folder is available", () => {
     expect(evaluateWorkspaceNavigation(chatItem, null)).toEqual({
       enabled: false,
       reason: "请先打开 Workspace",
@@ -14,11 +14,12 @@ describe("Workspace navigation gate", () => {
     expect(
       evaluateWorkspaceNavigation(
         chatItem,
-        workspaceInfo({ kind: "collection", chatAvailable: false })
+        workspaceInfo({ kind: "collection", chatAvailable: true })
       )
-    ).toEqual({
+    ).toEqual({ enabled: true });
+    expect(evaluateWorkspaceNavigation(chatItem, workspaceInfo({ chatAvailable: false }))).toEqual({
       enabled: false,
-      reason: "Collection Workspace 的多目录对话将在下一阶段启用",
+      reason: "Workspace 主目录不可用",
     });
   });
 });

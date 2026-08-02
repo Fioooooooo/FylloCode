@@ -56,6 +56,78 @@ describe("createLocalFilePreviewController", () => {
     expect(controller.state.value.status).toBe("ready");
   });
 
+  it("preserves Session comparison context and disables window-only Agent conversion", async () => {
+    const port: WorkspaceDocumentPreviewPort = {
+      preparePreview: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          status: "confirmation-required",
+          authorizationId: "auth-1",
+          requestedPath: "/outside/file.ts",
+          canonicalPath: "/outside/file.ts",
+          size: 4,
+          mtimeMs: 10,
+        },
+      }),
+      confirmPreview: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          status: "ready",
+          agentScope: "window-only",
+          document: {
+            requestedPath: "/outside/file.ts",
+            canonicalPath: "/outside/file.ts",
+            content: "test",
+            language: "typescript",
+            size: 4,
+            mtimeMs: 10,
+          },
+        },
+      }),
+    };
+    const controller = createLocalFilePreviewController(port);
+
+    await controller.open("/outside/file.ts", { sessionId: "session-1" });
+    await controller.confirm({ rememberForWindow: false });
+
+    expect(port.preparePreview).toHaveBeenCalledWith({
+      requestedPath: "/outside/file.ts",
+      sessionId: "session-1",
+    });
+    expect(port.confirmPreview).toHaveBeenCalledWith({
+      authorizationId: "auth-1",
+      rememberForWindow: false,
+      sessionId: "session-1",
+    });
+    expect(controller.canUseAsAgentResource.value).toBe(false);
+  });
+
+  it("allows Agent conversion only for authorized member-owned documents", async () => {
+    const controller = createLocalFilePreviewController({
+      preparePreview: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          status: "ready",
+          agentScope: "authorized",
+          document: {
+            requestedPath: "/project/file.ts",
+            canonicalPath: "/project/file.ts",
+            content: "test",
+            language: "typescript",
+            size: 4,
+            mtimeMs: 10,
+            owner: { folderId: "folder-1", worktreePath: "/project" },
+          },
+        },
+      }),
+      confirmPreview: vi.fn(),
+    });
+
+    await controller.open("/project/file.ts", { sessionId: "session-1" });
+
+    expect(controller.canUseAsAgentResource.value).toBe(true);
+  });
+
   it("ignores a stale response after a newer open", async () => {
     const first = deferred<Awaited<ReturnType<WorkspaceDocumentPreviewPort["preparePreview"]>>>();
     const port: WorkspaceDocumentPreviewPort = {

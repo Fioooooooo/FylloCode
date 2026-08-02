@@ -530,6 +530,10 @@ describe("registerProposalApplyHandlers", () => {
   });
 
   it("passes apply owner, reminder context, and hook without extra user chunks", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({
+      ...runMeta,
+      worktreePath: "/tmp/proposal-worktree",
+    });
     const reminderPart = {
       type: "text",
       text: "<system-reminder>\nbody\n</system-reminder>",
@@ -553,16 +557,18 @@ describe("registerProposalApplyHandlers", () => {
 
     expect(opts).toEqual(
       expect.objectContaining({
-        cwd: "/tmp/project",
+        cwd: "/tmp/proposal-worktree",
+        additionalDirectories: [],
         owner: "apply",
         reminderContext: {
           changeId: "change-1",
           stageIndex: 0,
           runId: "run-1",
-          worktreePath: undefined,
+          worktreePath: "/tmp/proposal-worktree",
         },
       })
     );
+    expect(opts.workspaceSnapshot).toBeUndefined();
     expect(opts.sessionStore).toBeInstanceOf(ApplyStageAcpSessionStore);
     await opts.sessionStore.persistAcpSessionId("acp-stage-2");
     expect(mocks.updateApplyRunStageAcpSessionId).toHaveBeenCalledWith(
@@ -669,7 +675,11 @@ describe("registerProposalApplyHandlers", () => {
   });
 
   it("passes archive owner and hook for archive reminder persistence", async () => {
-    mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({
+      ...runMeta,
+      status: "done",
+      worktreePath: "/tmp/proposal-worktree",
+    });
     const reminderPart = {
       type: "text",
       text: "<system-reminder>\nbody\n</system-reminder>",
@@ -694,16 +704,18 @@ describe("registerProposalApplyHandlers", () => {
 
     expect(typedOpts).toEqual(
       expect.objectContaining({
-        cwd: "/tmp/project",
+        cwd: "/tmp/proposal-worktree",
+        additionalDirectories: [],
         fylloSessionId: "run-1-archive",
         owner: "archive",
         reminderContext: expect.objectContaining({
           changeId: "change-1",
           runId: expect.stringMatching(/^archive-/),
-          worktreePath: undefined,
+          worktreePath: "/tmp/proposal-worktree",
         }),
       })
     );
+    expect(typedOpts.workspaceSnapshot).toBeUndefined();
     expect(typedOpts.sessionStore).toBeInstanceOf(ArchiveAcpSessionStore);
     await expect(typedOpts.sessionStore.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,

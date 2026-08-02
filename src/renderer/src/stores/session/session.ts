@@ -14,6 +14,7 @@ import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { TaskSource } from "@shared/types/task";
 import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
+import type { SessionWorkspaceFolderSnapshot, WorkspaceFolderInfo } from "@shared/types/workspace";
 import { chatApi } from "@renderer/api/session/chat";
 import { useAcpAgentsStore } from "../platform/acp-agents";
 import { useLineageStore } from "../insight/lineage";
@@ -55,10 +56,34 @@ export interface OriginTaskInfo {
   ref: LineageTaskRef;
 }
 
+export interface SessionScopeNameChange {
+  folderId: string;
+  snapshotName: string;
+  currentName: string;
+}
+
+export interface SessionScopePathChange {
+  folderId: string;
+  snapshotPath: string;
+  currentPath: string;
+}
+
+export interface SessionScopeDiff {
+  currentOnly: WorkspaceFolderInfo[];
+  snapshotOnly: SessionWorkspaceFolderSnapshot[];
+  primaryChanged: boolean;
+  nameChanges: SessionScopeNameChange[];
+  pathChanges: SessionScopePathChange[];
+  unavailableFolderIds: string[];
+  hasChanges: boolean;
+  isStale: boolean;
+}
+
 export interface SessionStore {
   sessions: Ref<Session[]>;
   activeSessionId: Ref<string | null>;
   activeSession: ComputedRef<Session | null>;
+  activeSessionScopeDiff: ComputedRef<SessionScopeDiff | null>;
   taskInfoBySessionId: Ref<Map<string, OriginTaskInfo>>;
   draftAgentId: Ref<string | null>;
   draftProbeByAgent: Ref<Map<string, DraftProbeState>>;
@@ -185,6 +210,67 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   const activeSession = computed<Session | null>(
     () => sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   );
+  const activeSessionScopeDiff = computed<SessionScopeDiff | null>(() => {
+    const snapshot = activeSession.value?.workspaceSnapshot;
+    const currentWorkspace = useWorkspaceStore().currentWorkspace;
+    if (!snapshot || !currentWorkspace || currentWorkspace.id !== snapshot.workspaceId) {
+      return null;
+    }
+
+    const snapshotById = new Map(snapshot.folders.map((folder) => [folder.folderId, folder]));
+    const currentById = new Map(
+      currentWorkspace.folders.map((folder) => [folder.folderId, folder])
+    );
+    const currentOnly = currentWorkspace.folders.filter(
+      (folder) => !snapshotById.has(folder.folderId)
+    );
+    const snapshotOnly = snapshot.folders.filter((folder) => !currentById.has(folder.folderId));
+    const nameChanges: SessionScopeNameChange[] = [];
+    const pathChanges: SessionScopePathChange[] = [];
+    const unavailableFolderIds: string[] = [];
+
+    for (const folder of snapshot.folders) {
+      const current = currentById.get(folder.folderId);
+      if (!current) continue;
+      if (current.folderName !== folder.folderName) {
+        nameChanges.push({
+          folderId: folder.folderId,
+          snapshotName: folder.folderName,
+          currentName: current.folderName,
+        });
+      }
+      if (current.folderPath !== folder.folderPath) {
+        pathChanges.push({
+          folderId: folder.folderId,
+          snapshotPath: folder.folderPath,
+          currentPath: current.folderPath,
+        });
+      }
+      if (current.pathMissing) {
+        unavailableFolderIds.push(folder.folderId);
+      }
+    }
+
+    const primaryChanged = currentWorkspace.primaryFolderId !== snapshot.primaryFolderId;
+    const isStale =
+      snapshotOnly.length > 0 || pathChanges.length > 0 || unavailableFolderIds.length > 0;
+    return {
+      currentOnly,
+      snapshotOnly,
+      primaryChanged,
+      nameChanges,
+      pathChanges,
+      unavailableFolderIds,
+      hasChanges:
+        currentOnly.length > 0 ||
+        snapshotOnly.length > 0 ||
+        primaryChanged ||
+        nameChanges.length > 0 ||
+        pathChanges.length > 0 ||
+        unavailableFolderIds.length > 0,
+      isStale,
+    };
+  });
   const activeDraftProbe = computed<DraftProbeState | null>(() => {
     if (!draftAgentId.value) {
       return null;
@@ -936,6 +1022,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sessions,
     activeSessionId,
     activeSession,
+    activeSessionScopeDiff,
     taskInfoBySessionId,
     draftAgentId,
     draftProbeByAgent,

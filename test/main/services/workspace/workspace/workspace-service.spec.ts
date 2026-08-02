@@ -140,7 +140,7 @@ describe("workspace-service", () => {
     await expect(getWorkspaceInfo("collection-1")).resolves.toMatchObject({
       kind: "collection",
       pathMissing: false,
-      chatAvailable: false,
+      chatAvailable: true,
       folders: [{ folderId: "folder-1" }, { folderId: "folder-2" }],
       missingFolders: [{ folderId: "folder-2" }],
     });

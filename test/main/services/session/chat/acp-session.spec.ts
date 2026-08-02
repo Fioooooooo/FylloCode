@@ -34,6 +34,10 @@ const mocks = vi.hoisted(() => {
     resolveBundledMcpServers: vi.fn(),
     toAcpMcpServer: vi.fn(),
     resolveSystemReminder: vi.fn(),
+    assertSessionWorkspaceSnapshotCurrent: vi.fn(),
+    assertAgentWorkspaceCompatibility: vi.fn(),
+    readAttachmentDataUrl: vi.fn(),
+    resolveSessionMemberResource: vi.fn(),
     logger: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -60,6 +64,22 @@ vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
 
 vi.mock("@main/services/session/chat/system-reminder", () => ({
   resolveSystemReminder: mocks.resolveSystemReminder,
+}));
+
+vi.mock("@main/services/session/chat/session-workspace-service", () => ({
+  assertSessionWorkspaceSnapshotCurrent: mocks.assertSessionWorkspaceSnapshotCurrent,
+}));
+
+vi.mock("@main/services/session/chat/agent-workspace-compatibility", () => ({
+  assertAgentWorkspaceCompatibility: mocks.assertAgentWorkspaceCompatibility,
+}));
+
+vi.mock("@main/infra/storage/attachment-store", () => ({
+  readAttachmentDataUrl: mocks.readAttachmentDataUrl,
+}));
+
+vi.mock("@main/services/session/chat/member-resource-resolver", () => ({
+  resolveSessionMemberResource: mocks.resolveSessionMemberResource,
 }));
 
 vi.mock("@main/domain/session/chat/system-reminder-wrap", () => ({
@@ -136,6 +156,16 @@ describe("AcpSession", () => {
     mocks.resolveBundledMcpServers.mockResolvedValue([]);
     mocks.toAcpMcpServer.mockImplementation((spec: unknown) => spec);
     mocks.resolveSystemReminder.mockResolvedValue(null);
+    mocks.assertSessionWorkspaceSnapshotCurrent.mockImplementation(async (snapshot) => snapshot);
+    mocks.assertAgentWorkspaceCompatibility.mockResolvedValue(undefined);
+    mocks.readAttachmentDataUrl.mockResolvedValue("data:image/png;base64,SU1BR0U=");
+    mocks.resolveSessionMemberResource.mockResolvedValue({
+      folderId: "folder-1",
+      worktreePath: "/tmp/project",
+      repositoryRelativePath: "docs/guide.md",
+      canonicalPath: "/tmp/project/docs/guide.md",
+      uri: "file:///tmp/project/docs/guide.md",
+    });
   });
 
   afterEach(() => {
@@ -152,6 +182,15 @@ describe("AcpSession", () => {
       workspaceId: "workspace-1",
       projectPath: "/tmp/project",
       cwd: "/tmp/project",
+      additionalDirectories: [],
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder",
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+        cwd: "/tmp/project",
+        additionalDirectories: [],
+      },
       owner: "chat",
       sessionStore: mocks.sessionStore,
       ...overrides,
@@ -178,6 +217,43 @@ describe("AcpSession", () => {
     });
   });
 
+  it("fails stale validation before acquiring an Agent process", async () => {
+    mocks.assertSessionWorkspaceSnapshotCurrent.mockRejectedValueOnce(
+      Object.assign(new Error("removed"), { code: IpcErrorCodes.SESSION_FOLDER_REMOVED })
+    );
+    const session = await createSession();
+
+    await expect(session.start([{ type: "text", text: "hello" }])).rejects.toMatchObject({
+      code: IpcErrorCodes.SESSION_FOLDER_REMOVED,
+    });
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized Workspace reminder before capability or Agent activation", async () => {
+    const oversizedSnapshot = {
+      workspaceId: "workspace-1",
+      workspaceKind: "folder" as const,
+      primaryFolderId: "folder-1",
+      folders: [
+        {
+          folderId: "folder-1",
+          folderName: "Project",
+          folderPath: `/tmp/${"路径".repeat(40_000)}`,
+        },
+      ],
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+    };
+    const session = await createSession({ workspaceSnapshot: oversizedSnapshot });
+
+    await expect(session.start([{ type: "text", text: "hello" }])).rejects.toMatchObject({
+      code: IpcErrorCodes.WORKSPACE_REMINDER_TOO_LARGE,
+    });
+    expect(mocks.assertAgentWorkspaceCompatibility).not.toHaveBeenCalled();
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.connection.prompt).not.toHaveBeenCalled();
+  });
+
   it("passes fylloSessionId when resolving bundled MCP servers", async () => {
     const session = await createSession();
     await session.start([{ type: "text", text: "hello" }]);
@@ -188,6 +264,30 @@ describe("AcpSession", () => {
       fylloSessionId: "session-1",
       supportsHttp: false,
     });
+  });
+
+  it("keeps apply activation owner-only without a Workspace snapshot or MCP descriptor", async () => {
+    const session = await createSession({
+      owner: "apply",
+      projectPath: "/tmp/proposal-worktree",
+      cwd: "/tmp/proposal-worktree",
+      additionalDirectories: [],
+      workspaceSnapshot: undefined,
+    });
+    await session.start([{ type: "text", text: "apply" }]);
+
+    expect(mocks.connection.newSession).toHaveBeenCalledWith({
+      cwd: "/tmp/proposal-worktree",
+      additionalDirectories: [],
+      mcpServers: [],
+    });
+    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      projectPath: "/tmp/proposal-worktree",
+      fylloSessionId: "session-1",
+      supportsHttp: false,
+    });
+    expect(mocks.assertSessionWorkspaceSnapshotCurrent).not.toHaveBeenCalled();
   });
 
   it("waits for bundled MCP readiness before calling newSession", async () => {
@@ -340,6 +440,7 @@ describe("AcpSession", () => {
     expect(mocks.connection.resumeSession).toHaveBeenCalledWith({
       sessionId: "acp-existing",
       cwd: "/tmp/project",
+      additionalDirectories: [],
       mcpServers: [],
     });
     expect(mocks.connection.loadSession).not.toHaveBeenCalled();
@@ -383,6 +484,7 @@ describe("AcpSession", () => {
     expect(mocks.connection.loadSession).toHaveBeenCalledWith({
       sessionId: "acp-existing",
       cwd: "/tmp/project",
+      additionalDirectories: [],
       mcpServers: [],
     });
   });
@@ -570,6 +672,7 @@ describe("AcpSession", () => {
     });
 
     const session = await createSession({
+      additionalDirectories: ["/tmp/secondary"],
       recoveryContext: {
         hasPersistedHistory: true,
         loadPersistedHistory: async () => [
@@ -591,11 +694,18 @@ describe("AcpSession", () => {
     expect(upgradedConnection.resumeSession).toHaveBeenCalledWith({
       sessionId: "acp-existing",
       cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
       mcpServers: [],
     });
     expect(upgradedConnection.loadSession).toHaveBeenCalledWith({
       sessionId: "acp-existing",
       cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
+      mcpServers: [],
+    });
+    expect(upgradedConnection.newSession).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
       mcpServers: [],
     });
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-after-upgrade");
@@ -661,6 +771,86 @@ describe("AcpSession", () => {
           uri: "file:///tmp/doc.pdf",
           name: "doc.pdf",
           mimeType: "application/pdf",
+        },
+      ],
+    });
+  });
+
+  it("resolves opaque attachments and structured member files only in Main", async () => {
+    mocks.readAttachmentDataUrl
+      .mockResolvedValueOnce("data:image/png;base64,SU1BR0U=")
+      .mockResolvedValueOnce("data:text/markdown;base64,IyBHdWlkZQ==");
+    mocks.getOrStartProcess.mockResolvedValue({
+      connection: mocks.connection,
+      sessionHandlers: mocks.sessionHandlers,
+      activeSessionIds: mocks.activeSessionIds,
+      initializeResponse: initializeResponse({
+        agentCapabilities: {
+          loadSession: true,
+          sessionCapabilities: { resume: {}, close: {}, list: {} },
+          promptCapabilities: { image: true, embeddedContext: true },
+        },
+      }),
+    });
+
+    const session = await createSession();
+    await session.start([
+      { type: "text", text: "review" },
+      {
+        type: "attachment",
+        attachmentId: "11111111-1111-4111-8111-111111111111",
+        mediaType: "image/png",
+        filename: "diagram.png",
+      },
+      {
+        type: "attachment",
+        attachmentId: "22222222-2222-4222-8222-222222222222",
+        mediaType: "text/markdown",
+        filename: "notes.md",
+      },
+      {
+        type: "workspace_file",
+        ref: {
+          folderId: "folder-1",
+          worktreePath: "/tmp/project",
+          repositoryRelativePath: "docs/guide.md",
+        },
+        mediaType: "text/markdown",
+        filename: "guide.md",
+      },
+    ]);
+
+    expect(mocks.readAttachmentDataUrl).toHaveBeenNthCalledWith(
+      1,
+      "workspace-1",
+      "session-1",
+      "11111111-1111-4111-8111-111111111111",
+      "image/png"
+    );
+    expect(mocks.resolveSessionMemberResource).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: "workspace-1" }),
+      {
+        folderId: "folder-1",
+        worktreePath: "/tmp/project",
+        repositoryRelativePath: "docs/guide.md",
+      }
+    );
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-new",
+      prompt: [
+        { type: "text", text: "review" },
+        { type: "image", mimeType: "image/png", data: "SU1BR0U=" },
+        {
+          type: "resource_link",
+          uri: "data:text/markdown;base64,IyBHdWlkZQ==",
+          name: "notes.md",
+          mimeType: "text/markdown",
+        },
+        {
+          type: "resource_link",
+          uri: "file:///tmp/project/docs/guide.md",
+          name: "guide.md",
+          mimeType: "text/markdown",
         },
       ],
     });

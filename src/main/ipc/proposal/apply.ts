@@ -99,6 +99,7 @@ export function registerProposalApplyHandlers(): void {
           workspaceId: form.workspaceId,
           projectPath: workspaceCwd,
           cwd: runMeta.worktreePath ?? workspaceCwd,
+          additionalDirectories: [],
           owner: "apply",
           sessionStore,
           reminderContext: {

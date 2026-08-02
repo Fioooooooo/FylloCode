@@ -8,7 +8,7 @@ const attachments: ChatPromptAttachment[] = [
     id: "image-1",
     isImage: true,
     name: "diagram.png",
-    uri: "file:///tmp/diagram.png",
+    attachmentId: "00000000-0000-4000-8000-000000000001",
     mediaType: "image/png",
     previewUrl: "blob:diagram.png",
     sizeLabel: "24.0 KB",
@@ -18,7 +18,7 @@ const attachments: ChatPromptAttachment[] = [
     id: "file-1",
     isImage: false,
     name: "notes.md",
-    uri: "file:///tmp/notes.md",
+    attachmentId: "00000000-0000-4000-8000-000000000002",
     mediaType: "text/markdown",
     previewUrl: null,
     sizeLabel: "2.0 KB",
@@ -27,6 +27,11 @@ const attachments: ChatPromptAttachment[] = [
 ];
 
 describe("AttachmentList", () => {
+  it("stores opaque attachment handles without renderer file URIs", () => {
+    expect(attachments.every((attachment) => attachment.attachmentId !== null)).toBe(true);
+    expect(attachments.every((attachment) => !("uri" in attachment))).toBe(true);
+  });
+
   it("renders mixed attachment previews", () => {
     const wrapper = mount(AttachmentList, {
       props: {

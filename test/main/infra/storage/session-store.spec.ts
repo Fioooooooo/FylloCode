@@ -92,6 +92,66 @@ describe("session-store", () => {
     );
   });
 
+  it("round-trips a validated workspace snapshot and preserves its extension fields", async () => {
+    const workspaceSnapshot = {
+      workspaceId,
+      workspaceKind: "collection" as const,
+      primaryFolderId: "folder-a",
+      folders: [
+        {
+          folderId: "folder-a",
+          folderName: "Primary",
+          folderPath: "/repos/a",
+          futureFolderField: "preserved",
+        },
+        {
+          folderId: "folder-b",
+          folderName: "Secondary",
+          folderPath: "/repos/b",
+        },
+      ],
+      cwd: "/repos/a",
+      additionalDirectories: ["/repos/b"],
+      futureSnapshotField: { enabled: true },
+    };
+
+    await saveSessionMeta(workspaceId, meta({ workspaceSnapshot }));
+
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
+      meta({ workspaceSnapshot })
+    );
+    const raw = JSON.parse(readFileSync(sessionMetaPath(), "utf8")) as {
+      workspaceSnapshot?: typeof workspaceSnapshot;
+    };
+    expect(raw.workspaceSnapshot?.futureSnapshotField).toEqual({ enabled: true });
+    expect(raw.workspaceSnapshot?.folders[0]?.futureFolderField).toBe("preserved");
+  });
+
+  it("keeps legacy missing snapshots undefined and drops malformed snapshots", async () => {
+    await saveSessionMeta(workspaceId, meta());
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(meta());
+
+    writeFileSync(
+      sessionMetaPath("session-2"),
+      JSON.stringify({
+        ...meta({ sessionId: "session-2" }),
+        workspaceSnapshot: {
+          workspaceId,
+          workspaceKind: "collection",
+          primaryFolderId: "folder-a",
+          folders: [],
+          cwd: "/repos/a",
+          additionalDirectories: [],
+        },
+      }),
+      "utf8"
+    );
+
+    await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
+      meta({ sessionId: "session-2" })
+    );
+  });
+
   it("round-trips a pinned session and ignores an invalid pinned value", async () => {
     await saveSessionMeta(workspaceId, meta({ isPinned: true }));
 

@@ -28,10 +28,15 @@ const mocks = vi.hoisted(() => {
     readAttachmentDataUrl: vi.fn(),
     removeSessionAttachments: vi.fn(),
     saveAttachment: vi.fn(),
+    createSession: vi.fn(),
     listSessions: vi.fn(),
     updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
     resolveWorkspaceCwd: vi.fn(),
+    resolveWorkspace: vi.fn(),
+    createSessionWorkspaceSnapshot: vi.fn(),
+    ensureSessionWorkspaceSnapshot: vi.fn(),
+    assertAgentWorkspaceCompatibility: vi.fn(),
     getByTask: vi.fn(),
     linkTaskSession: vi.fn(),
     loadSessionMeta: vi.fn(),
@@ -43,6 +48,7 @@ const mocks = vi.hoisted(() => {
     setProbeConfigOption: vi.fn(),
     ensureLineageEventConsumer: vi.fn(),
     takeProbeFor: vi.fn(),
+    getProbeWorkspaceSnapshotForPromotion: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
@@ -71,21 +77,26 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
-  createSession: vi.fn(),
+  createSession: mocks.createSession,
   listSessions: mocks.listSessions,
   loadSessionMessages: vi.fn(),
   persistSessionMessage: mocks.persistSessionMessage,
   removeSession: vi.fn(),
   resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
+  ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
   updateSession: mocks.updateSession,
 }));
 
-vi.mock("@main/services/workspace/workspace/workspace-service", () => ({
-  getRequiredWorkspaceInfo: vi.fn(async (workspaceId: string) => ({
-    id: workspaceId,
-    kind: "folder",
-    chatAvailable: true,
-  })),
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
+}));
+
+vi.mock("@main/domain/session/chat/session-workspace-snapshot", () => ({
+  createSessionWorkspaceSnapshot: mocks.createSessionWorkspaceSnapshot,
+}));
+
+vi.mock("@main/services/session/chat/agent-workspace-compatibility", () => ({
+  assertAgentWorkspaceCompatibility: mocks.assertAgentWorkspaceCompatibility,
 }));
 
 vi.mock("@main/services/insight/lineage/mcp-event-consumer", () => ({
@@ -106,6 +117,7 @@ vi.mock("@main/services/session/chat/session-probe-service", () => ({
   closeProbe: mocks.closeProbe,
   setProbeConfigOption: mocks.setProbeConfigOption,
   takeProbeFor: mocks.takeProbeFor,
+  getProbeWorkspaceSnapshotForPromotion: mocks.getProbeWorkspaceSnapshotForPromotion,
 }));
 
 vi.mock("@main/services/session/chat/session-probe-bus", () => ({
@@ -178,6 +190,20 @@ describe("registerChatHandlers", () => {
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
     mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
+    const workspaceSnapshot = {
+      workspaceId: "workspace-1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+    };
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1" });
+    mocks.createSessionWorkspaceSnapshot.mockReturnValue(workspaceSnapshot);
+    mocks.ensureSessionWorkspaceSnapshot.mockResolvedValue(workspaceSnapshot);
+    mocks.assertAgentWorkspaceCompatibility.mockResolvedValue(undefined);
+    mocks.createSession.mockResolvedValue({ id: "session-created" });
+    mocks.getProbeWorkspaceSnapshotForPromotion.mockReturnValue(null);
     mocks.getByTask.mockResolvedValue(null);
     mocks.linkTaskSession.mockResolvedValue(null);
     mocks.listSessions.mockResolvedValue([]);
@@ -236,6 +262,62 @@ describe("registerChatHandlers", () => {
     expect(call).toBeTruthy();
     return call![1] as (event: unknown, input: unknown) => unknown;
   }
+
+  it("promotes a probe with its matching frozen Workspace snapshot", async () => {
+    const probeSnapshot = {
+      workspaceId: "workspace-1",
+      workspaceKind: "collection",
+      primaryFolderId: "folder-1",
+      folders: [
+        { folderId: "folder-1", folderName: "Primary", folderPath: "/tmp/primary" },
+        { folderId: "folder-2", folderName: "Secondary", folderPath: "/tmp/secondary" },
+      ],
+      cwd: "/tmp/primary",
+      additionalDirectories: ["/tmp/secondary"],
+    } as const;
+    mocks.getProbeWorkspaceSnapshotForPromotion.mockReturnValue(probeSnapshot);
+
+    const result = await handler(ChatChannels.createSession)(
+      {},
+      {
+        workspaceId: "workspace-1",
+        title: "Session",
+        agentId: "claude-acp",
+        acpSessionId: "acp-probe",
+      }
+    );
+
+    expect(result).toEqual({ ok: true, data: { id: "session-created" } });
+    expect(mocks.getProbeWorkspaceSnapshotForPromotion).toHaveBeenCalledWith(
+      "workspace-1",
+      "claude-acp",
+      "acp-probe"
+    );
+    expect(mocks.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceSnapshot: probeSnapshot })
+    );
+  });
+
+  it("rejects Session creation when the probe promotion identity does not match", async () => {
+    mocks.getProbeWorkspaceSnapshotForPromotion.mockReturnValue(null);
+
+    const result = await handler(ChatChannels.createSession)(
+      {},
+      {
+        workspaceId: "workspace-1",
+        title: "Session",
+        agentId: "claude-acp",
+        acpSessionId: "unknown-acp",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+    expect(mocks.createSession).not.toHaveBeenCalled();
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled();
+  });
 
   it("routes probe updates only to the matching project window", async () => {
     const { setupProbeBroadcast } = await import("@main/ipc/session/chat");
@@ -311,13 +393,15 @@ describe("registerChatHandlers", () => {
     expect(mocks.persistSessionMessage).not.toHaveBeenCalled();
   });
 
-  it("reads attachment file URIs as data URLs", async () => {
+  it("reads scoped attachment handles as data URLs", async () => {
     mocks.readAttachmentDataUrl.mockResolvedValueOnce("data:image/png;base64,AAAA");
 
     const result = await handler(ChatChannels.readAttachmentDataUrl)(
       {},
       {
-        uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        attachmentId: "00000000-0000-4000-8000-000000000001",
         mediaType: "image/png",
       }
     );
@@ -329,13 +413,15 @@ describe("registerChatHandlers", () => {
       },
     });
     expect(mocks.readAttachmentDataUrl).toHaveBeenCalledWith(
-      "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+      "workspace-1",
+      "session-1",
+      "00000000-0000-4000-8000-000000000001",
       "image/png"
     );
   });
 
   it("rejects invalid readAttachmentDataUrl input before reading", async () => {
-    const nonFileResult = await handler(ChatChannels.readAttachmentDataUrl)(
+    const fileUriResult = await handler(ChatChannels.readAttachmentDataUrl)(
       {},
       {
         uri: "https://example.com/x.png",
@@ -350,7 +436,7 @@ describe("registerChatHandlers", () => {
       }
     );
 
-    expect(nonFileResult).toEqual({
+    expect(fileUriResult).toEqual({
       ok: false,
       error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
     });
@@ -402,6 +488,29 @@ describe("registerChatHandlers", () => {
       "session-1",
       expect.objectContaining({ id: "assistant-message-1", role: "assistant" })
     );
+  });
+
+  it("rejects renderer file URIs from the stream prompt contract", () => {
+    expect(() =>
+      handler(ChatStreamChannels.streamMessage)(
+        { sender: { postMessage: vi.fn() } },
+        {
+          streamId: "stream-file-uri",
+          sessionId: "session-1",
+          workspaceId: "workspace-1",
+          agentId: "claude-acp",
+          prompt: [
+            {
+              type: "resource_link",
+              uri: "file:///tmp/doc.pdf",
+              mediaType: "application/pdf",
+              filename: "doc.pdf",
+            },
+          ],
+        }
+      )
+    ).toThrow();
+    expect(mocks.streamChannelOptions).toBeNull();
   });
 
   it("passes streamId to makeStreamChannel as port payload", () => {
@@ -1094,8 +1203,16 @@ describe("registerChatHandlers", () => {
       }
     );
 
-    expect(mocks.resolveWorkspaceCwd).toHaveBeenCalledWith("workspace-1");
-    expect(mocks.ensureProbe).toHaveBeenCalledWith("workspace-1", "claude-acp", "/tmp/project");
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.assertAgentWorkspaceCompatibility).toHaveBeenCalledWith(
+      "claude-acp",
+      expect.objectContaining({ cwd: "/tmp/project" })
+    );
+    expect(mocks.ensureProbe).toHaveBeenCalledWith(
+      "workspace-1",
+      "claude-acp",
+      expect.objectContaining({ cwd: "/tmp/project", additionalDirectories: [] })
+    );
     expect(mocks.closeProbe).toHaveBeenCalledWith("workspace-1", "claude-acp");
     expect(mocks.setProbeConfigOption).toHaveBeenCalledWith({
       agentId: "claude-acp",

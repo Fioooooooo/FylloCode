@@ -8,10 +8,17 @@ import type { LocalFilePreviewService } from "@main/services/workspace/document/
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
+  assertSessionBelongsToWorkspace: vi.fn(),
+  ensureSessionWorkspaceSnapshot: vi.fn(),
 }));
 
 vi.mock("@main/services/workspace/_public", () => ({
   resolveWorkspace: mocks.resolveWorkspace,
+}));
+
+vi.mock("@main/services/session/chat/chat-service", () => ({
+  assertSessionBelongsToWorkspace: mocks.assertSessionBelongsToWorkspace,
+  ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
 }));
 
 function handler(channel: string) {
@@ -34,6 +41,15 @@ describe("registerDocumentHandlers", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mocks.assertSessionBelongsToWorkspace.mockResolvedValue(undefined);
+    mocks.ensureSessionWorkspaceSnapshot.mockResolvedValue({
+      workspaceId: "workspace-1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/project" }],
+      cwd: "/project",
+      additionalDirectories: [],
+    });
     const { registerDocumentHandlers } = await import("@main/ipc/workspace/document");
     registerDocumentHandlers({ manager, service });
   });
@@ -45,7 +61,19 @@ describe("registerDocumentHandlers", () => {
       role: "workspace",
       workspaceId: "workspace-1",
     });
-    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: "/project" });
+    const availableFolders = [
+      {
+        folderId: "folder-1",
+        folderName: "Project",
+        folderPath: "/project",
+        pathMissing: false,
+      },
+    ];
+    mocks.resolveWorkspace.mockResolvedValue({
+      workspaceId: "workspace-1",
+      cwd: "/project",
+      availableFolders,
+    });
     vi.mocked(service.preparePreview).mockResolvedValue({
       status: "error",
       code: "FILE_NOT_FOUND",
@@ -60,7 +88,7 @@ describe("registerDocumentHandlers", () => {
     expect(result.ok).toBe(true);
     expect(service.preparePreview).toHaveBeenCalledWith(
       { requestedPath: "/project/missing.ts" },
-      { workspaceId: "workspace-1", folderPath: "/project", sender }
+      { workspaceId: "workspace-1", availableFolders, sender }
     );
   });
 
@@ -112,7 +140,19 @@ describe("registerDocumentHandlers", () => {
       role: "workspace",
       workspaceId: "workspace-2",
     });
-    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-2", cwd: "/other" });
+    const availableFolders = [
+      {
+        folderId: "folder-2",
+        folderName: "Other",
+        folderPath: "/other",
+        pathMissing: false,
+      },
+    ];
+    mocks.resolveWorkspace.mockResolvedValue({
+      workspaceId: "workspace-2",
+      cwd: "/other",
+      availableFolders,
+    });
     vi.mocked(service.confirmPreview).mockResolvedValue({
       status: "error",
       code: "AUTHORIZATION_INVALID",
@@ -128,8 +168,104 @@ describe("registerDocumentHandlers", () => {
     expect(result.ok).toBe(true);
     expect(service.confirmPreview).toHaveBeenCalledWith(input, {
       workspaceId: "workspace-2",
-      folderPath: "/other",
+      availableFolders,
       sender,
     });
+  });
+
+  it("rejects a Session comparison context outside the sender Workspace", async () => {
+    const sender = { id: 7, once: vi.fn() };
+    vi.mocked(manager.getContextByWebContents).mockReturnValue({
+      windowId: 1,
+      role: "workspace",
+      workspaceId: "workspace-1",
+    });
+    mocks.assertSessionBelongsToWorkspace.mockRejectedValue(
+      Object.assign(new Error("Session does not belong to Workspace"), {
+        code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+      })
+    );
+
+    const result = await handler(WorkspaceDocumentChannels.preparePreview)(
+      { sender },
+      { requestedPath: "/project/app.ts", sessionId: "session-from-other-workspace" }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED }),
+    });
+    expect(service.preparePreview).not.toHaveBeenCalled();
+  });
+
+  it("marks a member-owned ready result authorized for a matching Session snapshot", async () => {
+    const sender = { id: 7, once: vi.fn() };
+    vi.mocked(manager.getContextByWebContents).mockReturnValue({
+      windowId: 1,
+      role: "workspace",
+      workspaceId: "workspace-1",
+    });
+    mocks.resolveWorkspace.mockResolvedValue({
+      workspaceId: "workspace-1",
+      availableFolders: [],
+    });
+    vi.mocked(service.preparePreview).mockResolvedValue({
+      status: "ready",
+      document: {
+        requestedPath: "/project/app.ts",
+        canonicalPath: "/project/app.ts",
+        content: "code",
+        language: "typescript",
+        size: 4,
+        mtimeMs: 1,
+        owner: { folderId: "folder-1", worktreePath: "/project" },
+      },
+    });
+
+    const result = await handler(WorkspaceDocumentChannels.preparePreview)(
+      { sender },
+      { requestedPath: "/project/app.ts", sessionId: "session-1" }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ status: "ready", agentScope: "authorized" }),
+    });
+    expect(mocks.ensureSessionWorkspaceSnapshot).toHaveBeenCalledWith("workspace-1", "session-1");
+  });
+
+  it("keeps an external exact-path grant window-only without fabricating an owner", async () => {
+    const sender = { id: 7, once: vi.fn() };
+    vi.mocked(manager.getContextByWebContents).mockReturnValue({
+      windowId: 1,
+      role: "workspace",
+      workspaceId: "workspace-1",
+    });
+    mocks.resolveWorkspace.mockResolvedValue({
+      workspaceId: "workspace-1",
+      availableFolders: [],
+    });
+    vi.mocked(service.preparePreview).mockResolvedValue({
+      status: "ready",
+      document: {
+        requestedPath: "/outside/app.ts",
+        canonicalPath: "/outside/app.ts",
+        content: "code",
+        language: "typescript",
+        size: 4,
+        mtimeMs: 1,
+      },
+    });
+
+    const result = await handler(WorkspaceDocumentChannels.preparePreview)(
+      { sender },
+      { requestedPath: "/outside/app.ts", sessionId: "session-1" }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ status: "ready", agentScope: "window-only" }),
+    });
+    expect(mocks.ensureSessionWorkspaceSnapshot).not.toHaveBeenCalled();
   });
 });

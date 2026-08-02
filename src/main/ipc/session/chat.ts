@@ -23,24 +23,16 @@ import {
   updateSessionInputSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { wrapHandler } from "../_kit/wrap-handler";
-import { getRequiredWorkspaceInfo } from "@main/services/workspace/workspace/workspace-service";
-
-async function assertWorkspaceChatAvailable(workspaceId: string): Promise<void> {
-  const workspace = await getRequiredWorkspaceInfo(workspaceId);
-  if (!workspace.chatAvailable) {
-    throw ipcError(
-      IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
-      "Collection Workspace multi-root Chat is not enabled yet",
-      { workspaceId }
-    );
-  }
-}
+import { resolveWorkspace } from "@main/services/workspace/_public";
+import { createSessionWorkspaceSnapshot } from "@main/domain/session/chat/session-workspace-snapshot";
+import { assertAgentWorkspaceCompatibility } from "@main/services/session/chat/agent-workspace-compatibility";
 import { validate } from "../_kit/schema";
 import { makeStreamChannel } from "../_kit/stream-channel";
 import { ipcError } from "../_kit/errors";
 import { AcpSession, driveAcpStream } from "@main/services/session/_public";
 import {
   createSession,
+  ensureSessionWorkspaceSnapshot,
   listSessions,
   loadSessionMessages,
   persistSessionMessage,
@@ -57,6 +49,7 @@ import { setConfigOption } from "@main/services/session/chat/config-option-servi
 import {
   closeProbe,
   ensureProbe,
+  getProbeWorkspaceSnapshotForPromotion,
   setProbeConfigOption,
   takeProbeFor,
 } from "@main/services/session/chat/session-probe-service";
@@ -114,8 +107,23 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
-      await assertWorkspaceChatAvailable(form.workspaceId);
-      const session = await createSession(form);
+      const workspaceSnapshot = form.acpSessionId
+        ? getProbeWorkspaceSnapshotForPromotion(form.workspaceId, form.agentId, form.acpSessionId)
+        : null;
+      if (form.acpSessionId && !workspaceSnapshot) {
+        throw ipcError(
+          IpcErrorCodes.VALIDATION_ERROR,
+          "probe acpSessionId does not match the Workspace, Agent, and frozen snapshot"
+        );
+      }
+      const targetSnapshot =
+        workspaceSnapshot ??
+        createSessionWorkspaceSnapshot(await resolveWorkspace(form.workspaceId));
+      await assertAgentWorkspaceCompatibility(form.agentId, targetSnapshot);
+      const session = await createSession({
+        ...form,
+        workspaceSnapshot: targetSnapshot,
+      });
       if (!form.taskRef) {
         return session;
       }
@@ -194,7 +202,7 @@ export function registerChatHandlers(): void {
         form.base64Data
       );
       return {
-        uri: saved.fileUri,
+        attachmentId: saved.attachmentId,
         name: saved.name,
         mimeType: saved.mimeType,
       };
@@ -204,7 +212,12 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.readAttachmentDataUrl, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(readAttachmentDataUrlInputSchema, input);
-      const dataUrl = await readAttachmentDataUrl(form.uri, form.mediaType);
+      const dataUrl = await readAttachmentDataUrl(
+        form.workspaceId,
+        form.sessionId,
+        form.attachmentId,
+        form.mediaType
+      );
       return { dataUrl };
     })
   );
@@ -219,9 +232,11 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatProbeChannels.ensure, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeEnsureInputSchema, input);
-      await assertWorkspaceChatAvailable(form.workspaceId);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      return ensureProbe(form.workspaceId, form.agentId, workspaceCwd);
+      const workspaceSnapshot = createSessionWorkspaceSnapshot(
+        await resolveWorkspace(form.workspaceId)
+      );
+      await assertAgentWorkspaceCompatibility(form.agentId, workspaceSnapshot);
+      return ensureProbe(form.workspaceId, form.agentId, workspaceSnapshot);
     })
   );
 
@@ -256,13 +271,14 @@ export function registerChatHandlers(): void {
       portPayload: { streamId },
       logTag: "chat",
       onReady: async (sink) => {
-        await assertWorkspaceChatAvailable(workspaceId);
-        const workspaceCwd = await resolveWorkspaceCwd(workspaceId);
         const meta = await loadSessionMeta(workspaceId, sessionId);
         const agentId = inputAgentId || meta?.agentId;
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
         }
+        const workspaceSnapshot = await ensureSessionWorkspaceSnapshot(workspaceId, sessionId);
+        await assertAgentWorkspaceCompatibility(agentId, workspaceSnapshot);
+        const workspaceCwd = workspaceSnapshot.cwd;
 
         // Load the originating task title so the system reminder can contextualize the chat.
         let taskTitle: string | undefined;
@@ -308,6 +324,8 @@ export function registerChatHandlers(): void {
           workspaceId,
           projectPath: workspaceCwd,
           cwd: workspaceCwd,
+          additionalDirectories: workspaceSnapshot.additionalDirectories,
+          workspaceSnapshot,
           owner: "chat",
           sessionStore,
           reminderContext: {

@@ -10,6 +10,7 @@ import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 import ChatSessionEventRail from "./event/ChatSessionEventRail.vue";
 import ChatPromptTimeline from "./timeline/ChatPromptTimeline.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
+import SessionScopeHeader from "./SessionScopeHeader.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError, activeStreamIndicator } = storeToRefs(store);
@@ -75,6 +76,8 @@ function handleCreateSession(): void {
           <!-- Right actions placeholder -->
         </div>
       </header>
+
+      <SessionScopeHeader v-if="!isDraft" />
 
       <section class="relative flex-1 min-h-0 isolate">
         <ChatPromptTimeline

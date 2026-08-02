@@ -59,6 +59,7 @@ const agentCapabilityRecordSchema = z
     promptCapabilities: promptCapabilitiesSchema.optional(),
     mcpCapabilities: mcpCapabilitiesSchema.optional(),
     sessionCapabilities: sessionCapabilitiesSchema.optional(),
+    capabilityCompleteness: z.enum(["complete", "partial"]).optional(),
     capturedAgentVersion: z.string(),
     capturedAt: z.string(),
   })
@@ -126,12 +127,25 @@ export async function loadCache(): Promise<AcpAgentCapabilityCache> {
     const raw: unknown = JSON.parse(content);
     const current = cacheDocumentSchema.safeParse(raw);
     if (current.success) {
-      return current.data.agents as AcpAgentCapabilityCache;
+      return Object.fromEntries(
+        Object.entries(current.data.agents).map(([agentId, snapshot]) => [
+          agentId,
+          {
+            ...snapshot,
+            capabilityCompleteness: snapshot.capabilityCompleteness ?? "complete",
+          },
+        ])
+      ) as AcpAgentCapabilityCache;
     }
 
     const legacy = legacyCacheDocumentSchema.safeParse(raw);
     if (legacy.success) {
-      return legacy.data.agents;
+      return Object.fromEntries(
+        Object.entries(legacy.data.agents).map(([agentId, snapshot]) => [
+          agentId,
+          { ...snapshot, capabilityCompleteness: "partial" as const },
+        ])
+      );
     }
 
     throw current.error;
@@ -158,6 +172,7 @@ export async function upsertAgentCapabilities(
     const agents = await loadCache();
     agents[agentId] = {
       ...capabilities,
+      capabilityCompleteness: "complete",
       capturedAgentVersion,
       capturedAt: new Date().toISOString(),
     };

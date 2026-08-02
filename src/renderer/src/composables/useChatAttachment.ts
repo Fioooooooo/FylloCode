@@ -36,14 +36,14 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   const savingAttachmentCount = ref(0);
   const isSavingAttachments = computed(() => savingAttachmentCount.value > 0);
   const hasPendingAttachments = computed(
-    () => isSavingAttachments.value || attachments.value.some((attachment) => !attachment.uri)
+    () =>
+      isSavingAttachments.value || attachments.value.some((attachment) => !attachment.attachmentId)
   );
-  // 根据当前 agent 的能力决定附件类型：图片走 image part，其他文件走 resource_link；
-  // 若 agent 不支持对应能力则静默跳过该附件。
+  // 附件始终以 opaque attachment part 表达；capability 只决定是否允许发送。
   const attachmentParts = computed<ChatPromptPart[]>(() => {
     const parts: ChatPromptPart[] = [];
     for (const attachment of attachments.value) {
-      if (!attachment.uri) {
+      if (!attachment.attachmentId) {
         continue;
       }
 
@@ -51,24 +51,14 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
         if (!promptCapabilities.value.image) {
           continue;
         }
-
-        parts.push({
-          type: "image",
-          mediaType: attachment.mediaType,
-          uri: attachment.uri,
-          filename: attachment.name,
-        });
-        continue;
-      }
-
-      if (!promptCapabilities.value.embeddedContext) {
+      } else if (!promptCapabilities.value.embeddedContext) {
         continue;
       }
 
       parts.push({
-        type: "resource_link",
+        type: "attachment",
+        attachmentId: attachment.attachmentId,
         mediaType: attachment.mediaType,
-        uri: attachment.uri,
         filename: attachment.name,
       });
     }
@@ -141,7 +131,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
         throw new Error(response.error.message);
       }
 
-      attachment.uri = response.data.uri;
+      attachment.attachmentId = response.data.attachmentId;
       attachment.mediaType = response.data.mimeType;
     } catch (error: unknown) {
       removeAttachment(attachment.id);

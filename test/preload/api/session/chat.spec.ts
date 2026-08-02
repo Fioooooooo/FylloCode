@@ -176,13 +176,20 @@ describe("preload chatApi.streamMessage", () => {
     expect(callbacks.onError).not.toHaveBeenCalled();
   });
 
-  it("invokes readAttachmentDataUrl on the correct channel", async () => {
+  it("invokes readAttachmentDataUrl with a scoped opaque handle", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
-    await chatApi.readAttachmentDataUrl("file:///tmp/%E6%88%AA%E5%9B%BE%201.png", "image/png");
+    await chatApi.readAttachmentDataUrl(
+      "workspace-1",
+      "session-1",
+      "00000000-0000-4000-8000-000000000001",
+      "image/png"
+    );
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.readAttachmentDataUrl, {
-      uri: "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      attachmentId: "00000000-0000-4000-8000-000000000001",
       mediaType: "image/png",
     });
   });

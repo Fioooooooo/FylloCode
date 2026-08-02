@@ -7,7 +7,10 @@ import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { FylloActionState, FylloActionStateStatus } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "@shared/types/lineage";
-import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
+import {
+  sessionWorkspaceSnapshotSchema,
+  type SessionWorkspaceSnapshot,
+} from "@shared/types/workspace";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
@@ -288,12 +291,14 @@ function normalizeActionStates(value: unknown): Record<string, FylloActionState>
 function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
   const { isPinned, ...rest } = raw;
   const normalizedActionStates = normalizeActionStates(raw.actionStates);
+  const workspaceSnapshot = sessionWorkspaceSnapshotSchema.safeParse(raw.workspaceSnapshot);
   return {
     ...rest,
     ...(typeof isPinned === "boolean" ? { isPinned } : {}),
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,
     configOptions: Array.isArray(raw.configOptions) ? raw.configOptions : undefined,
+    workspaceSnapshot: workspaceSnapshot.success ? workspaceSnapshot.data : undefined,
     actionStates: normalizedActionStates
       ? { version: 1, records: normalizedActionStates }
       : undefined,

@@ -9,12 +9,13 @@ import {
 import { loadSessionMeta, patchSessionMeta } from "@main/infra/storage/session-store";
 import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
 import logger from "@main/infra/logger";
-import { resolveWorkspaceCwd } from "./chat-service";
+import { ensureSessionWorkspaceSnapshot } from "./chat-service";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 import { valueExistsInSchema } from "@main/domain/session/chat/session-config-recovery";
 import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
 import { activateAcpSession } from "./acp-session-activation";
 import { recoverSessionConfig } from "./session-config-recovery-service";
+import { assertAgentWorkspaceCompatibility } from "./agent-workspace-compatibility";
 
 export interface SetConfigOptionParams {
   workspaceId: string;
@@ -33,7 +34,6 @@ export async function setConfigOption(
 ): Promise<SetConfigOptionResult> {
   const { workspaceId, sessionId, configId, type, value } = params;
 
-  const workspaceCwd = await resolveWorkspaceCwd(workspaceId);
   const meta = await loadSessionMeta(workspaceId, sessionId);
   if (!meta) {
     throw ipcError(
@@ -47,6 +47,9 @@ export async function setConfigOption(
       `Session ${sessionId} has no acpSessionId; cannot set config option`
     );
   }
+  const workspaceSnapshot = await ensureSessionWorkspaceSnapshot(workspaceId, sessionId);
+  await assertAgentWorkspaceCompatibility(meta.agentId, workspaceSnapshot);
+  const workspaceCwd = workspaceSnapshot.cwd;
 
   let entry: Awaited<ReturnType<typeof getOrStartProcess>>;
   try {
@@ -80,6 +83,7 @@ export async function setConfigOption(
         initializeResponse: entry.initializeResponse,
         persistedSessionId: meta.acpSessionId,
         cwd: workspaceCwd,
+        additionalDirectories: workspaceSnapshot.additionalDirectories,
         mcpServers,
         allowFreshSession: false,
       });

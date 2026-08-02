@@ -35,6 +35,17 @@ async function writeGuideline(
 // standalone opening line to avoid false positives on those mentions.
 const GUIDELINES_BLOCK_OPEN = "\n<guidelines>\n";
 
+function workspaceSnapshot(projectDir: string) {
+  return {
+    workspaceId: "workspace-1",
+    workspaceKind: "folder" as const,
+    primaryFolderId: "folder-1",
+    folders: [{ folderId: "folder-1", folderName: "Project", folderPath: projectDir }],
+    cwd: projectDir,
+    additionalDirectories: [],
+  };
+}
+
 describe("system-reminder guidelines section", () => {
   let projectDir: string;
 
@@ -63,6 +74,7 @@ describe("system-reminder guidelines section", () => {
       cwd: projectDir,
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: workspaceSnapshot(projectDir),
     });
 
     expect(reminder?.text).toContain(GUIDELINES_BLOCK_OPEN);
@@ -120,6 +132,7 @@ describe("system-reminder guidelines section", () => {
         changeId: "change-1",
         stageIndex: 1,
         runId: "run-1",
+        ...(owner === "chat" ? { workspaceSnapshot: workspaceSnapshot(projectDir) } : {}),
       });
 
       expect(reminder?.text).toEqual(expect.any(String));
@@ -179,6 +192,7 @@ describe("system-reminder guidelines section", () => {
       cwd: projectDir,
       fylloSessionId: "session-1",
       agentId: "claude-acp",
+      workspaceSnapshot: workspaceSnapshot(projectDir),
     });
 
     expect(reminder?.text).toContain("Array\\u003cT\\u003e");

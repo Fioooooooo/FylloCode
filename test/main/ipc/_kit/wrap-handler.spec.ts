@@ -55,6 +55,33 @@ describe("wrapHandler", () => {
     });
   });
 
+  it("preserves structured details for session workspace errors", async () => {
+    const details = {
+      workspaceId: "workspace-a",
+      sessionId: "session-a",
+      folderId: "folder-b",
+      snapshottedPath: "/repos/old",
+      currentPath: "/repos/new",
+    };
+
+    const result = await wrapHandler(() => {
+      throw ipcError(
+        IpcErrorCodes.SESSION_FOLDER_RELOCATED,
+        "Session Folder path has changed",
+        details
+      );
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: IpcErrorCodes.SESSION_FOLDER_RELOCATED,
+        message: "Session Folder path has changed",
+        details,
+      },
+    });
+  });
+
   it("discards unknown string codes and falls back to UNKNOWN_ERROR", async () => {
     const result = await wrapHandler(() => {
       const err = new Error("mystery");

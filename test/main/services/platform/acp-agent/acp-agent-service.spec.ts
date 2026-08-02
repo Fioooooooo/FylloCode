@@ -167,6 +167,7 @@ describe("acp-agent-service ensureAgent", () => {
       promptCapabilities: { image: true },
       mcpCapabilities: { http: true },
       sessionCapabilities: { resume: {} },
+      capabilityCompleteness: "complete" as const,
       capturedAgentVersion: "1.2.3",
       capturedAt: "2026-07-28T00:00:00.000Z",
     };

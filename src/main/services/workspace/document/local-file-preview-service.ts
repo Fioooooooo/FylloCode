@@ -21,6 +21,8 @@ import {
   listRegisteredWorktreePaths,
   type RegisteredWorktreeResult,
 } from "@main/infra/git/worktree-reader";
+import type { ResolvedWorkspaceFolder } from "@shared/types/workspace";
+import logger from "@main/infra/logger";
 
 const AUTHORIZATION_TTL_MS = 60_000;
 
@@ -31,14 +33,22 @@ export interface LocalFilePreviewSender {
 
 export interface LocalFilePreviewContext {
   workspaceId: string;
-  folderPath: string;
+  availableFolders: ResolvedWorkspaceFolder[];
+  sessionId?: string;
   sender: LocalFilePreviewSender;
+}
+
+interface TrustedRoot {
+  canonicalPath: string;
+  folderId: string;
+  worktreePath: string;
 }
 
 interface PendingAuthorization {
   authorizationId: string;
   webContentsId: number;
   workspaceId: string;
+  sessionId?: string;
   requestedPath: string;
   canonicalPath: string;
   size: number;
@@ -180,12 +190,13 @@ export class LocalFilePreviewService {
     }
 
     try {
-      const trustedRoots = await this.getTrustedRoots(context.folderPath);
+      const trustedRoots = await this.getTrustedRoots(context.availableFolders);
+      const owner = this.resolveOwner(trustedRoots, target.canonicalPath);
       const remembered = this.rememberedGrants
         .get(context.sender.id)
         ?.has(grantKey(context.workspaceId, target.canonicalPath));
-      if (remembered || trustedRoots.some((root) => isWithinRoot(root, target.canonicalPath))) {
-        return await this.readReadyResult(target);
+      if (remembered || owner) {
+        return await this.readReadyResult(target, owner);
       }
 
       const authorizationId = this.dependencies.createAuthorizationId();
@@ -193,6 +204,7 @@ export class LocalFilePreviewService {
         authorizationId,
         webContentsId: context.sender.id,
         workspaceId: context.workspaceId,
+        sessionId: context.sessionId,
         requestedPath: input.requestedPath,
         canonicalPath: target.canonicalPath,
         size: target.size,
@@ -233,6 +245,7 @@ export class LocalFilePreviewService {
     if (
       pending.webContentsId !== context.sender.id ||
       pending.workspaceId !== context.workspaceId ||
+      pending.sessionId !== context.sessionId ||
       pending.expiresAt <= this.dependencies.now()
     ) {
       return authorizationError(
@@ -305,28 +318,79 @@ export class LocalFilePreviewService {
     );
   }
 
-  private async getTrustedRoots(folderPath: string): Promise<string[]> {
-    const folderRoot = await this.dependencies.canonicalizePath(folderPath);
-    let worktreePaths: string[] = [];
-    try {
-      worktreePaths = (await this.dependencies.listWorktrees(folderPath)).paths;
-    } catch {
-      // Git probe failures safely fall back to the current Folder root only.
-    }
-    const canonicalWorktrees = await Promise.all(
-      worktreePaths.map((worktreePath) =>
-        this.dependencies.canonicalizePath(worktreePath).catch(() => null)
-      )
+  private async getTrustedRoots(folders: ResolvedWorkspaceFolder[]): Promise<TrustedRoot[]> {
+    const roots = await Promise.all(
+      folders.map(async (folder): Promise<TrustedRoot[]> => {
+        let folderRoot: string;
+        try {
+          folderRoot = await this.dependencies.canonicalizePath(folder.folderPath);
+        } catch (error: unknown) {
+          logger.warn("[local-file-preview] excluding Folder whose root cannot be canonicalized", {
+            folderId: folder.folderId,
+            folderPath: folder.folderPath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return [];
+        }
+
+        let worktreePaths: string[] = [];
+        try {
+          worktreePaths = (await this.dependencies.listWorktrees(folder.folderPath)).paths;
+        } catch (error: unknown) {
+          logger.warn("[local-file-preview] linked worktree discovery failed", {
+            folderId: folder.folderId,
+            folderPath: folder.folderPath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        const canonicalWorktrees = await Promise.all(
+          worktreePaths.map(async (worktreePath): Promise<TrustedRoot | null> => {
+            try {
+              return {
+                canonicalPath: await this.dependencies.canonicalizePath(worktreePath),
+                folderId: folder.folderId,
+                worktreePath,
+              };
+            } catch (error: unknown) {
+              logger.warn("[local-file-preview] excluding non-canonical linked worktree", {
+                folderId: folder.folderId,
+                worktreePath,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return null;
+            }
+          })
+        );
+
+        return [
+          { canonicalPath: folderRoot, folderId: folder.folderId, worktreePath: folder.folderPath },
+          ...canonicalWorktrees.filter((root): root is TrustedRoot => root !== null),
+        ];
+      })
     );
-    return [
-      ...new Set([
-        folderRoot,
-        ...canonicalWorktrees.filter((path): path is string => Boolean(path)),
-      ]),
-    ];
+
+    const byIdentity = new Map<string, TrustedRoot>();
+    for (const root of roots.flat()) {
+      byIdentity.set(`${root.folderId}\0${root.canonicalPath}`, root);
+    }
+    return [...byIdentity.values()];
   }
 
-  private async readReadyResult(target: ResolvedLocalFileTarget): Promise<LocalFilePreviewResult> {
+  private resolveOwner(
+    trustedRoots: TrustedRoot[],
+    canonicalTarget: string
+  ): LocalFilePreviewDocument["owner"] {
+    const best = trustedRoots
+      .filter((root) => isWithinRoot(root.canonicalPath, canonicalTarget))
+      .sort((left, right) => right.canonicalPath.length - left.canonicalPath.length)[0];
+    return best ? { folderId: best.folderId, worktreePath: best.worktreePath } : undefined;
+  }
+
+  private async readReadyResult(
+    target: ResolvedLocalFileTarget,
+    owner?: LocalFilePreviewDocument["owner"]
+  ): Promise<LocalFilePreviewResult> {
     try {
       const snapshot = await this.dependencies.readFile(target.canonicalPath);
       const document: LocalFilePreviewDocument = {
@@ -338,6 +402,7 @@ export class LocalFilePreviewService {
         mtimeMs: snapshot.mtimeMs,
         line: target.line,
         column: target.column,
+        owner,
       };
       return { status: "ready", document };
     } catch (error: unknown) {

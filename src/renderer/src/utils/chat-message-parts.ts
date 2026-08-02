@@ -7,18 +7,25 @@ export function getFilePartUrl(part: MessagePart): string {
   return typeof value === "string" ? value : "";
 }
 
+export function getAttachmentPartId(part: MessagePart): string {
+  const value = (part as { attachmentId?: unknown }).attachmentId;
+  return typeof value === "string" ? value : "";
+}
+
 export function isUserImagePart(part: MessagePart): boolean {
+  const mediaType = (part as { mediaType?: unknown }).mediaType;
   return (
-    part.type === "file" &&
-    typeof part.mediaType === "string" &&
-    part.mediaType.startsWith("image/")
+    (part.type === "file" || (part as { type: string }).type === "attachment") &&
+    typeof mediaType === "string" &&
+    mediaType.startsWith("image/")
   );
 }
 
 export function isUserFilePart(part: MessagePart): boolean {
+  const mediaType = (part as { mediaType?: unknown }).mediaType;
   return (
-    part.type === "file" &&
-    typeof part.mediaType === "string" &&
-    !part.mediaType.startsWith("image/")
+    (part.type === "file" || (part as { type: string }).type === "attachment") &&
+    typeof mediaType === "string" &&
+    !mediaType.startsWith("image/")
   );
 }

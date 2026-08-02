@@ -23,6 +23,22 @@ function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
       if (part.type === "text") {
         return { type: "text", text: part.text };
       }
+      if (part.type === "attachment") {
+        return {
+          type: "attachment",
+          attachmentId: part.attachmentId,
+          mediaType: part.mediaType,
+          filename: part.filename,
+        };
+      }
+      if (part.type === "workspace_file") {
+        return {
+          type: "workspace_file",
+          ref: part.ref,
+          mediaType: part.mediaType,
+          filename: part.filename,
+        };
+      }
 
       return {
         type: "file",

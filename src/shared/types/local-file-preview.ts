@@ -13,6 +13,7 @@ export type LocalFilePreviewErrorCode =
 
 export interface LocalFilePreviewRequest {
   requestedPath: string;
+  sessionId?: string;
 }
 
 export interface LocalFilePreviewLocation {
@@ -27,11 +28,16 @@ export interface LocalFilePreviewDocument extends LocalFilePreviewLocation {
   language: string;
   size: number;
   mtimeMs: number;
+  owner?: {
+    folderId: string;
+    worktreePath: string;
+  };
 }
 
 export interface LocalFilePreviewReadyResult {
   status: "ready";
   document: LocalFilePreviewDocument;
+  agentScope?: "authorized" | "window-only";
 }
 
 export interface LocalFilePreviewConfirmationResult extends LocalFilePreviewLocation {
@@ -57,4 +63,5 @@ export type LocalFilePreviewResult =
 export interface ConfirmLocalFilePreviewInput {
   authorizationId: string;
   rememberForWindow: boolean;
+  sessionId?: string;
 }

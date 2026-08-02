@@ -226,7 +226,11 @@ describe("ChatPromptPanel", () => {
     saveAttachment.mockReset();
     saveAttachment.mockResolvedValue({
       ok: true,
-      data: { uri: "file:///tmp/attachment", name: "attachment", mimeType: "image/png" },
+      data: {
+        attachmentId: "11111111-1111-4111-8111-111111111111",
+        name: "attachment",
+        mimeType: "image/png",
+      },
     });
     createSession.mockImplementation(async (input: { workspaceId: string; agentId: string }) => {
       const session = makeSession();
@@ -499,11 +503,19 @@ describe("ChatPromptPanel", () => {
     activeSessionRef.value = makeSession();
     saveAttachment.mockResolvedValueOnce({
       ok: true,
-      data: { uri: "file:///tmp/diagram.png", name: "diagram.png", mimeType: "image/png" },
+      data: {
+        attachmentId: "22222222-2222-4222-8222-222222222222",
+        name: "diagram.png",
+        mimeType: "image/png",
+      },
     });
     saveAttachment.mockResolvedValueOnce({
       ok: true,
-      data: { uri: "file:///tmp/notes.md", name: "notes.md", mimeType: "text/markdown" },
+      data: {
+        attachmentId: "33333333-3333-4333-8333-333333333333",
+        name: "notes.md",
+        mimeType: "text/markdown",
+      },
     });
     const wrapper = mountPanel();
 
@@ -518,15 +530,15 @@ describe("ChatPromptPanel", () => {
     expect(sendMessage).toHaveBeenCalledWith([
       { type: "text", text: "" },
       {
-        type: "image",
+        type: "attachment",
+        attachmentId: "22222222-2222-4222-8222-222222222222",
         mediaType: "image/png",
-        uri: "file:///tmp/diagram.png",
         filename: "diagram.png",
       },
       {
-        type: "resource_link",
+        type: "attachment",
+        attachmentId: "33333333-3333-4333-8333-333333333333",
         mediaType: "text/markdown",
-        uri: "file:///tmp/notes.md",
         filename: "notes.md",
       },
     ]);

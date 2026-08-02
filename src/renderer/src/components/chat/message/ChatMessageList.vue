@@ -93,6 +93,8 @@ function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
         <UserMessage
           v-if="message.role === 'user'"
           :message="message"
+          :session-id="getMessageSessionId(message)"
+          :workspace-id="getMessageWorkspaceId(message)"
           :data-chat-user-message-id="message.id"
         />
         <AssistantMessage

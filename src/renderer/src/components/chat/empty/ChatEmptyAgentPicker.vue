@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useAcpAgentsStore, useSessionStore } from "@renderer/stores";
+import { useAcpAgentsStore, useSessionStore, useWorkspaceStore } from "@renderer/stores";
 import AgentPickerModal from "./AgentPickerModal.vue";
 import InstalledAgentTile from "./InstalledAgentTile.vue";
 import MoreAgentsTile from "./MoreAgentsTile.vue";
@@ -10,10 +10,12 @@ const MAX_VISIBLE_INSTALLED = 4;
 
 const acpAgentsStore = useAcpAgentsStore();
 const sessionStore = useSessionStore();
+const workspaceStore = useWorkspaceStore();
 const { registry, statuses, icons, installedAgentIds } = storeToRefs(acpAgentsStore);
 const { activeSession, draftAgentId } = storeToRefs(sessionStore);
 
 const modalOpen = ref(false);
+const checkingAgentId = ref<string | null>(null);
 
 onMounted(() => {
   if (!acpAgentsStore.initialized && !acpAgentsStore.initializing) {
@@ -25,20 +27,62 @@ const selectedAgentId = computed<string | null>(
   () => activeSession.value?.agentId ?? draftAgentId.value ?? null
 );
 
+const targetDirectoryScope = computed(() => {
+  const snapshot = activeSession.value?.workspaceSnapshot;
+  if (snapshot) {
+    return { additionalDirectories: snapshot.additionalDirectories };
+  }
+
+  const workspace = workspaceStore.currentWorkspace;
+  return {
+    additionalDirectories:
+      workspace?.availableFolders
+        .filter((folder) => folder.folderId !== workspace.primaryFolderId)
+        .map((folder) => folder.folderPath) ?? [],
+  };
+});
+
 const visibleInstalled = computed(() =>
   installedAgentIds.value.slice(0, MAX_VISIBLE_INSTALLED).map((id) => ({
     id,
     name: acpAgentsStore.getAgentLabel(id),
     icon: icons.value[id],
+    workspaceCompatibility: acpAgentsStore.getAgentWorkspaceCompatibility(
+      id,
+      targetDirectoryScope.value
+    ),
   }))
 );
 
 const hasInstalled = computed(() => installedAgentIds.value.length > 0);
 const totalAgents = computed(() => registry.value?.agents.length ?? 0);
 
-function handleSelect(agentId: string): void {
+async function handleSelect(agentId: string): Promise<void> {
   if (!agentId.startsWith("custom-") && statuses.value[agentId]?.installed !== true) {
     return;
+  }
+
+  let compatibility = acpAgentsStore.getAgentWorkspaceCompatibility(
+    agentId,
+    targetDirectoryScope.value
+  );
+  if (compatibility === "unsupported") {
+    return;
+  }
+  if (compatibility === "unknown") {
+    checkingAgentId.value = agentId;
+    try {
+      await acpAgentsStore.refreshCapabilities(agentId);
+      compatibility = acpAgentsStore.getAgentWorkspaceCompatibility(
+        agentId,
+        targetDirectoryScope.value
+      );
+    } finally {
+      checkingAgentId.value = null;
+    }
+    if (compatibility !== "supported") {
+      return;
+    }
   }
 
   if (activeSession.value) {
@@ -56,7 +100,7 @@ function openModal(): void {
 }
 
 function handleConfirm(agentId: string): void {
-  handleSelect(agentId);
+  void handleSelect(agentId);
 }
 </script>
 
@@ -78,6 +122,8 @@ function handleConfirm(agentId: string): void {
           :name="item.name"
           :icon="item.icon"
           :selected="selectedAgentId === item.id"
+          :workspace-compatibility="item.workspaceCompatibility"
+          :checking-compatibility="checkingAgentId === item.id"
           @select="handleSelect"
         />
         <MoreAgentsTile variant="more" :total-count="totalAgents" @click="openModal" />
@@ -93,6 +139,7 @@ function handleConfirm(agentId: string): void {
     <AgentPickerModal
       v-model:open="modalOpen"
       :current-agent-id="selectedAgentId"
+      :requires-additional-directories="targetDirectoryScope.additionalDirectories.length > 0"
       @confirm="handleConfirm"
     />
   </div>

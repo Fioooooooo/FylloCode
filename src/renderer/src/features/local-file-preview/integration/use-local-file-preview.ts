@@ -13,7 +13,7 @@ interface ActivePreview {
 let activePreview: ActivePreview | null = null;
 let previewSequence = 0;
 
-export function useLocalFilePreview(): {
+export function useLocalFilePreview(options: { sessionId?: string } = {}): {
   openLocalFilePreview: (requestedPath: string) => Promise<void>;
 } {
   const overlay = useOverlay();
@@ -35,7 +35,7 @@ export function useLocalFilePreview(): {
     };
 
     const instance = slideover.open({ controller });
-    void controller.open(requestedPath);
+    void controller.open(requestedPath, { sessionId: options.sessionId });
     try {
       await instance.result;
     } finally {

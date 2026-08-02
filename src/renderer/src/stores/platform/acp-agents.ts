@@ -5,14 +5,17 @@ import { appApi } from "@renderer/api/platform/app";
 import { useSessionStore } from "../session/session";
 import {
   normalizePromptCapabilities,
+  resolveAdditionalDirectoriesCapability,
   type AcpAgentCapabilitySnapshot,
   type AcpAgentStatus,
   type AcpCustomAgentsJson,
   type AcpInstallProgress,
   type AcpPromptCapabilities,
+  type AdditionalDirectoriesCapability,
   type AcpRegistry,
   type AcpUninstallProgress,
 } from "@shared/types/acp-agent";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 const DEFAULT_PROMPT_CAPABILITIES: AcpPromptCapabilities = {
   image: false,
@@ -250,6 +253,24 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     return normalizePromptCapabilities(capabilitiesByAgent.value.get(agentId)?.promptCapabilities);
   }
 
+  function getAdditionalDirectoriesCapability(
+    agentId: string | null | undefined
+  ): AdditionalDirectoriesCapability {
+    return resolveAdditionalDirectoriesCapability(
+      agentId ? capabilitiesByAgent.value.get(agentId) : undefined
+    );
+  }
+
+  function getAgentWorkspaceCompatibility(
+    agentId: string | null | undefined,
+    snapshot: Pick<SessionWorkspaceSnapshot, "additionalDirectories">
+  ): AdditionalDirectoriesCapability {
+    if (snapshot.additionalDirectories.length === 0) {
+      return "supported";
+    }
+    return getAdditionalDirectoriesCapability(agentId);
+  }
+
   async function ensureInitialized(): Promise<void> {
     ensureAgentListeners();
 
@@ -389,6 +410,8 @@ export const useAcpAgentsStore = defineStore("acp-agents", () => {
     loadCustomAgents,
     saveCustomAgents,
     getPromptCapabilities,
+    getAdditionalDirectoriesCapability,
+    getAgentWorkspaceCompatibility,
     installAgent,
     uninstallAgent,
   };

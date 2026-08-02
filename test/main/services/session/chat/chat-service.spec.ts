@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
+import type { ResolvedWorkspace, SessionWorkspaceSnapshot } from "@shared/types/workspace";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const mocks = vi.hoisted(() => ({
   loadProject: vi.fn(),
@@ -8,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   patchSessionMeta: vi.fn(),
   createSessionMeta: vi.fn(),
   newSessionId: vi.fn(),
+  resolveWorkspace: vi.fn(),
+  assertSessionWorkspaceSnapshotCurrent: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -28,8 +32,18 @@ vi.mock("@main/infra/ids", () => ({
   newSessionId: mocks.newSessionId,
 }));
 
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
+}));
+
+vi.mock("@main/services/session/chat/session-workspace-service", () => ({
+  assertSessionWorkspaceSnapshotCurrent: mocks.assertSessionWorkspaceSnapshotCurrent,
+}));
+
 import {
+  assertSessionBelongsToWorkspace,
   createSession,
+  ensureSessionWorkspaceSnapshot,
   listSessions,
   updateSession,
 } from "@main/services/session/chat/chat-service";
@@ -47,11 +61,63 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   };
 }
 
+function resolvedWorkspace(overrides: Partial<ResolvedWorkspace> = {}): ResolvedWorkspace {
+  return {
+    workspaceId: "workspace-1",
+    workspaceName: "Workspace",
+    workspaceKind: "folder",
+    workspaceDataDir: "/tmp/workspace-data",
+    primaryFolderId: "folder-1",
+    folders: [
+      {
+        folderId: "folder-1",
+        folderName: "Project",
+        folderPath: "/tmp/project",
+        pathMissing: false,
+      },
+    ],
+    availableFolders: [
+      {
+        folderId: "folder-1",
+        folderName: "Project",
+        folderPath: "/tmp/project",
+        pathMissing: false,
+      },
+    ],
+    missingFolders: [],
+    cwd: "/tmp/project",
+    additionalDirectories: [],
+    ...overrides,
+  };
+}
+
+function snapshot(overrides: Partial<SessionWorkspaceSnapshot> = {}): SessionWorkspaceSnapshot {
+  return {
+    workspaceId: "workspace-1",
+    workspaceKind: "folder",
+    primaryFolderId: "folder-1",
+    folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+    cwd: "/tmp/project",
+    additionalDirectories: [],
+    ...overrides,
+  };
+}
+
 describe("chat-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadProject.mockResolvedValue({ id: "workspace-1", path: "/tmp/project" });
     mocks.newSessionId.mockReturnValue("session-generated");
+    mocks.resolveWorkspace.mockResolvedValue(resolvedWorkspace());
+    mocks.assertSessionWorkspaceSnapshotCurrent.mockImplementation(async (value) => value);
+  });
+
+  it("rejects a Session comparison context outside the scoped Workspace store", async () => {
+    mocks.loadSessionMeta.mockResolvedValue(null);
+
+    await expect(
+      assertSessionBelongsToWorkspace("workspace-1", "session-from-another-workspace")
+    ).rejects.toMatchObject({ code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED });
   });
 
   it("maps persisted available_commands when listing sessions", async () => {
@@ -176,6 +242,62 @@ describe("chat-service", () => {
     expect(session.configOptions).toEqual(persistedMeta.configOptions);
     expect(session.availableCommands).toEqual(persistedMeta.available_commands);
     expect(session.isPinned).toBe(false);
+    expect(session.workspaceSnapshot).toEqual(snapshot());
+    expect(persistedMeta.workspaceSnapshot).toEqual(snapshot());
+  });
+
+  it("createSession reuses the probe snapshot without resolving the current Workspace", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+    const probeSnapshot = snapshot({
+      workspaceKind: "collection",
+      folders: [
+        { folderId: "folder-1", folderName: "Primary", folderPath: "/tmp/primary" },
+        { folderId: "folder-2", folderName: "Secondary", folderPath: "/tmp/secondary" },
+      ],
+      cwd: "/tmp/primary",
+      additionalDirectories: ["/tmp/secondary"],
+    });
+
+    const session = await createSession({
+      workspaceId: "workspace-1",
+      title: "draft",
+      agentId: "claude-acp",
+      acpSessionId: "acp-probe",
+      workspaceSnapshot: probeSnapshot,
+    });
+
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled();
+    expect(mocks.createSessionMeta.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ workspaceSnapshot: probeSnapshot })
+    );
+    expect(session.workspaceSnapshot).toEqual(probeSnapshot);
+  });
+
+  it("ensureSessionWorkspaceSnapshot lazily backfills a legacy Folder Session", async () => {
+    const legacy = meta();
+    mocks.loadSessionMeta.mockResolvedValue(legacy);
+    mocks.patchSessionMeta.mockImplementation(async (_workspaceId, _sessionId, patch) => ({
+      ...legacy,
+      ...patch,
+    }));
+
+    const result = await ensureSessionWorkspaceSnapshot("workspace-1", "session-1");
+
+    expect(mocks.patchSessionMeta).toHaveBeenCalledWith("workspace-1", "session-1", {
+      workspaceSnapshot: snapshot(),
+    });
+    expect(mocks.assertSessionWorkspaceSnapshotCurrent).toHaveBeenCalledWith(snapshot());
+    expect(result).toEqual(snapshot());
+  });
+
+  it("ensureSessionWorkspaceSnapshot rejects a legacy Collection Session", async () => {
+    mocks.loadSessionMeta.mockResolvedValue(meta());
+    mocks.resolveWorkspace.mockResolvedValue(resolvedWorkspace({ workspaceKind: "collection" }));
+
+    await expect(ensureSessionWorkspaceSnapshot("workspace-1", "session-1")).rejects.toMatchObject({
+      code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+    });
+    expect(mocks.patchSessionMeta).not.toHaveBeenCalled();
   });
 
   it("persists pin state without changing updatedAt", async () => {

@@ -32,10 +32,17 @@ describe("chatApi", () => {
       data: { dataUrl: "data:image/png;base64,AAAA" },
     });
 
-    await chatApi.readAttachmentDataUrl("file:///tmp/%E6%88%AA%E5%9B%BE%201.png", "image/png");
+    await chatApi.readAttachmentDataUrl(
+      "workspace-1",
+      "session-1",
+      "11111111-1111-4111-8111-111111111111",
+      "image/png"
+    );
 
     expect(chatBridge.readAttachmentDataUrl).toHaveBeenCalledWith(
-      "file:///tmp/%E6%88%AA%E5%9B%BE%201.png",
+      "workspace-1",
+      "session-1",
+      "11111111-1111-4111-8111-111111111111",
       "image/png"
     );
   });

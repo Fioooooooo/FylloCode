@@ -1,7 +1,11 @@
 import type { UIMessage } from "ai";
 import { onUnmounted, reactive, watch } from "vue";
 import { chatApi } from "@renderer/api/session/chat";
-import { getFilePartUrl, isUserImagePart } from "@renderer/utils/chat-message-parts";
+import {
+  getAttachmentPartId,
+  getFilePartUrl,
+  isUserImagePart,
+} from "@renderer/utils/chat-message-parts";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -13,12 +17,13 @@ function getFilePartMediaType(part: MessagePart): string {
 /**
  * Resolve user image parts into previewable data URLs.
  *
- * Caches results per message-part and re-fetches when the part URL changes.
- * Non-file:// URLs are returned as-is; file:// URLs are read through the IPC API.
+ * Caches results per message-part and resolves opaque attachment IDs through Main.
  */
 export function useUserImagePart(options: {
   messageId: () => string;
   parts: () => MessagePart[];
+  workspaceId: () => string | null | undefined;
+  sessionId: () => string | null | undefined;
 }): {
   getImageSrc: (index: number) => string;
 } {
@@ -34,10 +39,22 @@ export function useUserImagePart(options: {
     return `${options.messageId()}-${index}`;
   }
 
-  async function resolveImagePartSrc(key: string, url: string, mediaType: string): Promise<void> {
+  async function resolveImagePartSrc(
+    key: string,
+    attachmentId: string,
+    mediaType: string
+  ): Promise<void> {
     try {
-      const response = await chatApi.readAttachmentDataUrl(url, mediaType);
-      if (isDisposed || imageRequestUrlByPartKey[key] !== url || !response.ok) {
+      const workspaceId = options.workspaceId();
+      const sessionId = options.sessionId();
+      if (!workspaceId || !sessionId) return;
+      const response = await chatApi.readAttachmentDataUrl(
+        workspaceId,
+        sessionId,
+        attachmentId,
+        mediaType
+      );
+      if (isDisposed || imageRequestUrlByPartKey[key] !== attachmentId || !response.ok) {
         return;
       }
 
@@ -58,27 +75,23 @@ export function useUserImagePart(options: {
         }
 
         const key = getImagePartKey(index);
-        const url = getFilePartUrl(part);
+        const attachmentId = getAttachmentPartId(part);
         activeKeys.add(key);
 
-        if (imageRequestUrlByPartKey[key] === url) {
+        if (imageRequestUrlByPartKey[key] === attachmentId) {
           return;
         }
 
-        imageRequestUrlByPartKey[key] = url;
+        imageRequestUrlByPartKey[key] = attachmentId;
 
-        if (!url) {
-          imageSrcByPartKey[key] = "";
-          return;
-        }
-
-        if (!url.startsWith("file://")) {
-          imageSrcByPartKey[key] = url;
+        if (!attachmentId) {
+          const legacyUrl = getFilePartUrl(part);
+          imageSrcByPartKey[key] = legacyUrl.startsWith("file://") ? "" : legacyUrl;
           return;
         }
 
         imageSrcByPartKey[key] = "";
-        void resolveImagePartSrc(key, url, getFilePartMediaType(part));
+        void resolveImagePartSrc(key, attachmentId, getFilePartMediaType(part));
       });
 
       for (const key of Object.keys(imageSrcByPartKey)) {

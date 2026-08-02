@@ -86,7 +86,8 @@ export async function toWorkspaceInfo(meta: WorkspaceMeta): Promise<WorkspaceInf
     folders,
     availableFolders: folders.filter((folder) => !folder.pathMissing),
     missingFolders: folders.filter((folder) => folder.pathMissing),
-    chatAvailable: meta.kind === "folder",
+    chatAvailable:
+      folders.find((folder) => folder.folderId === primaryFolder.id)?.pathMissing === false,
   };
 }
 

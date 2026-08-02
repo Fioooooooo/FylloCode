@@ -252,6 +252,7 @@ function snapshotFromInitializeResponse(
     promptCapabilities: initializeResponse.agentCapabilities?.promptCapabilities,
     mcpCapabilities: initializeResponse.agentCapabilities?.mcpCapabilities,
     sessionCapabilities: initializeResponse.agentCapabilities?.sessionCapabilities,
+    capabilityCompleteness: "complete",
     capturedAgentVersion,
     capturedAt: new Date().toISOString(),
   };
@@ -265,7 +266,7 @@ export async function ensureAgent(agentId: string): Promise<AcpAgentCapabilitySn
     }
 
     const cached = await getCachedAgentCapabilities(agentId);
-    if (cached && cached.capturedAgentVersion === "") {
+    if (cached?.capabilityCompleteness === "complete" && cached.capturedAgentVersion === "") {
       void getOrStartProcess(agentId).catch((error: unknown) => {
         logger.error(`[acp-agent-service] failed to lazily start ${agentId}`, error);
       });
@@ -283,7 +284,10 @@ export async function ensureAgent(agentId: string): Promise<AcpAgentCapabilitySn
   }
 
   const cached = await getCachedAgentCapabilities(agentId);
-  if (cached && cached.capturedAgentVersion === (installed.installedVersion ?? "")) {
+  if (
+    cached?.capabilityCompleteness === "complete" &&
+    cached.capturedAgentVersion === (installed.installedVersion ?? "")
+  ) {
     void getOrStartProcess(agentId).catch((error: unknown) => {
       logger.error(`[acp-agent-service] failed to lazily start ${agentId}`, error);
     });

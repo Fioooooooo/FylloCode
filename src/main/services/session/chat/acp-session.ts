@@ -44,6 +44,12 @@ import type { LineageTaskRef } from "@shared/types/lineage";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import { activateAcpSession } from "./acp-session-activation";
 import { recoverSessionConfig } from "./session-config-recovery-service";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
+import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
+import { assertAgentWorkspaceCompatibility } from "./agent-workspace-compatibility";
+import { renderWorkspaceSection } from "./system-reminder/providers/workspace";
+import { readAttachmentDataUrl } from "@main/infra/storage/attachment-store";
+import { resolveSessionMemberResource } from "./member-resource-resolver";
 
 interface ReminderContext {
   changeId?: string;
@@ -77,6 +83,8 @@ export interface AcpSessionOpts {
   workspaceId: string;
   projectPath: string;
   cwd: string;
+  additionalDirectories: string[];
+  workspaceSnapshot?: SessionWorkspaceSnapshot;
   owner: SessionOwner;
   sessionStore: AcpSessionStore;
   reminderContext?: ReminderContext;
@@ -148,6 +156,19 @@ export class AcpSession extends EventEmitter {
   }
 
   private async prepareStartContext(): Promise<StartContext | null> {
+    if (this.opts.owner === "chat") {
+      if (!this.opts.workspaceSnapshot) {
+        throw ipcError(
+          IpcErrorCodes.VALIDATION_ERROR,
+          "Chat ACP Session requires a frozen Workspace snapshot"
+        );
+      }
+      const workspaceSnapshot = await assertSessionWorkspaceSnapshotCurrent(
+        this.opts.workspaceSnapshot
+      );
+      renderWorkspaceSection(workspaceSnapshot);
+      await assertAgentWorkspaceCompatibility(this.opts.agentId, workspaceSnapshot);
+    }
     const entry = await this.getProcessEntry();
     if (!entry) {
       return null;
@@ -520,6 +541,7 @@ export class AcpSession extends EventEmitter {
       initializeResponse,
       persistedSessionId,
       cwd: this.opts.cwd,
+      additionalDirectories: this.opts.additionalDirectories,
       mcpServers,
       allowFreshSession: true,
       checkCancelled: (stage) => this.throwIfCancelled(stage),
@@ -604,6 +626,7 @@ export class AcpSession extends EventEmitter {
       cwd: args.cwd,
       fylloSessionId: args.fylloSessionId,
       agentId: args.agentId,
+      workspaceSnapshot: this.opts.workspaceSnapshot,
       ...(this.opts.reminderContext ?? {}),
     });
 
@@ -691,16 +714,24 @@ export class AcpSession extends EventEmitter {
     const capabilities = normalizePromptCapabilities(
       initializeResponse.agentCapabilities?.promptCapabilities
     );
-    if (parts.some((part) => part.type === "image") && !capabilities.image) {
+    const hasImage = parts.some(
+      (part) =>
+        part.type === "image" || (part.type === "attachment" && part.mediaType.startsWith("image/"))
+    );
+    const hasEmbeddedContext = parts.some(
+      (part) =>
+        part.type === "resource_link" ||
+        part.type === "workspace_file" ||
+        (part.type === "attachment" && !part.mediaType.startsWith("image/"))
+    );
+    if (hasImage && !capabilities.image) {
       throw ipcError(IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH, "当前 agent 不支持图片输入");
     }
-    if (parts.some((part) => part.type === "resource_link") && !capabilities.embeddedContext) {
+    if (hasEmbeddedContext && !capabilities.embeddedContext) {
       throw ipcError(IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH, "当前 agent 不支持文件输入");
     }
   }
 
-  // 将 renderer 侧 ChatPromptPart 转换为 ACP 协议 PromptPart。
-  // image 类型从本地 file:// URL 读取并 base64 编码；读取失败映射为中文业务错误。
   private async toAcpPromptParts(parts: ChatPromptPart[]): Promise<PromptPart[]> {
     const promptParts: PromptPart[] = [];
     for (const part of parts) {
@@ -712,6 +743,42 @@ export class AcpSession extends EventEmitter {
         promptParts.push({
           type: "resource_link",
           uri: part.uri,
+          name: part.filename,
+          mimeType: part.mediaType,
+        });
+        continue;
+      }
+      if (part.type === "attachment") {
+        const dataUrl = await readAttachmentDataUrl(
+          this.opts.workspaceId,
+          this.opts.fylloSessionId,
+          part.attachmentId,
+          part.mediaType
+        );
+        if (part.mediaType.startsWith("image/")) {
+          const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
+          promptParts.push({ type: "image", mimeType: part.mediaType, data });
+        } else {
+          promptParts.push({
+            type: "resource_link",
+            uri: dataUrl,
+            name: part.filename,
+            mimeType: part.mediaType,
+          });
+        }
+        continue;
+      }
+      if (part.type === "workspace_file") {
+        if (this.opts.owner !== "chat" || !this.opts.workspaceSnapshot) {
+          throw ipcError(
+            IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+            "Workspace file resources require a Chat Session snapshot"
+          );
+        }
+        const resource = await resolveSessionMemberResource(this.opts.workspaceSnapshot, part.ref);
+        promptParts.push({
+          type: "resource_link",
+          uri: resource.uri,
           name: part.filename,
           mimeType: part.mediaType,
         });

@@ -281,6 +281,73 @@ describe("useSessionStore", () => {
     expect(store.activeSession?.availableCommands).toEqual([]);
   });
 
+  it("derives current Workspace differences without rewriting the frozen Session scope", () => {
+    const workspaceStore = useWorkspaceStore();
+    const current = workspaceInfo({ id: "project-1", kind: "collection" });
+    current.folderIds = ["folder-1", "folder-2", "folder-3"];
+    current.primaryFolderId = "folder-2";
+    current.folders = [
+      {
+        folderId: "folder-1",
+        folderName: "App renamed",
+        folderPath: "/repos/app",
+        pathMissing: false,
+        isPrimary: false,
+      },
+      {
+        folderId: "folder-2",
+        folderName: "API",
+        folderPath: "/repos/api-moved",
+        pathMissing: false,
+        isPrimary: true,
+      },
+      {
+        folderId: "folder-3",
+        folderName: "Docs",
+        folderPath: "/repos/docs",
+        pathMissing: false,
+        isPrimary: false,
+      },
+    ];
+    current.availableFolders = current.folders;
+    current.missingFolders = [];
+    workspaceStore.currentWorkspace = current;
+
+    const frozenSnapshot = {
+      workspaceId: "project-1",
+      workspaceKind: "collection" as const,
+      primaryFolderId: "folder-1",
+      folders: [
+        { folderId: "folder-1", folderName: "App", folderPath: "/repos/app" },
+        { folderId: "folder-2", folderName: "API", folderPath: "/repos/api" },
+        { folderId: "folder-removed", folderName: "Old", folderPath: "/repos/old" },
+      ],
+      cwd: "/repos/app",
+      additionalDirectories: ["/repos/api", "/repos/old"],
+    };
+    const store = useSessionStore();
+    store.sessions = [session({ workspaceSnapshot: frozenSnapshot })];
+    store.activeSessionId = "session-1";
+
+    expect(store.activeSessionScopeDiff).toMatchObject({
+      currentOnly: [expect.objectContaining({ folderId: "folder-3" })],
+      snapshotOnly: [expect.objectContaining({ folderId: "folder-removed" })],
+      primaryChanged: true,
+      nameChanges: [{ folderId: "folder-1", snapshotName: "App", currentName: "App renamed" }],
+      pathChanges: [
+        {
+          folderId: "folder-2",
+          snapshotPath: "/repos/api",
+          currentPath: "/repos/api-moved",
+        },
+      ],
+      isStale: true,
+      hasChanges: true,
+    });
+    expect(store.activeSession?.workspaceSnapshot).toStrictEqual(frozenSnapshot);
+    expect(store.activeSession?.workspaceSnapshot?.folders).toHaveLength(3);
+  });
+
   it("loads and caches origin task info when selecting linked sessions", async () => {
     const store = useSessionStore();
     store.sessions = [

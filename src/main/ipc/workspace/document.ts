@@ -18,10 +18,41 @@ import { resolveWorkspace } from "@main/services/workspace/_public";
 import { ipcError } from "../_kit/errors";
 import { validate } from "../_kit/schema";
 import { wrapHandler } from "../_kit/wrap-handler";
+import {
+  assertSessionBelongsToWorkspace,
+  ensureSessionWorkspaceSnapshot,
+} from "@main/services/session/chat/chat-service";
 
 interface DocumentHandlerDependencies {
   manager?: WorkspaceWindowManager;
   service?: LocalFilePreviewService;
+}
+
+async function assertSessionComparisonContext(
+  workspaceId: string,
+  sessionId: string | undefined
+): Promise<void> {
+  if (!sessionId) return;
+  await assertSessionBelongsToWorkspace(workspaceId, sessionId);
+}
+
+async function attachAgentScope(
+  result: LocalFilePreviewResult,
+  workspaceId: string,
+  sessionId: string | undefined
+): Promise<LocalFilePreviewResult> {
+  if (!sessionId || result.status !== "ready") {
+    return result;
+  }
+  if (!result.document.owner) {
+    return { ...result, agentScope: "window-only" };
+  }
+
+  const snapshot = await ensureSessionWorkspaceSnapshot(workspaceId, sessionId);
+  const authorized = snapshot.folders.some(
+    (folder) => folder.folderId === result.document.owner?.folderId
+  );
+  return { ...result, agentScope: authorized ? "authorized" : "window-only" };
 }
 
 function getWorkspaceContext(
@@ -45,12 +76,15 @@ export function registerDocumentHandlers(dependencies: DocumentHandlerDependenci
     wrapHandler(async (): Promise<LocalFilePreviewResult> => {
       const form = validate(prepareLocalFilePreviewInputSchema, input);
       const { workspaceId } = getWorkspaceContext(manager, event.sender);
+      await assertSessionComparisonContext(workspaceId, form.sessionId);
       const workspace = await resolveWorkspace(workspaceId);
-      return service.preparePreview(form, {
+      const result = await service.preparePreview(form, {
         workspaceId,
-        folderPath: workspace.cwd,
+        availableFolders: workspace.availableFolders,
+        ...(form.sessionId ? { sessionId: form.sessionId } : {}),
         sender: event.sender,
       });
+      return attachAgentScope(result, workspaceId, form.sessionId);
     })
   );
 
@@ -58,12 +92,15 @@ export function registerDocumentHandlers(dependencies: DocumentHandlerDependenci
     wrapHandler(async (): Promise<LocalFilePreviewResult> => {
       const form = validate(confirmLocalFilePreviewInputSchema, input);
       const { workspaceId } = getWorkspaceContext(manager, event.sender);
+      await assertSessionComparisonContext(workspaceId, form.sessionId);
       const workspace = await resolveWorkspace(workspaceId);
-      return service.confirmPreview(form, {
+      const result = await service.confirmPreview(form, {
         workspaceId,
-        folderPath: workspace.cwd,
+        availableFolders: workspace.availableFolders,
+        ...(form.sessionId ? { sessionId: form.sessionId } : {}),
         sender: event.sender,
       });
+      return attachAgentScope(result, workspaceId, form.sessionId);
     })
   );
 }

@@ -42,7 +42,9 @@ const props = defineProps<{
   actionContext?: FylloActionHostContextInput;
 }>();
 
-const { openLocalFilePreview } = useLocalFilePreview();
+const { openLocalFilePreview } = useLocalFilePreview({
+  sessionId: props.actionContext?.sessionId,
+});
 provide(localFilePreviewHostKey, {
   open: openLocalFilePreview,
 });

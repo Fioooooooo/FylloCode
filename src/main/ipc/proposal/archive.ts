@@ -118,6 +118,7 @@ export function registerProposalArchiveHandlers(): void {
           workspaceId: form.workspaceId,
           projectPath: workspaceCwd,
           cwd: runMeta.worktreePath ?? workspaceCwd,
+          additionalDirectories: [],
           owner: "archive",
           sessionStore,
           reminderContext: {

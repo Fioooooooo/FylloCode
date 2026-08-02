@@ -43,4 +43,19 @@ describe("preload documentApi", () => {
       input
     );
   });
+
+  it("forwards Session comparison context without adding Workspace authority fields", async () => {
+    const { documentApi } = await import("@preload/api/workspace/document");
+    const input = {
+      requestedPath: "/project/src/app.ts",
+      sessionId: "session-1",
+    };
+
+    await documentApi.preparePreview(input);
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(
+      WorkspaceDocumentChannels.preparePreview,
+      input
+    );
+  });
 });

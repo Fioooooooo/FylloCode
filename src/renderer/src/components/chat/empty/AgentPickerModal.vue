@@ -10,6 +10,7 @@ const open = defineModel<boolean>("open", { required: true });
 
 const props = defineProps<{
   currentAgentId?: string | null;
+  requiresAdditionalDirectories?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -83,9 +84,38 @@ const currentInstallingId = computed(
     )?.agentId ?? null
 );
 
-const confirmDisabled = computed(() => !stagedAgentId.value);
+const checkingAgentId = ref<string | null>(null);
 
-function handleSelect(agentId: string): void {
+function workspaceCompatibility(agentId: string) {
+  return store.getAgentWorkspaceCompatibility(agentId, {
+    additionalDirectories: props.requiresAdditionalDirectories ? ["multi-root"] : [],
+  });
+}
+
+const confirmDisabled = computed(
+  () =>
+    !stagedAgentId.value ||
+    checkingAgentId.value !== null ||
+    (stagedAgentId.value != null && workspaceCompatibility(stagedAgentId.value) === "unsupported")
+);
+
+async function handleSelect(agentId: string): Promise<void> {
+  let compatibility = workspaceCompatibility(agentId);
+  if (compatibility === "unsupported") {
+    return;
+  }
+  if (compatibility === "unknown") {
+    checkingAgentId.value = agentId;
+    try {
+      await store.refreshCapabilities(agentId);
+      compatibility = workspaceCompatibility(agentId);
+    } finally {
+      checkingAgentId.value = null;
+    }
+    if (compatibility !== "supported") {
+      return;
+    }
+  }
   stagedAgentId.value = agentId;
 }
 
@@ -154,6 +184,16 @@ function goToSettings(): void {
                 :agent-status="statuses[agent.id]"
                 selectable
                 :selected="stagedAgentId === agent.id"
+                :selection-disabled="workspaceCompatibility(agent.id) === 'unsupported'"
+                :selection-hint="
+                  checkingAgentId === agent.id
+                    ? '正在检测…'
+                    : workspaceCompatibility(agent.id) === 'unknown'
+                      ? '连接后检测'
+                      : workspaceCompatibility(agent.id) === 'unsupported'
+                        ? '不支持多根工作区'
+                        : undefined
+                "
                 @select="handleSelect"
               />
             </div>
@@ -198,6 +238,16 @@ function goToSettings(): void {
               source="custom"
               selectable
               :selected="stagedAgentId === agent.id"
+              :selection-disabled="workspaceCompatibility(agent.id) === 'unsupported'"
+              :selection-hint="
+                checkingAgentId === agent.id
+                  ? '正在检测…'
+                  : workspaceCompatibility(agent.id) === 'unknown'
+                    ? '连接后检测'
+                    : workspaceCompatibility(agent.id) === 'unsupported'
+                      ? '不支持多根工作区'
+                      : undefined
+              "
               @select="handleSelect"
             />
           </div>

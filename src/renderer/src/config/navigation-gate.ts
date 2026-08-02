@@ -15,7 +15,7 @@ export function evaluateWorkspaceNavigation(
   if (item.capability === "chat" && !workspace.chatAvailable) {
     return {
       enabled: false,
-      reason: "Collection Workspace 的多目录对话将在下一阶段启用",
+      reason: "Workspace 主目录不可用",
     };
   }
   return { enabled: true };

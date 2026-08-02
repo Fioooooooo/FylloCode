@@ -230,6 +230,18 @@ onUnmounted(() => {
         </div>
 
         <div
+          v-if="state.status === 'ready' && state.agentScope === 'window-only'"
+          class="flex shrink-0 items-start gap-2 border-b border-warning/30 bg-warning/10 px-5 py-3 text-sm text-warning"
+          data-test="preview-window-only-warning"
+        >
+          <UIcon name="i-lucide-shield-alert" class="mt-0.5 size-4 shrink-0" />
+          <p>
+            此文件仅获当前窗口预览授权，不属于当前 Session 的 Agent 目录范围，不能作为 Agent
+            resource 发送。
+          </p>
+        </div>
+
+        <div
           v-if="state.status === 'loading'"
           class="flex min-h-0 flex-1 items-center justify-center p-6"
           data-test="preview-loading"

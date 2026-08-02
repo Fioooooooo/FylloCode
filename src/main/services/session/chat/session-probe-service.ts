@@ -1,5 +1,6 @@
 import type { ClientSideConnection, SessionNotification } from "@agentclientprotocol/sdk";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
@@ -30,6 +31,17 @@ export interface SetProbeConfigOptionInput {
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
+}
+
+export function getProbeWorkspaceSnapshotForPromotion(
+  workspaceId: string,
+  agentId: string,
+  acpSessionId: string
+): SessionWorkspaceSnapshot | null {
+  return (
+    sessionProbeRegistry.getForPromotion(workspaceId, agentId, acpSessionId)?.workspaceSnapshot ??
+    null
+  );
 }
 
 const probeHandlersByKey = new Map<string, ProbeNotificationHandler>();
@@ -112,6 +124,7 @@ function setFailedEntry(
   workspaceId: string,
   agentId: string,
   error: unknown,
+  workspaceSnapshot: SessionWorkspaceSnapshot,
   fylloSessionId = newSessionId()
 ): ProbeEntry {
   const entry: ProbeEntry = {
@@ -122,6 +135,7 @@ function setFailedEntry(
     acpSessionId: null,
     configOptions: [],
     availableCommands: [],
+    workspaceSnapshot,
     error: normalizeError(error),
     startedAt: Date.now(),
   };
@@ -177,8 +191,9 @@ async function getConnection(agentId: string): Promise<ClientSideConnection> {
 export async function ensureProbe(
   workspaceId: string,
   agentId: string,
-  workspaceCwd: string
+  workspaceSnapshot: SessionWorkspaceSnapshot
 ): Promise<ProbeSnapshot> {
+  const workspaceCwd = workspaceSnapshot.cwd;
   const existing = sessionProbeRegistry.get(workspaceId, agentId);
   if (existing?.status === "ready") {
     return toProbeSnapshot(existing);
@@ -195,6 +210,7 @@ export async function ensureProbe(
     acpSessionId: null,
     configOptions: [],
     availableCommands: [],
+    workspaceSnapshot,
     startedAt: Date.now(),
   };
   sessionProbeRegistry.set(workspaceId, agentId, startingEntry);
@@ -224,6 +240,7 @@ export async function ensureProbe(
         try {
           const createdSession = await processEntry.connection.newSession({
             cwd: workspaceCwd,
+            additionalDirectories: workspaceSnapshot.additionalDirectories,
             mcpServers,
           });
           markAcpSessionActive(processEntry, createdSession.sessionId);
@@ -255,6 +272,7 @@ export async function ensureProbe(
         // usually arrive asynchronously after newSession returns, so this is
         // often still [] here; the handler re-emits once they land.
         availableCommands: current?.availableCommands ?? [],
+        workspaceSnapshot,
         startedAt: startingEntry.startedAt,
       };
       sessionProbeRegistry.set(workspaceId, agentId, readyEntry);
@@ -266,7 +284,13 @@ export async function ensureProbe(
         const normalized = normalizeError(error);
         throw ipcError(normalizeIpcErrorCode(normalized.code), normalized.message);
       }
-      const failedEntry = setFailedEntry(workspaceId, agentId, error, startingEntry.fylloSessionId);
+      const failedEntry = setFailedEntry(
+        workspaceId,
+        agentId,
+        error,
+        workspaceSnapshot,
+        startingEntry.fylloSessionId
+      );
       throw ipcError(
         normalizeIpcErrorCode(failedEntry.error?.code),
         failedEntry.error?.message ?? "Failed to ensure probe"

@@ -75,6 +75,24 @@ function processInvalidatedListener(): (event: { agentId: string; reason: string
   return listener;
 }
 
+function workspaceSnapshot(workspaceId: string, cwd: string, additionalDirectories: string[] = []) {
+  return {
+    workspaceId,
+    workspaceKind: additionalDirectories.length > 0 ? ("collection" as const) : ("folder" as const),
+    primaryFolderId: "folder-primary",
+    folders: [
+      { folderId: "folder-primary", folderName: "Primary", folderPath: cwd },
+      ...additionalDirectories.map((folderPath, index) => ({
+        folderId: `folder-${index + 1}`,
+        folderName: `Secondary ${index + 1}`,
+        folderPath,
+      })),
+    ],
+    cwd,
+    additionalDirectories,
+  };
+}
+
 describe("session-probe-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,7 +168,11 @@ describe("session-probe-service", () => {
     const onUpdate = vi.fn((payload) => updates.push(payload));
     sessionProbeBus.onUpdate(onUpdate);
 
-    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project", ["/tmp/secondary"])
+    );
 
     expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
     expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
@@ -161,6 +183,7 @@ describe("session-probe-service", () => {
     });
     expect(mocks.newSession).toHaveBeenCalledWith({
       cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
       mcpServers: [
         {
           name: "fyllo",
@@ -202,8 +225,16 @@ describe("session-probe-service", () => {
       })
     );
 
-    const first = ensureProbe("workspace-1", "claude-code", "/tmp/project");
-    const second = ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const first = ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
+    const second = ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     resolveNewSession({ sessionId: "acp-1", configOptions: [] });
 
     await expect(Promise.all([first, second])).resolves.toEqual([
@@ -222,7 +253,11 @@ describe("session-probe-service", () => {
       })
     );
 
-    const probe = ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const probe = ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     await vi.waitFor(() => expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce());
     expect(mocks.newSession).not.toHaveBeenCalled();
 
@@ -244,8 +279,16 @@ describe("session-probe-service", () => {
         })
     );
 
-    const first = ensureProbe("project-a", "claude-code", "/tmp/project-a");
-    const second = ensureProbe("project-b", "claude-code", "/tmp/project-b");
+    const first = ensureProbe(
+      "project-a",
+      "claude-code",
+      workspaceSnapshot("project-a", "/tmp/project-a")
+    );
+    const second = ensureProbe(
+      "project-b",
+      "claude-code",
+      workspaceSnapshot("project-b", "/tmp/project-b")
+    );
 
     await vi.waitFor(() => expect(pendingStarts).toHaveLength(1));
     expect(pendingStarts[0]?.cwd).toBe("/tmp/project-a");
@@ -283,7 +326,11 @@ describe("session-probe-service", () => {
       })
     );
 
-    const promise = ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const promise = ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     const startingEntry = sessionProbeRegistry.get("workspace-1", "claude-code");
 
     expect(startingEntry).toMatchObject({
@@ -310,7 +357,11 @@ describe("session-probe-service", () => {
   it("closes a ready probe and emits null", async () => {
     const { closeProbe, ensureProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
@@ -331,7 +382,11 @@ describe("session-probe-service", () => {
   it("does not throw when closeSession fails", async () => {
     const { closeProbe, ensureProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     mocks.closeSession.mockRejectedValueOnce(new Error("not implemented"));
 
     await expect(closeProbe("workspace-1", "claude-code")).resolves.toBeUndefined();
@@ -343,7 +398,11 @@ describe("session-probe-service", () => {
   it("sets a probe config option and returns the latest snapshot", async () => {
     const { ensureProbe, setProbeConfigOption } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     const snapshot = await setProbeConfigOption({
       workspaceId: "workspace-1",
@@ -364,7 +423,11 @@ describe("session-probe-service", () => {
   it("rejects invalid probe config option values", async () => {
     const { ensureProbe, setProbeConfigOption } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     await expect(
       setProbeConfigOption({
@@ -380,7 +443,11 @@ describe("session-probe-service", () => {
 
   it("cleans probe state when the agent process is invalidated", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
@@ -402,9 +469,9 @@ describe("session-probe-service", () => {
       .mockResolvedValueOnce({ sessionId: "acp-a", configOptions: [] })
       .mockResolvedValueOnce({ sessionId: "acp-b", configOptions: [] })
       .mockResolvedValueOnce({ sessionId: "acp-other", configOptions: [] });
-    await ensureProbe("project-a", "claude-code", "/tmp/project-a");
-    await ensureProbe("project-b", "claude-code", "/tmp/project-b");
-    await ensureProbe("project-a", "codex", "/tmp/project-a");
+    await ensureProbe("project-a", "claude-code", workspaceSnapshot("project-a", "/tmp/project-a"));
+    await ensureProbe("project-b", "claude-code", workspaceSnapshot("project-b", "/tmp/project-b"));
+    await ensureProbe("project-a", "codex", workspaceSnapshot("project-a", "/tmp/project-a"));
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
 
@@ -435,10 +502,18 @@ describe("session-probe-service", () => {
     mocks.newSession
       .mockResolvedValueOnce({ sessionId: "acp-old", configOptions: [] })
       .mockResolvedValueOnce({ sessionId: "acp-new", configOptions: [] });
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     processInvalidatedListener()({ agentId: "claude-code", reason: "upgrade" });
-    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     expect(mocks.newSession).toHaveBeenCalledTimes(2);
     expect(snapshot.acpSessionId).toBe("acp-new");
@@ -458,7 +533,11 @@ describe("session-probe-service", () => {
       return { sessionId: "acp-1", configOptions: [] };
     });
 
-    const snapshot = await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    const snapshot = await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     expect(callOrder).toEqual(["setPendingProbeHandler", "newSession"]);
     expect(mocks.pendingProbeHandlers.has("claude-code")).toBe(false);
@@ -468,7 +547,11 @@ describe("session-probe-service", () => {
 
   it("updates the entry and re-emits when the probe handler receives available_commands_update", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     const updates: unknown[] = [];
     const onUpdate = vi.fn((payload) => updates.push(payload));
@@ -513,8 +596,8 @@ describe("session-probe-service", () => {
       .mockResolvedValueOnce({ sessionId: "acp-a", configOptions: [] })
       .mockResolvedValueOnce({ sessionId: "acp-b", configOptions: [] });
 
-    await ensureProbe("project-a", "claude-code", "/tmp/project-a");
-    await ensureProbe("project-b", "claude-code", "/tmp/project-b");
+    await ensureProbe("project-a", "claude-code", workspaceSnapshot("project-a", "/tmp/project-a"));
+    await ensureProbe("project-b", "claude-code", workspaceSnapshot("project-b", "/tmp/project-b"));
 
     mocks.sessionHandlers.get("acp-a")?.({
       sessionId: "acp-a",
@@ -542,7 +625,11 @@ describe("session-probe-service", () => {
   it("takes a probe for chat and clears its probe-only session handler", async () => {
     const { ensureProbe, takeProbeFor } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     expect(mocks.sessionHandlers.has("acp-1")).toBe(true);
 
     const entry = await takeProbeFor("workspace-1", "claude-code", "acp-1");
@@ -555,7 +642,11 @@ describe("session-probe-service", () => {
 
   it("broadcasts an empty array when the agent declares no commands", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     const updates: unknown[] = [];
     const onUpdate = vi.fn((payload) => updates.push(payload));
@@ -579,7 +670,11 @@ describe("session-probe-service", () => {
 
   it("ignores message-stream events in the probe handler", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
 
     const onUpdate = vi.fn();
     sessionProbeBus.onUpdate(onUpdate);
@@ -598,7 +693,11 @@ describe("session-probe-service", () => {
   it("clears the probe handler on close", async () => {
     const { ensureProbe, closeProbe } =
       await import("@main/services/session/chat/session-probe-service");
-    await ensureProbe("workspace-1", "claude-code", "/tmp/project");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
     expect(mocks.sessionHandlers.has("acp-1")).toBe(true);
 
     await closeProbe("workspace-1", "claude-code");

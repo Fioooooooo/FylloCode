@@ -9,11 +9,15 @@ import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 
 const props = defineProps<{
   message: UIMessage;
+  workspaceId?: string | null;
+  sessionId?: string | null;
 }>();
 
 const { getImageSrc } = useUserImagePart({
   messageId: () => props.message.id,
   parts: () => props.message.parts,
+  workspaceId: () => props.workspaceId,
+  sessionId: () => props.sessionId,
 });
 
 const expandedTextParts = reactive<Record<string, boolean>>({});

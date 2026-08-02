@@ -14,6 +14,14 @@ function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
     acpSessionId: "acp-1",
     configOptions: [],
     availableCommands: [],
+    workspaceSnapshot: {
+      workspaceId: "workspace-1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+    },
     startedAt: 0,
     ...overrides,
   };
@@ -98,5 +106,24 @@ describe("session-probe-registry", () => {
     expect(taken?.availableCommands).toEqual([{ name: "plan", description: "Plan" }]);
     expect(taken?.fylloSessionId).toBe("session-probe");
     expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
+  });
+
+  it("getForPromotion only exposes a snapshot for the matching ACP Session", () => {
+    const entry = makeEntry({
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder",
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+        cwd: "/tmp/project",
+        additionalDirectories: [],
+      },
+    });
+    sessionProbeRegistry.set("workspace-1", "claude-code", entry);
+
+    expect(sessionProbeRegistry.getForPromotion("workspace-1", "claude-code", "acp-1")).toBe(entry);
+    expect(
+      sessionProbeRegistry.getForPromotion("workspace-1", "claude-code", "different-acp")
+    ).toBeNull();
   });
 });

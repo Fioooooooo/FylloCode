@@ -2,7 +2,7 @@ export type ChatPromptAttachment = {
   id: string;
   isImage: boolean;
   name: string;
-  uri: string | null;
+  attachmentId: string | null;
   mediaType: string;
   previewUrl: string | null;
   sizeLabel: string;
@@ -44,7 +44,7 @@ export function createChatPromptAttachment(file: File, id: string): ChatPromptAt
     id,
     isImage,
     name: file.name,
-    uri: null,
+    attachmentId: null,
     mediaType: file.type || "application/octet-stream",
     previewUrl: isImage ? URL.createObjectURL(file) : null,
     sizeLabel: formatAttachmentSize(file.size),

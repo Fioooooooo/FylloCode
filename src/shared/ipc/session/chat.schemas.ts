@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { chatPromptPartSchema } from "@shared/types/chat-prompt";
+import {
+  attachmentPromptPartSchema,
+  workspaceFilePromptPartSchema,
+} from "@shared/types/chat-prompt";
 import { lineageTaskRefSchema } from "@shared/ipc/insight/lineage.schemas";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -43,7 +46,14 @@ const userFilePartSchema = z
   .passthrough();
 
 const userMessagePartsSchema = z
-  .array(z.discriminatedUnion("type", [userTextPartSchema, userFilePartSchema]))
+  .array(
+    z.discriminatedUnion("type", [
+      userTextPartSchema,
+      userFilePartSchema,
+      attachmentPromptPartSchema,
+      workspaceFilePromptPartSchema,
+    ])
+  )
   .min(1)
   .refine((parts) => parts.some((part) => part.type === "text"), {
     message: "user message parts must include at least one text part",
@@ -125,12 +135,9 @@ export const saveAttachmentInputSchema = z.object({
 });
 
 export const readAttachmentDataUrlInputSchema = z.object({
-  uri: z
-    .string()
-    .min(1)
-    .refine((value) => value.startsWith("file://"), {
-      message: "uri must be a file:// URI",
-    }),
+  workspaceId: z.string().min(1),
+  sessionId: z.string().min(1),
+  attachmentId: z.string().uuid(),
   mediaType: z
     .string()
     .min(1)
@@ -144,7 +151,15 @@ export const streamMessageInputSchema = z.object({
   sessionId: z.string().min(1),
   workspaceId: z.string().min(1),
   agentId: z.string(),
-  prompt: z.array(chatPromptPartSchema).min(1),
+  prompt: z
+    .array(
+      z.discriminatedUnion("type", [
+        z.object({ type: z.literal("text"), text: z.string() }),
+        attachmentPromptPartSchema,
+        workspaceFilePromptPartSchema,
+      ])
+    )
+    .min(1),
   acpSessionId: z.string().min(1).optional(),
 });
 

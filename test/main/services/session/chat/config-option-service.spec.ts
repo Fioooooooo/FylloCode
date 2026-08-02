@@ -3,7 +3,8 @@ import type { SessionMeta } from "@main/infra/storage/session-store";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const mocks = vi.hoisted(() => ({
-  resolveWorkspaceCwd: vi.fn(),
+  ensureSessionWorkspaceSnapshot: vi.fn(),
+  assertAgentWorkspaceCompatibility: vi.fn(),
   loadSessionMeta: vi.fn(),
   patchSessionMeta: vi.fn(),
   getOrStartProcess: vi.fn(),
@@ -18,7 +19,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
-  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
+  ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
+}));
+
+vi.mock("@main/services/session/chat/agent-workspace-compatibility", () => ({
+  assertAgentWorkspaceCompatibility: mocks.assertAgentWorkspaceCompatibility,
 }));
 
 vi.mock("@main/infra/storage/session-store", () => ({
@@ -94,7 +99,15 @@ describe("setConfigOption", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.activeSessionIds.clear();
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
+    mocks.ensureSessionWorkspaceSnapshot.mockResolvedValue({
+      workspaceId: "w1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+    });
+    mocks.assertAgentWorkspaceCompatibility.mockResolvedValue(undefined);
     mocks.getOrStartProcess.mockResolvedValue({
       connection: {
         resumeSession: mocks.resumeSession,
@@ -290,6 +303,17 @@ describe("setConfigOption", () => {
 
   it("activates a cold session, restores persisted config, then applies the user value", async () => {
     mocks.hasActiveAcpSession.mockReturnValue(false);
+    mocks.ensureSessionWorkspaceSnapshot.mockResolvedValueOnce({
+      workspaceId: "w1",
+      workspaceKind: "collection",
+      primaryFolderId: "folder-1",
+      folders: [
+        { folderId: "folder-1", folderName: "Primary", folderPath: "/tmp/project" },
+        { folderId: "folder-2", folderName: "Secondary", folderPath: "/tmp/secondary" },
+      ],
+      cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
+    });
     mocks.loadSessionMeta.mockResolvedValue(
       makeMeta({
         configOptions: [{ ...flatModelSchema, currentValue: "haiku" }],
@@ -314,7 +338,12 @@ describe("setConfigOption", () => {
       value: "sonnet",
     });
 
-    expect(mocks.resumeSession).toHaveBeenCalledOnce();
+    expect(mocks.resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: "/tmp/project",
+        additionalDirectories: ["/tmp/secondary"],
+      })
+    );
     expect(mocks.setSessionConfigOption.mock.calls).toEqual([
       [{ sessionId: "acp-1", configId: "model", value: "haiku" }],
       [{ sessionId: "acp-1", configId: "model", value: "sonnet" }],

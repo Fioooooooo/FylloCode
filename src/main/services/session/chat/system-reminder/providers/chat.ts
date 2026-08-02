@@ -5,6 +5,9 @@ import { resolveGuidelinesSection } from "./guidelines";
 import { resolveKnowledgeSection } from "./knowledge";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
+import { renderWorkspaceSection } from "./workspace";
+import { ipcError } from "@main/ipc/_kit/errors";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 export async function resolveChatSystemReminder(
   ctx: SystemReminderContext
@@ -13,12 +16,20 @@ export async function resolveChatSystemReminder(
   if (rendered === null) {
     return null;
   }
+  if (!ctx.workspaceSnapshot) {
+    throw ipcError(
+      IpcErrorCodes.VALIDATION_ERROR,
+      "Chat system reminder requires a validated Session Workspace snapshot"
+    );
+  }
 
   const guidelinesSection = await resolveGuidelinesSection(ctx);
   const knowledgeSection = await resolveKnowledgeSection(ctx);
+  const workspaceSection = renderWorkspaceSection(ctx.workspaceSnapshot);
 
   return [
     rendered,
+    workspaceSection,
     guidelinesSection,
     knowledgeSection,
     renderFylloActionPromptContract(),

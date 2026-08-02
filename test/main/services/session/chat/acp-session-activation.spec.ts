@@ -45,6 +45,7 @@ function params(
     },
     persistedSessionId: "acp-old",
     cwd: "/tmp/project",
+    additionalDirectories: ["/tmp/secondary"],
     mcpServers: [{ name: "fyllo", command: "node", args: [], env: [] }],
     allowFreshSession: true,
     ...overrides,
@@ -68,6 +69,7 @@ describe("acp-session-activation", () => {
     expect(entry.connection.resumeSession).toHaveBeenCalledWith({
       sessionId: "acp-old",
       cwd: "/tmp/project",
+      additionalDirectories: ["/tmp/secondary"],
       mcpServers: [{ name: "fyllo", command: "node", args: [], env: [] }],
     });
     expect(entry.activeSessionIds.has("acp-old")).toBe(true);
@@ -86,6 +88,9 @@ describe("acp-session-activation", () => {
     ).resolves.toMatchObject({ strategy: "load_session" });
     expect(onLoadStart).toHaveBeenCalledWith("acp-old");
     expect(onLoadFinish).toHaveBeenCalledWith("acp-old");
+    expect(entry.connection.loadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ additionalDirectories: ["/tmp/secondary"] })
+    );
     expect(entry.activeSessionIds.has("acp-old")).toBe(true);
   });
 
@@ -133,6 +138,9 @@ describe("acp-session-activation", () => {
     });
     expect(entry.activeSessionIds.has("acp-old")).toBe(false);
     expect(entry.activeSessionIds.has("acp-new")).toBe(true);
+    expect(entry.connection.newSession).toHaveBeenCalledWith(
+      expect.objectContaining({ additionalDirectories: ["/tmp/secondary"] })
+    );
   });
 
   it("does not create a fresh session for cold config mutation", async () => {
@@ -161,5 +169,8 @@ describe("acp-session-activation", () => {
     });
     expect(entry.connection.resumeSession).not.toHaveBeenCalled();
     expect(entry.connection.loadSession).not.toHaveBeenCalled();
+    expect(entry.connection.newSession).toHaveBeenCalledWith(
+      expect.objectContaining({ additionalDirectories: ["/tmp/secondary"] })
+    );
   });
 });

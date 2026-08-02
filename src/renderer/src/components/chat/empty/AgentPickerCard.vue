@@ -15,6 +15,8 @@ const props = defineProps<{
   selected?: boolean;
   selectable?: boolean;
   installDisabled?: boolean;
+  selectionDisabled?: boolean;
+  selectionHint?: string;
   source?: "registry" | "custom";
 }>();
 
@@ -33,7 +35,7 @@ const hasInstallError = computed(() => props.installProgress?.status === "error"
 const progressMessage = computed(() => props.installProgress?.message ?? "正在处理…");
 
 function handleClick(): void {
-  if (!usable.value || !props.selectable) {
+  if (!usable.value || !props.selectable || props.selectionDisabled) {
     return;
   }
   emit("select", props.agent.id);
@@ -49,7 +51,8 @@ function handleInstall(event: MouseEvent): void {
   <AgentCardBase
     class="group relative transition-colors"
     :class="[
-      usable && selectable ? 'cursor-pointer hover:bg-primary/15' : '',
+      usable && selectable && !selectionDisabled ? 'cursor-pointer hover:bg-primary/15' : '',
+      selectionDisabled ? 'cursor-not-allowed opacity-60' : '',
       selected ? 'border-primary bg-primary/15 ring-1 ring-primary/40' : '',
     ]"
     :agent="agent"
@@ -59,6 +62,9 @@ function handleInstall(event: MouseEvent): void {
   >
     <template #actions>
       <div class="flex flex-col items-end gap-1.5">
+        <span v-if="selectionHint" class="max-w-28 text-right text-[11px] text-muted">
+          {{ selectionHint }}
+        </span>
         <template v-if="!isCustom && !usable">
           <div v-if="isInstalling" class="flex items-center gap-1 text-xs text-muted">
             <UIcon name="i-lucide-loader-circle" class="h-3.5 w-3.5 animate-spin" />

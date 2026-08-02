@@ -96,6 +96,7 @@ describe("ensureAgent custom branch", () => {
       promptCapabilities: { image: true, audio: false, embeddedContext: false },
       mcpCapabilities: { http: true },
       sessionCapabilities: { resume: {} },
+      capabilityCompleteness: "complete",
       capturedAgentVersion: "",
       capturedAt: "2026-07-28T00:00:00.000Z",
     });
@@ -108,6 +109,7 @@ describe("ensureAgent custom branch", () => {
       promptCapabilities: { image: true, audio: false, embeddedContext: false },
       mcpCapabilities: { http: true },
       sessionCapabilities: { resume: {} },
+      capabilityCompleteness: "complete",
       capturedAgentVersion: "",
     });
     expect(mockedGetOrStartProcess).toHaveBeenCalledWith(agentId);

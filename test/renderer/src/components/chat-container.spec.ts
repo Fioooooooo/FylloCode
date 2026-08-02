@@ -86,6 +86,7 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
+        SessionScopeHeader: { template: '<div data-test="scope-header-stub"></div>' },
         ChatAgentAgendaPanel: {
           props: ["entries"],
           template: '<div data-test="chat-agent-agenda-panel">{{ entries.length }}</div>',
