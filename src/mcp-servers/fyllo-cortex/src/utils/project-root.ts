@@ -1,5 +1,5 @@
-import { getProjectPath } from "../../../shared/env";
+import { resolveSingleFolder } from "../../../shared/workspace-resolver";
 
 export function resolveProjectRoot(): string {
-  return getProjectPath();
+  return resolveSingleFolder().folderPath;
 }

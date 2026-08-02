@@ -46,7 +46,8 @@ export function appendProposal(
   subject: Subject,
   sessionId: string,
   changeId: string,
-  now: string
+  now: string,
+  folderId?: string
 ): Subject {
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
   // Idempotent: a proposal is recorded only once per session link.
@@ -65,6 +66,7 @@ export function appendProposal(
               {
                 changeId,
                 createdAt: now,
+                ...(folderId ? { folderId } : {}),
               },
             ],
           }
@@ -78,7 +80,8 @@ export function appendPlan(
   subject: Subject,
   sessionId: string,
   slug: string,
-  now: string
+  now: string,
+  folderId?: string
 ): Subject {
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
   // Idempotent: a plan is recorded only once per session link.
@@ -97,6 +100,7 @@ export function appendPlan(
               {
                 slug,
                 createdAt: now,
+                ...(folderId ? { folderId } : {}),
               },
             ],
           }

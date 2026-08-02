@@ -4,6 +4,12 @@ import type { AddressInfo } from "node:net";
 import { PassThrough } from "node:stream";
 import type { ChildProcess } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolve } from "node:path";
+import { mcpAccessGrantRegistry } from "@main/infra/mcp/mcp-access-grant-registry";
+import {
+  FYLLO_WORKSPACE_CONTEXT_HEADER,
+  parseMcpWorkspaceDescriptor,
+} from "@shared/types/mcp-workspace";
 
 class FakeChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -97,6 +103,8 @@ async function startBackend(name: string): Promise<number> {
           body,
           authorization: req.headers.authorization ?? null,
           projectPath: req.headers["x-fyllo-project-path"] ?? null,
+          callerContext: req.headers["x-fyllo-caller-context"] ?? null,
+          workspaceContext: req.headers[FYLLO_WORKSPACE_CONTEXT_HEADER] ?? null,
         })
       );
     });
@@ -107,6 +115,30 @@ async function startBackend(name: string): Promise<number> {
     server.listen(0, "127.0.0.1", () => resolve());
   });
   return (server.address() as AddressInfo).port;
+}
+
+function issueToken(allowedServerNames: Array<"fyllo-specs" | "fyllo-cortex">): string {
+  const folderPath = resolve("/work/project");
+  return mcpAccessGrantRegistry.issue({
+    agentId: "agent-1",
+    descriptor: parseMcpWorkspaceDescriptor({
+      version: 2,
+      workspaceId: "workspace-1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath }],
+      workspaceDataDir: resolve("/data/workspace-1"),
+      sessionId: "session-1",
+    }),
+    allowedServerNames,
+  }).token;
+}
+
+function decodeWorkspaceContext(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
 }
 
 async function closeBackendServers(): Promise<void> {
@@ -121,6 +153,7 @@ async function closeBackendServers(): Promise<void> {
 }
 
 beforeEach(() => {
+  mcpAccessGrantRegistry.revokeAll();
   spawnMocks.calls.length = 0;
   spawnMocks.nextPid = 20_000;
   spawnMocks.spawn.mockImplementation((_command: string, args: string[]) => {
@@ -134,6 +167,7 @@ beforeEach(() => {
 afterEach(async () => {
   await stopBundledMcpHost();
   await closeBackendServers();
+  mcpAccessGrantRegistry.revokeAll();
   vi.useRealTimers();
   vi.clearAllMocks();
   if (originalDisable === undefined) {
@@ -161,7 +195,8 @@ describe("bundled MCP host", () => {
     expect(new URL(specsEndpoint!.url).port).toBe(new URL(cortexEndpoint!.url).port);
     expect(specsEndpoint!.url).toMatch(/\/mcp\/fyllo-specs$/);
     expect(cortexEndpoint!.url).toMatch(/\/mcp\/fyllo-cortex$/);
-    expect(specsEndpoint!.token).toBe(cortexEndpoint!.token);
+    expect(specsEndpoint).not.toHaveProperty("token");
+    expect(cortexEndpoint).not.toHaveProperty("token");
 
     const proxyUrl = new URL(specsEndpoint!.url).origin;
     expect(loggerMocks.info).toHaveBeenCalledWith(`[bundled-mcp-host] proxy ready url=${proxyUrl}`);
@@ -177,33 +212,48 @@ describe("bundled MCP host", () => {
     expect(loggerMocks.info).toHaveBeenCalledWith(
       `[bundled-mcp-host] server ready name=fyllo-cortex backend=http://127.0.0.1:${cortexPort}/mcp proxy=${cortexEndpoint!.url}`
     );
-    expect(loggerMocks.info.mock.calls.flat().join("\n")).not.toContain(specsEndpoint!.token);
+    const token = issueToken(["fyllo-specs", "fyllo-cortex"]);
+    expect(loggerMocks.info.mock.calls.flat().join("\n")).not.toContain(token);
 
     const [specsResponse, cortexResponse] = await Promise.all([
       fetch(specsEndpoint!.url, {
         method: "POST",
         body: "specs-body",
         headers: {
-          Authorization: "Bearer forwarded-token",
+          Authorization: `Bearer ${token}`,
           "X-Fyllo-Project-Path": "encoded-project",
+          "X-Fyllo-Caller-Context": "spoofed-context",
         },
       }),
-      fetch(cortexEndpoint!.url, { method: "POST", body: "cortex-body" }),
+      fetch(cortexEndpoint!.url, {
+        method: "POST",
+        body: "cortex-body",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     ]);
-    await expect(specsResponse.json()).resolves.toEqual({
+    const specsPayload = (await specsResponse.json()) as Record<string, unknown>;
+    const cortexPayload = (await cortexResponse.json()) as Record<string, unknown>;
+    expect(specsPayload).toMatchObject({
       name: "specs",
       path: "/mcp",
       body: "specs-body",
-      authorization: "Bearer forwarded-token",
-      projectPath: "encoded-project",
+      projectPath: null,
+      callerContext: null,
     });
-    await expect(cortexResponse.json()).resolves.toEqual({
+    expect(specsPayload.authorization).not.toBe(`Bearer ${token}`);
+    expect(decodeWorkspaceContext(specsPayload.workspaceContext)).toMatchObject({
+      version: 2,
+      workspaceId: "workspace-1",
+      primaryFolderId: "folder-1",
+    });
+    expect(cortexPayload).toMatchObject({
       name: "cortex",
       path: "/mcp",
       body: "cortex-body",
-      authorization: null,
       projectPath: null,
+      callerContext: null,
     });
+    expect(cortexPayload.authorization).toBe(specsPayload.authorization);
   });
 
   it("returns 404 for unknown routes and 503 for a known unavailable backend", async () => {
@@ -215,9 +265,12 @@ describe("bundled MCP host", () => {
     await waitForBundledMcpInitialReadiness();
 
     const specsEndpoint = getMcpServerEndpoint("fyllo-specs")!;
+    const token = issueToken(["fyllo-specs", "fyllo-cortex"]);
     childFor("fyllo-cortex").emit("exit", 1, null);
     const baseUrl = new URL(specsEndpoint.url);
-    const unavailable = await fetch(`${baseUrl.origin}/mcp/fyllo-cortex`);
+    const unavailable = await fetch(`${baseUrl.origin}/mcp/fyllo-cortex`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const unknown = await fetch(`${baseUrl.origin}/mcp/unknown`);
 
     expect(unavailable.status).toBe(503);
@@ -237,6 +290,7 @@ describe("bundled MCP host", () => {
     await waitForBundledMcpInitialReadiness();
 
     const before = getMcpServerEndpoint("fyllo-specs")!;
+    const token = issueToken(["fyllo-specs"]);
     firstChild.emit("exit", 1, null);
     await new Promise((resolve) => setTimeout(resolve, 260));
     await waitForChildCount(3);
@@ -244,14 +298,46 @@ describe("bundled MCP host", () => {
     const after = getMcpServerEndpoint("fyllo-specs")!;
 
     expect(after).toEqual(before);
-    const response = await fetch(after.url, { method: "POST", body: "after-restart" });
-    await expect(response.json()).resolves.toEqual({
+    const response = await fetch(after.url, {
+      method: "POST",
+      body: "after-restart",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json()) as Record<string, unknown>;
+    expect(payload).toMatchObject({
       name: "second",
       path: "/mcp",
       body: "after-restart",
-      authorization: null,
       projectPath: null,
+      callerContext: null,
     });
+    expect(payload.authorization).not.toBe(`Bearer ${token}`);
+    expect(decodeWorkspaceContext(payload.workspaceContext)).toMatchObject({
+      workspaceId: "workspace-1",
+    });
+  });
+
+  it("rejects invalid and cross-server capabilities before forwarding", async () => {
+    const specsPort = await startBackend("specs");
+    const cortexPort = await startBackend("cortex");
+    startBundledMcpHost();
+    await waitForChildCount(2);
+    childFor("fyllo-specs").emit("message", { type: "ready", port: specsPort });
+    childFor("fyllo-cortex").emit("message", { type: "ready", port: cortexPort });
+    await waitForBundledMcpInitialReadiness();
+
+    const specsEndpoint = getMcpServerEndpoint("fyllo-specs")!;
+    const cortexEndpoint = getMcpServerEndpoint("fyllo-cortex")!;
+    const specsOnlyToken = issueToken(["fyllo-specs"]);
+
+    expect((await fetch(specsEndpoint.url)).status).toBe(401);
+    expect(
+      (
+        await fetch(cortexEndpoint.url, {
+          headers: { Authorization: `Bearer ${specsOnlyToken}` },
+        })
+      ).status
+    ).toBe(403);
   });
 
   it("shares one readiness timeout and falls back without duplicate spawns", async () => {

@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { GuidelineEntry } from "../../../src/mcp-servers/fyllo-cortex/src/types/guideline";
 import { registerTools } from "../../../src/mcp-servers/fyllo-cortex/src/tools";
 import {
@@ -18,6 +18,20 @@ import {
   sha256,
 } from "../../../src/mcp-servers/fyllo-cortex/src/utils/knowledge";
 import type { KnowledgeEntryDraft } from "../../../src/shared/types/knowledge";
+
+vi.mock("../../../src/mcp-servers/shared/workspace-context", () => ({
+  getWorkspaceContext: () => {
+    const folderPath = process.env.FYLLO_PROJECT_PATH ?? process.cwd();
+    return {
+      version: 2,
+      workspaceId: "workspace-test",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-test",
+      folders: [{ folderId: "folder-test", folderName: "Test", folderPath }],
+      workspaceDataDir: process.env.FYLLO_PROJECT_DATA_DIR ?? "/tmp/fyllo-test-data",
+    };
+  },
+}));
 
 async function createToolClient(): Promise<{
   client: Client;

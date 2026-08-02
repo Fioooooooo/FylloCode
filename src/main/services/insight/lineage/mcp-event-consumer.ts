@@ -7,6 +7,7 @@ import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
 import { proposalStatusService } from "@main/services/proposal/_public";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 
 type ConsumerState = {
   watcher: nodeFs.FSWatcher | null;
@@ -29,6 +30,10 @@ function isMcpProposalEvent(value: unknown): value is McpProposalEvent {
     typeof value.createdAt === "string" &&
     typeof value.sessionId === "string" &&
     value.sessionId.length > 0 &&
+    typeof value.workspaceId === "string" &&
+    value.workspaceId.length > 0 &&
+    typeof value.folderId === "string" &&
+    value.folderId.length > 0 &&
     typeof value.changeId === "string" &&
     value.changeId.length > 0
   );
@@ -42,6 +47,10 @@ function isMcpPlanEvent(value: unknown): value is McpPlanEvent {
     typeof value.createdAt === "string" &&
     typeof value.sessionId === "string" &&
     value.sessionId.length > 0 &&
+    typeof value.workspaceId === "string" &&
+    value.workspaceId.length > 0 &&
+    typeof value.folderId === "string" &&
+    value.folderId.length > 0 &&
     typeof value.planSlug === "string" &&
     value.planSlug.length > 0
   );
@@ -53,7 +62,6 @@ function isMcpEvent(value: unknown): value is McpEvent {
 
 async function consumeEventFile(
   workspaceId: string,
-  repositoryPath: string,
   eventDir: string,
   fileName: string
 ): Promise<void> {
@@ -71,18 +79,33 @@ async function consumeEventFile(
     return;
   }
 
+  if (event.workspaceId !== workspaceId) {
+    logger.warn(
+      `[lineage-mcp-event] skipped event for another Workspace: expected=${workspaceId} actual=${event.workspaceId}`
+    );
+    return;
+  }
+
   try {
+    const workspace = await getRequiredWorkspaceInfo(workspaceId);
+    const owner = workspace.folders.find((folder) => folder.folderId === event.folderId);
+    if (!owner || owner.pathMissing) {
+      logger.warn(
+        `[lineage-mcp-event] skipped event with unauthorized Folder: workspace=${workspaceId} folder=${event.folderId}`
+      );
+      return;
+    }
     let subject =
       event.tool === "create-proposal"
-        ? await recordProposal(workspaceId, event.sessionId, event.changeId)
-        : await recordPlan(workspaceId, event.sessionId, event.planSlug);
+        ? await recordProposal(workspaceId, event.sessionId, event.changeId, event.folderId)
+        : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
 
     if (!subject) {
       await ensureChatSubject(workspaceId, event.sessionId);
       subject =
         event.tool === "create-proposal"
-          ? await recordProposal(workspaceId, event.sessionId, event.changeId)
-          : await recordPlan(workspaceId, event.sessionId, event.planSlug);
+          ? await recordProposal(workspaceId, event.sessionId, event.changeId, event.folderId)
+          : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
     }
 
     if (!subject) {
@@ -97,7 +120,7 @@ async function consumeEventFile(
     if (event.tool === "create-proposal") {
       proposalStatusService.watchProposal(
         workspaceId,
-        repositoryPath,
+        owner.folderPath,
         event.changeId,
         event.sessionId
       );
@@ -109,7 +132,7 @@ async function consumeEventFile(
   }
 }
 
-async function scanWorkspaceEvents(workspaceId: string, repositoryPath: string): Promise<void> {
+async function scanWorkspaceEvents(workspaceId: string): Promise<void> {
   const eventDir = mcpEventsDir(workspaceId);
   let files: string[];
   try {
@@ -126,15 +149,11 @@ async function scanWorkspaceEvents(workspaceId: string, repositoryPath: string):
     if (!fileName.endsWith(".json")) {
       continue;
     }
-    await consumeEventFile(workspaceId, repositoryPath, eventDir, fileName);
+    await consumeEventFile(workspaceId, eventDir, fileName);
   }
 }
 
-function triggerScan(
-  workspaceId: string,
-  repositoryPath: string,
-  state: ConsumerState
-): Promise<void> {
+function triggerScan(workspaceId: string, state: ConsumerState): Promise<void> {
   if (state.closed) {
     return Promise.resolve();
   }
@@ -144,7 +163,7 @@ function triggerScan(
     return state.scanPromise;
   }
 
-  state.scanPromise = scanWorkspaceEvents(workspaceId, repositoryPath)
+  state.scanPromise = scanWorkspaceEvents(workspaceId)
     .catch((error: unknown) => {
       logger.error(`[lineage-mcp-event] scan failed for workspace=${workspaceId}`, error);
     })
@@ -154,27 +173,23 @@ function triggerScan(
         return;
       }
       state.scanQueued = false;
-      void triggerScan(workspaceId, repositoryPath, state);
+      void triggerScan(workspaceId, state);
     });
 
   return state.scanPromise;
 }
 
-async function startConsumer(
-  workspaceId: string,
-  repositoryPath: string,
-  state: ConsumerState
-): Promise<void> {
+async function startConsumer(workspaceId: string, state: ConsumerState): Promise<void> {
   const eventDir = mcpEventsDir(workspaceId);
   try {
     await fs.mkdir(eventDir, { recursive: true });
-    await triggerScan(workspaceId, repositoryPath, state);
+    await triggerScan(workspaceId, state);
     if (state.closed) {
       return;
     }
 
     const watcher = nodeFs.watch(eventDir, () => {
-      void triggerScan(workspaceId, repositoryPath, state);
+      void triggerScan(workspaceId, state);
     });
     watcher.on("error", (error) => {
       logger.warn(`[lineage-mcp-event] watcher error for workspace=${workspaceId}`, error);
@@ -189,7 +204,7 @@ async function startConsumer(
   }
 }
 
-export function ensureLineageEventConsumer(workspaceId: string, repositoryPath: string): void {
+export function ensureLineageEventConsumer(workspaceId: string): void {
   if (consumers.has(workspaceId)) {
     return;
   }
@@ -201,7 +216,7 @@ export function ensureLineageEventConsumer(workspaceId: string, repositoryPath: 
     scanQueued: false,
   };
   consumers.set(workspaceId, state);
-  void startConsumer(workspaceId, repositoryPath, state);
+  void startConsumer(workspaceId, state);
 }
 
 export function disposeWorkspace(workspaceId: string): void {

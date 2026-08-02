@@ -30,6 +30,11 @@ import { makeStreamChannel } from "../_kit/stream-channel";
 import logger from "@main/infra/logger";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
 import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-session-store";
+import {
+  getRequiredWorkspaceInfo,
+  resolveRepositoryTarget,
+} from "@main/services/workspace/_public";
+import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
 
 export function registerProposalApplyHandlers(): void {
@@ -74,6 +79,22 @@ export function registerProposalApplyHandlers(): void {
         }
         const agentId = stage.agent;
         const fylloSessionId = newStageFylloSessionId(form.runId, form.stageIndex);
+        const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
+        const repositoryTarget = await resolveRepositoryTarget({
+          workspaceId: form.workspaceId,
+          folderId: workspace.primaryFolder.id,
+          worktreePath: runMeta.worktreePath ?? workspaceCwd,
+        });
+        const mcpWorkspaceDescriptor = createOwnerMcpWorkspaceDescriptor({
+          workspaceId: form.workspaceId,
+          workspaceKind: workspace.kind,
+          ownerFolder: {
+            folderId: workspace.primaryFolder.id,
+            folderName: workspace.primaryFolder.name,
+            folderPath: workspaceCwd,
+          },
+          sessionId: fylloSessionId,
+        });
         const userMessage = buildProposalRunUserMessage(fylloSessionId, prompt);
         try {
           await appendApplyRunMessage(
@@ -98,8 +119,9 @@ export function registerProposalApplyHandlers(): void {
           agentId,
           workspaceId: form.workspaceId,
           projectPath: workspaceCwd,
-          cwd: runMeta.worktreePath ?? workspaceCwd,
+          cwd: repositoryTarget.worktreePath,
           additionalDirectories: [],
+          mcpWorkspaceDescriptor,
           owner: "apply",
           sessionStore,
           reminderContext: {

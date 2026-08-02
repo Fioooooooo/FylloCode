@@ -12,6 +12,11 @@ import type { ChildProcess } from "node:child_process";
 import spawn from "cross-spawn";
 import logger from "@main/infra/logger";
 import {
+  FYLLO_WORKSPACE_CONTEXT_HEADER,
+  serializeMcpWorkspaceDescriptor,
+} from "@shared/types/mcp-workspace";
+import { mcpAccessGrantRegistry } from "./mcp-access-grant-registry";
+import {
   bundledMcpServers,
   resolveBundlePath,
   type BundledMcpServerName,
@@ -51,7 +56,6 @@ interface BundledMcpHost {
 
 export interface BundledMcpEndpoint {
   url: string;
-  token: string;
 }
 
 const hopByHopHeaders = new Set([
@@ -95,10 +99,32 @@ function settleInitial(managed: ManagedMcpServer): void {
   managed.settleInitial();
 }
 
-function filteredHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
+function filteredResponseHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
   return Object.fromEntries(
     Object.entries(headers).filter(([name]) => !hopByHopHeaders.has(name.toLowerCase()))
   );
+}
+
+function filteredCallerHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => {
+      const normalized = name.toLowerCase();
+      return (
+        !hopByHopHeaders.has(normalized) &&
+        normalized !== "authorization" &&
+        !normalized.startsWith("x-fyllo-")
+      );
+    })
+  );
+}
+
+function bearerToken(headers: IncomingHttpHeaders): string | null {
+  const authorization = headers.authorization;
+  if (typeof authorization !== "string" || !authorization.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authorization.slice("Bearer ".length);
+  return token ? token : null;
 }
 
 function writeProxyError(res: ServerResponse, statusCode: number, message: string): void {
@@ -123,6 +149,23 @@ function handleProxyRequest(
   }
 
   const name = match[1] as BundledMcpServerName;
+  const token = bearerToken(incoming.headers);
+  const authorization = token
+    ? mcpAccessGrantRegistry.authorize(token, name)
+    : { status: "unauthorized" as const };
+  if (authorization.status === "unauthorized") {
+    writeProxyError(res, 401, "Unauthorized");
+    return;
+  }
+  if (authorization.status === "forbidden") {
+    writeProxyError(res, 403, "Forbidden");
+    return;
+  }
+  if (!currentHost.token) {
+    writeProxyError(res, 503, "Bundled MCP host is unavailable");
+    return;
+  }
+
   const managed = currentHost.servers.get(name);
   if (!managed || managed.state !== "ready" || managed.backendPort === null) {
     res.setHeader("Retry-After", "1");
@@ -136,14 +179,24 @@ function handleProxyRequest(
       port: managed.backendPort,
       method: incoming.method,
       path: `/mcp${url.search}`,
-      headers: filteredHeaders(incoming.headers),
+      headers: {
+        ...filteredCallerHeaders(incoming.headers),
+        Authorization: `Bearer ${currentHost.token}`,
+        [FYLLO_WORKSPACE_CONTEXT_HEADER]: Buffer.from(
+          serializeMcpWorkspaceDescriptor(authorization.grant.descriptor),
+          "utf8"
+        ).toString("base64url"),
+      },
     },
     (upstreamResponse) => {
       if (res.destroyed) {
         upstreamResponse.destroy();
         return;
       }
-      res.writeHead(upstreamResponse.statusCode ?? 502, filteredHeaders(upstreamResponse.headers));
+      res.writeHead(
+        upstreamResponse.statusCode ?? 502,
+        filteredResponseHeaders(upstreamResponse.headers)
+      );
       upstreamResponse.pipe(res);
     }
   );
@@ -372,7 +425,6 @@ export function getMcpServerEndpoint(name: BundledMcpServerName): BundledMcpEndp
   }
   return {
     url: `http://127.0.0.1:${host.proxyPort}/mcp/${name}`,
-    token: host.token,
   };
 }
 
@@ -424,6 +476,7 @@ async function forceTerminate(child: ChildProcess): Promise<void> {
 
 async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
   currentHost.shuttingDown = true;
+  mcpAccessGrantRegistry.revokeAll();
   if (currentHost.initialTimer) {
     clearTimeout(currentHost.initialTimer);
     currentHost.initialTimer = null;

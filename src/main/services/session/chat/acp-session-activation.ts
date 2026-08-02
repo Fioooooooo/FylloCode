@@ -32,7 +32,11 @@ export interface ActivateAcpSessionParams {
   persistedSessionId: string | null;
   cwd: string;
   additionalDirectories: string[];
-  mcpServers: AcpMcpServers;
+  createMcpActivation(): Promise<{
+    mcpServers: AcpMcpServers;
+    mcpActivationId: string | null;
+    revoke(): void;
+  }>;
   allowFreshSession: boolean;
   onLoadStart?: (sessionId: string) => void;
   onLoadFinish?: (sessionId: string) => void;
@@ -46,7 +50,7 @@ export async function activateAcpSession({
   persistedSessionId,
   cwd,
   additionalDirectories,
-  mcpServers,
+  createMcpActivation,
   allowFreshSession,
   onLoadStart,
   onLoadFinish,
@@ -58,15 +62,18 @@ export async function activateAcpSession({
 
   if (persistedSessionId && supportsResume(initializeResponse)) {
     checkCancelled?.("before resumeSession");
+    const mcpActivation = await createMcpActivation();
+    let bound = false;
     try {
       const response = await connection.resumeSession({
         sessionId: persistedSessionId,
         cwd,
         additionalDirectories,
-        mcpServers,
+        mcpServers: mcpActivation.mcpServers,
       });
       checkCancelled?.("after resumeSession");
-      markAcpSessionActive(entry, persistedSessionId);
+      markAcpSessionActive(entry, persistedSessionId, mcpActivation.mcpActivationId);
+      bound = true;
       return {
         sessionId: persistedSessionId,
         previousSessionId: persistedSessionId,
@@ -80,21 +87,29 @@ export async function activateAcpSession({
         throw error;
       }
       lastMissingError = error;
+    } finally {
+      if (!bound) {
+        mcpActivation.revoke();
+      }
     }
   }
 
   if (persistedSessionId && supportsLoad(initializeResponse)) {
     checkCancelled?.("before loadSession");
     onLoadStart?.(persistedSessionId);
+    let mcpActivation: Awaited<ReturnType<typeof createMcpActivation>> | null = null;
+    let bound = false;
     try {
+      mcpActivation = await createMcpActivation();
       const response = await connection.loadSession({
         sessionId: persistedSessionId,
         cwd,
         additionalDirectories,
-        mcpServers,
+        mcpServers: mcpActivation.mcpServers,
       });
       checkCancelled?.("after loadSession");
-      markAcpSessionActive(entry, persistedSessionId);
+      markAcpSessionActive(entry, persistedSessionId, mcpActivation.mcpActivationId);
+      bound = true;
       return {
         sessionId: persistedSessionId,
         previousSessionId: persistedSessionId,
@@ -109,6 +124,9 @@ export async function activateAcpSession({
       }
       lastMissingError = error;
     } finally {
+      if (!bound) {
+        mcpActivation?.revoke();
+      }
       onLoadFinish?.(persistedSessionId);
     }
   }
@@ -123,18 +141,31 @@ export async function activateAcpSession({
   }
 
   checkCancelled?.("before newSession");
-  const created = await connection.newSession({ cwd, additionalDirectories, mcpServers });
-  onNewSessionCreated?.(created.sessionId);
-  checkCancelled?.("after newSession");
-  if (persistedSessionId && persistedSessionId !== created.sessionId) {
-    forgetActiveAcpSession(entry, persistedSessionId);
+  const mcpActivation = await createMcpActivation();
+  let bound = false;
+  try {
+    const created = await connection.newSession({
+      cwd,
+      additionalDirectories,
+      mcpServers: mcpActivation.mcpServers,
+    });
+    onNewSessionCreated?.(created.sessionId);
+    checkCancelled?.("after newSession");
+    if (persistedSessionId && persistedSessionId !== created.sessionId) {
+      forgetActiveAcpSession(entry, persistedSessionId);
+    }
+    markAcpSessionActive(entry, created.sessionId, mcpActivation.mcpActivationId);
+    bound = true;
+    return {
+      sessionId: created.sessionId,
+      previousSessionId: persistedSessionId,
+      strategy: persistedSessionId ? "fresh_fallback" : "new_session",
+      createdNewSession: true,
+      configOptions: created.configOptions,
+    };
+  } finally {
+    if (!bound) {
+      mcpActivation.revoke();
+    }
   }
-  markAcpSessionActive(entry, created.sessionId);
-  return {
-    sessionId: created.sessionId,
-    previousSessionId: persistedSessionId,
-    strategy: persistedSessionId ? "fresh_fallback" : "new_session",
-    createdNewSession: true,
-    configOptions: created.configOptions,
-  };
 }

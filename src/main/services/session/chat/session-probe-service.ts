@@ -8,11 +8,16 @@ import {
   clearPendingProbeHandler,
   forgetActiveAcpSession,
   getOrStartProcess,
+  hasActiveMcpActivation,
   markAcpSessionActive,
   onAgentProcessInvalidated,
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
-import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
+import {
+  createBundledMcpActivation,
+  revokeBundledMcpActivation,
+  toAcpMcpServer,
+} from "@main/infra/mcp/bundled-mcp-servers";
 import { newSessionId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
 import { valueExistsInSchema } from "@main/domain/session/chat/session-config-recovery";
@@ -21,6 +26,7 @@ import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
 import type { ProbeEntry } from "./session-probe-registry";
 import { sessionProbeRegistry, toProbeSnapshot } from "./session-probe-registry";
 import { sessionProbeBus } from "./session-probe-bus";
+import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
 
 type AgentProcessEntry = Awaited<ReturnType<typeof getOrStartProcess>>;
 type ProbeNotificationHandler = (notification: SessionNotification) => void;
@@ -133,6 +139,7 @@ function setFailedEntry(
     status: "failed",
     fylloSessionId,
     acpSessionId: null,
+    mcpActivationId: null,
     configOptions: [],
     availableCommands: [],
     workspaceSnapshot,
@@ -196,7 +203,14 @@ export async function ensureProbe(
   const workspaceCwd = workspaceSnapshot.cwd;
   const existing = sessionProbeRegistry.get(workspaceId, agentId);
   if (existing?.status === "ready") {
-    return toProbeSnapshot(existing);
+    const processEntry = await getProcess(agentId);
+    if (
+      existing.acpSessionId !== null &&
+      hasActiveMcpActivation(processEntry, existing.acpSessionId)
+    ) {
+      return toProbeSnapshot(existing);
+    }
+    await closeProbe(workspaceId, agentId);
   }
   if (existing?.status === "starting" && existing.inflightEnsure) {
     return toProbeSnapshot(await existing.inflightEnsure);
@@ -208,6 +222,7 @@ export async function ensureProbe(
     status: "starting",
     fylloSessionId: newSessionId(),
     acpSessionId: null,
+    mcpActivationId: null,
     configOptions: [],
     availableCommands: [],
     workspaceSnapshot,
@@ -222,36 +237,50 @@ export async function ensureProbe(
       const processEntry = await getProcess(agentId);
       const supportsHttp =
         processEntry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
-      const mcpServers = (
-        await resolveBundledMcpServers({
-          workspaceId,
-          projectPath: workspaceCwd,
-          fylloSessionId: startingEntry.fylloSessionId,
-          supportsHttp,
-        })
-      ).map(toAcpMcpServer);
-      const response = await runSerializedProbeStart(agentId, async () => {
-        // Register the probe handler BEFORE newSession: claude-acp pushes
-        // available_commands_update via setTimeout(0) right after newSession
-        // returns, so the handler must already be in place to catch it. Probe
-        // starts are serialized per agent because fallback notifications do not
-        // have a known session handler until newSession returns.
-        setPendingProbeHandler(agentId, probeHandler);
-        try {
-          const createdSession = await processEntry.connection.newSession({
-            cwd: workspaceCwd,
-            additionalDirectories: workspaceSnapshot.additionalDirectories,
-            mcpServers,
-          });
-          markAcpSessionActive(processEntry, createdSession.sessionId);
-          processEntry.sessionHandlers.set(createdSession.sessionId, probeHandler);
-          clearPendingProbeHandler(agentId, probeHandler);
-          return createdSession;
-        } catch (error: unknown) {
-          detachProbeFallback(workspaceId, agentId);
-          throw error;
-        }
+      const descriptor = await createSessionMcpWorkspaceDescriptor(
+        workspaceSnapshot,
+        startingEntry.fylloSessionId
+      );
+      const mcpActivation = await createBundledMcpActivation({
+        agentId,
+        descriptor,
+        supportsHttp,
       });
+      let activationBound = false;
+      let response: Awaited<ReturnType<ClientSideConnection["newSession"]>>;
+      try {
+        response = await runSerializedProbeStart(agentId, async () => {
+          // Register the probe handler BEFORE newSession: claude-acp pushes
+          // available_commands_update via setTimeout(0) right after newSession
+          // returns, so the handler must already be in place to catch it. Probe
+          // starts are serialized per agent because fallback notifications do not
+          // have a known session handler until newSession returns.
+          setPendingProbeHandler(agentId, probeHandler);
+          try {
+            const createdSession = await processEntry.connection.newSession({
+              cwd: workspaceCwd,
+              additionalDirectories: workspaceSnapshot.additionalDirectories,
+              mcpServers: mcpActivation.servers.map(toAcpMcpServer),
+            });
+            markAcpSessionActive(
+              processEntry,
+              createdSession.sessionId,
+              mcpActivation.activationId
+            );
+            activationBound = true;
+            processEntry.sessionHandlers.set(createdSession.sessionId, probeHandler);
+            clearPendingProbeHandler(agentId, probeHandler);
+            return createdSession;
+          } catch (error: unknown) {
+            detachProbeFallback(workspaceId, agentId);
+            throw error;
+          }
+        });
+      } finally {
+        if (!activationBound) {
+          revokeBundledMcpActivation(mcpActivation.activationId);
+        }
+      }
       const current = sessionProbeRegistry.get(workspaceId, agentId);
       if (current !== startingEntry) {
         processEntry.sessionHandlers.delete(response.sessionId);
@@ -267,6 +296,7 @@ export async function ensureProbe(
         status: "ready",
         fylloSessionId: startingEntry.fylloSessionId,
         acpSessionId: response.sessionId,
+        mcpActivationId: mcpActivation.activationId,
         configOptions: normalizeAcpSessionConfigOptions(response.configOptions),
         // Carry whatever the probe handler has already accumulated. The commands
         // usually arrive asynchronously after newSession returns, so this is

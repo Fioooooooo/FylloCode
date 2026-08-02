@@ -32,6 +32,11 @@ import { validate } from "../_kit/schema";
 import { makeStreamChannel } from "../_kit/stream-channel";
 import { wrapHandler } from "../_kit/wrap-handler";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
+import {
+  getRequiredWorkspaceInfo,
+  resolveRepositoryTarget,
+} from "@main/services/workspace/_public";
+import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
 
 // Archive uses the last completed apply stage's agent to generate the final archive commit.
 export function registerProposalArchiveHandlers(): void {
@@ -77,6 +82,22 @@ export function registerProposalArchiveHandlers(): void {
         }
 
         const fylloSessionId = newArchiveFylloSessionId(runMeta.runId);
+        const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
+        const repositoryTarget = await resolveRepositoryTarget({
+          workspaceId: form.workspaceId,
+          folderId: workspace.primaryFolder.id,
+          worktreePath: runMeta.worktreePath ?? workspaceCwd,
+        });
+        const mcpWorkspaceDescriptor = createOwnerMcpWorkspaceDescriptor({
+          workspaceId: form.workspaceId,
+          workspaceKind: workspace.kind,
+          ownerFolder: {
+            folderId: workspace.primaryFolder.id,
+            folderName: workspace.primaryFolder.name,
+            folderPath: workspaceCwd,
+          },
+          sessionId: fylloSessionId,
+        });
         const stage = buildArchiveStage(agentId);
         const prompt = buildStagePrompt({
           changeId: form.changeId,
@@ -117,8 +138,9 @@ export function registerProposalArchiveHandlers(): void {
           agentId,
           workspaceId: form.workspaceId,
           projectPath: workspaceCwd,
-          cwd: runMeta.worktreePath ?? workspaceCwd,
+          cwd: repositoryTarget.worktreePath,
           additionalDirectories: [],
+          mcpWorkspaceDescriptor,
           owner: "archive",
           sessionStore,
           reminderContext: {

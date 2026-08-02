@@ -4,7 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { knowledgeEntryNameSchema } from "@shared/schemas/knowledge";
 import type { KnowledgeAnchor, KnowledgeEntryType, KnowledgeSource } from "@shared/types/knowledge";
-import { getProjectDataDir } from "../../../shared/env";
+import { getWorkspaceDataDir } from "../../../shared/env";
 import { loadPrompt } from "../utils/load-prompt";
 import { resolveProjectRoot } from "../utils/project-root";
 import {
@@ -85,18 +85,12 @@ interface KnowledgeTargetState {
   parseError?: string;
 }
 
-function requireProjectDataDir(): string {
-  const value = getProjectDataDir();
-  if (!value) {
-    const error = new Error("Missing required environment variable: FYLLO_PROJECT_DATA_DIR");
-    error.name = "MissingEnvError";
-    throw error;
-  }
-  return value;
+function workspaceDataDir(): string {
+  return getWorkspaceDataDir();
 }
 
 function knowledgeRoot(): string {
-  return path.join(requireProjectDataDir(), "knowledge");
+  return path.join(workspaceDataDir(), "knowledge");
 }
 
 function entryDto(entry: KnowledgeIndexEntry): KnowledgeIndexEntryDto {

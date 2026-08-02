@@ -81,7 +81,7 @@ Actual launch shape:
 ```text
 command = process.execPath
 args    = [<fyllo-specs bundle path>]
-env     = { ELECTRON_RUN_AS_NODE=1, FYLLO_PROJECT_PATH=..., ... }
+env     = { ELECTRON_RUN_AS_NODE=1, FYLLO_WORKSPACE_JSON=..., ... }
 ```
 
 Why `process.execPath`:
@@ -149,16 +149,19 @@ Files:
 Responsibility:
 
 - `resolveProjectRoot()`
-  - use `FYLLO_PROJECT_PATH` first
-  - fall back to `process.cwd()`
+  - read the immutable Workspace v2 descriptor
+  - use its only Folder for repository-scoped operations
+  - reject multi-root calls with an owner-required error until the tool contract supplies `folderId`
+- `validateTargetPath()`
+  - accept only that Folder root or a registered worktree of the same repository
 - `resolveOpenspecCli()`
   - use `FYLLO_OPENSPEC_CLI_PATH` first
   - otherwise probe fallback candidates
 
-Why `FYLLO_PROJECT_PATH` exists:
+Why the Workspace descriptor exists:
 
-- MCP server `cwd` is not a reliable project locator
-- the server must always operate against the selected workspace project
+- MCP server `cwd` and caller-provided absolute paths are not authorization facts
+- the server must operate only within the activation's fixed Folder allowlist
 
 Why `FYLLO_OPENSPEC_CLI_PATH` exists:
 
@@ -278,16 +281,9 @@ The main process owns a stable loopback proxy URL and passes it to HTTP-capable 
 
 HTTP mode requires `FYLLO_MCP_AUTH_TOKEN`. The process refuses to start its listener without the token, and every request must include the matching bearer token. Each HTTP request creates a short-lived in-memory `McpServer` plus stateless `StreamableHTTPServerTransport`; requests do not spawn additional operating-system processes.
 
-Project/session context is request-scoped in HTTP mode. These UTF-8 values are base64url-encoded in headers:
+Workspace/session context is request-scoped in HTTP mode. ACP receives a per-activation bearer capability; the Main proxy validates its server scope, strips caller `Authorization` and `X-Fyllo-*` headers, then injects the internal backend token plus one `X-Fyllo-Workspace-Context` header. The decoded Workspace v2 descriptor is held in `AsyncLocalStorage` for the request.
 
-| Header                     | Required | Getter fallback in stdio mode |
-| -------------------------- | -------- | ----------------------------- |
-| `X-Fyllo-Project-Path`     | yes      | `FYLLO_PROJECT_PATH`          |
-| `X-Fyllo-Project-Data-Dir` | yes      | `FYLLO_PROJECT_DATA_DIR`      |
-| `X-Fyllo-Mcp-Event-Dir`    | no       | `FYLLO_MCP_EVENT_DIR`         |
-| `X-Fyllo-Session-Id`       | no       | `FYLLO_SESSION_ID`            |
-
-The current security boundary is one application-lifetime shared token plus structural context decoding. Context signatures, token-context binding, path ownership checks, token rotation/revocation, and Host/Origin validation are intentionally deferred.
+stdio receives the same descriptor once through `FYLLO_WORKSPACE_JSON`; the child parses and freezes it before accepting tools. Neither transport falls back to `cwd` or legacy Project path context.
 
 ## Environment Variables
 
@@ -298,20 +294,20 @@ There are two layers of environment variables in this flow:
 
 ### Variables Received By `fyllo-specs`
 
-The stdio values are injected by `resolveBundledMcpServers()`; HTTP process-level values are injected by `bundled-mcp-host.ts`.
+The stdio values are injected by `createBundledMcpActivation()`; HTTP process-level values are injected by `bundled-mcp-host.ts`.
 
 | Variable                  | Example                                                            | Meaning                                                                                                                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ELECTRON_RUN_AS_NODE`    | `"1"`                                                              | Makes the launched Electron binary behave like Node so the MCP bundle can run outside Electron.                                                                                                                     |
 | `FYLLO_MCP_TRANSPORT`     | `"http"`                                                           | Selects the HTTP listener. Any other value keeps the stdio compatibility mode.                                                                                                                                      |
 | `FYLLO_MCP_AUTH_TOKEN`    | application-generated token                                        | Required only in HTTP mode; authenticates requests and must never be logged.                                                                                                                                        |
-| `FYLLO_PROJECT_PATH`      | `"/Users/tao/Work/Fio/projects/FylloCode"`                         | Stdio project context. HTTP requests obtain this value from `X-Fyllo-Project-Path`.                                                                                                                                 |
+| `FYLLO_WORKSPACE_JSON`    | serialized Workspace v2 descriptor                                 | Required in stdio mode; defines the immutable Folder allowlist and Workspace-owned storage/session context.                                                                                                         |
 | `FYLLO_OPENSPEC_CLI_PATH` | `".../app.asar/node_modules/@fission-ai/openspec/bin/openspec.js"` | Absolute path to the packaged OpenSpec CLI entry. `resolveOpenspecCli()` uses this first before probing fallback paths.                                                                                             |
 | `FYLLO_MCP_TELEMETRY`     | `"0"`                                                              | Contract-level switch stating bundled MCP telemetry must stay disabled. `fyllo-specs` does not currently branch on this value, but the launcher still passes it explicitly as part of the bundled-MCP env contract. |
 
 Notes:
 
-- `FYLLO_PROJECT_PATH` and `FYLLO_OPENSPEC_CLI_PATH` are the two critical path-resolution variables
+- `FYLLO_WORKSPACE_JSON` and `FYLLO_OPENSPEC_CLI_PATH` are the two critical path-resolution variables
 - if either one is wrong in production, tool calls usually fail even though MCP handshake itself still succeeds
 
 ### Variables Used Internally By `fyllo-specs`
@@ -342,9 +338,9 @@ Notes:
 
 This variable is not received by the running MCP server process. It is consumed earlier by the main process.
 
-| Variable                      | Meaning                                                                                                        |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `FYLLO_DISABLE_BUNDLED_MCP=1` | Prevents the main process from starting the proxy/backends and makes `resolveBundledMcpServers()` return `[]`. |
+| Variable                      | Meaning                                                                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `FYLLO_DISABLE_BUNDLED_MCP=1` | Prevents the main process from starting the proxy/backends and makes `createBundledMcpActivation()` return no servers. |
 
 ## Failure-Prone Points
 
@@ -356,8 +352,8 @@ These are the places most likely to break when adding another bundled MCP server
 - `ELECTRON_RUN_AS_NODE` is missing:
   the Electron binary does not behave like Node for the MCP subprocess.
 
-- `FYLLO_PROJECT_PATH` is wrong:
-  MCP handshake works, but OpenSpec reads the wrong project or no project.
+- `FYLLO_WORKSPACE_JSON` is missing or invalid:
+  stdio startup fails before any OpenSpec tool can run.
 
 - `FYLLO_OPENSPEC_CLI_PATH` is wrong:
   MCP handshake works, but the first tool call fails when runtime tries to spawn OpenSpec.

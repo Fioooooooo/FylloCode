@@ -1,20 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { TextDecoder } from "node:util";
+import {
+  deserializeMcpWorkspaceDescriptor,
+  FYLLO_WORKSPACE_CONTEXT_HEADER,
+  type McpWorkspaceDescriptorV2,
+} from "@shared/types/mcp-workspace";
 
-export const FYLLO_CONTEXT_HEADERS = {
-  projectPath: "x-fyllo-project-path",
-  projectDataDir: "x-fyllo-project-data-dir",
-  mcpEventDir: "x-fyllo-mcp-event-dir",
-  sessionId: "x-fyllo-session-id",
-} as const;
-
-export interface RequestContext {
-  projectPath: string;
-  projectDataDir: string;
-  mcpEventDir?: string;
-  sessionId?: string;
-}
-
+export { FYLLO_WORKSPACE_CONTEXT_HEADER };
+export type RequestContext = McpWorkspaceDescriptorV2;
 export type RequestHeaders = Record<string, string | string[] | undefined>;
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -45,35 +38,14 @@ export function decodeContextHeader(value: string, name: string): string {
   }
 }
 
-function decodeRequired(headers: RequestHeaders, name: string): string {
-  const value = readHeader(headers, name);
-  if (!value) {
-    throw new Error(`Missing required header: ${name}`);
-  }
-  const decoded = decodeContextHeader(value, name);
-  if (!decoded) {
-    throw new Error(`Header ${name} must not be empty`);
-  }
-  return decoded;
-}
-
-function decodeOptional(headers: RequestHeaders, name: string): string | undefined {
-  const value = readHeader(headers, name);
-  if (value === undefined) {
-    return undefined;
-  }
-  return decodeContextHeader(value, name);
-}
-
 export function parseRequestContext(headers: RequestHeaders): RequestContext {
-  const mcpEventDir = decodeOptional(headers, FYLLO_CONTEXT_HEADERS.mcpEventDir);
-  const sessionId = decodeOptional(headers, FYLLO_CONTEXT_HEADERS.sessionId);
-  return {
-    projectPath: decodeRequired(headers, FYLLO_CONTEXT_HEADERS.projectPath),
-    projectDataDir: decodeRequired(headers, FYLLO_CONTEXT_HEADERS.projectDataDir),
-    ...(mcpEventDir !== undefined ? { mcpEventDir } : {}),
-    ...(sessionId !== undefined ? { sessionId } : {}),
-  };
+  const value = readHeader(headers, FYLLO_WORKSPACE_CONTEXT_HEADER);
+  if (!value) {
+    throw new Error(`Missing required header: ${FYLLO_WORKSPACE_CONTEXT_HEADER}`);
+  }
+  return deserializeMcpWorkspaceDescriptor(
+    decodeContextHeader(value, FYLLO_WORKSPACE_CONTEXT_HEADER)
+  );
 }
 
 export function runWithRequestContext<T>(context: RequestContext, callback: () => T): T {

@@ -4,7 +4,8 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
 import type { McpPlanEvent } from "@shared/types/mcp-event";
-import { getMcpEventDir, requireProjectDataDir, requireSessionId } from "../../../shared/env";
+import { getMcpEventDir, getWorkspaceDataDir, requireSessionId } from "../../../shared/env";
+import { resolveSingleFolder, resolveWorkspace } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
 
 const agentSlugPattern = /^[a-z0-9][a-z0-9-]*$/;
@@ -61,6 +62,8 @@ function planSkeleton(input: { slug: string; goal: string; createdAt: string }):
 }
 
 async function writePlanEvent(input: { sessionId: string; planSlug: string }): Promise<void> {
+  const workspace = resolveWorkspace();
+  const owner = resolveSingleFolder();
   const eventDir = getMcpEventDir();
   if (!eventDir) {
     return;
@@ -75,6 +78,8 @@ async function writePlanEvent(input: { sessionId: string; planSlug: string }): P
     tool: "create-plan",
     createdAt,
     sessionId: input.sessionId,
+    workspaceId: workspace.workspaceId,
+    folderId: owner.folderId,
     planSlug: input.planSlug,
   };
 
@@ -93,8 +98,9 @@ export async function createPlanTool(
 ): Promise<string> {
   return runTool("create-plan", { includeInstruction: true }, async () => {
     assertAgentSlug(input.slug);
+    resolveSingleFolder();
 
-    const projectDataDir = requireProjectDataDir();
+    const projectDataDir = getWorkspaceDataDir();
     const sessionId = requireSessionId();
     const createdAt = new Date().toISOString();
     const fullSlug = `${formatLocalDate(new Date())}-${input.slug}`;

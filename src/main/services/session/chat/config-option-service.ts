@@ -5,9 +5,14 @@ import {
   forgetActiveAcpSession,
   getOrStartProcess,
   hasActiveAcpSession,
+  hasActiveMcpActivation,
 } from "@main/infra/process/acp-process-pool";
 import { loadSessionMeta, patchSessionMeta } from "@main/infra/storage/session-store";
-import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
+import {
+  createBundledMcpActivation,
+  revokeBundledMcpActivation,
+  toAcpMcpServer,
+} from "@main/infra/mcp/bundled-mcp-servers";
 import logger from "@main/infra/logger";
 import { ensureSessionWorkspaceSnapshot } from "./chat-service";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
@@ -16,6 +21,7 @@ import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
 import { activateAcpSession } from "./acp-session-activation";
 import { recoverSessionConfig } from "./session-config-recovery-service";
 import { assertAgentWorkspaceCompatibility } from "./agent-workspace-compatibility";
+import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
 
 export interface SetConfigOptionParams {
   workspaceId: string;
@@ -50,6 +56,10 @@ export async function setConfigOption(
   const workspaceSnapshot = await ensureSessionWorkspaceSnapshot(workspaceId, sessionId);
   await assertAgentWorkspaceCompatibility(meta.agentId, workspaceSnapshot);
   const workspaceCwd = workspaceSnapshot.cwd;
+  const mcpWorkspaceDescriptor = await createSessionMcpWorkspaceDescriptor(
+    workspaceSnapshot,
+    sessionId
+  );
 
   let entry: Awaited<ReturnType<typeof getOrStartProcess>>;
   try {
@@ -65,26 +75,32 @@ export async function setConfigOption(
   }
 
   let liveOptions = meta.configOptions ?? [];
-  const wasCold = !hasActiveAcpSession(entry, meta.acpSessionId);
+  const wasCold =
+    !hasActiveAcpSession(entry, meta.acpSessionId) ||
+    !hasActiveMcpActivation(entry, meta.acpSessionId);
   if (wasCold) {
+    forgetActiveAcpSession(entry, meta.acpSessionId);
     try {
       const supportsHttp =
         entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
-      const mcpServers = (
-        await resolveBundledMcpServers({
-          workspaceId,
-          projectPath: workspaceCwd,
-          fylloSessionId: sessionId,
-          supportsHttp,
-        })
-      ).map(toAcpMcpServer);
       const activation = await activateAcpSession({
         entry,
         initializeResponse: entry.initializeResponse,
         persistedSessionId: meta.acpSessionId,
         cwd: workspaceCwd,
         additionalDirectories: workspaceSnapshot.additionalDirectories,
-        mcpServers,
+        createMcpActivation: async () => {
+          const mcpActivation = await createBundledMcpActivation({
+            agentId: meta.agentId,
+            descriptor: mcpWorkspaceDescriptor,
+            supportsHttp,
+          });
+          return {
+            mcpServers: mcpActivation.servers.map(toAcpMcpServer),
+            mcpActivationId: mcpActivation.activationId,
+            revoke: () => revokeBundledMcpActivation(mcpActivation.activationId),
+          };
+        },
         allowFreshSession: false,
       });
       liveOptions = await recoverSessionConfig({

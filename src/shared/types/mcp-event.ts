@@ -3,6 +3,8 @@ export type McpProposalEvent = {
   tool: "create-proposal";
   createdAt: string;
   sessionId: string;
+  workspaceId: string;
+  folderId: string;
   changeId: string;
 };
 
@@ -11,6 +13,8 @@ export type McpPlanEvent = {
   tool: "create-plan";
   createdAt: string;
   sessionId: string;
+  workspaceId: string;
+  folderId: string;
   planSlug: string;
 };
 

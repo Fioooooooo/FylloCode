@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => {
     updateApplyRunStageAcpSessionId: vi.fn(),
     updateArchiveRunAcpSessionId: vi.fn(),
     resolveWorkspaceCwd: vi.fn(),
+    getRequiredWorkspaceInfo: vi.fn(),
+    resolveRepositoryTarget: vi.fn(),
+    createOwnerMcpWorkspaceDescriptor: vi.fn(),
     resolveApplyRunChangeId: vi.fn(),
     updateRunMetaIfCurrent: vi.fn(),
     getCompletedApplyStageIndex: vi.fn(),
@@ -96,6 +99,15 @@ vi.mock("@main/services/proposal/runtime/apply-run-service", () => ({
   updateRunMetaIfCurrent: mocks.updateRunMetaIfCurrent,
 }));
 
+vi.mock("@main/services/workspace/_public", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
+  resolveRepositoryTarget: mocks.resolveRepositoryTarget,
+}));
+
+vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
+  createOwnerMcpWorkspaceDescriptor: mocks.createOwnerMcpWorkspaceDescriptor,
+}));
+
 vi.mock("@main/services/session/chat/session-registry", () => ({
   sessionRegistry: {
     register: mocks.register,
@@ -150,6 +162,33 @@ describe("registerProposalApplyHandlers", () => {
     mocks.eventHandler = null;
     mocks.onReady = null;
     mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
+    mocks.getRequiredWorkspaceInfo.mockResolvedValue({
+      id: "workspace-1",
+      kind: "collection",
+      primaryFolder: {
+        version: 1,
+        id: "folder-primary",
+        name: "Primary",
+        path: "/tmp/project",
+      },
+    });
+    mocks.resolveRepositoryTarget.mockImplementation(
+      async ({ workspaceId, folderId, worktreePath }) => ({
+        workspaceId,
+        folderId,
+        worktreePath,
+      })
+    );
+    mocks.createOwnerMcpWorkspaceDescriptor.mockImplementation((input) => ({
+      version: 2,
+      workspaceId: input.workspaceId,
+      workspaceKind: input.workspaceKind,
+      primaryFolderId: input.ownerFolder.folderId,
+      folders: [input.ownerFolder],
+      workspaceDataDir: "/tmp/workspace-data",
+      mcpEventDir: "/tmp/mcp-events",
+      sessionId: input.sessionId,
+    }));
     mocks.resolveApplyRunChangeId.mockResolvedValue("change-1");
     mocks.loadApplyRunMeta.mockResolvedValue(runMeta);
     mocks.loadArchiveRunMeta.mockResolvedValue(null);
@@ -559,6 +598,18 @@ describe("registerProposalApplyHandlers", () => {
       expect.objectContaining({
         cwd: "/tmp/proposal-worktree",
         additionalDirectories: [],
+        mcpWorkspaceDescriptor: expect.objectContaining({
+          version: 2,
+          workspaceId: "workspace-1",
+          primaryFolderId: "folder-primary",
+          folders: [
+            {
+              folderId: "folder-primary",
+              folderName: "Primary",
+              folderPath: "/tmp/project",
+            },
+          ],
+        }),
         owner: "apply",
         reminderContext: {
           changeId: "change-1",
@@ -568,6 +619,21 @@ describe("registerProposalApplyHandlers", () => {
         },
       })
     );
+    expect(mocks.resolveRepositoryTarget).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      folderId: "folder-primary",
+      worktreePath: "/tmp/proposal-worktree",
+    });
+    expect(mocks.createOwnerMcpWorkspaceDescriptor).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      workspaceKind: "collection",
+      ownerFolder: {
+        folderId: "folder-primary",
+        folderName: "Primary",
+        folderPath: "/tmp/project",
+      },
+      sessionId: "run-1-0",
+    });
     expect(opts.workspaceSnapshot).toBeUndefined();
     expect(opts.sessionStore).toBeInstanceOf(ApplyStageAcpSessionStore);
     await opts.sessionStore.persistAcpSessionId("acp-stage-2");
@@ -706,6 +772,11 @@ describe("registerProposalApplyHandlers", () => {
       expect.objectContaining({
         cwd: "/tmp/proposal-worktree",
         additionalDirectories: [],
+        mcpWorkspaceDescriptor: expect.objectContaining({
+          workspaceId: "workspace-1",
+          primaryFolderId: "folder-primary",
+          folders: [expect.objectContaining({ folderId: "folder-primary" })],
+        }),
         fylloSessionId: "run-1-archive",
         owner: "archive",
         reminderContext: expect.objectContaining({
@@ -715,6 +786,21 @@ describe("registerProposalApplyHandlers", () => {
         }),
       })
     );
+    expect(mocks.resolveRepositoryTarget).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      folderId: "folder-primary",
+      worktreePath: "/tmp/proposal-worktree",
+    });
+    expect(mocks.createOwnerMcpWorkspaceDescriptor).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      workspaceKind: "collection",
+      ownerFolder: {
+        folderId: "folder-primary",
+        folderName: "Primary",
+        folderPath: "/tmp/project",
+      },
+      sessionId: "run-1-archive",
+    });
     expect(typedOpts.workspaceSnapshot).toBeUndefined();
     expect(typedOpts.sessionStore).toBeInstanceOf(ArchiveAcpSessionStore);
     await expect(typedOpts.sessionStore.loadRecoveryState()).resolves.toEqual({

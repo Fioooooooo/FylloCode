@@ -4,7 +4,8 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
 import type { McpProposalEvent } from "@shared/types/mcp-event";
-import { getMcpEventDir, getProjectPath, getSessionId } from "../../../shared/env";
+import { getMcpEventDir, getSessionId } from "../../../shared/env";
+import { resolveSingleFolder, resolveWorkspace } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
 import { createChange, computeStatus, getInstructions } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
@@ -34,6 +35,8 @@ const createProposalInputSchema = z.object({
 });
 
 async function writeProposalEvent(changeName: string): Promise<void> {
+  const workspace = resolveWorkspace();
+  const owner = resolveSingleFolder();
   const eventDir = getMcpEventDir();
   const sessionId = getSessionId();
   if (!eventDir || !sessionId) {
@@ -49,6 +52,8 @@ async function writeProposalEvent(changeName: string): Promise<void> {
     tool: "create-proposal",
     createdAt,
     sessionId,
+    workspaceId: workspace.workspaceId,
+    folderId: owner.folderId,
     changeId: changeName,
   };
 
@@ -79,7 +84,7 @@ export async function createProposalTool(
     }
 
     const mainProjectPath = result.resolved!;
-    const expectedMainPath = path.resolve(getProjectPath());
+    const expectedMainPath = path.resolve(resolveSingleFolder().folderPath);
     if (mainProjectPath !== expectedMainPath) {
       throw new Error("targetPath must be the main project root for create-proposal");
     }

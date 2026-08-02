@@ -1,7 +1,10 @@
-import { existsSync, realpathSync } from "fs";
-import path from "path";
-import spawn from "cross-spawn";
-import { getProjectPath } from "../../../shared/env";
+import {
+  resolveSingleFolder,
+  validateWorktree,
+  worktreeGitChildProcess,
+} from "../../../shared/workspace-resolver";
+
+export const gitChildProcess = worktreeGitChildProcess;
 
 export interface TargetPathValidationResult {
   ok: boolean;
@@ -11,63 +14,20 @@ export interface TargetPathValidationResult {
 }
 
 export function resolveProjectRoot(): string {
-  return getProjectPath();
-}
-
-export const gitChildProcess = {
-  spawnSync: spawn.sync,
-};
-
-function normalizePathForComparison(value: string): string {
-  const resolved = path.resolve(value);
-  if (!existsSync(resolved)) {
-    return resolved;
-  }
-  return realpathSync.native(resolved);
+  return resolveSingleFolder().folderPath;
 }
 
 export function validateTargetPath(targetPath: string): TargetPathValidationResult {
-  if (!path.isAbsolute(targetPath)) {
-    return { ok: false, error: "targetPath must be an absolute path" };
-  }
-
-  const resolved = path.resolve(targetPath);
-  const comparableResolved = normalizePathForComparison(resolved);
-  const projectPath = getProjectPath();
-  const projectRoot = path.resolve(projectPath);
-  const comparableProjectRoot = normalizePathForComparison(projectRoot);
-  const result = gitChildProcess.spawnSync(
-    "git",
-    ["-C", projectPath, "worktree", "list", "--porcelain"],
-    { encoding: "utf8" }
-  );
-
-  if (result.status === 0) {
-    const worktreePaths = new Set(
-      (result.stdout ?? "")
-        .split("\n")
-        .filter((line) => line.startsWith("worktree "))
-        .map((line) => normalizePathForComparison(line.slice("worktree ".length).trim()))
-    );
-
-    if (worktreePaths.has(comparableResolved)) {
-      return { ok: true, resolved };
-    }
-
+  try {
+    const owner = resolveSingleFolder();
+    return {
+      ok: true,
+      resolved: validateWorktree(owner.folderId, targetPath),
+    };
+  } catch (error: unknown) {
     return {
       ok: false,
-      rawOutput: result.stdout ?? "",
-      error: "targetPath is not a registered git worktree",
+      error: error instanceof Error ? error.message : String(error),
     };
   }
-
-  if (comparableResolved === comparableProjectRoot) {
-    return { ok: true, resolved };
-  }
-
-  return {
-    ok: false,
-    rawOutput: result.stderr ?? result.error?.message ?? "",
-    error: "targetPath must be the project root for non-git projects",
-  };
 }

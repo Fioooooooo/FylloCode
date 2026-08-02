@@ -27,6 +27,25 @@ import { exploreTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/expl
 import { registerTools } from "../../../src/mcp-servers/fyllo-specs/src/tools";
 import { gitChildProcess } from "../../../src/mcp-servers/fyllo-specs/src/utils/project-root";
 
+vi.mock("../../../src/mcp-servers/shared/workspace-context", () => ({
+  getWorkspaceContext: () => {
+    const configuredPath = process.env.FYLLO_PROJECT_PATH ?? process.cwd();
+    const folderPath = existsSync(configuredPath)
+      ? realpathSync.native(configuredPath)
+      : configuredPath;
+    return {
+      version: 2,
+      workspaceId: "workspace-test",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-test",
+      folders: [{ folderId: "folder-test", folderName: "Test", folderPath }],
+      workspaceDataDir: process.env.FYLLO_PROJECT_DATA_DIR ?? "/tmp/fyllo-test-data",
+      ...(process.env.FYLLO_MCP_EVENT_DIR ? { mcpEventDir: process.env.FYLLO_MCP_EVENT_DIR } : {}),
+      ...(process.env.FYLLO_SESSION_ID ? { sessionId: process.env.FYLLO_SESSION_ID } : {}),
+    };
+  },
+}));
+
 function git(cwd: string, args: string[]): void {
   const result = spawn.sync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0) {
@@ -319,7 +338,9 @@ describe("tools", () => {
       expect(text).toContain("<tool_instruction>");
       const state = parseState(text);
       expect(state.errors).toBeInstanceOf(Array);
-      expect((state.errors as Array<{ message: string }>)[0].message).toContain("FYLLO_SESSION_ID");
+      expect((state.errors as Array<{ message: string }>)[0].message).toContain(
+        "descriptor sessionId"
+      );
       expect(existsSync(dataDir)).toBe(false);
     } finally {
       restoreEnv("FYLLO_PROJECT_DATA_DIR", prevDataDir);
@@ -415,7 +436,7 @@ describe("tools", () => {
         includeInstruction: false,
       });
       const state = JSON.parse(text);
-      expect(state.workspace).toEqual({ mode: "main", path: root });
+      expect(state.workspace).toEqual({ mode: "main", path: realpathSync.native(root) });
       expect(state.warnings).toEqual([]);
       expect(existsSync(join(root, "openspec", "config.yaml"))).toBe(true);
       expect(existsSync(join(root, "openspec", "changes", "archive"))).toBe(true);
@@ -455,6 +476,8 @@ describe("tools", () => {
         server: "fyllo-specs",
         tool: "create-proposal",
         sessionId: "session-1",
+        workspaceId: "workspace-test",
+        folderId: "folder-test",
         changeId: "event-change",
         createdAt: expect.any(String),
       });
@@ -545,7 +568,7 @@ describe("tools", () => {
         includeInstruction: false,
       });
       const state = JSON.parse(text);
-      expect(state.workspace).toEqual({ mode: "main", path: root });
+      expect(state.workspace).toEqual({ mode: "main", path: realpathSync.native(root) });
       expect((state.warnings as string[])[0]).toContain("not a git repo");
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -569,7 +592,10 @@ describe("tools", () => {
       });
       const state = JSON.parse(text);
       const workspacePath = join(root, ".worktrees", "linked-workspace-change");
-      expect(state.workspace).toEqual({ mode: "linked", path: workspacePath });
+      expect(state.workspace).toEqual({
+        mode: "linked",
+        path: realpathSync.native(workspacePath),
+      });
       expect(
         existsSync(join(workspacePath, "openspec", "changes", "linked-workspace-change"))
       ).toBe(true);
@@ -615,7 +641,6 @@ describe("tools", () => {
       expect((state.errors as Array<{ message: string }>)[0].message).toContain(
         "targetPath is not a registered git worktree"
       );
-      expect((state.errors as Array<{ message: string }>)[0].message).toContain("worktree ");
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
@@ -628,7 +653,7 @@ describe("tools", () => {
     try {
       const text = await exploreTool({ targetPath: root, includeInstruction: false });
       const state = JSON.parse(text);
-      expect(state.projectRoot).toBe(root);
+      expect(state.projectRoot).toBe(realpathSync.native(root));
       expect(state.activeChanges).toBeInstanceOf(Array);
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
@@ -642,7 +667,7 @@ describe("tools", () => {
     try {
       const text = await exploreTool({ targetPath: `${root}/`, includeInstruction: false });
       const state = JSON.parse(text);
-      expect(state.projectRoot).toBe(root);
+      expect(state.projectRoot).toBe(realpathSync.native(root));
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);
     }
@@ -658,13 +683,13 @@ describe("tools", () => {
     try {
       const okText = await exploreTool({ targetPath: root, includeInstruction: false });
       const okState = JSON.parse(okText);
-      expect(okState.projectRoot).toBe(root);
+      expect(okState.projectRoot).toBe(realpathSync.native(root));
 
       const badText = await exploreTool({ targetPath: "/tmp/elsewhere" });
       const badState = parseState(badText);
       expect((badState.errors as Array<{ type: string }>)[0].type).toBe("InvalidTargetPath");
       expect((badState.errors as Array<{ message: string }>)[0].message).toContain(
-        "targetPath must be the project root for non-git projects"
+        "targetPath is not a registered git worktree"
       );
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", prev);

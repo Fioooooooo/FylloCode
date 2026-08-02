@@ -1,6 +1,9 @@
 import type { McpServer as AcpMcpServer } from "@agentclientprotocol/sdk";
-import { mcpEventsDir, workspaceDataDir } from "@main/infra/storage/workspace-paths";
 import type { McpServerSpec, McpServerSpecHttp, McpServerSpecStdio } from "@shared/types/mcp";
+import {
+  serializeMcpWorkspaceDescriptor,
+  type McpWorkspaceDescriptorV2,
+} from "@shared/types/mcp-workspace";
 import {
   getMcpServerEndpoint,
   waitForBundledMcpInitialReadiness,
@@ -11,35 +14,26 @@ import {
   resolveBundlePath,
   type BundledMcpServerRegistration,
 } from "./bundled-mcp-registry";
-
-export function encodeMcpHeaderValue(value: string): string {
-  return Buffer.from(value, "utf8").toString("base64url");
-}
+import { mcpAccessGrantRegistry } from "./mcp-access-grant-registry";
 
 function buildHttpSpec(
   server: BundledMcpServerRegistration,
   endpoint: BundledMcpEndpoint,
-  opts: { workspaceId: string; projectPath: string; fylloSessionId?: string }
+  token: string
 ): McpServerSpecHttp {
   return {
     type: "http",
     name: server.name,
     url: endpoint.url,
     headers: {
-      Authorization: `Bearer ${endpoint.token}`,
-      "X-Fyllo-Project-Path": encodeMcpHeaderValue(opts.projectPath),
-      "X-Fyllo-Project-Data-Dir": encodeMcpHeaderValue(workspaceDataDir(opts.workspaceId)),
-      "X-Fyllo-Mcp-Event-Dir": encodeMcpHeaderValue(mcpEventsDir(opts.workspaceId)),
-      ...(opts.fylloSessionId
-        ? { "X-Fyllo-Session-Id": encodeMcpHeaderValue(opts.fylloSessionId) }
-        : {}),
+      Authorization: `Bearer ${token}`,
     },
   };
 }
 
 function buildStdioSpec(
   server: BundledMcpServerRegistration,
-  opts: { workspaceId: string; projectPath: string; fylloSessionId?: string }
+  descriptor: McpWorkspaceDescriptorV2
 ): McpServerSpecStdio {
   return {
     type: "stdio",
@@ -48,32 +42,63 @@ function buildStdioSpec(
     args: [resolveBundlePath(server.name)],
     env: {
       ELECTRON_RUN_AS_NODE: "1",
-      FYLLO_PROJECT_PATH: opts.projectPath,
-      FYLLO_PROJECT_DATA_DIR: workspaceDataDir(opts.workspaceId),
+      FYLLO_WORKSPACE_JSON: serializeMcpWorkspaceDescriptor(descriptor),
       FYLLO_MCP_TELEMETRY: "0",
-      FYLLO_MCP_EVENT_DIR: mcpEventsDir(opts.workspaceId),
-      ...(opts.fylloSessionId ? { FYLLO_SESSION_ID: opts.fylloSessionId } : {}),
       ...(server.processEnv?.() ?? {}),
     },
   };
 }
 
-export async function resolveBundledMcpServers(opts: {
-  workspaceId: string;
-  projectPath: string;
-  fylloSessionId?: string;
+export interface BundledMcpActivation {
+  servers: McpServerSpec[];
+  activationId: string | null;
+}
+
+export function revokeBundledMcpActivation(activationId: string | null): void {
+  if (activationId) {
+    mcpAccessGrantRegistry.revokeActivation(activationId);
+  }
+}
+
+export async function createBundledMcpActivation(opts: {
+  agentId: string;
+  descriptor: McpWorkspaceDescriptorV2;
   supportsHttp: boolean;
-}): Promise<McpServerSpec[]> {
+}): Promise<BundledMcpActivation> {
   if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
-    return [];
+    return { servers: [], activationId: null };
   }
 
   await waitForBundledMcpInitialReadiness();
 
-  return bundledMcpServers.map((server) => {
-    const endpoint = opts.supportsHttp ? getMcpServerEndpoint(server.name) : null;
-    return endpoint ? buildHttpSpec(server, endpoint, opts) : buildStdioSpec(server, opts);
-  });
+  const endpoints = new Map(
+    bundledMcpServers.map((server) => [
+      server.name,
+      opts.supportsHttp ? getMcpServerEndpoint(server.name) : null,
+    ])
+  );
+  const allowedServerNames = bundledMcpServers
+    .filter((server) => endpoints.get(server.name) !== null)
+    .map((server) => server.name);
+  const issued =
+    allowedServerNames.length > 0
+      ? mcpAccessGrantRegistry.issue({
+          agentId: opts.agentId,
+          ...(opts.descriptor.sessionId ? { fylloSessionId: opts.descriptor.sessionId } : {}),
+          descriptor: opts.descriptor,
+          allowedServerNames,
+        })
+      : null;
+
+  return {
+    activationId: issued?.activationId ?? null,
+    servers: bundledMcpServers.map((server) => {
+      const endpoint = endpoints.get(server.name);
+      return endpoint && issued
+        ? buildHttpSpec(server, endpoint, issued.token)
+        : buildStdioSpec(server, opts.descriptor);
+    }),
+  };
 }
 
 export function toAcpMcpServer(spec: McpServerSpec): AcpMcpServer {

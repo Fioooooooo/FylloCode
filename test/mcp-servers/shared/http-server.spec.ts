@@ -1,13 +1,18 @@
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getProjectPath } from "../../../src/mcp-servers/shared/env";
+import { getRequestContext } from "../../../src/mcp-servers/shared/request-context";
 import {
   startHttpServer,
   type McpHttpServerHandle,
 } from "../../../src/mcp-servers/shared/http-server";
 import { createMcpServer as createFylloSpecsServer } from "../../../src/mcp-servers/fyllo-specs/src/server";
 import { createMcpServer as createFylloCortexServer } from "../../../src/mcp-servers/fyllo-cortex/src/server";
+import {
+  FYLLO_WORKSPACE_CONTEXT_HEADER,
+  serializeMcpWorkspaceDescriptor,
+} from "@shared/types/mcp-workspace";
 
 const originalToken = process.env.FYLLO_MCP_AUTH_TOKEN;
 const handles: McpHttpServerHandle[] = [];
@@ -16,20 +21,46 @@ function encode(value: string): string {
   return Buffer.from(value, "utf8").toString("base64url");
 }
 
-function requestHeaders(token = "test-token", projectPath = "/tmp/project"): HeadersInit {
+function descriptor(workspaceId: string) {
+  return {
+    version: 2 as const,
+    workspaceId,
+    workspaceKind: "folder" as const,
+    primaryFolderId: `folder-${workspaceId}`,
+    folders: [
+      {
+        folderId: `folder-${workspaceId}`,
+        folderName: workspaceId,
+        folderPath: resolve(`/work/${workspaceId}`),
+      },
+    ],
+    workspaceDataDir: resolve(`/data/${workspaceId}`),
+  };
+}
+
+function requestHeaders(token = "test-token", workspaceId = "workspace-1"): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
     Accept: "application/json, text/event-stream",
     "Content-Type": "application/json",
-    "X-Fyllo-Project-Path": encode(projectPath),
-    "X-Fyllo-Project-Data-Dir": encode(`${projectPath}/.fyllo`),
+    [FYLLO_WORKSPACE_CONTEXT_HEADER]: encode(
+      serializeMcpWorkspaceDescriptor(descriptor(workspaceId))
+    ),
   };
 }
 
 function createTestServer(): McpServer {
   const server = new McpServer({ name: "test-server", version: "1.0.0" });
-  server.registerTool("project-path", { inputSchema: z.object({}) }, async () => ({
-    content: [{ type: "text", text: getProjectPath() }],
+  server.registerTool("workspace", { inputSchema: z.object({}) }, async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          workspaceId: getRequestContext().workspaceId,
+          folderPath: getRequestContext().folders[0]?.folderPath,
+        }),
+      },
+    ],
   }));
   return server;
 }
@@ -68,12 +99,12 @@ afterEach(async () => {
 });
 
 describe("shared MCP HTTP server", () => {
-  it("refuses to start without a token", async () => {
+  it("refuses to start without an internal token", async () => {
     delete process.env.FYLLO_MCP_AUTH_TOKEN;
     await expect(startHttpServer(createTestServer)).rejects.toThrow("FYLLO_MCP_AUTH_TOKEN");
   });
 
-  it("rejects unknown paths, invalid auth, and invalid context", async () => {
+  it("rejects unknown paths, invalid internal auth, and invalid Workspace context", async () => {
     process.env.FYLLO_MCP_AUTH_TOKEN = "test-token";
     const handle = await startHttpServer(createTestServer);
     handles.push(handle);
@@ -100,43 +131,48 @@ describe("shared MCP HTTP server", () => {
     expect(invalidContext.status).toBe(400);
   });
 
-  it("creates an independent server for every request and isolates context", async () => {
+  it("creates and closes an independent server for every concurrent Workspace request", async () => {
     process.env.FYLLO_MCP_AUTH_TOKEN = "test-token";
-    const factory = vi.fn(createTestServer);
+    const closeSpies: Array<ReturnType<typeof vi.spyOn>> = [];
+    const factory = vi.fn(() => {
+      const server = createTestServer();
+      closeSpies.push(vi.spyOn(server, "close"));
+      return server;
+    });
     const handle = await startHttpServer(factory);
     handles.push(handle);
 
-    const bodies = ["/tmp/project-a", "/tmp/project-b"].map((projectPath, index) =>
-      post(
-        handle.port,
-        {
-          jsonrpc: "2.0",
-          id: index + 1,
-          method: "tools/call",
-          params: { name: "project-path", arguments: {} },
-        },
-        requestHeaders("test-token", projectPath)
+    const responses = await Promise.all(
+      ["workspace-a", "workspace-b"].map((workspaceId, index) =>
+        post(
+          handle.port,
+          {
+            jsonrpc: "2.0",
+            id: index + 1,
+            method: "tools/call",
+            params: { name: "workspace", arguments: {} },
+          },
+          requestHeaders("test-token", workspaceId)
+        )
       )
     );
-    const responses = await Promise.all(bodies);
-    const payloads = await Promise.all(responses.map(readMcpPayload));
+    const payloads = (await Promise.all(responses.map(readMcpPayload))) as Array<{
+      result?: { content?: Array<{ text?: string }> };
+    }>;
+    const contexts = payloads.map((payload) =>
+      JSON.parse(payload.result?.content?.[0]?.text ?? "null")
+    );
 
     expect(responses.every((response) => response.status === 200)).toBe(true);
-    expect(payloads).toEqual(
+    expect(contexts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          result: expect.objectContaining({
-            content: [expect.objectContaining({ text: "/tmp/project-a" })],
-          }),
-        }),
-        expect.objectContaining({
-          result: expect.objectContaining({
-            content: [expect.objectContaining({ text: "/tmp/project-b" })],
-          }),
-        }),
+        { workspaceId: "workspace-a", folderPath: resolve("/work/workspace-a") },
+        { workspaceId: "workspace-b", folderPath: resolve("/work/workspace-b") },
       ])
     );
     expect(factory).toHaveBeenCalledTimes(2);
+    expect(closeSpies).toHaveLength(2);
+    expect(closeSpies.every((spy) => spy.mock.calls.length > 0)).toBe(true);
   });
 
   it("reports its random loopback port over IPC and closes idempotently", async () => {

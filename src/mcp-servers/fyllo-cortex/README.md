@@ -9,7 +9,7 @@
 - stdio mode creates one `McpServer` connected to `StdioServerTransport`.
 - `FYLLO_MCP_TRANSPORT=http` starts the shared loopback HTTP listener from `src/mcp-servers/shared/http-server.ts`.
 
-HTTP mode requires `FYLLO_MCP_AUTH_TOKEN`; the listener refuses to start without it and rejects requests whose bearer token does not match. The listener binds `127.0.0.1` on an operating-system-assigned port and reports `{ type: "ready", port }` to the main process over IPC.
+HTTP mode requires an internal `FYLLO_MCP_AUTH_TOKEN`; the listener refuses to start without it. ACP never receives this token: it receives a per-activation capability that the Main proxy validates before injecting the internal token. The listener binds `127.0.0.1` on an operating-system-assigned port and reports `{ type: "ready", port }` to the main process over IPC.
 
 The Electron main process exposes a separate stable proxy URL to ACP agents. A backend restart can change the real `fyllo-cortex` port without changing existing ACP session configuration.
 
@@ -19,18 +19,9 @@ Each HTTP request creates and closes an independent in-memory `McpServer + Strea
 
 ## Request Context
 
-HTTP request context uses base64url-encoded UTF-8 headers:
+HTTP receives one proxy-injected `X-Fyllo-Workspace-Context` header containing a strict Workspace v2 descriptor. `AsyncLocalStorage` keeps concurrent Workspace/session calls isolated. stdio receives the same descriptor through `FYLLO_WORKSPACE_JSON` and freezes it before accepting tools.
 
-| Header                     | Required | Stdio fallback           |
-| -------------------------- | -------- | ------------------------ |
-| `X-Fyllo-Project-Path`     | yes      | `FYLLO_PROJECT_PATH`     |
-| `X-Fyllo-Project-Data-Dir` | yes      | `FYLLO_PROJECT_DATA_DIR` |
-| `X-Fyllo-Mcp-Event-Dir`    | no       | `FYLLO_MCP_EVENT_DIR`    |
-| `X-Fyllo-Session-Id`       | no       | `FYLLO_SESSION_ID`       |
-
-`AsyncLocalStorage` keeps concurrent project/session calls isolated. Tool and utility modules use the getters in `src/mcp-servers/shared/env.ts` and never mutate `process.env` per request.
-
-The current release only enforces the application-lifetime shared token and structural header decoding. Context signatures, token-context binding, path ownership validation, token rotation/revocation, and Host/Origin checks are future work.
+Tools read Workspace-owned data through the shared resolver. Repository-scoped guidelines, knowledge anchor, and lineage operations use the descriptor's only Folder; a multi-root activation without an explicit owner is rejected rather than silently selecting primary. Legacy Project headers/env and `cwd` fallback are not accepted.
 
 ## Disable and Fallback
 

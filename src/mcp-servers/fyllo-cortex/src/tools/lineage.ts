@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
-  MissingEnvError,
   traceLineageByCommit,
   traceLineageByFile,
   traceLineageByProposal,
@@ -56,10 +55,7 @@ export async function handleLineage(input: LineageInput): Promise<LineageRespons
     return {
       content: [{ type: "text", text: formatResult(result) }],
     };
-  } catch (error) {
-    if (error instanceof MissingEnvError) {
-      throw error;
-    }
+  } catch {
     return { content: [{ type: "text", text: "null" }] };
   }
 }

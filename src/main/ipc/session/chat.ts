@@ -98,8 +98,8 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.listSessions, (_event, input: unknown) =>
     wrapHandler(async () => {
       const query = validate(listSessionsInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(query.workspaceId);
-      ensureLineageEventConsumer(query.workspaceId, workspaceCwd);
+      await resolveWorkspaceCwd(query.workspaceId);
+      ensureLineageEventConsumer(query.workspaceId);
       return listSessions(query.workspaceId);
     })
   );

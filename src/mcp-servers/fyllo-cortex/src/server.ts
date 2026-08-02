@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { startHttpServer } from "../../shared/http-server";
+import { getWorkspaceContext } from "../../shared/workspace-context";
 import { registerTools } from "./tools";
 import { FYLLO_CORTEX_SERVER_VERSION } from "./version";
 
@@ -16,6 +17,7 @@ export async function startServer(signal?: AbortSignal): Promise<void> {
     return;
   }
 
+  getWorkspaceContext();
   const server = createMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);

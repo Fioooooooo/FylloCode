@@ -15,7 +15,7 @@ import {
   forgetActiveAcpSession,
   getOrStartProcess,
   hasActiveAcpSession,
-  markAcpSessionActive,
+  hasActiveMcpActivation,
 } from "@main/infra/process/acp-process-pool";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import {
@@ -32,7 +32,11 @@ import type {
   SessionRuntimeState,
 } from "@main/domain/session/chat/acp-session-recovery";
 import logger from "@main/infra/logger";
-import { resolveBundledMcpServers, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
+import {
+  createBundledMcpActivation,
+  revokeBundledMcpActivation,
+  toAcpMcpServer,
+} from "@main/infra/mcp/bundled-mcp-servers";
 import type { SessionOwner } from "@main/services/session/chat/session-registry";
 import type { TextUIPart } from "ai";
 import { resolveSystemReminder } from "@main/services/session/chat/system-reminder";
@@ -45,11 +49,12 @@ import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import { activateAcpSession } from "./acp-session-activation";
 import { recoverSessionConfig } from "./session-config-recovery-service";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
-import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
 import { assertAgentWorkspaceCompatibility } from "./agent-workspace-compatibility";
 import { renderWorkspaceSection } from "./system-reminder/providers/workspace";
 import { readAttachmentDataUrl } from "@main/infra/storage/attachment-store";
 import { resolveSessionMemberResource } from "./member-resource-resolver";
+import type { McpWorkspaceDescriptorV2 } from "@shared/types/mcp-workspace";
+import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
 
 interface ReminderContext {
   changeId?: string;
@@ -64,11 +69,9 @@ type PromptPart =
   | { type: "text"; text: string }
   | { type: "image"; mimeType: string; data: string }
   | { type: "resource_link"; uri: string; name: string; mimeType: string };
-type AcpMcpServers = NonNullable<Parameters<ClientSideConnection["newSession"]>[0]["mcpServers"]>;
-
 interface StartContext {
   entry: Awaited<ReturnType<typeof getOrStartProcess>>;
-  mcpServers: AcpMcpServers;
+  mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
   runtimeState: SessionRuntimeState;
   recoveryState: AcpSessionRecoveryState;
 }
@@ -85,6 +88,7 @@ export interface AcpSessionOpts {
   cwd: string;
   additionalDirectories: string[];
   workspaceSnapshot?: SessionWorkspaceSnapshot;
+  mcpWorkspaceDescriptor?: McpWorkspaceDescriptorV2;
   owner: SessionOwner;
   sessionStore: AcpSessionStore;
   reminderContext?: ReminderContext;
@@ -111,6 +115,7 @@ export class AcpSession extends EventEmitter {
   private readonly cancelledAcpSessionIds = new Set<string>();
   private readonly recoveryContext: RecoveryContext;
   private readonly presetAcpSessionId?: string;
+  private processEntry: Awaited<ReturnType<typeof getOrStartProcess>> | null = null;
 
   constructor(private readonly opts: AcpSessionOpts) {
     super();
@@ -150,12 +155,23 @@ export class AcpSession extends EventEmitter {
     }
 
     this.cancelledAcpSessionIds.add(acpSessionId);
+    const entry = this.processEntry;
+    if (entry) {
+      forgetActiveAcpSession(entry, acpSessionId);
+      void entry.connection.cancel({ sessionId: acpSessionId }).catch(() => {});
+      return;
+    }
     getOrStartProcess(this.opts.agentId)
-      .then(({ connection }) => connection.cancel({ sessionId: acpSessionId }))
+      .then((resolvedEntry) => {
+        this.processEntry = resolvedEntry;
+        forgetActiveAcpSession(resolvedEntry, acpSessionId);
+        return resolvedEntry.connection.cancel({ sessionId: acpSessionId });
+      })
       .catch(() => {});
   }
 
   private async prepareStartContext(): Promise<StartContext | null> {
+    let mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
     if (this.opts.owner === "chat") {
       if (!this.opts.workspaceSnapshot) {
         throw ipcError(
@@ -163,11 +179,20 @@ export class AcpSession extends EventEmitter {
           "Chat ACP Session requires a frozen Workspace snapshot"
         );
       }
-      const workspaceSnapshot = await assertSessionWorkspaceSnapshotCurrent(
-        this.opts.workspaceSnapshot
+      mcpWorkspaceDescriptor = await createSessionMcpWorkspaceDescriptor(
+        this.opts.workspaceSnapshot,
+        this.opts.fylloSessionId
       );
-      renderWorkspaceSection(workspaceSnapshot);
-      await assertAgentWorkspaceCompatibility(this.opts.agentId, workspaceSnapshot);
+      renderWorkspaceSection(this.opts.workspaceSnapshot);
+      await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
+    } else {
+      if (!this.opts.mcpWorkspaceDescriptor) {
+        throw ipcError(
+          IpcErrorCodes.VALIDATION_ERROR,
+          `${this.opts.owner} ACP Session requires an owner-only MCP Workspace descriptor`
+        );
+      }
+      mcpWorkspaceDescriptor = this.opts.mcpWorkspaceDescriptor;
     }
     const entry = await this.getProcessEntry();
     if (!entry) {
@@ -178,15 +203,6 @@ export class AcpSession extends EventEmitter {
       return null;
     }
 
-    const supportsHttp = entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
-    const mcpServers: AcpMcpServers = (
-      await resolveBundledMcpServers({
-        workspaceId: this.opts.workspaceId,
-        projectPath: this.opts.projectPath,
-        fylloSessionId: this.opts.fylloSessionId,
-        supportsHttp,
-      })
-    ).map(toAcpMcpServer);
     const recoveryState = await this.opts.sessionStore.loadRecoveryState();
     const persistedSessionId = recoveryState.acpSessionId;
     if (this.cancelled) {
@@ -198,12 +214,12 @@ export class AcpSession extends EventEmitter {
     const runtimeState = createSessionRuntimeState();
 
     logger.info(
-      `${this.logPrefix(persistedSessionId)} start turn; persistedSession=${persistedSessionId ? "yes" : "no"}; bundledMcpServers=${mcpServers.length}`
+      `${this.logPrefix(persistedSessionId)} start turn; persistedSession=${persistedSessionId ? "yes" : "no"}; mcpActivation=deferred`
     );
 
     return {
       entry,
-      mcpServers,
+      mcpWorkspaceDescriptor,
       runtimeState,
       recoveryState,
     };
@@ -212,6 +228,7 @@ export class AcpSession extends EventEmitter {
   private async getProcessEntry(): Promise<Awaited<ReturnType<typeof getOrStartProcess>> | null> {
     try {
       const entry = await getOrStartProcess(this.opts.agentId);
+      this.processEntry = entry;
       if (this.cancelled) {
         logger.warn(`${this.logPrefix()} start aborted after ACP process resolved`);
         return null;
@@ -252,7 +269,7 @@ export class AcpSession extends EventEmitter {
       initializeResponse: context.entry.initializeResponse,
       runtimeState: context.runtimeState,
       recoveryState: context.recoveryState,
-      mcpServers: context.mcpServers,
+      mcpWorkspaceDescriptor: context.mcpWorkspaceDescriptor,
       prompt: this.getPrimaryTextPrompt(parts),
     });
 
@@ -269,7 +286,9 @@ export class AcpSession extends EventEmitter {
     // A preset session id bypasses resume/load/new recovery. This is used when a session id
     // has already been established externally (e.g. a probe session reused for the chat turn).
     this.acpSessionId = acpSessionId;
-    markAcpSessionActive(context.entry, acpSessionId);
+    if (!hasActiveMcpActivation(context.entry, acpSessionId)) {
+      throw new Error(`Preset ACP Session ${acpSessionId} has no active MCP activation`);
+    }
     logger.info(`${this.logPrefix(acpSessionId)} using preset ACP session`);
 
     this.throwIfCancelled("before preset persist");
@@ -315,10 +334,14 @@ export class AcpSession extends EventEmitter {
       logger.info(`${this.logPrefix()} no persisted ACP session; proceeding to new session flow`);
       return false;
     }
-    if (!hasActiveAcpSession(context.entry, persistedSessionId)) {
+    if (
+      !hasActiveAcpSession(context.entry, persistedSessionId) ||
+      !hasActiveMcpActivation(context.entry, persistedSessionId)
+    ) {
       logger.info(
-        `${this.logPrefix(persistedSessionId)} persisted session is cold in current process; entering recovery`
+        `${this.logPrefix(persistedSessionId)} persisted session or MCP lease is cold; entering recovery`
       );
+      forgetActiveAcpSession(context.entry, persistedSessionId);
       return false;
     }
 
@@ -525,10 +548,17 @@ export class AcpSession extends EventEmitter {
     initializeResponse: InitializeResponse;
     runtimeState: SessionRuntimeState;
     recoveryState: AcpSessionRecoveryState;
-    mcpServers: AcpMcpServers;
+    mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
     prompt: string;
   }): Promise<ReconciledRecoveryOutcome> {
-    const { entry, initializeResponse, runtimeState, recoveryState, mcpServers, prompt } = args;
+    const {
+      entry,
+      initializeResponse,
+      runtimeState,
+      recoveryState,
+      mcpWorkspaceDescriptor,
+      prompt,
+    } = args;
     const persistedSessionId = recoveryState.acpSessionId;
 
     logger.info(
@@ -542,7 +572,18 @@ export class AcpSession extends EventEmitter {
       persistedSessionId,
       cwd: this.opts.cwd,
       additionalDirectories: this.opts.additionalDirectories,
-      mcpServers,
+      createMcpActivation: async () => {
+        const activation = await createBundledMcpActivation({
+          agentId: this.opts.agentId,
+          descriptor: mcpWorkspaceDescriptor,
+          supportsHttp: entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true,
+        });
+        return {
+          mcpServers: activation.servers.map(toAcpMcpServer),
+          mcpActivationId: activation.activationId,
+          revoke: () => revokeBundledMcpActivation(activation.activationId),
+        };
+      },
       allowFreshSession: true,
       checkCancelled: (stage) => this.throwIfCancelled(stage),
       onNewSessionCreated: (sessionId) => {

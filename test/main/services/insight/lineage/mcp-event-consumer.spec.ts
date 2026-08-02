@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   recordPlan: vi.fn(),
   ensureChatSubject: vi.fn(),
   watchProposal: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -59,6 +60,10 @@ vi.mock("@main/services/proposal/browser/proposal-status-service", () => ({
   },
 }));
 
+vi.mock("@main/services/workspace/_public", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
+}));
+
 vi.mock("@main/infra/logger", () => ({
   default: mocks.logger,
 }));
@@ -76,6 +81,8 @@ function proposalEvent(overrides: Partial<McpProposalEvent> = {}): McpProposalEv
     tool: "create-proposal",
     createdAt: "2026-06-10T00:00:00.000Z",
     sessionId: "session-1",
+    workspaceId: "",
+    folderId: "folder-1",
     changeId: "change-1",
     ...overrides,
   };
@@ -87,6 +94,8 @@ function planEvent(overrides: Partial<McpPlanEvent> = {}): McpPlanEvent {
     tool: "create-plan",
     createdAt: "2026-06-10T00:00:00.000Z",
     sessionId: "session-1",
+    workspaceId: "",
+    folderId: "folder-1",
     planSlug: "2026-06-29-plan-a",
     ...overrides,
   };
@@ -100,7 +109,13 @@ async function writeEventFile(
   const eventDir = mcpEventsDir(projectPath);
   await fs.mkdir(eventDir, { recursive: true });
   const filePath = join(eventDir, fileName);
-  await fs.writeFile(filePath, typeof event === "string" ? event : JSON.stringify(event), "utf8");
+  await fs.writeFile(
+    filePath,
+    typeof event === "string"
+      ? event
+      : JSON.stringify({ ...event, workspaceId: event.workspaceId || projectPath }),
+    "utf8"
+  );
   return filePath;
 }
 
@@ -112,6 +127,17 @@ describe("lineage mcp event consumer", () => {
     mocks.recordProposal.mockResolvedValue({ id: "subject-1" });
     mocks.recordPlan.mockResolvedValue({ id: "subject-1" });
     mocks.ensureChatSubject.mockResolvedValue({ id: "chat-subject" });
+    mocks.getRequiredWorkspaceInfo.mockImplementation(async (workspaceId: string) => ({
+      folders: [
+        {
+          folderId: "folder-1",
+          folderName: "Primary",
+          folderPath: workspaceId,
+          pathMissing: false,
+          isPrimary: true,
+        },
+      ],
+    }));
     mocks.watch.mockImplementation(((_path, listener) => {
       const close = vi.fn();
       mocks.watcherCloseFns.push({ path: String(_path), close });
@@ -132,8 +158,8 @@ describe("lineage mcp event consumer", () => {
   it("creates one watcher for repeated ensure calls on the same project", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-idempotent-");
 
-    ensureLineageEventConsumer(projectPath, projectPath);
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(mocks.watch).toHaveBeenCalledTimes(1);
@@ -144,12 +170,17 @@ describe("lineage mcp event consumer", () => {
     const projectPath = createTestTempRoot("fyllo-lineage-task-");
     const filePath = await writeEventFile(projectPath, "event.json", proposalEvent());
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-1");
+    expect(mocks.recordProposal).toHaveBeenCalledWith(
+      projectPath,
+      "session-1",
+      "change-1",
+      "folder-1"
+    );
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
     expect(mocks.watchProposal).toHaveBeenCalledWith(
       projectPath,
@@ -163,12 +194,17 @@ describe("lineage mcp event consumer", () => {
     const projectPath = createTestTempRoot("fyllo-lineage-plan-");
     const filePath = await writeEventFile(projectPath, "event.json", planEvent());
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordPlan).toHaveBeenCalledWith(projectPath, "session-1", "2026-06-29-plan-a");
+    expect(mocks.recordPlan).toHaveBeenCalledWith(
+      projectPath,
+      "session-1",
+      "2026-06-29-plan-a",
+      "folder-1"
+    );
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
     expect(mocks.watchProposal).not.toHaveBeenCalled();
   });
@@ -178,7 +214,7 @@ describe("lineage mcp event consumer", () => {
     const filePath = await writeEventFile(projectPath, "event.json", proposalEvent());
     mocks.recordProposal.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "chat-subject" });
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -192,7 +228,7 @@ describe("lineage mcp event consumer", () => {
     const filePath = await writeEventFile(projectPath, "event.json", planEvent());
     mocks.recordPlan.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "chat-subject" });
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
@@ -210,20 +246,25 @@ describe("lineage mcp event consumer", () => {
       proposalEvent({ changeId: "change-good" })
     );
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
 
     await vi.waitFor(() => {
       expect(existsSync(validPath)).toBe(false);
     });
     expect(existsSync(damagedPath)).toBe(true);
-    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-good");
+    expect(mocks.recordProposal).toHaveBeenCalledWith(
+      projectPath,
+      "session-1",
+      "change-good",
+      "folder-1"
+    );
     expect(mocks.logger.warn).toHaveBeenCalled();
   });
 
   it("rescans the full directory when fs.watch emits an event", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-watch-");
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
     await vi.waitFor(() => {
       expect(mocks.watchCallbacks).toHaveLength(1);
     });
@@ -238,13 +279,48 @@ describe("lineage mcp event consumer", () => {
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordProposal).toHaveBeenCalledWith(projectPath, "session-1", "change-late");
+    expect(mocks.recordProposal).toHaveBeenCalledWith(
+      projectPath,
+      "session-1",
+      "change-late",
+      "folder-1"
+    );
+  });
+
+  it("rejects an event whose workspaceId does not match the scanned Workspace", async () => {
+    const workspaceId = createTestTempRoot("fyllo-lineage-workspace-mismatch-");
+    const filePath = await writeEventFile(
+      workspaceId,
+      "event.json",
+      proposalEvent({ workspaceId: "workspace-other" })
+    );
+
+    ensureLineageEventConsumer(workspaceId);
+
+    await vi.waitFor(() => expect(mocks.logger.warn).toHaveBeenCalled());
+    expect(existsSync(filePath)).toBe(true);
+    expect(mocks.recordProposal).not.toHaveBeenCalled();
+  });
+
+  it("rejects a folderId outside the Workspace membership", async () => {
+    const workspaceId = createTestTempRoot("fyllo-lineage-folder-mismatch-");
+    const filePath = await writeEventFile(
+      workspaceId,
+      "event.json",
+      proposalEvent({ folderId: "folder-outside" })
+    );
+
+    ensureLineageEventConsumer(workspaceId);
+
+    await vi.waitFor(() => expect(mocks.logger.warn).toHaveBeenCalled());
+    expect(existsSync(filePath)).toBe(true);
+    expect(mocks.recordProposal).not.toHaveBeenCalled();
   });
 
   it("closes watchers on lifecycle dispose", async () => {
     const projectPath = createTestTempRoot("fyllo-lineage-dispose-");
 
-    ensureLineageEventConsumer(projectPath, projectPath);
+    ensureLineageEventConsumer(projectPath);
     await vi.waitFor(() => {
       expect(mocks.watcherCloseFns).toHaveLength(1);
     });
@@ -258,8 +334,8 @@ describe("lineage mcp event consumer", () => {
     const projectA = createTestTempRoot("fyllo-lineage-project-a-");
     const projectB = createTestTempRoot("fyllo-lineage-project-b-");
 
-    ensureLineageEventConsumer(projectA, projectA);
-    ensureLineageEventConsumer(projectB, projectB);
+    ensureLineageEventConsumer(projectA);
+    ensureLineageEventConsumer(projectB);
     await vi.waitFor(() => {
       expect(mocks.watcherCloseFns).toHaveLength(2);
     });

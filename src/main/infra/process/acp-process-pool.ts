@@ -15,6 +15,7 @@ import { ipcError } from "@shared/errors/ipc-error";
 import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { upsertAgentCapabilities } from "@main/infra/storage/agent-capability-store";
 import logger from "@main/infra/logger";
+import { mcpAccessGrantRegistry } from "@main/infra/mcp/mcp-access-grant-registry";
 
 export type SessionUpdateHandler = (notification: SessionNotification) => void;
 type AgentUnavailableListener = (event: { agentId: string; reason: string }) => void;
@@ -31,11 +32,13 @@ interface AgentSpawnSpec {
 }
 
 interface AgentProcess {
+  agentId: string;
   connection: ClientSideConnection;
   child: ChildProcessWithoutNullStreams;
   ready: boolean;
   sessionHandlers: Map<string, SessionUpdateHandler>;
   activeSessionIds: Set<string>;
+  mcpActivationBySessionId: Map<string, string | null>;
   // Fallback handler for session/update notifications that arrive before any
   // precise sessionId handler is registered. Used by the draft-session probe
   // to capture metadata (e.g. available_commands_update) that the agent pushes
@@ -254,6 +257,7 @@ async function startProcess(
 
   const sessionHandlers = new Map<string, SessionUpdateHandler>();
   const activeSessionIds = new Set<string>();
+  const mcpActivationBySessionId = new Map<string, string | null>();
 
   const input = Writable.toWeb(child.stdin);
   const output = Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>;
@@ -324,11 +328,13 @@ async function startProcess(
     }
 
     const entry: AgentProcess = {
+      agentId,
       connection,
       child,
       ready: true,
       sessionHandlers,
       activeSessionIds,
+      mcpActivationBySessionId,
       failures: priorFailures,
       initializeResponse,
       generation,
@@ -340,6 +346,7 @@ async function startProcess(
 
     child.on("exit", (code) => {
       logger.warn(`[infra.process.acp] agent ${agentId} exited (code=${code})`);
+      mcpAccessGrantRegistry.revokeAgent(agentId);
       if (pool.get(agentId) === entry) {
         pool.delete(agentId);
       }
@@ -477,16 +484,41 @@ export function clearPendingProbeHandler(agentId: string, handler?: SessionUpdat
   }
 }
 
-export function markAcpSessionActive(entry: AgentProcess, sessionId: string): void {
+export function markAcpSessionActive(
+  entry: AgentProcess,
+  sessionId: string,
+  mcpActivationId: string | null = null
+): void {
   entry.activeSessionIds.add(sessionId);
+  entry.mcpActivationBySessionId.set(sessionId, mcpActivationId);
+  if (mcpActivationId) {
+    mcpAccessGrantRegistry.bindToAcpSession(mcpActivationId, entry.agentId, sessionId);
+  }
 }
 
 export function hasActiveAcpSession(entry: AgentProcess, sessionId: string): boolean {
   return entry.activeSessionIds.has(sessionId);
 }
 
+export function hasActiveMcpActivation(entry: AgentProcess, sessionId: string): boolean {
+  if (!entry.activeSessionIds.has(sessionId)) {
+    return false;
+  }
+  const activationId = entry.mcpActivationBySessionId.get(sessionId);
+  if (activationId === undefined) {
+    return false;
+  }
+  return activationId === null || mcpAccessGrantRegistry.isActive(activationId);
+}
+
 export function forgetActiveAcpSession(entry: AgentProcess, sessionId: string): void {
   entry.activeSessionIds.delete(sessionId);
+  const activationId = entry.mcpActivationBySessionId.get(sessionId);
+  entry.mcpActivationBySessionId.delete(sessionId);
+  mcpAccessGrantRegistry.revokeAcpSession(entry.agentId, sessionId);
+  if (activationId) {
+    mcpAccessGrantRegistry.revokeActivation(activationId);
+  }
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -581,6 +613,7 @@ async function terminateChild(child: ChildProcessWithoutNullStreams): Promise<vo
 }
 
 async function closeReadyProcess(entry: AgentProcess): Promise<void> {
+  mcpAccessGrantRegistry.revokeAgent(entry.agentId);
   const sessionIds = new Set([...entry.activeSessionIds, ...entry.sessionHandlers.keys()]);
   const closePromises = Array.from(sessionIds).map((sessionId) =>
     Promise.race([
@@ -593,6 +626,7 @@ async function closeReadyProcess(entry: AgentProcess): Promise<void> {
   await Promise.all(closePromises);
   entry.sessionHandlers.clear();
   entry.activeSessionIds.clear();
+  entry.mcpActivationBySessionId.clear();
   entry.pendingProbeHandler = undefined;
   await terminateChild(entry.child);
 }

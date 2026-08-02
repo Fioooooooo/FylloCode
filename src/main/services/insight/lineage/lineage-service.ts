@@ -220,7 +220,8 @@ export async function linkTaskSession(
 export async function recordProposal(
   workspaceId: string,
   sessionId: string,
-  changeId: string
+  changeId: string,
+  folderId?: string
 ): Promise<Subject | null> {
   const now = nowIso();
   const index = await readWritableIndex(workspaceId, now);
@@ -234,7 +235,7 @@ export async function recordProposal(
     return null;
   }
 
-  const nextSubject = appendProposal(subject, sessionId, changeId, now);
+  const nextSubject = appendProposal(subject, sessionId, changeId, now, folderId);
   await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }
@@ -242,7 +243,8 @@ export async function recordProposal(
 export async function recordPlan(
   workspaceId: string,
   sessionId: string,
-  slug: string
+  slug: string,
+  folderId?: string
 ): Promise<Subject | null> {
   const now = nowIso();
   const index = await readWritableIndex(workspaceId, now);
@@ -256,7 +258,7 @@ export async function recordPlan(
     return null;
   }
 
-  const nextSubject = appendPlan(subject, sessionId, slug, now);
+  const nextSubject = appendPlan(subject, sessionId, slug, now, folderId);
   await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }

@@ -39,6 +39,13 @@ const mocks = vi.hoisted(() => {
     getRegistry: vi.fn(),
     registerDisposable: vi.fn(),
     upsertAgentCapabilities: vi.fn(),
+    grantRegistry: {
+      bindToAcpSession: vi.fn(),
+      isActive: vi.fn(() => true),
+      revokeAcpSession: vi.fn(),
+      revokeActivation: vi.fn(),
+      revokeAgent: vi.fn(),
+    },
   };
 });
 
@@ -61,6 +68,10 @@ vi.mock("@main/bootstrap/lifecycle", () => ({
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({
   upsertAgentCapabilities: mocks.upsertAgentCapabilities,
+}));
+
+vi.mock("@main/infra/mcp/mcp-access-grant-registry", () => ({
+  mcpAccessGrantRegistry: mocks.grantRegistry,
 }));
 
 vi.mock("@agentclientprotocol/sdk", () => ({
@@ -179,16 +190,26 @@ describe("acp-process-pool", () => {
       forgetActiveAcpSession,
       getOrStartProcess,
       hasActiveAcpSession,
+      hasActiveMcpActivation,
       markAcpSessionActive,
       stopAgentProcess,
     } = await import("@main/infra/process/acp-process-pool");
     const first = await getOrStartProcess("claude-acp");
 
-    markAcpSessionActive(first, "acp-1");
+    markAcpSessionActive(first, "acp-1", "activation-1");
     expect(hasActiveAcpSession(first, "acp-1")).toBe(true);
+    expect(hasActiveMcpActivation(first, "acp-1")).toBe(true);
+    expect(mocks.grantRegistry.bindToAcpSession).toHaveBeenCalledWith(
+      "activation-1",
+      "claude-acp",
+      "acp-1"
+    );
     forgetActiveAcpSession(first, "acp-1");
     expect(hasActiveAcpSession(first, "acp-1")).toBe(false);
-    markAcpSessionActive(first, "acp-1");
+    expect(mocks.grantRegistry.revokeAcpSession).toHaveBeenCalledWith("claude-acp", "acp-1");
+    expect(mocks.grantRegistry.revokeActivation).toHaveBeenCalledWith("activation-1");
+    markAcpSessionActive(first, "acp-1", null);
+    expect(hasActiveMcpActivation(first, "acp-1")).toBe(true);
 
     const stop = stopAgentProcess("claude-acp", "restart");
     queueMicrotask(() => (mocks.child as FakeChild).triggerClose());
@@ -201,6 +222,18 @@ describe("acp-process-pool", () => {
 
     expect(second).not.toBe(first);
     expect(hasActiveAcpSession(second, "acp-1")).toBe(false);
+    expect(mocks.grantRegistry.revokeAgent).toHaveBeenCalledWith("claude-acp");
+  });
+
+  it("treats an expired HTTP grant as an inactive MCP activation", async () => {
+    mocks.grantRegistry.isActive.mockReturnValueOnce(false);
+    const { getOrStartProcess, hasActiveMcpActivation, markAcpSessionActive } =
+      await import("@main/infra/process/acp-process-pool");
+    const entry = await getOrStartProcess("claude-acp");
+
+    markAcpSessionActive(entry, "acp-1", "activation-1");
+
+    expect(hasActiveMcpActivation(entry, "acp-1")).toBe(false);
   });
 
   it("persists the selected complete capability snapshot after initialize", async () => {

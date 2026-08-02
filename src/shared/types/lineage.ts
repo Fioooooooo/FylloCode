@@ -14,12 +14,14 @@ export type LineageTaskSnapshot = {
 export type LineageProposalLink = {
   changeId: string;
   createdAt: string;
+  folderId?: string;
   commitHash?: string;
 };
 
 export type LineagePlanLink = {
   slug: string;
   createdAt: string;
+  folderId?: string;
 };
 
 export type LineageSessionLink = {

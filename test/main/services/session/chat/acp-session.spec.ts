@@ -27,14 +27,17 @@ const mocks = vi.hoisted(() => {
     activeSessionIds,
     getOrStartProcess: vi.fn(),
     hasActiveAcpSession: vi.fn(),
+    hasActiveMcpActivation: vi.fn(),
     sessionStore: {
       loadRecoveryState: vi.fn(),
       persistAcpSessionId: vi.fn(),
     },
-    resolveBundledMcpServers: vi.fn(),
+    createBundledMcpActivation: vi.fn(),
+    revokeBundledMcpActivation: vi.fn(),
     toAcpMcpServer: vi.fn(),
     resolveSystemReminder: vi.fn(),
     assertSessionWorkspaceSnapshotCurrent: vi.fn(),
+    createSessionMcpWorkspaceDescriptor: vi.fn(),
     assertAgentWorkspaceCompatibility: vi.fn(),
     readAttachmentDataUrl: vi.fn(),
     resolveSessionMemberResource: vi.fn(),
@@ -49,6 +52,7 @@ const mocks = vi.hoisted(() => {
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
   hasActiveAcpSession: mocks.hasActiveAcpSession,
+  hasActiveMcpActivation: mocks.hasActiveMcpActivation,
   markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
     entry.activeSessionIds.add(sessionId);
   }),
@@ -58,8 +62,13 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
-  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  createBundledMcpActivation: mocks.createBundledMcpActivation,
+  revokeBundledMcpActivation: mocks.revokeBundledMcpActivation,
   toAcpMcpServer: mocks.toAcpMcpServer,
+}));
+
+vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
+  createSessionMcpWorkspaceDescriptor: mocks.createSessionMcpWorkspaceDescriptor,
 }));
 
 vi.mock("@main/services/session/chat/system-reminder", () => ({
@@ -144,6 +153,7 @@ describe("AcpSession", () => {
       initializeResponse: initializeResponse(),
     });
     mocks.hasActiveAcpSession.mockReturnValue(true);
+    mocks.hasActiveMcpActivation.mockReturnValue(true);
     mocks.connection.resumeSession.mockResolvedValue({});
     mocks.connection.loadSession.mockResolvedValue({});
     mocks.connection.newSession.mockResolvedValue({ sessionId: "acp-new" });
@@ -153,10 +163,22 @@ describe("AcpSession", () => {
       configOptions: [],
     });
     mocks.sessionStore.persistAcpSessionId.mockResolvedValue(undefined);
-    mocks.resolveBundledMcpServers.mockResolvedValue([]);
+    mocks.createBundledMcpActivation.mockResolvedValue({ servers: [], activationId: null });
     mocks.toAcpMcpServer.mockImplementation((spec: unknown) => spec);
     mocks.resolveSystemReminder.mockResolvedValue(null);
     mocks.assertSessionWorkspaceSnapshotCurrent.mockImplementation(async (snapshot) => snapshot);
+    mocks.createSessionMcpWorkspaceDescriptor.mockImplementation(async (snapshot, sessionId) => {
+      const current = await mocks.assertSessionWorkspaceSnapshotCurrent(snapshot);
+      return {
+        version: 2,
+        workspaceId: current.workspaceId,
+        workspaceKind: current.workspaceKind,
+        primaryFolderId: current.primaryFolderId,
+        folders: current.folders,
+        workspaceDataDir: "/tmp/workspace-data",
+        sessionId,
+      };
+    });
     mocks.assertAgentWorkspaceCompatibility.mockResolvedValue(undefined);
     mocks.readAttachmentDataUrl.mockResolvedValue("data:image/png;base64,SU1BR0U=");
     mocks.resolveSessionMemberResource.mockResolvedValue({
@@ -254,25 +276,47 @@ describe("AcpSession", () => {
     expect(mocks.connection.prompt).not.toHaveBeenCalled();
   });
 
-  it("passes fylloSessionId when resolving bundled MCP servers", async () => {
+  it("derives the descriptor first and creates MCP specs only for lifecycle activation", async () => {
     const session = await createSession();
     await session.start([{ type: "text", text: "hello" }]);
 
-    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/project",
-      fylloSessionId: "session-1",
+    expect(mocks.createSessionMcpWorkspaceDescriptor).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: "workspace-1" }),
+      "session-1"
+    );
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith({
+      agentId: "claude-acp",
+      descriptor: expect.objectContaining({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      }),
       supportsHttp: false,
     });
   });
 
-  it("keeps apply activation owner-only without a Workspace snapshot or MCP descriptor", async () => {
+  it("keeps apply activation owner-only with an explicit MCP descriptor", async () => {
+    const mcpWorkspaceDescriptor = {
+      version: 2 as const,
+      workspaceId: "workspace-1",
+      workspaceKind: "folder" as const,
+      primaryFolderId: "folder-1",
+      folders: [
+        {
+          folderId: "folder-1",
+          folderName: "Project",
+          folderPath: "/tmp/proposal-worktree",
+        },
+      ],
+      workspaceDataDir: "/tmp/workspace-data",
+      sessionId: "session-1",
+    };
     const session = await createSession({
       owner: "apply",
       projectPath: "/tmp/proposal-worktree",
       cwd: "/tmp/proposal-worktree",
       additionalDirectories: [],
       workspaceSnapshot: undefined,
+      mcpWorkspaceDescriptor,
     });
     await session.start([{ type: "text", text: "apply" }]);
 
@@ -281,27 +325,24 @@ describe("AcpSession", () => {
       additionalDirectories: [],
       mcpServers: [],
     });
-    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/proposal-worktree",
-      fylloSessionId: "session-1",
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith({
+      agentId: "claude-acp",
+      descriptor: mcpWorkspaceDescriptor,
       supportsHttp: false,
     });
     expect(mocks.assertSessionWorkspaceSnapshotCurrent).not.toHaveBeenCalled();
   });
 
   it("waits for bundled MCP readiness before calling newSession", async () => {
-    const bundledServers = deferred<[]>();
-    mocks.resolveBundledMcpServers.mockReturnValueOnce(bundledServers.promise);
+    const bundledServers = deferred<{ servers: []; activationId: null }>();
+    mocks.createBundledMcpActivation.mockReturnValueOnce(bundledServers.promise);
 
     const session = await createSession();
     const start = session.start([{ type: "text", text: "hello" }]);
-    await flushMicrotasks();
-
-    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.createBundledMcpActivation).toHaveBeenCalledOnce());
     expect(mocks.connection.newSession).not.toHaveBeenCalled();
 
-    bundledServers.resolve([]);
+    bundledServers.resolve({ servers: [], activationId: null });
     await start;
     expect(mocks.connection.newSession).toHaveBeenCalledOnce();
   });
@@ -327,6 +368,7 @@ describe("AcpSession", () => {
 
     expect(mocks.connection.prompt).not.toHaveBeenCalled();
     expect(mocks.connection.cancel).toHaveBeenCalledWith({ sessionId: "acp-new" });
+    expect(mocks.revokeBundledMcpActivation).toHaveBeenCalledWith(null);
   });
 
   it("uses direct prompt first when persisted acpSessionId exists", async () => {
@@ -346,6 +388,25 @@ describe("AcpSession", () => {
     expect(mocks.connection.loadSession).not.toHaveBeenCalled();
     expect(mocks.sessionStore.persistAcpSessionId).toHaveBeenCalledWith("acp-existing");
     expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+  });
+
+  it("treats an expired MCP lease as cold and reactivates before prompting", async () => {
+    mocks.hasActiveMcpActivation.mockReturnValue(false);
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
+
+    const session = await createSession();
+    await session.start([{ type: "text", text: "continue" }]);
+
+    expect(mocks.connection.resumeSession).toHaveBeenCalledOnce();
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledOnce();
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-existing",
+      prompt: [{ type: "text", text: "continue" }],
+    });
   });
 
   it("preset branch skips newSession and recovery calls", async () => {

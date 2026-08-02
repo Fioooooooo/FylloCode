@@ -1,6 +1,6 @@
 **Input**: `targetPath` is required. It must be an absolute path to the main repo root or a
-registered git worktree for that repo. In P1, the agent should default to passing
-`$FYLLO_PROJECT_PATH` (the main repo root).
+registered git worktree for that repo. The target must stay within the current
+Workspace descriptor's uniquely owned Folder; multi-root calls without an owner are rejected.
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 

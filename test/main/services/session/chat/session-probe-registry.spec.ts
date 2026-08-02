@@ -12,6 +12,7 @@ function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
     status: "ready",
     fylloSessionId: "session-probe",
     acpSessionId: "acp-1",
+    mcpActivationId: "activation-1",
     configOptions: [],
     availableCommands: [],
     workspaceSnapshot: {

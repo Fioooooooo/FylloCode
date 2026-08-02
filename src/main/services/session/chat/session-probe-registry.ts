@@ -9,6 +9,7 @@ export interface ProbeEntry {
   status: ProbeStatus;
   fylloSessionId: string;
   acpSessionId: string | null;
+  mcpActivationId: string | null;
   configOptions: AcpSessionConfigOption[];
   availableCommands: AcpAvailableCommand[];
   workspaceSnapshot: SessionWorkspaceSnapshot;

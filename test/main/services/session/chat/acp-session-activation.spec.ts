@@ -46,7 +46,11 @@ function params(
     persistedSessionId: "acp-old",
     cwd: "/tmp/project",
     additionalDirectories: ["/tmp/secondary"],
-    mcpServers: [{ name: "fyllo", command: "node", args: [], env: [] }],
+    createMcpActivation: vi.fn(async () => ({
+      mcpServers: [{ name: "fyllo", command: "node", args: [], env: [] }],
+      mcpActivationId: "activation-1",
+      revoke: vi.fn(),
+    })),
     allowFreshSession: true,
     ...overrides,
   };
@@ -73,6 +77,11 @@ describe("acp-session-activation", () => {
       mcpServers: [{ name: "fyllo", command: "node", args: [], env: [] }],
     });
     expect(entry.activeSessionIds.has("acp-old")).toBe(true);
+    expect(mocks.markAcpSessionActive).toHaveBeenCalledWith(
+      expect.anything(),
+      "acp-old",
+      "activation-1"
+    );
     expect(entry.connection.loadSession).not.toHaveBeenCalled();
   });
 
@@ -130,16 +139,55 @@ describe("acp-session-activation", () => {
       configOptions: [],
     });
 
-    await expect(activateAcpSession(params(entry))).resolves.toMatchObject({
-      sessionId: "acp-new",
-      previousSessionId: "acp-old",
-      strategy: "fresh_fallback",
-      createdNewSession: true,
+    let activationSequence = 0;
+    const revocations: Array<ReturnType<typeof vi.fn>> = [];
+    const createMcpActivation = vi.fn(async () => {
+      activationSequence += 1;
+      const revoke = vi.fn();
+      revocations.push(revoke);
+      return {
+        mcpServers: [{ name: `fyllo-${activationSequence}`, command: "node", args: [], env: [] }],
+        mcpActivationId: `activation-${activationSequence}`,
+        revoke,
+      };
     });
+
+    await expect(activateAcpSession(params(entry, { createMcpActivation }))).resolves.toMatchObject(
+      {
+        sessionId: "acp-new",
+        previousSessionId: "acp-old",
+        strategy: "fresh_fallback",
+        createdNewSession: true,
+      }
+    );
     expect(entry.activeSessionIds.has("acp-old")).toBe(false);
     expect(entry.activeSessionIds.has("acp-new")).toBe(true);
     expect(entry.connection.newSession).toHaveBeenCalledWith(
       expect.objectContaining({ additionalDirectories: ["/tmp/secondary"] })
+    );
+    expect(createMcpActivation).toHaveBeenCalledTimes(3);
+    expect(entry.connection.resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mcpServers: [expect.objectContaining({ name: "fyllo-1" })],
+      })
+    );
+    expect(entry.connection.loadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mcpServers: [expect.objectContaining({ name: "fyllo-2" })],
+      })
+    );
+    expect(entry.connection.newSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mcpServers: [expect.objectContaining({ name: "fyllo-3" })],
+      })
+    );
+    expect(revocations[0]).toHaveBeenCalledOnce();
+    expect(revocations[1]).toHaveBeenCalledOnce();
+    expect(revocations[2]).not.toHaveBeenCalled();
+    expect(mocks.markAcpSessionActive).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "acp-new",
+      "activation-3"
     );
   });
 

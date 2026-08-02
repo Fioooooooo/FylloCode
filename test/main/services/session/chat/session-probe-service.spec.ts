@@ -9,8 +9,12 @@ const mocks = vi.hoisted(() => ({
   pendingProbeHandlers: new Map<string, (notification: SessionNotification) => void>(),
   sessionHandlers: new Map<string, (notification: SessionNotification) => void>(),
   activeSessionIds: new Set<string>(),
+  mcpActivationBySessionId: new Map<string, string>(),
   getOrStartProcess: vi.fn(),
-  resolveBundledMcpServers: vi.fn(),
+  createBundledMcpActivation: vi.fn(),
+  revokeBundledMcpActivation: vi.fn(),
+  createSessionMcpWorkspaceDescriptor: vi.fn(),
+  hasActiveMcpActivation: vi.fn(),
   toAcpMcpServer: vi.fn(),
   onAgentProcessInvalidated: vi.fn(
     (listener: (event: { agentId: string; reason: string }) => void) => {
@@ -31,12 +35,33 @@ const mocks = vi.hoisted(() => ({
       }
     }
   ),
-  markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
-    entry.activeSessionIds.add(sessionId);
-  }),
-  forgetActiveAcpSession: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
-    entry.activeSessionIds.delete(sessionId);
-  }),
+  markAcpSessionActive: vi.fn(
+    (
+      entry: {
+        activeSessionIds: Set<string>;
+        mcpActivationBySessionId: Map<string, string>;
+      },
+      sessionId: string,
+      activationId: string | null
+    ) => {
+      entry.activeSessionIds.add(sessionId);
+      if (activationId) {
+        entry.mcpActivationBySessionId.set(sessionId, activationId);
+      }
+    }
+  ),
+  forgetActiveAcpSession: vi.fn(
+    (
+      entry: {
+        activeSessionIds: Set<string>;
+        mcpActivationBySessionId: Map<string, string>;
+      },
+      sessionId: string
+    ) => {
+      entry.activeSessionIds.delete(sessionId);
+      entry.mcpActivationBySessionId.delete(sessionId);
+    }
+  ),
   newSession: vi.fn(),
   closeSession: vi.fn(),
   setSessionConfigOption: vi.fn(),
@@ -55,11 +80,17 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
   clearPendingProbeHandler: mocks.clearPendingProbeHandler,
   markAcpSessionActive: mocks.markAcpSessionActive,
   forgetActiveAcpSession: mocks.forgetActiveAcpSession,
+  hasActiveMcpActivation: mocks.hasActiveMcpActivation,
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
-  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  createBundledMcpActivation: mocks.createBundledMcpActivation,
+  revokeBundledMcpActivation: mocks.revokeBundledMcpActivation,
   toAcpMcpServer: mocks.toAcpMcpServer,
+}));
+
+vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
+  createSessionMcpWorkspaceDescriptor: mocks.createSessionMcpWorkspaceDescriptor,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -99,10 +130,13 @@ describe("session-probe-service", () => {
     mocks.pendingProbeHandlers.clear();
     mocks.sessionHandlers.clear();
     mocks.activeSessionIds.clear();
+    mocks.mcpActivationBySessionId.clear();
     sessionProbeRegistry.clear();
     mocks.getOrStartProcess.mockResolvedValue({
+      agentId: "claude-code",
       sessionHandlers: mocks.sessionHandlers,
       activeSessionIds: mocks.activeSessionIds,
+      mcpActivationBySessionId: mocks.mcpActivationBySessionId,
       connection: {
         newSession: mocks.newSession,
         closeSession: mocks.closeSession,
@@ -113,15 +147,38 @@ describe("session-probe-service", () => {
         agentCapabilities: {},
       },
     });
-    mocks.resolveBundledMcpServers.mockResolvedValue([
-      {
-        type: "stdio",
-        name: "fyllo",
-        command: "node",
-        args: ["server.js"],
-        env: { A: "B" },
-      },
-    ]);
+    mocks.hasActiveMcpActivation.mockImplementation(
+      (entry: { mcpActivationBySessionId: Map<string, string> }, sessionId: string) =>
+        entry.mcpActivationBySessionId.has(sessionId)
+    );
+    mocks.createSessionMcpWorkspaceDescriptor.mockImplementation(
+      async (snapshot: ReturnType<typeof workspaceSnapshot>, sessionId: string) => ({
+        version: 2,
+        workspaceId: snapshot.workspaceId,
+        workspaceKind: snapshot.workspaceKind,
+        primaryFolderId: snapshot.primaryFolderId,
+        sessionId,
+        folders: snapshot.folders.map((folder) => ({
+          ...folder,
+          workspaceDataDir: `/tmp/data/${folder.folderId}`,
+          mcpEventsDir: `/tmp/events/${folder.folderId}`,
+        })),
+      })
+    );
+    mocks.createBundledMcpActivation.mockImplementation(
+      async ({ descriptor }: { descriptor: { sessionId: string } }) => ({
+        activationId: `activation-${descriptor.sessionId}`,
+        servers: [
+          {
+            type: "stdio",
+            name: "fyllo",
+            command: "node",
+            args: ["server.js"],
+            env: { A: "B" },
+          },
+        ],
+      })
+    );
     mocks.toAcpMcpServer.mockImplementation((spec: unknown) => {
       const value = spec as {
         name: string;
@@ -175,10 +232,16 @@ describe("session-probe-service", () => {
     );
 
     expect(mocks.getOrStartProcess).toHaveBeenCalledWith("claude-code");
-    expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/project",
-      fylloSessionId: snapshot.fylloSessionId,
+    expect(mocks.createSessionMcpWorkspaceDescriptor).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: "workspace-1", cwd: "/tmp/project" }),
+      snapshot.fylloSessionId
+    );
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      descriptor: expect.objectContaining({
+        workspaceId: "workspace-1",
+        sessionId: snapshot.fylloSessionId,
+      }),
       supportsHttp: false,
     });
     expect(mocks.newSession).toHaveBeenCalledWith({
@@ -201,6 +264,9 @@ describe("session-probe-service", () => {
     });
     expect(mocks.sessionHandlers.get("acp-1")).toBeTypeOf("function");
     expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
+    expect(mocks.mcpActivationBySessionId.get("acp-1")).toBe(
+      `activation-${snapshot.fylloSessionId}`
+    );
     expect(updates).toEqual([
       expect.objectContaining({
         workspaceId: "workspace-1",
@@ -246,10 +312,10 @@ describe("session-probe-service", () => {
 
   it("waits for bundled MCP readiness before calling newSession", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
-    let resolveServers!: (value: []) => void;
-    mocks.resolveBundledMcpServers.mockReturnValueOnce(
+    let resolveActivation!: (value: { activationId: string; servers: [] }) => void;
+    mocks.createBundledMcpActivation.mockReturnValueOnce(
       new Promise((resolve) => {
-        resolveServers = resolve;
+        resolveActivation = resolve;
       })
     );
 
@@ -258,10 +324,10 @@ describe("session-probe-service", () => {
       "claude-code",
       workspaceSnapshot("workspace-1", "/tmp/project")
     );
-    await vi.waitFor(() => expect(mocks.resolveBundledMcpServers).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.createBundledMcpActivation).toHaveBeenCalledOnce());
     expect(mocks.newSession).not.toHaveBeenCalled();
 
-    resolveServers([]);
+    resolveActivation({ activationId: "activation-waiting", servers: [] });
     await expect(probe).resolves.toMatchObject({ status: "ready", acpSessionId: "acp-1" });
     expect(mocks.newSession).toHaveBeenCalledOnce();
   });
@@ -339,12 +405,15 @@ describe("session-probe-service", () => {
     });
 
     await vi.waitFor(() => {
-      expect(mocks.resolveBundledMcpServers).toHaveBeenCalledWith({
-        workspaceId: "workspace-1",
-        projectPath: "/tmp/project",
-        fylloSessionId: startingEntry?.fylloSessionId,
-        supportsHttp: false,
-      });
+      expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: "claude-code",
+          descriptor: expect.objectContaining({
+            workspaceId: "workspace-1",
+            sessionId: startingEntry?.fylloSessionId,
+          }),
+        })
+      );
     });
 
     resolveNewSession({ sessionId: "acp-1", configOptions: [] });
@@ -635,9 +704,51 @@ describe("session-probe-service", () => {
     const entry = await takeProbeFor("workspace-1", "claude-code", "acp-1");
 
     expect(entry).toMatchObject({ workspaceId: "workspace-1", agentId: "claude-code" });
+    expect(entry?.mcpActivationId).toBeTruthy();
     expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(mocks.sessionHandlers.has("acp-1")).toBe(false);
     expect(mocks.activeSessionIds.has("acp-1")).toBe(true);
+    expect(mocks.revokeBundledMcpActivation).not.toHaveBeenCalled();
+  });
+
+  it("revokes an unbound activation when probe creation fails", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    mocks.createBundledMcpActivation.mockResolvedValueOnce({
+      activationId: "activation-failed",
+      servers: [],
+    });
+    mocks.newSession.mockRejectedValueOnce(new Error("new session failed"));
+
+    await expect(
+      ensureProbe("workspace-1", "claude-code", workspaceSnapshot("workspace-1", "/tmp/project"))
+    ).rejects.toMatchObject({ code: IpcErrorCodes.ACP_ERROR });
+
+    expect(mocks.revokeBundledMcpActivation).toHaveBeenCalledWith("activation-failed");
+    expect(mocks.mcpActivationBySessionId.size).toBe(0);
+  });
+
+  it("replaces a ready probe whose MCP activation is no longer valid", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    mocks.newSession
+      .mockResolvedValueOnce({ sessionId: "acp-old", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-new", configOptions: [] });
+
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
+    mocks.hasActiveMcpActivation.mockReturnValueOnce(false);
+
+    const snapshot = await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
+
+    expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-old" });
+    expect(mocks.newSession).toHaveBeenCalledTimes(2);
+    expect(snapshot.acpSessionId).toBe("acp-new");
   });
 
   it("broadcasts an empty array when the agent declares no commands", async () => {

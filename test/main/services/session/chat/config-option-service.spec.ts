@@ -9,13 +9,16 @@ const mocks = vi.hoisted(() => ({
   patchSessionMeta: vi.fn(),
   getOrStartProcess: vi.fn(),
   hasActiveAcpSession: vi.fn(),
+  hasActiveMcpActivation: vi.fn(),
   activeSessionIds: new Set<string>(),
   resumeSession: vi.fn(),
   loadSession: vi.fn(),
   newSession: vi.fn(),
   setSessionConfigOption: vi.fn(),
-  resolveBundledMcpServers: vi.fn(),
+  createBundledMcpActivation: vi.fn(),
+  revokeBundledMcpActivation: vi.fn(),
   toAcpMcpServer: vi.fn(),
+  createSessionMcpWorkspaceDescriptor: vi.fn(),
 }));
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
@@ -34,6 +37,7 @@ vi.mock("@main/infra/storage/session-store", () => ({
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
   hasActiveAcpSession: mocks.hasActiveAcpSession,
+  hasActiveMcpActivation: mocks.hasActiveMcpActivation,
   markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
     entry.activeSessionIds.add(sessionId);
   }),
@@ -43,8 +47,13 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
-  resolveBundledMcpServers: mocks.resolveBundledMcpServers,
+  createBundledMcpActivation: mocks.createBundledMcpActivation,
+  revokeBundledMcpActivation: mocks.revokeBundledMcpActivation,
   toAcpMcpServer: mocks.toAcpMcpServer,
+}));
+
+vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
+  createSessionMcpWorkspaceDescriptor: mocks.createSessionMcpWorkspaceDescriptor,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -125,7 +134,17 @@ describe("setConfigOption", () => {
       activeSessionIds: mocks.activeSessionIds,
     });
     mocks.hasActiveAcpSession.mockReturnValue(true);
-    mocks.resolveBundledMcpServers.mockResolvedValue([]);
+    mocks.hasActiveMcpActivation.mockReturnValue(true);
+    mocks.createBundledMcpActivation.mockResolvedValue({ servers: [], activationId: null });
+    mocks.createSessionMcpWorkspaceDescriptor.mockResolvedValue({
+      version: 2,
+      workspaceId: "w1",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-1",
+      folders: [{ folderId: "folder-1", folderName: "Project", folderPath: "/tmp/project" }],
+      workspaceDataDir: "/tmp/workspace-data",
+      sessionId: "session-1",
+    });
     mocks.toAcpMcpServer.mockImplementation((value: unknown) => value);
     mocks.resumeSession.mockResolvedValue({ configOptions: [flatModelSchema] });
     mocks.loadSession.mockResolvedValue({ configOptions: [flatModelSchema] });

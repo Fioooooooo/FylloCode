@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getProjectPath } from "../../../shared/env";
+import { resolveSingleFolder } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
 import { archiveChange, changeDir, OpenspecArchiveNotConfirmedError } from "../runtime-openspec";
 import { validateTargetPath } from "../utils/project-root";
@@ -221,7 +221,7 @@ export async function archiveChangeTool(
     }
 
     const workspace = await finalizeArchiveWorkspace({
-      mainProjectPath: getProjectPath() || projectRoot,
+      mainProjectPath: resolveSingleFolder().folderPath,
       workspacePath: projectRoot,
       changeName: input.changeName,
       commitMessage: input.commitMessage ?? "",

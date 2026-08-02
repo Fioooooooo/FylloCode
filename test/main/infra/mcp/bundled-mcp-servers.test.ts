@@ -1,19 +1,40 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { is } from "@electron-toolkit/utils";
-import {
-  encodeMcpHeaderValue,
-  resolveBundledMcpServers,
-  toAcpMcpServer,
-} from "@main/infra/mcp/bundled-mcp-servers";
-import { mcpEventsDir, workspaceDataDir } from "@main/infra/storage/workspace-paths";
+import { createBundledMcpActivation, toAcpMcpServer } from "@main/infra/mcp/bundled-mcp-servers";
+import { parseMcpWorkspaceDescriptor } from "@shared/types/mcp-workspace";
 
 const hostMocks = vi.hoisted(() => ({
   waitForBundledMcpInitialReadiness: vi.fn<() => Promise<void>>(),
   getMcpServerEndpoint: vi.fn(),
 }));
 
+const grantMocks = vi.hoisted(() => ({
+  issue: vi.fn(() => ({
+    token: "activation-token",
+    activationId: "activation-1",
+    expiresAt: "2026-08-02T01:00:00.000Z",
+  })),
+}));
+
 vi.mock("@main/infra/mcp/bundled-mcp-host", () => hostMocks);
+vi.mock("@main/infra/mcp/mcp-access-grant-registry", () => ({
+  mcpAccessGrantRegistry: grantMocks,
+}));
+
+function descriptor() {
+  const folderPath = resolve("/tmp/project");
+  return parseMcpWorkspaceDescriptor({
+    version: 2,
+    workspaceId: "workspace-1",
+    workspaceKind: "folder",
+    primaryFolderId: "folder-1",
+    folders: [{ folderId: "folder-1", folderName: "Project", folderPath }],
+    workspaceDataDir: resolve("/tmp/workspace-data"),
+    mcpEventDir: resolve("/tmp/workspace-data/mcp-events"),
+    sessionId: "session-1",
+  });
+}
 
 describe("bundled mcp servers", () => {
   beforeEach(() => {
@@ -29,35 +50,29 @@ describe("bundled mcp servers", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns dev stdio fallback specs in stable order", async () => {
-    const specs = await resolveBundledMcpServers({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/project",
+  it("returns dev stdio fallback specs with only Workspace v2 context", async () => {
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
       supportsHttp: false,
     });
-    const stdioSpecs = specs.filter((spec) => spec.type === "stdio");
+    const stdioSpecs = activation.servers.filter((spec) => spec.type === "stdio");
 
+    expect(activation.activationId).toBeNull();
     expect(stdioSpecs.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-cortex"]);
     expect(stdioSpecs[0]?.command).toBe(process.execPath);
     expect(stdioSpecs[0]?.args[0]).toBe(
       join(process.cwd(), "out", "mcp-servers", "fyllo-specs", "index.js")
     );
-    expect(stdioSpecs[1]?.args[0]).toBe(
-      join(process.cwd(), "out", "mcp-servers", "fyllo-cortex", "index.js")
-    );
-    expect(stdioSpecs[0]?.env).toEqual(
-      expect.objectContaining({
-        ELECTRON_RUN_AS_NODE: "1",
-        FYLLO_PROJECT_PATH: "/tmp/project",
-        FYLLO_PROJECT_DATA_DIR: workspaceDataDir("workspace-1"),
-        FYLLO_MCP_TELEMETRY: "0",
-        FYLLO_MCP_EVENT_DIR: mcpEventsDir("workspace-1"),
-      })
-    );
+    expect(JSON.parse(stdioSpecs[0]!.env.FYLLO_WORKSPACE_JSON)).toEqual(descriptor());
+    expect(stdioSpecs[0]?.env).not.toHaveProperty("FYLLO_PROJECT_PATH");
+    expect(stdioSpecs[0]?.env).not.toHaveProperty("FYLLO_PROJECT_DATA_DIR");
+    expect(stdioSpecs[0]?.env).not.toHaveProperty("FYLLO_MCP_EVENT_DIR");
+    expect(stdioSpecs[0]?.env).not.toHaveProperty("FYLLO_SESSION_ID");
     expect(stdioSpecs[0]?.env.FYLLO_OPENSPEC_CLI_PATH).toBe(
       join(process.cwd(), "node_modules", "@fission-ai", "openspec", "bin", "openspec.js")
     );
-    expect(stdioSpecs[1]?.env.FYLLO_OPENSPEC_CLI_PATH).toBeUndefined();
+    expect(grantMocks.issue).not.toHaveBeenCalled();
     expect(hostMocks.waitForBundledMcpInitialReadiness).toHaveBeenCalledOnce();
   });
 
@@ -68,12 +83,12 @@ describe("bundled mcp servers", () => {
       value: "/Applications/FylloCode.app/Contents/Resources",
     });
 
-    const specs = await resolveBundledMcpServers({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/project",
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
       supportsHttp: false,
     });
-    const stdioSpecs = specs.filter((spec) => spec.type === "stdio");
+    const stdioSpecs = activation.servers.filter((spec) => spec.type === "stdio");
 
     expect(stdioSpecs[0]?.args[0]).toBe(
       join(
@@ -97,65 +112,67 @@ describe("bundled mcp servers", () => {
     );
   });
 
-  it("builds mixed HTTP and stdio specs per backend readiness", async () => {
+  it("builds mixed specs with one activation token scoped to ready HTTP servers", async () => {
     hostMocks.getMcpServerEndpoint.mockImplementation((name: string) =>
-      name === "fyllo-specs"
-        ? { url: "http://127.0.0.1:50100/mcp/fyllo-specs", token: "shared-token" }
-        : null
+      name === "fyllo-specs" ? { url: "http://127.0.0.1:50100/mcp/fyllo-specs" } : null
     );
 
-    const specs = await resolveBundledMcpServers({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/中文 project",
-      fylloSessionId: "session-1",
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
       supportsHttp: true,
     });
 
-    expect(specs[0]).toEqual({
+    expect(activation.activationId).toBe("activation-1");
+    expect(activation.servers[0]).toEqual({
       type: "http",
       name: "fyllo-specs",
       url: "http://127.0.0.1:50100/mcp/fyllo-specs",
-      headers: expect.objectContaining({
-        Authorization: "Bearer shared-token",
-        "X-Fyllo-Project-Path": encodeMcpHeaderValue("/tmp/中文 project"),
-        "X-Fyllo-Session-Id": encodeMcpHeaderValue("session-1"),
-      }),
+      headers: { Authorization: "Bearer activation-token" },
     });
-    expect(specs[1]).toEqual(
+    expect(activation.servers[1]).toEqual(
       expect.objectContaining({
         type: "stdio",
         name: "fyllo-cortex",
-        env: expect.objectContaining({ FYLLO_SESSION_ID: "session-1" }),
+        env: expect.objectContaining({ FYLLO_WORKSPACE_JSON: JSON.stringify(descriptor()) }),
       })
     );
+    expect(grantMocks.issue).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      fylloSessionId: "session-1",
+      descriptor: descriptor(),
+      allowedServerNames: ["fyllo-specs"],
+    });
   });
 
-  it("does not use HTTP endpoints when the agent lacks capability", async () => {
+  it("does not query endpoints or issue a grant without HTTP capability", async () => {
     hostMocks.getMcpServerEndpoint.mockReturnValue({
       url: "http://127.0.0.1:50100/mcp/fyllo-specs",
-      token: "shared-token",
     });
 
-    const specs = await resolveBundledMcpServers({
-      workspaceId: "workspace-1",
-      projectPath: "/tmp/project",
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
       supportsHttp: false,
     });
 
-    expect(specs.every((spec) => spec.type === "stdio")).toBe(true);
+    expect(activation.servers.every((spec) => spec.type === "stdio")).toBe(true);
+    expect(activation.activationId).toBeNull();
     expect(hostMocks.getMcpServerEndpoint).not.toHaveBeenCalled();
+    expect(grantMocks.issue).not.toHaveBeenCalled();
   });
 
   it("respects the complete disable flag without waiting for host", async () => {
     process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
     await expect(
-      resolveBundledMcpServers({
-        workspaceId: "workspace-1",
-        projectPath: "/tmp/project",
+      createBundledMcpActivation({
+        agentId: "agent-1",
+        descriptor: descriptor(),
         supportsHttp: true,
       })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ servers: [], activationId: null });
     expect(hostMocks.waitForBundledMcpInitialReadiness).not.toHaveBeenCalled();
+    expect(grantMocks.issue).not.toHaveBeenCalled();
   });
 
   it("converts internal specs to ACP wire types", () => {

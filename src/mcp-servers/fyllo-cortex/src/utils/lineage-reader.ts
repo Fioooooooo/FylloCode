@@ -7,7 +7,7 @@ import type {
   Subject,
 } from "@shared/types/lineage";
 import type { ProposalStatus } from "@shared/types/proposal";
-import { getProjectDataDir } from "../../../shared/env";
+import { getWorkspaceDataDir } from "../../../shared/env";
 import { runGit } from "./git";
 import { resolveProjectRoot } from "./project-root";
 
@@ -50,23 +50,10 @@ export type LineageResponseDto = {
   updatedAt: string;
 };
 
-// ── Errors ──────────────────────────────────────────────────────────────────
-
-export class MissingEnvError extends Error {
-  constructor(variable: string) {
-    super(`Missing required environment variable: ${variable}`);
-    this.name = "MissingEnvError";
-  }
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getRequiredProjectDataDir(): string {
-  const value = getProjectDataDir();
-  if (!value) {
-    throw new MissingEnvError("FYLLO_PROJECT_DATA_DIR");
-  }
-  return value;
+  return getWorkspaceDataDir();
 }
 
 function isNonEmptyString(value: unknown): value is string {
