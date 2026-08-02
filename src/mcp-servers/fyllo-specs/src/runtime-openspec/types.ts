@@ -6,9 +6,18 @@ export interface ChangeSummary {
   status: string;
 }
 
-export interface WorkspaceAwareChangeSummary extends ChangeSummary {
-  workspacePath: string;
-  workspaceMode: "main" | "linked";
+export interface WorkspaceAwareChangeSummary extends Omit<ChangeSummary, "name"> {
+  folderId: string;
+  folderName: string;
+  changeId: string;
+  worktreePath: string;
+  worktreeMode: "main" | "linked";
+}
+
+export interface WorkspaceChangeWarning {
+  folderId: string;
+  code: string;
+  message: string;
 }
 
 export interface ArtifactStatus {

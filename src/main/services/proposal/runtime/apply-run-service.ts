@@ -1,16 +1,16 @@
 import { promises as fs } from "fs";
-import { join, resolve } from "path";
+import { join } from "path";
 import { load, dump } from "js-yaml";
-import type { ApplyRunMeta, ProposalStatus } from "@shared/types/proposal";
+import type { ApplyRunMeta, ProposalRef, ProposalStatus } from "@shared/types/proposal";
 import type { WorkflowStage, WorkflowTemplate } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { resolveWorkspace } from "@main/services/workspace/_public";
+import { resolveRepositoryTarget, resolveWorkspace } from "@main/services/workspace/_public";
 import { saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
 import {
-  findProposalMetaById,
   resolveApplyRunChangeId,
-  resolveChangeDir,
+  resolveChangeDirInTarget,
 } from "@main/infra/proposal/openspec-reader";
+import { resolveProposalMeta } from "@main/services/proposal/browser/proposal-service";
 import { loadAllWorkflowTemplates } from "@main/services/automation/_public";
 import { newRunId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
@@ -31,11 +31,11 @@ export async function findWorkflowTemplate(
 export { resolveApplyRunChangeId };
 
 export async function updateChangeStatus(
-  projectPath: string,
+  worktreePath: string,
   changeId: string,
   nextStatus: ProposalStatus
 ): Promise<void> {
-  const changeDir = await resolveChangeDir(projectPath, changeId);
+  const changeDir = await resolveChangeDirInTarget(worktreePath, changeId);
   if (!changeDir) {
     throw ipcError(IpcErrorCodes.PROPOSAL_NOT_FOUND, `Proposal not found: ${changeId}`);
   }
@@ -69,6 +69,43 @@ export function buildArchiveStage(agentId: string): WorkflowStage {
   };
 }
 
+function hasMatchingProposalRef(runMeta: ApplyRunMeta, proposalRef: ProposalRef): boolean {
+  return (
+    runMeta.proposalRef?.folderId === proposalRef.folderId &&
+    runMeta.proposalRef.changeId === proposalRef.changeId
+  );
+}
+
+export async function validateApplyRunTarget(
+  workspaceId: string,
+  proposalRef: ProposalRef,
+  runMeta: ApplyRunMeta
+): Promise<{ folderId: string; worktreePath: string }> {
+  if (!hasMatchingProposalRef(runMeta, proposalRef) || !runMeta.worktreePath) {
+    throw ipcError(
+      IpcErrorCodes.APPLY_RUN_NOT_READY,
+      `Apply run owner is unavailable: ${proposalRef.changeId}`
+    );
+  }
+
+  try {
+    const target = await resolveRepositoryTarget({
+      workspaceId,
+      folderId: proposalRef.folderId,
+      worktreePath: runMeta.worktreePath,
+    });
+    if (!(await resolveChangeDirInTarget(target.worktreePath, proposalRef.changeId))) {
+      throw new Error("proposal is missing from the fixed target");
+    }
+    return target;
+  } catch {
+    throw ipcError(
+      IpcErrorCodes.PROPOSAL_NOT_FOUND,
+      `Proposal target is no longer available: ${proposalRef.changeId}`
+    );
+  }
+}
+
 /**
  * Create a fresh apply run: locates the workflow template, persists an
  * `ApplyRunMeta`, and flips the change status to `applying`.
@@ -76,21 +113,22 @@ export function buildArchiveStage(agentId: string): WorkflowStage {
  */
 export async function createApplyRun(input: {
   workspaceId: string;
+  folderId: string;
   changeId: string;
   workflowId: string;
 }): Promise<{ runId: string; stages: WorkflowStage[] }> {
-  const workspaceCwd = await resolveWorkspaceCwd(input.workspaceId);
   const template = await findWorkflowTemplate(input.workspaceId, input.workflowId);
-  const proposalMeta = await findProposalMetaById(workspaceCwd, input.changeId);
   if (!template) {
     throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${input.workflowId}`);
   }
+  const proposalRef = { folderId: input.folderId, changeId: input.changeId };
+  const proposalMeta = await resolveProposalMeta(input.workspaceId, proposalRef);
 
   const runId = newRunId();
   const startedAt = new Date().toISOString();
   const runMeta: ApplyRunMeta = {
     runId,
-    changeId: input.changeId,
+    proposalRef,
     workflowId: input.workflowId,
     stages: template.stages,
     currentStageIndex: 0,
@@ -98,11 +136,11 @@ export async function createApplyRun(input: {
     status: "running",
     startedAt,
     updatedAt: startedAt,
-    worktreePath: proposalMeta?.worktreePath ? resolve(proposalMeta.worktreePath) : undefined,
+    worktreePath: proposalMeta.worktreePath,
   };
 
   await saveApplyRunMeta(input.workspaceId, runMeta);
-  await updateChangeStatus(workspaceCwd, input.changeId, "applying");
+  await updateChangeStatus(proposalMeta.worktreePath, input.changeId, "applying");
 
   return { runId, stages: template.stages };
 }

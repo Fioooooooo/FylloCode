@@ -12,9 +12,9 @@ import {
   getProposalSpecDeltas,
   listProposals,
   readProposalFile,
+  resolveProposalMeta,
 } from "@main/services/proposal/browser/proposal-service";
 import { proposalStatusService } from "@main/services/proposal/browser/proposal-status-service";
-import { resolveWorkspace } from "@main/services/workspace/resolver/workspace-resolver";
 import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
 // 状态广播依赖 WorkspaceWindowManager 按 workspaceId fanout；延迟订阅保证 service 初始化顺序无关。
@@ -47,23 +47,35 @@ export function registerProposalHandlers(): void {
 
   ipcMain.handle(ProposalBrowserChannels.readFile, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { workspaceId, changeId, filename } = validate(readProposalFileInputSchema, input);
-      return readProposalFile(workspaceId, changeId, filename);
+      const { workspaceId, folderId, changeId, filename } = validate(
+        readProposalFileInputSchema,
+        input
+      );
+      return readProposalFile(workspaceId, { folderId, changeId }, filename);
     })
   );
 
   ipcMain.handle(ProposalBrowserChannels.getSpecDeltas, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { workspaceId, changeId } = validate(getProposalSpecDeltasInputSchema, input);
-      return getProposalSpecDeltas(workspaceId, changeId);
+      const { workspaceId, folderId, changeId } = validate(getProposalSpecDeltasInputSchema, input);
+      return getProposalSpecDeltas(workspaceId, { folderId, changeId });
     })
   );
 
   ipcMain.handle(ProposalBrowserChannels.watch, (_event, input: unknown) =>
     wrapHandler(async () => {
-      const { workspaceId, changeId, sessionId } = validate(watchProposalInputSchema, input);
-      const workspace = await resolveWorkspace(workspaceId);
-      proposalStatusService.watchProposal(workspaceId, workspace.cwd, changeId, sessionId);
+      const { workspaceId, folderId, changeId, sessionId } = validate(
+        watchProposalInputSchema,
+        input
+      );
+      const proposalRef = { folderId, changeId };
+      const proposal = await resolveProposalMeta(workspaceId, proposalRef);
+      proposalStatusService.watchProposal(
+        workspaceId,
+        proposalRef,
+        proposal.worktreePath,
+        sessionId
+      );
     })
   );
 }

@@ -2,7 +2,19 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "../utils/state";
 import { listWorkspaceChanges, computeStatus } from "../runtime-openspec";
-import { validateTargetPath } from "../utils/project-root";
+import { resolveProposalTarget } from "../runtime-workspace";
+
+class ProposalOwnerError extends Error {
+  constructor(
+    public readonly code:
+      "PROPOSAL_OWNER_AMBIGUOUS" | "PROPOSAL_OWNER_UNVERIFIED" | "PROPOSAL_NOT_FOUND",
+    message: string,
+    public readonly details: Readonly<Record<string, unknown>>
+  ) {
+    super(message);
+    this.name = "ProposalOwnerError";
+  }
+}
 
 const exploreInputSchema = z.object({
   changeName: z
@@ -11,10 +23,11 @@ const exploreInputSchema = z.object({
     .describe(
       "Name of a specific change to inspect. Omit to get an overview of all active changes."
     ),
-  targetPath: z
+  folderId: z
     .string()
     .min(1)
-    .describe("Absolute path to the project root or a registered git worktree."),
+    .optional()
+    .describe("Folder owner to scan. Omit to aggregate all authorized descriptor Folders."),
   includeInstruction: z
     .boolean()
     .optional()
@@ -28,36 +41,52 @@ export async function exploreTool(input: z.input<typeof exploreInputSchema>): Pr
   const includeInstruction = input.includeInstruction ?? true;
 
   return runTool("explore", { includeInstruction }, async () => {
-    const result = validateTargetPath(input.targetPath);
-    if (!result.ok) {
-      const error = new Error(
-        result.rawOutput ? `${result.error}\n\n${result.rawOutput}` : result.error
-      );
-      error.name = "InvalidTargetPath";
-      throw error;
+    const { activeChanges, warnings } = await listWorkspaceChanges(input.folderId);
+
+    let currentChange = null;
+    if (input.changeName) {
+      const matches = activeChanges.filter((change) => change.changeId === input.changeName);
+      if (!input.folderId && warnings.length > 0) {
+        throw new ProposalOwnerError(
+          "PROPOSAL_OWNER_UNVERIFIED",
+          "Proposal owner cannot be proven while one or more Folder scans failed",
+          { changeName: input.changeName, warnings }
+        );
+      }
+      if (matches.length > 1) {
+        throw new ProposalOwnerError(
+          "PROPOSAL_OWNER_AMBIGUOUS",
+          `Proposal exists in multiple authorized Folders: ${input.changeName}`,
+          {
+            candidates: matches.map((change) => ({
+              folderId: change.folderId,
+              changeId: change.changeId,
+            })),
+          }
+        );
+      }
+      const match = matches[0];
+      if (!match) {
+        throw new ProposalOwnerError(
+          "PROPOSAL_NOT_FOUND",
+          `Proposal not found: ${input.changeName}`,
+          {
+            changeName: input.changeName,
+            ...(input.folderId ? { folderId: input.folderId } : {}),
+          }
+        );
+      }
+      const target = await resolveProposalTarget({
+        folderId: match.folderId,
+        changeId: match.changeId,
+      });
+      currentChange = {
+        ...target,
+        ...(await computeStatus(target.worktreePath, input.changeName)),
+      };
     }
 
-    const projectRoot = result.resolved!;
-    const { activeChanges, warnings } = await listWorkspaceChanges(projectRoot);
-
-    const matchingChange = input.changeName
-      ? activeChanges.find((change) => change.name === input.changeName)
-      : undefined;
-
-    const currentChangeWorkspacePath = matchingChange?.workspacePath ?? projectRoot;
-    const currentChangeWorkspaceMode = matchingChange?.workspaceMode ?? "main";
-
-    const currentChange = input.changeName
-      ? {
-          changeName: input.changeName,
-          workspacePath: currentChangeWorkspacePath,
-          workspaceMode: currentChangeWorkspaceMode,
-          ...(await computeStatus(currentChangeWorkspacePath, input.changeName)),
-        }
-      : null;
-
     return {
-      projectRoot,
       activeChanges,
       currentChange,
       warnings,

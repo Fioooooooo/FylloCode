@@ -5,7 +5,7 @@ import { proposalApplyApi } from "@renderer/api/proposal/apply";
 import { proposalArchiveApi } from "@renderer/api/proposal/archive";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import type { MessageMeta } from "@shared/types/chat";
-import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
+import type { ApplyRunMeta, ArchiveRunMeta, ProposalRef } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 
 export interface ProposalRunStore {
@@ -15,11 +15,11 @@ export interface ProposalRunStore {
   isStreaming: Ref<boolean>;
   isArchiving: Ref<boolean>;
   cancelFn: Ref<(() => void) | null>;
-  startRun: (workspaceId: string, changeId: string, workflowId: string) => Promise<void>;
-  startArchive: (workspaceId: string, changeId: string) => Promise<void>;
-  streamCurrentStage: (workspaceId: string, changeId: string) => void;
-  resumeRun: (workspaceId: string, changeId: string) => Promise<void>;
-  resumeArchive: (workspaceId: string, changeId: string) => Promise<boolean>;
+  startRun: (workspaceId: string, proposalRef: ProposalRef, workflowId: string) => Promise<void>;
+  startArchive: (workspaceId: string, proposalRef: ProposalRef) => Promise<void>;
+  streamCurrentStage: (workspaceId: string) => void;
+  resumeRun: (workspaceId: string, proposalRef: ProposalRef) => Promise<void>;
+  resumeArchive: (workspaceId: string, proposalRef: ProposalRef) => Promise<boolean>;
   cancelRun: () => void;
 }
 
@@ -45,32 +45,25 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
 
   async function startRun(
     workspaceId: string,
-    changeId: string,
+    proposalRef: ProposalRef,
     workflowId: string
   ): Promise<void> {
-    const result = await proposalApplyApi.apply({ workspaceId, changeId, workflowId });
+    const result = await proposalApplyApi.apply({ workspaceId, ...proposalRef, workflowId });
     if (!result.ok) {
       throw new Error(result.error.message);
     }
 
-    const now = new Date().toISOString();
-    runMeta.value = {
-      runId: result.data.runId,
-      changeId,
-      workflowId,
-      stages: result.data.stages,
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "running",
-      startedAt: now,
-      updatedAt: now,
-    };
+    const persisted = await proposalApplyApi.loadRun({ workspaceId, ...proposalRef });
+    if (!persisted.ok || !persisted.data || persisted.data.runId !== result.data.runId) {
+      throw new Error(persisted.ok ? "创建后的 proposal run 不可用" : persisted.error.message);
+    }
+    runMeta.value = persisted.data;
     archiveRunMeta.value = null;
     assembler.setMessages([]);
-    streamCurrentStage(workspaceId, changeId);
+    streamCurrentStage(workspaceId);
   }
 
-  function buildArchiveRunMeta(changeId: string): ApplyRunMeta {
+  function buildArchiveRunMeta(proposalRef: ProposalRef, worktreePath: string): ApplyRunMeta {
     const now = new Date().toISOString();
     const stage: WorkflowStage = {
       id: "archive",
@@ -80,7 +73,8 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
 
     return {
       runId: `archive-${Date.now()}`,
-      changeId,
+      proposalRef,
+      worktreePath,
       workflowId: "archive",
       stages: [stage],
       currentStageIndex: 0,
@@ -101,7 +95,8 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
 
     return {
       runId: meta.runId,
-      changeId: meta.changeId,
+      proposalRef: meta.proposalRef,
+      worktreePath: meta.worktreePath,
       workflowId: "archive",
       stages: [stage],
       currentStageIndex: 0,
@@ -112,7 +107,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     };
   }
 
-  function streamCurrentStage(workspaceId: string, changeId: string): void {
+  function streamCurrentStage(workspaceId: string): void {
     const meta = runMeta.value;
     if (!meta) {
       return;
@@ -133,7 +128,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
         runId: meta.runId,
         stageIndex,
         workspaceId,
-        changeId,
+        ...meta.proposalRef,
       },
       {
         onChunk(data) {
@@ -159,7 +154,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
           };
 
           if (nextIndex < current.stages.length) {
-            streamCurrentStage(workspaceId, changeId);
+            streamCurrentStage(workspaceId);
           }
         },
         onError(error) {
@@ -180,10 +175,10 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     );
   }
 
-  async function resumeRun(workspaceId: string, changeId: string): Promise<void> {
+  async function resumeRun(workspaceId: string, proposalRef: ProposalRef): Promise<void> {
     clearRunState();
 
-    const result = await proposalApplyApi.loadRun({ workspaceId, changeId });
+    const result = await proposalApplyApi.loadRun({ workspaceId, ...proposalRef });
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -203,7 +198,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
 
     const messagesResult = await proposalApplyApi.loadRunMessages({
       workspaceId,
-      changeId,
+      ...proposalRef,
       stageIndex,
     });
     if (!messagesResult.ok) {
@@ -213,8 +208,8 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     assembler.setMessages(messagesResult.data);
   }
 
-  async function resumeArchive(workspaceId: string, changeId: string): Promise<boolean> {
-    const archiveResult = await proposalArchiveApi.loadArchive({ workspaceId, changeId });
+  async function resumeArchive(workspaceId: string, proposalRef: ProposalRef): Promise<boolean> {
+    const archiveResult = await proposalArchiveApi.loadArchive({ workspaceId, ...proposalRef });
     if (!archiveResult.ok) {
       throw new Error(archiveResult.error.message);
     }
@@ -223,7 +218,10 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
       return false;
     }
 
-    const messagesResult = await proposalArchiveApi.loadArchiveMessages({ workspaceId, changeId });
+    const messagesResult = await proposalArchiveApi.loadArchiveMessages({
+      workspaceId,
+      ...proposalRef,
+    });
     if (!messagesResult.ok) {
       throw new Error(messagesResult.error.message);
     }
@@ -237,10 +235,10 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
     return true;
   }
 
-  async function startArchive(workspaceId: string, changeId: string): Promise<void> {
+  async function startArchive(workspaceId: string, proposalRef: ProposalRef): Promise<void> {
     const previousMeta = runMeta.value;
     const previousArchiveMeta = archiveRunMeta.value;
-    runMeta.value = buildArchiveRunMeta(changeId);
+    runMeta.value = buildArchiveRunMeta(proposalRef, previousMeta?.worktreePath ?? "");
     archiveRunMeta.value = null;
     assembler.setMessages([]);
     isStreaming.value = true;
@@ -251,7 +249,7 @@ export const useProposalRunStore = defineStore("proposal-run", (): ProposalRunSt
       cancelFn.value = proposalArchiveApi.archive(
         {
           workspaceId,
-          changeId,
+          ...proposalRef,
         },
         {
           onChunk(data) {

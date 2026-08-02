@@ -73,6 +73,7 @@ function projectProposal(
   const proposal = proposalMap.get(link.changeId);
   return {
     changeId: link.changeId,
+    folderId: link.folderId,
     createdAt: link.createdAt,
     commitHash: link.commitHash ?? null,
     title: proposal?.title ?? null,

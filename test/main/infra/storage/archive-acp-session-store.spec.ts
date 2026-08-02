@@ -27,11 +27,13 @@ import { ArchiveAcpSessionStore } from "@main/infra/storage/archive-acp-session-
 import { loadArchiveRunMeta, saveArchiveRunMeta } from "@main/infra/storage/apply-run-store";
 
 const workspaceId = "workspace-1";
+const proposalRef = { folderId: "folder-b", changeId: "change-1" };
 
 function archiveMeta(overrides: Partial<ArchiveRunMeta> = {}): ArchiveRunMeta {
   return {
     runId: "archive-1",
-    changeId: "change-1",
+    proposalRef,
+    worktreePath: "/repo-b/.worktrees/change-1",
     status: "running",
     startedAt: "2026-05-14T00:00:00.000Z",
     updatedAt: "2026-05-14T00:00:00.000Z",
@@ -53,7 +55,7 @@ afterEach(() => {
 
 describe("archive-acp-session-store", () => {
   it("returns null when archive meta is missing", async () => {
-    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, proposalRef);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -64,7 +66,7 @@ describe("archive-acp-session-store", () => {
   it("loads acpSessionId from archive meta", async () => {
     await saveArchiveRunMeta(workspaceId, archiveMeta({ acpSessionId: "acp-existing" }));
 
-    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, proposalRef);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: "acp-existing",
@@ -80,13 +82,14 @@ describe("archive-acp-session-store", () => {
       })
     );
 
-    const store = new ArchiveAcpSessionStore(workspaceId, "change-1");
+    const store = new ArchiveAcpSessionStore(workspaceId, proposalRef);
 
     await store.persistAcpSessionId("acp-new");
 
-    await expect(loadArchiveRunMeta(workspaceId, "change-1")).resolves.toEqual({
+    await expect(loadArchiveRunMeta(workspaceId, proposalRef)).resolves.toEqual({
       runId: "archive-1",
-      changeId: "change-1",
+      proposalRef,
+      worktreePath: "/repo-b/.worktrees/change-1",
       status: "done",
       startedAt: "2026-05-14T00:00:00.000Z",
       updatedAt: "2026-05-18T10:00:00.000Z",

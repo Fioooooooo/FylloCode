@@ -2,7 +2,11 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { proposalBrowserApi } from "@renderer/api/proposal/browser";
 import { useWorkspaceStore } from "../workspace/workspace";
-import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
+import type {
+  ProposalMeta,
+  ProposalRef,
+  ProposalStatusChangedPayload,
+} from "@shared/types/proposal";
 
 export const useProposalStore = defineStore("proposal", () => {
   const proposals = ref<ProposalMeta[]>([]);
@@ -37,11 +41,9 @@ export const useProposalStore = defineStore("proposal", () => {
     }
   }
 
-  function watchProposal(input: {
-    workspaceId: string;
-    changeId: string;
-    sessionId: string;
-  }): ReturnType<typeof proposalBrowserApi.watch> {
+  function watchProposal(
+    input: { workspaceId: string; sessionId: string } & ProposalRef
+  ): ReturnType<typeof proposalBrowserApi.watch> {
     return proposalBrowserApi.watch(input);
   }
 

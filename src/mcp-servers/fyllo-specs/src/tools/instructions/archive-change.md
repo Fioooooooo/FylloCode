@@ -72,15 +72,15 @@ Archive a completed change using the provided `state`.
    If `state.archive.archiveRawOutput` is non-null, read it and use it as the primary source for what
    the archive command actually did.
 
-   Read `state.workspace` for git finalization:
-   - If `state.workspace.ok === true`, summarize the completed `state.workspace.gitOps`.
-   - If `state.workspace.ok === false`, report that the failure happened in workspace finalization,
-     list completed `state.workspace.gitOps`, identify `state.workspace.failedStep`, and relay
-     `state.workspace.error.retryHint` when present.
-   - If `state.archive.ok === true`, `state.workspace.ok === false`, and
-     `state.workspace.recovery.required === "agent"`, do not rerun OpenSpec archive and do not move
+   Read `state.target` for the ProposalRef and trusted worktree target. Read `state.finalization` for git finalization:
+   - If `state.finalization.ok === true`, summarize the completed `state.finalization.gitOps`.
+   - If `state.finalization.ok === false`, report that the failure happened in worktree finalization,
+     list completed `state.finalization.gitOps`, identify `state.finalization.failedStep`, and relay
+     `state.finalization.error.retryHint` when present.
+   - If `state.archive.ok === true`, `state.finalization.ok === false`, and
+     `state.finalization.recovery.required === "agent"`, do not rerun OpenSpec archive and do not move
      archive files manually. Report the recovery kind, completed steps, remaining steps, and
-     instructions from `state.workspace.recovery`; the agent may continue only the bounded git
+     instructions from `state.finalization.recovery`; the agent may continue only the bounded git
      finalization work described there.
 
    Show archive completion summary(with user language) including:
@@ -89,7 +89,7 @@ Archive a completed change using the provided `state`.
    - Whether specs were synced
    - Purpose placeholder check result for any main specs created by this archive
    - Any important messages, warnings, or sync details surfaced in `state.archive.archiveRawOutput`
-   - Workspace mode/path and git finalization status
+   - ProposalRef, resolved worktree mode/path, and git finalization status
    - Failed workspace step, recovery kind, and remaining recovery steps when recovery is required
    - Commit message used
    - Note about any warnings (incomplete artifacts/tasks)
@@ -109,10 +109,10 @@ All artifacts complete. All tasks complete.
 **Guardrails**
 
 - Do not invoke the OpenSpec CLI or shell archive commands directly. Archive operations are handled by this MCP server via `confirm: true`.
-- Git commit / merge / worktree-cleanup are handled by this tool and returned in `state.workspace`.
+- Git commit / merge / worktree-cleanup are handled by this tool and returned in `state.finalization`.
 - Do not manually run git cleanup commands before calling this tool. After this tool returns
-  `state.archive.ok === true`, `state.workspace.ok === false`, and
-  `state.workspace.recovery.required === "agent"`, continue only from the returned recovery state.
+  `state.archive.ok === true`, `state.finalization.ok === false`, and
+  `state.finalization.recovery.required === "agent"`, continue only from the returned recovery state.
 - If `state.archive.ok === false`, do not run git finalization commands and do not move archive files
   manually.
 - The commit subject must describe the proposal's delivered change (for example, `feat(scope): summary`).

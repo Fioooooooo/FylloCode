@@ -1,11 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { resolveSingleFolder } from "../../../shared/workspace-resolver";
+import { resolveFolder } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
 import { archiveChange, changeDir, OpenspecArchiveNotConfirmedError } from "../runtime-openspec";
-import { validateTargetPath } from "../utils/project-root";
-import { finalizeArchiveWorkspace } from "../runtime-workspace";
-import { existsSync, readFileSync } from "fs";
+import { finalizeArchiveWorkspace, resolveProposalTarget } from "../runtime-workspace";
+import { readFileSync } from "fs";
 import { join } from "path";
 import type {
   ArchiveGitOpResult,
@@ -17,10 +16,7 @@ const commitMessageSchema = /^[a-z]+(?:-[a-z]+)*\([a-z0-9-]+\): .+/;
 
 const archiveChangeInputSchema = z.object({
   changeName: z.string().describe("Name of the change to archive."),
-  targetPath: z
-    .string()
-    .min(1)
-    .describe("Absolute path to the project root or a registered git worktree."),
+  folderId: z.string().min(1).describe("Owner Folder ID from the proposal's ProposalRef."),
   confirm: z
     .boolean()
     .optional()
@@ -71,6 +67,18 @@ function emptyWorkspace(projectRoot: string): {
   };
 }
 
+function publicFinalization(
+  workspace: Awaited<ReturnType<typeof finalizeArchiveWorkspace>>
+): Omit<Awaited<ReturnType<typeof finalizeArchiveWorkspace>>, "mode" | "path"> {
+  return {
+    ok: workspace.ok,
+    gitOps: workspace.gitOps,
+    failedStep: workspace.failedStep,
+    ...(workspace.recovery ? { recovery: workspace.recovery } : {}),
+    ...(workspace.error ? { error: workspace.error } : {}),
+  };
+}
+
 function invalidCommitMessageState(input: { changeName: string; projectRoot: string }): {
   changeName: string;
   status: "failed";
@@ -86,9 +94,7 @@ function invalidCommitMessageState(input: { changeName: string; projectRoot: str
       retryHint: string;
     };
   };
-  workspace: {
-    mode: "main";
-    path: string;
+  finalization: {
     ok: false;
     gitOps: ArchiveGitOpResult[];
     failedStep: ArchiveGitStep | null;
@@ -111,9 +117,11 @@ function invalidCommitMessageState(input: { changeName: string; projectRoot: str
           'Call archive-change again with confirm: true and commitMessage like "feat(scope): summary".',
       },
     },
-    workspace: {
-      ...emptyWorkspace(input.projectRoot),
+    finalization: {
       ok: false,
+      gitOps: [],
+      failedStep: null,
+      recovery: emptyWorkspace(input.projectRoot).recovery,
     },
   };
 }
@@ -125,25 +133,19 @@ export async function archiveChangeTool(
   const includeInstruction = input.includeInstruction ?? true;
 
   return runTool("archive-change", { includeInstruction }, async () => {
-    const validation = validateTargetPath(input.targetPath);
-    if (!validation.ok) {
-      const error = new Error(
-        validation.rawOutput ? `${validation.error}\n\n${validation.rawOutput}` : validation.error
-      );
-      error.name = "InvalidTargetPath";
-      throw error;
-    }
-
-    const projectRoot = validation.resolved!;
+    const proposalRef = { folderId: input.folderId, changeId: input.changeName };
+    const target = await resolveProposalTarget(proposalRef);
+    const owner = resolveFolder(input.folderId);
+    const projectRoot = target.worktreePath;
     const commitMessage = input.commitMessage?.split(/\r?\n/)[0] ?? "";
     if (confirm && !commitMessageSchema.test(commitMessage)) {
-      return invalidCommitMessageState({ changeName: input.changeName, projectRoot });
+      return {
+        target,
+        ...invalidCommitMessageState({ changeName: input.changeName, projectRoot }),
+      };
     }
 
     const changeDirPath = changeDir(projectRoot, input.changeName);
-    if (!existsSync(changeDirPath)) {
-      throw new Error(`Change not found: ${input.changeName}`);
-    }
     const tasksText = readFileSync(join(changeDirPath, "tasks.md"), "utf8");
     const incompleteTasks = tasksText
       .split("\n")
@@ -164,6 +166,7 @@ export async function archiveChangeTool(
         ? "OpenSpec exited successfully but did not confirm archival. Inspect the captured stdout signal (e.g. validation-failed, spec-update-aborted, success-marker-missing) and resolve the underlying cause before retrying."
         : "Resolve the OpenSpec archive failure, then call archive-change again.";
       return {
+        target,
         changeName: input.changeName,
         status: "failed",
         archive: {
@@ -178,8 +181,8 @@ export async function archiveChangeTool(
             retryHint,
           },
         },
-        workspace: {
-          ...emptyWorkspace(projectRoot),
+        finalization: {
+          ...publicFinalization(emptyWorkspace(projectRoot)),
           gitOps: [],
         },
       };
@@ -204,34 +207,37 @@ export async function archiveChangeTool(
 
     if (!confirm) {
       return {
+        target,
         changeName: result.changeName,
         status: archiveState.ok ? "done" : "failed",
         archive: archiveState,
-        workspace: emptyWorkspace(projectRoot),
+        finalization: publicFinalization(emptyWorkspace(projectRoot)),
       };
     }
 
     if (!archiveState.ok) {
       return {
+        target,
         changeName: result.changeName,
         status: "failed",
         archive: archiveState,
-        workspace: emptyWorkspace(projectRoot),
+        finalization: publicFinalization(emptyWorkspace(projectRoot)),
       };
     }
 
     const workspace = await finalizeArchiveWorkspace({
-      mainProjectPath: resolveSingleFolder().folderPath,
+      mainProjectPath: owner.folderPath,
       workspacePath: projectRoot,
       changeName: input.changeName,
       commitMessage: input.commitMessage ?? "",
     });
 
     return {
+      target,
       changeName: result.changeName,
       status: workspace.ok ? "done" : "failed",
       archive: archiveState,
-      workspace,
+      finalization: publicFinalization(workspace),
     };
   });
 }

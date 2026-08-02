@@ -75,6 +75,8 @@ function makeProposal(
 ): ProposalMeta {
   return {
     id: "change-1",
+    proposalRef: { folderId: "folder-b", changeId: "change-1" },
+    folderName: "Repository B",
     title: "Test Proposal",
     status,
     why: "",
@@ -82,6 +84,8 @@ function makeProposal(
     doneTasks: 0,
     hasDesign: false,
     date: "2026-06-18",
+    worktreeMode: "main",
+    worktreePath: "/repo-b",
     ...overrides,
   };
 }
@@ -128,7 +132,8 @@ describe("ChatProposalPanel", () => {
   it("shows archive-ready badge plus archive and detail buttons when applying run is done", () => {
     runMetaValue = {
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b",
       workflowId: "wf-1",
       stages: [],
       currentStageIndex: 0,
@@ -151,7 +156,8 @@ describe("ChatProposalPanel", () => {
   it("does not show archive-ready state when the done run belongs to another proposal", () => {
     runMetaValue = {
       runId: "run-1",
-      changeId: "other-change",
+      proposalRef: { folderId: "folder-b", changeId: "other-change" },
+      worktreePath: "/repo-b",
       workflowId: "wf-1",
       stages: [],
       currentStageIndex: 0,
@@ -173,7 +179,8 @@ describe("ChatProposalPanel", () => {
   it("keeps view detail before other action buttons", () => {
     runMetaValue = {
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b",
       workflowId: "wf-1",
       stages: [],
       currentStageIndex: 0,
@@ -195,7 +202,8 @@ describe("ChatProposalPanel", () => {
     isArchivingValue = true;
     runMetaValue = {
       runId: "archive-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b",
       workflowId: "archive",
       stages: [],
       currentStageIndex: 0,
@@ -217,7 +225,8 @@ describe("ChatProposalPanel", () => {
   it("calls startArchive when archive button is clicked", async () => {
     runMetaValue = {
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b",
       workflowId: "wf-1",
       stages: [],
       currentStageIndex: 0,
@@ -234,7 +243,10 @@ describe("ChatProposalPanel", () => {
     await wrapper.get('[data-test="archive-button"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", "change-1");
+    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
   });
 
   it("does not show actions for creating proposals", () => {
@@ -264,7 +276,10 @@ describe("ChatProposalPanel", () => {
 
     await wrapper.get('[data-test="view-detail-button"]').trigger("click");
 
-    expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
   });
 
   it("syncs the session proposal from the current proposal store after detail closes", async () => {
@@ -279,7 +294,10 @@ describe("ChatProposalPanel", () => {
 
     await wrapper.get('[data-test="view-detail-button"]').trigger("click");
 
-    expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
     expect(mocks.upsertSessionProposal).not.toHaveBeenCalled();
 
     close.resolve();
@@ -349,7 +367,12 @@ describe("ChatProposalPanel", () => {
   it("shows linked worktree indicator and path when proposal has worktreePath", () => {
     const wrapper = mount(ChatProposalPanel, {
       props: {
-        proposals: [makeProposal("draft", { worktreePath: "/tmp/project/.worktrees/change-1" })],
+        proposals: [
+          makeProposal("draft", {
+            worktreeMode: "linked",
+            worktreePath: "/tmp/project/.worktrees/change-1",
+          }),
+        ],
       },
     });
 
@@ -359,7 +382,7 @@ describe("ChatProposalPanel", () => {
     ).toBe(true);
   });
 
-  it("does not show linked worktree indicator when proposal has no worktreePath", () => {
+  it("does not show linked worktree indicator for a main-worktree proposal", () => {
     const wrapper = mount(ChatProposalPanel, {
       props: { proposals: [makeProposal("draft")] },
     });
@@ -372,7 +395,8 @@ describe("ChatProposalPanel", () => {
     proposalStoreProposalsValue = [archivedProposal];
     runMetaValue = {
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b",
       workflowId: "wf-1",
       stages: [],
       currentStageIndex: 0,
@@ -389,9 +413,12 @@ describe("ChatProposalPanel", () => {
     await wrapper.get('[data-test="archive-button"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", "change-1");
+    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
     expect(mocks.loadProposals).toHaveBeenCalledOnce();
-    expect(mocks.removeSessionProposal).toHaveBeenCalledWith("session-1", "change-1");
+    expect(mocks.removeSessionProposal).not.toHaveBeenCalled();
     expect(mocks.upsertSessionProposal).toHaveBeenCalledWith("session-1", archivedProposal);
   });
 });

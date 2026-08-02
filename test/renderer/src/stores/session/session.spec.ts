@@ -857,6 +857,8 @@ describe("useSessionStore", () => {
   function proposalMeta(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
     return {
       id: "change-1",
+      proposalRef: { folderId: "project-1", changeId: "change-1" },
+      folderName: "Project",
       title: "Friendly Title",
       status: "draft",
       why: "",
@@ -864,6 +866,8 @@ describe("useSessionStore", () => {
       doneTasks: 0,
       hasDesign: false,
       date: "2026-06-18T00:00:00.000Z",
+      worktreeMode: "main",
+      worktreePath: "/tmp/project",
       ...overrides,
     };
   }
@@ -877,7 +881,11 @@ describe("useSessionStore", () => {
       createdAt: new Date(),
       lastOpenedAt: new Date(),
     });
-    const proposal = proposalMeta({ id: "fix-login", status: "draft" });
+    const proposal = proposalMeta({
+      id: "fix-login",
+      proposalRef: { folderId: "project-1", changeId: "fix-login" },
+      status: "draft",
+    });
     const proposalStore = useProposalStore();
     proposalStore.proposals = [proposal];
     mocks.loadMessages.mockResolvedValue({ ok: true, data: [] });
@@ -908,6 +916,7 @@ describe("useSessionStore", () => {
     expect(proposalMocks.watch).toHaveBeenCalledTimes(1);
     expect(proposalMocks.watch).toHaveBeenCalledWith({
       workspaceId: "project-1",
+      folderId: "project-1",
       changeId: "fix-login",
       sessionId: "session-1",
     });
@@ -924,6 +933,7 @@ describe("useSessionStore", () => {
     });
     const proposal = proposalMeta({
       id: "2026-06-25-fix-login",
+      proposalRef: { folderId: "project-1", changeId: "fix-login" },
       status: "archived",
     });
     const proposalStore = useProposalStore();
@@ -1012,8 +1022,7 @@ describe("useSessionStore", () => {
     proposalMocks.statusHandler?.({
       workspaceId: "project-1",
       sessionId: "session-1",
-      changeId: "change-1",
-      repositoryPath: "/tmp/project",
+      proposalRef: { folderId: "project-1", changeId: "change-1" },
       status: "creating",
       updatedAt: new Date().toISOString(),
     });
@@ -1045,8 +1054,7 @@ describe("useSessionStore", () => {
     proposalMocks.statusHandler?.({
       workspaceId: "project-1",
       sessionId: "session-1",
-      changeId: "change-1",
-      repositoryPath: "/tmp/project",
+      proposalRef: { folderId: "project-1", changeId: "change-1" },
       status: "creating",
       updatedAt: new Date().toISOString(),
     });
@@ -1054,5 +1062,32 @@ describe("useSessionStore", () => {
 
     expect(proposalMocks.list).not.toHaveBeenCalled();
     expect(store.getSessionProposals("session-1")[0]?.title).toBe("Cached Title");
+  });
+
+  it("updates and removes only the matching owner when change names collide", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const folderA = proposalMeta({ title: "Folder A" });
+    const folderB = proposalMeta({
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      folderName: "Folder B",
+      title: "Folder B",
+      worktreePath: "/tmp/folder-b",
+    });
+    const store = useSessionStore();
+    store.upsertSessionProposal("session-1", folderA);
+    store.upsertSessionProposal("session-1", folderB);
+
+    proposalMocks.statusHandler?.({
+      workspaceId: "project-1",
+      sessionId: "session-1",
+      proposalRef: folderB.proposalRef,
+      status: "draft",
+      updatedAt: new Date().toISOString(),
+      removed: true,
+    });
+    await flushPromises();
+
+    expect(store.getSessionProposals("session-1")).toEqual([folderA]);
   });
 });

@@ -5,16 +5,12 @@ import type { IpcResponse } from "@shared/types/ipc";
 import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 
 const mocks = vi.hoisted(() => ({
-  resolveWorkspace: vi.fn(),
   listProposals: vi.fn(),
   readProposalFile: vi.fn(),
   getProposalSpecDeltas: vi.fn(),
+  resolveProposalMeta: vi.fn(),
   watchProposal: vi.fn(),
   statusChangedListener: null as ((payload: unknown) => void) | null,
-}));
-
-vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
-  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 vi.mock("@main/services/proposal/browser/proposal-status-service", () => ({
@@ -31,11 +27,12 @@ vi.mock("@main/services/proposal/browser/proposal-service", () => ({
   listProposals: mocks.listProposals,
   readProposalFile: mocks.readProposalFile,
   getProposalSpecDeltas: mocks.getProposalSpecDeltas,
+  resolveProposalMeta: mocks.resolveProposalMeta,
 }));
 
 import { registerProposalHandlers, setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
 
-describe("registerProposalHandlers", () => {
+describe("proposal browser IPC", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.statusChangedListener = null;
@@ -44,97 +41,70 @@ describe("registerProposalHandlers", () => {
   function handler(
     channel: string
   ): (event: unknown, input: unknown) => Promise<IpcResponse<unknown>> {
-    const call = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([registeredChannel]) => registeredChannel === channel);
+    const call = vi.mocked(ipcMain.handle).mock.calls.find(([value]) => value === channel);
     expect(call).toBeTruthy();
     return call![1] as (event: unknown, input: unknown) => Promise<IpcResponse<unknown>>;
   }
 
-  it("watches a proposal by workspaceId/changeId/sessionId", async () => {
+  it("watches a proposal by Workspace and ProposalRef", async () => {
     registerProposalHandlers();
-    mocks.resolveWorkspace.mockResolvedValue({ workspaceId: "workspace-1", cwd: "/tmp/project" });
+    mocks.resolveProposalMeta.mockResolvedValue({ worktreePath: "/repo-b/.worktrees/change-1" });
+    const input = {
+      workspaceId: "workspace-1",
+      folderId: "folder-b",
+      changeId: "change-1",
+      sessionId: "session-1",
+    };
 
-    const result = await handler(ProposalChannels.watch)(
-      {},
-      {
-        workspaceId: "workspace-1",
-        changeId: "change-1",
-        sessionId: "session-1",
-      }
-    );
+    const result = await handler(ProposalChannels.watch)({}, input);
 
-    expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
     expect(mocks.watchProposal).toHaveBeenCalledWith(
       "workspace-1",
-      "/tmp/project",
-      "change-1",
+      { folderId: "folder-b", changeId: "change-1" },
+      "/repo-b/.worktrees/change-1",
       "session-1"
     );
     expect(result).toEqual({ ok: true, data: undefined });
   });
 
-  it("routes proposal status updates to the matching project window", () => {
-    const manager = {
-      sendToWorkspace: vi.fn(),
-    } as unknown as WorkspaceWindowManager;
-
+  it("routes owner-qualified status updates to the matching Workspace", () => {
+    const manager = { sendToWorkspace: vi.fn() } as unknown as WorkspaceWindowManager;
     setupProposalStatusBroadcast(manager);
-    expect(mocks.statusChangedListener).toBeTypeOf("function");
-
-    mocks.statusChangedListener?.({
+    const payload = {
       workspaceId: "workspace-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
       sessionId: "session-1",
-      projectPath: "/tmp/project",
       status: "draft",
-      updatedAt: "2026-07-07T00:00:00.000Z",
-    });
-
+      updatedAt: "2026-08-02T00:00:00.000Z",
+    };
+    mocks.statusChangedListener?.(payload);
     expect(manager.sendToWorkspace).toHaveBeenCalledWith(
       "workspace-1",
       ProposalChannels.statusChanged,
-      expect.objectContaining({ workspaceId: "workspace-1", changeId: "change-1" })
+      payload
     );
   });
 
-  it("rejects watch when Workspace is not found", async () => {
+  it("passes ProposalRef to the spec delta service", async () => {
     registerProposalHandlers();
-    mocks.resolveWorkspace.mockRejectedValue(
-      Object.assign(new Error("Workspace does not exist"), { code: "WORKSPACE_NOT_FOUND" })
-    );
-
-    const result = await handler(ProposalChannels.watch)(
+    mocks.getProposalSpecDeltas.mockResolvedValue({ items: [] });
+    const result = await handler(ProposalChannels.getSpecDeltas)(
       {},
       {
-        workspaceId: "missing-project",
+        workspaceId: "workspace-1",
+        folderId: "folder-b",
         changeId: "change-1",
-        sessionId: "session-1",
       }
     );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("WORKSPACE_NOT_FOUND");
-    }
+    expect(mocks.getProposalSpecDeltas).toHaveBeenCalledWith("workspace-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
+    expect(result).toEqual({ ok: true, data: { items: [] } });
   });
 
-  it("returns proposal spec deltas", async () => {
+  it("rejects an executable selector without folderId", async () => {
     registerProposalHandlers();
-    mocks.getProposalSpecDeltas.mockResolvedValue({
-      items: [
-        {
-          id: "proposal-detail",
-          purpose: "Detail delta",
-          sourcePath: "specs/proposal-detail/spec.md",
-          deltaTypes: ["ADDED"],
-          requirementsCount: 1,
-          scenariosCount: 0,
-          requirementGroups: [],
-        },
-      ],
-    });
-
     const result = await handler(ProposalChannels.getSpecDeltas)(
       {},
       {
@@ -142,58 +112,7 @@ describe("registerProposalHandlers", () => {
         changeId: "change-1",
       }
     );
-
-    expect(mocks.getProposalSpecDeltas).toHaveBeenCalledWith("workspace-1", "change-1");
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        items: [
-          expect.objectContaining({
-            id: "proposal-detail",
-            deltaTypes: ["ADDED"],
-          }),
-        ],
-      },
-    });
-  });
-
-  it("returns PROJECT_NOT_FOUND when proposal spec deltas cannot resolve project", async () => {
-    registerProposalHandlers();
-    mocks.getProposalSpecDeltas.mockRejectedValue(
-      Object.assign(new Error("Project not found: missing-project"), {
-        code: "PROJECT_NOT_FOUND",
-      })
-    );
-
-    const result = await handler(ProposalChannels.getSpecDeltas)(
-      {},
-      {
-        workspaceId: "missing-project",
-        changeId: "change-1",
-      }
-    );
-
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("PROJECT_NOT_FOUND");
-    }
-  });
-
-  it("rejects proposal spec deltas with invalid input", async () => {
-    registerProposalHandlers();
-
-    const result = await handler(ProposalChannels.getSpecDeltas)(
-      {},
-      {
-        workspaceId: "",
-        changeId: "change-1",
-      }
-    );
-
-    expect(mocks.getProposalSpecDeltas).not.toHaveBeenCalled();
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("VALIDATION_ERROR");
-    }
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION_ERROR");
   });
 });

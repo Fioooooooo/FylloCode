@@ -145,7 +145,11 @@ async function openProposal(proposal: LineageBrowserProposal): Promise<void> {
   if (!proposal.title || !proposal.status) {
     return;
   }
-  await openProposalDetail(proposal.changeId);
+  const folderId = proposal.folderId ?? workspaceStore.currentWorkspace?.primaryFolderId;
+  if (!folderId) {
+    return;
+  }
+  await openProposalDetail({ folderId, changeId: proposal.changeId });
 }
 
 async function copyCommitHash(commitHash: string): Promise<void> {

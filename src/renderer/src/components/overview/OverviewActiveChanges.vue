@@ -5,13 +5,14 @@ import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktre
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { proposalDisplayStatusConfig } from "@renderer/utils/proposal-display-status";
-import type { ActiveChange } from "@renderer/stores";
+import { useWorkspaceStore, type ActiveChange } from "@renderer/stores";
 
 const props = defineProps<{
   changes: ActiveChange[];
 }>();
 
 const { openProposalDetail } = useProposalDetailSlideover();
+const workspaceStore = useWorkspaceStore();
 
 function taskLine(change: ActiveChange): string {
   return change.taskTitle ?? "自由讨论";
@@ -22,7 +23,10 @@ function createdLabel(change: ActiveChange): string {
 }
 
 function openChange(changeId: string): void {
-  void openProposalDetail(changeId);
+  const folderId = workspaceStore.currentWorkspace?.primaryFolderId;
+  if (folderId) {
+    void openProposalDetail({ folderId, changeId });
+  }
 }
 </script>
 

@@ -27,11 +27,13 @@ import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-s
 import { loadApplyRunMeta, saveApplyRunMeta } from "@main/infra/storage/apply-run-store";
 
 const workspaceId = "workspace-1";
+const proposalRef = { folderId: "folder-b", changeId: "change-1" };
 
 function runMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
   return {
     runId: "run-1",
-    changeId: "change-1",
+    proposalRef,
+    worktreePath: "/repo-b/.worktrees/change-1",
     workflowId: "workflow-1",
     stages: [],
     currentStageIndex: 1,
@@ -57,7 +59,7 @@ afterEach(() => {
 
 describe("apply-stage-acp-session-store", () => {
   it("returns null when run meta is missing", async () => {
-    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 0);
+    const store = new ApplyStageAcpSessionStore(workspaceId, proposalRef, "run-1", 0);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -69,7 +71,7 @@ describe("apply-stage-acp-session-store", () => {
   it("returns null when runId does not match", async () => {
     await saveApplyRunMeta(workspaceId, runMeta({ runId: "run-2" }));
 
-    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 0);
+    const store = new ApplyStageAcpSessionStore(workspaceId, proposalRef, "run-1", 0);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: null,
@@ -81,7 +83,7 @@ describe("apply-stage-acp-session-store", () => {
   it("loads stage acpSessionId from run meta", async () => {
     await saveApplyRunMeta(workspaceId, runMeta({ stageAcpSessionIds: { 1: "acp-existing" } }));
 
-    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 1);
+    const store = new ApplyStageAcpSessionStore(workspaceId, proposalRef, "run-1", 1);
 
     await expect(store.loadRecoveryState()).resolves.toEqual({
       acpSessionId: "acp-existing",
@@ -98,13 +100,14 @@ describe("apply-stage-acp-session-store", () => {
       })
     );
 
-    const store = new ApplyStageAcpSessionStore(workspaceId, "change-1", "run-1", 1);
+    const store = new ApplyStageAcpSessionStore(workspaceId, proposalRef, "run-1", 1);
 
     await store.persistAcpSessionId("acp-1");
 
-    await expect(loadApplyRunMeta(workspaceId, "change-1")).resolves.toEqual({
+    await expect(loadApplyRunMeta(workspaceId, proposalRef)).resolves.toEqual({
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef,
+      worktreePath: "/repo-b/.worktrees/change-1",
       workflowId: "workflow-1",
       stages: [],
       currentStageIndex: 1,

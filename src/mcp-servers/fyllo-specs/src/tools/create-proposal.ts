@@ -4,12 +4,12 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { z } from "zod";
 import type { McpProposalEvent } from "@shared/types/mcp-event";
+import type { ResolvedProposalTarget } from "@shared/types/proposal";
 import { getMcpEventDir, getSessionId } from "../../../shared/env";
 import { resolveSingleFolder, resolveWorkspace } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
 import { createChange, computeStatus, getInstructions } from "../runtime-openspec";
-import { validateTargetPath } from "../utils/project-root";
-import { prepareProposalWorkspace } from "../runtime-workspace";
+import { findProposalTarget, prepareProposalWorkspace } from "../runtime-workspace";
 
 const createProposalInputSchema = z.object({
   changeName: z
@@ -17,13 +17,19 @@ const createProposalInputSchema = z.object({
     .describe(
       "Kebab-case name for the change (e.g. 'add-user-auth'). Derive this from the user's intent before calling — ask the user what they want to build first if it isn't already clear."
     ),
-  targetPath: z.string().min(1).describe("Absolute path to the main project root."),
-  workspaceMode: z
+  folderId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Owner Folder ID. Required for multi-root Workspace activations; may be omitted when exactly one Folder is authorized."
+    ),
+  worktreeMode: z
     .enum(["linked", "main"])
     .optional()
     .default("linked")
     .describe(
-      'Whether to prepare this proposal in a linked worktree or directly in the main workspace. Defaults to "linked"; pass "main" only when the user explicitly requests main workspace work.'
+      'Whether to prepare this proposal in a linked worktree or directly in the owner repository main worktree. Defaults to "linked"; pass "main" only when the user explicitly requests main worktree work.'
     ),
   includeInstruction: z
     .boolean()
@@ -34,9 +40,8 @@ const createProposalInputSchema = z.object({
     ),
 });
 
-async function writeProposalEvent(changeName: string): Promise<void> {
+async function writeProposalEvent(target: ResolvedProposalTarget): Promise<void> {
   const workspace = resolveWorkspace();
-  const owner = resolveSingleFolder();
   const eventDir = getMcpEventDir();
   const sessionId = getSessionId();
   if (!eventDir || !sessionId) {
@@ -53,8 +58,9 @@ async function writeProposalEvent(changeName: string): Promise<void> {
     createdAt,
     sessionId,
     workspaceId: workspace.workspaceId,
-    folderId: owner.folderId,
-    changeId: changeName,
+    proposalRef: target.proposalRef,
+    worktreeMode: target.worktreeMode,
+    worktreePath: target.worktreePath,
   };
 
   try {
@@ -71,34 +77,41 @@ export async function createProposalTool(
   input: z.input<typeof createProposalInputSchema>
 ): Promise<string> {
   const includeInstruction = input.includeInstruction ?? true;
-  const workspaceMode = input.workspaceMode ?? "linked";
+  const worktreeMode = input.worktreeMode ?? "linked";
 
   return runTool("create-proposal", { includeInstruction }, async () => {
-    const result = validateTargetPath(input.targetPath);
-    if (!result.ok) {
-      const error = new Error(
-        result.rawOutput ? `${result.error}\n\n${result.rawOutput}` : result.error
-      );
-      error.name = "InvalidTargetPath";
-      throw error;
-    }
-
-    const mainProjectPath = result.resolved!;
-    const expectedMainPath = path.resolve(resolveSingleFolder().folderPath);
-    if (mainProjectPath !== expectedMainPath) {
-      throw new Error("targetPath must be the main project root for create-proposal");
-    }
     if (!/^[a-z0-9][a-z0-9-]*$/.test(input.changeName)) {
       throw new Error("changeName must be kebab-case");
     }
+    const owner = resolveSingleFolder(input.folderId);
+    const proposalRef = { folderId: owner.folderId, changeId: input.changeName };
+    const existingTarget = await findProposalTarget(proposalRef);
+    if (existingTarget) {
+      return {
+        changeName: input.changeName,
+        status: "failed",
+        target: existingTarget,
+        error: {
+          code: "PROPOSAL_ALREADY_EXISTS",
+          message: `Proposal already exists: ${input.changeName}`,
+        },
+      };
+    }
+
     const { workspace, warnings } = await prepareProposalWorkspace({
-      mainProjectPath,
+      folderId: owner.folderId,
+      folderPath: owner.folderPath,
       changeName: input.changeName,
-      workspaceMode,
+      worktreeMode,
     });
     const projectRoot = workspace.path;
+    const target = {
+      proposalRef,
+      worktreeMode: workspace.mode,
+      worktreePath: workspace.path,
+    };
     await createChange(projectRoot, input.changeName);
-    await writeProposalEvent(input.changeName);
+    await writeProposalEvent(target);
 
     const status = await computeStatus(projectRoot, input.changeName);
     if (!status) {
@@ -113,7 +126,7 @@ export async function createProposalTool(
     const nextArtifact = artifacts.find((artifact) => artifact.status !== "done") ?? null;
     return {
       changeName: input.changeName,
-      workspace,
+      target,
       schemaName: status.schemaName,
       applyRequires: status.applyRequires,
       artifacts,

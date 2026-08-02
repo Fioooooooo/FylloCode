@@ -1,320 +1,122 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FSWatcher } from "fs";
 import type { ProposalStatus, ProposalStatusChangedPayload } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
   watchCallbacks: new Map<string, () => void>(),
   watcherCloses: [] as ReturnType<typeof vi.fn>[],
-  resolveChangeDirAnywhere: vi.fn(),
+  resolveChangeDirInTarget: vi.fn(),
   readIfExists: vi.fn(),
-  watch: vi.fn((path: string, listener: (event: string, filename: string) => void) => {
-    const normalizedPath = String(path);
-    const callback = () => listener("change", normalizedPath);
-    mocks.watchCallbacks.set(normalizedPath, callback);
+  watch: vi.fn((path: string, listener: () => void) => {
+    mocks.watchCallbacks.set(String(path), listener);
     const close = vi.fn();
     mocks.watcherCloses.push(close);
-    return {
-      close,
-      on: vi.fn().mockReturnThis(),
-    } as unknown as FSWatcher;
+    return { close, on: vi.fn().mockReturnThis() } as unknown as FSWatcher;
   }),
-  logger: {
-    warn: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  },
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs")>();
-  return {
-    ...actual,
-    watch: mocks.watch,
-  };
-});
+vi.mock("fs", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("fs")>()),
+  watch: mocks.watch,
+}));
 
 vi.mock("@main/infra/proposal/openspec-reader", () => ({
-  resolveChangeDirAnywhere: mocks.resolveChangeDirAnywhere,
+  resolveChangeDirInTarget: mocks.resolveChangeDirInTarget,
   readIfExists: mocks.readIfExists,
-  parseYamlStatus: vi.fn((content: string) => {
-    const match = content.match(/^\s*status:\s*(creating|draft|applying|archived)\s*$/m);
-    return (match?.[1] as ProposalStatus | undefined) ?? "draft";
-  }),
+  parseYamlStatus: (content: string): ProposalStatus =>
+    (content.match(/status:\s*(creating|draft|applying|archived)/)?.[1] as ProposalStatus) ??
+    "draft",
 }));
 
-vi.mock("@main/infra/logger", () => ({
-  default: mocks.logger,
-}));
+vi.mock("@main/infra/logger", () => ({ default: mocks.logger }));
 
 import { proposalStatusService } from "@main/services/proposal/browser/proposal-status-service";
 
-function activeDir(repositoryPath: string, changeId: string): string {
-  return `${repositoryPath}/openspec/changes/${changeId}`;
-}
-
-function archiveDir(repositoryPath: string, datePrefix: string, changeId: string): string {
-  return `${repositoryPath}/openspec/changes/archive/${datePrefix}-${changeId}`;
-}
-
-function triggerWatch(watchedPath: string): void {
-  mocks.watchCallbacks.get(watchedPath)?.();
-}
-
-function latestClose(): ReturnType<typeof vi.fn> | undefined {
-  return mocks.watcherCloses[mocks.watcherCloses.length - 1];
-}
-
-async function flushPromises(): Promise<void> {
-  await new Promise((resolve) => setImmediate(resolve));
-}
+const refA = { folderId: "folder-a", changeId: "same-change" };
+const refB = { folderId: "folder-b", changeId: "same-change" };
 
 describe("ProposalStatusService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.watchCallbacks.clear();
     mocks.watcherCloses.length = 0;
-    mocks.resolveChangeDirAnywhere.mockReset();
-    mocks.readIfExists.mockReset();
     proposalStatusService.unwatchAll();
   });
 
-  afterEach(() => {
-    proposalStatusService.unwatchAll();
-  });
+  afterEach(() => proposalStatusService.unwatchAll());
 
-  it("emits initial status when watching a proposal", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
+  it("emits the complete ProposalRef with the initial status", async () => {
+    mocks.resolveChangeDirInTarget.mockResolvedValue("/repo-a/openspec/changes/same-change");
     mocks.readIfExists.mockResolvedValue("status: creating\n");
-
     const events: ProposalStatusChangedPayload[] = [];
     proposalStatusService.onStatusChanged((payload) => events.push(payload));
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
+
+    proposalStatusService.watchProposal("workspace-1", refA, "/repo-a", "session-1");
 
     await vi.waitFor(() => expect(events).toHaveLength(1));
     expect(events[0]).toMatchObject({
       workspaceId: "workspace-1",
-      changeId,
+      proposalRef: refA,
       sessionId: "session-1",
-      repositoryPath,
       status: "creating",
     });
   });
 
-  it("emits status change when .openspec.yaml is updated", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
-    mocks.readIfExists
-      .mockResolvedValueOnce("status: creating\n")
-      .mockResolvedValueOnce("status: draft\n");
+  it("isolates same-name proposals from different Folders", async () => {
+    mocks.resolveChangeDirInTarget.mockImplementation(
+      async (worktreePath: string) => `${worktreePath}/openspec/changes/same-change`
+    );
+    mocks.readIfExists.mockResolvedValue("status: draft\n");
 
-    const events: ProposalStatusChangedPayload[] = [];
-    proposalStatusService.onStatusChanged((payload) => events.push(payload));
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
+    proposalStatusService.watchProposal("workspace-1", refA, "/repo-a", "session-a");
+    proposalStatusService.watchProposal("workspace-1", refB, "/repo-b", "session-b");
 
-    await vi.waitFor(() => expect(events).toHaveLength(1));
-    triggerWatch(`${dir}/.openspec.yaml`);
-
-    await vi.waitFor(() => expect(events).toHaveLength(2));
-    expect(events[1]).toMatchObject({ changeId, status: "draft" });
+    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(2));
+    proposalStatusService.unwatchProposal("workspace-1", refA);
+    expect(mocks.watcherCloses[0]).toHaveBeenCalledTimes(1);
+    expect(mocks.watcherCloses[1]).not.toHaveBeenCalled();
   });
 
-  it("relocates to archive directory and emits archived", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const active = activeDir(repositoryPath, changeId);
-    const archived = archiveDir(repositoryPath, "2026-06-18", changeId);
-    mocks.resolveChangeDirAnywhere
-      .mockResolvedValueOnce({ dir: active, archived: false })
-      .mockResolvedValueOnce({ dir: archived, archived: true });
-    mocks.readIfExists
-      .mockResolvedValueOnce("status: applying\n")
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce("status: archived\n");
+  it("shares one owner-qualified watcher across session subscribers", async () => {
+    mocks.resolveChangeDirInTarget.mockResolvedValue("/repo-a/openspec/changes/same-change");
+    mocks.readIfExists.mockResolvedValue("status: draft\n");
+    proposalStatusService.watchProposal("workspace-1", refA, "/repo-a", "session-a");
+    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(1));
+    proposalStatusService.watchProposal("workspace-1", refA, "/repo-a", "session-b");
 
-    const events: ProposalStatusChangedPayload[] = [];
-    proposalStatusService.onStatusChanged((payload) => events.push(payload));
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-
-    await vi.waitFor(() => expect(events).toHaveLength(1));
-    expect(events[0]).toMatchObject({ status: "applying" });
-
-    triggerWatch(`${active}/.openspec.yaml`);
-
-    await vi.waitFor(() => expect(events).toHaveLength(2));
-    expect(events[1]).toMatchObject({ changeId, status: "archived" });
+    proposalStatusService.unwatchProposal("workspace-1", refA, "session-a");
+    expect(mocks.watcherCloses[0]).not.toHaveBeenCalled();
+    proposalStatusService.unwatchProposal("workspace-1", refA, "session-b");
+    expect(mocks.watcherCloses[0]).toHaveBeenCalledTimes(1);
   });
 
-  it("emits removed and stops watching when proposal disappears", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere
-      .mockResolvedValueOnce({ dir, archived: false })
+  it("emits removed only for the watched owner when its target disappears", async () => {
+    const watchedPath = "/repo-a/openspec/changes/same-change/.openspec.yaml";
+    mocks.resolveChangeDirInTarget
+      .mockResolvedValueOnce("/repo-a/openspec/changes/same-change")
       .mockResolvedValueOnce(null);
     mocks.readIfExists.mockResolvedValueOnce("status: draft\n").mockResolvedValueOnce(null);
-
     const events: ProposalStatusChangedPayload[] = [];
     proposalStatusService.onStatusChanged((payload) => events.push(payload));
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-
+    proposalStatusService.watchProposal("workspace-1", refA, "/repo-a", "session-a");
     await vi.waitFor(() => expect(events).toHaveLength(1));
-    triggerWatch(`${dir}/.openspec.yaml`);
+
+    mocks.watchCallbacks.get(watchedPath)?.();
 
     await vi.waitFor(() => expect(events).toHaveLength(2));
-    expect(events[1]).toMatchObject({ changeId, removed: true });
-    expect(latestClose()).toHaveBeenCalledTimes(1);
+    expect(events[1]).toMatchObject({ proposalRef: refA, removed: true });
   });
 
-  it("adds a session subscriber when the same Workspace changeId is watched again", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
+  it("isolates the same ProposalRef across Workspaces", async () => {
+    mocks.resolveChangeDirInTarget.mockResolvedValue("/shared/openspec/changes/same-change");
     mocks.readIfExists.mockResolvedValue("status: draft\n");
-
-    const events: ProposalStatusChangedPayload[] = [];
-    proposalStatusService.onStatusChanged((payload) => events.push(payload));
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(1));
-    const firstClose = mocks.watcherCloses[0];
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-2");
-    await vi.waitFor(() => expect(events).toHaveLength(2));
-
-    expect(mocks.watcherCloses).toHaveLength(1);
-    expect(firstClose).not.toHaveBeenCalled();
-    expect(events.map((event) => event.sessionId)).toEqual(["session-1", "session-2"]);
-  });
-
-  it("emits status changes to every session subscriber for the same Workspace changeId", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
-    mocks.readIfExists
-      .mockResolvedValueOnce("status: draft\n")
-      .mockResolvedValueOnce("status: applying\n");
-
-    const events: ProposalStatusChangedPayload[] = [];
-    proposalStatusService.onStatusChanged((payload) => events.push(payload));
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-    await vi.waitFor(() => expect(events).toHaveLength(1));
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-2");
-    await vi.waitFor(() => expect(events).toHaveLength(2));
-
-    triggerWatch(`${dir}/.openspec.yaml`);
-
-    await vi.waitFor(() => expect(events).toHaveLength(4));
-    expect(events.slice(2).map((event) => [event.sessionId, event.status])).toEqual([
-      ["session-1", "applying"],
-      ["session-2", "applying"],
-    ]);
-  });
-
-  it("only closes a shared watcher after the last session subscriber is removed", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
-    mocks.readIfExists.mockResolvedValue("status: draft\n");
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(1));
-    const firstClose = mocks.watcherCloses[0];
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-2");
-
-    proposalStatusService.unwatchProposal("workspace-1", changeId, "session-1");
-    expect(firstClose).not.toHaveBeenCalled();
-
-    proposalStatusService.unwatchProposal("workspace-1", changeId, "session-2");
-    expect(firstClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("cancels a pending watcher when unwatchProposal is called without a sessionId", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    let resolveChange!: (value: { dir: string; archived: false }) => void;
-    mocks.resolveChangeDirAnywhere.mockReturnValue(
-      new Promise((resolve) => {
-        resolveChange = resolve;
-      })
-    );
-    mocks.readIfExists.mockResolvedValue("status: draft\n");
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-    proposalStatusService.unwatchProposal("workspace-1", changeId);
-    resolveChange!({ dir: activeDir(repositoryPath, changeId), archived: false });
-    await flushPromises();
-
-    expect(mocks.watch).not.toHaveBeenCalled();
-    expect(mocks.watcherCloses).toHaveLength(0);
-  });
-
-  it("does not create a watcher when unwatchWorkspace runs while startup is reading status", async () => {
-    const repositoryPath = "/project";
-    const changeId = "foo";
-    const dir = activeDir(repositoryPath, changeId);
-    let resolveRead!: (value: string) => void;
-    mocks.resolveChangeDirAnywhere.mockResolvedValue({ dir, archived: false });
-    mocks.readIfExists.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRead = resolve;
-      })
-    );
-
-    proposalStatusService.watchProposal("workspace-1", repositoryPath, changeId, "session-1");
-    await vi.waitFor(() =>
-      expect(mocks.readIfExists).toHaveBeenCalledWith(`${dir}/.openspec.yaml`)
-    );
-
-    proposalStatusService.unwatchWorkspace("workspace-1");
-    resolveRead!("status: draft\n");
-    await flushPromises();
-
-    expect(mocks.watch).not.toHaveBeenCalled();
-    expect(mocks.watcherCloses).toHaveLength(0);
-  });
-
-  it("keeps the same repository change isolated across Workspaces", async () => {
-    const changeId = "foo";
-    mocks.resolveChangeDirAnywhere.mockImplementation((repositoryPath: string) =>
-      Promise.resolve({ dir: activeDir(repositoryPath, changeId), archived: false })
-    );
-    mocks.readIfExists.mockResolvedValue("status: draft\n");
-
-    proposalStatusService.watchProposal("workspace-a", "/shared-repository", changeId, "session-a");
-    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(1));
-    const firstClose = mocks.watcherCloses[0];
-
-    proposalStatusService.watchProposal("workspace-b", "/shared-repository", changeId, "session-b");
+    proposalStatusService.watchProposal("workspace-a", refA, "/shared", "session-a");
+    proposalStatusService.watchProposal("workspace-b", refA, "/shared", "session-b");
     await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(2));
-
-    expect(firstClose).not.toHaveBeenCalled();
-  });
-
-  it("unwatches only the matching Workspace", async () => {
-    const changeId = "foo";
-    mocks.resolveChangeDirAnywhere.mockImplementation((repositoryPath: string) =>
-      Promise.resolve({ dir: activeDir(repositoryPath, changeId), archived: false })
-    );
-    mocks.readIfExists.mockResolvedValue("status: draft\n");
-
-    proposalStatusService.watchProposal("workspace-a", "/shared-repository", changeId, "session-a");
-    proposalStatusService.watchProposal("workspace-b", "/shared-repository", changeId, "session-b");
-    await vi.waitFor(() => expect(mocks.watcherCloses).toHaveLength(2));
-    const [workspaceAClose, workspaceBClose] = mocks.watcherCloses;
 
     proposalStatusService.unwatchWorkspace("workspace-a");
-
-    expect(workspaceAClose).toHaveBeenCalledTimes(1);
-    expect(workspaceBClose).not.toHaveBeenCalled();
+    expect(mocks.watcherCloses[0]).toHaveBeenCalledTimes(1);
+    expect(mocks.watcherCloses[1]).not.toHaveBeenCalled();
   });
 });

@@ -23,8 +23,7 @@ import { AcpSession, driveAcpStream, sessionRegistry } from "@main/services/sess
 import {
   buildArchiveStage,
   getCompletedApplyStageIndex,
-  resolveApplyRunChangeId,
-  resolveWorkspaceCwd,
+  validateApplyRunTarget,
 } from "@main/services/proposal/runtime/apply-run-service";
 import { buildStagePrompt } from "@main/services/proposal/runtime/stage-prompts";
 import { ipcError } from "../_kit/errors";
@@ -32,25 +31,22 @@ import { validate } from "../_kit/schema";
 import { makeStreamChannel } from "../_kit/stream-channel";
 import { wrapHandler } from "../_kit/wrap-handler";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
-import {
-  getRequiredWorkspaceInfo,
-  resolveRepositoryTarget,
-} from "@main/services/workspace/_public";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
 
 // Archive uses the last completed apply stage's agent to generate the final archive commit.
 export function registerProposalArchiveHandlers(): void {
   ipcMain.handle(ProposalArchiveChannels.archive, (event, input: unknown) => {
     const form = validate(archiveInputSchema, input);
-    const sessionKey = `${form.workspaceId}:${form.changeId}`;
+    const proposalRef = { folderId: form.folderId, changeId: form.changeId };
+    const sessionKey = `${form.workspaceId}:${form.folderId}:${form.changeId}`;
 
     return makeStreamChannel({
       event,
       portChannel: ProposalArchiveChannels.archivePort,
       logTag: "proposal-archive",
       onReady: async (sink) => {
-        const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-        const runMeta = await loadApplyRunMeta(form.workspaceId, form.changeId);
+        const runMeta = await loadApplyRunMeta(form.workspaceId, proposalRef);
         if (!runMeta || runMeta.status !== "done") {
           throw ipcError(
             IpcErrorCodes.APPLY_RUN_NOT_READY,
@@ -81,42 +77,52 @@ export function registerProposalArchiveHandlers(): void {
           );
         }
 
+        const repositoryTarget = await validateApplyRunTarget(
+          form.workspaceId,
+          proposalRef,
+          runMeta
+        );
         const fylloSessionId = newArchiveFylloSessionId(runMeta.runId);
         const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
-        const repositoryTarget = await resolveRepositoryTarget({
-          workspaceId: form.workspaceId,
-          folderId: workspace.primaryFolder.id,
-          worktreePath: runMeta.worktreePath ?? workspaceCwd,
-        });
+        const ownerFolder = workspace.folders.find(
+          (folder) => folder.folderId === proposalRef.folderId
+        );
+        if (!ownerFolder || ownerFolder.pathMissing) {
+          throw ipcError(
+            IpcErrorCodes.PROPOSAL_NOT_FOUND,
+            `Proposal owner is no longer available: ${form.changeId}`
+          );
+        }
         const mcpWorkspaceDescriptor = createOwnerMcpWorkspaceDescriptor({
           workspaceId: form.workspaceId,
           workspaceKind: workspace.kind,
           ownerFolder: {
-            folderId: workspace.primaryFolder.id,
-            folderName: workspace.primaryFolder.name,
-            folderPath: workspaceCwd,
+            folderId: ownerFolder.folderId,
+            folderName: ownerFolder.folderName,
+            folderPath: ownerFolder.folderPath,
           },
           sessionId: fylloSessionId,
         });
         const stage = buildArchiveStage(agentId);
         const prompt = buildStagePrompt({
           changeId: form.changeId,
-          projectPath: workspaceCwd,
+          projectPath: repositoryTarget.worktreePath,
           stage,
         });
         const archiveRunId = newArchiveRunId();
         const startedAt = new Date().toISOString();
         const archiveMeta: ArchiveRunMeta = {
           runId: archiveRunId,
-          changeId: form.changeId,
+          proposalRef,
+          worktreePath: repositoryTarget.worktreePath,
           status: "running",
           startedAt,
           updatedAt: startedAt,
         };
         const userMessage = buildProposalRunUserMessage(fylloSessionId, prompt);
-        const sessionStore = new ArchiveAcpSessionStore(form.workspaceId, form.changeId);
+        const sessionStore = new ArchiveAcpSessionStore(form.workspaceId, proposalRef);
         const persistArchiveStatus = async (status: ArchiveRunMeta["status"]): Promise<void> => {
-          const current = await loadArchiveRunMeta(form.workspaceId, form.changeId);
+          const current = await loadArchiveRunMeta(form.workspaceId, proposalRef);
           await saveArchiveRunMeta(form.workspaceId, {
             ...(current ?? archiveMeta),
             status,
@@ -126,7 +132,7 @@ export function registerProposalArchiveHandlers(): void {
 
         try {
           await saveArchiveRunMeta(form.workspaceId, archiveMeta);
-          await appendArchiveMessage(form.workspaceId, form.changeId, userMessage);
+          await appendArchiveMessage(form.workspaceId, proposalRef, userMessage);
         } catch (error: unknown) {
           throw applyRunPersistError(error);
         }
@@ -137,7 +143,7 @@ export function registerProposalArchiveHandlers(): void {
           fylloSessionId,
           agentId,
           workspaceId: form.workspaceId,
-          projectPath: workspaceCwd,
+          projectPath: repositoryTarget.worktreePath,
           cwd: repositoryTarget.worktreePath,
           additionalDirectories: [],
           mcpWorkspaceDescriptor,
@@ -146,17 +152,17 @@ export function registerProposalArchiveHandlers(): void {
           reminderContext: {
             changeId: form.changeId,
             runId: archiveRunId,
-            worktreePath: runMeta.worktreePath,
+            worktreePath: repositoryTarget.worktreePath,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
-              archiveMessagesPath(form.workspaceId, form.changeId),
+              archiveMessagesPath(form.workspaceId, proposalRef),
               reminderPart
             );
           },
           recoveryContext: {
             hasPersistedHistory: true,
-            loadPersistedHistory: async () => loadArchiveMessages(form.workspaceId, form.changeId),
+            loadPersistedHistory: async () => loadArchiveMessages(form.workspaceId, proposalRef),
           },
         });
 
@@ -170,7 +176,7 @@ export function registerProposalArchiveHandlers(): void {
           start: () => session.start([{ type: "text", text: prompt }]),
           hooks: {
             persistMessage: (message) =>
-              appendArchiveMessage(form.workspaceId, form.changeId, message),
+              appendArchiveMessage(form.workspaceId, proposalRef, message),
             // archive forwards no control events (parity with apply).
             doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
             onDone: () => persistArchiveStatus("done"),
@@ -184,7 +190,7 @@ export function registerProposalArchiveHandlers(): void {
   ipcMain.handle(ProposalArchiveChannels.archiveCancel, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(archiveCancelInputSchema, input);
-      const sessionKey = `${form.workspaceId}:${form.changeId}`;
+      const sessionKey = `${form.workspaceId}:${form.folderId}:${form.changeId}`;
       sessionRegistry.cancel("archive", sessionKey);
     })
   );
@@ -192,18 +198,20 @@ export function registerProposalArchiveHandlers(): void {
   ipcMain.handle(ProposalArchiveChannels.loadArchive, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(loadArchiveInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      const applyRunChangeId = await resolveApplyRunChangeId(workspaceCwd, form.changeId);
-      return loadArchiveRunMeta(form.workspaceId, applyRunChangeId);
+      return loadArchiveRunMeta(form.workspaceId, {
+        folderId: form.folderId,
+        changeId: form.changeId,
+      });
     })
   );
 
   ipcMain.handle(ProposalArchiveChannels.loadArchiveMessages, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(loadArchiveMessagesInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      const applyRunChangeId = await resolveApplyRunChangeId(workspaceCwd, form.changeId);
-      return loadArchiveMessages(form.workspaceId, applyRunChangeId);
+      return loadArchiveMessages(form.workspaceId, {
+        folderId: form.folderId,
+        changeId: form.changeId,
+      });
     })
   );
 }

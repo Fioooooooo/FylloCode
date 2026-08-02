@@ -100,6 +100,7 @@ export type LineageBrowserPlan = {
 
 export type LineageBrowserProposal = {
   changeId: string;
+  folderId?: string;
   createdAt: string;
   commitHash: string | null;
   title: string | null;

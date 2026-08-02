@@ -2,18 +2,12 @@ import { ipcRenderer } from "electron";
 import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 import type { IpcResponse } from "@shared/types/ipc";
 import type { MessageMeta } from "@shared/types/chat";
-import type { ArchiveRunMeta } from "@shared/types/proposal";
+import type { ArchiveRunMeta, ProposalRef } from "@shared/types/proposal";
 import type { UIMessage } from "ai";
 import { startProposalStream, type StreamCallbacks } from "./stream";
 
 export const proposalArchiveApi = {
-  archive(
-    input: {
-      workspaceId: string;
-      changeId: string;
-    },
-    callbacks: StreamCallbacks
-  ): () => void {
+  archive(input: { workspaceId: string } & ProposalRef, callbacks: StreamCallbacks): () => void {
     return startProposalStream(
       ProposalArchiveChannels.archive,
       ProposalArchiveChannels.archivePort,
@@ -25,17 +19,15 @@ export const proposalArchiveApi = {
     );
   },
 
-  loadArchive(input: {
-    workspaceId: string;
-    changeId: string;
-  }): Promise<IpcResponse<ArchiveRunMeta | null>> {
+  loadArchive(
+    input: { workspaceId: string } & ProposalRef
+  ): Promise<IpcResponse<ArchiveRunMeta | null>> {
     return ipcRenderer.invoke(ProposalArchiveChannels.loadArchive, input);
   },
 
-  loadArchiveMessages(input: {
-    workspaceId: string;
-    changeId: string;
-  }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
+  loadArchiveMessages(
+    input: { workspaceId: string } & ProposalRef
+  ): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return ipcRenderer.invoke(ProposalArchiveChannels.loadArchiveMessages, input);
   },
 };

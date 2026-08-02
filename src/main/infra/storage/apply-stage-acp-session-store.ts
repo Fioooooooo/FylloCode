@@ -7,25 +7,28 @@ import {
   loadApplyRunMeta,
   updateApplyRunStageAcpSessionId,
 } from "@main/infra/storage/apply-run-store";
+import type { ProposalRef } from "@shared/types/proposal";
 
 export class ApplyStageAcpSessionStore implements AcpSessionStore {
   constructor(
     private readonly workspaceId: string,
-    private readonly changeId: string,
+    private readonly proposalRef: ProposalRef,
     private readonly runId: string,
     private readonly stageIndex: number
   ) {}
 
   async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
-    const meta = await loadApplyRunMeta(this.workspaceId, this.changeId);
+    const meta = await loadApplyRunMeta(this.workspaceId, this.proposalRef);
     if (!meta) {
-      logger.warn(`[apply-stage-acp-session-store] run meta missing for change ${this.changeId}`);
+      logger.warn(
+        `[apply-stage-acp-session-store] run meta missing for change ${this.proposalRef.changeId}`
+      );
       return { acpSessionId: null, configOptions: [] };
     }
 
     if (meta.runId !== this.runId) {
       logger.warn(
-        `[apply-stage-acp-session-store] runId mismatch for change ${this.changeId}: expected ${this.runId}, got ${meta.runId}`
+        `[apply-stage-acp-session-store] runId mismatch for change ${this.proposalRef.changeId}: expected ${this.runId}, got ${meta.runId}`
       );
       return { acpSessionId: null, configOptions: [] };
     }
@@ -39,7 +42,7 @@ export class ApplyStageAcpSessionStore implements AcpSessionStore {
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
     await updateApplyRunStageAcpSessionId(
       this.workspaceId,
-      this.changeId,
+      this.proposalRef,
       this.runId,
       this.stageIndex,
       acpSessionId

@@ -16,11 +16,16 @@ import {
   useWorkflowStore,
 } from "@renderer/stores";
 import { canArchiveProposal } from "@renderer/utils/proposal-display-status";
-import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
+import {
+  proposalRefKey,
+  type ProposalMeta,
+  type ProposalRef,
+  type ProposalSpecDeltaOverview,
+} from "@shared/types/proposal";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
 const props = defineProps<{
-  changeId: string;
+  proposalRef: ProposalRef;
 }>();
 
 const emit = defineEmits<{
@@ -33,7 +38,7 @@ const workflowStore = useWorkflowStore();
 // This remains a global run store: Chat EventRail and the detail Slideover share run state.
 const proposalRunStore = useProposalRunStore();
 
-const currentChangeId = ref(props.changeId);
+const currentProposalRef = ref<ProposalRef>({ ...props.proposalRef });
 const activeTab = ref<MarkdownTabValue>("proposal");
 const markdownTabs = ref<MarkdownTab[]>([]);
 const specsOverview = ref<ProposalSpecDeltaOverview | null>(null);
@@ -57,7 +62,12 @@ function isCurrentRequest(requestId: number): boolean {
 }
 
 function findCurrentProposal(): ProposalMeta | null {
-  return proposalStore.proposals.find((proposal) => proposal.id === currentChangeId.value) ?? null;
+  const currentKey = proposalRefKey(currentProposalRef.value);
+  return (
+    proposalStore.proposals.find(
+      (proposal) => proposalRefKey(proposal.proposalRef) === currentKey
+    ) ?? null
+  );
 }
 
 const currentProposal = computed<ProposalMeta | null>(() => {
@@ -66,7 +76,10 @@ const currentProposal = computed<ProposalMeta | null>(() => {
     return proposal;
   }
 
-  return fallbackProposal.value?.id === currentChangeId.value ? fallbackProposal.value : null;
+  return fallbackProposal.value &&
+    proposalRefKey(fallbackProposal.value.proposalRef) === proposalRefKey(currentProposalRef.value)
+    ? fallbackProposal.value
+    : null;
 });
 
 const canArchive = computed(() => {
@@ -146,8 +159,8 @@ async function refreshProposalMeta(requestId: number): Promise<void> {
 
 async function loadMarkdownFiles(requestId: number): Promise<void> {
   const workspaceId = workspaceStore.currentWorkspace?.id;
-  const changeIdSnapshot = currentChangeId.value;
-  if (!workspaceId || !changeIdSnapshot) {
+  const proposalRefSnapshot = { ...currentProposalRef.value };
+  if (!workspaceId) {
     return;
   }
 
@@ -164,7 +177,11 @@ async function loadMarkdownFiles(requestId: number): Promise<void> {
     const results = await Promise.all(
       fileRequests.map(async (tab) => {
         const filename = tab.filename ?? "";
-        const result = await proposalBrowserApi.readFile(workspaceId, changeIdSnapshot, filename);
+        const result = await proposalBrowserApi.readFile(
+          workspaceId,
+          proposalRefSnapshot,
+          filename
+        );
         if (!result.ok) {
           throw new Error(result.error.message);
         }
@@ -197,8 +214,8 @@ async function loadMarkdownFiles(requestId: number): Promise<void> {
 
 async function loadSpecDeltas(requestId: number): Promise<void> {
   const workspaceId = workspaceStore.currentWorkspace?.id;
-  const changeIdSnapshot = currentChangeId.value;
-  if (!workspaceId || !changeIdSnapshot) {
+  const proposalRefSnapshot = { ...currentProposalRef.value };
+  if (!workspaceId) {
     return;
   }
 
@@ -206,7 +223,7 @@ async function loadSpecDeltas(requestId: number): Promise<void> {
   specsError.value = null;
 
   try {
-    const result = await proposalBrowserApi.getSpecDeltas(workspaceId, changeIdSnapshot);
+    const result = await proposalBrowserApi.getSpecDeltas(workspaceId, proposalRefSnapshot);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
@@ -241,13 +258,13 @@ async function loadDetailFiles(requestId: number): Promise<void> {
 
 async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
   const workspaceId = workspaceStore.currentWorkspace?.id;
-  const changeIdSnapshot = currentChangeId.value;
-  if (!workspaceId || !changeIdSnapshot) {
+  const proposalRefSnapshot = { ...currentProposalRef.value };
+  if (!workspaceId) {
     return;
   }
 
   try {
-    await proposalRunStore.startRun(workspaceId, changeIdSnapshot, workflow.id);
+    await proposalRunStore.startRun(workspaceId, proposalRefSnapshot, workflow.id);
     sidePanelOpen.value = true;
     if (currentProposal.value) {
       currentProposal.value.status = "applying";
@@ -259,28 +276,15 @@ async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
 
 async function archiveProposal(): Promise<void> {
   const workspaceId = workspaceStore.currentWorkspace?.id;
-  const previousChangeId = currentChangeId.value;
-  if (!workspaceId || !previousChangeId) {
+  const proposalRefSnapshot = { ...currentProposalRef.value };
+  if (!workspaceId) {
     return;
   }
 
   try {
     sidePanelOpen.value = true;
-    await proposalRunStore.startArchive(workspaceId, previousChangeId);
+    await proposalRunStore.startArchive(workspaceId, proposalRefSnapshot);
     await proposalStore.loadProposals();
-
-    const nextProposal =
-      proposalStore.proposals.find((proposal) => proposal.id === previousChangeId) ??
-      proposalStore.proposals.find(
-        (proposal) =>
-          proposal.status === "archived" &&
-          (proposal.id === previousChangeId || proposal.id.endsWith(`-${previousChangeId}`))
-      ) ??
-      null;
-
-    if (nextProposal && nextProposal.id !== previousChangeId) {
-      currentChangeId.value = nextProposal.id;
-    }
 
     const requestId = beginDetailRequest();
     await loadDetailFiles(requestId);
@@ -293,27 +297,27 @@ async function viewRunHistory(): Promise<void> {
   sidePanelOpen.value = true;
 
   const workspaceId = workspaceStore.currentWorkspace?.id;
-  const changeIdSnapshot = currentChangeId.value;
-  if (!workspaceId || !changeIdSnapshot) {
+  const proposalRefSnapshot = { ...currentProposalRef.value };
+  if (!workspaceId) {
     return;
   }
 
   try {
-    await proposalRunStore.resumeRun(workspaceId, changeIdSnapshot);
-    await proposalRunStore.resumeArchive(workspaceId, changeIdSnapshot);
+    await proposalRunStore.resumeRun(workspaceId, proposalRefSnapshot);
+    await proposalRunStore.resumeArchive(workspaceId, proposalRefSnapshot);
   } catch (error: unknown) {
     console.error("Failed to load proposal run history:", error);
   }
 }
 
 watch(
-  () => props.changeId,
-  (changeId) => {
-    if (!changeId || changeId === currentChangeId.value) {
+  () => proposalRefKey(props.proposalRef),
+  () => {
+    if (proposalRefKey(props.proposalRef) === proposalRefKey(currentProposalRef.value)) {
       return;
     }
 
-    currentChangeId.value = changeId;
+    currentProposalRef.value = { ...props.proposalRef };
     fallbackProposal.value = null;
     sidePanelOpen.value = false;
     const requestId = beginDetailRequest();
@@ -339,14 +343,17 @@ onMounted(() => {
     const workspaceId = workspaceStore.currentWorkspace?.id;
     const proposal = currentProposal.value;
     if (workspaceId && proposal?.status === "applying") {
-      await proposalRunStore.resumeRun(workspaceId, currentChangeId.value);
+      await proposalRunStore.resumeRun(workspaceId, currentProposalRef.value);
       if (proposalRunStore.runMeta) {
         sidePanelOpen.value = true;
       }
     }
 
     if (workspaceId) {
-      const hasArchive = await proposalRunStore.resumeArchive(workspaceId, currentChangeId.value);
+      const hasArchive = await proposalRunStore.resumeArchive(
+        workspaceId,
+        currentProposalRef.value
+      );
       if (hasArchive) {
         sidePanelOpen.value = true;
       }
@@ -368,7 +375,7 @@ onMounted(() => {
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
           <ProposalDetailHeader
             :proposal="currentProposal"
-            :change-id="currentChangeId"
+            :change-id="currentProposalRef.changeId"
             :workflow-menu-items="workflowMenuItems"
             :workflow-store-loading="workflowStore.isLoading"
             :run-meta="proposalRunStore.runMeta"

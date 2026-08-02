@@ -1,6 +1,7 @@
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
   ProposalMeta,
+  ProposalRef,
   ProposalSpecDeltaOverview,
   ProposalStatusChangedPayload,
 } from "@shared/types/proposal";
@@ -12,24 +13,22 @@ export const proposalBrowserApi = {
 
   readFile(
     workspaceId: string,
-    changeId: string,
+    proposalRef: ProposalRef,
     filename: string
   ): Promise<IpcResponse<string | null>> {
-    return window.api.proposal.browser.readFile(workspaceId, changeId, filename);
+    return window.api.proposal.browser.readFile(workspaceId, proposalRef, filename);
   },
 
   getSpecDeltas(
     workspaceId: string,
-    changeId: string
+    proposalRef: ProposalRef
   ): Promise<IpcResponse<ProposalSpecDeltaOverview>> {
-    return window.api.proposal.browser.getSpecDeltas(workspaceId, changeId);
+    return window.api.proposal.browser.getSpecDeltas(workspaceId, proposalRef);
   },
 
-  watch(input: {
-    workspaceId: string;
-    changeId: string;
-    sessionId: string;
-  }): Promise<IpcResponse<void>> {
+  watch(
+    input: { workspaceId: string; sessionId: string } & ProposalRef
+  ): Promise<IpcResponse<void>> {
     return window.api.proposal.browser.watch(input);
   },
 

@@ -2,26 +2,23 @@ import { ipcRenderer } from "electron";
 import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
 import type { IpcResponse } from "@shared/types/ipc";
 import type { MessageMeta } from "@shared/types/chat";
-import type { ApplyRunMeta } from "@shared/types/proposal";
+import type { ApplyRunMeta, ProposalRef } from "@shared/types/proposal";
 import type { WorkflowStage } from "@shared/types/workflow";
 import type { UIMessage } from "ai";
 import { startProposalStream, type StreamCallbacks } from "./stream";
 
 export const proposalApplyApi = {
-  apply(input: {
-    workspaceId: string;
-    changeId: string;
-    workflowId: string;
-  }): Promise<IpcResponse<{ runId: string; stages: WorkflowStage[] }>> {
+  apply(
+    input: { workspaceId: string; workflowId: string } & ProposalRef
+  ): Promise<IpcResponse<{ runId: string; stages: WorkflowStage[] }>> {
     return ipcRenderer.invoke(ProposalApplyChannels.apply, input);
   },
 
   stageStream(
-    input: {
+    input: ProposalRef & {
       runId: string;
       stageIndex: number;
       workspaceId: string;
-      changeId: string;
     },
     callbacks: StreamCallbacks
   ): () => void {
@@ -39,18 +36,16 @@ export const proposalApplyApi = {
     );
   },
 
-  loadRun(input: {
-    workspaceId: string;
-    changeId: string;
-  }): Promise<IpcResponse<ApplyRunMeta | null>> {
+  loadRun(input: { workspaceId: string } & ProposalRef): Promise<IpcResponse<ApplyRunMeta | null>> {
     return ipcRenderer.invoke(ProposalApplyChannels.loadRun, input);
   },
 
-  loadRunMessages(input: {
-    workspaceId: string;
-    changeId: string;
-    stageIndex: number;
-  }): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
+  loadRunMessages(
+    input: ProposalRef & {
+      workspaceId: string;
+      stageIndex: number;
+    }
+  ): Promise<IpcResponse<UIMessage<MessageMeta>[]>> {
     return ipcRenderer.invoke(ProposalApplyChannels.loadRunMessages, input);
   },
 };

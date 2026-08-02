@@ -1667,7 +1667,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 - Workspace/Folder identity、kind、成员数量/primary/tombstone invariants、canonical Folder registry、resolver 与 repository target validation → `introduce-workspace-model` proposal / `workspace-model` spec；
 - Project cutover boundary、legacy Session 单 Folder snapshot 与 Workspace-owned schema conversion → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
-- ProposalRef serialization；
+- ProposalRef serialization、repository owner identity 与 resolved target → `make-openspec-proposals-repository-owned` proposal / `repository-owned-proposals` spec；
 - knowledge anchor/lineage v2 schema；
 
 ### 23.2 Data migrations
@@ -1709,8 +1709,8 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 ### 23.4 ACP
 
 - picker/capability 三态、probe/new/load/resume 目录集合、Session snapshot/stale error、Chat/probe reminder、preview scope、opaque attachment、member file resource 与 apply/archive owner-only Folder paths → `add-acp-multi-root-sessions` proposal / `acp-multi-root-session`、`acp-agent-capability-cache`、`local-file-link-preview`、`workspace-window` specs；
-- Session snapshot 到 MCP descriptor、bundled MCP activation allowlist 与 stale grant 的投影 → 待 `add-multi-root-mcp-workspace` proposal / MCP Workspace v2 spec；
-- apply/archive reminder 从 run 固定 owner/worktree target 投影且不重选 current primary → 待 `make-openspec-proposals-repository-owned` proposal / repository-owned proposal spec。
+- Session snapshot 到 MCP descriptor、bundled MCP activation allowlist 与 stale grant 的投影 → `add-multi-root-mcp-workspace` proposal / `mcp-workspace-authorization` spec；
+- apply/archive reminder 从 run 固定 owner/worktree target 投影且不重选 current primary → `make-openspec-proposals-repository-owned` proposal / `acp-multi-root-session`、`repository-owned-proposals` specs。
 
 ### 23.5 MCP
 
@@ -1724,22 +1724,16 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - bearer 对错误 bundled server、过期、撤销、Agent invalidation 和 host restart 均拒绝；load/resume 不复用旧 bearer；
 - proxy 移除 caller-supplied `X-Fyllo-*` headers 并注入 grant 中的 descriptor；backend 只接受内部 token；
 - Folder 重定位后旧 grant 不解析到新 path，而是返回 `SESSION_FOLDER_RELOCATED`；新 Session/grant 使用新 path；
-- multi-root Workspace 的 apply/archive activation descriptor 只包含 owner Folder；对其他成员的 `folderId` 调用即使来自同一 Workspace 也被拒绝；
+- multi-root Workspace 的 apply/archive activation descriptor 只包含 owner Folder，且 proposal event 携带并验证 owner → `make-openspec-proposals-repository-owned` proposal / `acp-multi-root-session`、`mcp-workspace-authorization` specs；
 - stdio fallback 为每个 activation 启动独立 child、固定 env snapshot、校验成员 `folderId`，并以测试/文档明确其 trusted Agent runtime 假设不等同 HTTP 授权。
 
 ### 23.6 Proposal
 
-- A/B 各自 create linked worktree；
-- 共享 Folder 中同一 ProposalRef 已存在时，另一 Workspace create 返回 `PROPOSAL_ALREADY_EXISTS`，不覆盖 origin、不重复写 created event；
-- aggregated explore 只扫描 descriptor 中的 Folder，按 `ProposalRef` 保留跨 Folder 同名 change，并返回结构化 per-Folder warning；
-- `currentChange` 省略 owner 时，多个同名候选返回 `PROPOSAL_OWNER_AMBIGUOUS`；任一 Folder 扫描失败时返回 `PROPOSAL_OWNER_UNVERIFIED`，不得回退 primary；
-- duplicate change ID；
-- create/explore/apply/archive state 使用 `worktreePath/worktreeMode`，不再用 `workspacePath/workspaceMode/projectRoot` 表示 repository target；
-- apply run 创建时固定 resolver 返回的 `folderId + worktreePath`；stage/archive 不接受 caller path、不切换 worktree，target 消失或不匹配时明确失败；
-- detail/status/apply/archive 使用正确 owner；
-- Proposal list 与 detail selection 使用 ProposalRef 作为稳定 key；A/B 同名 change 同时渲染并分别打开；
-- archive 只 merge/cleanup owner repository；
-- event/lineage 保存 owner。
+- ProposalRef、owner repository target resolver、linked-preferred 选址、重复 create 与 deterministic apply/archive target → `make-openspec-proposals-repository-owned` proposal / `repository-owned-proposals` spec；
+- descriptor Folder 聚合扫描、per-Folder warning、显式 owner 与省略 owner 时的唯一性证明 → `make-openspec-proposals-repository-owned` proposal / `fyllo-specs-explore` spec；
+- apply/archive run snapshot、stale target 拒绝与 owner-only Agent scope → `make-openspec-proposals-repository-owned` proposal / `repository-owned-proposals`、`acp-multi-root-session` specs；
+- Proposal list/detail/status watcher 的 composite identity、跨 Folder 同名展示与 owner/linked target 呈现 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser` spec；
+- proposal create event 与 lineage consumer 的 Workspace/Folder/target 验证 → `make-openspec-proposals-repository-owned` proposal / `mcp-workspace-authorization`、`repository-owned-proposals` specs。
 
 ### 23.7 Cortex/Insight
 
@@ -1771,8 +1765,8 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - Agent picker gating → `add-acp-multi-root-sessions` proposal / `acp-agent-capability-cache`、`workspace-window` specs；
 - route meta 与 activity bar 使用同一 `requiresWorkspace`/capability evaluator；secondary member missing 不禁用 task/knowledge/workflow；
 - Chat header 的 Session/current scope diff 与 `window-only` preview 呈现 → `add-acp-multi-root-sessions` proposal / `workspace-window`、`local-file-link-preview` specs；
-- repository filter 和 owner badge；
-- 同名 proposal detail；
+- repository filter → 待 `aggregate-workspace-folder-features` proposal；owner badge与linked target呈现 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser` spec；
+- 同名 proposal detail、status与run state隔离 → `make-openspec-proposals-repository-owned` proposal / `proposal-browser`、`repository-owned-proposals` specs；
 - 同名 spec/guideline 的 composite selection；Folder-level missing/error/empty state；
 - Folder Workspace 不显示成员编辑 UI；
 - 窄窗口、键盘焦点、错误和空状态。

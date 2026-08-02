@@ -34,11 +34,9 @@ const mocks = vi.hoisted(() => {
     saveArchiveRunMeta: vi.fn(),
     updateApplyRunStageAcpSessionId: vi.fn(),
     updateArchiveRunAcpSessionId: vi.fn(),
-    resolveWorkspaceCwd: vi.fn(),
+    validateApplyRunTarget: vi.fn(),
     getRequiredWorkspaceInfo: vi.fn(),
-    resolveRepositoryTarget: vi.fn(),
     createOwnerMcpWorkspaceDescriptor: vi.fn(),
-    resolveApplyRunChangeId: vi.fn(),
     updateRunMetaIfCurrent: vi.fn(),
     getCompletedApplyStageIndex: vi.fn(),
     assemblerApply: vi.fn(),
@@ -66,7 +64,8 @@ vi.mock("@main/infra/storage/apply-run-store", () => ({
   appendApplyRunMessage: mocks.appendApplyRunMessage,
   appendArchiveMessage: mocks.appendArchiveMessage,
   archiveMessagesPath: vi.fn(
-    (projectPath: string, changeId: string) => `${projectPath}/${changeId}/archive.messages.jsonl`
+    (projectPath: string, proposalRef: { changeId: string }) =>
+      `${projectPath}/${proposalRef.changeId}/archive.messages.jsonl`
   ),
   loadApplyRunMeta: mocks.loadApplyRunMeta,
   loadApplyRunMessages: mocks.loadApplyRunMessages,
@@ -76,8 +75,8 @@ vi.mock("@main/infra/storage/apply-run-store", () => ({
   updateApplyRunStageAcpSessionId: mocks.updateApplyRunStageAcpSessionId,
   updateArchiveRunAcpSessionId: mocks.updateArchiveRunAcpSessionId,
   stageMessagesPath: vi.fn(
-    (projectPath: string, changeId: string, stageIndex: number) =>
-      `${projectPath}/${changeId}/stage-${stageIndex}.messages.jsonl`
+    (projectPath: string, proposalRef: { changeId: string }, stageIndex: number) =>
+      `${projectPath}/${proposalRef.changeId}/stage-${stageIndex}.messages.jsonl`
   ),
 }));
 
@@ -94,14 +93,12 @@ vi.mock("@main/services/proposal/runtime/apply-run-service", () => ({
   })),
   createApplyRun: vi.fn(),
   getCompletedApplyStageIndex: mocks.getCompletedApplyStageIndex,
-  resolveApplyRunChangeId: mocks.resolveApplyRunChangeId,
-  resolveWorkspaceCwd: mocks.resolveWorkspaceCwd,
   updateRunMetaIfCurrent: mocks.updateRunMetaIfCurrent,
+  validateApplyRunTarget: mocks.validateApplyRunTarget,
 }));
 
 vi.mock("@main/services/workspace/_public", () => ({
   getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
-  resolveRepositoryTarget: mocks.resolveRepositoryTarget,
 }));
 
 vi.mock("@main/services/session/chat/mcp-workspace-descriptor", () => ({
@@ -146,7 +143,8 @@ vi.mock("@main/ipc/_kit/stream-channel", () => ({
 
 const runMeta = {
   runId: "run-1",
-  changeId: "change-1",
+  proposalRef: { folderId: "folder-secondary", changeId: "change-1" },
+  worktreePath: "/tmp/secondary/.worktrees/change-1",
   workflowId: "workflow-1",
   stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply", agent: "claude-acp" }],
   currentStageIndex: 0,
@@ -161,7 +159,6 @@ describe("registerProposalApplyHandlers", () => {
     vi.clearAllMocks();
     mocks.eventHandler = null;
     mocks.onReady = null;
-    mocks.resolveWorkspaceCwd.mockResolvedValue("/tmp/project");
     mocks.getRequiredWorkspaceInfo.mockResolvedValue({
       id: "workspace-1",
       kind: "collection",
@@ -171,14 +168,28 @@ describe("registerProposalApplyHandlers", () => {
         name: "Primary",
         path: "/tmp/project",
       },
+      folders: [
+        {
+          folderId: "folder-primary",
+          folderName: "Primary",
+          folderPath: "/tmp/project",
+          pathMissing: false,
+          isPrimary: true,
+        },
+        {
+          folderId: "folder-secondary",
+          folderName: "Secondary",
+          folderPath: "/tmp/secondary",
+          pathMissing: false,
+          isPrimary: false,
+        },
+      ],
     });
-    mocks.resolveRepositoryTarget.mockImplementation(
-      async ({ workspaceId, folderId, worktreePath }) => ({
-        workspaceId,
-        folderId,
-        worktreePath,
-      })
-    );
+    mocks.validateApplyRunTarget.mockImplementation(async (workspaceId, proposalRef, meta) => ({
+      workspaceId,
+      folderId: proposalRef.folderId,
+      worktreePath: meta.worktreePath,
+    }));
     mocks.createOwnerMcpWorkspaceDescriptor.mockImplementation((input) => ({
       version: 2,
       workspaceId: input.workspaceId,
@@ -189,7 +200,6 @@ describe("registerProposalApplyHandlers", () => {
       mcpEventDir: "/tmp/mcp-events",
       sessionId: input.sessionId,
     }));
-    mocks.resolveApplyRunChangeId.mockResolvedValue("change-1");
     mocks.loadApplyRunMeta.mockResolvedValue(runMeta);
     mocks.loadArchiveRunMeta.mockResolvedValue(null);
     mocks.updateApplyRunStageAcpSessionId.mockResolvedValue(undefined);
@@ -219,7 +229,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -230,10 +246,41 @@ describe("registerProposalApplyHandlers", () => {
     expect(mocks.register).not.toHaveBeenCalled();
   });
 
+  it("rejects a stage before creating an ACP session when the fixed target disappears", async () => {
+    mocks.validateApplyRunTarget.mockRejectedValueOnce(
+      Object.assign(new Error("target removed"), { code: IpcErrorCodes.PROPOSAL_NOT_FOUND })
+    );
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
+    );
+
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await expect(mocks.onReady!(sink)).rejects.toMatchObject({
+      code: IpcErrorCodes.PROPOSAL_NOT_FOUND,
+    });
+    const acpSessionMock = vi.mocked(
+      (await import("@main/services/session/chat/acp-session")).AcpSession
+    );
+    expect(acpSessionMock).not.toHaveBeenCalled();
+  });
+
   it("persists and sends stage user message before registering the session", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -241,7 +288,7 @@ describe("registerProposalApplyHandlers", () => {
 
     expect(mocks.appendApplyRunMessage).toHaveBeenCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       0,
       expect.objectContaining({ role: "user" })
     );
@@ -259,7 +306,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -279,7 +332,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -295,7 +354,7 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       0,
       expect.objectContaining({ id: "stage-assistant-err", role: "assistant" })
     );
@@ -313,7 +372,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -328,7 +393,7 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendApplyRunMessage).toHaveBeenLastCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       0,
       expect.objectContaining({ id: "stage-assistant-cancel", role: "assistant" })
     );
@@ -346,7 +411,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -394,7 +465,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -406,7 +477,7 @@ describe("registerProposalApplyHandlers", () => {
     );
     expect(mocks.appendArchiveMessage).toHaveBeenCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       expect.objectContaining({ role: "user" })
     );
 
@@ -422,7 +493,7 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       expect.objectContaining({ id: "archive-assistant-1", role: "assistant" })
     );
   });
@@ -432,7 +503,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -460,7 +531,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -476,7 +547,7 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       expect.objectContaining({ id: "archive-assistant-err", role: "assistant" })
     );
     await vi.waitFor(() => {
@@ -499,7 +570,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -514,11 +585,14 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendArchiveMessage).toHaveBeenLastCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       expect.objectContaining({ id: "archive-assistant-cancel", role: "assistant" })
     );
     expect(mocks.sessionCancel).toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("archive", "workspace-1:change-1");
+    expect(mocks.unregister).toHaveBeenCalledWith(
+      "archive",
+      "workspace-1:folder-secondary:change-1"
+    );
   });
 
   it("does not persist the archive message twice across error then cancel", async () => {
@@ -532,7 +606,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -557,13 +631,13 @@ describe("registerProposalApplyHandlers", () => {
     await expect(
       handler(ProposalChannels.loadArchive)(
         {},
-        { workspaceId: "workspace-1", changeId: "change-1" }
+        { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
       )
     ).resolves.toEqual({ ok: true, data: { runId: "archive-1" } });
     await expect(
       handler(ProposalChannels.loadArchiveMessages)(
         {},
-        { workspaceId: "workspace-1", changeId: "change-1" }
+        { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
       )
     ).resolves.toEqual({ ok: true, data: [{ id: "message-1" }] });
   });
@@ -579,7 +653,13 @@ describe("registerProposalApplyHandlers", () => {
     } as const;
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -601,12 +681,12 @@ describe("registerProposalApplyHandlers", () => {
         mcpWorkspaceDescriptor: expect.objectContaining({
           version: 2,
           workspaceId: "workspace-1",
-          primaryFolderId: "folder-primary",
+          primaryFolderId: "folder-secondary",
           folders: [
             {
-              folderId: "folder-primary",
-              folderName: "Primary",
-              folderPath: "/tmp/project",
+              folderId: "folder-secondary",
+              folderName: "Secondary",
+              folderPath: "/tmp/secondary",
             },
           ],
         }),
@@ -619,18 +699,18 @@ describe("registerProposalApplyHandlers", () => {
         },
       })
     );
-    expect(mocks.resolveRepositoryTarget).toHaveBeenCalledWith({
-      workspaceId: "workspace-1",
-      folderId: "folder-primary",
-      worktreePath: "/tmp/proposal-worktree",
-    });
+    expect(mocks.validateApplyRunTarget).toHaveBeenCalledWith(
+      "workspace-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
+      expect.objectContaining({ worktreePath: "/tmp/proposal-worktree" })
+    );
     expect(mocks.createOwnerMcpWorkspaceDescriptor).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       workspaceKind: "collection",
       ownerFolder: {
-        folderId: "folder-primary",
-        folderName: "Primary",
-        folderPath: "/tmp/project",
+        folderId: "folder-secondary",
+        folderName: "Secondary",
+        folderPath: "/tmp/secondary",
       },
       sessionId: "run-1-0",
     });
@@ -639,7 +719,7 @@ describe("registerProposalApplyHandlers", () => {
     await opts.sessionStore.persistAcpSessionId("acp-stage-2");
     expect(mocks.updateApplyRunStageAcpSessionId).toHaveBeenCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       "run-1",
       0,
       "acp-stage-2"
@@ -659,7 +739,13 @@ describe("registerProposalApplyHandlers", () => {
   it("does not persist stage acpSessionId from the session_id_resolved event in the handler", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -678,7 +764,13 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -691,7 +783,7 @@ describe("registerProposalApplyHandlers", () => {
     expect(opts).toEqual(
       expect.objectContaining({
         cwd: "/tmp/project/.worktrees/change-1",
-        projectPath: "/tmp/project",
+        projectPath: "/tmp/project/.worktrees/change-1",
         reminderContext: expect.objectContaining({
           worktreePath: "/tmp/project/.worktrees/change-1",
         }),
@@ -702,7 +794,13 @@ describe("registerProposalApplyHandlers", () => {
   it("forwards stage reasoning_delta through assembler and sink", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -722,7 +820,13 @@ describe("registerProposalApplyHandlers", () => {
   it("ignores stage available_commands_update", async () => {
     handler(ProposalChannels.stageStream)(
       { sender: { postMessage: vi.fn() } },
-      { runId: "run-1", stageIndex: 0, workspaceId: "workspace-1", changeId: "change-1" }
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -753,7 +857,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -774,8 +878,8 @@ describe("registerProposalApplyHandlers", () => {
         additionalDirectories: [],
         mcpWorkspaceDescriptor: expect.objectContaining({
           workspaceId: "workspace-1",
-          primaryFolderId: "folder-primary",
-          folders: [expect.objectContaining({ folderId: "folder-primary" })],
+          primaryFolderId: "folder-secondary",
+          folders: [expect.objectContaining({ folderId: "folder-secondary" })],
         }),
         fylloSessionId: "run-1-archive",
         owner: "archive",
@@ -786,18 +890,18 @@ describe("registerProposalApplyHandlers", () => {
         }),
       })
     );
-    expect(mocks.resolveRepositoryTarget).toHaveBeenCalledWith({
-      workspaceId: "workspace-1",
-      folderId: "folder-primary",
-      worktreePath: "/tmp/proposal-worktree",
-    });
+    expect(mocks.validateApplyRunTarget).toHaveBeenCalledWith(
+      "workspace-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
+      expect.objectContaining({ worktreePath: "/tmp/proposal-worktree" })
+    );
     expect(mocks.createOwnerMcpWorkspaceDescriptor).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       workspaceKind: "collection",
       ownerFolder: {
-        folderId: "folder-primary",
-        folderName: "Primary",
-        folderPath: "/tmp/project",
+        folderId: "folder-secondary",
+        folderName: "Secondary",
+        folderPath: "/tmp/secondary",
       },
       sessionId: "run-1-archive",
     });
@@ -810,7 +914,7 @@ describe("registerProposalApplyHandlers", () => {
     await typedOpts.sessionStore.persistAcpSessionId("acp-archive");
     expect(mocks.updateArchiveRunAcpSessionId).toHaveBeenCalledWith(
       "workspace-1",
-      "change-1",
+      { folderId: "folder-secondary", changeId: "change-1" },
       "acp-archive"
     );
 
@@ -834,7 +938,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -847,7 +951,7 @@ describe("registerProposalApplyHandlers", () => {
     expect(typedOpts).toEqual(
       expect.objectContaining({
         cwd: "/tmp/project/.worktrees/change-1",
-        projectPath: "/tmp/project",
+        projectPath: "/tmp/project/.worktrees/change-1",
         reminderContext: expect.objectContaining({
           worktreePath: "/tmp/project/.worktrees/change-1",
         }),
@@ -864,7 +968,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -883,7 +987,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -898,7 +1002,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -920,7 +1024,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
@@ -951,7 +1055,7 @@ describe("registerProposalApplyHandlers", () => {
 
     handler(ProposalChannels.archive)(
       { sender: { postMessage: vi.fn() } },
-      { workspaceId: "workspace-1", changeId: "change-1" }
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
     );
 
     const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };

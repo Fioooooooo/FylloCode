@@ -2,8 +2,28 @@ import type { WorkflowStage } from "./workflow";
 
 export type ProposalStatus = "creating" | "draft" | "applying" | "archived";
 
+export interface ProposalRef {
+  folderId: string;
+  changeId: string;
+}
+
+export type ProposalWorktreeMode = "main" | "linked";
+
+export interface ResolvedProposalTarget {
+  proposalRef: ProposalRef;
+  worktreeMode: ProposalWorktreeMode;
+  worktreePath: string;
+}
+
+export function proposalRefKey(proposalRef: ProposalRef): string {
+  return `${proposalRef.folderId}\0${proposalRef.changeId}`;
+}
+
 export interface ProposalMeta {
+  /** Display-compatible change ID; ProposalRef remains the complete identity. */
   id: string;
+  proposalRef: ProposalRef;
+  folderName: string;
   title: string;
   status: ProposalStatus;
   why: string;
@@ -11,7 +31,8 @@ export interface ProposalMeta {
   doneTasks: number;
   hasDesign: boolean;
   date: string;
-  worktreePath?: string;
+  worktreeMode: ProposalWorktreeMode;
+  worktreePath: string;
 }
 
 export type ProposalSpecDeltaType = "ADDED" | "MODIFIED" | "REMOVED" | "RENAMED";
@@ -44,7 +65,7 @@ export type ProposalSpecDeltaOverview = {
 
 export interface ApplyRunMeta {
   runId: string;
-  changeId: string;
+  proposalRef: ProposalRef;
   workflowId: string;
   stages: WorkflowStage[];
   currentStageIndex: number;
@@ -52,12 +73,13 @@ export interface ApplyRunMeta {
   status: "running" | "done" | "error";
   startedAt: string;
   updatedAt: string;
-  worktreePath?: string;
+  worktreePath: string;
 }
 
 export interface ArchiveRunMeta {
   runId: string;
-  changeId: string;
+  proposalRef: ProposalRef;
+  worktreePath: string;
   status: "running" | "done" | "error";
   startedAt: string;
   updatedAt: string;
@@ -66,9 +88,8 @@ export interface ArchiveRunMeta {
 
 export type ProposalStatusChangedPayload = {
   workspaceId: string;
-  changeId: string;
+  proposalRef: ProposalRef;
   sessionId: string;
-  repositoryPath: string;
   status: ProposalStatus;
   updatedAt: string;
   removed?: boolean;

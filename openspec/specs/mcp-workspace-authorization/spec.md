@@ -131,22 +131,28 @@ Bundled MCP shared runtime SHALL 提供 `resolveWorkspace()`、`resolveFolder(fo
 
 ### Requirement: MCP events 携带 Workspace 与 Folder identity
 
-新写入的 bundled MCP proposal/plan event SHALL 携带 `workspaceId` 与明确的 owner `folderId`，并 SHALL 使用 descriptor 的 Workspace-owned event directory。Main consumer SHALL 验证 event workspace与正在扫描的 Workspace 一致，并 SHALL 使用 folderId 作为 repository owner identity，不得从 `projectPath` 或 event directory反推 owner。
+新写入的bundled MCP proposal event SHALL携带`workspaceId`、`sessionId`、`proposalRef { folderId, changeId }`、`worktreeMode`与`worktreePath`；plan event SHALL继续携带`workspaceId`与明确owner `folderId`。事件 SHALL写入descriptor的Workspace-owned event directory。Main consumer SHALL验证event Workspace、Folder owner和proposal target，不得从path、primary Folder或event directory反推owner。
 
-#### Scenario: 写入有唯一 owner 的 event
+#### Scenario: 写入有唯一 owner 的 proposal event
 
-- **WHEN** bundled MCP operation 在可唯一确定 owner Folder 的 activation 中成功创建 proposal或 plan event
-- **THEN** event SHALL 包含当前 descriptor 的 workspaceId与 owner folderId
-- **AND** consumer SHALL 保留该 identity用于 lineage与后续 owner routing
+- **WHEN**create-proposal在授权Folder target成功创建新proposal
+- **THEN**event SHALL包含当前descriptor的workspaceId、sessionId和完整ResolvedProposalTarget
+- **AND**consumer SHALL保留ProposalRef用于lineage与后续owner routing
 
-#### Scenario: Event workspace 不匹配
+#### Scenario: 重复 proposal 不写 event
 
-- **WHEN** consumer 在 Workspace A 的 event directory读到声明 workspaceId 为 B 的 event
-- **THEN** consumer SHALL 拒绝消费该 event
-- **AND** SHALL NOT 将其关联到 Workspace A的 Session或 lineage
+- **WHEN**create-proposal发现ProposalRef已存在并返回`PROPOSAL_ALREADY_EXISTS`
+- **THEN**系统 SHALL NOT写新的created event
+- **AND** SHALL NOT覆盖既有origin
+
+#### Scenario: Event workspace 或 owner 不匹配
+
+- **WHEN**consumer读到workspaceId不匹配、folderId不属于该Workspace，或worktreePath不属于owner repository的proposal event
+- **THEN**consumer SHALL拒绝消费该event
+- **AND** SHALL NOT将其关联到当前Workspace的Session或lineage
 
 #### Scenario: Owner 无法唯一确定
 
-- **WHEN** operation 需要 repository owner但当前 multi-root descriptor 与 tool input无法确定唯一 folderId
-- **THEN** operation SHALL 在写 event前失败
-- **AND** SHALL NOT 通过 primary或 repository path猜测 owner
+- **WHEN**operation需要repository owner但multi-root descriptor与tool input无法确定唯一folderId
+- **THEN**operation SHALL在写event前失败
+- **AND** SHALL NOT通过primary或repository path猜测owner

@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { runGit } from "./git";
-import type { PrepareProposalWorkspaceResult, WorkspaceMode } from "./types";
+import { validateWorktree } from "../../../shared/workspace-resolver";
+import type { ProposalWorktreeMode } from "@shared/types/proposal";
+import type { PrepareProposalWorkspaceResult } from "./types";
 
 async function isGitRepo(projectPath: string): Promise<boolean> {
   const result = await runGit(projectPath, ["rev-parse", "--is-inside-work-tree"]);
@@ -21,24 +23,21 @@ function ensureWorktreesIgnored(mainProjectPath: string): void {
 }
 
 export async function prepareProposalWorkspace(input: {
-  mainProjectPath: string;
+  folderId: string;
+  folderPath: string;
   changeName: string;
-  workspaceMode: WorkspaceMode;
+  worktreeMode: ProposalWorktreeMode;
 }): Promise<PrepareProposalWorkspaceResult> {
-  const mainPath = path.resolve(input.mainProjectPath);
+  const mainPath = path.resolve(input.folderPath);
   const warnings: string[] = [];
 
-  if (input.workspaceMode === "main") {
-    return {
-      workspace: { mode: "main", path: mainPath },
-      warnings,
-    };
+  if (!(await isGitRepo(mainPath))) {
+    throw Object.assign(new Error("Proposal owner Folder must be a Git repository"), {
+      name: "ProposalRepositoryInvalid",
+    });
   }
 
-  if (!(await isGitRepo(mainPath))) {
-    warnings.push(
-      "workspaceMode linked requested but targetPath is not a git repo; using main workspace."
-    );
+  if (input.worktreeMode === "main") {
     return {
       workspace: { mode: "main", path: mainPath },
       warnings,
@@ -59,6 +58,7 @@ export async function prepareProposalWorkspace(input: {
   mkdirSync(worktreesDir, { recursive: true });
 
   if (existsSync(workspacePath)) {
+    validateWorktree(input.folderId, workspacePath);
     warnings.push(`linked workspace already exists and will be reused: ${workspacePath}`);
     return {
       workspace: { mode: "linked", path: workspacePath },

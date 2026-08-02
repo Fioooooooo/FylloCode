@@ -1,15 +1,9 @@
-import { z } from "zod";
+import { workspaceProposalRefSchema } from "./common.schemas";
 
-export const archiveInputSchema = z.object({
-  workspaceId: z.string().min(1),
-  changeId: z.string().min(1),
-});
+export const archiveInputSchema = workspaceProposalRefSchema;
 
 export const archiveCancelInputSchema = archiveInputSchema;
 
-export const loadArchiveInputSchema = z.object({
-  workspaceId: z.string().min(1),
-  changeId: z.string().min(1),
-});
+export const loadArchiveInputSchema = workspaceProposalRefSchema;
 
 export const loadArchiveMessagesInputSchema = loadArchiveInputSchema;

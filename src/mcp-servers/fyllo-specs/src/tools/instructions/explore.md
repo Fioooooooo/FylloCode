@@ -1,6 +1,5 @@
-**Input**: `targetPath` is required. It must be an absolute path to the main repo root or a
-registered git worktree for that repo. The target must stay within the current
-Workspace descriptor's uniquely owned Folder; multi-root calls without an owner are rejected.
+**Input**: `folderId` optionally selects one authorized repository owner. Omit it to aggregate
+all Folders in the immutable Workspace descriptor. Never accept or infer an owner from a caller path.
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
@@ -91,10 +90,9 @@ You have full context of the OpenSpec system. Use it naturally, don't force it.
 
 The `state` injected by the MCP tool already contains everything you need:
 
-- `state.activeChanges` — list of active changes with name, status, progress, and workspace metadata
-- `state.currentChange` — full status of the change named in the tool call (if any), including workspace metadata
-- `state.projectRoot` — absolute path to the project root
-- `state.warnings` — non-fatal workspace scan warnings (empty array when none)
+- `state.activeChanges` — owner-qualified active changes with ProposalRef, status, progress, and resolved worktree metadata
+- `state.currentChange` — full status and ResolvedProposalTarget for the requested change (if owner can be proven)
+- `state.warnings` — structured non-fatal per-Folder scan warnings (empty array when none)
 
 Do not invoke the OpenSpec CLI directly. All change data is provided through `state`.
 
@@ -109,13 +107,13 @@ Think freely. When insights crystallize, you might offer:
 
 If `state.activeChanges` has entries, or the user mentions a specific change:
 
-1. **Read existing artifacts for context** — use the change's `workspacePath` as the root:
-   - `<workspacePath>/openspec/changes/<name>/proposal.md`
-   - `<workspacePath>/openspec/changes/<name>/design.md`
-   - `<workspacePath>/openspec/changes/<name>/tasks.md`
+1. **Read existing artifacts for context** — keep the complete ProposalRef as identity and use the change's `worktreePath` as the root:
+   - `<worktreePath>/openspec/changes/<changeId>/proposal.md`
+   - `<worktreePath>/openspec/changes/<changeId>/design.md`
+   - `<worktreePath>/openspec/changes/<changeId>/tasks.md`
    - etc.
 
-   When continuing with `apply-change` or `archive-change`, pass the same `workspacePath` as `targetPath`. Do not default to `state.projectRoot` unless the change explicitly has `workspaceMode: "main"` and `workspacePath` equals `state.projectRoot`.
+   When continuing with `apply-change` or `archive-change`, pass the ProposalRef's `folderId` and `changeId`. Do not pass `worktreePath`; those tools resolve and validate the target.
 
 2. **Reference them naturally in conversation**
    - "Your design mentions using Redis, but we just realized SQLite fits better..."

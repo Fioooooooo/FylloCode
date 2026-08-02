@@ -18,9 +18,8 @@ import {
 import { buildStagePrompt } from "@main/services/proposal/runtime/stage-prompts";
 import {
   createApplyRun,
-  resolveApplyRunChangeId,
-  resolveWorkspaceCwd,
   updateRunMetaIfCurrent,
+  validateApplyRunTarget,
 } from "@main/services/proposal/runtime/apply-run-service";
 import { newStageFylloSessionId } from "@main/infra/ids";
 import { wrapHandler } from "../_kit/wrap-handler";
@@ -30,10 +29,7 @@ import { makeStreamChannel } from "../_kit/stream-channel";
 import logger from "@main/infra/logger";
 import { prependReminderToLastUserMessage } from "@main/infra/storage/message-reminder-store";
 import { ApplyStageAcpSessionStore } from "@main/infra/storage/apply-stage-acp-session-store";
-import {
-  getRequiredWorkspaceInfo,
-  resolveRepositoryTarget,
-} from "@main/services/workspace/_public";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
 import { createOwnerMcpWorkspaceDescriptor } from "@main/services/session/chat/mcp-workspace-descriptor";
 import { applyRunPersistError, buildProposalRunUserMessage } from "./runtime";
 
@@ -55,12 +51,17 @@ export function registerProposalApplyHandlers(): void {
       portChannel: ProposalApplyChannels.stageStreamPort,
       logTag: "proposal-apply",
       onReady: async (sink) => {
-        const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-        const runMeta = await loadApplyRunMeta(form.workspaceId, form.changeId);
+        const proposalRef = { folderId: form.folderId, changeId: form.changeId };
+        const runMeta = await loadApplyRunMeta(form.workspaceId, proposalRef);
         if (!runMeta || runMeta.runId !== form.runId) {
           throw ipcError(IpcErrorCodes.APPLY_RUN_NOT_FOUND, `Apply run not found: ${form.runId}`);
         }
 
+        const repositoryTarget = await validateApplyRunTarget(
+          form.workspaceId,
+          proposalRef,
+          runMeta
+        );
         const stage = runMeta.stages[form.stageIndex];
         if (!stage) {
           throw ipcError(IpcErrorCodes.STAGE_NOT_FOUND, `Stage not found: ${form.stageIndex}`);
@@ -68,7 +69,7 @@ export function registerProposalApplyHandlers(): void {
 
         const prompt = buildStagePrompt({
           changeId: form.changeId,
-          projectPath: workspaceCwd,
+          projectPath: repositoryTarget.worktreePath,
           stage,
         });
         if (!stage.agent) {
@@ -80,29 +81,28 @@ export function registerProposalApplyHandlers(): void {
         const agentId = stage.agent;
         const fylloSessionId = newStageFylloSessionId(form.runId, form.stageIndex);
         const workspace = await getRequiredWorkspaceInfo(form.workspaceId);
-        const repositoryTarget = await resolveRepositoryTarget({
-          workspaceId: form.workspaceId,
-          folderId: workspace.primaryFolder.id,
-          worktreePath: runMeta.worktreePath ?? workspaceCwd,
-        });
+        const ownerFolder = workspace.folders.find(
+          (folder) => folder.folderId === proposalRef.folderId
+        );
+        if (!ownerFolder || ownerFolder.pathMissing) {
+          throw ipcError(
+            IpcErrorCodes.PROPOSAL_NOT_FOUND,
+            `Proposal owner is no longer available: ${form.changeId}`
+          );
+        }
         const mcpWorkspaceDescriptor = createOwnerMcpWorkspaceDescriptor({
           workspaceId: form.workspaceId,
           workspaceKind: workspace.kind,
           ownerFolder: {
-            folderId: workspace.primaryFolder.id,
-            folderName: workspace.primaryFolder.name,
-            folderPath: workspaceCwd,
+            folderId: ownerFolder.folderId,
+            folderName: ownerFolder.folderName,
+            folderPath: ownerFolder.folderPath,
           },
           sessionId: fylloSessionId,
         });
         const userMessage = buildProposalRunUserMessage(fylloSessionId, prompt);
         try {
-          await appendApplyRunMessage(
-            form.workspaceId,
-            form.changeId,
-            form.stageIndex,
-            userMessage
-          );
+          await appendApplyRunMessage(form.workspaceId, proposalRef, form.stageIndex, userMessage);
         } catch (error: unknown) {
           throw applyRunPersistError(error);
         }
@@ -110,7 +110,7 @@ export function registerProposalApplyHandlers(): void {
 
         const sessionStore = new ApplyStageAcpSessionStore(
           form.workspaceId,
-          form.changeId,
+          proposalRef,
           form.runId,
           form.stageIndex
         );
@@ -118,7 +118,7 @@ export function registerProposalApplyHandlers(): void {
           fylloSessionId,
           agentId,
           workspaceId: form.workspaceId,
-          projectPath: workspaceCwd,
+          projectPath: repositoryTarget.worktreePath,
           cwd: repositoryTarget.worktreePath,
           additionalDirectories: [],
           mcpWorkspaceDescriptor,
@@ -128,18 +128,18 @@ export function registerProposalApplyHandlers(): void {
             changeId: form.changeId,
             stageIndex: form.stageIndex,
             runId: form.runId,
-            worktreePath: runMeta.worktreePath,
+            worktreePath: repositoryTarget.worktreePath,
           },
           onReminderInjected: async (reminderPart) => {
             await prependReminderToLastUserMessage(
-              stageMessagesPath(form.workspaceId, form.changeId, form.stageIndex),
+              stageMessagesPath(form.workspaceId, proposalRef, form.stageIndex),
               reminderPart
             );
           },
           recoveryContext: {
             hasPersistedHistory: true,
             loadPersistedHistory: async () =>
-              loadApplyRunMessages(form.workspaceId, form.changeId, form.stageIndex),
+              loadApplyRunMessages(form.workspaceId, proposalRef, form.stageIndex),
           },
         });
 
@@ -155,7 +155,7 @@ export function registerProposalApplyHandlers(): void {
               await session.start([{ type: "text", text: prompt }]);
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : String(error);
-              void updateRunMetaIfCurrent(form.workspaceId, form.changeId, form.runId, (meta) => ({
+              void updateRunMetaIfCurrent(form.workspaceId, proposalRef, form.runId, (meta) => ({
                 ...meta,
                 status: "error",
                 updatedAt: new Date().toISOString(),
@@ -167,11 +167,11 @@ export function registerProposalApplyHandlers(): void {
           },
           hooks: {
             persistMessage: (message) =>
-              appendApplyRunMessage(form.workspaceId, form.changeId, form.stageIndex, message),
+              appendApplyRunMessage(form.workspaceId, proposalRef, form.stageIndex, message),
             // apply forwards no control events.
             doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
             onDone: async () => {
-              await updateRunMetaIfCurrent(form.workspaceId, form.changeId, form.runId, (meta) => {
+              await updateRunMetaIfCurrent(form.workspaceId, proposalRef, form.runId, (meta) => {
                 const nextIndex = form.stageIndex + 1;
                 return {
                   ...meta,
@@ -182,7 +182,7 @@ export function registerProposalApplyHandlers(): void {
               });
             },
             onError: async () => {
-              await updateRunMetaIfCurrent(form.workspaceId, form.changeId, form.runId, (meta) => ({
+              await updateRunMetaIfCurrent(form.workspaceId, proposalRef, form.runId, (meta) => ({
                 ...meta,
                 status: "error",
                 updatedAt: new Date().toISOString(),
@@ -204,18 +204,21 @@ export function registerProposalApplyHandlers(): void {
   ipcMain.handle(ProposalApplyChannels.loadRun, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(loadRunInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      const applyRunChangeId = await resolveApplyRunChangeId(workspaceCwd, form.changeId);
-      return loadApplyRunMeta(form.workspaceId, applyRunChangeId);
+      return loadApplyRunMeta(form.workspaceId, {
+        folderId: form.folderId,
+        changeId: form.changeId,
+      });
     })
   );
 
   ipcMain.handle(ProposalApplyChannels.loadRunMessages, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(loadRunMessagesInputSchema, input);
-      const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
-      const applyRunChangeId = await resolveApplyRunChangeId(workspaceCwd, form.changeId);
-      return loadApplyRunMessages(form.workspaceId, applyRunChangeId, form.stageIndex);
+      return loadApplyRunMessages(
+        form.workspaceId,
+        { folderId: form.folderId, changeId: form.changeId },
+        form.stageIndex
+      );
     })
   );
 }

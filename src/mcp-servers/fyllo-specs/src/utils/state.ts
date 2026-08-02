@@ -5,6 +5,8 @@ export function wrapState(skillPrompt: string, state: unknown): string {
 export interface ErrorEntry {
   type: string;
   message: string;
+  code?: string;
+  details?: Readonly<Record<string, unknown>>;
 }
 
 export interface RunToolOptions {
@@ -31,6 +33,12 @@ export async function runTool(
     const errorEntry: ErrorEntry = {
       type: err instanceof Error ? err.name : "UnknownError",
       message: err instanceof Error ? err.message : String(err),
+      ...(typeof err === "object" && err !== null && "code" in err && typeof err.code === "string"
+        ? { code: err.code }
+        : {}),
+      ...(typeof err === "object" && err !== null && "details" in err && err.details
+        ? { details: err.details as Readonly<Record<string, unknown>> }
+        : {}),
     };
     const errorState = { errors: [errorEntry] };
     if (includeInstruction) {

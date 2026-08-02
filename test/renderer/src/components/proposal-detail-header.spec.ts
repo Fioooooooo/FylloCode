@@ -6,6 +6,8 @@ import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
 function buildProposal(status: ProposalMeta["status"]): ProposalMeta {
   return {
     id: "proposal-1",
+    proposalRef: { folderId: "folder-a", changeId: "proposal-1" },
+    folderName: "Repository A",
     title: "Proposal 1",
     status,
     why: "why",
@@ -13,13 +15,16 @@ function buildProposal(status: ProposalMeta["status"]): ProposalMeta {
     doneTasks: 1,
     hasDesign: true,
     date: "2026-05-07",
+    worktreeMode: "main",
+    worktreePath: "/repo-a",
   };
 }
 
 function buildRunMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
   return {
     runId: "run-1",
-    changeId: "proposal-1",
+    proposalRef: { folderId: "folder-a", changeId: "proposal-1" },
+    worktreePath: "/repo-a",
     workflowId: "workflow-1",
     stages: [],
     currentStageIndex: 0,
@@ -91,7 +96,9 @@ describe("ProposalDetailHeader", () => {
       props: {
         proposal: buildProposal("applying"),
         ...defaultProps,
-        runMeta: buildRunMeta({ changeId: "other-proposal" }),
+        runMeta: buildRunMeta({
+          proposalRef: { folderId: "folder-a", changeId: "other-proposal" },
+        }),
       },
     });
 

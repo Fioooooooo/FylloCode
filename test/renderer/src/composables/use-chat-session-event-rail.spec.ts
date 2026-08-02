@@ -40,6 +40,8 @@ function session(messages: UIMessage<MessageMeta>[] = []): Session {
 function proposal(id: string): ProposalMeta {
   return {
     id,
+    proposalRef: { folderId: "folder-a", changeId: id },
+    folderName: "Repository A",
     title: "Proposal",
     status: "draft",
     why: "Because",
@@ -47,6 +49,8 @@ function proposal(id: string): ProposalMeta {
     doneTasks: 0,
     hasDesign: false,
     date: "2026-06-30",
+    worktreeMode: "main",
+    worktreePath: "/repo-a",
   };
 }
 

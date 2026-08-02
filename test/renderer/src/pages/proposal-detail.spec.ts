@@ -78,6 +78,8 @@ vi.mock("@renderer/stores/proposal/run", () => ({
 function buildProposal(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
   return {
     id: "change-1",
+    proposalRef: { folderId: "folder-b", changeId: "change-1" },
+    folderName: "Repository B",
     title: "Change 1",
     status: "draft",
     why: "why",
@@ -85,6 +87,8 @@ function buildProposal(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
     doneTasks: 1,
     hasDesign: true,
     date: "2026-06-12",
+    worktreeMode: "linked",
+    worktreePath: "/repo-b/.worktrees/change-1",
     ...overrides,
   };
 }
@@ -136,9 +140,9 @@ function specOverview(): ProposalSpecDeltaOverview {
 
 function mockSuccessfulReads(): void {
   vi.mocked(proposalBrowserApi.readFile).mockImplementation(
-    async (_workspaceId: string, changeId: string, filename: string) => ({
+    async (_workspaceId, proposalRef, filename) => ({
       ok: true,
-      data: filename === "design.md" ? null : `# ${filename} for ${changeId}`,
+      data: filename === "design.md" ? null : `# ${filename} for ${proposalRef.changeId}`,
     })
   );
   vi.mocked(proposalBrowserApi.getSpecDeltas).mockResolvedValue({
@@ -162,9 +166,9 @@ function deferred(): {
   return { promise, resolve, reject };
 }
 
-function mountSlideover(changeId = "change-1") {
+function mountSlideover(proposalRef = { folderId: "folder-b", changeId: "change-1" }) {
   return mount(ProposalDetailSlideover, {
-    props: { changeId },
+    props: { proposalRef },
     global: {
       stubs: {
         MarkStream: {
@@ -260,10 +264,13 @@ describe("ProposalDetailSlideover", () => {
     expect(wrapper.find('[data-test="proposal-meta-refreshing"]').exists()).toBe(false);
     expect(proposalBrowserApi.readFile).toHaveBeenCalledWith(
       "project-1",
-      "change-1",
+      { folderId: "folder-b", changeId: "change-1" },
       "proposal.md"
     );
-    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith("project-1", "change-1");
+    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith("project-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
   });
 
   it("renders Specs tab with proposal capability deltas", async () => {
@@ -319,7 +326,7 @@ describe("ProposalDetailSlideover", () => {
     expect(wrapper.text()).toContain("specs failed");
   });
 
-  it("updates current change id after archive and reloads detail files", async () => {
+  it("keeps the ProposalRef fixed after archive and reloads detail files", async () => {
     proposalsValue.value = [
       buildProposal({
         status: "applying",
@@ -327,7 +334,8 @@ describe("ProposalDetailSlideover", () => {
     ];
     runMetaValue = {
       runId: "run-1",
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      worktreePath: "/repo-b/.worktrees/change-1",
       workflowId: "workflow-1",
       stages: [],
       currentStageIndex: 0,
@@ -337,7 +345,7 @@ describe("ProposalDetailSlideover", () => {
       updatedAt: "2026-06-12T00:00:00.000Z",
     };
     mocks.startArchive.mockImplementation(async () => {
-      proposalsValue.value = [buildProposal({ id: "2026-06-22-change-1", status: "archived" })];
+      proposalsValue.value = [buildProposal({ status: "archived" })];
     });
 
     const wrapper = mountSlideover();
@@ -349,17 +357,20 @@ describe("ProposalDetailSlideover", () => {
       ?.trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", "change-1");
+    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
     expect(mocks.loadProposals).toHaveBeenCalled();
     expect(proposalBrowserApi.readFile).toHaveBeenCalledWith(
       "project-1",
-      "2026-06-22-change-1",
+      { folderId: "folder-b", changeId: "change-1" },
       "proposal.md"
     );
-    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith(
-      "project-1",
-      "2026-06-22-change-1"
-    );
+    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith("project-1", {
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
   });
 
   it("does not show archive button when the done run belongs to another proposal", async () => {
@@ -370,7 +381,8 @@ describe("ProposalDetailSlideover", () => {
     ];
     runMetaValue = {
       runId: "run-1",
-      changeId: "other-change",
+      proposalRef: { folderId: "folder-b", changeId: "other-change" },
+      worktreePath: "/repo-b",
       workflowId: "workflow-1",
       stages: [],
       currentStageIndex: 0,

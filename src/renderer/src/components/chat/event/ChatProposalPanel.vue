@@ -14,7 +14,7 @@ import {
   getProposalDisplayStatus,
   proposalDisplayStatusConfig,
 } from "@renderer/utils/proposal-display-status";
-import type { ProposalMeta } from "@shared/types/proposal";
+import { proposalRefKey, type ProposalMeta, type ProposalRef } from "@shared/types/proposal";
 
 defineProps<{
   proposals: ProposalMeta[];
@@ -40,13 +40,10 @@ function buildWorkflowMenuItems(proposal: ProposalMeta) {
   ];
 }
 
-function findLatestProposal(previousChangeId: string): ProposalMeta | null {
+function findLatestProposal(proposalRef: ProposalRef): ProposalMeta | null {
+  const key = proposalRefKey(proposalRef);
   return (
-    proposalStore.proposals.find((proposal) => proposal.id === previousChangeId) ??
-    proposalStore.proposals.find(
-      (proposal) => proposal.status === "archived" && proposal.id.endsWith(`-${previousChangeId}`)
-    ) ??
-    null
+    proposalStore.proposals.find((proposal) => proposalRefKey(proposal.proposalRef) === key) ?? null
   );
 }
 
@@ -61,7 +58,7 @@ async function startApply(proposal: ProposalMeta, workflowId: string): Promise<v
   if (!workspaceId.value) {
     return;
   }
-  await proposalRunStore.startRun(workspaceId.value, proposal.id, workflowId);
+  await proposalRunStore.startRun(workspaceId.value, proposal.proposalRef, workflowId);
   // Optimistically update the rail status so the UI reflects "applying"
   // immediately, even if the watcher was not active before the apply started.
   const sessionId = sessionStore.activeSession?.id;
@@ -74,38 +71,32 @@ async function startArchive(proposal: ProposalMeta): Promise<void> {
   if (!workspaceId.value) {
     return;
   }
-  const previousChangeId = proposal.id;
-  await proposalRunStore.startArchive(workspaceId.value, previousChangeId);
+  const proposalRef = proposal.proposalRef;
+  await proposalRunStore.startArchive(workspaceId.value, proposalRef);
   await proposalStore.loadProposals();
 
   const sessionId = sessionStore.activeSession?.id;
-  const nextProposal = findLatestProposal(previousChangeId);
+  const nextProposal = findLatestProposal(proposalRef);
   if (!sessionId || !nextProposal) {
     return;
   }
 
-  if (nextProposal.id !== previousChangeId) {
-    sessionStore.removeSessionProposal(sessionId, previousChangeId);
-  }
   sessionStore.upsertSessionProposal(sessionId, nextProposal);
 }
 
-function syncSessionProposalFromStore(previousChangeId: string): void {
+function syncSessionProposalFromStore(proposalRef: ProposalRef): void {
   const sessionId = sessionStore.activeSession?.id;
-  const nextProposal = findLatestProposal(previousChangeId);
+  const nextProposal = findLatestProposal(proposalRef);
   if (!sessionId || !nextProposal) {
     return;
   }
 
-  if (nextProposal.id !== previousChangeId) {
-    sessionStore.removeSessionProposal(sessionId, previousChangeId);
-  }
   sessionStore.upsertSessionProposal(sessionId, nextProposal);
 }
 
 async function viewDetail(proposal: ProposalMeta): Promise<void> {
-  await openProposalDetail(proposal.id);
-  syncSessionProposalFromStore(proposal.id);
+  await openProposalDetail(proposal.proposalRef);
+  syncSessionProposalFromStore(proposal.proposalRef);
 }
 
 function proposalSummary(proposal: ProposalMeta): string {
@@ -157,7 +148,7 @@ function taskProgressLabel(proposal: ProposalMeta): string {
     <div v-show="!collapsed" class="space-y-2">
       <UiSurface
         v-for="proposal in proposals"
-        :key="proposal.id"
+        :key="proposalRefKey(proposal.proposalRef)"
         variant="flat"
         padding="sm"
         class="space-y-2 border border-default"
@@ -199,7 +190,10 @@ function taskProgressLabel(proposal: ProposalMeta): string {
                 ].label
               }}
             </UBadge>
-            <ProposalWorktreeBadge :worktree-path="proposal.worktreePath" />
+            <ProposalWorktreeBadge
+              v-if="proposal.worktreeMode === 'linked'"
+              :worktree-path="proposal.worktreePath"
+            />
           </div>
         </div>
 
@@ -215,6 +209,10 @@ function taskProgressLabel(proposal: ProposalMeta): string {
           class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted"
           data-test="chat-proposal-meta"
         >
+          <span class="inline-flex min-w-0 items-center gap-1">
+            <UIcon name="i-lucide-folder-git-2" class="size-3 shrink-0" />
+            <span class="truncate">{{ proposal.folderName }}</span>
+          </span>
           <span class="inline-flex min-w-0 items-center gap-1">
             <UIcon name="i-lucide-calendar" class="size-3 shrink-0" />
             <span class="truncate">{{ createdDateLabel(proposal) }}</span>

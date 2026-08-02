@@ -1,24 +1,65 @@
-import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
+import type { ProposalMeta, ProposalRef, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 import { resolveWorkspace } from "@main/services/workspace/_public";
-import { readProposalFiles, readChangeFile } from "@main/infra/proposal/openspec-reader";
+import {
+  readChangeFileInTarget,
+  readRepositoryProposalFiles,
+} from "@main/infra/proposal/openspec-reader";
+import { listRegisteredWorktreePaths } from "@main/infra/git/worktree-reader";
 import { getProposalSpecDeltas as readProposalSpecDeltas } from "./proposal-spec-delta-service";
 
-// 该层仅做 workspaceId → Workspace cwd 的解析，实际文件扫描在 openspec-reader。
 export async function listProposals(workspaceId: string): Promise<ProposalMeta[]> {
-  return readProposalFiles((await resolveWorkspace(workspaceId)).cwd);
+  const workspace = await resolveWorkspace(workspaceId);
+  const perFolder = await Promise.all(
+    workspace.availableFolders.map(async (folder) => {
+      try {
+        const registered = await listRegisteredWorktreePaths(folder.folderPath);
+        return await readRepositoryProposalFiles({
+          folderId: folder.folderId,
+          folderName: folder.folderName,
+          folderPath: folder.folderPath,
+          registeredWorktreePaths: registered.paths,
+        });
+      } catch {
+        return [];
+      }
+    })
+  );
+  return perFolder
+    .flat()
+    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+}
+
+export async function resolveProposalMeta(
+  workspaceId: string,
+  proposalRef: ProposalRef
+): Promise<ProposalMeta> {
+  const proposal = (await listProposals(workspaceId)).find(
+    (candidate) =>
+      candidate.proposalRef.folderId === proposalRef.folderId &&
+      candidate.proposalRef.changeId === proposalRef.changeId
+  );
+  if (!proposal) {
+    throw Object.assign(new Error(`Proposal not found: ${proposalRef.changeId}`), {
+      code: "PROPOSAL_NOT_FOUND",
+      details: { workspaceId, proposalRef },
+    });
+  }
+  return proposal;
 }
 
 export async function readProposalFile(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   filename: string
 ): Promise<string | null> {
-  return readChangeFile((await resolveWorkspace(workspaceId)).cwd, changeId, filename);
+  const proposal = await resolveProposalMeta(workspaceId, proposalRef);
+  return readChangeFileInTarget(proposal.worktreePath, proposalRef.changeId, filename);
 }
 
 export async function getProposalSpecDeltas(
   workspaceId: string,
-  changeId: string
+  proposalRef: ProposalRef
 ): Promise<ProposalSpecDeltaOverview> {
-  return readProposalSpecDeltas((await resolveWorkspace(workspaceId)).cwd, changeId);
+  const proposal = await resolveProposalMeta(workspaceId, proposalRef);
+  return readProposalSpecDeltas(proposal.worktreePath, proposalRef.changeId);
 }

@@ -1,17 +1,18 @@
 import { useOverlay } from "@nuxt/ui/composables";
 import ProposalDetailSlideover from "@renderer/components/proposal/ProposalDetailSlideover.vue";
+import type { ProposalRef } from "@shared/types/proposal";
 
 export function useProposalDetailSlideover(): {
-  openProposalDetail: (changeId: string) => Promise<void>;
+  openProposalDetail: (proposalRef: ProposalRef) => Promise<void>;
 } {
   const overlay = useOverlay();
 
-  async function openProposalDetail(changeId: string): Promise<void> {
+  async function openProposalDetail(proposalRef: ProposalRef): Promise<void> {
     const slideover = overlay.create(ProposalDetailSlideover, {
       destroyOnClose: true,
     });
 
-    const instance = slideover.open({ changeId });
+    const instance = slideover.open({ proposalRef });
     await instance.result;
   }
 

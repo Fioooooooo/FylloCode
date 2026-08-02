@@ -189,12 +189,16 @@ describe("readProposalFiles", () => {
     await expect(readProposalFiles(projectPath)).resolves.toEqual([
       expect.objectContaining({
         id: "main-change",
-        worktreePath: undefined,
+        proposalRef: { folderId: "legacy-unqualified", changeId: "main-change" },
+        worktreeMode: "main",
+        worktreePath: projectPath,
         status: "draft",
       }),
       expect.objectContaining({
-        id: "2026-05-19-old-change",
-        worktreePath: undefined,
+        id: "old-change",
+        proposalRef: { folderId: "legacy-unqualified", changeId: "old-change" },
+        worktreeMode: "main",
+        worktreePath: projectPath,
         status: "archived",
       }),
     ]);
@@ -283,7 +287,7 @@ describe("readProposalFiles", () => {
     });
   });
 
-  it("keeps archive and worktree entries when archive id carries the date prefix", async () => {
+  it("deduplicates archive and active worktree entries by canonical changeId", async () => {
     const archivedChangeDir = join(archiveDir, "2026-05-19-foo");
     const worktreePath = resolve(worktreesDir, "foo");
     const worktreeArchiveDir = join(worktreePath, "openspec", "changes", "archive");
@@ -305,8 +309,7 @@ describe("readProposalFiles", () => {
 
     const proposals = await readProposalFiles(projectPath);
     expect(proposals).toEqual([
-      expect.objectContaining({ id: "foo", worktreePath }),
-      expect.objectContaining({ id: "2026-05-19-foo", worktreePath: undefined }),
+      expect.objectContaining({ id: "foo", worktreeMode: "linked", worktreePath }),
     ]);
   });
 

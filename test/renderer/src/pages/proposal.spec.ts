@@ -36,6 +36,8 @@ vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
 function proposal(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
   return {
     id: "change-1",
+    proposalRef: { folderId: "folder-a", changeId: "change-1" },
+    folderName: "Repository A",
     title: "Change 1",
     status: "draft",
     why: "Why text",
@@ -43,6 +45,8 @@ function proposal(overrides: Partial<ProposalMeta> = {}): ProposalMeta {
     doneTasks: 1,
     hasDesign: true,
     date: "2026-06-12",
+    worktreeMode: "main",
+    worktreePath: "/repo-a",
     ...overrides,
   };
 }
@@ -56,12 +60,16 @@ describe("proposal list page", () => {
       proposal(),
       proposal({
         id: "change-2",
+        proposalRef: { folderId: "folder-b", changeId: "change-2" },
+        folderName: "Repository B",
         title: "Change 2",
         status: "applying",
+        worktreeMode: "linked",
         worktreePath: "/tmp/project/.worktrees/change-2",
       }),
       proposal({
         id: "2026-06-22-change-3",
+        proposalRef: { folderId: "folder-a", changeId: "change-3" },
         title: "Change 3",
         status: "archived",
       }),
@@ -105,7 +113,35 @@ describe("proposal list page", () => {
       .find((button) => button.text().includes("Change 1"))
       ?.trigger("click");
 
-    expect(mocks.openProposalDetail).toHaveBeenCalledWith("change-1");
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-a",
+      changeId: "change-1",
+    });
+  });
+
+  it("opens same-named proposals with their distinct Folder owner", async () => {
+    proposalsValue = [
+      proposal(),
+      proposal({
+        proposalRef: { folderId: "folder-b", changeId: "change-1" },
+        folderName: "Repository B",
+        title: "Change 1 in B",
+        worktreePath: "/repo-b",
+      }),
+    ];
+    const wrapper = mount(ProposalPage);
+    const items = wrapper.findAll('[data-test="proposal-list-item"]');
+
+    await items[1]!.trigger("click");
+
+    expect(mocks.openProposalDetail).toHaveBeenCalledWith({
+      folderId: "folder-b",
+      changeId: "change-1",
+    });
+    expect(wrapper.findAll('[data-test="proposal-owner"]').map((item) => item.text())).toEqual([
+      "Repository A",
+      "Repository B",
+    ]);
   });
 
   it("shows linked worktree indicator for proposals with a worktree path", () => {

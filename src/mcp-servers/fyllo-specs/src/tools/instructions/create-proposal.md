@@ -1,13 +1,14 @@
 Create or inspect an OpenSpec change using the provided `state`.
 
-**Input**: `targetPath` is required and must be the main repo root. The tool prepares the actual
-workspace and returns it in `state.workspace.path`.
+**Input**: `changeName` identifies the change and `folderId` selects its repository owner. The tool
+prepares the actual Git target and returns it in `state.target`.
 
-- Omit `workspaceMode` by default; the tool will use linked worktree mode.
-- Pass `workspaceMode: "main"` only when the user explicitly asks to work directly in the main
-  workspace.
-- After the tool returns, read and edit proposal artifacts under `state.workspace.path`. Do not infer
-  artifact paths from `targetPath` when `state.workspace.path` is present.
+- Omit `folderId` only when exactly one Folder is authorized for the activation.
+- Omit `worktreeMode` by default; the tool will use linked worktree mode.
+- Pass `worktreeMode: "main"` only when the user explicitly asks to work directly in the owner main
+  worktree.
+- After the tool returns, keep `state.target.proposalRef` as identity and read/edit artifacts under
+  `state.target.worktreePath`. Never infer an owner or target from `cwd` or an absolute caller path.
 
 `state.changeName` is the kebab-case name for this change.
 
@@ -16,8 +17,8 @@ workspace and returns it in `state.workspace.path`.
 1. **Check state**
 
    Read `state` to understand the current situation:
-   - `state.workspace`: the workspace `{ mode, path }` where all artifacts must be read and edited
-   - `state.warnings`: non-blocking workspace notes, such as non-git fallback to main workspace
+   - `state.target`: the `{ proposalRef, worktreeMode, worktreePath }` identity and artifact root
+   - `state.warnings`: non-blocking worktree notes
    - `state.artifacts`: list of artifacts with their status and instruction data
    - `state.applyRequires`: artifact IDs needed before implementation can start
    - `state.nextArtifact`: the next artifact ID that needs to be created (null if all done)
@@ -30,11 +31,11 @@ workspace and returns it in `state.workspace.path`.
 
    For each artifact where `status !== "done"` and dependencies are satisfied:
    - Read any completed dependency artifacts for context (paths are in `state.artifacts[*].outputPath`)
-   - Resolve those paths relative to `state.workspace.path` when you need to inspect or edit files
+   - Resolve those paths relative to `state.target.worktreePath` when you need to inspect or edit files
    - Create the artifact file using `state.template` as the structure
    - Apply `state.instruction` as guidance — but do NOT copy instruction/context/rules blocks into the file
    - Show brief progress: "Created <artifact-id>"
-   - After all required artifacts are complete, write `<state.workspace.path>/openspec/changes/<changeName>/.openspec.yaml` back with `status: draft` before ending the workflow.
+   - After all required artifacts are complete, write `<state.target.worktreePath>/openspec/changes/<changeName>/.openspec.yaml` back with `status: draft` before ending the workflow.
 
    If an artifact requires user input (unclear context), ask before proceeding.
 

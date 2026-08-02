@@ -11,9 +11,14 @@ import type {
 } from "@shared/types/chat";
 import type { FylloActionState } from "@shared/fyllo-action/protocol";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
-import type { LineageTaskRef } from "@shared/types/lineage";
+import type { LineageProposalLink, LineageTaskRef } from "@shared/types/lineage";
 import type { TaskSource } from "@shared/types/task";
-import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
+import {
+  proposalRefKey,
+  type ProposalMeta,
+  type ProposalRef,
+  type ProposalStatusChangedPayload,
+} from "@shared/types/proposal";
 import type { SessionWorkspaceFolderSnapshot, WorkspaceFolderInfo } from "@shared/types/workspace";
 import { chatApi } from "@renderer/api/session/chat";
 import { useAcpAgentsStore } from "../platform/acp-agents";
@@ -95,7 +100,7 @@ export interface SessionStore {
   ensureSessionOriginTaskInfo: (session: Session) => Promise<void>;
   getSessionProposals: (sessionId: string) => ProposalMeta[];
   upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
-  removeSessionProposal: (sessionId: string, changeId: string) => void;
+  removeSessionProposal: (sessionId: string, proposalRef: ProposalRef) => void;
   subscribeProposalStatus: () => () => void;
   createSession: (input: {
     workspaceId: string;
@@ -190,8 +195,10 @@ function stripArchiveProposalIdPrefix(proposalId: string): string {
 // Archived proposals are stored with a date prefix (e.g. 2026-07-13-change-id),
 // while live lineage links still reference the bare change id. Match both forms
 // so sessions correctly surface archived proposal cards after a restart.
-function isProposalLinkedToChangeId(proposal: ProposalMeta, changeId: string): boolean {
-  return proposal.id === changeId || stripArchiveProposalIdPrefix(proposal.id) === changeId;
+function isProposalLinked(proposal: ProposalMeta, link: LineageProposalLink): boolean {
+  const changeMatches =
+    proposal.id === link.changeId || stripArchiveProposalIdPrefix(proposal.id) === link.changeId;
+  return changeMatches && (!link.folderId || proposal.proposalRef.folderId === link.folderId);
 }
 
 export const useSessionStore = defineStore("session", (): SessionStore => {
@@ -340,7 +347,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
   function upsertSessionProposal(sessionId: string, proposal: ProposalMeta): void {
     const list = sessionProposals.value[sessionId] ?? [];
-    const index = list.findIndex((item) => item.id === proposal.id);
+    const key = proposalRefKey(proposal.proposalRef);
+    const index = list.findIndex((item) => proposalRefKey(item.proposalRef) === key);
     if (index >= 0) {
       list[index] = proposal;
     } else {
@@ -350,34 +358,31 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sessionProposals.value = { ...sessionProposals.value, [sessionId]: list };
   }
 
-  function removeSessionProposal(sessionId: string, changeId: string): void {
+  function removeSessionProposal(sessionId: string, proposalRef: ProposalRef): void {
     const list = sessionProposals.value[sessionId];
     if (!list) {
       return;
     }
-    const filtered = list.filter((item) => item.id !== changeId);
+    const key = proposalRefKey(proposalRef);
+    const filtered = list.filter((item) => proposalRefKey(item.proposalRef) !== key);
     if (filtered.length === list.length) {
       return;
     }
     sessionProposals.value = { ...sessionProposals.value, [sessionId]: filtered };
   }
 
-  function buildProposalMetaFromPayload(payload: ProposalStatusChangedPayload): ProposalMeta {
+  function buildProposalMetaFromPayload(
+    payload: ProposalStatusChangedPayload
+  ): ProposalMeta | null {
     const proposalStore = useProposalStore();
-    const existing = proposalStore.proposals.find((item) => item.id === payload.changeId);
+    const key = proposalRefKey(payload.proposalRef);
+    const existing = proposalStore.proposals.find(
+      (item) => proposalRefKey(item.proposalRef) === key
+    );
     if (existing) {
       return { ...existing, status: payload.status };
     }
-    return {
-      id: payload.changeId,
-      title: payload.changeId,
-      status: payload.status,
-      why: "",
-      totalTasks: 0,
-      doneTasks: 0,
-      hasDesign: false,
-      date: payload.updatedAt,
-    };
+    return null;
   }
 
   function ensureProposalWatched(proposal: ProposalMeta, sessionId: string): void {
@@ -386,7 +391,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     if (!workspaceId) {
       return;
     }
-    void useProposalStore().watchProposal({ workspaceId, changeId: proposal.id, sessionId });
+    void useProposalStore().watchProposal({ workspaceId, ...proposal.proposalRef, sessionId });
   }
 
   async function handleProposalStatusChanged(payload: ProposalStatusChangedPayload): Promise<void> {
@@ -396,19 +401,28 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       }
 
       if (payload.removed) {
-        removeSessionProposal(payload.sessionId, payload.changeId);
+        removeSessionProposal(payload.sessionId, payload.proposalRef);
         return;
       }
 
       const proposalStore = useProposalStore();
-      const existsInStore = proposalStore.proposals.some((item) => item.id === payload.changeId);
+      const payloadKey = proposalRefKey(payload.proposalRef);
+      const existsInStore = proposalStore.proposals.some(
+        (item) => proposalRefKey(item.proposalRef) === payloadKey
+      );
       if (!existsInStore && !proposalStore.loading) {
         await proposalStore.loadProposals();
       }
 
       const list = sessionProposals.value[payload.sessionId] ?? [];
       const proposal = buildProposalMetaFromPayload(payload);
-      if (!list.some((item) => item.id === payload.changeId) && proposal.status !== "archived") {
+      if (!proposal) {
+        return;
+      }
+      if (
+        !list.some((item) => proposalRefKey(item.proposalRef) === payloadKey) &&
+        proposal.status !== "archived"
+      ) {
         // Defensive: if a status push arrives for a proposal we are not yet
         // watching (e.g. after app restart), ensure the watcher is active so
         // future updates are also delivered.
@@ -460,10 +474,19 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       if (!result.ok) {
         return;
       }
-      const changeIds = new Set(result.data?.session.proposals.map((link) => link.changeId) ?? []);
-      const matched = proposalStore.proposals.filter((item) =>
-        [...changeIds].some((changeId) => isProposalLinkedToChangeId(item, changeId))
-      );
+      const links = result.data?.session.proposals ?? [];
+      const matchedByKey = new Map<string, ProposalMeta>();
+      for (const link of links) {
+        const candidates = proposalStore.proposals.filter((proposal) =>
+          isProposalLinked(proposal, link)
+        );
+        if (link.folderId || candidates.length === 1) {
+          for (const proposal of candidates) {
+            matchedByKey.set(proposalRefKey(proposal.proposalRef), proposal);
+          }
+        }
+      }
+      const matched = [...matchedByKey.values()];
       if (matched.length > 0) {
         sessionProposals.value = { ...sessionProposals.value, [sessionId]: matched };
         for (const proposal of matched) {

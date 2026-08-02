@@ -7,6 +7,23 @@ import type { MessageChunkData } from "@shared/types/ipc";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
+const proposalRef = { folderId: "folder-b", changeId: "change-1" };
+
+function persistedRun() {
+  return {
+    runId: "run-1",
+    proposalRef,
+    worktreePath: "/repo-b/.worktrees/change-1",
+    workflowId: "workflow-1",
+    stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" as const }],
+    currentStageIndex: 0,
+    stageAcpSessionIds: {},
+    status: "running" as const,
+    startedAt: "2026-05-08T00:00:00.000Z",
+    updatedAt: "2026-05-08T00:00:00.000Z",
+  };
+}
+
 vi.mock("@renderer/api/proposal/apply", () => ({
   proposalApplyApi: {
     apply: vi.fn(),
@@ -48,13 +65,14 @@ describe("useProposalRunStore", () => {
         stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" }],
       },
     });
+    vi.mocked(proposalApplyApi.loadRun).mockResolvedValue({ ok: true, data: persistedRun() });
     vi.mocked(proposalApplyApi.stageStream).mockImplementation((_input, callbacks) => {
       onChunk = callbacks.onChunk;
       return () => {};
     });
 
     const store = useProposalRunStore();
-    await store.startRun("project-1", "change-1", "workflow-1");
+    await store.startRun("project-1", proposalRef, "workflow-1");
 
     onChunk!({ kind: "user_message", message: userMessage("user-1") });
     onChunk!({ kind: "text_delta", text: "assistant" });
@@ -74,7 +92,7 @@ describe("useProposalRunStore", () => {
     });
 
     const store = useProposalRunStore();
-    const promise = store.startArchive("project-1", "change-1");
+    const promise = store.startArchive("project-1", proposalRef);
 
     onChunk!({ kind: "user_message", message: userMessage("archive-user") });
 
@@ -89,7 +107,8 @@ describe("useProposalRunStore", () => {
       ok: true,
       data: {
         runId: "archive-1",
-        changeId: "change-1",
+        proposalRef,
+        worktreePath: "/repo-b/.worktrees/change-1",
         status: "done",
         startedAt: "2026-05-08T00:00:00.000Z",
         updatedAt: "2026-05-08T00:00:01.000Z",
@@ -101,7 +120,7 @@ describe("useProposalRunStore", () => {
     });
 
     const store = useProposalRunStore();
-    await expect(store.resumeArchive("project-1", "change-1")).resolves.toBe(true);
+    await expect(store.resumeArchive("project-1", proposalRef)).resolves.toBe(true);
 
     expect(store.archiveRunMeta?.runId).toBe("archive-1");
     expect(store.runMeta?.workflowId).toBe("archive");
@@ -117,13 +136,14 @@ describe("useProposalRunStore", () => {
         stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" }],
       },
     });
+    vi.mocked(proposalApplyApi.loadRun).mockResolvedValue({ ok: true, data: persistedRun() });
     vi.mocked(proposalApplyApi.stageStream).mockImplementation((_input, callbacks) => {
       onChunk = callbacks.onChunk;
       return () => {};
     });
 
     const store = useProposalRunStore();
-    await store.startRun("project-1", "change-1", "workflow-1");
+    await store.startRun("project-1", proposalRef, "workflow-1");
 
     onChunk!({ kind: "reasoning_delta", text: "think " });
     onChunk!({ kind: "reasoning_delta", text: "more" });
@@ -143,13 +163,14 @@ describe("useProposalRunStore", () => {
         stages: [{ id: "stage-1", name: "Apply", type: "proposal-apply" }],
       },
     });
+    vi.mocked(proposalApplyApi.loadRun).mockResolvedValue({ ok: true, data: persistedRun() });
     vi.mocked(proposalApplyApi.stageStream).mockImplementation((_input, callbacks) => {
       onChunk = callbacks.onChunk;
       return () => {};
     });
 
     const store = useProposalRunStore();
-    await store.startRun("project-1", "change-1", "workflow-1");
+    await store.startRun("project-1", proposalRef, "workflow-1");
 
     onChunk!({
       kind: "available_commands_update",

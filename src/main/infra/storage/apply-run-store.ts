@@ -3,42 +3,54 @@ import { join } from "path";
 import logger from "@main/infra/logger";
 import { applyRunsDir } from "@main/infra/storage/workspace-paths";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
-import type { ApplyRunMeta, ArchiveRunMeta } from "@shared/types/proposal";
+import type { ApplyRunMeta, ArchiveRunMeta, ProposalRef } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
-export function applyRunDir(workspaceId: string, changeId: string): string {
+export function applyRunDir(workspaceId: string, proposalRef: ProposalRef): string {
+  return join(applyRunsDir(workspaceId), proposalRef.folderId, proposalRef.changeId);
+}
+
+function legacyApplyRunDir(workspaceId: string, changeId: string): string {
   return join(applyRunsDir(workspaceId), changeId);
 }
 
-function runMetaPath(workspaceId: string, changeId: string): string {
-  return join(applyRunDir(workspaceId, changeId), "run.json");
+function runMetaPath(workspaceId: string, proposalRef: ProposalRef): string {
+  return join(applyRunDir(workspaceId, proposalRef), "run.json");
 }
 
 export function stageMessagesPath(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   stageIndex: number
 ): string {
-  return join(applyRunDir(workspaceId, changeId), `stage-${stageIndex}.messages.jsonl`);
+  return join(applyRunDir(workspaceId, proposalRef), `stage-${stageIndex}.messages.jsonl`);
 }
 
-export function archiveRunMetaPath(workspaceId: string, changeId: string): string {
-  return join(applyRunDir(workspaceId, changeId), "archive.json");
+export function archiveRunMetaPath(workspaceId: string, proposalRef: ProposalRef): string {
+  return join(applyRunDir(workspaceId, proposalRef), "archive.json");
 }
 
-export function archiveMessagesPath(workspaceId: string, changeId: string): string {
-  return join(applyRunDir(workspaceId, changeId), "archive.messages.jsonl");
+export function archiveMessagesPath(workspaceId: string, proposalRef: ProposalRef): string {
+  return join(applyRunDir(workspaceId, proposalRef), "archive.messages.jsonl");
 }
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+async function readJsonIfExists<T>(path: string): Promise<T | null> {
+  try {
+    return JSON.parse(await fs.readFile(path, "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function saveApplyRunMeta(workspaceId: string, meta: ApplyRunMeta): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, meta.changeId));
+  await ensureDir(applyRunDir(workspaceId, meta.proposalRef));
   await fs.writeFile(
-    runMetaPath(workspaceId, meta.changeId),
+    runMetaPath(workspaceId, meta.proposalRef),
     JSON.stringify(meta, null, 2),
     "utf8"
   );
@@ -46,35 +58,42 @@ export async function saveApplyRunMeta(workspaceId: string, meta: ApplyRunMeta):
 
 export async function loadApplyRunMeta(
   workspaceId: string,
-  changeId: string
+  proposalRef: ProposalRef
 ): Promise<ApplyRunMeta | null> {
-  try {
-    const content = await fs.readFile(runMetaPath(workspaceId, changeId), "utf8");
-    return JSON.parse(content) as ApplyRunMeta;
-  } catch {
-    return null;
-  }
+  const current = await readJsonIfExists<ApplyRunMeta>(runMetaPath(workspaceId, proposalRef));
+  if (current) return current;
+
+  // Ownerless v1 runs remain visible for history, but activation rejects them.
+  return readJsonIfExists<ApplyRunMeta>(
+    join(legacyApplyRunDir(workspaceId, proposalRef.changeId), "run.json")
+  );
 }
 
 export async function updateRunMetaIfCurrent(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   runId: string,
   updater: (meta: ApplyRunMeta) => ApplyRunMeta
 ): Promise<void> {
-  const current = await loadApplyRunMeta(workspaceId, changeId);
-  if (!current || current.runId !== runId) return;
+  const current = await loadApplyRunMeta(workspaceId, proposalRef);
+  if (!current || current.runId !== runId || !sameProposalRef(current.proposalRef, proposalRef)) {
+    return;
+  }
   await saveApplyRunMeta(workspaceId, updater(current));
+}
+
+function sameProposalRef(left: ProposalRef | undefined, right: ProposalRef): boolean {
+  return left?.folderId === right.folderId && left.changeId === right.changeId;
 }
 
 export async function updateApplyRunStageAcpSessionId(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   runId: string,
   stageIndex: number,
   acpSessionId: string
 ): Promise<void> {
-  await updateRunMetaIfCurrent(workspaceId, changeId, runId, (meta) => ({
+  await updateRunMetaIfCurrent(workspaceId, proposalRef, runId, (meta) => ({
     ...meta,
     stageAcpSessionIds: {
       ...meta.stageAcpSessionIds,
@@ -86,13 +105,13 @@ export async function updateApplyRunStageAcpSessionId(
 
 export async function appendApplyRunMessage(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   stageIndex: number,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, changeId));
+  await ensureDir(applyRunDir(workspaceId, proposalRef));
   await fs.appendFile(
-    stageMessagesPath(workspaceId, changeId, stageIndex),
+    stageMessagesPath(workspaceId, proposalRef, stageIndex),
     `${JSON.stringify(message)}\n`,
     "utf8"
   );
@@ -100,21 +119,35 @@ export async function appendApplyRunMessage(
 
 export async function loadApplyRunMessages(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   stageIndex: number
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
-    const content = await fs.readFile(stageMessagesPath(workspaceId, changeId, stageIndex), "utf8");
+    const content = await fs.readFile(
+      stageMessagesPath(workspaceId, proposalRef, stageIndex),
+      "utf8"
+    );
     return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
-    return [];
+    try {
+      const legacyPath = join(
+        legacyApplyRunDir(workspaceId, proposalRef.changeId),
+        `stage-${stageIndex}.messages.jsonl`
+      );
+      return parseJsonlLines<UIMessage<MessageMeta>>(
+        await fs.readFile(legacyPath, "utf8"),
+        "apply-run-store"
+      );
+    } catch {
+      return [];
+    }
   }
 }
 
 export async function saveArchiveRunMeta(workspaceId: string, meta: ArchiveRunMeta): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, meta.changeId));
+  await ensureDir(applyRunDir(workspaceId, meta.proposalRef));
   await fs.writeFile(
-    archiveRunMetaPath(workspaceId, meta.changeId),
+    archiveRunMetaPath(workspaceId, meta.proposalRef),
     JSON.stringify(meta, null, 2),
     "utf8"
   );
@@ -122,25 +155,26 @@ export async function saveArchiveRunMeta(workspaceId: string, meta: ArchiveRunMe
 
 export async function loadArchiveRunMeta(
   workspaceId: string,
-  changeId: string
+  proposalRef: ProposalRef
 ): Promise<ArchiveRunMeta | null> {
-  try {
-    const content = await fs.readFile(archiveRunMetaPath(workspaceId, changeId), "utf8");
-    return JSON.parse(content) as ArchiveRunMeta;
-  } catch {
-    return null;
-  }
+  const current = await readJsonIfExists<ArchiveRunMeta>(
+    archiveRunMetaPath(workspaceId, proposalRef)
+  );
+  if (current) return current;
+  return readJsonIfExists<ArchiveRunMeta>(
+    join(legacyApplyRunDir(workspaceId, proposalRef.changeId), "archive.json")
+  );
 }
 
 export async function updateArchiveRunAcpSessionId(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   acpSessionId: string
 ): Promise<void> {
-  const existing = await loadArchiveRunMeta(workspaceId, changeId);
-  if (!existing) {
+  const existing = await loadArchiveRunMeta(workspaceId, proposalRef);
+  if (!existing || !sameProposalRef(existing.proposalRef, proposalRef)) {
     logger.warn(
-      `[apply-run-store] archive run meta missing while persisting acpSessionId for change ${changeId}`
+      `[apply-run-store] archive run meta missing or ownerless while persisting acpSessionId for change ${proposalRef.changeId}`
     );
     return;
   }
@@ -154,12 +188,12 @@ export async function updateArchiveRunAcpSessionId(
 
 export async function appendArchiveMessage(
   workspaceId: string,
-  changeId: string,
+  proposalRef: ProposalRef,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, changeId));
+  await ensureDir(applyRunDir(workspaceId, proposalRef));
   await fs.appendFile(
-    archiveMessagesPath(workspaceId, changeId),
+    archiveMessagesPath(workspaceId, proposalRef),
     `${JSON.stringify(message)}\n`,
     "utf8"
   );
@@ -167,12 +201,23 @@ export async function appendArchiveMessage(
 
 export async function loadArchiveMessages(
   workspaceId: string,
-  changeId: string
+  proposalRef: ProposalRef
 ): Promise<UIMessage<MessageMeta>[]> {
   try {
-    const content = await fs.readFile(archiveMessagesPath(workspaceId, changeId), "utf8");
+    const content = await fs.readFile(archiveMessagesPath(workspaceId, proposalRef), "utf8");
     return parseJsonlLines<UIMessage<MessageMeta>>(content, "apply-run-store");
   } catch {
-    return [];
+    try {
+      const legacyPath = join(
+        legacyApplyRunDir(workspaceId, proposalRef.changeId),
+        "archive.messages.jsonl"
+      );
+      return parseJsonlLines<UIMessage<MessageMeta>>(
+        await fs.readFile(legacyPath, "utf8"),
+        "apply-run-store"
+      );
+    } catch {
+      return [];
+    }
   }
 }

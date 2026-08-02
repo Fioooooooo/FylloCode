@@ -1,4 +1,19 @@
-import type { ApplyRunMeta, ProposalMeta, ProposalStatus } from "@shared/types/proposal";
+import {
+  proposalRefKey,
+  type ApplyRunMeta,
+  type ProposalMeta,
+  type ProposalStatus,
+} from "@shared/types/proposal";
+
+function runMatchesProposal(
+  runMeta: ApplyRunMeta | null | undefined,
+  proposal: ProposalMeta
+): boolean {
+  return Boolean(
+    runMeta?.proposalRef &&
+    proposalRefKey(runMeta.proposalRef) === proposalRefKey(proposal.proposalRef)
+  );
+}
 
 export type ProposalDisplayStatus = ProposalStatus | "archiveReady" | "archiving";
 
@@ -25,7 +40,7 @@ export function canArchiveProposal(
   return (
     proposal?.status === "applying" &&
     runMeta?.status === "done" &&
-    runMeta.changeId === proposal.id &&
+    runMatchesProposal(runMeta, proposal) &&
     !isArchiving
   );
 }
@@ -35,7 +50,12 @@ export function isArchivingProposal(
   runMeta: ApplyRunMeta | null | undefined,
   isArchiving: boolean
 ): boolean {
-  return proposal?.status === "applying" && isArchiving && runMeta?.changeId === proposal.id;
+  return Boolean(
+    proposal?.status === "applying" &&
+    isArchiving &&
+    proposal &&
+    runMatchesProposal(runMeta, proposal)
+  );
 }
 
 export function getProposalDisplayStatus(

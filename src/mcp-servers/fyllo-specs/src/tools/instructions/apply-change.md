@@ -6,6 +6,7 @@ Implement tasks from an OpenSpec change using the provided `state`.
 
    Read `state` to understand the current situation:
    - `state.changeName`: The change being implemented
+   - `state.target`: the trusted `{ proposalRef, worktreeMode, worktreePath }`; use its worktreePath as the artifact root and its ProposalRef for later calls
    - `state.schemaName`: The workflow being used (e.g., "spec-driven")
    - `state.applyState`: `"ready"` | `"blocked"` | `"all_done"`
    - `state.tasks`: Task list with line numbers, text, and done status
@@ -106,6 +107,7 @@ What would you like to do?
 **Guardrails**
 
 - Do not invoke the OpenSpec CLI directly. All status and apply instructions are provided through `state`.
+- Do not accept or reconstruct a target path from the caller; the tool has already resolved `state.target` from ProposalRef.
 - Always read `state.contextFiles` before starting implementation
 - Keep going through tasks until done or blocked
 - If a task is ambiguous, pause and ask before implementing

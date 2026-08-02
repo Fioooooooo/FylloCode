@@ -6,7 +6,7 @@ import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktre
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import { useProposalStore } from "@renderer/stores";
-import type { ProposalStatus } from "@shared/types/proposal";
+import { proposalRefKey, type ProposalRef, type ProposalStatus } from "@shared/types/proposal";
 
 const store = useProposalStore();
 const { openProposalDetail } = useProposalDetailSlideover();
@@ -25,8 +25,8 @@ const statusConfig: Record<
   archived: { label: "已归档", color: "neutral", variant: "outline" },
 };
 
-function openDetail(id: string): void {
-  void openProposalDetail(id);
+function openDetail(proposalRef: ProposalRef): void {
+  void openProposalDetail(proposalRef);
 }
 
 onMounted(() => {
@@ -77,13 +77,13 @@ onMounted(() => {
           <div v-else class="space-y-3" data-test="proposal-list">
             <UiSurface
               v-for="proposal in store.proposals"
-              :key="proposal.id"
+              :key="proposalRefKey(proposal.proposalRef)"
               as="button"
               interactive
               padding="sm"
               class="text-left w-full"
               data-test="proposal-list-item"
-              @click="openDetail(proposal.id)"
+              @click="openDetail(proposal.proposalRef)"
             >
               <div class="space-y-2.5">
                 <div class="flex items-start justify-between gap-3">
@@ -97,11 +97,18 @@ onMounted(() => {
                     >
                       {{ statusConfig[proposal.status].label }}
                     </UBadge>
-                    <ProposalWorktreeBadge :worktree-path="proposal.worktreePath" />
+                    <ProposalWorktreeBadge
+                      v-if="proposal.worktreeMode === 'linked'"
+                      :worktree-path="proposal.worktreePath"
+                    />
                   </div>
                 </div>
                 <p class="text-xs text-muted line-clamp-2 leading-relaxed">{{ proposal.why }}</p>
                 <div class="flex items-center gap-3 text-xs text-muted pt-0.5">
+                  <span class="flex min-w-0 items-center gap-1" data-test="proposal-owner">
+                    <UIcon name="i-lucide-folder-git-2" class="w-3 h-3 shrink-0" />
+                    <span class="truncate">{{ proposal.folderName }}</span>
+                  </span>
                   <span class="flex items-center gap-1">
                     <UIcon name="i-lucide-calendar" class="w-3 h-3" />
                     {{ proposal.date }}

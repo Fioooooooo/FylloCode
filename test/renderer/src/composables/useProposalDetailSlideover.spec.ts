@@ -12,13 +12,15 @@ describe("useProposalDetailSlideover", () => {
 
     const { openProposalDetail } = useProposalDetailSlideover();
 
-    await expect(openProposalDetail("change-1")).resolves.toBeUndefined();
+    await expect(
+      openProposalDetail({ folderId: "folder-a", changeId: "change-1" })
+    ).resolves.toBeUndefined();
 
     expect(overlay.create).toHaveBeenCalledWith(ProposalDetailSlideover, {
       destroyOnClose: true,
     });
     expect(overlay.create.mock.results[0].value.open).toHaveBeenCalledWith({
-      changeId: "change-1",
+      proposalRef: { folderId: "folder-a", changeId: "change-1" },
     });
   });
 });

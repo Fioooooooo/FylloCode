@@ -6,15 +6,16 @@ import {
   loadArchiveRunMeta,
   updateArchiveRunAcpSessionId,
 } from "@main/infra/storage/apply-run-store";
+import type { ProposalRef } from "@shared/types/proposal";
 
 export class ArchiveAcpSessionStore implements AcpSessionStore {
   constructor(
     private readonly workspaceId: string,
-    private readonly changeId: string
+    private readonly proposalRef: ProposalRef
   ) {}
 
   async loadRecoveryState(): Promise<AcpSessionRecoveryState> {
-    const meta = await loadArchiveRunMeta(this.workspaceId, this.changeId);
+    const meta = await loadArchiveRunMeta(this.workspaceId, this.proposalRef);
     return {
       acpSessionId: meta?.acpSessionId ?? null,
       configOptions: [],
@@ -22,6 +23,6 @@ export class ArchiveAcpSessionStore implements AcpSessionStore {
   }
 
   async persistAcpSessionId(acpSessionId: string): Promise<void> {
-    await updateArchiveRunAcpSessionId(this.workspaceId, this.changeId, acpSessionId);
+    await updateArchiveRunAcpSessionId(this.workspaceId, this.proposalRef, acpSessionId);
   }
 }

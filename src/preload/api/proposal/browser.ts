@@ -3,6 +3,7 @@ import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
 import type { IpcResponse } from "@shared/types/ipc";
 import type {
   ProposalMeta,
+  ProposalRef,
   ProposalSpecDeltaOverview,
   ProposalStatusChangedPayload,
 } from "@shared/types/proposal";
@@ -14,28 +15,29 @@ export const proposalBrowserApi = {
 
   readFile(
     workspaceId: string,
-    changeId: string,
+    proposalRef: ProposalRef,
     filename: string
   ): Promise<IpcResponse<string | null>> {
     return ipcRenderer.invoke(ProposalBrowserChannels.readFile, {
       workspaceId,
-      changeId,
+      ...proposalRef,
       filename,
     });
   },
 
   getSpecDeltas(
     workspaceId: string,
-    changeId: string
+    proposalRef: ProposalRef
   ): Promise<IpcResponse<ProposalSpecDeltaOverview>> {
-    return ipcRenderer.invoke(ProposalBrowserChannels.getSpecDeltas, { workspaceId, changeId });
+    return ipcRenderer.invoke(ProposalBrowserChannels.getSpecDeltas, {
+      workspaceId,
+      ...proposalRef,
+    });
   },
 
-  watch(input: {
-    workspaceId: string;
-    changeId: string;
-    sessionId: string;
-  }): Promise<IpcResponse<void>> {
+  watch(
+    input: { workspaceId: string; sessionId: string } & ProposalRef
+  ): Promise<IpcResponse<void>> {
     return ipcRenderer.invoke(ProposalBrowserChannels.watch, input);
   },
 

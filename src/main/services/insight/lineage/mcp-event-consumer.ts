@@ -7,7 +7,10 @@ import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { ensureChatSubject, recordPlan, recordProposal } from "./lineage-service";
 import { proposalStatusService } from "@main/services/proposal/_public";
-import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
+import {
+  getRequiredWorkspaceInfo,
+  resolveRepositoryTarget,
+} from "@main/services/workspace/_public";
 
 type ConsumerState = {
   watcher: nodeFs.FSWatcher | null;
@@ -32,10 +35,14 @@ function isMcpProposalEvent(value: unknown): value is McpProposalEvent {
     value.sessionId.length > 0 &&
     typeof value.workspaceId === "string" &&
     value.workspaceId.length > 0 &&
-    typeof value.folderId === "string" &&
-    value.folderId.length > 0 &&
-    typeof value.changeId === "string" &&
-    value.changeId.length > 0
+    isRecord(value.proposalRef) &&
+    typeof value.proposalRef.folderId === "string" &&
+    value.proposalRef.folderId.length > 0 &&
+    typeof value.proposalRef.changeId === "string" &&
+    value.proposalRef.changeId.length > 0 &&
+    (value.worktreeMode === "main" || value.worktreeMode === "linked") &&
+    typeof value.worktreePath === "string" &&
+    value.worktreePath.length > 0
   );
 }
 
@@ -88,29 +95,56 @@ async function consumeEventFile(
 
   try {
     const workspace = await getRequiredWorkspaceInfo(workspaceId);
-    const owner = workspace.folders.find((folder) => folder.folderId === event.folderId);
+    const folderId = event.tool === "create-proposal" ? event.proposalRef.folderId : event.folderId;
+    const owner = workspace.folders.find((folder) => folder.folderId === folderId);
     if (!owner || owner.pathMissing) {
       logger.warn(
-        `[lineage-mcp-event] skipped event with unauthorized Folder: workspace=${workspaceId} folder=${event.folderId}`
+        `[lineage-mcp-event] skipped event with unauthorized Folder: workspace=${workspaceId} folder=${folderId}`
       );
       return;
     }
+    if (event.tool === "create-proposal") {
+      const target = await resolveRepositoryTarget({
+        workspaceId,
+        folderId,
+        worktreePath: event.worktreePath,
+      });
+      const isMain = target.worktreePath === owner.folderPath;
+      if ((event.worktreeMode === "main") !== isMain) {
+        logger.warn(
+          `[lineage-mcp-event] skipped event with mismatched worktree mode: workspace=${workspaceId} folder=${folderId}`
+        );
+        return;
+      }
+    }
     let subject =
       event.tool === "create-proposal"
-        ? await recordProposal(workspaceId, event.sessionId, event.changeId, event.folderId)
+        ? await recordProposal(
+            workspaceId,
+            event.sessionId,
+            event.proposalRef.changeId,
+            event.proposalRef.folderId
+          )
         : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
 
     if (!subject) {
       await ensureChatSubject(workspaceId, event.sessionId);
       subject =
         event.tool === "create-proposal"
-          ? await recordProposal(workspaceId, event.sessionId, event.changeId, event.folderId)
+          ? await recordProposal(
+              workspaceId,
+              event.sessionId,
+              event.proposalRef.changeId,
+              event.proposalRef.folderId
+            )
           : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
     }
 
     if (!subject) {
       const target =
-        event.tool === "create-proposal" ? `change=${event.changeId}` : `plan=${event.planSlug}`;
+        event.tool === "create-proposal"
+          ? `change=${event.proposalRef.changeId}`
+          : `plan=${event.planSlug}`;
       logger.warn(
         `[lineage-mcp-event] event could not be linked; session=${event.sessionId} ${target}`
       );
@@ -120,8 +154,8 @@ async function consumeEventFile(
     if (event.tool === "create-proposal") {
       proposalStatusService.watchProposal(
         workspaceId,
-        owner.folderPath,
-        event.changeId,
+        event.proposalRef,
+        event.worktreePath,
         event.sessionId
       );
     }

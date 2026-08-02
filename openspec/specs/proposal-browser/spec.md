@@ -8,54 +8,52 @@
 
 ### Requirement: Proposal page presents the complete proposal list
 
-系统 SHALL 将 `/proposal` 页面作为当前项目 proposal 的完整列表入口，不再在页面顶部展示本地统计卡或状态 tabs。
+系统 SHALL 将 `/proposal` 页面作为当前 Workspace 可用 Folder proposal 的完整列表入口，不在页面顶部展示本地统计卡或状态 tabs。列表、detail selection、IPC lookup与Vue key SHALL 使用完整ProposalRef；跨Folder同名change SHALL 同时展示并分别打开。
 
 #### Scenario: Loaded proposal list is shown without local status filtering
 
-- **WHEN** 用户打开 `/proposal` 且 `proposal:browser:list` 返回多个不同状态的 proposal
-- **THEN** 页面 SHALL 展示返回列表中的完整 proposal 集合
-- **AND** 页面 SHALL NOT 展示页面级 proposal 数量统计卡
-- **AND** 页面 SHALL NOT 展示用于按 proposal 状态过滤列表的 tabs
+- **WHEN**用户打开`/proposal`且browser list返回多个Folder、多个状态的proposal
+- **THEN**页面 SHALL 展示返回列表中的完整proposal集合
+- **AND**页面 SHALL NOT 展示页面级proposal数量统计卡
+- **AND**页面 SHALL NOT 展示按proposal状态过滤的tabs
 
-#### Scenario: Proposal card still opens proposal detail
+#### Scenario: 跨 Folder 同名 proposal 分别打开
 
-- **WHEN** 用户点击 `/proposal` 页面中的 proposal 卡片
-- **THEN** 系统 SHALL 使用该 proposal 的 `id` 打开现有 proposal detail slideover
-- **AND** 系统 SHALL NOT 导航到新的 proposal 子路由或内嵌详情 pane
+- **WHEN**列表包含Folder A和Folder B中changeId相同的proposal
+- **THEN**两个卡片 SHALL 使用各自ProposalRef作为稳定key
+- **AND**点击任一卡片 SHALL 以该ProposalRef打开现有proposal detail slideover
+- **AND**系统 SHALL NOT 导航到新的proposal子路由或内嵌详情pane
 
 #### Scenario: Empty proposal list remains explicit
 
-- **WHEN** `/proposal` 页面加载成功且 `proposal:browser:list` 返回空列表
-- **THEN** 页面 SHALL 展示 proposal 空状态
-- **AND** 空状态 SHALL NOT 说明用户需要切换筛选条件
+- **WHEN**`/proposal`页面加载成功且所有可读Folder都没有proposal
+- **THEN**页面 SHALL 展示proposal空状态
+- **AND**空状态 SHALL NOT 说明用户需要切换筛选条件
 
 ### Requirement: Proposal cards indicate linked worktree usage
 
-系统 SHALL 在 proposal 卡片使用的 proposal metadata 包含 `worktreePath` 时展示 linked worktree indicator，并允许用户查看实际 worktree 路径。
+系统 SHALL 在proposal卡片展示owner Folder identity；当metadata的`worktreeMode`为`linked`时 SHALL 展示linked worktree indicator并允许查看完整`worktreePath`。EventRail持有的proposal卡片 SHALL 使用ProposalRef查找metadata，不能按裸changeId匹配其他Folder项。
 
 #### Scenario: Proposal list card has linked worktree
 
-- **WHEN** `/proposal` 页面展示的 proposal metadata 包含非空 `worktreePath`
-- **THEN** 该 proposal 卡片 SHALL 展示 linked worktree icon
-- **AND** 用户 hover 或 focus 该 icon 时 SHALL 能看到该 proposal 使用的完整 `worktreePath`
+- **WHEN**`/proposal`页面展示的proposal target为linked worktree
+- **THEN**卡片 SHALL 展示owner Folder名称与linked worktree icon
+- **AND**用户hover或focus icon时 SHALL 能看到完整worktreePath
 
-#### Scenario: EventRail proposal card has linked worktree
+#### Scenario: Main worktree proposal card
 
-- **WHEN** 对话页 EventRail 的 proposal 卡片 metadata 包含非空 `worktreePath`
-- **THEN** 该 proposal 卡片 SHALL 展示 linked worktree icon
-- **AND** 用户 hover 或 focus 该 icon 时 SHALL 能看到该 proposal 使用的完整 `worktreePath`
+- **WHEN**proposal target的worktreeMode为main
+- **THEN**卡片 SHALL 展示owner Folder名称
+- **AND** SHALL NOT 展示linked worktree icon或为其保留可见占位
 
-#### Scenario: EventRail proposal card shows proposal context
+#### Scenario: EventRail proposal card resolves by ProposalRef
 
-- **WHEN** 对话页 EventRail 展示 proposal 卡片
-- **THEN** 该 proposal 卡片 SHALL 展示 proposal 标题、状态和创建时间信息
-- **AND** 创建时间信息 SHALL 使用与 overview active change 一致的 `timeAgo` 文案，且 SHALL NOT 添加固定的“创建于”前缀
-- **AND** 当 proposal metadata 包含非空 `why` 摘要时，卡片 SHALL 展示该摘要而不是 `changeId`
-- **AND** 当 `totalTasks` 大于 0 时，卡片 SHALL 展示 `doneTasks/totalTasks` 任务进度
-- **AND** 卡片 SHALL NOT 将 `changeId` 作为主要用户可见描述文本
+- **WHEN**EventRail展示Folder B的ProposalRef且Folder A存在同名change
+- **THEN**卡片 SHALL 使用Folder B的metadata展示标题、状态、owner、创建时间、why与任务进度
+- **AND** SHALL NOT 读取Folder A同名proposal的metadata或status
 
-#### Scenario: Proposal card has no linked worktree
+#### Scenario: Proposal status watcher is owner-qualified
 
-- **WHEN** proposal metadata 没有 `worktreePath`
-- **THEN** 对应 proposal 卡片 SHALL NOT 展示 linked worktree icon
-- **AND** 卡片布局 SHALL NOT 为缺失的 linked worktree indicator 保留可见占位
+- **WHEN**renderer同时watch同一Workspace中Folder A与Folder B的同名proposal
+- **THEN**watcher SHALL 按WorkspaceId与完整ProposalRef分别发出、取消和清理状态事件
+- **AND**一个owner的更新或移除 SHALL NOT 改写另一个owner的状态
