@@ -13,6 +13,7 @@ keywords: [migration, data, storage, upgrade, main]
 
 ## 执行模型
 
+- `src/main/index.ts` 在加载 `@main/bootstrap` 前同步取得 Electron 单实例锁；未取得锁的进程不会加载 migration runner 或其他启动期 app-data writer。该进程级门控是以下迁移执行模型的前置条件。
 - `src/main/bootstrap/index.ts` 在 `syncShellPath()` 之后 `await runAllMigrations()`，并在 bundled MCP host、IPC handler、窗口和 Agent 预热启动之前完成迁移。
 - `src/main/migrations/index.ts` 只负责把 `scripts/index.ts` 的注册表交给 `runMigrations()`。
 - `src/main/migrations/runner.ts` 将账本写入 `getDataSubPath("migrations")/migrations.json`。账本由可选的 `baselineId` 和 `executed` 记录组成。
@@ -43,6 +44,7 @@ keywords: [migration, data, storage, upgrade, main]
 
 ### 框架与兼容边界
 
+- MUST 依赖 `src/main/index.ts` 的单实例门保证同一时间只有持锁主实例进入 `runAllMigrations()`；Workspace cutover 等业务迁移不得另建持久化锁文件或跨进程锁来替代、绕过该启动门控。需要改变单实例或迁移并发语义时，必须先通过独立 OpenSpec proposal 明确契约。证据：`src/main/index.ts`、`src/main/bootstrap/index.ts`、`test/main/index.spec.ts`、`openspec/specs/single-instance-startup/spec.md`。
 - MUST 在新增迁移前检查旧版本用户是否可能只有 `projects` 和 `acp/installed.json` 之外的目标数据。如果现有新安装判定会把这类用户误判为 fresh install，不得只增加脚本；应先通过 proposal 明确并调整 baseline 判定。证据：`src/main/migrations/runner.ts` 的 `isNewInstall`。
 - MUST NOT 在普通迁移脚本变更中顺带改变账本 schema、baseline 规则、失败后继续/不重试语义或 bootstrap 执行时序。这些变化会改变持久化与升级契约，必须先通过 OpenSpec proposal 收敛并补齐 runner 测试。证据：`src/main/migrations/types.ts`、`src/main/migrations/runner.ts`、`test/main/migrations/runner.spec.ts`。
 

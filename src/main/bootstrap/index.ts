@@ -15,7 +15,11 @@ import logger from "@main/infra/logger";
 
 let shuttingDown = false;
 
-export async function bootstrapReady(): Promise<void> {
+export interface PrimaryInstanceController {
+  requestWindowAttention(): void;
+}
+
+export async function bootstrapReady(onWindowReady: () => void = () => undefined): Promise<void> {
   electronApp.setAppUserModelId("com.fyllocode.app");
 
   app.on("browser-window-created", (_event, window) => {
@@ -40,6 +44,7 @@ export async function bootstrapReady(): Promise<void> {
   setupAgentEventBroadcast(projectWindowManager);
   setupProposalStatusBroadcast(projectWindowManager);
   projectWindowManager.openLauncherWindow();
+  onWindowReady();
   scheduleInstalledAgentConnectionWarmup();
 
   app.on("activate", () => {
@@ -52,8 +57,37 @@ export async function bootstrapReady(): Promise<void> {
   });
 }
 
-export function startApp(): void {
-  app.whenReady().then(bootstrapReady);
+export function startApp(): PrimaryInstanceController {
+  let isWindowReady = false;
+  let hasPendingWindowAttention = false;
+
+  const focusOrOpenPrimaryWindow = (): void => {
+    if (!projectWindowManager.focusLastActiveWindow()) {
+      projectWindowManager.openLauncherWindow();
+    }
+  };
+
+  const controller: PrimaryInstanceController = {
+    requestWindowAttention(): void {
+      if (!isWindowReady) {
+        hasPendingWindowAttention = true;
+        return;
+      }
+
+      focusOrOpenPrimaryWindow();
+    },
+  };
+
+  app.whenReady().then(() =>
+    bootstrapReady(() => {
+      isWindowReady = true;
+
+      if (hasPendingWindowAttention) {
+        hasPendingWindowAttention = false;
+        focusOrOpenPrimaryWindow();
+      }
+    })
+  );
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
@@ -74,4 +108,6 @@ export function startApp(): void {
       app.exit(0);
     });
   });
+
+  return controller;
 }

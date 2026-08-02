@@ -30,6 +30,7 @@ vi.mock("electron", () => {
       getVersion: vi.fn(() => "0.0.0-test"),
       on: vi.fn(),
       whenReady: vi.fn(() => Promise.resolve()),
+      requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       exit: vi.fn(),
     },

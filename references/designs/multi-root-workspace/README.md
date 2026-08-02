@@ -1720,7 +1720,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### 23.3 Main
 
-- 单实例判定早于 `app.whenReady()` 和 migration runner；未取得锁的实例不启动 app-data writer；
+- 单实例启动前置 → `enforce-single-instance-startup` proposal / `single-instance-startup` spec：锁早于 bootstrap 与 app-data writer，第二实例退出或请求主实例窗口注意力；
 - Workspace window 唯一性；
 - Folder Workspace 与引用同一 Folder 的 Collection Workspace 窗口并存；
 - Workspace storage isolation；

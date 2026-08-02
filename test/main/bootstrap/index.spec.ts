@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   appOn: vi.fn(),
+  whenReady: vi.fn(),
   setAppUserModelId: vi.fn(),
   syncShellPath: vi.fn(),
   runAllMigrations: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("electron", () => ({
   app: {
     on: mocks.appOn,
     getVersion: () => "0.0.0-test",
-    whenReady: () => Promise.resolve(),
+    whenReady: mocks.whenReady,
   },
   BrowserWindow: {
     getAllWindows: () => [],
@@ -84,9 +85,11 @@ vi.mock("@main/infra/logger", () => ({
 describe("main bootstrap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.whenReady.mockResolvedValue(undefined);
     mocks.syncShellPath.mockResolvedValue(undefined);
     mocks.runAllMigrations.mockResolvedValue(undefined);
     mocks.initBuiltInWorkflows.mockReturnValue(new Promise<void>(() => undefined));
+    mocks.focusLastActiveWindow.mockReturnValue(true);
   });
 
   it("starts the MCP host without waiting for backend readiness before opening the window", async () => {
@@ -159,5 +162,55 @@ describe("main bootstrap", () => {
       "schedule-warmup",
     ]);
     expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
+  });
+
+  it("defers and coalesces window attention until the first window is ready", async () => {
+    const { startApp } = await import("@main/bootstrap/index");
+    const controller = startApp();
+
+    controller.requestWindowAttention();
+    controller.requestWindowAttention();
+
+    expect(mocks.focusLastActiveWindow).not.toHaveBeenCalled();
+    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
+    expect(mocks.scheduleInstalledAgentConnectionWarmup).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
+
+    expect(mocks.runAllMigrations).toHaveBeenCalledOnce();
+    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
+    expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
+    expect(mocks.openLauncherWindow.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.focusLastActiveWindow.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("focuses the last active window after bootstrap is ready", async () => {
+    const { startApp } = await import("@main/bootstrap/index");
+    const controller = startApp();
+
+    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
+    mocks.openLauncherWindow.mockClear();
+    mocks.focusLastActiveWindow.mockClear();
+
+    controller.requestWindowAttention();
+
+    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
+    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens the launcher when no existing window can be focused", async () => {
+    mocks.focusLastActiveWindow.mockReturnValue(false);
+    const { startApp } = await import("@main/bootstrap/index");
+    const controller = startApp();
+
+    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
+    mocks.openLauncherWindow.mockClear();
+    mocks.focusLastActiveWindow.mockClear();
+
+    controller.requestWindowAttention();
+
+    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
+    expect(mocks.openLauncherWindow).toHaveBeenCalledOnce();
   });
 });
