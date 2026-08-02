@@ -15,7 +15,9 @@ references/
 │   ├── domain-refactor/  # 领域重构参考设计
 │   ├── fyllo-action/     # Fyllo Action 架构整改方案
 │   ├── fyllo-spawn/      # fyllo-spawn MCP Server 设计
-│   └── knowledge-tool/   # Knowledge Tool 参考设计
+│   ├── knowledge-tool/   # Knowledge Tool 参考设计
+│   ├── multi-agent-collaboration/ # 多 Agent 协作契约（含 agent-review）
+│   └── multi-root-workspace/      # Multi-root Workspace 设计与评审记录
 └── third-party/          # 第三方协议、平台调研
     ├── acp/              # ACP 协议相关调研
     └── integrations/     # 第三方平台集成（云效等）
