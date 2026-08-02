@@ -43,7 +43,7 @@ cwd                当前 Agent session 的主工作目录
 
 1. 顶层领域对象只保留 `Workspace`，但持久化区分 `kind: "folder" | "collection"`。
 2. “打开文件夹”创建或复用成员不可编辑的 Folder Workspace；“创建 Workspace”始终创建成员可编辑的 Collection Workspace。
-3. Workspace 保存 `folderIds` 和 `primaryFolderId`，不保存虚假的 Workspace `path`；Folder Workspace 固定一个 Folder，Collection Workspace 可以包含一个或多个 Folder。
+3. Workspace 保存 `folderIds` 和 `primaryFolderId`，不保存虚假的 Workspace `path`；Folder Workspace 固定一个 Folder，Collection Workspace 在 v1 包含 1–16 个 Folder。
 4. Workspace-scoped 数据按 `workspaceId` 存储；repository-scoped 能力显式携带 `folderId`。
 5. Workspace chat 使用 primary `folderPath` 作为 `cwd`，其他有效成员的 `folderPath` 作为 ACP `additionalDirectories`。
 6. 只有当本次 Workspace session 的 `additionalDirectories` 非空时，ChatEmpty agent picker 才只允许选择明确支持 `sessionCapabilities.additionalDirectories` 的 Agent。
@@ -58,7 +58,7 @@ cwd                当前 Agent session 的主工作目录
 
 - launcher 只展示可打开的 Workspace。
 - “打开文件夹”创建或复用唯一的 Folder Workspace；“创建 Workspace”创建 Collection Workspace。
-- 用户可以创建、编辑、删除 Collection Workspace，并配置一个或多个 Folder 和一个 primary Folder；Folder Workspace 只允许修改显示名称或重新定位唯一 Folder。
+- 用户可以创建、编辑、删除 Collection Workspace，并配置 1–16 个 Folder 和一个 primary Folder；Folder Workspace 只允许修改显示名称或重新定位唯一 Folder。
 - Workspace chat 中 Agent 能以 primary Folder 为主目录访问所有有效 Folder。
 - Agent 创建 OpenSpec proposal 时，proposal 和 linked worktree 落到明确的 owner Folder。
 - specs、guidelines、proposal、Git、lineage 等 repository 能力不会错误地默认落到 primary Folder。
@@ -91,15 +91,15 @@ cwd                当前 Agent session 的主工作目录
 
 FylloCode 现有代码中已经有多种容易混淆的 “workspace”。本文将 `Workspace` 作为唯一顶层领域词，`Folder` 作为 Workspace 内部成员。`folder` 与 `collection` 是持久化种类；single-root 与 multi-root 只描述本次解析出的有效 Folder 数量，不能替代 `kind`。
 
-| 名称                             | 本文术语                 | 含义                                        |
-| -------------------------------- | ------------------------ | ------------------------------------------- |
-| launcher 可打开项                | **Workspace**            | 唯一顶层工作单元                            |
-| Workspace 内的目录               | **Workspace Folder**     | 可被一个或多个 Workspace 引用的成员目录     |
-| “打开文件夹”产生的 Workspace     | **Folder Workspace**     | `kind: "folder"`，固定绑定一个 Folder       |
-| “创建 Workspace”产生的 Workspace | **Collection Workspace** | `kind: "collection"`，包含一个或多个 Folder |
-| 一个有效 Folder 的运行状态       | **Single-root**          | 派生能力状态，不决定 Workspace kind         |
-| 多个有效 Folder 的运行状态       | **Multi-root**           | 派生能力状态，不决定 Workspace kind         |
-| Git 主工作树或关联工作树         | **Worktree**             | repository 操作实际使用的磁盘工作目录       |
+| 名称                             | 本文术语                 | 含义                                      |
+| -------------------------------- | ------------------------ | ----------------------------------------- |
+| launcher 可打开项                | **Workspace**            | 唯一顶层工作单元                          |
+| Workspace 内的目录               | **Workspace Folder**     | 可被一个或多个 Workspace 引用的成员目录   |
+| “打开文件夹”产生的 Workspace     | **Folder Workspace**     | `kind: "folder"`，固定绑定一个 Folder     |
+| “创建 Workspace”产生的 Workspace | **Collection Workspace** | `kind: "collection"`，包含 1–16 个 Folder |
+| 一个有效 Folder 的运行状态       | **Single-root**          | 派生能力状态，不决定 Workspace kind       |
+| 多个有效 Folder 的运行状态       | **Multi-root**           | 派生能力状态，不决定 Workspace kind       |
+| Git 主工作树或关联工作树         | **Worktree**             | repository 操作实际使用的磁盘工作目录     |
 
 正式实现中应避免用裸 `workspacePath` 同时表达当前 Workspace 和 Git worktree。推荐命名：
 
@@ -129,10 +129,11 @@ FylloCode 现有代码中已经有多种容易混淆的 “workspace”。本文
 
 - 一个打开窗口只绑定一个 `workspaceId`。
 - Workspace 至少包含一个 Folder，并且恰好一个 primary。
+- v1 的 Workspace 最多包含 16 个 Folder；创建、编辑和 upgrade repair 都必须拒绝超过上限的成员集合，不通过 reminder 分页或静默裁剪绕过该限制。
 - Workspace 必须持久化 `kind: "folder" | "collection"`，不能从 Folder 数量推断。
 - `kind` 创建后不可修改，不提供 Folder Workspace 与 Collection Workspace 的原地转换。
 - Folder Workspace 恰好包含一个 Folder，primary 必须是该 Folder，成员不可编辑。
-- Collection Workspace 包含一个或多个 Folder，primary 必须属于成员集合，成员可以编辑。
+- Collection Workspace 包含 1–16 个 Folder，primary 必须属于成员集合，成员可以编辑。
 - Collection Workspace 即使只有一个 Folder 也不能改写为 Folder Workspace。
 - `workspaceId` 不能直接用于推导 repository path。
 - repository-owned schema 的 `folderId` 必须属于当前 Workspace 的授权成员集合。
@@ -160,6 +161,7 @@ FylloCode 现有代码中已经有多种容易混淆的 “workspace”。本文
 - 已创建的 chat session 保存自己的目录快照。
 - 修改 primary Folder 只影响新 session 和没有固定 owner 的新操作。
 - 删除成员前必须处理仍引用该成员的 active session/proposal/run。
+- Session snapshot 只冻结本次授权的 identity/path，不永久覆盖 Workspace membership 撤销：非 active Session 引用的成员被移除后，历史内容保留，但该 Session 在成员重新加入前不得恢复 Agent 或重建 MCP/reminder activation。
 
 ## 6. 目标领域模型
 
@@ -175,6 +177,10 @@ interface WorkspaceMeta {
   id: string;
   name: string;
   kind: WorkspaceKind;
+  isDeleted: boolean;
+  deletedAt?: string;
+  cleanupState?: "restorable" | "purging" | "cleanup-failed";
+  legacyAppDataKey?: string;
   folderIds: string[];
   primaryFolderId: string;
   createdAt: string;
@@ -197,6 +203,8 @@ interface FolderMeta {
 - Folder registry 负责稳定的 `folderId → path` 映射和权威的 `canonical path → folderId` 反向解析；同一 Folder 可被多个 Workspace 引用而不复制 path/health。
 - `folderIds` 保留顺序，primary 不必固定为数组第一项。
 - `kind` 是持久化行为契约；`folderCount` 和 `isMultiRoot` 才是派生值。
+- `isDeleted` 是 Workspace tombstone；删除不得移除 meta 或依靠无法重建的不透明 `workspaceId` 留下孤儿 app-data。`isDeleted === false` 时不得保留 deletion fields；为 `true` 时必须有 `deletedAt` 与 `cleanupState`。只有 `restorable` 可以恢复；`purging` / `cleanup-failed` 只允许继续或重试永久清理，避免把已部分清理的数据重新开放为正常 Workspace。
+- `legacyAppDataKey` 只由 cutover 在全部 legacy Project 的 `encodeProjectPath(legacyProject.path)` 候选值中确认唯一后持久化，用于迁移保留期内证明某个 legacy source 可归属。`encodeProjectPath` 是有损变换，其候选值不保证全局唯一，不得被用作 Workspace identity、Folder path 或 registry/map key；候选值碰撞的迁移 Workspace 与 fresh Workspace 都不设置该字段。批量 legacy cleanup 成功删除对应 source/record 后必须清除。
 
 Folder registry 的身份与路径规则：
 
@@ -215,7 +223,7 @@ Folder registry 的身份与路径规则：
 | kind         | 创建入口       | 成员约束                                               | 成员编辑 |
 | ------------ | -------------- | ------------------------------------------------------ | -------- |
 | `folder`     | 打开文件夹     | 恰好一个 Folder，且 `primaryFolderId === folderIds[0]` | 禁止     |
-| `collection` | 创建 Workspace | 一个或多个 Folder，primary 必须属于成员集合            | 允许     |
+| `collection` | 创建 Workspace | 1–16 个 Folder，primary 必须属于成员集合               | 允许     |
 
 明确否决“无 kind、根据 Folder 数量推导类型”的方案，原因如下：
 
@@ -330,11 +338,13 @@ interface ResolvedRepositoryTarget {
 | chat lineage subjects             | Workspace                | `<appData>/workspaces/<workspaceId>/lineage/subjects/**`               |
 | proposal/commit reverse lineage   | Repository Folder        | `<appData>/workspace-folders/<folderId>/lineage/repository-index.json` |
 | MCP events                        | Workspace + Session      | `<appData>/workspaces/<workspaceId>/mcp-events/**`                     |
-| apply/archive runs                | Workspace + owner Folder | Workspace 目录存 run，meta 内固定 `folderId`                           |
+| apply/archive runs                | Workspace + owner Folder | Workspace 目录存 run，meta 内固定 `folderId + worktreePath`            |
 | specs/guidelines/OpenSpec changes | Repository               | `<worktreePath>/**`                                                    |
 | linked worktrees                  | Repository               | `<folderPath>/.worktrees/<changeId>`                                   |
 | ACP registry/capability cache     | Global                   | 保持现有全局 app-data                                                  |
 | provider credentials/connections  | Global                   | 保持现有全局 app-data                                                  |
+
+soft delete 只更新 launcher meta 中的 tombstone，保留表中全部 Workspace-scoped 数据。永久清理删除该 `workspaceId` 的 launcher meta、`<appData>/workspaces/<workspaceId>/**` 与 `<appData>/window-state/workspaces/<workspaceId>.json`；迁移保留期内还必须按 §20.3–§20.4 删除持久化 `legacyAppDataKey` 证明唯一归属的 active legacy source。候选 key 碰撞而未持久化 provenance 的 source 属于无法安全归属的 legacy orphan；不得把它、Folder registry 或 `<appData>/workspace-folders/<folderId>/**` 纳入单个 Workspace 清理。
 
 ### 7.2 `projectDir(projectPath)` 的迁移
 
@@ -344,19 +354,26 @@ interface ResolvedRepositoryTarget {
 <appData>/projects/<encodeProjectPath(projectPath)>
 ```
 
-现有 Project 的 `id` 本身就是 encoded path，因此迁移后的 Workspace 可保留该 ID，再把 helper 语义改为：
+迁移后的 Workspace 保留 `legacyProject.id` 是为了身份稳定，与该 ID 当前是否等于 `encodeProjectPath(legacyProject.path)` 无关；新运行期不得用两者的等式作为身份或存储前提。cutover 读取 legacy app-data 时，来源 key 必须按旧 helper 的真实调用语义由当前 meta 计算：
+
+```ts
+const candidateLegacyAppDataKey = encodeProjectPath(legacyProject.path);
+```
+
+不得用 `legacyProject.id` 代替该 source locator。`encodeProjectPath` 是有损变换，`candidateLegacyAppDataKey` 不保证全局唯一；cutover 必须在全部迁移候选上按该值分组，只有恰好命中一个 legacy Project 的候选值才可作为 `WorkspaceMeta.legacyAppDataKey` 持久化。碰撞组仍按既有 helper 指向的 source 完成 cutover，但组内 Workspace 均不持久化 provenance，不得把候选值用作 identity 或 registry/map key。目标 helper 再改为：
 
 ```ts
 workspaceDataDir(workspaceId);
 ```
 
-升级迁移负责把旧目录复制并转换到新的 `workspaces` namespace。初次 cutover 不移动或删除 `projects` 原目录，也不长期双写；只有必需的 Workspace 迁移在现有账本中记录为 `success` 后，正常 Workspace bootstrap 才能消费新目录。
+升级迁移负责把 `<appData>/projects/<candidateLegacyAppDataKey>` 复制并转换到新的 `workspaces` namespace。初次 cutover 不移动或删除 `projects` 原目录，也不长期双写；只有必需的 Workspace 迁移在现有账本中记录为 `success` 后，正常 Workspace bootstrap 才能消费新目录。不同 legacy Project 因有损编码共用该目录是 multi-root 之前的既有问题；本设计不尝试拆分或纠正其中数据，只禁止把该共享 source 错认成单一 Workspace 可删除的 provenance。
 
 迁移时需要注意：当前代码允许 Project path 更新但 ID 保持不变。新的稳定规则应明确：
 
 - app-data 永远按稳定 `workspaceId` 定位；
 - 修改 Folder path 不移动 Workspace app-data；
 - repository path 只从最新 Folder meta 解析；
+- cutover 只从当时读取的 legacy Project meta `path` 计算候选 source key；只有该候选在全部迁移 Project 中唯一时才持久化 `legacyAppDataKey`。后续单 Workspace source cleanup 只消费已持久化的 provenance，不从 legacy ID、迁移后的 Folder 当前 path、未持久化的碰撞候选或磁盘候选目录反推；
 - 旧 path-based helper 只存在于 migration 输入读取和明确的 upgrade repair 路径，不能成为新运行期 facade。
 
 ### 7.3 Workspace 数据不隐式继承
@@ -406,7 +423,15 @@ launcher 提供：
 - 编辑 Collection Workspace；
 - 从 Folder Workspace 基于当前 Folder 创建新的 Collection Workspace；
 - 打开最近的 Workspace；
-- 从最近列表移除。
+- 删除 Workspace（soft delete）；
+- 从 launcher 的“已删除的 Workspace”管理入口查看、恢复或永久删除 tombstone。
+
+launcher 默认列表只展示 `isDeleted === false` 的 Workspace。“已删除的 Workspace”是 launcher 中始终可达的次级管理视图，列出 tombstone 的名称、kind、Folder 摘要与 missing 状态，并提供：
+
+- **恢复 Workspace**：只对 `cleanupState === "restorable"` 提供；原子地把 `isDeleted` 置回 `false` 并清除 deletion fields，保留原 `workspaceId`、成员关系与全部 Workspace-owned app-data，再返回默认列表。恢复不自动改写 Folder/path；primary missing 时仍按 §8.3 进入修复入口，而不是伪造可打开状态。
+- **永久删除**：只对 `isDeleted === true` 的 Workspace 提供，使用危险操作样式和不可恢复的二次确认；迁移保留期内，确认文案明确当前 Workspace 与可唯一归属的 legacy copy 都会删除。无法安全归属的历史 orphan 不由该动作认领或删除，边界见 §17.3 与 §20.4。
+
+“打开文件夹”若解析到同 ID、但已 tombstone 的 Folder Workspace，不创建重复 Workspace，也不静默恢复；launcher 提示用户恢复该 Workspace 后再打开。Collection Workspace 没有可从磁盘路径重建的入口，始终通过上述“已删除的 Workspace”视图恢复。
 
 ### 8.2 Workspace 创建/编辑
 
@@ -414,17 +439,17 @@ launcher 提供：
 
 1. canonicalize 用户选择的 path。
 2. 通过原子的 `resolveOrCreateFolder()` 按 canonical path 解析已有 Folder；只有未命中时才分配新的不透明 `folderId` 并创建 `FolderMeta`。
-3. 以 `folderId` 作为 `workspaceId`，创建或复用 `kind: "folder"` 的 Workspace。
+3. 以 `folderId` 作为 `workspaceId`，创建或复用 `kind: "folder"` 的 active Workspace；新 meta 写入 `isDeleted: false` 且不带 deletion fields，命中 tombstone 时按 §8.1 提示恢复。
 4. 校验 `folderIds === [folderId]` 且 `primaryFolderId === folderId`。
 5. 打开固定 Workspace，因此重复打开时继续使用原 sessions/tasks/knowledge。
 
 “创建 Workspace”流程：
 
 1. 输入 Workspace 名称。
-2. 添加至少一个文件夹；Main canonicalize 后创建或复用 Folder registry entry。
+2. 添加 1–16 个文件夹；Main canonicalize 后创建或复用 Folder registry entry，超过 v1 上限时拒绝保存。
 3. 从成员中选择一个 primary Folder。
 4. 校验 canonical folder paths 不重复、不嵌套。
-5. 保存 `kind: "collection"` 的 Workspace meta；即使只有一个 Folder，kind 也不改变。
+5. 保存 `kind: "collection"`、`isDeleted: false` 且不带 deletion fields 的 Workspace meta；即使只有一个 Folder，kind 也不改变。
 6. 可选择立即打开。
 
 Folder Workspace：
@@ -441,6 +466,8 @@ Collection Workspace 编辑流程允许：
 - 移除成员；
 - 调整顺序；
 - 修改 primary。
+
+移除成员时，active probe/chat/apply/archive 等引用仍按 §17.3 阻止操作。非 active 但可恢复的 Session 不永久阻止移除；确认界面必须列出这些 Session，并明确说明它们会保留历史内容，但在该 `folderId` 重新加入 Workspace 前不能恢复 Agent、MCP 或发送新的路径相关请求。成员移除不得删除或改写这些 Session 的 snapshot。
 
 系统不提供 Folder Workspace → Collection Workspace 的原地转换，也不根据成员数量在两种 kind 间自动转换。
 
@@ -559,6 +586,7 @@ ACP 0.25.1 已在这些 lifecycle request 中提供 `additionalDirectories`；�
 ```ts
 interface SessionWorkspaceFolderSnapshot {
   folderId: string;
+  folderName: string;
   folderPath: string;
 }
 
@@ -574,11 +602,13 @@ interface SessionWorkspaceSnapshot {
 
 v1 规则：
 
-- 新 Session 固定当前 Workspace Folder paths。
+- 新 Session 固定当前 Workspace Folder identity、显示名称与 paths；`folderName` 是 reminder 的显示快照，`folderId` 与 `folderPath` 才是授权和路径校验字段。
 - `folders` 只包含创建 Session 时实际可用并授权给 Agent 的 Folder，missing 成员不进入 snapshot；其中必须恰好包含 `primaryFolderId`。`cwd` 必须等于 primary 的 snapshotted `folderPath`，`additionalDirectories` 必须按 `folders` 顺序等于其他成员路径，不能依靠两个无映射数组按下标猜 `folderId`。
 - Collection Workspace 编辑不热修改已有 ACP session；Folder Workspace 不允许编辑成员。
 - resume/load 使用持久化 snapshot，而不是当前 Workspace meta。
 - resume/load 和路径相关 MCP 调用先以 `folderId` 对照当前 Folder registry；path missing 时进入 `SESSION_FOLDER_PATH_MISSING`，同一 `folderId` 已重定位到其他 path 时进入 `SESSION_FOLDER_RELOCATED`。两种情况都不得静默改写 snapshot 或切换目录，用户修复 Folder 后仍需新建 Session。
+- resume/load 还必须校验 snapshot 中每个 `folderId` 仍属于当前 Workspace。成员已移除时进入 `SESSION_FOLDER_REMOVED`，不得依赖 Folder 仍存在于全局 registry 而恢复授权，也不得把 snapshot 静默裁剪为剩余成员；重新加入同一 `folderId` 后仍继续执行 path missing/relocated 校验。
+- Chat/probe reminder 的 Workspace 动态数据只能从这个 Session snapshot 投影；不得用当前 Workspace registry 补成员、替换 path 或刷新 `folderName`。stale 检测必须先于 Agent activation 与 reminder 注入；检测到 removed/missing/relocated 时不向 Agent 发送带部分成员或新路径的 reminder，而是拒绝 activation 并沿用上述明确错误。
 - Folder Workspace 和单 Folder Collection Workspace 都写入等价的单成员目录 snapshot；`workspaceKind` 保留两者的行为差异。
 
 ### 9.4 Apply/Archive Agent scope
@@ -637,6 +667,8 @@ descriptor 的 Folder 集合按 activation owner 决定，而不是无条件复�
 - 普通 Chat/probe activation 使用对应 Session snapshot 中实际授权的 Folder；
 - apply/archive activation 只包含 run meta 固定的 owner Folder，即使来源 Workspace 是 multi-root；
 - capability grant 的 `folders` 就是 tool resolver 的完整 allowlist，tool 不能回到 Workspace registry 扩大该集合。
+
+普通 Chat/probe 的 descriptor 只能在 §9.3 的 current membership 与 path stale 检测全部通过后生成。Session snapshot 中已有 Folder 被移出 Workspace 时，不得签发仍含该 Folder 的 grant，也不得通过只删除该 entry 的方式把 activation 降级为部分授权。
 
 MCP server 提供共享 resolver：
 
@@ -823,7 +855,7 @@ Workspace 中 explore 有两层行为：
 - 单个 Folder 扫描失败以带 `folderId` 的结构化 warning 返回，不隐藏其他 Folder 结果。
 - `currentChange` 有显式 `folderId` 时只在该 Folder 内解析；省略 owner 时，只有所有目标 Folder 扫描均成功且恰好匹配一个 `ProposalRef`，才返回该 `currentChange`。
 - 如果匹配多个 owner，返回 `PROPOSAL_OWNER_AMBIGUOUS` 和候选 `ProposalRef[]`；如果任一 Folder 扫描失败，唯一性无法证明，返回 `PROPOSAL_OWNER_UNVERIFIED` 并要求 caller 提供 `folderId`。两种情况都不得回退 primary、不得选择第一项。
-- Session snapshot 已 missing/relocated 时先服从 §9.3 的 stale 错误；不能通过重新读取当前 Workspace registry 扩大或改写本 activation 的扫描集合。
+- Session snapshot 已 removed/missing/relocated 时先服从 §9.3 的 stale 错误；不能通过重新读取当前 Workspace registry 扩大或改写本 activation 的扫描集合。
 
 ### 11.7 MCP events
 
@@ -1094,8 +1126,10 @@ Repository proposal 可以被多个 Workspace 浏览，但 task/session/knowledg
 Local task board 属于 Workspace：
 
 - upgrade migration 将旧 Workspace task 的 `projectId` 字段转换为 `workspaceId`；迁移后的 schema 不声明 `projectId`。
-- task 可以增加可选 `targetFolderIds`，用于提示可能涉及的 repositories；它不是 proposal owner。
-- 从 task 创建 proposal 时，如果 `targetFolderIds` 只有一个，可以预选 owner；否则仍需确认。
+- task 可以增加可选 `targetFolderIds`，用于提示可能涉及的 repositories；它不是 proposal owner。字段省略与空数组都表示“没有 repository hint”，ID 去重后保留用户选择顺序。
+- `targetFolderIds` 是软引用，不进入 §17.3 的成员移除阻塞检查。移除成员时不改写 task；读取时按当前 Workspace 成员集合投影为 `currentTargetFolderIds` 与 `staleTargetFolderIds`，UI 必须显示失效 target 数量并允许用户编辑，不能静默删除悬空 ID。
+- 从 task 创建 proposal 时，只有原始去重后的 `targetFolderIds` 恰好一个、该 ID 仍是当前成员且可作为 proposal owner 时，才可以预选 owner。原始 target 多于一个时，即使过滤后只剩一个有效成员也必须继续确认；成员移除不能静默改变默认 owner。
+- legacy task 迁移后省略 `targetFolderIds`，不根据迁移得到的唯一 Folder 猜测 repository hint。
 
 外部 task 的 repository metadata（例如 GitHub repository）可用于建议 owner，但不能绕过 Workspace membership 校验。
 
@@ -1151,6 +1185,14 @@ interface LocalFilePreviewWorkspaceContext {
 
 user-confirmed grant 对同一 canonical path 的文件替换是否继续有效，沿用 `local-file-link-preview` 现有契约；若要改成 inode/version-bound grant，应作为独立的 preview 安全契约变更，不借 multi-root 重定位改变。
 
+Window preview 与 Agent Session scope 可以有意不同，但差异必须对用户可见：
+
+- Workspace 新增/恢复成员后，§15.1 的 window preview 可以立即信任新 root；已有 Session snapshot、MCP descriptor 与 reminder 不扩张。Workspace 移除成员后则相反：window preview 立即停止自动信任，旧 Session 按 §9.3 进入 `SESSION_FOLDER_REMOVED`，不能恢复旧授权。
+- 从 Chat/Session 界面发起 preview 时，请求必须携带 `sessionId` 作为 scope-comparison context；Main 从 sender 取得 `workspaceId`、校验 Session 归属，再把 member-derived 结果与该 Session snapshot 比较。`sessionId` 不构成 path 授权，实际读取仍只由当前 Window/Workspace trusted roots 或 user-confirmed grant 决定。
+- preview 响应增加 `agentScope: "authorized" | "window-only"`。member-derived target 只有在 `folderId` 与 snapshotted `folderPath` 都匹配、且 Session 未 stale 时才是 `authorized`；新增/恢复但未进入旧 snapshot 的 Folder，以及 user-confirmed external target，均为 `window-only`。
+- `window-only` preview 继续允许用户查看，但 UI 必须说明“当前 Agent Session 无权访问此文件”，且不得直接持久化为 `WorkspaceFileResourceRef` 或 dispatch 给 Agent。用户可以新建 Session 获得当前成员授权，或显式上传为 §15.3 的 Workspace-owned attachment copy。
+- 非 Session 页面发起 preview 时不需要伪造 Agent scope；响应可以省略 `agentScope`。Chat header/Folder scope 以 Session snapshot 展示 Agent 实际授权，并在它与当前 Workspace 成员/primary 不同时显示“Session snapshot”提示，避免 current Workspace UI 被误解为旧 Session 的权限。
+
 ### 15.2 Owner projection
 
 trusted root candidate 使用可判别结构：
@@ -1197,22 +1239,35 @@ interface WorkspaceFileResourceRef {
 
 - `folderId` 表达 repository owner；`worktreePath` 表达捕获时的 main/registered worktree snapshot；`repositoryRelativePath` canonicalize 后不得逃逸该 worktree。不得持久化一个裸 absolute target path 并通过字符串前缀替换推导 owner 或重定位后的新位置。
 - 捕获、发送给 Agent、resume/load 或再次 preview 时，Main 都校验 `folderId` 存在于 `SessionWorkspaceSnapshot.folders`，并校验其中的 snapshotted `folderPath` 未进入 `SESSION_FOLDER_PATH_MISSING` / `SESSION_FOLDER_RELOCATED`；linked `worktreePath` 还必须仍属于该 Folder repository 的 registered worktree。
+- 上述校验还必须确认 `folderId` 仍属于当前 Workspace；成员已移除时返回 `SESSION_FOLDER_REMOVED`。Window-level `window-only` preview 不能绕过该检查转换为 member file resource link。
 - Folder 重定位后，旧 Session resource link 与 I12 一致进入 `SESSION_FOLDER_RELOCATED`，不得用相同 `folderId` 静默改写到新 `folderPath`。新增 Workspace 成员也不进入旧 Session snapshot，不能让旧 link 获得新目录授权。
 - worktree 被删除或取消注册时返回明确 unavailable/error，不回退到 main worktree 查找同名相对路径。
 
 ## 16. System Reminder
 
-Chat reminder 增加明确 Workspace block：
+Chat/probe reminder 增加明确 Workspace block。它描述的是本次 Agent activation 的固定授权，而不是当前 Workspace registry 的实时投影：
 
 ```xml
 <workspace>
-  primary folder
-  authorized folders
-  repository ownership rules
+  {"workspaceId":"...","workspaceKind":"collection","primaryFolderId":"...","folders":[...]}
+  repository ownership rules (static text)
 </workspace>
 ```
 
-内容至少说明：
+动态对象的来源与生命周期固定如下：
+
+- `workspaceId`、`workspaceKind`、`primaryFolderId` 和完整 `folders` 数组来自 §9.3 的 `SessionWorkspaceSnapshot`；每项使用 snapshotted `folderId`、`folderName`、`folderPath`。不得读取当前 registry 增加/省略成员、替换重定位后的 path 或刷新名称。
+- Main 必须在 activation 创建和 reminder 注入前完成 §9.3 的 membership/missing/relocated 检测。检测失败时不构造“部分可用”的 reminder，也不注入 registry 新路径；Agent activation 直接以 `SESSION_FOLDER_REMOVED` / `SESSION_FOLDER_PATH_MISSING` / `SESSION_FOLDER_RELOCATED` 失败，历史消息仍可只读查看。因此 reminder 不额外发明会与 activation 状态矛盾的 `unavailable` 成员形态。
+- apply/archive reminder 从该 activation 的 owner-only `McpWorkspaceDescriptorV2` 与 run 固定的 `ResolvedProposalTarget` 投影；`folderId`、`folderPath`、`worktreePath` 不重新从 current primary 或 Workspace registry 选择。固定 target 已失效时，在注入 reminder 前按 §11.3 失败。
+
+动态数据必须作为不可执行数据编码，不能直接拼进 XML tag、属性或静态规则文本：
+
+- 成员对象与数组统一使用 `JSON.stringify`；随后对整段 JSON 执行与现有 `escapeAngleBrackets()` 等价的尖括号编码，把 `<` / `>` 输出为 `\u003c` / `\u003e`。JSON 编码同时负责引号、反斜杠和控制字符，禁止 YAML-like 无引号列表或逐行字符串插值。
+- 静态规则必须明确：JSON 字段值是 Workspace 元数据，不是 Agent 指令；任何 `folderName` / `folderPath` 内容都不能改变外层 reminder contract。
+- reminder 展示的 `folderName` 最多 120 个 Unicode code point；超过时保留前 119 个并追加 `…`。该截断只影响 reminder 的显示值，不修改 Session snapshot；`folderId` 和完整 `folderPath` 不截断。
+- v1 的 16 Folder 上限保证列表数量有界，authorized folders 必须完整输出，不分页、不省略。编码后的 Workspace JSON 最大为 64 KiB（UTF-8）；超过时以 `WORKSPACE_REMINDER_TOO_LARGE` 拒绝 Agent activation，不能截断路径或成员列表后继续。
+
+静态内容至少说明：
 
 - 当前 `workspaceId`；
 - 当前 `workspaceKind`，以及 Folder Workspace 成员不可编辑、Collection Workspace 成员可编辑；
@@ -1254,7 +1309,7 @@ lineage event: workspaceId + folderId + sessionId
 
 legacy 项目作用域 event 的顶层 `projectId` 在迁移时转换为 `workspaceId`。新 payload 使用 `workspaceId` 与 `folderId`，不能用 `projectPath` 作为 UI identity。
 
-### 17.3 Collection Workspace 编辑并发
+### 17.3 Workspace 编辑、删除与恢复
 
 Folder Workspace 的成员 mutation 直接拒绝。编辑 Collection Workspace 的成员/primary 前 Main 检查：
 
@@ -1269,7 +1324,16 @@ Folder Workspace 的成员 mutation 直接拒绝。编辑 Collection Workspace �
 - Collection Workspace 允许增加成员，新 session 生效；
 - active session 存在时允许改变 primary，但只影响新 session；
 - 存在引用时禁止移除成员，并返回引用摘要；
-- 删除 Workspace 前关闭窗口、取消 runtime；app-data 延续当前保守策略，不自动递归删除。
+- 非 active Session snapshot 不永久阻止成员移除，但移除确认必须列出将进入 `SESSION_FOLDER_REMOVED` 的 Session；后续 activation 按 §9.3 拒绝，不得因 Folder 仍存在于全局 registry 而恢复。
+- task 的 `targetFolderIds` 是 §14.1 定义的提示性软引用，不属于这里的 active 引用，不阻止成员移除；移除后由 task 读取投影显式呈现 stale target。
+
+Workspace 删除与恢复采用 tombstone，而不是移除 meta：
+
+1. 用户确认删除后，Main 先关闭该 Workspace 窗口并取消 probe/chat/apply/archive、watcher、pending action、preview dispatch 等 Workspace runtime；无法安全停止时拒绝删除。随后原子地写入 `isDeleted: true`、当前 `deletedAt` 与 `cleanupState: "restorable"`，保留原 `workspaceId`、成员关系和全部 Workspace-owned app-data。
+2. launcher 默认列表与普通 window open 均排除 tombstone；通过 §8.1 的“已删除的 Workspace”视图可以发现并恢复。恢复只接受 `cleanupState === "restorable"`，把 `isDeleted` 置回 `false` 并清除 deletion fields，不生成新 ID、不搬迁数据、不自动修复 Folder；恢复后仍执行当前 Workspace invariants 与 §8.3 missing-path 检查。
+3. v1 不按时间自动清理 tombstone，也不在后台静默 GC。终态清理由用户在“已删除的 Workspace”视图显式触发“永久删除”，并经过不可恢复的二次确认。
+4. 永久清理只接受 `isDeleted === true` 且无 active window/runtime 的 Workspace。Main 先持久化 `cleanupState: "purging"`，再删除 §7.1 明确的 Workspace-owned app-data、Workspace window state，以及 §20.4 中由已持久化 `legacyAppDataKey` 证明唯一归属的 active legacy source/record，最后移除 Workspace meta；未持久化 provenance（包括候选 key 碰撞）时跳过 legacy source 删除，不阻止 current Workspace 数据完成永久清理。清理失败时把仍存在的 tombstone 标为 `cleanup-failed`，返回包含失败对象和重试操作的错误，不得报告成功。`purging` / `cleanup-failed` 在重启后只提供继续或重试永久清理，不提供恢复，以免重新开放可能已部分删除的数据。
+5. soft delete、恢复与永久清理按 `workspaceId` 串行化。永久清理不得删除或改写任何 `FolderMeta`、canonical path 反向索引、其他 Workspace meta/数据、repository worktree、`<appData>/workspace-folders/<folderId>/**`，或没有当前 legacy meta 明确归属的历史 orphan；即使该 Workspace 是某 Folder 的最后一个引用，Folder 生命周期也不由 Workspace 删除隐式决定。
 
 ### 17.4 Folder registry mutation 并发
 
@@ -1295,6 +1359,8 @@ currentWorkspace;
 workspaceKind;
 resolvedFolders;
 primaryFolder;
+activeSessionWorkspaceSnapshot;
+activeSessionScopeDiff;
 isFolderWorkspace;
 isCollectionWorkspace;
 isMultiRoot;
@@ -1303,14 +1369,18 @@ repositoryFilter;
 
 Launcher 路径从 `WorkspaceLauncherItem` 投影读取；组件不得从 `currentWorkspace` 无条件读取 `.path`。
 
+Workspace 全局 UI 使用当前 `ResolvedWorkspace`；Chat 的 Agent scope 使用 `activeSessionWorkspaceSnapshot`。`activeSessionScopeDiff` 至少表达 current-only Folder、snapshot-only Folder、primary 变化和 Folder 显示名称变化，并驱动 §15.1 的 Session snapshot 提示与 `window-only` preview 状态；组件不得用当前 `resolvedFolders` 冒充已有 Agent Session 的授权集合。
+
 ### 18.2 Navigation gating
 
-route meta 直接使用 `requiresWorkspace`，不保留 `requiresProject`。额外增加 capability gating：
+route meta 与 `src/renderer/src/config/activity-bar.ts` 的 `ActivityBarItem` 必须同步迁移到 `requiresWorkspace`，不保留 `requiresProject`。两处使用同一个 Workspace navigation gate evaluator；实施时全仓清点所有 `requiresProject` 读写点，不能只改 route meta。额外增加的 capability gating 也由该 evaluator 统一解释：
 
 - Chat：至少存在一个能满足本次 `additionalDirectories` 需求的 Agent；没有附加目录时沿用当前单根条件；
 - specs/guidelines/proposal：至少存在一个有效 member；
 - Git/health 页面：按成员部分可用；
 - Workspace-owned 页面（task/knowledge/workflow）在 secondary member missing 时仍可用。
+
+Activity bar 的 visible/disabled 状态与路由进入判断必须得到相同结果。task/knowledge/workflow 只要求窗口已绑定有效 Workspace，不以 `availableFolders.length` 或 secondary missing 状态禁用；repository/Git 类入口才消费对应 member capability。
 
 ### 18.3 Repository selector
 
@@ -1327,40 +1397,54 @@ Workspace primary 的视觉标记只表达默认 cwd，不暗示所有写操作�
 
 至少需要标准化以下错误：
 
-| 错误                                              | 行为                                                                             |
-| ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Workspace 不存在                                  | 页面级 Workspace error，清空旧 session state                                     |
-| Workspace 无成员                                  | 阻止保存；legacy corrupt meta 进入 repair state                                  |
-| Workspace kind 缺失或未知                         | 阻止打开并进入 repair state                                                      |
-| Folder Workspace 成员数不为 1                     | 阻止打开并进入 repair state                                                      |
-| Folder Workspace 的 workspaceId/folderId 不一致   | 阻止打开并进入 repair state                                                      |
-| 修改 Folder Workspace 成员                        | Main/IPC 拒绝                                                                    |
-| primary 不在成员中                                | 阻止打开并要求修复                                                               |
-| primary path missing                              | 阻止进入正常 Workspace                                                           |
-| secondary path missing                            | degraded mode，局部 warning                                                      |
-| folder paths 重复或嵌套                           | 阻止保存                                                                         |
-| Folder 重定位目标已被其他 Folder 占用             | 原子拒绝；返回 `occupiedByFolder`，不得自动合并                                  |
-| Folder 重定位只与部分引用 Workspace 冲突          | 原子拒绝；返回 `workspaceConflicts`，UI 提供进入对应 Workspace 编辑的操作        |
-| Folder 重定位仍有 Agent runtime 使用该 Folder     | `FOLDER_RELOCATION_ACTIVE_RUNTIME`；原子拒绝并引导关闭 Session/run 后重试        |
-| `additionalDirectories` 非空且 Agent 不支持       | picker 不允许选择                                                                |
-| `additionalDirectories` 非空且 capability unknown | 先刷新/探测，不乐观选择                                                          |
-| repository-owned schema 的 folderId 非成员        | Main/MCP 拒绝                                                                    |
-| proposal changeId 跨成员重名                      | 要求 ProposalRef，不猜 owner                                                     |
-| create-proposal 的 ProposalRef 已存在             | `PROPOSAL_ALREADY_EXISTS` + existing target；不写 event/origin                   |
-| explore 无 owner 且匹配多个 Folder                | `PROPOSAL_OWNER_AMBIGUOUS` + candidates                                          |
-| explore 无 owner 且任一目标 Folder 扫描失败       | `PROPOSAL_OWNER_UNVERIFIED`；要求显式 folderId                                   |
-| 同一 ProposalRef 出现多个 linked candidates       | `PROPOSAL_LOCATION_AMBIGUOUS`；不得任取一个                                      |
-| apply/archive 的已固定 target 消失或不再匹配      | 明确失败；不回退 main 或切换其他 worktree                                        |
-| apply/archive MCP 请求其他 Workspace member       | descriptor allowlist 拒绝                                                        |
-| tool 接受的 worktreePath 不属于 owner repository  | MCP 拒绝；apply/archive 不接收 caller path                                       |
-| session snapshot path missing                     | `SESSION_FOLDER_PATH_MISSING`；阻止 Agent 恢复，修复 Folder 后新建 Session       |
-| session snapshot path 已重定位                    | `SESSION_FOLDER_RELOCATED`；不跟随新路径，只允许查看持久化内容并要求新建 Session |
-| attachment handle 不属于 sender Workspace/Session | Main 拒绝；不得读取 renderer 提交的任意 `file://` URI                            |
-| member resource link 的 worktree 已移除/取消注册  | 返回 unavailable/error；不得回退 main worktree                                   |
-| member 被 active run 引用                         | 阻止移除并返回引用                                                               |
-| repository reader 合法无内容                      | `ready` + empty data，不显示错误                                                 |
-| 部分 repository reader 失败                       | 返回其他 ready data + 对应 Folder error；不得伪装为空                            |
-| Overview repository 汇总不完整                    | 返回 partial aggregate + 未计入 Folder，不标成完整总数                           |
+| 错误                                                    | 行为                                                                                   |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Workspace 不存在                                        | 页面级 Workspace error，清空旧 session state                                           |
+| Workspace 无成员                                        | 阻止保存；legacy corrupt meta 进入 repair state                                        |
+| Workspace kind 缺失或未知                               | 阻止打开并进入 repair state                                                            |
+| Workspace open · `isDeleted === true`                   | `WORKSPACE_DELETED`；不打开窗口，提供进入“已删除的 Workspace”恢复入口                  |
+| Workspace restore · cleanup 非 `restorable`             | 拒绝恢复；`purging` / `cleanup-failed` 只提供继续或重试永久清理                        |
+| Workspace permanent delete · 尚未 soft delete           | 拒绝清理；必须先完成关闭 runtime 的 soft delete                                        |
+| Workspace permanent delete · provenance source 无法删除 | 保留 `cleanup-failed` tombstone；不得回退 ID/current Folder path 或宣告成功            |
+| Workspace permanent delete · 清理失败                   | 保留 tombstone 并标记 `cleanup-failed`；报告失败对象并允许重试，不伪报成功             |
+| Folder Workspace 成员数不为 1                           | 阻止打开并进入 repair state                                                            |
+| Folder Workspace 的 workspaceId/folderId 不一致         | 阻止打开并进入 repair state                                                            |
+| 修改 Folder Workspace 成员                              | Main/IPC 拒绝                                                                          |
+| Workspace Folder 数量超过 16                            | 阻止创建、编辑或 repair 保存                                                           |
+| primary 不在成员中                                      | 阻止打开并要求修复                                                                     |
+| Workspace open · primary path missing                   | 阻止进入正常 Workspace，launcher 提供修复/重定位                                       |
+| Workspace open · secondary path missing                 | degraded mode，局部 warning                                                            |
+| folder paths 重复或嵌套                                 | 阻止保存                                                                               |
+| cutover · legacy ID 与当前 path key 不一致              | 保留 ID；app-data 只读 `encodeProjectPath(legacyProject.path)`，不读 `<projects>/<id>` |
+| cutover · 不同 path 的编码后 source key 碰撞            | 完成既有 source 读取，但碰撞组均不持久化 provenance；source 作为无法归属 orphan 保留   |
+| cutover · 当前 source 与历史目录并存                    | 只迁移当前 meta 指向的 source；历史目录保持 orphan，不合并、不覆盖                     |
+| Workspace permanent delete · 无 provenance              | 只清理 current Workspace 数据；跳过未认领 legacy source，不把候选 key 当作所有权证明   |
+| Folder 重定位目标已被其他 Folder 占用                   | 原子拒绝；返回 `occupiedByFolder`，不得自动合并                                        |
+| Folder 重定位只与部分引用 Workspace 冲突                | 原子拒绝；返回 `workspaceConflicts`，UI 提供进入对应 Workspace 编辑的操作              |
+| Folder 重定位仍有 Agent runtime 使用该 Folder           | `FOLDER_RELOCATION_ACTIVE_RUNTIME`；原子拒绝并引导关闭 Session/run 后重试              |
+| `additionalDirectories` 非空且 Agent 不支持             | picker 不允许选择                                                                      |
+| `additionalDirectories` 非空且 capability unknown       | 先刷新/探测，不乐观选择                                                                |
+| Workspace reminder JSON 超过 64 KiB                     | `WORKSPACE_REMINDER_TOO_LARGE`；拒绝 Agent activation，不截断路径或成员列表            |
+| repository-owned schema 的 folderId 非成员              | Main/MCP 拒绝                                                                          |
+| proposal changeId 跨成员重名                            | 要求 ProposalRef，不猜 owner                                                           |
+| create-proposal 的 ProposalRef 已存在                   | `PROPOSAL_ALREADY_EXISTS` + existing target；不写 event/origin                         |
+| explore 无 owner 且匹配多个 Folder                      | `PROPOSAL_OWNER_AMBIGUOUS` + candidates                                                |
+| explore 无 owner 且任一目标 Folder 扫描失败             | `PROPOSAL_OWNER_UNVERIFIED`；要求显式 folderId                                         |
+| 同一 ProposalRef 出现多个 linked candidates             | `PROPOSAL_LOCATION_AMBIGUOUS`；不得任取一个                                            |
+| apply/archive 的已固定 target 消失或不再匹配            | 明确失败；不回退 main 或切换其他 worktree                                              |
+| apply/archive MCP 请求其他 Workspace member             | descriptor allowlist 拒绝                                                              |
+| tool 接受的 worktreePath 不属于 owner repository        | MCP 拒绝；apply/archive 不接收 caller path                                             |
+| Session activation · snapshot member 已移出             | `SESSION_FOLDER_REMOVED`；保留历史但阻止 Agent 恢复，重新加入同一 Folder 后重试        |
+| Session activation · snapshot path missing              | `SESSION_FOLDER_PATH_MISSING`；阻止 Agent 恢复，修复 Folder 后新建 Session             |
+| Session activation · snapshot path 已重定位             | `SESSION_FOLDER_RELOCATED`；不跟随新路径，只允许查看持久化内容并要求新建 Session       |
+| attachment handle 不属于 sender Workspace/Session       | Main 拒绝；不得读取 renderer 提交的任意 `file://` URI                                  |
+| member resource link 的 worktree 已移除/取消注册        | 返回 unavailable/error；不得回退 main worktree                                         |
+| member 被 active run 引用                               | 阻止移除并返回引用                                                                     |
+| task target 已不是 Workspace member                     | 保留 soft ref 并显示 stale target；不得据剩余 target 自动预选 proposal owner           |
+| Chat preview target 不在 Session snapshot               | 允许按 Window trust 查看并标为 `window-only`；不得发送为 Agent resource                |
+| repository reader 合法无内容                            | `ready` + empty data，不显示错误                                                       |
+| 部分 repository reader 失败                             | 返回其他 ready data + 对应 Folder error；不得伪装为空                                  |
+| Overview repository 汇总不完整                          | 返回 partial aggregate + 未计入 Folder，不标成完整总数                                 |
 
 ## 20. 迁移策略
 
@@ -1401,15 +1485,22 @@ cutover 的进程级前置条件是应用已经通过独立 OpenSpec proposal �
 
 required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整数据形态：
 
-- **Meta**：每个 legacy Project 生成一个同 ID 的 `FolderMeta` 和 `kind: "folder"` 的 `WorkspaceMeta`；`folderIds` 只包含该 ID，primary 也是该 ID。有效的 `legacyProject.path` canonicalize 后成为 Folder 当前 path；missing path 保留最后已知绝对路径并等待 repair。`legacyProject.healthScore` 在存在时原样进入 `FolderMeta.healthScore`。即使 `legacyProject.id !== encodeProjectPath(legacyProject.path)`，也保留 legacy ID，并以有效 path 的 canonical 结果建立 Folder registry 反向解析；不得按当前 path 重新计算 ID。新运行期不长期保留 Project union/normalization。
-- **App-data**：`<appData>/projects/<id>` 的 Workspace-owned 内容复制到 `<appData>/workspaces/<workspaceId>`；Folder meta 与 repository reverse lineage 写入 `<appData>/workspace-folders/<folderId>`。
-- **Session**：legacy `projectId` 转换为 `workspaceId`；没有 Workspace snapshot 时，生成 `workspaceKind: "folder"` 的单成员 snapshot。
+- **Meta**：每个 legacy Project 生成一个同 ID、`kind: "folder"`、`isDeleted: false` 且没有 deletion fields 的 `WorkspaceMeta`，以及一个同 ID 的 `FolderMeta`；`folderIds` 只包含该 ID，primary 也是该 ID。cutover 先为每个 Project 计算 `candidateLegacyAppDataKey = encodeProjectPath(legacyProject.path)`，再对全部候选值分组；只有恰好命中一个 Project 的候选值才作为该 Workspace 的 `legacyAppDataKey` 持久化，直到对应 legacy source/record 被清理，碰撞组内 Workspace 均不设置该字段。有效的 `legacyProject.path` canonicalize 后成为 Folder 当前 path；missing path 保留最后已知绝对路径并等待 repair。`legacyProject.healthScore` 在存在时原样进入 `FolderMeta.healthScore`。即使 `legacyProject.id !== encodeProjectPath(legacyProject.path)`，也保留 legacy ID，并以有效 path 的 canonical 结果建立 Folder registry 反向解析；不得按当前 path 重新计算 ID。新运行期不长期保留 Project union/normalization。
+- **App-data**：只把 `<appData>/projects/<candidateLegacyAppDataKey>` 的 Workspace-owned 内容复制到 `<appData>/workspaces/<workspaceId>`；不得用 `legacyProject.id` 或迁移后可能继续变化的 Folder path 定位来源。候选 key 仅是旧 helper 的 source locator，不是全局唯一键；碰撞不改变旧 source 的读取行为，也不授予单 Workspace 删除该 source 的权利。Folder meta 与 repository reverse lineage 写入 `<appData>/workspace-folders/<folderId>`。
+- **Session**：legacy `projectId` 转换为 `workspaceId`；没有 Workspace snapshot 时，生成 `workspaceKind: "folder"` 且包含唯一 `{folderId, folderName, folderPath}` 的单成员 snapshot。
+- **Task**：legacy `projectId` 转换为 `workspaceId`；`targetFolderIds` 省略，不因 legacy Workspace 只有一个 Folder 而猜测 repository hint。
 - **Lineage**：Workspace subjects 进入 Workspace 数据目录；proposal/commit reverse entries 进入对应 Folder index，不跨 Folder 猜测 owner。legacy 单值 reverse entry 转换为单元素 `RepositoryLineageRelation[]`，`relation: "origin"`；`linkedAt` 优先取对应 proposal link 的 `createdAt`，commit 无独立时间时取所属 subject 的 `updatedAt`。无法唯一定位 Folder 或 subject 的条目保留源数据并令 required migration 失败，不以迁移时间或遍历顺序猜测。
 - **Knowledge**：缺少 owner 的 legacy file/package anchor 归属迁移得到的唯一 Folder；新 anchor 使用 `folderId`。
 
 每项转换都必须识别“旧形态”“已迁移形态”和“部分目标形态”。部分目标只有在来源与 ID 映射一致时才能补齐；冲突时保留 source 和 target，令 required migration 失败，不得选择一侧覆盖另一侧。
 
 如果多个 legacy Project 使用不同 ID，但有效 path canonicalize 后相同，cutover 不得按最近打开时间等启发式规则选择一个 ID，也不得自动合并两份 Workspace-owned 数据。迁移应保留全部 legacy source、报告冲突的 Project ID/path 并失败；后续显式 repair 必须先确定保留的稳定 Folder ID 和两份 Workspace-owned 数据的处置方式，再由新的迁移 ID 完成修复。
+
+legacy Project 时代已经只剩 `<appData>/projects/**` app-data、但没有对应 Project meta 的孤儿目录不参与本次 cutover：迁移不得猜测 path、Project ID、Workspace owner 或自动删除这些目录，也不得把它们绑定到新 Workspace。它们保持原样，后续若要提供扫描、认领或清理能力，必须由独立 maintenance proposal 定义。
+
+path 曾更新的 legacy Project 可能同时存在当前 active source `<appData>/projects/<encodeProjectPath(legacyProject.path)>` 与基于旧 path 的历史目录。cutover 只迁移当前 meta 明确指向的 active source；即使某个历史目录名恰好等于 `legacyProject.id`，也不得回退读取、合并或覆盖。历史目录按无法安全归属的 legacy orphan 保留，因为旧 path 可能已被其他 Project 复用；后续处置同样属于独立 maintenance proposal。
+
+`candidateLegacyAppDataKey` 的编码后碰撞与 canonical path 碰撞是两类不同情况：前者允许各 Workspace 按旧 helper 的既有 source 完成 cutover，但碰撞组不得持久化 `legacyAppDataKey`，共享 source 作为无法安全归属的 legacy orphan 保留；后者仍按上一段规则令 required cutover 失败。编码碰撞可能使旧目录内既有数据混合是 multi-root 之前的缺陷，不在本设计中拆分、去混或归责。
 
 ### 20.4 失败、repair 与 legacy cleanup
 
@@ -1418,7 +1509,9 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - `runAllMigrations()` 返回后，Main 按 runner 的跳过语义检查 required cutover：`executed` 中存在该 ID 时必须为 `success`；不存在执行记录时，只有 `requiredCutoverId <= baselineId` 才视为已满足。`failed` 记录不能被 baseline 条件覆盖。
 - required migration 存在 `failed` 记录，或旧安装的 `success` cutover 没有形成完整目标数据时，不启动依赖 Workspace 数据的 bundled MCP、IPC、普通 Launcher 和 Agent 预热；进入明确的升级失败/repair 状态。被 baseline 覆盖的 fresh install 不要求预先存在 Workspace/Folder 记录。
 - 该门控不能通过让原迁移 ID重试实现。修复已发布迁移必须提供新的迁移 ID，或另行通过 proposal 设计显式 repair 能力。
-- legacy `projects` 数据至少保留到 cutover 已稳定的后续版本。清理使用新的、更晚迁移 ID，并再次确认新数据完整；不得通过修改旧脚本补做删除。
+- legacy `projects` 数据默认至少保留到 cutover 已稳定的后续版本。批量清理使用新的、更晚迁移 ID，并再次确认新数据完整；不得通过修改旧脚本补做删除。成功清除某个 migrated Workspace 的 legacy source 与同 ID legacy meta record 后，同时清除其 `WorkspaceMeta.legacyAppDataKey`。该字段只在 candidate key 全局分组中恰好命中一个 Project 时持久化；字段存在才是仍需处理且可唯一归属 retained copy 的权威 provenance，原始 `encodeProjectPath` 结果本身不保证全局唯一，也不得作为 map/registry key。
+- 用户对单个 migrated Workspace 执行 §17.3 的显式永久删除是上述默认保留策略的例外：在删除 Workspace meta 前，Main 必须仅在该 meta 持有 `legacyAppDataKey` 时删除 `<appData>/projects/<legacyAppDataKey>`，并按稳定 legacy ID 删除对应 legacy Project meta record。不得改用 Workspace ID 作为目录 key、当前 Folder path、未持久化的 candidate key 或扫描候选目录。provenance 存在但来源无法删除，或任一 legacy/current 删除失败时，保留 `cleanup-failed` tombstone 并允许重试，不得报告“永久删除”成功。没有 provenance（包括 fresh Workspace、碰撞组或已由更晚 cleanup migration 清除）时跳过 legacy source 删除，current Workspace 清理仍可幂等成功。
+- path 更新遗留、编码碰撞组以及无当前 meta 明确指向的 legacy orphan 不属于单 Workspace 永久删除范围；既不因名称等于旧 ID 或 candidate key 而删除，也不阻止 current Workspace 数据的永久清理。产品文案中的“不可恢复”表示当前 Workspace 及其已持久化 provenance 证明唯一归属的 retained legacy copy 已清除；明确不承诺法证擦除或认领无法安全归属的历史孤儿目录。
 - runner、账本 schema、失败后继续/不重试语义保持不变。若决定改变这些框架行为，必须作为独立的 OpenSpec contract 变更并补齐 runner 测试。
 
 升级失败状态是用户可见行为，foundation proposal 必须明确展示、退出、降级或修复路径；参考设计不能只写“可恢复”而不定义产品行为。
@@ -1455,7 +1548,7 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 
 ### Phase 1：Workspace foundation
 
-- 引入 `WorkspaceKind`、`WorkspaceMeta`、`FolderMeta` 与完整 kind invariants。
+- 引入 `WorkspaceKind`、含 tombstone fields 的 `WorkspaceMeta`、`FolderMeta` 与完整 kind/deletion invariants。
 - 按 `DataMigrations` 规范实现并注册 Project → Workspace + Folder required cutover migration。
 - 实现 cutover status 检查与升级失败/repair 启动门控，不改变 runner 的失败不重试语义。
 - 实现 `ResolvedWorkspace` / `ResolvedRepositoryTarget`。
@@ -1472,7 +1565,7 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - Folder Workspace 拒绝成员 mutation；Collection Workspace 支持成员编辑；不提供 kind 原地转换。
 - primary、成员、missing path、重复/嵌套 folder path 校验。
 - Workspace window bootstrap 和 window state。
-- 删除/移除引用保护。
+- Workspace soft delete、launcher 已删除管理视图、恢复、显式永久清理，以及成员移除引用保护。
 
 退出条件：Workspace 可以安全创建、打开和编辑；Workspace Chat 在 Phase 3 完成前保持不可用。
 
@@ -1483,8 +1576,9 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - probe/new/load/resume lifecycle 传递 Folder paths。
 - SessionWorkspaceSnapshot 持久化。
 - local preview 从 sender 解析 Workspace，并按每次请求的 `availableFolders` 并行建立 member/worktree trusted roots；missing 成员排除，单成员 Git 探测失败只降级该成员 worktrees。
+- Chat preview 将实时 Window trust 与 Session snapshot 分开表达：响应标记 `authorized | window-only`，header 显示 scope diff；`window-only` target 不得发送给旧 Session Agent。
 - Session attachment copy 使用 Workspace/Session-scoped opaque handle；member file resource link 使用 `folderId + worktreePath + repositoryRelativePath` 并服从 Session snapshot。
-- system reminder 注入 Workspace。
+- system reminder 从 Session snapshot 注入完整 Workspace 授权列表，使用结构化安全编码、显示名称截断与总字节上限；stale activation 在 reminder 注入前失败。
 
 退出条件：需要附加目录时只有兼容 Agent 可以创建、恢复 Workspace chat；没有附加目录时不兼容 Agent 仍可按单 root session 使用。
 
@@ -1528,6 +1622,7 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 ### Phase 7：Automation 与剩余项目级能力
 
 - task/workflow/integration config 使用 Workspace storage。
+- task `targetFolderIds` 使用不阻塞成员移除的软引用，并显式投影 stale target；legacy task 不猜测 target。
 - repository-bound integration resource 增加 folder binding。
 - overview health aggregate。
 - local file links、action、plan、spawned session 等剩余调用点复核。
@@ -1586,7 +1681,9 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - Collection Workspace 至少一名成员、primary membership 和成员可编辑 invariants；
 - 单 Folder Collection Workspace 保持 `collection`，不按数量改写 kind；
 - Workspace resolution 与派生 single/multi-root 状态；
-- Session snapshot 保存明确的 `folderId → folderPath` 映射，目录列表与 primary/cwd invariants 一致；
+- Workspace 1–16 Folder 上限；
+- Workspace tombstone invariants：active meta 为 `isDeleted: false` 且无 deletion fields；deleted meta 必有 `deletedAt` 与合法 `cleanupState`；只有 `restorable` 可恢复；
+- Session snapshot 保存明确的 `folderId → folderName + folderPath` 映射，目录列表与 primary/cwd invariants 一致；
 - member/owner validation；
 - canonical path 反向解析先复用稳定 `folderId`，未命中才分配与路径无关的新 ID；
 - 全局 exact canonical path 唯一性，以及同一 Workspace 内的 member path duplicate/nesting；
@@ -1603,10 +1700,14 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - 有 `projects` 的旧安装执行 cutover；
 - legacy Project → 同 ID Folder + `kind: "folder"` Workspace；
 - legacy Project 的 `id` 与 `encodeProjectPath(meta.path)` 不一致时保留 legacy ID，并按当前 canonical path 建立反向解析；
+- legacy Project 的 path 曾更新、`id !== encodeProjectPath(meta.path)`，且 `<projects>/<id>` 与 `<projects>/<encodeProjectPath(meta.path)>` 含不同 fixture 时，只从当前 meta path 对应目录迁移 session/task/knowledge；cutover 后三类数据完整可读，旧 ID 目录保持 orphan 且不被合并；
 - 多个 legacy Project 的不同 ID 指向同一 canonical path 时保留全部 source、报告冲突并让 required cutover 失败，不自动择一或合并数据；
 - legacy `ProjectMeta.healthScore` 原样迁移到 `FolderMeta.healthScore`；
+- legacy Project 生成的 Workspace 为 `isDeleted: false`、无 deletion fields；cutover 按当前 meta path 计算 candidate key，只有全局分组中恰好命中一个 Project 时才持久化 `legacyAppDataKey`；fresh Workspace 与编码碰撞组不设置该字段；没有对应 Project meta 的 legacy app-data 孤儿目录保持原样，不猜测 owner、不自动删除；
+- 编码碰撞 fixture：`/Users/tao/work/my-app` 与 `/Users/tao/work/my/app` 得到同一 candidate key；两个 Workspace 均完成既有 source cutover，但都不持久化 `legacyAppDataKey`，共享 legacy source 保持未认领；该 fixture 不把旧目录内可能存在的数据混合纳入 multi-root 修复范围；
 - session、lineage、knowledge 和 Workspace-owned 目录转换；
-- legacy Session 生成包含唯一 `{folderId, folderPath}` 的 folders snapshot，不只迁移无映射的 path 数组；
+- legacy Session 生成包含唯一 `{folderId, folderName, folderPath}` 的 folders snapshot，不只迁移无映射的 path 数组；
+- legacy task 迁移 `projectId → workspaceId`，`targetFolderIds` 保持省略，不根据唯一 Folder 猜测；
 - 已迁移数据、缺失目录和不匹配旧 shape 安全 no-op；
 - 无关 JSON 字段与非目标文件保留；
 - 部分 target 一致时补齐，source/target 冲突时拒绝覆盖；
@@ -1623,6 +1724,13 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - Workspace window 唯一性；
 - Folder Workspace 与引用同一 Folder 的 Collection Workspace 窗口并存；
 - Workspace storage isolation；
+- soft delete 关闭窗口并取消 runtime 后只写 tombstone，默认 launcher/open 排除该 Workspace，但 Workspace meta、ID、成员与 app-data 均保留；
+- “已删除的 Workspace”视图能发现 `restorable` tombstone；恢复保留原 `workspaceId` 与数据，primary missing 时进入修复而不是伪装可打开；按 Folder path 再次打开 tombstoned Folder Workspace 时提示恢复且不创建重复 Workspace；
+- 永久清理只接受 tombstone，先持久化 `purging`，删除该 Workspace-owned app-data/window state；对 `legacyAppDataKey` 存在的 migrated Workspace 还删除该 key 对应 active legacy source 与同 ID legacy meta record，最后删除 Workspace meta；无 provenance 的碰撞组只清理 current Workspace 数据，不删除共享 legacy source；
+- 对上述编码碰撞 fixture 永久删除其中一个 Workspace 时，其 current app-data/meta 清理成功，共享 legacy source 保留，另一个 Workspace 不产生悬空 provenance；
+- migrated Workspace 永久清理不得用 legacy ID 作为目录 key、当前 Folder path 或目录扫描改选 legacy source；provenance 存在但 source 删除失败时保留 `cleanup-failed`，重启后只允许重试且不伪报成功；更晚 cleanup migration 删除 source/record 并清除 provenance 后，永久清理幂等成功；
+- path 更新留下的旧 ID/历史目录不由单 Workspace 永久删除认领；另一个 Project 复用旧 path 时其数据不受影响；
+- soft delete、恢复和永久清理均不修改共享 Folder registry、其他 Workspace、worktree 或 repository-scoped lineage；最后一个 Workspace 引用被清理也不隐式删除 Folder；
 - 重复“打开文件夹”返回同一个 Folder Workspace 和原 Workspace-owned 数据；
 - 多窗口并发打开同一 canonical path 只创建一个 Folder 和一个 Folder Workspace；
 - Folder 重定位后按新路径打开仍返回原 Folder Workspace 及原 Workspace-owned 数据；
@@ -1633,8 +1741,11 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - probe/chat/apply/archive runtime 仍使用 F1 时重定位返回 `FOLDER_RELOCATION_ACTIVE_RUNTIME` 且 registry 不变；关闭引用运行态后重试成功；
 - 重定位更新所有引用 Workspace 的后续 Folder 解析，但不改写已有 Session 的目录快照；受影响 Session 的路径能力进入 `SESSION_FOLDER_RELOCATED`，不得静默跟随新路径；
 - Folder Workspace 成员 mutation 被拒绝，Collection Workspace 成员 mutation 生效；
+- 第 17 个成员被拒绝，现有 16 个成员和 primary 保持不变；
 - missing primary/secondary；
 - member removal；
+- active Session 引用成员时移除被阻止；非 active Session 不阻止移除，但确认界面列出受影响 Session，移除后恢复返回 `SESSION_FOLDER_REMOVED`，重新加入同一 Folder 后才允许继续执行 path stale 检测；
+- task target 不阻止成员移除；移除后保留 stale ID、UI 显示失效数量，原始多 target 不因过滤后只剩一个而自动预选 owner；
 - local preview 从 sender Workspace 的全部 available Folders 建立 trusted roots，missing 成员排除；
 - 多成员 worktree 枚举并行执行；单成员失败只移除该成员 worktrees 并保留其 canonical folderPath，folderPath canonicalize 失败时排除该成员；
 - member/worktree-derived trust 不写 remembered grant；Folder 重定位后旧 root 不再自动可信，新 root 在下一次请求生效；Workspace 外 user-confirmed exact-path grant 不跨 Workspace/window 复用；
@@ -1646,9 +1757,14 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 
 - 无附加目录时的普通 picker，以及有附加目录时支持、不支持、能力未知的 picker；
 - probe/new/load/resume 的 cwd/additionalDirectories；
-- Session snapshot 不随 Workspace 编辑变化；
+- Session snapshot（含 `folderName`）不随 Workspace 编辑变化；Chat/probe reminder 只从该 snapshot 投影，不回查 registry 扩张或改写；
 - primary change 只影响新 session；
+- snapshot member 已移出当前 Workspace 时，resume/load、MCP descriptor、reminder 与结构化 resource ref 均返回 `SESSION_FOLDER_REMOVED`，即使 Folder 仍存在于全局 registry 也不得恢复或裁剪授权；
 - missing/relocated snapshot folder path 分别返回明确恢复错误，修复或重定位后仍需新建 Session；
+- 旧 Session 中预览新增/恢复成员或 external exact grant 时，文件可按 Window trust 查看但响应标为 `window-only`，Chat header 显示 Session/current scope 差异，且不能把该 target 发送为 Agent resource；
+- reminder Workspace JSON 使用 `JSON.stringify` 与尖括号编码；恶意 `folderName` 不能闭合外层 tag，超长名称按 120 code point 规则截断，授权列表不分页不省略；
+- reminder JSON 超过 64 KiB 时 activation 以 `WORKSPACE_REMINDER_TOO_LARGE` 失败，不发送截断路径；
+- apply/archive reminder 只使用 run 固定 owner 与 worktree target，不从当前 Workspace registry 或 primary 重选；
 - attachment copy 使用 Workspace/Session-scoped opaque handle，成员移除、Folder 重定位或原文件删除后仍可读；跨 Workspace/Session handle 与任意 renderer `file://` URI 被拒绝；
 - member file resource link 校验 `folderId + worktreePath + repositoryRelativePath` 与 Session snapshot；重定位、missing、worktree 移除和 relative path 逃逸均返回明确错误，不回退或重映射；
 - apply/archive 不获得其他成员的 folder paths。
@@ -1703,12 +1819,15 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 ### 23.8 Renderer
 
 - launcher 区分 Folder Workspace 与 Collection Workspace；
+- launcher 默认隐藏 tombstone，并提供可达的“已删除的 Workspace”管理视图、恢复动作和带不可恢复二次确认的永久删除动作；
 - “打开文件夹”复用 Folder Workspace，“创建 Workspace”始终创建 Collection Workspace；
 - Folder Workspace 隐藏成员编辑并提供“基于此 Folder 创建 Workspace”；
 - Collection Workspace 即使只有一个 Folder 也保持 collection UI；
 - create/edit primary/member；
 - degraded Workspace warning；
 - Agent picker gating；
+- route meta 与 activity bar 使用同一 `requiresWorkspace`/capability evaluator；secondary member missing 不禁用 task/knowledge/workflow；
+- Chat header 使用 Session snapshot 展示 Agent scope，并区分 current-only、snapshot-only、primary 与名称变化；实时 preview 的 `window-only` target 不得被误呈现为 Agent 已授权；
 - repository filter 和 owner badge；
 - 同名 proposal detail；
 - 同名 spec/guideline 的 composite selection；Folder-level missing/error/empty state；
@@ -1722,19 +1841,23 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - symlink canonicalization；
 - drive letter/UNC path；
 - Git 与 non-Git member；
-- member folder paths 中包含空格和非 ASCII 字符。
+- member folder paths 中包含空格和非 ASCII 字符；
+- `folderName` / `folderPath` 包含引号、反斜杠、换行与 `</workspace>` 等 reminder 标记字符时仍保持合法 JSON 和外层 tag 边界。
 
 ## 24. 验收标准
 
 整体能力完成时应满足：
 
 - 旧 Project 通过已注册的 main-process migration 自动迁移为同 ID Folder 和 `kind: "folder"` 的 Workspace；迁移成功后现有 app-data 可读，用户无需手工转换。
+- legacy app-data source 始终由 cutover 时的 `encodeProjectPath(legacyProject.path)` candidate 定位，不由 legacy ID 定位；只有 candidate 在全部迁移 Project 中唯一时才持久化为 `legacyAppDataKey`，编码碰撞组不建立 provenance，path 更新留下的历史目录不参与迁移或合并。
 - fresh install 通过 baseline 跳过历史 cutover，并直接创建最终 Workspace/Folder schema。
 - required cutover 的结果由现有 `migrations.json` 账本记录；`success` 或无执行记录但被 `baselineId` 覆盖时通过启动门控，`failed` 不自动重试，也不会让普通 Workspace runtime 消费半迁移数据。
 - 首次 cutover 保留 legacy source；修正和 cleanup 使用新的迁移 ID，不修改已发布脚本。
-- Workspace 有稳定 ID、持久化 `kind`、成员集合和唯一 primary。
+- Workspace 有稳定 ID、持久化 `kind`、1–16 个成员和唯一 primary。
+- Workspace 删除保留同 ID tombstone 与 Workspace-owned app-data；launcher 默认隐藏但可从“已删除的 Workspace”恢复。v1 只由用户显式永久清理，不按时间自动 GC。
+- 永久清理删除目标 Workspace meta、Workspace-owned app-data、window state，以及已持久化 `legacyAppDataKey` 证明唯一归属的 active legacy copy/record；没有 provenance 时跳过 legacy source 并允许 current 清理成功。任何应执行的 current/legacy 清理失败都保留不可恢复但可重试的 cleanup tombstone，不影响共享 Folder registry、其他 Workspace、repository-scoped 数据或无法归属的历史 orphan。
 - `kind` 只允许 `folder | collection`，不得从 Folder 数量推导或自动转换。
-- Folder Workspace 固定一个同 ID Folder；Collection Workspace 包含一个或多个 Folder。
+- Folder Workspace 固定一个同 ID Folder；Collection Workspace 包含 1–16 个 Folder。
 - Folder registry 对 canonical path 提供唯一、原子的反向解析；新 Folder ID 与路径无关，已有 Folder ID 不通过当前路径重新计算。
 - 重复或并发“打开文件夹”始终返回同一个 Folder Workspace，原 session/task/knowledge 不会因为创建 Collection Workspace 或 Folder 重定位而消失。
 - Folder 重定位保留稳定 `folderId`；目标 path 已被占用，或会让任一引用 Workspace 产生重复/嵌套成员时拒绝且不部分写入。
@@ -1744,8 +1867,12 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - Launcher 的 Folder Workspace 显示唯一 Folder 完整路径；Collection Workspace 显示 primary path + Folder 数量摘要。
 - Workspace Chat 仅在 `additionalDirectories` 非空时限制为支持该 capability 的 Agent；单 root session 保持现有 Agent 可用性。
 - ACP 所有 session lifecycle 请求使用一致的 Folder paths snapshot。
-- Session snapshot 保存每个授权 `folderId` 对应的 snapshotted `folderPath`，不靠并行数组顺序猜测 owner。
+- Session snapshot 保存每个授权 `folderId` 对应的 snapshotted `folderName` 与 `folderPath`，不靠并行数组顺序猜测 owner。
+- Session snapshot 不覆盖 Workspace membership 撤销；成员移除后旧 Session 历史可读，但 Agent/MCP/reminder/resource activation 在同一 Folder 重新加入前返回 `SESSION_FOLDER_REMOVED`。
+- Chat/probe reminder 的 Folder 集合和 paths 只来自 Session snapshot；apply/archive reminder 只来自 run 固定 owner target。stale target 在注入前失败，任何 reminder 都不从当前 registry 静默换 path。
+- reminder 的动态 Workspace 数据使用 JSON 与尖括号安全编码，成员列表完整且有数量/字节上限；恶意名称不能闭合外层 contract，超限不能靠截断路径继续 activation。
 - local preview 只把当前 Workspace 的 available member roots 与各自 registered worktrees 自动视为可信；missing 成员和探测失败 worktree 不扩大授权，worktree owner 使用 longest canonical root match。
+- Chat preview 明确区分 Window trust 与当前 Session Agent scope；新增/恢复成员及 external grant 可以 `window-only` 查看，但不可作为旧 Session 的结构化 resource 或 Agent 输入，界面显示 scope 差异。
 - member/worktree-derived preview trust 不持久化为 grant；Folder 重定位后旧 root 自然失去自动信任。用户明确确认的 Workspace 外 exact-path grant 继续遵守窗口级 preview 契约，不与 Folder identity 混合。
 - Session attachment 是 Workspace app-data 内的独立副本并通过 opaque handle 访问；member file resource link 是服从 Session snapshot 的实时引用，两者不得共用 raw absolute path 授权模型。
 - MCP connection 无需重建即可在同一 Session 授权成员之间按 Folder ID 路由。
@@ -1758,16 +1885,17 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - 不同成员的同名 `changeId` 不冲突。
 - explore 只有在所有目标 Folder 扫描成功且 owner 全局唯一时才允许省略 `folderId`；partial failure 或重名都不猜 primary。
 - specs、guidelines、proposal、Git 数据保持 repository-owned。
-- session、task、knowledge、workflow、integration config 保持 Workspace-owned。
+- session、task、knowledge、workflow、integration config 保持 Workspace-owned；task repository targets 是可显式呈现 stale 状态的软引用，不阻止成员移除，也不因过滤而静默改变 proposal owner 默认值。
 - lineage 能从 repository proposal/commit 追溯到唯一创建它的 Workspace subject，并列出其他 Workspace 的显式后续引用；任何后写入者都不能覆盖 origin。
 - Workspace 部分成员失败不会让所有 Workspace-owned 功能不可用。
 - Repository browser 对每个 Folder 区分 ready-empty、missing 与 error；partial data 保留可用结果但不把不完整汇总标成完整。
 - Proposal、Spec 与 Guideline 的 renderer identity 都包含 folderId，同名 repository-local ID/path 不会覆盖、误选或复用错误详情。
 - Overview 只读取一次当前 Workspace work；repository governance 按 Folder 聚合，且不会借共享 Folder proposal 读取其他 Workspace 的 task/session/knowledge 内容。
+- route meta 与 activity bar 共享 Workspace/capability navigation gate；secondary member missing 不禁用 Workspace-owned 页面。
 - 删除、移除成员和修改 primary 不会让 active runtime 静默漂移。
 - scope inventory 中不再存在未经解释的 `projectPath` 单 root 假设。
 
-## 25. 已确认与待确认的产品决策
+## 25. 已确认的产品决策
 
 ### 25.1 已确认
 
@@ -1791,18 +1919,8 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 18. Repository browser aggregate 以 per-Folder `ready | missing | error` 结果表达完整性；合法空数据与读取失败不可混同。
 19. Overview 明确拆分 Workspace work 与 repository governance；共享 Folder 只共享 repository 数据，不授权跨 Workspace 读取 subject/task/session 内容。
 20. ProposalRef、SpecRef、GuidelineRef 是 renderer 列表、选择、详情和缓存的完整 identity；Folder filter 不改变 detail owner。
-
-### 25.2 实施前仍需确认
-
-1. 已有 session 冻结创建时 Folder paths，不随 Collection Workspace 编辑热更新。
-2. primary missing 阻止打开；secondary missing 允许 degraded mode。
-3. v1 禁止重复或嵌套 member folder paths。
-4. v1 proposal 只有一个 owner repository。
-5. apply/archive Agent 只获得 owner `worktreePath`，不获得其他成员可写目录。
-6. Workspace repository 页面默认 All Folders，并提供 filter。
-7. Workspace 删除默认不递归删除 app-data，与现有保守删除语义一致。
-
-其中 session snapshot、proposal owner 和 apply/archive scope 会直接影响持久化和执行安全，应在最早的 foundation/ACP/proposal specs 中固定下来。
+21. primary missing 阻止进入正常 Workspace，并由 launcher 提供修复/重定位；secondary missing 允许 degraded mode。
+22. Workspace 删除采用可恢复 tombstone：默认 launcher 隐藏、管理视图可恢复；v1 不自动过期，只允许用户显式永久清理 Workspace-owned 数据及 cutover 确认 candidate key 唯一后持久化的 `legacyAppDataKey` 所证明归属的 retained legacy copy；编码碰撞组不持久化 provenance、不由单 Workspace 删除 legacy source，且清理不影响共享 Folder、repository-scoped 数据或其他无法安全归属的历史 orphan。
 
 ## 26. 当前代码影响面索引
 
@@ -1813,6 +1931,7 @@ required cutover migration 应覆盖正常 Workspace bootstrap 所需的完整�
 - Upgrade migrations：`src/main/migrations/**`、`test/main/migrations/**`、`test/main/bootstrap/index.spec.ts`
 - Window：`src/shared/types/window.ts`、`src/main/bootstrap/project-window-manager.ts`
 - Launcher/store：`src/renderer/src/stores/workspace/project.ts`、`src/renderer/src/components/welcome/**`
+- Navigation gating：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`、route meta/guard consumers
 - ACP capabilities：`src/shared/types/acp-agent.ts`、`src/main/infra/storage/agent-capability-store.ts`
 - Chat/probe：`src/main/services/session/chat/acp-session.ts`、`session-probe-service.ts`
 - Session storage：`src/main/infra/storage/session-store.ts`
