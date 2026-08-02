@@ -4,6 +4,7 @@ export type MigrationContext = {
 
 export type Migration = {
   id: string;
+  retryPolicy?: "never" | "until-success";
   migrate: (ctx: MigrationContext) => Promise<void>;
 };
 

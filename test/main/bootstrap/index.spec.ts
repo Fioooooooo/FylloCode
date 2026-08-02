@@ -44,7 +44,7 @@ vi.mock("@main/infra/process/sync-shell-path", () => ({
 vi.mock("@main/migrations", () => ({
   runAllMigrations: mocks.runAllMigrations,
   validateWorkspaceCutoverState: mocks.validateWorkspaceCutoverState,
-  WORKSPACE_CUTOVER_MIGRATION_ID: "20260802_001_project-to-workspace",
+  WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID: "20260804_001_retire-legacy-project-storage",
 }));
 vi.mock("@main/bootstrap/workspace-upgrade-failure", () => ({
   showWorkspaceUpgradeFailure: mocks.showWorkspaceUpgradeFailure,
@@ -187,7 +187,7 @@ describe("main bootstrap", () => {
     expect(mocks.runAllMigrations).toHaveBeenCalledOnce();
     expect(mocks.validateWorkspaceCutoverState).toHaveBeenCalledOnce();
     expect(mocks.showWorkspaceUpgradeFailure).toHaveBeenCalledWith({
-      migrationId: "20260802_001_project-to-workspace",
+      migrationId: "20260804_001_retire-legacy-project-storage",
       reason: "copy failed",
     });
     expect(mocks.startBundledMcpHost).not.toHaveBeenCalled();

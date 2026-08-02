@@ -11,7 +11,7 @@ import { startBundledMcpHost, stopBundledMcpHost } from "@main/infra/mcp/bundled
 import {
   runAllMigrations,
   validateWorkspaceCutoverState,
-  WORKSPACE_CUTOVER_MIGRATION_ID,
+  WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
 } from "@main/migrations";
 import { disposeAll, registerDisposable } from "./lifecycle";
 import { workspaceWindowManager } from "./workspace-window-manager";
@@ -37,10 +37,10 @@ export async function bootstrapReady(onWindowReady: () => void = () => undefined
   if (!cutoverValidation.ok) {
     const reason = cutoverValidation.issues.map((issue) => issue.message).join("; ");
     logger.error(
-      `[workspace-upgrade] required migration gate failed (${WORKSPACE_CUTOVER_MIGRATION_ID}): ${reason}`
+      `[workspace-upgrade] required migration gate failed (${WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID}): ${reason}`
     );
     await showWorkspaceUpgradeFailure({
-      migrationId: WORKSPACE_CUTOVER_MIGRATION_ID,
+      migrationId: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
       ...(reason ? { reason } : {}),
     });
     return;

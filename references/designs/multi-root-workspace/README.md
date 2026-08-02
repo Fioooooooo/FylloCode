@@ -1621,11 +1621,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### Phase 8：Migration settlement 与 hardening
 
-- 通过新的迁移 ID 修正已发现的历史 cutover 问题，不修改已发布脚本。
-- 在后续安全窗口使用独立 cleanup migration 清理已验证无引用的 legacy 数据。
-- cutover telemetry、升级失败诊断和 repair 流程。
-- 大量成员、missing folder paths、symlink、Windows path 测试。
-- 更新 guidelines 与正式 specs。
+可重试 settlement、provenance-only legacy cleanup、collision/orphan 保留、bootstrap gate 与升级失败诊断 → `retire-legacy-project-storage` proposal / `legacy-project-storage-retirement`、`workspace-storage-cutover` specs。已发布 cutover/Cortex migration 保持不可变。
 
 ## 22. OpenSpec Proposal 拆分建议
 
@@ -1673,6 +1669,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 ### 23.2 Data migrations
 
 - Project → Workspace/Folder required migration、candidate source/provenance、全局 preflight、Workspace-owned 数据转换、ledger/baseline gate 与 legacy source 保留 → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
+- opt-in retry settlement、latest-attempt gate、唯一 provenance cleanup 与无法归属数据保留 → `retire-legacy-project-storage` proposal / `legacy-project-storage-retirement`、`workspace-storage-cutover` specs；
 - Workspace/Folder meta、registry 与运行期 storage namespace → `introduce-workspace-model` proposal / `workspace-model` spec。
 
 ### 23.3 Main
@@ -1683,9 +1680,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - Workspace-owned stable-ID storage 与 cutover bootstrap gate/原生失败对话框 → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
 - soft delete 关闭窗口并取消 runtime 后只写 tombstone，默认 launcher/open 排除该 Workspace，但 Workspace meta、ID、成员与 app-data 均保留；
 - “已删除的 Workspace”视图能发现 `restorable` tombstone；恢复保留原 `workspaceId` 与数据，primary missing 时进入修复而不是伪装可打开；按 Folder path 再次打开 tombstoned Folder Workspace 时提示恢复且不创建重复 Workspace；
-- 永久清理只接受 tombstone，先持久化 `purging`，删除该 Workspace-owned app-data/window state；对 `legacyAppDataKey` 存在的 migrated Workspace 还删除该 key 对应 active legacy source 与同 ID legacy meta record，最后删除 Workspace meta；无 provenance 的碰撞组只清理 current Workspace 数据，不删除共享 legacy source；
-- 对上述编码碰撞 fixture 永久删除其中一个 Workspace 时，其 current app-data/meta 清理成功，共享 legacy source 保留，另一个 Workspace 不产生悬空 provenance；
-- migrated Workspace 永久清理不得用 legacy ID 作为目录 key、当前 Folder path 或目录扫描改选 legacy source；provenance 存在但 source 删除失败时保留 `cleanup-failed`，重启后只允许重试且不伪报成功；更晚 cleanup migration 删除 source/record 并清除 provenance 后，永久清理幂等成功；
+- Workspace 永久清理的 tombstone、provenance 与幂等重试 → `add-workspace-launcher-lifecycle` proposal / `workspace-lifecycle` spec；批量 legacy retirement 的 provenance-only 删除、collision 保留与 retry → `retire-legacy-project-storage` proposal / `legacy-project-storage-retirement` spec；
 - path 更新留下的旧 ID/历史目录不由单 Workspace 永久删除认领；另一个 Project 复用旧 path 时其数据不受影响；
 - soft delete、恢复和永久清理均不修改共享 Folder registry、其他 Workspace、worktree 或 repository-scoped lineage；最后一个 Workspace 引用被清理也不隐式删除 Folder；
 - 重复/并发“打开文件夹”的 Folder identity 原子复用 → `introduce-workspace-model` proposal / `workspace-model`、`workspace-window` specs；
@@ -1784,8 +1779,8 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 - 旧 Project 通过已注册的 main-process migration 自动迁移为同 ID Folder 和 `kind: "folder"` 的 Workspace；迁移成功后现有 app-data 可读，用户无需手工转换。
 - legacy app-data source 始终由 cutover 时的 `encodeProjectPath(legacyProject.path)` candidate 定位，不由 legacy ID 定位；只有 candidate 在全部迁移 Project 中唯一时才持久化为 `legacyAppDataKey`，编码碰撞组不建立 provenance，path 更新留下的历史目录不参与迁移或合并。
 - fresh install 通过 baseline 跳过历史 cutover，并直接创建最终 Workspace/Folder schema。
-- required cutover 的结果由现有 `migrations.json` 账本记录；`success` 或无执行记录但被 `baselineId` 覆盖时通过启动门控，`failed` 不自动重试，也不会让普通 Workspace runtime 消费半迁移数据。
-- 首次 cutover 保留 legacy source；修正和 cleanup 使用新的迁移 ID，不修改已发布脚本。
+- required settlement 的结果由现有 `migrations.json` 账本记录；latest `success` 或无执行记录但被 `baselineId` 覆盖时通过启动门控。默认 failed migration 不重试，只有 settlement 显式 `until-success` 并在下次启动追加 attempt；任何失败都不会让普通 Workspace runtime 消费半迁移数据。
+- 首次 cutover 保留 legacy source；settlement 使用新的 migration ID repair/cleanup，不修改已发布脚本，只删除 `legacyAppDataKey` 唯一授权的 copy/meta 并最后清除 provenance。
 - Workspace 有稳定 ID、持久化 `kind`、1–16 个成员和唯一 primary。
 - Workspace 删除保留同 ID tombstone 与 Workspace-owned app-data；launcher 默认隐藏但可从“已删除的 Workspace”恢复。v1 只由用户显式永久清理，不按时间自动 GC。
 - 永久清理删除目标 Workspace meta、Workspace-owned app-data、window state，以及已持久化 `legacyAppDataKey` 证明唯一归属的 active legacy copy/record；没有 provenance 时跳过 legacy source 并允许 current 清理成功。任何应执行的 current/legacy 清理失败都保留不可恢复但可重试的 cleanup tombstone，不影响共享 Folder registry、其他 Workspace、repository-scoped 数据或无法归属的历史 orphan。

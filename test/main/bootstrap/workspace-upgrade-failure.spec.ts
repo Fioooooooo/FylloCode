@@ -31,7 +31,7 @@ describe("Workspace upgrade failure UI", () => {
 
   it("shows the blocking failure copy and exits directly", async () => {
     await showWorkspaceUpgradeFailure({
-      migrationId: "20260802_001_project-to-workspace",
+      migrationId: "20260804_001_retire-legacy-project-storage",
       reason: "target incomplete",
     });
 
@@ -40,7 +40,7 @@ describe("Workspace upgrade failure UI", () => {
       title: "Workspace 数据升级失败",
       message: "Workspace 数据升级失败",
       detail: expect.stringMatching(
-        /原 Project 数据没有被删除。[\s\S]*20260802_001_project-to-workspace[\s\S]*\/app\/logs[\s\S]*target incomplete/
+        /无法确认归属的旧 Project 数据不会被删除。[\s\S]*下次启动会自动重试 Workspace settlement。[\s\S]*20260804_001_retire-legacy-project-storage[\s\S]*\/app\/logs[\s\S]*target incomplete/
       ),
       buttons: ["打开日志目录", "退出 FylloCode"],
       defaultId: 0,

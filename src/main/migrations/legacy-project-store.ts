@@ -49,6 +49,10 @@ export async function listLegacyProjects(): Promise<LegacyProjectMeta[]> {
   }
 }
 
+export function assertLegacyProjectAppDataKey(legacyAppDataKey: string): void {
+  legacyProjectDataPath(legacyAppDataKey);
+}
+
 export async function deleteLegacyProjectDataByAppDataKey(legacyAppDataKey: string): Promise<void> {
   await fs.rm(legacyProjectDataPath(legacyAppDataKey), { recursive: true, force: true });
 }

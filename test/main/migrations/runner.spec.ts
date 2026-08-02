@@ -2,8 +2,6 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MigrationContext, MigrationStore } from "@main/migrations/types";
-import type { LegacyProjectMeta } from "@shared/types/project";
-import type { FolderMeta, WorkspaceMeta } from "@shared/types/workspace";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -23,6 +21,7 @@ import {
   validateWorkspaceCutoverState,
 } from "@main/migrations/runner";
 import { WORKSPACE_CUTOVER_MIGRATION_ID } from "@main/migrations/scripts/20260802_001_project-to-workspace";
+import { WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID } from "@main/migrations/scripts/20260804_001_retire-legacy-project-storage";
 
 function migrationsPath(): string {
   return join(tempRoot, "userData", "migrations");
@@ -191,6 +190,28 @@ describe("runMigrations", () => {
       expect(m1.migrate).toHaveBeenCalledOnce();
     });
 
+    it("retries an opt-in migration until it succeeds and preserves each attempt", async () => {
+      mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
+      const migrate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("first failure"))
+        .mockResolvedValueOnce(undefined);
+      const migration = {
+        ...makeMigration("20260804_001_retryable", migrate),
+        retryPolicy: "until-success" as const,
+      };
+
+      await runMigrations([migration]);
+      await runMigrations([migration]);
+      await runMigrations([migration]);
+
+      expect(migrate).toHaveBeenCalledTimes(2);
+      expect(readStore().executed).toMatchObject([
+        { id: migration.id, status: "failed", error: "first failure" },
+        { id: migration.id, status: "success" },
+      ]);
+    });
+
     it("does not throw even if all migrations fail", async () => {
       mkdirSync(join(tempRoot, "userData", "projects"), { recursive: true });
       const m1 = makeMigration("20260601_001_foo", vi.fn().mockRejectedValue(new Error("x")));
@@ -202,40 +223,13 @@ describe("runMigrations", () => {
 
 describe("required migration gate", () => {
   const executedAt = "2026-08-02T00:00:00.000Z";
-  const legacyProject: LegacyProjectMeta = {
-    id: "workspace-1",
-    name: "Workspace One",
-    path: "/repositories/workspace-one",
-    healthScore: 92,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    lastOpenedAt: "2026-08-01T00:00:00.000Z",
-  };
-  const workspace: WorkspaceMeta = {
-    version: 2,
-    id: legacyProject.id,
-    name: legacyProject.name,
-    kind: "folder",
-    isDeleted: false,
-    legacyAppDataKey: "repositories-workspace-one",
-    folderIds: [legacyProject.id],
-    primaryFolderId: legacyProject.id,
-    createdAt: legacyProject.createdAt,
-    lastOpenedAt: legacyProject.lastOpenedAt,
-  };
-  const folder: FolderMeta = {
-    version: 1,
-    id: legacyProject.id,
-    name: legacyProject.name,
-    path: legacyProject.path,
-    healthScore: legacyProject.healthScore,
-  };
 
   it("reports success and failed ledger records", async () => {
     writeStore({
       baselineId: "99999999_999_future",
       executed: [
         {
-          id: WORKSPACE_CUTOVER_MIGRATION_ID,
+          id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
           executedAt,
           status: "failed",
           error: "copy failed",
@@ -243,87 +237,122 @@ describe("required migration gate", () => {
       ],
     });
 
-    await expect(getRequiredMigrationStatus(WORKSPACE_CUTOVER_MIGRATION_ID)).resolves.toMatchObject(
-      {
-        state: "failed",
-        record: { error: "copy failed" },
-      }
-    );
+    await expect(
+      getRequiredMigrationStatus(WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID)
+    ).resolves.toMatchObject({
+      state: "failed",
+      record: { error: "copy failed" },
+    });
 
     writeStore({
-      executed: [{ id: WORKSPACE_CUTOVER_MIGRATION_ID, executedAt, status: "success" }],
+      executed: [{ id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID, executedAt, status: "success" }],
     });
-    await expect(getRequiredMigrationStatus(WORKSPACE_CUTOVER_MIGRATION_ID)).resolves.toMatchObject(
-      {
-        state: "success",
-      }
-    );
+    await expect(
+      getRequiredMigrationStatus(WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID)
+    ).resolves.toMatchObject({
+      state: "success",
+    });
+  });
+
+  it("reports the latest attempt for a retryable migration ID", async () => {
+    writeStore({
+      executed: [
+        {
+          id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
+          executedAt,
+          status: "failed",
+          error: "first failure",
+        },
+        {
+          id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
+          executedAt: "2026-08-03T00:00:00.000Z",
+          status: "failed",
+          error: "latest failure",
+        },
+      ],
+    });
+
+    await expect(
+      getRequiredMigrationStatus(WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID)
+    ).resolves.toMatchObject({
+      state: "failed",
+      record: { error: "latest failure" },
+    });
   });
 
   it("uses baseline only when no executed record covers the required ID", async () => {
-    writeStore({ baselineId: WORKSPACE_CUTOVER_MIGRATION_ID, executed: [] });
-    await expect(getRequiredMigrationStatus(WORKSPACE_CUTOVER_MIGRATION_ID)).resolves.toEqual({
+    writeStore({ baselineId: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID, executed: [] });
+    await expect(
+      getRequiredMigrationStatus(WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID)
+    ).resolves.toEqual({
       state: "baseline",
-      baselineId: WORKSPACE_CUTOVER_MIGRATION_ID,
+      baselineId: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
     });
 
     writeStore({ baselineId: "20260101_001_older", executed: [] });
-    await expect(getRequiredMigrationStatus(WORKSPACE_CUTOVER_MIGRATION_ID)).resolves.toEqual({
+    await expect(
+      getRequiredMigrationStatus(WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID)
+    ).resolves.toEqual({
       state: "pending",
       baselineId: "20260101_001_older",
     });
   });
 
   it("accepts a fresh-install baseline without requiring target metadata", async () => {
-    writeStore({ baselineId: WORKSPACE_CUTOVER_MIGRATION_ID, executed: [] });
-    const dependencies = {
-      listLegacyProjects: vi.fn(),
-      loadWorkspace: vi.fn(),
-      loadFolder: vi.fn(),
-    };
+    writeStore({ baselineId: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID, executed: [] });
 
-    await expect(validateWorkspaceCutoverState(dependencies)).resolves.toMatchObject({
+    await expect(validateWorkspaceCutoverState()).resolves.toMatchObject({
       ok: true,
       status: { state: "baseline" },
       issues: [],
     });
-    expect(dependencies.listLegacyProjects).not.toHaveBeenCalled();
   });
 
-  it("rejects a success ledger record when a target is incomplete", async () => {
+  it("accepts settlement success without re-reading retired legacy metadata", async () => {
     writeStore({
-      executed: [{ id: WORKSPACE_CUTOVER_MIGRATION_ID, executedAt, status: "success" }],
-    });
-
-    await expect(
-      validateWorkspaceCutoverState({
-        listLegacyProjects: async () => [legacyProject],
-        loadWorkspace: async () => workspace,
-        loadFolder: async () => null,
-      })
-    ).resolves.toMatchObject({
-      ok: false,
-      status: { state: "success" },
-      issues: [
+      executed: [
         {
-          type: "folder-target",
-          workspaceId: legacyProject.id,
+          id: WORKSPACE_CUTOVER_MIGRATION_ID,
+          executedAt,
+          status: "failed",
+          error: "old cutover failure",
+        },
+        {
+          id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
+          executedAt: "2026-08-04T00:00:00.000Z",
+          status: "success",
         },
       ],
     });
+
+    await expect(validateWorkspaceCutoverState()).resolves.toEqual({
+      ok: true,
+      status: {
+        state: "success",
+        record: expect.objectContaining({ id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID }),
+      },
+      issues: [],
+    });
   });
 
-  it("accepts a success ledger record with complete Workspace and Folder targets", async () => {
+  it("rejects the latest settlement failure even when an older cutover succeeded", async () => {
     writeStore({
-      executed: [{ id: WORKSPACE_CUTOVER_MIGRATION_ID, executedAt, status: "success" }],
+      baselineId: "99999999_999_future",
+      executed: [
+        { id: WORKSPACE_CUTOVER_MIGRATION_ID, executedAt, status: "success" },
+        {
+          id: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
+          executedAt: "2026-08-04T00:00:00.000Z",
+          status: "failed",
+          error: "cleanup denied",
+        },
+      ],
     });
 
-    await expect(
-      validateWorkspaceCutoverState({
-        listLegacyProjects: async () => [legacyProject],
-        loadWorkspace: async () => workspace,
-        loadFolder: async () => folder,
-      })
-    ).resolves.toMatchObject({ ok: true, status: { state: "success" }, issues: [] });
+    await expect(validateWorkspaceCutoverState()).resolves.toMatchObject({
+      ok: false,
+      status: { state: "failed", record: { error: "cleanup denied" } },
+      issues: [{ type: "required-migration", message: "cleanup denied" }],
+    });
   });
 });

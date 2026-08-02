@@ -17,7 +17,8 @@ export async function showWorkspaceUpgradeFailure(
       title: "Workspace 数据升级失败",
       message: "Workspace 数据升级失败",
       detail: [
-        "FylloCode 无法完成 Workspace 数据升级。原 Project 数据没有被删除。",
+        "FylloCode 无法完成 Workspace 数据升级。无法确认归属的旧 Project 数据不会被删除。",
+        "修复底层权限或数据冲突后，下次启动会自动重试 Workspace settlement。",
         `Migration: ${details.migrationId}`,
         `日志目录: ${logsPath}`,
         ...(details.reason ? [`原因: ${details.reason}`] : []),

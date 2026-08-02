@@ -19,9 +19,9 @@ keywords: [migration, data, storage, upgrade, main]
 - `src/main/migrations/runner.ts` 将账本写入 `getDataSubPath("migrations")/migrations.json`。账本由可选的 `baselineId` 和 `executed` 记录组成。
 - 没有迁移账本，且 `projects`、`workspaces`、`workspace-folders` 与 `acp/installed.json` 都不存在时，runner 将当前最后一个迁移 ID 记为 `baselineId`，新安装不会执行历史迁移。
 - 没有迁移账本，但存在上述任一旧数据标记时，runner 视为旧版本升级并尝试执行全部已注册迁移。
-- runner 跳过 `id <= baselineId` 的迁移，也跳过 `executed` 中已经出现的任意 ID。失败记录同样不会在后续启动自动重试。
+- runner 跳过 `id <= baselineId` 的迁移。默认 `retryPolicy: "never"` 的迁移在 `executed` 中出现任意记录后都会跳过；只有显式声明 `retryPolicy: "until-success"` 且尚无 success record 的迁移会在后续启动追加 retry attempt。
 - 单个迁移抛错时，runner 记录 `failed` 和错误消息、继续执行后续迁移，并在每次尝试后立即持久化账本；runner 不把单个迁移失败继续抛给 bootstrap。
-- `bootstrapReady()` 在 runner 返回后必须调用 `validateWorkspaceCutoverState()` 校验 required Workspace cutover：executed 中只有 `success` 通过，未执行时只有覆盖 required ID 的 baseline 通过，旧安装 success 还必须具有完整 Workspace/Folder target；失败只显示原生升级失败对话框并退出，不得启动 MCP、IPC、workflow、窗口或 Agent warmup。
+- `bootstrapReady()` 在 runner 返回后必须调用 `validateWorkspaceCutoverState()` 校验 required Workspace settlement：latest attempt 只有 `success` 通过，未执行时只有覆盖 settlement ID 的 baseline 通过；settlement success 后不再依赖已退役的 legacy Project meta。失败只显示包含最新原因与下次启动重试说明的原生升级失败对话框并退出，不得启动 MCP、IPC、workflow、窗口或 Agent warmup。
 
 证据：`src/main/bootstrap/index.ts`、`src/main/migrations/runner.ts`、`src/main/migrations/store.ts`、`src/main/migrations/types.ts`、`test/main/migrations/runner.spec.ts`。
 
@@ -31,7 +31,7 @@ keywords: [migration, data, storage, upgrade, main]
 
 - MUST 将新脚本放在 `src/main/migrations/scripts/`，文件名使用 `YYYYMMDD_NNN_<description>.ts`；迁移 `id` 必须等于不含 `.ts` 的文件名。八位日期和三位同日序号保证字符串排序与执行顺序一致。证据：`test/main/migrations/scripts-index.spec.ts`。
 - MUST 从脚本导出与 `Migration["migrate"]` 兼容的异步 `migrate` 函数，并在 `src/main/migrations/scripts/index.ts` 显式 import、按文件名字母序追加到 `migrations` 数组末尾。不得只新增文件而遗漏注册。证据：`src/main/migrations/types.ts`、`src/main/migrations/scripts/index.ts`、`test/main/migrations/scripts-index.spec.ts`。
-- MUST 把已发布迁移的 ID 和含义视为不可变。需要修正已发布迁移时新增更晚的迁移，不得重命名旧文件、复用旧 ID 或依赖修改旧脚本再次执行；runner 会永久跳过已记账 ID。证据：`src/main/migrations/runner.ts` 的 `shouldSkip()`、`test/main/migrations/runner.spec.ts`。
+- MUST 把已发布迁移的 ID 和含义视为不可变。需要修正已发布迁移时新增更晚的迁移，不得重命名旧文件、复用旧 ID 或依赖修改旧脚本再次执行。默认 migration 会永久跳过已记账 ID；只有新 migration 在注册时显式选择 `until-success` 才可重试。证据：`src/main/migrations/runner.ts` 的 `shouldSkip()`、`test/main/migrations/runner.spec.ts`。
 - MUST 让依赖关系体现在 ID 与注册顺序中；后续迁移只能依赖更早迁移已经建立的数据形态，不得依赖文件系统未保证的目录遍历顺序。证据：`src/main/migrations/runner.ts`、`test/main/migrations/scripts-index.spec.ts`。
 
 ### 脚本安全
@@ -48,7 +48,8 @@ keywords: [migration, data, storage, upgrade, main]
 - MUST 依赖 `src/main/index.ts` 的单实例门保证同一时间只有持锁主实例进入 `runAllMigrations()`；Workspace cutover 等业务迁移不得另建持久化锁文件或跨进程锁来替代、绕过该启动门控。需要改变单实例或迁移并发语义时，必须先通过独立 OpenSpec proposal 明确契约。证据：`src/main/index.ts`、`src/main/bootstrap/index.ts`、`test/main/index.spec.ts`、`openspec/specs/single-instance-startup/spec.md`。
 - MUST 在新增迁移前检查旧版本用户是否可能只有 `projects` 和 `acp/installed.json` 之外的目标数据。如果现有新安装判定会把这类用户误判为 fresh install，不得只增加脚本；应先通过 proposal 明确并调整 baseline 判定。证据：`src/main/migrations/runner.ts` 的 `isNewInstall`。
 - MUST NOT 在普通迁移脚本变更中顺带改变账本 schema、baseline 规则、失败后继续/不重试语义或 bootstrap 执行时序。这些变化会改变持久化与升级契约，必须先通过 OpenSpec proposal 收敛并补齐 runner 测试。证据：`src/main/migrations/types.ts`、`src/main/migrations/runner.ts`、`test/main/migrations/runner.spec.ts`。
-- MUST 将 `WORKSPACE_CUTOVER_MIGRATION_ID` 视为 required gate 的不可变标识；不得通过改写同 ID 脚本、删除 failed ledger 或用 baseline 覆盖 failed record 来重试。修复已发布 cutover 必须新增更晚 migration ID。证据：`src/main/migrations/index.ts`、`src/main/migrations/runner.ts`、`src/main/bootstrap/index.ts`。
+- MUST 保持 `WORKSPACE_CUTOVER_MIGRATION_ID` 及其脚本不可变；最终启动门禁使用更晚的 `WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID`。Settlement 只有在旧 cutover 未成功时才复用其幂等入口做 repair；旧 cutover 已成功时不得重放并覆盖之后合法变化。Settlement 是当前唯一 `until-success` migration，required status 使用同 ID 最后一条 attempt，success 后 bootstrap 不再读取 legacy meta。证据：`src/main/migrations/scripts/20260802_001_project-to-workspace.ts`、`src/main/migrations/scripts/20260804_001_retire-legacy-project-storage.ts`、`src/main/migrations/runner.ts`、`src/main/bootstrap/index.ts`。
+- MUST 让 legacy retirement 在第一次删除前完成全局 preflight，并只接受 persisted `WorkspaceMeta.legacyAppDataKey` 作为删除授权。每项 cleanup 必须按 legacy source、同 ID legacy meta、最后清除 provenance 的顺序执行；missing 视为幂等完成。不得按 Workspace ID、当前 Folder path、重新编码结果或目录扫描认领 source，也不得删除 candidate collision 与 orphan。证据：`src/main/migrations/scripts/20260804_001_retire-legacy-project-storage.ts`、`src/main/migrations/legacy-project-store.ts`、`test/main/migrations/scripts/legacy-project-storage-retirement.spec.ts`。
 - MUST 让 Cortex Workspace-scope 迁移只转换可证明唯一 Folder owner 的 legacy knowledge evidence 与 lineage relation：Folder Workspace 可直接采用唯一成员，Collection Workspace 只有在 evidence 唯一指向一个成员时才可补写 `folderId`。无法确定 owner、subject 损坏或 repository origin 冲突时必须保留源文件并把 warning 持久化到对应 Workspace；不得猜测 primary。迁移按稳定顺序重建 Workspace lineage v2 composite index，并仅向 Folder reverse index 写入可证明的 proposal/commit origin；重复执行必须幂等，写失败必须抛出。证据：`src/main/migrations/scripts/20260803_001_cortex-workspace-scope.ts`、`test/main/migrations/scripts/cortex-workspace-scope.spec.ts`。
 
 ## 测试与验证

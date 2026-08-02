@@ -39,4 +39,18 @@ describe("legacy Project deletion", () => {
     expect(existsSync(meta)).toBe(false);
     expect(existsSync(collision)).toBe(true);
   });
+
+  it("is idempotent when the provenance data directory also contains the legacy meta", async () => {
+    const sharedDirectory = join(tempRoot, "projects", "workspace-1");
+    mkdirSync(sharedDirectory, { recursive: true });
+    writeFileSync(join(sharedDirectory, "meta.json"), "{}", "utf8");
+    writeFileSync(join(sharedDirectory, "sessions.json"), "[]", "utf8");
+
+    await deleteLegacyProjectDataByAppDataKey("workspace-1");
+    await deleteLegacyProjectMetaRecord("workspace-1");
+    await deleteLegacyProjectDataByAppDataKey("workspace-1");
+    await deleteLegacyProjectMetaRecord("workspace-1");
+
+    expect(existsSync(sharedDirectory)).toBe(false);
+  });
 });
