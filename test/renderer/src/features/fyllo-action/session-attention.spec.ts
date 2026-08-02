@@ -340,7 +340,17 @@ describe("SessionItem attention badge", () => {
       })
     );
 
-    expect(wrapper.find('[data-test="session-running-indicator"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="session-attention-badge"]').exists()).toBe(true);
+    expect(
+      wrapper
+        .get('[data-test="session-title-row"]')
+        .find('[data-test="session-running-indicator"]')
+        .exists()
+    ).toBe(true);
+    expect(
+      wrapper
+        .get('[data-test="session-meta"]')
+        .find('[data-test="session-attention-badge"]')
+        .exists()
+    ).toBe(true);
   });
 });

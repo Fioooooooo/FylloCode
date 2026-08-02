@@ -146,7 +146,7 @@ function handleCreateSession(): void {
 
         <template #content>
           <div class="min-h-0 flex-1 overflow-y-auto" :data-test="`${group.id}-session-scroll`">
-            <div class="space-y-1 px-2">
+            <div class="space-y-0.5 px-2">
               <SessionItem v-for="session in group.sessions" :key="session.id" :session="session" />
             </div>
           </div>

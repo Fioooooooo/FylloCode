@@ -165,7 +165,7 @@ function handleOriginTaskLeave(): void {
 
 <template>
   <div
-    class="group relative flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-colors"
+    class="group relative flex h-12 cursor-pointer items-center rounded-lg px-3 transition-colors"
     :class="active ? 'bg-primary/15' : 'hover:bg-elevated'"
     @click="
       void handleSelect().catch((error: unknown) => {
@@ -174,73 +174,62 @@ function handleOriginTaskLeave(): void {
     "
   >
     <div
-      class="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center text-muted bg-muted dark:bg-white/80 rounded-md"
+      class="pointer-events-none absolute inset-y-0 right-0 z-0 flex w-20 items-center justify-end overflow-hidden rounded-r-lg [mask-image:linear-gradient(to_right,transparent_0%,black_55%)]"
+      role="img"
+      :aria-label="`${session.agentId} icon`"
       data-test="session-media"
     >
-      <span
-        v-if="session.status === 'running'"
-        class="absolute -left-0.5 -top-0.5 h-2 w-2 rounded-full bg-success/80 animate-pulse"
-        data-test="session-running-indicator"
-      />
-
       <img
         v-if="agentIcon"
         :src="agentIcon"
-        :alt="`${session.agentId} icon`"
-        class="h-full w-full object-cover"
+        alt=""
+        aria-hidden="true"
+        class="h-full w-16 object-contain object-right brightness-0 opacity-[0.08] dark:invert dark:opacity-[0.12]"
         data-test="session-agent-icon"
       />
-      <CustomAgentIcon v-else class="h-full w-full" data-test="session-agent-icon-fallback" />
-
-      <UTooltip
-        v-if="hasAttention"
-        :text="`该会话有 ${attentionCount} 个待处理操作`"
-        :delay-duration="200"
-      >
-        <UBadge
-          color="primary"
-          variant="solid"
-          size="xs"
-          class="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px] leading-4 justify-center"
-          :aria-label="`该会话有 ${attentionCount} 个待处理操作`"
-          data-test="session-attention-badge"
-        >
-          <span data-test="session-attention-count">{{ displayCount }}</span>
-        </UBadge>
-      </UTooltip>
+      <CustomAgentIcon
+        v-else
+        aria-hidden="true"
+        class="h-full w-16 brightness-0 opacity-[0.08] dark:invert dark:opacity-[0.12]"
+        data-test="session-agent-icon-fallback"
+      />
     </div>
 
-    <div class="min-w-0 flex-1">
-      <div
-        v-if="!isEditingTitle"
-        class="truncate text-sm font-medium leading-5 text-highlighted"
-        data-test="session-title"
-      >
-        {{ session.title }}
+    <div class="relative z-10 min-w-0 flex-1" data-test="session-content">
+      <div class="flex min-w-0 items-center gap-1.5" data-test="session-title-row">
+        <span
+          v-if="session.status === 'running'"
+          class="h-2 w-2 shrink-0 rounded-full bg-success/80 animate-pulse"
+          data-test="session-running-indicator"
+        />
+        <div
+          v-if="!isEditingTitle"
+          class="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-highlighted"
+          data-test="session-title"
+        >
+          {{ session.title }}
+        </div>
+        <input
+          v-else
+          ref="titleInputRef"
+          v-model="titleDraft"
+          class="h-5 min-w-0 flex-1 rounded-md border border-default bg-default px-1.5 text-sm font-medium leading-5 text-highlighted outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          data-test="session-title-input"
+          @click.stop
+          @blur="
+            void commitTitleEdit().catch((error: unknown) => {
+              console.error('Failed to rename session:', error);
+            })
+          "
+          @keydown.enter.prevent="
+            void commitTitleEdit().catch((error: unknown) => {
+              console.error('Failed to rename session:', error);
+            })
+          "
+          @keydown.escape.stop.prevent="cancelTitleEdit"
+        />
       </div>
-      <input
-        v-else
-        ref="titleInputRef"
-        v-model="titleDraft"
-        class="h-5 w-full rounded-md border border-default bg-default px-1.5 text-sm font-medium leading-5 text-highlighted outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-        data-test="session-title-input"
-        @click.stop
-        @blur="
-          void commitTitleEdit().catch((error: unknown) => {
-            console.error('Failed to rename session:', error);
-          })
-        "
-        @keydown.enter.prevent="
-          void commitTitleEdit().catch((error: unknown) => {
-            console.error('Failed to rename session:', error);
-          })
-        "
-        @keydown.escape.stop.prevent="cancelTitleEdit"
-      />
-      <div
-        class="mt-1 flex items-center gap-1 text-xs leading-4 text-muted"
-        data-test="session-meta"
-      >
+      <div class="flex items-center gap-1 text-xs leading-4 text-muted" data-test="session-meta">
         <span>{{ formatTime(session.updatedAt) }}</span>
         <span>·</span>
         <span>{{ session.turnCount }} turns</span>
@@ -292,11 +281,25 @@ function handleOriginTaskLeave(): void {
             </template>
           </UPopover>
         </template>
+        <div v-if="hasAttention" class="ml-auto shrink-0">
+          <UTooltip :text="`该会话有 ${attentionCount} 个待处理操作`" :delay-duration="200">
+            <UBadge
+              color="primary"
+              variant="solid"
+              size="xs"
+              class="h-4 min-w-4 justify-center px-1 text-[10px] leading-4"
+              :aria-label="`该会话有 ${attentionCount} 个待处理操作`"
+              data-test="session-attention-badge"
+            >
+              <span data-test="session-attention-count">{{ displayCount }}</span>
+            </UBadge>
+          </UTooltip>
+        </div>
       </div>
     </div>
 
     <div
-      class="absolute top-2 right-2 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-hover:bg-muted group-active:bg-muted rounded-md"
+      class="absolute top-2 right-2 z-20 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-hover:bg-muted group-active:bg-muted rounded-md"
       :class="menuOpen ? 'opacity-100' : null"
       @click.stop
     >
