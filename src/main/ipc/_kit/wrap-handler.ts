@@ -23,7 +23,11 @@ export async function wrapHandler<T>(fn: () => Promise<T> | T): Promise<IpcRespo
       logger.error("[ipc] unhandled error", err);
     }
 
-    return { ok: false, error: { code, message: error.message } };
+    const details = (err as { details?: unknown }).details;
+    return {
+      ok: false,
+      error: { code, message: error.message, ...(details === undefined ? {} : { details }) },
+    };
   }
 }
 

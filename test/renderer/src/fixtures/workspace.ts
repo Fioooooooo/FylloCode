@@ -8,6 +8,8 @@ interface WorkspaceFixtureInput {
   createdAt?: Date | string;
   lastOpenedAt?: Date | string;
   pathMissing?: boolean;
+  kind?: "folder" | "collection";
+  chatAvailable?: boolean;
 }
 
 function toIsoString(value: Date | string): string {
@@ -16,11 +18,19 @@ function toIsoString(value: Date | string): string {
 
 export function workspaceInfo(input: WorkspaceFixtureInput = {}): WorkspaceInfo {
   const id = input.id ?? "workspace-1";
+  const pathMissing = input.pathMissing ?? false;
+  const folder = {
+    folderId: id,
+    folderName: input.name ?? `Folder ${id}`,
+    folderPath: input.folderPath ?? `/tmp/${id}`,
+    pathMissing,
+    isPrimary: true,
+  };
   return {
     version: 2,
     id,
     name: input.name ?? `Workspace ${id}`,
-    kind: "folder",
+    kind: input.kind ?? "folder",
     isDeleted: false,
     folderIds: [id],
     primaryFolderId: id,
@@ -34,6 +44,10 @@ export function workspaceInfo(input: WorkspaceFixtureInput = {}): WorkspaceInfo 
       ...(input.healthScore === undefined ? {} : { healthScore: input.healthScore }),
     },
     primaryFolderMetaPath: `/tmp/app-data/workspace-folders/${id}/meta.json`,
-    pathMissing: input.pathMissing ?? false,
+    pathMissing,
+    folders: [folder],
+    availableFolders: pathMissing ? [] : [folder],
+    missingFolders: pathMissing ? [folder] : [],
+    chatAvailable: input.chatAvailable ?? true,
   };
 }

@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
+import { legacyProjectDataPath } from "@main/migrations/legacy-project-path";
+import { assertStorageIdentity } from "@main/infra/storage/workspace-paths";
 import type { LegacyProjectMeta } from "@shared/types/project";
 
 export function legacyProjectsDir(): string {
@@ -44,5 +46,21 @@ export async function listLegacyProjects(): Promise<LegacyProjectMeta[]> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
+  }
+}
+
+export async function deleteLegacyProjectDataByAppDataKey(legacyAppDataKey: string): Promise<void> {
+  await fs.rm(legacyProjectDataPath(legacyAppDataKey), { recursive: true, force: true });
+}
+
+export async function deleteLegacyProjectMetaRecord(projectId: string): Promise<void> {
+  assertStorageIdentity(projectId, "Workspace");
+  const directory = join(legacyProjectsDir(), projectId);
+  await fs.rm(legacyProjectMetaPath(projectId), { force: true });
+  try {
+    await fs.rmdir(directory);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTEMPTY") throw error;
   }
 }

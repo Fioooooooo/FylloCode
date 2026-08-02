@@ -45,3 +45,28 @@ export async function listWorkspaces(): Promise<WorkspaceMeta[]> {
     throw error;
   }
 }
+
+export async function deleteWorkspaceDataExceptMeta(workspaceId: string): Promise<void> {
+  const directory = workspaceDir(workspaceId);
+  try {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    await Promise.all(
+      entries
+        .filter((entry) => entry.name !== "meta.json")
+        .map((entry) => fs.rm(join(directory, entry.name), { recursive: true, force: true }))
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+export async function deleteWorkspaceMeta(workspaceId: string): Promise<void> {
+  const directory = workspaceDir(workspaceId);
+  await fs.rm(workspaceMetaPath(workspaceId), { force: true });
+  try {
+    await fs.rmdir(directory);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTEMPTY") throw error;
+  }
+}

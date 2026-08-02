@@ -1,17 +1,22 @@
 import { promises as fs } from "fs";
 import { join } from "path";
-import { assertWorkspaceRestorable } from "@main/domain/workspace/model";
 import { listWorkspaces, loadWorkspace, saveWorkspace } from "@main/infra/storage/workspace-store";
 import { loadFolder, saveFolder } from "@main/infra/storage/folder-store";
 import { folderDataDir } from "@main/infra/storage/workspace-paths";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { folderRegistryService } from "@main/services/workspace/folder/folder-registry-service";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import type { FolderMeta, WorkspaceInfo, WorkspaceMeta } from "@shared/types/workspace";
+import type {
+  FolderMeta,
+  WorkspaceFolderInfo,
+  WorkspaceInfo,
+  WorkspaceLauncherItem,
+  WorkspaceMeta,
+} from "@shared/types/workspace";
 
 const workspaceMutationTails = new Map<string, Promise<void>>();
 
-async function withWorkspaceMutation<T>(
+export async function withWorkspaceMutation<T>(
   workspaceId: string,
   operation: () => Promise<T>
 ): Promise<T> {
@@ -43,8 +48,29 @@ async function pathMissing(path: string): Promise<boolean> {
   }
 }
 
-async function toWorkspaceInfo(meta: WorkspaceMeta): Promise<WorkspaceInfo> {
-  const primaryFolder = await loadFolder(meta.primaryFolderId);
+export async function toWorkspaceInfo(meta: WorkspaceMeta): Promise<WorkspaceInfo> {
+  const folderMetas = await Promise.all(meta.folderIds.map((folderId) => loadFolder(folderId)));
+  if (folderMetas.some((folder) => folder === null)) {
+    const missingFolderIds = meta.folderIds.filter(
+      (_folderId, index) => folderMetas[index] === null
+    );
+    throw ipcError(IpcErrorCodes.WORKSPACE_NOT_FOUND, `Workspace members are missing: ${meta.id}`, {
+      workspaceId: meta.id,
+      missingFolderIds,
+    });
+  }
+  const folders = await Promise.all(
+    (folderMetas as FolderMeta[]).map(async (folder): Promise<WorkspaceFolderInfo> => ({
+      folderId: folder.id,
+      folderName: folder.name,
+      folderPath: folder.path,
+      pathMissing: await pathMissing(folder.path),
+      isPrimary: folder.id === meta.primaryFolderId,
+    }))
+  );
+  const primaryFolder = (folderMetas as FolderMeta[]).find(
+    (folder) => folder.id === meta.primaryFolderId
+  );
   if (!primaryFolder) {
     throw ipcError(
       IpcErrorCodes.WORKSPACE_NOT_FOUND,
@@ -55,7 +81,30 @@ async function toWorkspaceInfo(meta: WorkspaceMeta): Promise<WorkspaceInfo> {
     ...meta,
     primaryFolder,
     primaryFolderMetaPath: join(folderDataDir(primaryFolder.id), "meta.json"),
-    pathMissing: await pathMissing(primaryFolder.path),
+    pathMissing:
+      folders.find((folder) => folder.folderId === primaryFolder.id)?.pathMissing ?? true,
+    folders,
+    availableFolders: folders.filter((folder) => !folder.pathMissing),
+    missingFolders: folders.filter((folder) => folder.pathMissing),
+    chatAvailable: meta.kind === "folder",
+  };
+}
+
+function toLauncherItem(workspace: WorkspaceInfo): WorkspaceLauncherItem {
+  return {
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    workspaceKind: workspace.kind,
+    primaryFolderId: workspace.primaryFolderId,
+    primaryFolderPath: workspace.primaryFolder.path,
+    folderCount: workspace.folders.length,
+    folderPaths: workspace.folders.map((folder) => folder.folderPath),
+    folders: workspace.folders,
+    missingFolderCount: workspace.missingFolders.length,
+    lastOpenedAt: workspace.lastOpenedAt,
+    isDeleted: workspace.isDeleted,
+    cleanupState: workspace.cleanupState,
+    legacyAppDataKey: workspace.legacyAppDataKey,
   };
 }
 
@@ -67,6 +116,21 @@ export async function listWorkspaceInfos(): Promise<WorkspaceInfo[]> {
       .sort((left, right) => right.lastOpenedAt.localeCompare(left.lastOpenedAt))
       .map(toWorkspaceInfo)
   );
+}
+
+export async function listWorkspaceLauncherItems(): Promise<WorkspaceLauncherItem[]> {
+  return (await listWorkspaceInfos()).map(toLauncherItem);
+}
+
+export async function listDeletedWorkspaceLauncherItems(): Promise<WorkspaceLauncherItem[]> {
+  const workspaces = await listWorkspaces();
+  const infos = await Promise.all(
+    workspaces
+      .filter((workspace) => workspace.isDeleted)
+      .sort((left, right) => right.deletedAt!.localeCompare(left.deletedAt!))
+      .map(toWorkspaceInfo)
+  );
+  return infos.map(toLauncherItem);
 }
 
 export async function getWorkspaceInfo(workspaceId: string): Promise<WorkspaceInfo | null> {
@@ -173,11 +237,10 @@ export async function resolveOrCreateFolderWorkspace(folderPath: string): Promis
         `Folder ID is already owned by a non-Folder Workspace: ${folder.id}`
       );
     } else if (existing.isDeleted) {
-      assertWorkspaceRestorable(existing);
-      const { deletedAt, cleanupState, ...active } = existing;
-      void deletedAt;
-      void cleanupState;
-      next = { ...active, isDeleted: false, lastOpenedAt: now };
+      throw ipcError(IpcErrorCodes.WORKSPACE_DELETED, "Workspace must be restored before opening", {
+        workspaceId: existing.id,
+        cleanupState: existing.cleanupState,
+      });
     } else {
       next = { ...existing, lastOpenedAt: now };
     }

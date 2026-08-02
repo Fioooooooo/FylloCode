@@ -221,6 +221,13 @@ class ProposalStatusService {
     }
   }
 
+  hasWorkspaceReferences(workspaceId: string): boolean {
+    return (
+      [...this.pendingWatches.values()].some((pending) => pending.workspaceId === workspaceId) ||
+      [...this.watches.values()].some((watched) => watched.workspaceId === workspaceId)
+    );
+  }
+
   private unwatchByKey(key: string): void {
     const watched = this.watches.get(key);
     if (!watched) {

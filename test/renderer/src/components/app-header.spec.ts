@@ -10,12 +10,17 @@ const routeMocks = vi.hoisted(() => ({
 const workspaceStoreMock = vi.hoisted(() => ({
   currentWorkspace: { name: "FylloCode" },
   recentWorkspaces: [] as Array<{
-    id: string;
-    name: string;
-    path: string;
-    createdAt: Date;
-    lastOpenedAt: Date;
-    pathMissing?: boolean;
+    workspaceId: string;
+    workspaceName: string;
+    workspaceKind: "folder";
+    primaryFolderId: string;
+    primaryFolderPath: string;
+    folderCount: number;
+    folderPaths: string[];
+    folders: Array<{ folderId: string; folderPath: string; pathMissing: boolean }>;
+    missingFolderCount: number;
+    lastOpenedAt: string;
+    isDeleted: boolean;
   }>,
   openFolderWindow: vi.fn(),
   openWorkspaceWindow: vi.fn(),
@@ -87,11 +92,17 @@ describe("AppHeader", () => {
 
   it("opens a recent project through the recent-project store path", async () => {
     const project = {
-      id: "project-b",
-      name: "Project B",
-      path: "/tmp/project-b",
-      createdAt: new Date("2026-07-06T00:00:00.000Z"),
-      lastOpenedAt: new Date("2026-07-07T00:00:00.000Z"),
+      workspaceId: "project-b",
+      workspaceName: "Project B",
+      workspaceKind: "folder" as const,
+      primaryFolderId: "project-b",
+      primaryFolderPath: "/tmp/project-b",
+      folderCount: 1,
+      folderPaths: ["/tmp/project-b"],
+      folders: [{ folderId: "project-b", folderPath: "/tmp/project-b", pathMissing: false }],
+      missingFolderCount: 0,
+      lastOpenedAt: "2026-07-07T00:00:00.000Z",
+      isDeleted: false,
     };
     workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();
@@ -105,12 +116,17 @@ describe("AppHeader", () => {
 
   it("routes missing-path recent projects through openRecentWorkspace without direct window open", async () => {
     const project = {
-      id: "project-missing",
-      name: "Missing Project",
-      path: "/tmp/missing",
-      createdAt: new Date("2026-07-06T00:00:00.000Z"),
-      lastOpenedAt: new Date("2026-07-07T00:00:00.000Z"),
-      pathMissing: true,
+      workspaceId: "project-missing",
+      workspaceName: "Missing Project",
+      workspaceKind: "folder" as const,
+      primaryFolderId: "project-missing",
+      primaryFolderPath: "/tmp/missing",
+      folderCount: 1,
+      folderPaths: ["/tmp/missing"],
+      folders: [{ folderId: "project-missing", folderPath: "/tmp/missing", pathMissing: true }],
+      missingFolderCount: 1,
+      lastOpenedAt: "2026-07-07T00:00:00.000Z",
+      isDeleted: false,
     };
     workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();

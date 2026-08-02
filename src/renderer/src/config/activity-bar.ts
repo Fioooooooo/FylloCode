@@ -5,6 +5,7 @@ export interface ActivityBarItem {
   path: string;
   group: "top" | "bottom";
   requiresWorkspace: boolean;
+  capability?: "chat";
   isDefault?: boolean;
 }
 
@@ -25,6 +26,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
     path: "/chat",
     group: "top",
     requiresWorkspace: true,
+    capability: "chat",
   },
   {
     id: "task",

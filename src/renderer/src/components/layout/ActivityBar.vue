@@ -3,12 +3,14 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useWorkspaceStore } from "@renderer/stores";
 import { activityBarItems } from "@renderer/config/activity-bar";
+import { evaluateWorkspaceNavigation } from "@renderer/config/navigation-gate";
 import Logo from "@renderer/components/shared/Logo.vue";
 
 const route = useRoute();
 const workspaceStore = useWorkspaceStore();
 
-const hasWorkspace = computed(() => workspaceStore.hasCurrentWorkspace);
+const gateFor = (item: (typeof activityBarItems)[number]) =>
+  evaluateWorkspaceNavigation(item, workspaceStore.currentWorkspace);
 
 const items = computed(() => activityBarItems.filter((i) => i.group === "top"));
 const bottomItems = computed(() => activityBarItems.filter((i) => i.group === "bottom"));
@@ -45,7 +47,7 @@ const isDev = import.meta.env.DEV;
     <div class="flex w-full flex-col items-center gap-1" data-test="activity-bar-menu">
       <template v-for="item in items" :key="item.id">
         <UTooltip
-          :text="item.label"
+          :text="gateFor(item).reason ?? item.label"
           :content="{ align: 'center', side: 'right' }"
           :disable-hoverable-content="true"
           :ignore-non-keyboard-focus="true"
@@ -59,8 +61,8 @@ const isDev = import.meta.env.DEV;
                 ? 'bg-primary/15 text-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-primary'
                 : 'text-muted hover:bg-elevated',
             ]"
-            :disabled="!hasWorkspace"
-            :to="hasWorkspace ? item.path : undefined"
+            :disabled="!gateFor(item).enabled"
+            :to="gateFor(item).enabled ? item.path : undefined"
             :data-test="`activity-bar-item-${item.id}`"
           >
             <UIcon :name="item.icon" class="size-5" />

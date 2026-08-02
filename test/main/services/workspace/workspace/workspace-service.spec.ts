@@ -33,6 +33,7 @@ vi.mock("fs", async () => {
 
 import {
   getWorkspaceInfo,
+  listDeletedWorkspaceLauncherItems,
   listWorkspaceInfos,
   removeWorkspace,
   resolveOrCreateFolderWorkspace,
@@ -117,6 +118,68 @@ describe("workspace-service", () => {
     });
   });
 
+  it("projects all Collection members and secondary missing state", async () => {
+    mocks.loadWorkspace.mockResolvedValue(
+      workspace({
+        id: "collection-1",
+        kind: "collection",
+        folderIds: ["folder-1", "folder-2"],
+        primaryFolderId: "folder-1",
+      })
+    );
+    mocks.loadFolder.mockImplementation(async (folderId: string) => ({
+      ...folder,
+      id: folderId,
+      path: `/canonical/${folderId}`,
+    }));
+    mocks.realpath.mockImplementation(async (path: string) => {
+      if (path.endsWith("folder-2")) throw new Error("ENOENT");
+      return path;
+    });
+
+    await expect(getWorkspaceInfo("collection-1")).resolves.toMatchObject({
+      kind: "collection",
+      pathMissing: false,
+      chatAvailable: false,
+      folders: [{ folderId: "folder-1" }, { folderId: "folder-2" }],
+      missingFolders: [{ folderId: "folder-2" }],
+    });
+  });
+
+  it("keeps deleted launcher items with cleanup state", async () => {
+    mocks.listWorkspaces.mockResolvedValue([
+      workspace({
+        isDeleted: true,
+        deletedAt: "2026-02-02T00:00:00.000Z",
+        cleanupState: "cleanup-failed",
+      }),
+    ]);
+    await expect(listDeletedWorkspaceLauncherItems()).resolves.toEqual([
+      expect.objectContaining({
+        workspaceId: "folder-1",
+        isDeleted: true,
+        cleanupState: "cleanup-failed",
+      }),
+    ]);
+  });
+
+  it("surfaces a damaged member record instead of dropping it", async () => {
+    mocks.loadWorkspace.mockResolvedValue(
+      workspace({
+        kind: "collection",
+        folderIds: ["folder-1", "missing"],
+        primaryFolderId: "folder-1",
+      })
+    );
+    mocks.loadFolder.mockImplementation(async (folderId: string) =>
+      folderId === "missing" ? null : folder
+    );
+    await expect(getWorkspaceInfo("folder-1")).rejects.toMatchObject({
+      code: "WORKSPACE_NOT_FOUND",
+      details: { missingFolderIds: ["missing"] },
+    });
+  });
+
   it("updates Workspace name and primary Folder health independently", async () => {
     await updateWorkspace({
       id: "folder-1",
@@ -166,5 +229,21 @@ describe("workspace-service", () => {
       folderIds: ["folder-1"],
       primaryFolderId: "folder-1",
     });
+  });
+
+  it("does not silently restore a tombstoned Folder Workspace", async () => {
+    mocks.loadWorkspace.mockResolvedValue(
+      workspace({
+        isDeleted: true,
+        deletedAt: "2026-08-02T00:00:00.000Z",
+        cleanupState: "restorable",
+      })
+    );
+
+    await expect(resolveOrCreateFolderWorkspace("/surface/one")).rejects.toMatchObject({
+      code: "WORKSPACE_DELETED",
+      details: { workspaceId: "folder-1" },
+    });
+    expect(mocks.saveWorkspace).not.toHaveBeenCalled();
   });
 });

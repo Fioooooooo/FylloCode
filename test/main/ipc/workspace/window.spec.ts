@@ -40,6 +40,26 @@ function workspace(overrides: Partial<WorkspaceInfo> = {}): WorkspaceInfo {
     },
     primaryFolderMetaPath: "/tmp/app-data/workspace-folders/workspace-a/meta.json",
     pathMissing: false,
+    folders: [
+      {
+        folderId: "workspace-a",
+        folderName: "Workspace A",
+        folderPath: "/tmp/workspace-a",
+        pathMissing: false,
+        isPrimary: true,
+      },
+    ],
+    availableFolders: [
+      {
+        folderId: "workspace-a",
+        folderName: "Workspace A",
+        folderPath: "/tmp/workspace-a",
+        pathMissing: false,
+        isPrimary: true,
+      },
+    ],
+    missingFolders: [],
+    chatAvailable: true,
     ...overrides,
   };
 }

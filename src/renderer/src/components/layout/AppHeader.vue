@@ -4,7 +4,7 @@ import { appApi } from "@renderer/api/platform/app";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { useWorkspaceStore } from "@renderer/stores";
 import { useColorMode } from "@vueuse/core";
-import type { WorkspaceInfo } from "@shared/types/workspace";
+import type { WorkspaceLauncherItem } from "@shared/types/workspace";
 import ProjectHealthPopover from "./ProjectHealthPopover.vue";
 
 const { goToDefault } = useDefaultAppRoute();
@@ -12,12 +12,14 @@ const workspaceStore = useWorkspaceStore();
 const colorMode = useColorMode();
 
 const dropdownItems = computed(() => {
-  const workspaceItems = workspaceStore.recentWorkspaces.map((workspace: WorkspaceInfo) => ({
-    label: workspace.name,
-    onSelect: async () => {
-      await workspaceStore.openRecentWorkspace(workspace);
-    },
-  }));
+  const workspaceItems = workspaceStore.recentWorkspaces.map(
+    (workspace: WorkspaceLauncherItem) => ({
+      label: workspace.workspaceName,
+      onSelect: async () => {
+        await workspaceStore.openRecentWorkspace(workspace);
+      },
+    })
+  );
 
   return [
     ...workspaceItems,

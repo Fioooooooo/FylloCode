@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertWorkspaceMemberMutationAllowed,
   assertWorkspaceRestorable,
+  getFolderPathRelation,
+  validateWorkspaceDefinition,
   validateWorkspaceFolderPaths,
   validateWorkspaceMeta,
   WorkspaceModelError,
@@ -136,5 +139,36 @@ describe("Workspace domain model", () => {
         ]),
       "WORKSPACE_MEMBER_PATH_NESTED"
     );
+  });
+
+  it("rejects member mutation for Folder Workspace", () => {
+    expectWorkspaceError(
+      () =>
+        assertWorkspaceMemberMutationAllowed(
+          workspace(),
+          ["workspace-1", "folder-2"],
+          "workspace-1"
+        ),
+      "WORKSPACE_MEMBER_MUTATION_FORBIDDEN"
+    );
+  });
+
+  it("validates Collection definitions and preserves member order", () => {
+    expect(() =>
+      validateWorkspaceDefinition({
+        id: "collection-1",
+        name: "Collection",
+        kind: "collection",
+        folderIds: ["folder-2", "folder-1"],
+        primaryFolderId: "folder-1",
+      })
+    ).not.toThrow();
+  });
+
+  it("projects same, ancestor and descendant path relations", () => {
+    expect(getFolderPathRelation("/repo", "/repo/")).toBe("same");
+    expect(getFolderPathRelation("/repo", "/repo/apps/web")).toBe("ancestor");
+    expect(getFolderPathRelation("/repo/apps/web", "/repo")).toBe("descendant");
+    expect(getFolderPathRelation("/repo-a", "/repo-b")).toBeNull();
   });
 });

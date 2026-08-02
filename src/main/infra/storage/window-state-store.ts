@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { promises as fs, readFileSync } from "fs";
 import { join } from "path";
 import type { Rectangle } from "electron";
 import { getDataSubPath } from "@main/infra/paths";
@@ -83,4 +83,8 @@ export function loadWindowState(key: WindowStateKey): MainWindowState | null {
 
 export function saveWindowState(key: WindowStateKey, state: MainWindowState): void {
   writeFileAtomicSync(windowStatePath(key), JSON.stringify(state, null, 2));
+}
+
+export async function deleteWorkspaceWindowState(workspaceId: string): Promise<void> {
+  await fs.rm(windowStatePath({ role: "workspace", workspaceId }), { force: true });
 }

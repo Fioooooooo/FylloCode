@@ -6,6 +6,7 @@ import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
 import { useWorkspaceStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { activityBarItems } from "@renderer/config/activity-bar";
+import { evaluateWorkspaceNavigation } from "@renderer/config/navigation-gate";
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +28,15 @@ watchEffect(() => {
 
   if (isProtectedRoute && !workspaceStore.hasCurrentWorkspace) {
     void router.replace("/");
+  }
+});
+
+watchEffect(() => {
+  const item = activityBarItems.find((candidate) => route.path.startsWith(candidate.path));
+  if (!item || !workspaceStore.currentWorkspace) return;
+  const gate = evaluateWorkspaceNavigation(item, workspaceStore.currentWorkspace);
+  if (!gate.enabled) {
+    void router.replace("/overview");
   }
 });
 

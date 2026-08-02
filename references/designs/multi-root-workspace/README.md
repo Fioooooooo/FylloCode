@@ -1560,14 +1560,9 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 ### Phase 2：Launcher 与 Workspace lifecycle
 
-- 实现“打开文件夹”创建/复用 Folder Workspace，以及“创建 Workspace”创建 Collection Workspace 的 IPC、service、preload、renderer API。
-- launcher 展示 `workspaceKind`，Folder Workspace 使用完整路径，Collection Workspace 使用 primary path + Folder 数量摘要。
-- Folder Workspace 拒绝成员 mutation；Collection Workspace 支持成员编辑；不提供 kind 原地转换。
-- primary、成员、missing path、重复/嵌套 folder path 校验。
-- Workspace window bootstrap 和 window state。
-- Workspace soft delete、launcher 已删除管理视图、恢复、显式永久清理，以及成员移除引用保护。
-
-退出条件：Workspace 可以安全创建、打开和编辑；Workspace Chat 在 Phase 3 完成前保持不可用。
+- 实施与验收由 `add-workspace-launcher-lifecycle` proposal 统一追踪。
+- launcher、Collection lifecycle、成员移除引用保护、Folder relocation、soft delete/restore/permanent cleanup 的规范来源分别为该 proposal 下的 `workspace-lifecycle`、`workspace-model` 与 `workspace-window` specs；本设计不再复制第二份验收措辞。
+- Phase 3 启用 ACP multi-root session 前，Collection Chat capability 继续保持禁用。
 
 ### Phase 3：ACP multi-root session
 
@@ -1689,6 +1684,7 @@ path 曾更新的 legacy Project 可能同时存在当前 active source `<appDat
 
 - 单实例启动前置 → `enforce-single-instance-startup` proposal / `single-instance-startup` spec：锁早于 bootstrap 与 app-data writer，第二实例退出或请求主实例窗口注意力；
 - Workspace/launcher window、main-owned context、window state、runtime 隔离与 Folder Workspace 打开 → `introduce-workspace-model` proposal / `workspace-window` spec；
+- launcher、Collection 创建/编辑、成员引用保护、Folder relocation、soft delete/restore/permanent cleanup → `add-workspace-launcher-lifecycle` proposal / `workspace-lifecycle`、`workspace-model`、`workspace-window` specs；
 - Workspace-owned stable-ID storage 与 cutover bootstrap gate/原生失败对话框 → `introduce-workspace-model` proposal / `workspace-storage-cutover` spec；
 - soft delete 关闭窗口并取消 runtime 后只写 tombstone，默认 launcher/open 排除该 Workspace，但 Workspace meta、ID、成员与 app-data 均保留；
 - “已删除的 Workspace”视图能发现 `restorable` tombstone；恢复保留原 `workspaceId` 与数据，primary missing 时进入修复而不是伪装可打开；按 Folder path 再次打开 tombstoned Folder Workspace 时提示恢复且不创建重复 Workspace；

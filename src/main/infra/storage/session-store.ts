@@ -7,6 +7,7 @@ import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
 import type { FylloActionState, FylloActionStateStatus } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "@shared/types/lineage";
+import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 import type { UIMessage } from "ai";
 
 export interface SessionMeta {
@@ -21,6 +22,7 @@ export interface SessionMeta {
   available_commands?: AcpAvailableCommand[];
   configOptions?: AcpSessionConfigOption[];
   actionStates?: Record<string, FylloActionState>;
+  workspaceSnapshot?: SessionWorkspaceSnapshot;
   createdAt: string;
   updatedAt: string;
 }

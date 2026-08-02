@@ -80,6 +80,14 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   updateSession: mocks.updateSession,
 }));
 
+vi.mock("@main/services/workspace/workspace/workspace-service", () => ({
+  getRequiredWorkspaceInfo: vi.fn(async (workspaceId: string) => ({
+    id: workspaceId,
+    kind: "folder",
+    chatAvailable: true,
+  })),
+}));
+
 vi.mock("@main/services/insight/lineage/mcp-event-consumer", () => ({
   ensureLineageEventConsumer: mocks.ensureLineageEventConsumer,
 }));

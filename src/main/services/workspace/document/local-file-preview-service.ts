@@ -298,6 +298,13 @@ export class LocalFilePreviewService {
     }
   }
 
+  hasPendingWorkspaceDispatch(workspaceId: string): boolean {
+    this.pruneExpiredAuthorizations();
+    return [...this.pendingAuthorizations.values()].some(
+      (pending) => pending.workspaceId === workspaceId
+    );
+  }
+
   private async getTrustedRoots(folderPath: string): Promise<string[]> {
     const folderRoot = await this.dependencies.canonicalizePath(folderPath);
     let worktreePaths: string[] = [];

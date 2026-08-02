@@ -53,6 +53,7 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 - MUST 保持可点击卡片 hover 只改变背景或边界强度，例如 `hover:bg-accented`、`hover:bg-elevated`、`hover:border-primary/40`；禁止 hover scale、translate 和 shadow 变化。证据：`src/renderer/src/components/shared/UiSurface.vue`。
 - MUST 优先用 Nuxt UI props 表达按钮语义：主操作使用 `UButton color="primary"`；次要操作使用 `color="neutral" variant="outline"`；工具栏和 icon button 使用 `color="neutral" variant="ghost"`；危险操作使用 `color="error"`。同一区域内避免多个并列 primary 按钮。证据：`src/renderer/src/components/shared/AppEmptyState.vue`、`src/renderer/src/components/layout/AppHeader.vue`。
 - MUST 让 icon-only 按钮具备 tooltip 或 `aria-label`，视觉图标不能是唯一可理解的状态说明。证据：`src/renderer/src/components/layout/AppHeader.vue`、`src/renderer/src/components/layout/ActivityBar.vue`。
+- MUST 让 Workspace destructive/repair overlay 明确区分可恢复删除与永久清理：soft delete 说明 tombstone 可恢复，永久删除使用 error action 和二次确认并声明实际清理边界，`purging`/`cleanup-failed` 只显示继续或重试；missing Folder 修复与历史 Session 影响确认必须保留 identity/path 摘要。证据：`src/renderer/src/components/welcome/WorkspaceEditorModal.vue`、`src/renderer/src/components/welcome/DeletedWorkspaceManager.vue`。
 - MUST 使用 `AppEmptyState.vue` 表达空状态，不使用纯文字空态。空状态必须包含图标、标题、描述和可选主操作；卡片内空态使用 `compact`。证据：`src/renderer/src/components/shared/AppEmptyState.vue`、`src/renderer/src/pages/integration.vue`。
 - SHOULD 让状态 badge 优先使用 `variant="soft"`；进行中/活跃态使用 `color="primary"`，归档/禁用使用 `color="neutral"`，错误使用 `color="error"`。证据：`src/renderer/src/components/acp/AgentKindBadge.vue`、`src/renderer/src/components/task/TaskCard.vue`。
 

@@ -23,6 +23,18 @@ import {
   updateSessionInputSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { wrapHandler } from "../_kit/wrap-handler";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/workspace/workspace-service";
+
+async function assertWorkspaceChatAvailable(workspaceId: string): Promise<void> {
+  const workspace = await getRequiredWorkspaceInfo(workspaceId);
+  if (!workspace.chatAvailable) {
+    throw ipcError(
+      IpcErrorCodes.PROMPT_CAPABILITY_MISMATCH,
+      "Collection Workspace multi-root Chat is not enabled yet",
+      { workspaceId }
+    );
+  }
+}
 import { validate } from "../_kit/schema";
 import { makeStreamChannel } from "../_kit/stream-channel";
 import { ipcError } from "../_kit/errors";
@@ -102,6 +114,7 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatChannels.createSession, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
+      await assertWorkspaceChatAvailable(form.workspaceId);
       const session = await createSession(form);
       if (!form.taskRef) {
         return session;
@@ -206,6 +219,7 @@ export function registerChatHandlers(): void {
   ipcMain.handle(SessionChatProbeChannels.ensure, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeEnsureInputSchema, input);
+      await assertWorkspaceChatAvailable(form.workspaceId);
       const workspaceCwd = await resolveWorkspaceCwd(form.workspaceId);
       return ensureProbe(form.workspaceId, form.agentId, workspaceCwd);
     })
@@ -242,6 +256,7 @@ export function registerChatHandlers(): void {
       portPayload: { streamId },
       logTag: "chat",
       onReady: async (sink) => {
+        await assertWorkspaceChatAvailable(workspaceId);
         const workspaceCwd = await resolveWorkspaceCwd(workspaceId);
         const meta = await loadSessionMeta(workspaceId, sessionId);
         const agentId = inputAgentId || meta?.agentId;

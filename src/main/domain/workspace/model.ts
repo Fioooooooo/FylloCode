@@ -14,7 +14,8 @@ export type WorkspaceModelErrorCode =
   | "WORKSPACE_TOMBSTONE_INVALID"
   | "WORKSPACE_NOT_RESTORABLE"
   | "WORKSPACE_MEMBER_PATH_DUPLICATE"
-  | "WORKSPACE_MEMBER_PATH_NESTED";
+  | "WORKSPACE_MEMBER_PATH_NESTED"
+  | "WORKSPACE_MEMBER_MUTATION_FORBIDDEN";
 
 export class WorkspaceModelError extends Error {
   constructor(
@@ -114,6 +115,57 @@ function comparablePath(value: string): string {
   return normalized.length > 0 ? normalized : "/";
 }
 
+export function getFolderPathRelation(
+  requestedPath: string,
+  existingPath: string
+): "same" | "ancestor" | "descendant" | null {
+  const requested = comparablePath(requestedPath);
+  const existing = comparablePath(existingPath);
+  if (requested === existing) return "same";
+  if (existing.startsWith(`${requested}/`)) return "ancestor";
+  if (requested.startsWith(`${existing}/`)) return "descendant";
+  return null;
+}
+
+export function validateWorkspaceDefinition(input: {
+  id: string;
+  name: string;
+  kind: WorkspaceMeta["kind"];
+  folderIds: string[];
+  primaryFolderId: string;
+}): void {
+  validateWorkspaceMeta({
+    version: 2,
+    id: input.id,
+    name: input.name.trim(),
+    kind: input.kind,
+    isDeleted: false,
+    folderIds: input.folderIds,
+    primaryFolderId: input.primaryFolderId,
+    createdAt: new Date(0).toISOString(),
+    lastOpenedAt: new Date(0).toISOString(),
+  });
+}
+
+export function assertWorkspaceMemberMutationAllowed(
+  existing: WorkspaceMeta,
+  folderIds: readonly string[],
+  primaryFolderId: string
+): void {
+  if (
+    existing.kind === "folder" &&
+    (folderIds.length !== existing.folderIds.length ||
+      folderIds.some((folderId, index) => folderId !== existing.folderIds[index]) ||
+      primaryFolderId !== existing.primaryFolderId)
+  ) {
+    throw new WorkspaceModelError(
+      "WORKSPACE_MEMBER_MUTATION_FORBIDDEN",
+      "Folder Workspace members and primary Folder cannot be changed",
+      { workspaceId: existing.id }
+    );
+  }
+}
+
 export function validateWorkspaceFolderPaths(folders: readonly FolderMeta[]): void {
   const seen = new Map<string, string>();
   const comparable = folders.map((folder) => ({
@@ -142,9 +194,8 @@ export function validateWorkspaceFolderPaths(folders: readonly FolderMeta[]): vo
       const right = comparable[candidateIndex];
       if (left === undefined || right === undefined) continue;
 
-      const leftContainsRight = right.path.startsWith(`${left.path}/`);
-      const rightContainsLeft = left.path.startsWith(`${right.path}/`);
-      if (leftContainsRight || rightContainsLeft) {
+      const relation = getFolderPathRelation(left.path, right.path);
+      if (relation && relation !== "same") {
         throw new WorkspaceModelError(
           "WORKSPACE_MEMBER_PATH_NESTED",
           "Workspace member paths cannot contain one another",

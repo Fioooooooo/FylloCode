@@ -1,3 +1,6 @@
+import { join } from "path";
+import { getDataSubPath } from "@main/infra/paths";
+
 // Frozen locator for legacy Project app-data. New runtime code must use Workspace/Folder IDs.
 const WINDOWS_INVALID_FILENAME_CHAR_PATTERN = /[<>:"|?*]/g;
 
@@ -14,4 +17,16 @@ export function encodeProjectPath(projectPath: string): string {
     .replace(/[\\/]/g, "-")
     .replace(WINDOWS_INVALID_FILENAME_CHAR_PATTERN, "-");
   return replaceControlCharacters(encoded);
+}
+
+export function legacyProjectDataPath(legacyAppDataKey: string): string {
+  if (
+    !legacyAppDataKey ||
+    legacyAppDataKey === "." ||
+    legacyAppDataKey === ".." ||
+    /[\\/\0]/.test(legacyAppDataKey)
+  ) {
+    throw new Error("Legacy Project app-data key is not safe for storage");
+  }
+  return join(getDataSubPath("projects"), legacyAppDataKey);
 }

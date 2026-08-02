@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 
@@ -10,6 +10,8 @@ vi.mock("@main/infra/paths", () => ({
 }));
 
 import {
+  deleteWorkspaceDataExceptMeta,
+  deleteWorkspaceMeta,
   listWorkspaces,
   loadWorkspace,
   saveWorkspace,
@@ -87,5 +89,24 @@ describe("Workspace and Folder stores", () => {
 
     expect(dirname(workspaceMetaPath("same-id"))).toContain("/workspaces/");
     expect(dirname(folderMetaPath("same-id"))).toContain("/workspace-folders/");
+  });
+
+  it("deletes Workspace-owned data before meta without touching other roots", async () => {
+    await saveWorkspace(workspace("workspace-1"));
+    await saveWorkspace(workspace("workspace-2"));
+    await saveFolder(folder("workspace-1"));
+    const ownedFile = join(dirname(workspaceMetaPath("workspace-1")), "sessions", "one.json");
+    mkdirSync(dirname(ownedFile), { recursive: true });
+    writeFileSync(ownedFile, "{}", "utf8");
+
+    await deleteWorkspaceDataExceptMeta("workspace-1");
+    expect(existsSync(ownedFile)).toBe(false);
+    await expect(loadWorkspace("workspace-1")).resolves.toMatchObject({ id: "workspace-1" });
+    await expect(loadWorkspace("workspace-2")).resolves.toMatchObject({ id: "workspace-2" });
+    await expect(loadFolder("workspace-1")).resolves.toMatchObject({ id: "workspace-1" });
+
+    await deleteWorkspaceMeta("workspace-1");
+    await deleteWorkspaceMeta("workspace-1");
+    await expect(loadWorkspace("workspace-1")).resolves.toBeNull();
   });
 });

@@ -50,9 +50,6 @@ function makeProject(healthScore?: number): WorkspaceInfo {
 function mountPopover(project: WorkspaceInfo | null = makeProject()): ReturnType<typeof mount> {
   const workspaceStore = useWorkspaceStore();
   workspaceStore.currentWorkspace = project;
-  if (project) {
-    workspaceStore.workspaces = [project];
-  }
 
   const sessionStore = useSessionStore();
   sessionStore.draftAgentId = "claude-code";

@@ -14,6 +14,7 @@ vi.mock("@main/infra/paths", () => ({
 }));
 
 import {
+  deleteWorkspaceWindowState,
   loadMainWindowState,
   loadWindowState,
   saveMainWindowState,
@@ -159,5 +160,19 @@ describe("window-state-store", () => {
     );
 
     expect(loadWindowState({ role: "workspace", workspaceId: "workspace-a" })).toBeNull();
+  });
+
+  it("deletes one Workspace state idempotently without touching launcher or peers", async () => {
+    const state = { bounds: { x: 0, y: 0, width: 1000, height: 700 }, isMaximized: false };
+    saveWindowState({ role: "launcher" }, state);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-a" }, state);
+    saveWindowState({ role: "workspace", workspaceId: "workspace-b" }, state);
+
+    await deleteWorkspaceWindowState("workspace-a");
+    await deleteWorkspaceWindowState("workspace-a");
+
+    expect(loadWindowState({ role: "launcher" })).toEqual(state);
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-a" })).toBeNull();
+    expect(loadWindowState({ role: "workspace", workspaceId: "workspace-b" })).toEqual(state);
   });
 });

@@ -31,4 +31,33 @@ describe("preload workspaceApi", () => {
       [WorkspaceChannels.remove, { id: "workspace-1" }],
     ]);
   });
+
+  it("exposes the complete Workspace lifecycle channel surface", async () => {
+    const { workspaceApi } = await import("@preload/api/workspace/workspace");
+    const definition = {
+      name: "Collection",
+      folderIds: ["folder-1"],
+      primaryFolderId: "folder-1",
+    };
+
+    await workspaceApi.listDeleted();
+    await workspaceApi.selectFolder();
+    await workspaceApi.createCollection(definition);
+    await workspaceApi.updateDefinition({ workspaceId: "workspace-1", name: "Renamed" });
+    await workspaceApi.softDelete("workspace-1");
+    await workspaceApi.restore("workspace-1");
+    await workspaceApi.permanentlyDelete("workspace-1");
+    await workspaceApi.relocateFolder("folder-1", true);
+
+    expect(mocks.ipcRenderer.invoke.mock.calls).toEqual([
+      [WorkspaceChannels.listDeleted],
+      [WorkspaceChannels.selectFolder],
+      [WorkspaceChannels.createCollection, definition],
+      [WorkspaceChannels.updateDefinition, { workspaceId: "workspace-1", name: "Renamed" }],
+      [WorkspaceChannels.softDelete, { workspaceId: "workspace-1" }],
+      [WorkspaceChannels.restore, { workspaceId: "workspace-1" }],
+      [WorkspaceChannels.permanentlyDelete, { workspaceId: "workspace-1" }],
+      [WorkspaceChannels.relocateFolder, { folderId: "folder-1", confirmHistoricalSessions: true }],
+    ]);
+  });
 });

@@ -73,6 +73,10 @@ class SessionProbeRegistry {
     return [...this.entries.keys()];
   }
 
+  hasWorkspace(workspaceId: string): boolean {
+    return [...this.entries.values()].some((entry) => entry.workspaceId === workspaceId);
+  }
+
   private entryKey(workspaceId: string, agentId: string): string {
     return `${workspaceId}::${agentId}`;
   }

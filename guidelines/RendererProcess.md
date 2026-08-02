@@ -19,6 +19,7 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - MUST 通过 `src/renderer/src/config/activity-bar.ts` 中的 `activityBarItems` 添加主应用导航，不要在组件里硬编码侧边栏入口。`ActivityBar.vue` 渲染该注册表，并根据 route path 计算 active 状态。证据：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`。
 - MUST 保持且仅保持一个默认 activity item，并保持 activity item 的 id 和 path 唯一。该注册表会在 dev/test 中强制默认项数量，renderer 测试会断言注册表形状。证据：`src/renderer/src/config/activity-bar.ts`、`test/renderer/src/config/activity-bar.spec.ts`。
 - MUST 使用 `ActivityBarItem.requiresWorkspace` 表达 Workspace 门控导航。当 `useWorkspaceStore().hasCurrentWorkspace` 为 false 时，`ActivityBar.vue` 会禁用 Workspace 作用域的 item。证据：`src/renderer/src/config/activity-bar.ts`、`src/renderer/src/components/layout/ActivityBar.vue`。
+- MUST 通过 `evaluateWorkspaceNavigation()` 统一 activity bar 与 route guard 的 Workspace capability 判断；阶段性不支持 Collection Chat 时，两处必须显示/执行同一禁用结果，不得向 Main 发送 primary-only fallback 请求。证据：`src/renderer/src/config/navigation-gate.ts`、`src/renderer/src/components/layout/ActivityBar.vue`、`src/renderer/src/pages/index.vue`。
 
 ### API 与状态
 
@@ -31,6 +32,7 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - SHOULD 让页面、组件和关键 composable 的跨 domain store 组合保持流程所有权清晰；当组合逻辑开始承载业务流程，应收敛到 owner store action，而不是在页面里长期堆叠多个领域的细节。该约束通过 review 判断，不再由文件级 lint 白名单维护。证据：`src/renderer/src/pages/task.vue`、`src/renderer/src/stores/automation/task.ts`。
 - MUST 通过 `src/renderer/src/api/workspace/window.ts` 和 `useWorkspaceStore().bootstrapWindowWorkspace()` 绑定当前窗口的 Workspace 上下文。当前 Workspace 只能来自 main 返回的 `WindowContext`；组件打开 Workspace 或文件夹时调用 Workspace store 的 `openWorkspaceWindow()` / `openFolderWindow()`，不要在组件中直接替换 `currentWorkspace`。证据：`src/renderer/src/stores/workspace/workspace.ts`、`src/renderer/src/bootstrap/tasks/workspaces.ts`、`src/renderer/src/components/welcome/WelcomeView.vue`。
 - MUST 在 launcher context 中保持 `currentWorkspace` 为空；在 Workspace context 不可用、Workspace 不存在或 primary Folder path 缺失时展示页面级错误状态并清空 session state。Workspace bootstrap 必须在同一任务中按 context、Workspace list、当前 Workspace、session list 的顺序完成。证据：`src/renderer/src/stores/workspace/workspace.ts`、`test/renderer/src/stores/workspace/workspace.spec.ts`、`src/renderer/src/pages/index.vue`。
+- MUST 让 launcher 使用 active/deleted `WorkspaceLauncherItem` 投影管理 Folder 与 Collection Workspace；创建、成员编辑、重定位、soft delete、restore 和永久清理只通过 Workspace store action 进入，组件不得直接调用 preload API。证据：`src/renderer/src/stores/workspace/workspace.ts`、`src/renderer/src/components/welcome/WorkspaceList.vue`、`src/renderer/src/components/welcome/DeletedWorkspaceManager.vue`。
 - MUST 让 Workspace-scoped 异步结果绑定请求发起时的 `workspaceId` 和请求世代；切换 Workspace 后的迟到 list/detail 响应不得覆盖新 Workspace state，确认式删除和 Action 执行也必须拒绝 scope 已变化的操作。证据：`src/renderer/src/stores/session/session.ts`、`src/renderer/src/stores/insight/knowledge.ts`、`src/renderer/src/features/fyllo-action/application/use-fyllo-action-dispatcher.ts`、`src/renderer/src/pages/knowledge.vue`。
 
 ### Bootstrap

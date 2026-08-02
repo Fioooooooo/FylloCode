@@ -4,7 +4,14 @@ import { useToast } from "@nuxt/ui/composables";
 import { workspaceApi } from "@renderer/api/workspace/workspace";
 import { windowApi } from "@renderer/api/workspace/window";
 import { useSessionStore } from "../session/session";
-import type { WorkspaceInfo } from "@shared/types/workspace";
+import type {
+  CreateCollectionWorkspaceInput,
+  FolderMeta,
+  UpdateWorkspaceDefinitionInput,
+  WorkspaceInfo,
+  WorkspaceLauncherItem,
+} from "@shared/types/workspace";
+import type { IpcErrorInfo } from "@shared/types/ipc";
 import type { WindowContext } from "@shared/types/window";
 
 interface WorkspaceContextError {
@@ -12,35 +19,62 @@ interface WorkspaceContextError {
   message: string;
 }
 
-function sortByLastOpened(workspaces: WorkspaceInfo[]): WorkspaceInfo[] {
+function sortByLastOpened(workspaces: WorkspaceLauncherItem[]): WorkspaceLauncherItem[] {
   return [...workspaces].sort((a, b) => Date.parse(b.lastOpenedAt) - Date.parse(a.lastOpenedAt));
+}
+
+function toLauncherItem(workspace: WorkspaceInfo): WorkspaceLauncherItem {
+  return {
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    workspaceKind: workspace.kind,
+    primaryFolderId: workspace.primaryFolderId,
+    primaryFolderPath: workspace.primaryFolder.path,
+    folderCount: workspace.folders.length,
+    folderPaths: workspace.folders.map((folder) => folder.folderPath),
+    folders: workspace.folders,
+    missingFolderCount: workspace.missingFolders.length,
+    lastOpenedAt: workspace.lastOpenedAt,
+    isDeleted: workspace.isDeleted,
+    cleanupState: workspace.cleanupState,
+    legacyAppDataKey: workspace.legacyAppDataKey,
+  };
+}
+
+function operationError(error: IpcErrorInfo): Error & IpcErrorInfo {
+  return Object.assign(new Error(error.message), error);
 }
 
 export const useWorkspaceStore = defineStore("workspace", () => {
   const toast = useToast();
-  const workspaces = ref<WorkspaceInfo[]>([]);
+  const workspaces = ref<WorkspaceLauncherItem[]>([]);
+  const deletedWorkspaces = ref<WorkspaceLauncherItem[]>([]);
   const currentWorkspace = ref<WorkspaceInfo | null>(null);
   const windowContext = ref<WindowContext | null>(null);
   const workspaceContextError = ref<WorkspaceContextError | null>(null);
   const isLoaded = ref(false);
+  const isLoading = ref(false);
+  const loadError = ref<IpcErrorInfo | null>(null);
+  const mutationGeneration = ref(0);
   let loadPromise: Promise<void> | null = null;
 
   const hasCurrentWorkspace = computed(() => currentWorkspace.value !== null);
   const recentWorkspaces = computed(() => workspaces.value.slice(0, 10));
 
-  function replaceWorkspaces(items: WorkspaceInfo[]): void {
+  function replaceWorkspaces(items: WorkspaceLauncherItem[]): void {
     workspaces.value = sortByLastOpened(items);
   }
 
   function upsertWorkspace(workspace: WorkspaceInfo): void {
-    const index = workspaces.value.findIndex((item) => item.id === workspace.id);
+    const item = toLauncherItem(workspace);
+    const index = workspaces.value.findIndex((candidate) => candidate.workspaceId === workspace.id);
 
     if (index === -1) {
-      workspaces.value.unshift(workspace);
+      workspaces.value.unshift(item);
     } else {
       workspaces.value.splice(index, 1, {
         ...workspaces.value[index],
-        ...workspace,
+        ...item,
       });
     }
 
@@ -69,10 +103,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     useSessionStore().clearSessions();
   }
 
-  function notifyMissingWorkspace(workspace: WorkspaceInfo): void {
+  function notifyMissingWorkspace(workspace: WorkspaceLauncherItem): void {
     toast.add({
       title: "工作区目录不存在",
-      description: `${workspace.name}: ${workspace.primaryFolder.path}`,
+      description: `${workspace.workspaceName}: ${workspace.primaryFolderPath}`,
       color: "error",
     });
   }
@@ -90,13 +124,19 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       return loadPromise;
     }
 
+    const expectedGeneration = mutationGeneration.value;
     loadPromise = (async () => {
+      isLoading.value = true;
+      loadError.value = null;
       const result = await workspaceApi.list();
       if (!result.ok) {
-        throw new Error(result.error.message);
+        loadError.value = result.error;
+        throw operationError(result.error);
       }
 
-      replaceWorkspaces(result.data);
+      if (mutationGeneration.value === expectedGeneration) {
+        replaceWorkspaces(result.data);
+      }
       isLoaded.value = true;
     })();
 
@@ -104,7 +144,14 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       await loadPromise;
     } finally {
       loadPromise = null;
+      isLoading.value = false;
     }
+  }
+
+  async function loadDeletedWorkspaces(): Promise<void> {
+    const result = await workspaceApi.listDeleted();
+    if (!result.ok) throw operationError(result.error);
+    deletedWorkspaces.value = result.data;
   }
 
   async function ensureLoaded(): Promise<void> {
@@ -161,7 +208,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function getWorkspace(workspaceId: string): Promise<WorkspaceInfo | null> {
     const result = await workspaceApi.getById(workspaceId);
     if (!result.ok) {
-      throw new Error(result.error.message);
+      throw operationError(result.error);
     }
     return result.data;
   }
@@ -173,7 +220,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         notifyWindowOpenError(result.error.message);
         return null;
       }
-      throw new Error(result.error.message);
+      throw operationError(result.error);
     }
 
     await loadWorkspaces();
@@ -229,13 +276,17 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     return openFolderWindow();
   }
 
-  async function openRecentWorkspace(workspace: WorkspaceInfo): Promise<WorkspaceInfo | null> {
-    if (workspace.pathMissing) {
+  async function openRecentWorkspace(
+    workspace: WorkspaceLauncherItem
+  ): Promise<WorkspaceInfo | null> {
+    if (
+      workspace.folders.find((folder) => folder.folderId === workspace.primaryFolderId)?.pathMissing
+    ) {
       notifyMissingWorkspace(workspace);
       return null;
     }
 
-    return openWorkspaceWindow(workspace.id);
+    return openWorkspaceWindow(workspace.workspaceId);
   }
 
   async function switchWorkspace(workspaceId: string): Promise<WorkspaceInfo | null> {
@@ -258,31 +309,108 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function removeRecentWorkspace(workspaceId: string): Promise<void> {
-    const result = await workspaceApi.remove(workspaceId);
+    const result = await workspaceApi.softDelete(workspaceId);
     if (!result.ok) {
-      throw new Error(result.error.message);
+      throw operationError(result.error);
     }
 
-    workspaces.value = workspaces.value.filter((workspace) => workspace.id !== workspaceId);
+    workspaces.value = workspaces.value.filter(
+      (workspace) => workspace.workspaceId !== workspaceId
+    );
+    mutationGeneration.value += 1;
     if (currentWorkspace.value?.id === workspaceId) {
       clearCurrentWorkspace();
     }
+    await loadDeletedWorkspaces();
+  }
+
+  async function selectFolder(): Promise<FolderMeta | null> {
+    const result = await workspaceApi.selectFolder();
+    if (!result.ok) throw operationError(result.error);
+    return result.data;
+  }
+
+  async function createCollection(input: CreateCollectionWorkspaceInput): Promise<WorkspaceInfo> {
+    const result = await workspaceApi.createCollection(input);
+    if (!result.ok) throw operationError(result.error);
+    mutationGeneration.value += 1;
+    upsertWorkspace(result.data);
+    return result.data;
+  }
+
+  async function updateDefinition(input: UpdateWorkspaceDefinitionInput): Promise<WorkspaceInfo> {
+    const expectedWorkspaceId = currentWorkspace.value?.id;
+    const result = await workspaceApi.updateDefinition(input);
+    if (!result.ok) throw operationError(result.error);
+    mutationGeneration.value += 1;
+    upsertWorkspace(result.data);
+    if (
+      expectedWorkspaceId === result.data.id &&
+      currentWorkspace.value?.id === expectedWorkspaceId
+    ) {
+      currentWorkspace.value = result.data;
+    }
+    return result.data;
+  }
+
+  async function restoreDeletedWorkspace(workspaceId: string): Promise<WorkspaceInfo> {
+    const result = await workspaceApi.restore(workspaceId);
+    if (!result.ok) throw operationError(result.error);
+    mutationGeneration.value += 1;
+    deletedWorkspaces.value = deletedWorkspaces.value.filter(
+      (workspace) => workspace.workspaceId !== workspaceId
+    );
+    upsertWorkspace(result.data);
+    return result.data;
+  }
+
+  async function permanentlyDeleteWorkspace(workspaceId: string): Promise<void> {
+    const result = await workspaceApi.permanentlyDelete(workspaceId);
+    if (!result.ok) {
+      await loadDeletedWorkspaces();
+      throw operationError(result.error);
+    }
+    mutationGeneration.value += 1;
+    deletedWorkspaces.value = deletedWorkspaces.value.filter(
+      (workspace) => workspace.workspaceId !== workspaceId
+    );
+  }
+
+  async function relocateFolder(
+    folderId: string,
+    confirmHistoricalSessions = false
+  ): Promise<FolderMeta | null> {
+    const expectedWorkspaceId = currentWorkspace.value?.id;
+    const result = await workspaceApi.relocateFolder(folderId, confirmHistoricalSessions);
+    if (!result.ok) throw operationError(result.error);
+    if (result.data) mutationGeneration.value += 1;
+    if (result.data && expectedWorkspaceId && currentWorkspace.value?.id === expectedWorkspaceId) {
+      await refreshCurrentWorkspace();
+      await loadWorkspaces();
+    }
+    return result.data;
   }
 
   return {
     workspaces,
+    deletedWorkspaces,
     recentWorkspaces,
     currentWorkspace,
     windowContext,
     workspaceContextError,
     hasCurrentWorkspace,
     isLoaded,
+    isLoading,
+    loadError,
+    mutationGeneration,
     setCurrentWorkspace,
     bindCurrentWorkspace,
     clearCurrentWorkspace,
     bootstrapWindowWorkspace,
     loadWorkspaces,
+    loadDeletedWorkspaces,
     ensureLoaded,
+    getWorkspace,
     openFolder,
     openFolderWindow,
     openLauncherWindow,
@@ -291,5 +419,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     switchWorkspace,
     refreshCurrentWorkspace,
     removeRecentWorkspace,
+    selectFolder,
+    createCollection,
+    updateDefinition,
+    restoreDeletedWorkspace,
+    permanentlyDeleteWorkspace,
+    relocateFolder,
   };
 });

@@ -9,6 +9,8 @@ const routeMocks = vi.hoisted(() => ({
 }));
 
 const workspaceStoreMock = vi.hoisted(() => ({
+  recentWorkspaces: [],
+  deletedWorkspaces: [],
   openFolderWindow: vi.fn(),
   openWorkspaceWindow: vi.fn(),
   openRecentWorkspace: vi.fn(),
@@ -47,12 +49,14 @@ function mountWelcomeView(
   return mount(WelcomeView, {
     global: {
       stubs: {
-        ProjectList: {
+        WorkspaceList: {
           template:
             '<div><button data-test="recent" @click="$emit(\'open\', project)">recent</button><button data-test="remove" @click="$emit(\'remove\', project.id)">remove</button></div>',
-          emits: ["open", "remove"],
+          emits: ["open", "edit", "create-from-folder", "remove"],
           data: () => ({ project }),
         },
+        WorkspaceEditorModal: true,
+        DeletedWorkspaceManager: true,
       },
     },
   });

@@ -31,6 +31,7 @@ vi.mock("vue-router", () => ({
 vi.mock("@renderer/stores/workspace/workspace", () => ({
   useWorkspaceStore: () => ({
     hasCurrentWorkspace: true,
+    currentWorkspace: { kind: "folder", chatAvailable: true },
   }),
 }));
 

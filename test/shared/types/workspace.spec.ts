@@ -98,4 +98,19 @@ describe("Workspace shared schemas", () => {
       folderPath: "/work/folder-1",
     });
   });
+
+  it("keeps persisted metadata schemas strict", () => {
+    expect(workspaceMetaSchema.safeParse({ ...baseWorkspace, path: "/legacy" }).success).toBe(
+      false
+    );
+    expect(
+      folderMetaSchema.safeParse({
+        version: 1,
+        id: "folder-1",
+        name: "Folder 1",
+        path: "/work/folder-1",
+        workspaceId: "workspace-1",
+      }).success
+    ).toBe(false);
+  });
 });

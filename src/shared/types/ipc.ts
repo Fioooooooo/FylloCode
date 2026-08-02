@@ -6,6 +6,7 @@ import type { UIMessage, ChatStatus } from "ai";
 export interface IpcErrorInfo {
   code: IpcErrorCode;
   message: string;
+  details?: unknown;
 }
 
 export type IpcResponse<T = unknown> = { ok: true; data: T } | { ok: false; error: IpcErrorInfo };

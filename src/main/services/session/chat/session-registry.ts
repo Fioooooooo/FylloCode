@@ -68,6 +68,13 @@ export const sessionRegistry = {
     }
   },
 
+  listWorkspace(workspaceId: string): Array<{ owner: SessionOwner; key: string }> {
+    const keyPrefix = `${workspaceId}:`;
+    return [...byOwnerKey.values()]
+      .filter((entry) => entry.key.startsWith(keyPrefix))
+      .map(({ owner, key }) => ({ owner, key }));
+  },
+
   cancelAll(): void {
     for (const [k, entry] of byOwnerKey) {
       try {
