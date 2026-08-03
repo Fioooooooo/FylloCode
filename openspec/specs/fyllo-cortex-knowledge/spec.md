@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-knowledge-tool. Update Purpose after archive.
+定义 Workspace durable knowledge 的存储与生命周期契约，包括 Folder-qualified evidence 的锚点校验和状态计算、Chat reminder 索引、flag/capture/review 交互，以及 `fyllo-cortex` knowledge tool 的维护边界。
 
 ## Requirements
 
