@@ -18,6 +18,7 @@ import {
   parseTaskCheckboxes,
 } from "../../../src/mcp-servers/fyllo-specs/src/runtime-openspec/tasks";
 import { resolveProjectRoot } from "../../../src/mcp-servers/fyllo-specs/src/utils/project-root";
+import { resetStdioWorkspaceContextForTests } from "../../../src/mcp-servers/shared/workspace-context";
 
 const fixtureRoot = join(
   process.cwd(),
@@ -150,8 +151,34 @@ describe("openspec-runtime", () => {
     expect(tasks[0].done).toBe(true);
   });
 
-  it("uses project root fallback", () => {
-    expect(resolveProjectRoot()).toBeTruthy();
+  it("resolves the project root from the stdio Workspace descriptor", () => {
+    const previousWorkspace = process.env.FYLLO_WORKSPACE_JSON;
+    process.env.FYLLO_WORKSPACE_JSON = JSON.stringify({
+      version: 2,
+      workspaceId: "workspace-test",
+      workspaceKind: "folder",
+      primaryFolderId: "folder-test",
+      folders: [
+        {
+          folderId: "folder-test",
+          folderName: "Fixture",
+          folderPath: fixtureRoot,
+        },
+      ],
+      workspaceDataDir: join(fixtureRoot, ".workspace-data"),
+    });
+    resetStdioWorkspaceContextForTests();
+
+    try {
+      expect(resolveProjectRoot()).toBe(fixtureRoot);
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.FYLLO_WORKSPACE_JSON;
+      } else {
+        process.env.FYLLO_WORKSPACE_JSON = previousWorkspace;
+      }
+      resetStdioWorkspaceContextForTests();
+    }
   });
 
   it("prefers app.asar CLI fallback over app.asar.unpacked", () => {

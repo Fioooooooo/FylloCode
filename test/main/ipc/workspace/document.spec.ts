@@ -8,12 +8,14 @@ import type { LocalFilePreviewService } from "@main/services/workspace/document/
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
   assertSessionBelongsToWorkspace: vi.fn(),
   ensureSessionWorkspaceSnapshot: vi.fn(),
 }));
 
 vi.mock("@main/services/workspace/_public", () => ({
   resolveWorkspace: mocks.resolveWorkspace,
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
 }));
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
