@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { useWorkspaceStore } from "@renderer/stores";
 import { timeAgo } from "@renderer/utils/time";
+import {
+  presentWorkspaceError,
+  workspaceKindLabel,
+  workspacePresentationTerms,
+} from "@renderer/utils/workspace-presentation";
 import type { WorkspaceLauncherItem } from "@shared/types/workspace";
 
 const workspaceStore = useWorkspaceStore();
@@ -8,24 +13,22 @@ const emit = defineEmits<{
   open: [workspace: WorkspaceLauncherItem];
   edit: [workspace: WorkspaceLauncherItem];
   createFromFolder: [workspace: WorkspaceLauncherItem];
-  remove: [workspaceId: string];
+  remove: [workspace: WorkspaceLauncherItem];
 }>();
 </script>
 
 <template>
   <div class="w-full">
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">最近 Workspace</h2>
-    <div v-if="workspaceStore.isLoading" class="py-8 text-center text-muted">
-      正在加载 Workspace…
-    </div>
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">最近打开</h2>
+    <div v-if="workspaceStore.isLoading" class="py-8 text-center text-muted">正在加载…</div>
     <div v-else-if="workspaceStore.loadError" class="rounded-lg bg-error/10 p-4 text-sm text-error">
-      {{ workspaceStore.loadError.message }}
+      {{ presentWorkspaceError(workspaceStore.loadError) }}
     </div>
     <div
       v-else-if="workspaceStore.recentWorkspaces.length === 0"
       class="py-8 text-center text-muted"
     >
-      暂无最近 Workspace
+      暂无最近打开的 Project 或 Workspace
     </div>
     <div v-else class="max-h-80 space-y-1 overflow-y-auto">
       <div
@@ -45,7 +48,7 @@ const emit = defineEmits<{
                 workspace.workspaceName
               }}</span>
               <UBadge size="xs" color="neutral" variant="subtle">
-                {{ workspace.workspaceKind === "collection" ? "Collection" : "Folder" }}
+                {{ workspaceKindLabel(workspace.workspaceKind) }}
               </UBadge>
               <UBadge
                 v-if="workspace.missingFolderCount"
@@ -58,7 +61,7 @@ const emit = defineEmits<{
             </div>
             <div class="truncate text-xs text-muted">{{ workspace.primaryFolderPath }}</div>
             <div v-if="workspace.workspaceKind === 'collection'" class="mt-1 text-xs text-dimmed">
-              共 {{ workspace.folderCount }} 个文件夹
+              共 {{ workspace.folderCount }} 个 {{ workspacePresentationTerms.member }}
             </div>
           </button>
           <div class="flex shrink-0 items-center gap-2">
@@ -68,7 +71,7 @@ const emit = defineEmits<{
               variant="ghost"
               size="xs"
               color="neutral"
-              aria-label="编辑 Workspace"
+              :aria-label="`编辑 ${workspaceKindLabel(workspace.workspaceKind)}`"
               @click="emit('edit', workspace)"
             />
             <UButton
@@ -77,7 +80,7 @@ const emit = defineEmits<{
               variant="ghost"
               size="xs"
               color="neutral"
-              aria-label="基于此 Folder 创建 Workspace"
+              aria-label="基于此 Project 创建 Workspace"
               @click="emit('createFromFolder', workspace)"
             />
             <UButton
@@ -85,8 +88,8 @@ const emit = defineEmits<{
               variant="ghost"
               size="xs"
               color="error"
-              aria-label="删除 Workspace"
-              @click="emit('remove', workspace.workspaceId)"
+              :aria-label="`删除 ${workspaceKindLabel(workspace.workspaceKind)}`"
+              @click="emit('remove', workspace)"
             />
           </div>
         </div>
@@ -94,12 +97,12 @@ const emit = defineEmits<{
           v-if="workspace.folderCount > 1 || workspace.missingFolderCount"
           class="mt-2 text-xs text-muted"
         >
-          <summary class="cursor-pointer select-none">查看全部文件夹</summary>
+          <summary class="cursor-pointer select-none">查看全部 Project</summary>
           <ul class="mt-1 space-y-1 pl-4">
             <li v-for="folder in workspace.folders" :key="folder.folderId" class="break-all">
-              <span v-if="folder.isPrimary" class="text-primary">主目录 · </span
+              <span v-if="folder.isPrimary" class="text-primary">主 Project · </span
               >{{ folder.folderPath }}
-              <span v-if="folder.pathMissing" class="text-warning"> · 路径缺失</span>
+              <span v-if="folder.pathMissing" class="text-warning"> · 项目目录缺失</span>
             </li>
           </ul>
         </details>

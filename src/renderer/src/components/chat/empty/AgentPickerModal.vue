@@ -191,7 +191,7 @@ function goToSettings(): void {
                     : workspaceCompatibility(agent.id) === 'unknown'
                       ? '连接后检测'
                       : workspaceCompatibility(agent.id) === 'unsupported'
-                        ? '不支持多根工作区'
+                        ? '不支持多 Project Workspace'
                         : undefined
                 "
                 @select="handleSelect"
@@ -245,7 +245,7 @@ function goToSettings(): void {
                   : workspaceCompatibility(agent.id) === 'unknown'
                     ? '连接后检测'
                     : workspaceCompatibility(agent.id) === 'unsupported'
-                      ? '不支持多根工作区'
+                      ? '不支持多 Project Workspace'
                       : undefined
               "
               @select="handleSelect"

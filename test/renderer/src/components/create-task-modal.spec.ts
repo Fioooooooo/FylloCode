@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import CreateTaskModal from "@renderer/components/task/CreateTaskModal.vue";
 
 describe("CreateTaskModal", () => {
-  it("emits ordered selected Folder hints", async () => {
+  it("presents target hints as Project while emitting ordered Folder IDs", async () => {
     const wrapper = mount(CreateTaskModal, {
       props: {
         open: true,
@@ -27,8 +27,8 @@ describe("CreateTaskModal", () => {
     });
 
     await wrapper.findAll("input")[0]!.setValue("Targeted task");
-    await wrapper.get('[aria-label="选择目标 Folder Repository B"]').setValue(true);
-    await wrapper.get('[aria-label="选择目标 Folder Repository A"]').setValue(true);
+    await wrapper.get('[aria-label="选择目标 Project Repository B"]').setValue(true);
+    await wrapper.get('[aria-label="选择目标 Project Repository A"]').setValue(true);
     const createButton = wrapper.findAll("button").find((node) => node.text().includes("创建任务"));
     await createButton?.trigger("click");
 

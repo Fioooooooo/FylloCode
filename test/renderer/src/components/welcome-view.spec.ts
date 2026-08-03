@@ -51,7 +51,7 @@ function mountWelcomeView(
       stubs: {
         WorkspaceList: {
           template:
-            '<div><button data-test="recent" @click="$emit(\'open\', project)">recent</button><button data-test="remove" @click="$emit(\'remove\', project.id)">remove</button></div>',
+            '<div><button data-test="recent" @click="$emit(\'open\', project)">recent</button><button data-test="remove" @click="$emit(\'remove\', project)">remove</button></div>',
           emits: ["open", "edit", "create-from-folder", "remove"],
           data: () => ({ project }),
         },
@@ -77,6 +77,9 @@ describe("WelcomeView", () => {
 
     expect(brandIcon.attributes("src")).toContain("icon.svg");
     expect(brandIcon.attributes("alt")).toBe("FylloCode");
+    expect(wrapper.text()).toContain("打开 Project");
+    expect(wrapper.text()).toContain("创建 Workspace");
+    expect(wrapper.text()).toContain("回收站");
   });
 
   it("navigates after open folder binds the current window", async () => {

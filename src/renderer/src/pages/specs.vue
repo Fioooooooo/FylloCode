@@ -38,23 +38,23 @@ const filteredEmptyState = computed(() => {
   if (!folder) {
     return {
       title: "暂无能力规约",
-      description: "当前 Workspace 的所有 Folder repository 都没有可读取的 spec.md。",
+      description: "当前范围内所有可用 Project 都没有可读取的 spec.md。",
     };
   }
   if (folder.status === "missing") {
     return {
-      title: "Folder 不可用",
-      description: `${folder.folderName} 当前不存在，未读取该 Folder 的能力规约。`,
+      title: "Project 不可用",
+      description: `${folder.folderName} 当前不存在，未读取该 Project 的能力规约。`,
     };
   }
   if (folder.status === "error") {
     return {
-      title: "Folder 读取失败",
-      description: folder.error ?? `${folder.folderName} 的能力规约暂时无法读取。`,
+      title: "Project 读取失败",
+      description: `${folder.folderName} 的能力规约暂时无法读取。`,
     };
   }
   return {
-    title: "此 Folder 暂无能力规约",
+    title: "此 Project 暂无能力规约",
     description: `${folder.folderName} 的 openspec/specs 目录下没有可读取的 spec.md。`,
   };
 });
@@ -138,20 +138,20 @@ function scrollToRequirement(index: number): void {
           <PageHeader
             eyebrow="Specs"
             title="能力规约"
-            description="当前项目的 OpenSpec 能力规约。"
+            description="当前 Project 的 OpenSpec 能力规约。"
           />
           <label v-if="specsStore.data" class="mt-3 block text-xs text-muted">
-            <span class="sr-only">按 Folder 筛选能力规约</span>
+            <span class="sr-only">按 Project 筛选能力规约</span>
             <select
               :value="specsStore.selectedFolderId ?? ''"
               class="w-full rounded-md border border-default bg-default px-2 py-1.5 text-sm text-highlighted"
-              aria-label="按 Folder 筛选能力规约"
+              aria-label="按 Project 筛选能力规约"
               data-test="specs-folder-filter"
               @change="
                 specsStore.setFolderFilter(($event.target as HTMLSelectElement).value || null)
               "
             >
-              <option value="">全部 Folder</option>
+              <option value="">全部 Project</option>
               <option
                 v-for="folder in specsStore.folders"
                 :key="folder.folderId"
@@ -177,8 +177,8 @@ function scrollToRequirement(index: number): void {
               color="warning"
               variant="soft"
               icon="i-lucide-triangle-alert"
-              title="部分 Folder 未计入"
-              :description="affectedFolderNames || '部分 Folder 暂不可用。'"
+              title="部分 Project 未计入"
+              :description="affectedFolderNames || '部分 Project 暂不可用。'"
               class="mb-2"
               data-test="specs-partial-alert"
             />

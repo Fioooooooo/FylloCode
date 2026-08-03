@@ -68,6 +68,10 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 ### 文案与可访问性
 
 - MUST 让 UI 文案精确、直接、无填充词。操作按钮使用“动词 + 对象”，错误信息说明“发生了什么 + 下一步怎么做”，危险操作确认按钮复述动作对象而不是只写“确认”。
+- MUST 将 Workspace 领域模型与用户呈现术语解耦：内部 `kind: "folder"` 的顶层对象对用户称为 `Project`，内部 `kind: "collection"` 的顶层对象称为 `Workspace`，即使 Collection 只有一个成员也不得改称 Project；Workspace member、repository owner、筛选 owner 和 automation target 中的内部 Folder 对用户统一称为 Project。该规则只约束最终用户文案，不重命名 `WorkspaceKind`、`FolderMeta`、`folderId`、IPC/schema、storage、migration 或 Agent/MCP contract。证据：`openspec/specs/workspace-presentation-terminology/spec.md`、`src/renderer/src/utils/workspace-presentation.ts`。
+- MUST 在语义指向 filesystem path、选择器、missing 或 relocation 时使用“项目目录”，不得把 Project identity 与当前 path 等同；同时覆盖 Project 和 Workspace 的列表、switcher、回收站或未知 kind 场景必须使用中性表达，不能用内部 Workspace 上位概念把 Project 误称为 Workspace。
+- MUST 让 kind-sensitive UI 复用 `src/renderer/src/utils/workspace-presentation.ts` 的呈现函数和术语原子，不得在页面或组件中复制 `kind` 判断与核心名词映射。Cleanup state 和结构化 Workspace/Folder 错误必须先经过呈现边界；raw enum、Main 内部 message 与诊断术语不得承担主要用户说明。
+- MUST 以对象语义和 UI sink 审查未来文案，而不是维护完整句子的允许清单。确属 Agent-facing、协议或诊断的 renderer 字符串可保留内部术语，但必须通过带理由的显式 lint 声明标记非用户语境，不得按文件关闭术语门禁。
 - MUST 让 toast 只说明具体发生的变化，避免泛化“成功”文案；进行中状态中文使用“正在 + 动作 + …”，英文使用 present participle + `…`；省略号使用 `…`，不要使用 `...`。
 - MUST 保留技术名词、命令、路径、agent 名称和 proposal ID，不翻译或美化；必要时使用代码样式。
 - MUST 保持状态不只靠颜色表达。badge、错误、警告、成功、进行中状态必须有文字，必要时再配合 icon。

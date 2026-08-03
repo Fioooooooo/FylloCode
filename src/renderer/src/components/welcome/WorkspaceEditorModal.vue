@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useWorkspaceStore } from "@renderer/stores";
+import { presentWorkspaceError, workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 import type { WorkspaceFolderInfo, WorkspaceLauncherItem } from "@shared/types/workspace";
 
 const props = defineProps<{
@@ -22,6 +23,17 @@ const isSaving = ref(false);
 const isEditing = computed(() => props.mode === "edit" && Boolean(props.workspace));
 const isFolderEditing = computed(
   () => isEditing.value && props.workspace?.workspaceKind === "folder"
+);
+const subjectLabel = computed(() =>
+  props.workspace ? workspaceKindLabel(props.workspace.workspaceKind) : "Workspace"
+);
+const modalTitle = computed(() =>
+  isEditing.value ? `编辑 ${subjectLabel.value}` : "创建 Workspace"
+);
+const modalDescription = computed(() =>
+  isFolderEditing.value
+    ? "Project 可以改名或重新定位项目目录；如需组合多个 Project，请创建 Workspace。"
+    : "Workspace 始终保持独立身份，可包含 1–16 个 Project。"
 );
 const canSave = computed(
   () => Boolean(name.value.trim()) && folders.value.length > 0 && Boolean(primaryFolderId.value)
@@ -101,7 +113,10 @@ async function relocateFolder(folderId: string, confirmHistoricalSessions = fals
   } catch (error) {
     const issue = error as Error & { code?: string; details?: unknown };
     errorCode.value = issue.code ?? "";
-    errorMessage.value = issue.message;
+    errorMessage.value = presentWorkspaceError(
+      issue,
+      props.workspace?.workspaceKind ?? "collection"
+    );
     errorDetails.value = issue.details;
     pendingRelocationFolderId.value = folderId;
   }
@@ -137,7 +152,10 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
   } catch (error) {
     const issue = error as Error & { code?: string; details?: unknown };
     errorCode.value = issue.code ?? "";
-    errorMessage.value = issue.message;
+    errorMessage.value = presentWorkspaceError(
+      issue,
+      props.workspace?.workspaceKind ?? "collection"
+    );
     errorDetails.value = issue.details;
   } finally {
     isSaving.value = false;
@@ -148,22 +166,18 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
 <template>
   <UModal
     :open="open"
-    :title="isEditing ? '编辑 Workspace' : '创建 Collection Workspace'"
-    :description="
-      isFolderEditing
-        ? 'Folder Workspace 可以改名或重新定位唯一 Folder，不能修改成员。'
-        : 'Collection Workspace 始终保持独立身份，可包含 1–16 个文件夹。'
-    "
+    :title="modalTitle"
+    :description="modalDescription"
     @update:open="emit('update:open', $event)"
   >
     <template #body>
       <div class="space-y-4">
-        <UFormField label="Workspace 名称" required>
+        <UFormField :label="`${subjectLabel} 名称`" required>
           <UInput v-model="name" class="w-full" autofocus />
         </UFormField>
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-highlighted"
-            >文件夹（{{ folders.length }}/16）</span
+            >Project（{{ folders.length }}/16）</span
           >
           <UButton
             v-if="!isFolderEditing"
@@ -173,14 +187,14 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
             :disabled="folders.length >= 16"
             @click="addFolder"
           >
-            添加文件夹
+            添加 Project
           </UButton>
         </div>
         <div
           v-if="folders.length === 0"
           class="rounded-lg border border-dashed border-default p-5 text-center text-sm text-muted"
         >
-          至少添加一个文件夹
+          至少添加一个 Project
         </div>
         <div v-else class="max-h-72 space-y-2 overflow-y-auto">
           <div
@@ -193,7 +207,7 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
               v-model="primaryFolderId"
               type="radio"
               :value="folder.folderId"
-              :aria-label="`设为主目录 ${folder.folderName}`"
+              :aria-label="`设为主 Project ${folder.folderName}`"
             />
             <UIcon v-else name="i-lucide-folder" class="size-4 text-muted" />
             <div class="min-w-0 flex-1">
@@ -213,7 +227,7 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
               size="xs"
               variant="ghost"
               :color="folder.pathMissing ? 'warning' : 'neutral'"
-              aria-label="重新定位"
+              aria-label="重新定位项目目录"
               @click="relocateFolder(folder.folderId)"
             />
             <template v-if="!isFolderEditing">
@@ -240,7 +254,7 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
                 size="xs"
                 variant="ghost"
                 color="error"
-                aria-label="移除成员"
+                aria-label="移除 Project"
                 @click="removeFolder(folder.folderId)"
               />
             </template>

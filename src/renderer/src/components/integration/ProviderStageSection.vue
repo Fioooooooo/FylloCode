@@ -140,9 +140,9 @@ function folderBindingLabel(entry: WorkspaceIntegrationEntry): string | null {
     );
   }
   if (entry.staleFolderId) {
-    return `已失效：${entry.staleFolderId}`;
+    return `Project 已失效：${entry.staleFolderId}`;
   }
-  return repositoryBoundStage.value ? "未绑定" : null;
+  return repositoryBoundStage.value ? "未绑定 Project" : null;
 }
 
 async function loadResourceOptions(
@@ -213,7 +213,7 @@ async function applyResourceSelection(
     [...selectedIds].some((resourceId) => !resourcePickerFolderBindings.value[key]?.[resourceId])
   ) {
     resourcePickerErrors.value[key] =
-      "Repository-bound 资源必须为每一项选择当前 Workspace Folder。";
+      "Repository-bound 资源必须为每一项选择当前 Workspace 中的 Project。";
     return;
   }
   const nextEntries = integrationProvidersStore
@@ -500,7 +500,7 @@ async function handleRemoveResource(
                           ]?.[resource.id] ?? ''
                         "
                         class="mt-2 w-full rounded-md border border-default bg-default px-2 py-1 text-xs"
-                        :aria-label="`为 ${resource.name} 选择 Folder`"
+                        :aria-label="`为 ${resource.name} 选择 Project`"
                         @click.stop
                         @change="
                           setResourceFolderBinding(
@@ -510,7 +510,7 @@ async function handleRemoveResource(
                           )
                         "
                       >
-                        <option value="">选择 Folder</option>
+                        <option value="">选择 Project</option>
                         <option
                           v-for="folder in props.workspaceFolders"
                           :key="folder.folderId"

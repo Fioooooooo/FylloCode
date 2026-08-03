@@ -99,7 +99,7 @@ describe("knowledge page", () => {
 
     expect(mocks.getBrowser).toHaveBeenCalledWith("project-1");
     expect(mocks.readEntry).toHaveBeenCalledWith("project-1", { name: "first-entry" });
-    expect(wrapper.text()).toContain("浏览、核查当前工作区已沉淀的知识。");
+    expect(wrapper.text()).toContain("浏览、核查当前 Project 或 Workspace 已沉淀的知识。");
     expect(wrapper.get('[data-test="markstream-stub"]').text()).toContain("```yaml");
     expect(wrapper.get('[data-test="markstream-stub"]').text()).toContain("name: first-entry");
   });

@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useSessionStore } from "@renderer/stores";
+import { useSessionStore, useWorkspaceStore } from "@renderer/stores";
+import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 
 const sessionStore = useSessionStore();
+const workspaceStore = useWorkspaceStore();
 const { activeSession, activeSessionScopeDiff } = storeToRefs(sessionStore);
 
 const snapshot = computed(() => activeSession.value?.workspaceSnapshot ?? null);
+const currentSubjectLabel = computed(() => {
+  const workspace = workspaceStore.currentWorkspace;
+  return workspace ? workspaceKindLabel(workspace.kind) : "Project 或 Workspace";
+});
 const statusLabel = computed(() => {
-  if (activeSessionScopeDiff.value?.isStale) return "目录范围已失效";
-  if (activeSessionScopeDiff.value?.hasChanges) return "与当前 Workspace 不同";
-  return "目录范围已固定";
+  if (activeSessionScopeDiff.value?.isStale) return "Project 授权范围已失效";
+  if (activeSessionScopeDiff.value?.hasChanges) return `与当前 ${currentSubjectLabel.value} 不同`;
+  return "Project 授权范围已固定";
 });
 
 function snapshotFolderName(folderId: string): string {
@@ -27,8 +33,8 @@ function snapshotFolderName(folderId: string): string {
         class="flex min-w-0 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-xs text-muted outline-none transition-colors duration-150 hover:bg-accented focus-visible:ring-2 focus-visible:ring-primary/30"
         data-test="session-scope-summary"
       >
-        <span class="font-medium text-highlighted">Agent 目录范围</span>
-        <span>{{ snapshot.folders.length }} 个 Folder</span>
+        <span class="font-medium text-highlighted">Agent Project 授权范围</span>
+        <span>{{ snapshot.folders.length }} 个 Project</span>
         <span
           class="rounded-md px-1.5 py-0.5"
           :class="
@@ -55,7 +61,7 @@ function snapshotFolderName(folderId: string): string {
                 v-if="folder.folderId === snapshot.primaryFolderId"
                 class="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 text-primary"
               >
-                primary
+                主 Project
               </span>
             </div>
             <code class="mt-1 block truncate text-[11px] text-muted" :title="folder.folderPath">
@@ -69,19 +75,19 @@ function snapshotFolderName(folderId: string): string {
           class="space-y-2 rounded-md border border-default/50 bg-default px-2.5 py-2 text-muted"
           data-test="session-scope-diff"
         >
-          <p class="font-medium text-highlighted">当前 Workspace 已发生变化</p>
+          <p class="font-medium text-highlighted">当前 {{ currentSubjectLabel }} 已发生变化</p>
           <ul class="list-disc space-y-1 pl-4">
             <li v-if="activeSessionScopeDiff.currentOnly.length">
-              当前新增：{{
+              当前新增 Project：{{
                 activeSessionScopeDiff.currentOnly.map((folder) => folder.folderName).join("、")
               }}
             </li>
             <li v-if="activeSessionScopeDiff.snapshotOnly.length">
-              已移出 Workspace：{{
+              已从当前 {{ currentSubjectLabel }} 移除：{{
                 activeSessionScopeDiff.snapshotOnly.map((folder) => folder.folderName).join("、")
               }}
             </li>
-            <li v-if="activeSessionScopeDiff.primaryChanged">primary Folder 已变更</li>
+            <li v-if="activeSessionScopeDiff.primaryChanged">主 Project 已变更</li>
             <li
               v-for="change in activeSessionScopeDiff.nameChanges"
               :key="`name-${change.folderId}`"
@@ -92,15 +98,17 @@ function snapshotFolderName(folderId: string): string {
               v-for="change in activeSessionScopeDiff.pathChanges"
               :key="`path-${change.folderId}`"
             >
-              {{ snapshotFolderName(change.folderId) }} 的路径已变更
+              {{ snapshotFolderName(change.folderId) }} 的项目目录已变更
             </li>
             <li v-if="activeSessionScopeDiff.unavailableFolderIds.length">
-              路径不可用：{{
+              项目目录不可用：{{
                 activeSessionScopeDiff.unavailableFolderIds.map(snapshotFolderName).join("、")
               }}
             </li>
           </ul>
-          <p>此 Session 仍使用创建时的目录范围；新建 Session 获得当前成员授权。</p>
+          <p>
+            此 Session 仍使用创建时的 Project 授权范围；新建 Session 才能获得当前 Project 授权。
+          </p>
         </div>
       </div>
     </details>

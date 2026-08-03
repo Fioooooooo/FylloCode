@@ -7,12 +7,17 @@ import { useWorkspaceStore } from "@renderer/stores";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { activityBarItems } from "@renderer/config/activity-bar";
 import { evaluateWorkspaceNavigation } from "@renderer/config/navigation-gate";
+import { presentWorkspaceError } from "@renderer/utils/workspace-presentation";
 
 const route = useRoute();
 const router = useRouter();
 const workspaceStore = useWorkspaceStore();
 const { goToDefault } = useDefaultAppRoute();
 const workspaceScopedRoutes = ["/proposal", "/specs"];
+const workspaceContextDescription = computed(() => {
+  const error = workspaceStore.workspaceContextError;
+  return error ? presentWorkspaceError(error) : "";
+});
 
 const protectedRoutes = computed(() =>
   Array.from(
@@ -58,8 +63,8 @@ async function openLauncher(): Promise<void> {
   >
     <AppEmptyState
       icon="i-lucide-folder-x"
-      title="无法打开工作区"
-      :description="workspaceStore.workspaceContextError.message"
+      title="无法打开 Project 或 Workspace"
+      :description="workspaceContextDescription"
       action-label="打开启动窗口"
       action-icon="i-lucide-rocket"
       @action="openLauncher"

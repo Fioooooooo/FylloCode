@@ -239,7 +239,7 @@ watch(
             </div>
 
             <div class="space-y-1.5" data-test="task-target-summary">
-              <p class="text-xs font-medium text-muted">目标 Folder</p>
+              <p class="text-xs font-medium text-muted">目标 Project</p>
               <div class="flex flex-wrap gap-1.5">
                 <UBadge
                   v-for="folderName in currentTargetFolders"
@@ -256,13 +256,13 @@ watch(
                   variant="soft"
                   size="sm"
                 >
-                  {{ staleTargetFolderIds.length }} 个目标已失效
+                  {{ staleTargetFolderIds.length }} 个目标 Project 已失效
                 </UBadge>
                 <span
                   v-if="currentTargetFolders.length === 0 && staleTargetFolderIds.length === 0"
                   class="text-xs text-muted"
                 >
-                  未指定 repository
+                  未指定目标 Project
                 </span>
               </div>
             </div>
@@ -318,7 +318,7 @@ watch(
             </UFormField>
 
             <fieldset class="space-y-2">
-              <legend class="text-sm font-medium text-highlighted">目标 Folder（可选）</legend>
+              <legend class="text-sm font-medium text-highlighted">目标 Project（可选）</legend>
               <label
                 v-for="option in targetOptions"
                 :key="option.id"
@@ -328,7 +328,7 @@ watch(
                   <input
                     type="checkbox"
                     :checked="targetFolderIds.includes(option.id)"
-                    :aria-label="`选择目标 Folder ${option.label}`"
+                    :aria-label="`选择目标 Project ${option.label}`"
                     @change="toggleTarget(option.id, ($event.target as HTMLInputElement).checked)"
                   />
                   <span>{{ option.label }}</span>

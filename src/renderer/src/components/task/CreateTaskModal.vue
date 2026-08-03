@@ -89,8 +89,10 @@ function submit(): void {
         </UFormField>
 
         <fieldset v-if="props.folders.length > 0" class="space-y-2">
-          <legend class="text-sm font-medium text-highlighted">目标 Folder（可选）</legend>
-          <p class="text-xs text-muted">仅作为后续 proposal owner 建议，不限制成员变更。</p>
+          <legend class="text-sm font-medium text-highlighted">目标 Project（可选）</legend>
+          <p class="text-xs text-muted">
+            仅用于建议后续 proposal 所属 Project，不限制 Workspace 成员变更。
+          </p>
           <label
             v-for="folder in props.folders"
             :key="folder.folderId"
@@ -99,7 +101,7 @@ function submit(): void {
             <input
               type="checkbox"
               :checked="targetFolderIds.includes(folder.folderId)"
-              :aria-label="`选择目标 Folder ${folder.folderName}`"
+              :aria-label="`选择目标 Project ${folder.folderName}`"
               @change="toggleTarget(folder.folderId, ($event.target as HTMLInputElement).checked)"
             />
             <span>{{ folder.folderName }}</span>

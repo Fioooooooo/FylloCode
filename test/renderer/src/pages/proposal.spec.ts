@@ -264,7 +264,7 @@ describe("proposal list page", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-test="proposal-list"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain("Folder 不可用");
+    expect(wrapper.text()).toContain("Project 不可用");
     expect(wrapper.text()).toContain("Repository B 当前不存在");
   });
 });

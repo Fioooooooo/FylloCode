@@ -22,7 +22,7 @@ vi.mock("@main/infra/logger", () => ({
 
 import { showWorkspaceUpgradeFailure } from "@main/bootstrap/workspace-upgrade-failure";
 
-describe("Workspace upgrade failure UI", () => {
+describe("FylloCode data upgrade failure UI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.showMessageBox.mockResolvedValue({ response: 1, checkboxChecked: false });
@@ -37,10 +37,10 @@ describe("Workspace upgrade failure UI", () => {
 
     expect(mocks.showMessageBox).toHaveBeenCalledWith({
       type: "error",
-      title: "Workspace 数据升级失败",
-      message: "Workspace 数据升级失败",
+      title: "FylloCode 数据升级失败",
+      message: "FylloCode 数据升级失败",
       detail: expect.stringMatching(
-        /无法确认归属的旧 Project 数据不会被删除。[\s\S]*下次启动会自动重试 Workspace settlement。[\s\S]*20260804_001_retire-legacy-project-storage[\s\S]*\/app\/logs[\s\S]*target incomplete/
+        /Project \/ Workspace 数据升级。[\s\S]*无法确认归属的旧数据不会被删除。[\s\S]*下次启动会自动重试数据升级。[\s\S]*20260804_001_retire-legacy-project-storage[\s\S]*\/app\/logs[\s\S]*target incomplete/
       ),
       buttons: ["打开日志目录", "退出 FylloCode"],
       defaultId: 0,

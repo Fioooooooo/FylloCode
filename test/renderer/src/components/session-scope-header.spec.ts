@@ -7,11 +7,17 @@ import type { SessionScopeDiff } from "@renderer/stores/session/session";
 
 const activeSessionRef = ref<Session | null>(null);
 const activeSessionScopeDiffRef = ref<SessionScopeDiff | null>(null);
+const currentWorkspaceKindRef = ref<"folder" | "collection">("collection");
 
 vi.mock("@renderer/stores", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     activeSessionScopeDiff: computed(() => activeSessionScopeDiffRef.value),
+  }),
+  useWorkspaceStore: () => ({
+    get currentWorkspace() {
+      return { kind: currentWorkspaceKindRef.value };
+    },
   }),
 }));
 
@@ -71,6 +77,7 @@ describe("SessionScopeHeader", () => {
   beforeEach(() => {
     activeSessionRef.value = null;
     activeSessionScopeDiffRef.value = null;
+    currentWorkspaceKindRef.value = "collection";
   });
 
   it("stays hidden when the active Session has no frozen scope", () => {
@@ -79,16 +86,16 @@ describe("SessionScopeHeader", () => {
     expect(wrapper.find('[data-test="session-scope-header"]').exists()).toBe(false);
   });
 
-  it("shows the frozen Folder scope and primary marker", () => {
+  it("shows the frozen Project scope and primary marker", () => {
     activeSessionRef.value = scopedSession();
     activeSessionScopeDiffRef.value = emptyDiff();
     const wrapper = mount(SessionScopeHeader);
 
-    expect(wrapper.get('[data-test="session-scope-summary"]').text()).toContain("2 个 Folder");
-    expect(wrapper.get('[data-test="session-scope-status"]').text()).toBe("目录范围已固定");
+    expect(wrapper.get('[data-test="session-scope-summary"]').text()).toContain("2 个 Project");
+    expect(wrapper.get('[data-test="session-scope-status"]').text()).toBe("Project 授权范围已固定");
     expect(wrapper.text()).toContain("App");
     expect(wrapper.text()).toContain("API");
-    expect(wrapper.text()).toContain("primary");
+    expect(wrapper.text()).toContain("主 Project");
     expect(wrapper.get('[data-test="session-scope-summary"]').classes()).toContain(
       "focus-visible:ring-2"
     );
@@ -113,13 +120,15 @@ describe("SessionScopeHeader", () => {
     });
     const wrapper = mount(SessionScopeHeader);
 
-    expect(wrapper.get('[data-test="session-scope-status"]').text()).toBe("目录范围已失效");
-    expect(wrapper.get('[data-test="session-scope-diff"]').text()).toContain("当前新增：Docs");
+    expect(wrapper.get('[data-test="session-scope-status"]').text()).toBe("Project 授权范围已失效");
     expect(wrapper.get('[data-test="session-scope-diff"]').text()).toContain(
-      "已移出 Workspace：API"
+      "当前新增 Project：Docs"
     );
     expect(wrapper.get('[data-test="session-scope-diff"]').text()).toContain(
-      "新建 Session 获得当前成员授权"
+      "已从当前 Workspace 移除：API"
+    );
+    expect(wrapper.get('[data-test="session-scope-diff"]').text()).toContain(
+      "新建 Session 才能获得当前 Project 授权"
     );
     expect(wrapper.text()).toContain("/repos/api");
   });

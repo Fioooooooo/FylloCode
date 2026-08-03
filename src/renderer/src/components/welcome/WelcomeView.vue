@@ -7,6 +7,7 @@ import WorkspaceList from "@renderer/components/welcome/WorkspaceList.vue";
 import WorkspaceEditorModal from "@renderer/components/welcome/WorkspaceEditorModal.vue";
 import DeletedWorkspaceManager from "@renderer/components/welcome/DeletedWorkspaceManager.vue";
 import Logo from "@renderer/components/shared/Logo.vue";
+import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 import type { WorkspaceLauncherItem } from "@shared/types/workspace";
 
 const { goToDefault } = useDefaultAppRoute();
@@ -31,15 +32,16 @@ async function handleOpenRecent(workspace: WorkspaceLauncherItem): Promise<void>
   }
 }
 
-async function handleRemove(workspaceId: string): Promise<void> {
+async function handleRemove(workspace: WorkspaceLauncherItem): Promise<void> {
+  const subject = workspaceKindLabel(workspace.workspaceKind);
   const accepted = await confirm({
-    title: "删除 Workspace？",
-    description: "Workspace 将从最近列表移除，但数据会保留，可以从“已删除的 Workspace”中恢复。",
-    confirmLabel: "删除",
+    title: `删除 ${subject}？`,
+    description: `${subject} 将从最近打开中移除，但 FylloCode 数据会保留，可以从“回收站”恢复。`,
+    confirmLabel: `删除 ${subject}`,
     confirmColor: "error",
   });
   if (!accepted) return;
-  await workspaceStore.removeRecentWorkspace(workspaceId);
+  await workspaceStore.removeRecentWorkspace(workspace.workspaceId);
 }
 
 function openCreate(seed: WorkspaceLauncherItem | null = null): void {
@@ -80,7 +82,7 @@ function openDeleted(): void {
           class="flex-1 justify-center"
           @click="handleOpenFolder"
         >
-          打开文件夹
+          打开 Project
         </UButton>
         <UButton
           icon="i-lucide-layout-grid"
@@ -94,16 +96,14 @@ function openDeleted(): void {
         </UButton>
       </div>
 
-      <!-- Recent Workspaces -->
+      <!-- Recent items -->
       <WorkspaceList
         @open="handleOpenRecent"
         @edit="openEdit"
         @create-from-folder="openCreate"
         @remove="handleRemove"
       />
-      <UButton class="mt-5" variant="link" color="neutral" @click="openDeleted">
-        已删除的 Workspace
-      </UButton>
+      <UButton class="mt-5" variant="link" color="neutral" @click="openDeleted"> 回收站 </UButton>
     </div>
     <WorkspaceEditorModal
       v-model:open="editorOpen"

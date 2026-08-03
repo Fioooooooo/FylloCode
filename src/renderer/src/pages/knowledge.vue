@@ -181,7 +181,7 @@ watch(
           <PageHeader
             eyebrow="Knowledge"
             title="知识沉淀"
-            description="浏览、核查当前工作区已沉淀的知识。"
+            description="浏览、核查当前 Project 或 Workspace 已沉淀的知识。"
           />
         </div>
 

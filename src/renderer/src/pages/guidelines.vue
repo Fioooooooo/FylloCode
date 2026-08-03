@@ -41,23 +41,23 @@ const filteredEmptyState = computed(() => {
   if (!folder) {
     return {
       title: "暂无项目准则",
-      description: "当前 Workspace 的所有 Folder repository 都没有可读取的 guidelines/**/*.md。",
+      description: "当前范围内所有可用 Project 都没有可读取的 guidelines/**/*.md。",
     };
   }
   if (folder.status === "missing") {
     return {
-      title: "Folder 不可用",
-      description: `${folder.folderName} 当前不存在，未读取该 Folder 的项目准则。`,
+      title: "Project 不可用",
+      description: `${folder.folderName} 当前不存在，未读取该 Project 的项目准则。`,
     };
   }
   if (folder.status === "error") {
     return {
-      title: "Folder 读取失败",
-      description: folder.error ?? `${folder.folderName} 的项目准则暂时无法读取。`,
+      title: "Project 读取失败",
+      description: `${folder.folderName} 的项目准则暂时无法读取。`,
     };
   }
   return {
-    title: "此 Folder 暂无项目准则",
+    title: "此 Project 暂无项目准则",
     description: `${folder.folderName} 的 guidelines 目录下没有可读取的 markdown 文件。`,
   };
 });
@@ -128,19 +128,23 @@ function guidelineFileName(path: string): string {
     <div class="h-full w-72 shrink-0 overflow-hidden rounded-lg bg-default">
       <div class="flex h-full flex-col">
         <div class="border-b border-default/50 px-4 py-3">
-          <PageHeader eyebrow="Guidelines" title="项目准则" description="当前项目的工程准则。" />
+          <PageHeader
+            eyebrow="Guidelines"
+            title="项目准则"
+            description="当前 Project 的工程准则。"
+          />
           <label v-if="guidelinesStore.data" class="mt-3 block text-xs text-muted">
-            <span class="sr-only">按 Folder 筛选项目准则</span>
+            <span class="sr-only">按 Project 筛选项目准则</span>
             <select
               :value="guidelinesStore.selectedFolderId ?? ''"
               class="w-full rounded-md border border-default bg-default px-2 py-1.5 text-sm text-highlighted"
-              aria-label="按 Folder 筛选项目准则"
+              aria-label="按 Project 筛选项目准则"
               data-test="guidelines-folder-filter"
               @change="
                 guidelinesStore.setFolderFilter(($event.target as HTMLSelectElement).value || null)
               "
             >
-              <option value="">全部 Folder</option>
+              <option value="">全部 Project</option>
               <option
                 v-for="folder in guidelinesStore.folders"
                 :key="folder.folderId"
@@ -171,8 +175,8 @@ function guidelineFileName(path: string): string {
               color="warning"
               variant="soft"
               icon="i-lucide-triangle-alert"
-              title="部分 Folder 未计入"
-              :description="affectedFolderNames || '部分 Folder 暂不可用。'"
+              title="部分 Project 未计入"
+              :description="affectedFolderNames || '部分 Project 暂不可用。'"
               class="mb-2"
               data-test="guidelines-partial-alert"
             />

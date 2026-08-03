@@ -104,7 +104,7 @@ describe("integration page", () => {
     await flushPromises();
 
     expect(loadWorkspaceIntegrationMock).toHaveBeenCalledWith("");
-    expect(wrapper.text()).toContain("请先打开一个工作区");
+    expect(wrapper.text()).toContain("请先打开 Project 或 Workspace");
   });
 
   it("loads project integration when the current project becomes available after mount", async () => {

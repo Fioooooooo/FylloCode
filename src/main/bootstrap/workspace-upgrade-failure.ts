@@ -14,11 +14,11 @@ export async function showWorkspaceUpgradeFailure(
   try {
     const result = await dialog.showMessageBox({
       type: "error",
-      title: "Workspace 数据升级失败",
-      message: "Workspace 数据升级失败",
+      title: "FylloCode 数据升级失败",
+      message: "FylloCode 数据升级失败",
       detail: [
-        "FylloCode 无法完成 Workspace 数据升级。无法确认归属的旧 Project 数据不会被删除。",
-        "修复底层权限或数据冲突后，下次启动会自动重试 Workspace settlement。",
+        "FylloCode 无法完成 Project / Workspace 数据升级。无法确认归属的旧数据不会被删除。",
+        "修复底层权限或数据冲突后，下次启动会自动重试数据升级。",
         `Migration: ${details.migrationId}`,
         `日志目录: ${logsPath}`,
         ...(details.reason ? [`原因: ${details.reason}`] : []),

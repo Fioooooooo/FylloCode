@@ -1,13 +1,16 @@
 import type { WorkspaceInfo } from "@shared/types/workspace";
 
 export function buildHealthCheckReminder(workspace: WorkspaceInfo): string {
+  // eslint-disable-next-line renderer-terminology/no-internal-user-terms -- Agent-facing 健康检查提示必须精确指明内部 Folder identity。
+  const primaryFolderMetaPrompt = "Absolute path of the primary Folder's meta.json";
+
   return `<system-reminder>
 ## Your Role
 
 This chat is a project health-check session. Task: assess how complete the project's hard engineering constraints on agents are (i.e. the degree to which agent behavior can be enforced by configuration alone), and help the user close the gaps through the standard FylloCode proposal flow.
 
 Current Workspace root: ${workspace.primaryFolder.path}
-Absolute path of the primary Folder's meta.json: ${workspace.primaryFolderMetaPath}
+${primaryFolderMetaPrompt}: ${workspace.primaryFolderMetaPath}
 
 ## Scoring Rules
 

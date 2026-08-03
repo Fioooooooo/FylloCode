@@ -12,7 +12,7 @@ const workspaceStoreMock = vi.hoisted(() => ({
   recentWorkspaces: [] as Array<{
     workspaceId: string;
     workspaceName: string;
-    workspaceKind: "folder";
+    workspaceKind: "folder" | "collection";
     primaryFolderId: string;
     primaryFolderPath: string;
     folderCount: number;
@@ -107,7 +107,7 @@ describe("AppHeader", () => {
     workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();
 
-    await wrapper.get('[data-test="dropdown-item-Project B"]').trigger("click");
+    await wrapper.get('[data-test="dropdown-item-Project B · Project"]').trigger("click");
     await flushPromises();
 
     expect(workspaceStoreMock.openRecentWorkspace).toHaveBeenCalledWith(project);
@@ -131,7 +131,7 @@ describe("AppHeader", () => {
     workspaceStoreMock.recentWorkspaces = [project];
     const wrapper = mountAppHeader();
 
-    await wrapper.get('[data-test="dropdown-item-Missing Project"]').trigger("click");
+    await wrapper.get('[data-test="dropdown-item-Missing Project · Project"]').trigger("click");
     await flushPromises();
 
     expect(workspaceStoreMock.openRecentWorkspace).toHaveBeenCalledWith(project);
@@ -149,10 +149,32 @@ describe("AppHeader", () => {
     });
     const wrapper = mountAppHeader();
 
-    await wrapper.get('[data-test="dropdown-item-打开工作区"]').trigger("click");
+    await wrapper.get('[data-test="dropdown-item-打开 Project"]').trigger("click");
     await flushPromises();
 
     expect(workspaceStoreMock.openFolderWindow).toHaveBeenCalled();
     expect(routeMocks.goToDefault).toHaveBeenCalled();
+  });
+
+  it("keeps a single-member collection labeled as Workspace", () => {
+    workspaceStoreMock.recentWorkspaces = [
+      {
+        workspaceId: "workspace-a",
+        workspaceName: "Workspace A",
+        workspaceKind: "collection",
+        primaryFolderId: "project-a",
+        primaryFolderPath: "/tmp/project-a",
+        folderCount: 1,
+        folderPaths: ["/tmp/project-a"],
+        folders: [{ folderId: "project-a", folderPath: "/tmp/project-a", pathMissing: false }],
+        missingFolderCount: 0,
+        lastOpenedAt: "2026-07-07T00:00:00.000Z",
+        isDeleted: false,
+      },
+    ];
+
+    const wrapper = mountAppHeader();
+
+    expect(wrapper.find('[data-test="dropdown-item-Workspace A · Workspace"]').exists()).toBe(true);
   });
 });

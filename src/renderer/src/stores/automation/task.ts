@@ -241,7 +241,7 @@ export const useTaskStore = defineStore("task", () => {
       workspaceIntegration.value = null;
       resetDetailState();
       loading.value = false;
-      error.value = "当前没有选中的工作区";
+      error.value = "当前没有打开的 Project 或 Workspace";
       return;
     }
 
@@ -296,7 +296,7 @@ export const useTaskStore = defineStore("task", () => {
   async function createTask(input: CreateLocalTaskInput): Promise<TaskItem> {
     const workspaceId = getCurrentWorkspaceId();
     if (!workspaceId) {
-      error.value = "当前没有选中的工作区";
+      error.value = "当前没有打开的 Project 或 Workspace";
       throw new Error(error.value);
     }
 
@@ -314,7 +314,7 @@ export const useTaskStore = defineStore("task", () => {
   async function updateTask(taskId: string, updates: UpdateTaskInput): Promise<TaskItem> {
     const workspaceId = getCurrentWorkspaceId();
     if (!workspaceId) {
-      error.value = "当前没有选中的工作区";
+      error.value = "当前没有打开的 Project 或 Workspace";
       throw new Error(error.value);
     }
 
@@ -332,7 +332,7 @@ export const useTaskStore = defineStore("task", () => {
   async function deleteTask(taskId: string): Promise<void> {
     const workspaceId = getCurrentWorkspaceId();
     if (!workspaceId) {
-      error.value = "当前没有选中的工作区";
+      error.value = "当前没有打开的 Project 或 Workspace";
       throw new Error(error.value);
     }
 
@@ -350,7 +350,7 @@ export const useTaskStore = defineStore("task", () => {
     const workspaceId = getCurrentWorkspaceId();
     if (!workspaceId) {
       detailErrorTaskId.value = taskId;
-      detailErrorMessage.value = "当前没有选中的工作区";
+      detailErrorMessage.value = "当前没有打开的 Project 或 Workspace";
       throw new Error(detailErrorMessage.value);
     }
 

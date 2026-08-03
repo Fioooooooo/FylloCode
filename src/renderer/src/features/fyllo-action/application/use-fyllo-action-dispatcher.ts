@@ -123,7 +123,7 @@ export function useFylloActionDispatcher(): {
     if (!workspaceId || workspaceId !== activeWorkspaceId) {
       return {
         outcome: "failed",
-        error: "Action 所属工作区与当前窗口不一致，已拒绝执行。",
+        error: "Action 所属 Project 或 Workspace 与当前窗口不一致，已拒绝执行。",
       };
     }
 

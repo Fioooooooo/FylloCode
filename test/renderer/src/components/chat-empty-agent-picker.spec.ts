@@ -135,7 +135,7 @@ describe("ChatEmptyAgentPicker multi-root capability", () => {
 
     expect(setDraftAgent).not.toHaveBeenCalled();
     expect(wrapper.get("button").attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("不支持多根工作区");
+    expect(wrapper.text()).toContain("不支持多 Project Workspace");
   });
 });
 

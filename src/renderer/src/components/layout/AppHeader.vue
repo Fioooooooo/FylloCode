@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { appApi } from "@renderer/api/platform/app";
 import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
 import { useWorkspaceStore } from "@renderer/stores";
+import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 import { useColorMode } from "@vueuse/core";
 import type { WorkspaceLauncherItem } from "@shared/types/workspace";
 import ProjectHealthPopover from "./ProjectHealthPopover.vue";
@@ -14,7 +15,7 @@ const colorMode = useColorMode();
 const dropdownItems = computed(() => {
   const workspaceItems = workspaceStore.recentWorkspaces.map(
     (workspace: WorkspaceLauncherItem) => ({
-      label: workspace.workspaceName,
+      label: `${workspace.workspaceName} · ${workspaceKindLabel(workspace.workspaceKind)}`,
       onSelect: async () => {
         await workspaceStore.openRecentWorkspace(workspace);
       },
@@ -25,7 +26,7 @@ const dropdownItems = computed(() => {
     ...workspaceItems,
     { type: "separator" as const },
     {
-      label: "打开工作区",
+      label: "打开 Project",
       icon: "i-lucide-folder-open",
       onSelect: async () => {
         const workspace = await workspaceStore.openFolderWindow();
@@ -75,7 +76,7 @@ async function openDevTools(): Promise<void> {
           style="-webkit-app-region: no-drag"
         >
           <span class="truncate max-w-48 text-sm font-normal text-highlighted">
-            {{ workspaceStore.currentWorkspace?.name ?? "未选择工作区" }}
+            {{ workspaceStore.currentWorkspace?.name ?? "未选择 Project 或 Workspace" }}
           </span>
           <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" />
         </div>

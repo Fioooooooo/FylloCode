@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables";
 import { buildHealthCheckReminder } from "@renderer/constants/health-check-reminder";
 import { useChatStore, useWorkspaceStore, useSessionStore } from "@renderer/stores";
+import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 
 const router = useRouter();
 const toast = useToast();
@@ -14,6 +15,10 @@ const chatStore = useChatStore();
 const open = ref(false);
 
 const healthScore = computed(() => workspaceStore.currentWorkspace?.primaryFolder.healthScore ?? 0);
+const subjectLabel = computed(() => {
+  const workspace = workspaceStore.currentWorkspace;
+  return workspace ? workspaceKindLabel(workspace.kind) : "Project 或 Workspace";
+});
 const iconColorClass = computed(() => {
   if (healthScore.value >= 60) {
     return "text-green-500";
@@ -26,7 +31,9 @@ const iconColorClass = computed(() => {
   return "text-muted";
 });
 const statusText = computed(() =>
-  healthScore.value > 0 ? `上次健康检查得分：${healthScore.value} 分` : "当前工作区尚未进行健康检查"
+  healthScore.value > 0
+    ? `上次健康检查得分：${healthScore.value} 分`
+    : `当前 ${subjectLabel.value} 尚未进行健康检查`
 );
 
 function handleIconClick(): void {
@@ -47,7 +54,7 @@ async function startHealthCheck(): Promise<void> {
       { type: "text", text: buildHealthCheckReminder(workspace) },
       {
         type: "text",
-        text: "帮我根据当前工作区技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
+        text: `帮我根据当前 ${subjectLabel.value} 的技术栈检查：静态约束、测试约束、流程约束的配置情况并完善`,
       },
     ]);
     await router.push("/chat");
@@ -77,7 +84,7 @@ async function startHealthCheck(): Promise<void> {
           color="neutral"
           class="w-5.5 h-5.5 rounded-full border border-default flex items-center justify-center p-0"
           style="-webkit-app-region: no-drag"
-          aria-label="工作区健康度"
+          :aria-label="`${subjectLabel} 健康度`"
           @click="handleIconClick"
         >
           <UIcon

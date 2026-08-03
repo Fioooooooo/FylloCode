@@ -287,7 +287,7 @@ describe("ProviderStageSection", () => {
     });
   });
 
-  it("requires explicit Folder binding for repository-bound resources", async () => {
+  it("presents Project binding while preserving repository Folder IDs", async () => {
     const sourceControlCategory: IntegrationCategory = {
       id: "source-control",
       name: "源码管理",
@@ -349,9 +349,9 @@ describe("ProviderStageSection", () => {
       .setValue(true);
     await wrapper.get('[data-test="confirm-picker-yunxiao-codeup-repo"]').trigger("click");
     expect(saveSpy).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain("必须为每一项选择当前 Workspace Folder");
+    expect(wrapper.text()).toContain("必须为每一项选择当前 Workspace 中的 Project");
 
-    await wrapper.get('[aria-label="为 Repository One 选择 Folder"]').setValue("folder-a");
+    await wrapper.get('[aria-label="为 Repository One 选择 Project"]').setValue("folder-a");
     await wrapper.get('[data-test="confirm-picker-yunxiao-codeup-repo"]').trigger("click");
     await flushPromises();
 

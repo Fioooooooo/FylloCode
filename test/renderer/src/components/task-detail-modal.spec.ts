@@ -205,11 +205,13 @@ describe("TaskDetailModal", () => {
     );
 
     expect(wrapper.get('[data-test="task-target-summary"]').text()).toContain("Repository A");
-    expect(wrapper.get('[data-test="task-target-summary"]').text()).toContain("1 个目标已失效");
+    expect(wrapper.get('[data-test="task-target-summary"]').text()).toContain(
+      "1 个目标 Project 已失效"
+    );
     await enterEditMode(wrapper);
-    expect(wrapper.get('[aria-label="选择目标 Folder removed"]').attributes("checked")).toBe("");
+    expect(wrapper.get('[aria-label="选择目标 Project removed"]').attributes("checked")).toBe("");
 
-    await wrapper.get('[aria-label="选择目标 Folder removed"]').setValue(false);
+    await wrapper.get('[aria-label="选择目标 Project removed"]').setValue(false);
     const saveButton = wrapper.findAll("button").find((node) => node.text().includes("保存"));
     await saveButton?.trigger("click");
 

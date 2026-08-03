@@ -65,7 +65,7 @@ function launcher(overrides: Partial<WorkspaceLauncherItem> = {}): WorkspaceLaun
   };
 }
 
-describe("Workspace launcher lifecycle UI", () => {
+describe("Project/Workspace launcher lifecycle UI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.recentWorkspaces = [];
@@ -73,7 +73,7 @@ describe("Workspace launcher lifecycle UI", () => {
     mocks.confirm.mockResolvedValue(true);
   });
 
-  it("renders Folder and Collection identity with missing member details", () => {
+  it("renders Project and Workspace identity with missing Project details", () => {
     mocks.recentWorkspaces = [
       launcher(),
       launcher({
@@ -96,20 +96,40 @@ describe("Workspace launcher lifecycle UI", () => {
       }),
     ];
     const wrapper = mount(WorkspaceList, { global: { stubs: commonStubs } });
-    expect(wrapper.text()).toContain("Folder");
-    expect(wrapper.text()).toContain("Collection");
+    expect(wrapper.text()).toContain("Project");
+    expect(wrapper.text()).toContain("Workspace");
+    expect(wrapper.text()).not.toContain("Folder Workspace");
+    expect(wrapper.text()).not.toContain("Collection Workspace");
+    expect(wrapper.text()).toContain("共 2 个 Project");
     expect(wrapper.text()).toContain("1 个缺失");
     expect(wrapper.text()).toContain("/work/missing");
+    expect(wrapper.text()).toContain("项目目录缺失");
   });
 
-  it("keeps Folder Workspace member controls hidden in edit mode", () => {
+  it("keeps a single-member collection presented as a Workspace", () => {
+    mocks.recentWorkspaces = [
+      launcher({
+        workspaceKind: "collection",
+        workspaceName: "Solo Workspace",
+        folderCount: 1,
+      }),
+    ];
+
+    const wrapper = mount(WorkspaceList, { global: { stubs: commonStubs } });
+
+    expect(wrapper.text()).toContain("Solo WorkspaceWorkspace");
+    expect(wrapper.text()).toContain("共 1 个 Project");
+  });
+
+  it("keeps Project member controls hidden in edit mode", () => {
     const wrapper = mount(WorkspaceEditorModal, {
       props: { open: true, mode: "edit", workspace: launcher() },
       global: { stubs: commonStubs },
     });
-    expect(wrapper.text()).toContain("不能修改成员");
-    expect(wrapper.find('[aria-label="移除成员"]').exists()).toBe(false);
-    expect(wrapper.find('[aria-label="重新定位"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("编辑 Project");
+    expect(wrapper.text()).toContain("如需组合多个 Project，请创建 Workspace");
+    expect(wrapper.find('[aria-label="移除 Project"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="重新定位项目目录"]').exists()).toBe(true);
   });
 
   it("offers restore only for restorable tombstones and retries failed cleanup", async () => {
@@ -121,6 +141,9 @@ describe("Workspace launcher lifecycle UI", () => {
       props: { open: true },
       global: { stubs: commonStubs },
     });
+    expect(wrapper.text()).toContain("可恢复");
+    expect(wrapper.text()).toContain("清理失败");
+    expect(wrapper.text()).not.toContain("cleanup-failed");
     expect(wrapper.text()).toContain("恢复");
     expect(wrapper.text()).toContain("重试清理");
     const retry = wrapper.findAll("button").find((button) => button.text().includes("重试清理"));

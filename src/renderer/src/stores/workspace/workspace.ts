@@ -3,6 +3,11 @@ import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import { workspaceApi } from "@renderer/api/workspace/workspace";
 import { windowApi } from "@renderer/api/workspace/window";
+import {
+  presentWorkspaceError,
+  workspacePrimaryDirectoryLabel,
+  workspaceSubjectLabel,
+} from "@renderer/utils/workspace-presentation";
 import { useSessionStore } from "../session/session";
 import type {
   CreateCollectionWorkspaceInput,
@@ -14,10 +19,7 @@ import type {
 import type { IpcErrorInfo } from "@shared/types/ipc";
 import type { WindowContext } from "@shared/types/window";
 
-interface WorkspaceContextError {
-  code: string;
-  message: string;
-}
+type WorkspaceContextError = Pick<IpcErrorInfo, "code" | "message">;
 
 function sortByLastOpened(workspaces: WorkspaceLauncherItem[]): WorkspaceLauncherItem[] {
   return [...workspaces].sort((a, b) => Date.parse(b.lastOpenedAt) - Date.parse(a.lastOpenedAt));
@@ -105,16 +107,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   function notifyMissingWorkspace(workspace: WorkspaceLauncherItem): void {
     toast.add({
-      title: "工作区目录不存在",
-      description: `${workspace.workspaceName}: ${workspace.primaryFolderPath}`,
+      title: `${workspacePrimaryDirectoryLabel(workspace.workspaceKind)}不存在`,
+      description: `${workspace.workspaceName}：${workspace.primaryFolderPath}`,
       color: "error",
     });
   }
 
-  function notifyWindowOpenError(message: string): void {
+  function notifyWindowOpenError(error: IpcErrorInfo, kind?: WorkspaceInfo["kind"]): void {
     toast.add({
-      title: "无法打开工作区窗口",
-      description: message,
+      title: `无法打开 ${workspaceSubjectLabel(kind)}`,
+      description: presentWorkspaceError(error, kind),
       color: "error",
     });
   }
@@ -214,10 +216,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   async function openWorkspaceWindow(workspaceId: string): Promise<WorkspaceInfo | null> {
+    const workspaceKind = workspaces.value.find(
+      (workspace) => workspace.workspaceId === workspaceId
+    )?.workspaceKind;
     const result = await windowApi.openWorkspace(workspaceId);
     if (!result.ok) {
       if (result.error.code === "WORKSPACE_PRIMARY_FOLDER_MISSING") {
-        notifyWindowOpenError(result.error.message);
+        notifyWindowOpenError(result.error, workspaceKind);
         return null;
       }
       throw operationError(result.error);
@@ -241,7 +246,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     const result = await windowApi.openFolder();
     if (!result.ok) {
       if (result.error.code === "WORKSPACE_PRIMARY_FOLDER_MISSING") {
-        notifyWindowOpenError(result.error.message);
+        notifyWindowOpenError(result.error, "folder");
         return null;
       }
       throw new Error(result.error.message);

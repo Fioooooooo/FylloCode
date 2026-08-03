@@ -24,6 +24,7 @@ function mountCard(
     selected?: boolean;
     selectable?: boolean;
     installDisabled?: boolean;
+    selectionHint?: string;
   } = {}
 ) {
   return mount(AgentPickerCard, {
@@ -40,6 +41,7 @@ function mountCard(
       selected: options.selected,
       selectable: options.selectable,
       installDisabled: options.installDisabled,
+      selectionHint: options.selectionHint,
     },
   });
 }
@@ -100,5 +102,14 @@ describe("AgentPickerCard", () => {
     expect(wrapper.find('[data-icon-name="i-lucide-check-circle-2"]').exists()).toBe(true);
     expect(wrapper.text()).not.toContain("更新");
     expect(wrapper.text()).not.toContain("卸载");
+  });
+
+  it("renders multi-Project Workspace compatibility hints", () => {
+    const wrapper = mountCard({
+      selectable: true,
+      selectionHint: "不支持多 Project Workspace",
+    });
+
+    expect(wrapper.text()).toContain("不支持多 Project Workspace");
   });
 });

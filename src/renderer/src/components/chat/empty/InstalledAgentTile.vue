@@ -34,7 +34,7 @@ function handleSelect(): void {
       workspaceCompatibility === 'unsupported' ? 'cursor-not-allowed opacity-55' : '',
     ]"
     :disabled="workspaceCompatibility === 'unsupported' || checkingCompatibility"
-    :aria-label="`${name}${workspaceCompatibility === 'unsupported' ? '，不支持多根工作区' : ''}`"
+    :aria-label="`${name}${workspaceCompatibility === 'unsupported' ? '，不支持多 Project Workspace' : ''}`"
     @click="handleSelect"
   >
     <span
@@ -66,7 +66,7 @@ function handleSelect(): void {
       v-else-if="workspaceCompatibility === 'unsupported'"
       class="px-2 text-center text-[11px] leading-tight text-error"
     >
-      不支持多根工作区
+      不支持多 Project Workspace
     </span>
   </UiSurface>
 </template>

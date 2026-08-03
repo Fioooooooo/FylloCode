@@ -25,23 +25,23 @@ const emptyState = computed(() => {
   if (!folder) {
     return {
       title: "暂无 proposal",
-      description: "当前 Workspace 的所有可用 Folder 都没有变更提案。",
+      description: "当前范围内所有可用 Project 都没有变更提案。",
     };
   }
   if (folder.status === "missing") {
     return {
-      title: "Folder 不可用",
-      description: `${folder.folderName} 当前不存在，未读取该 Folder 的 proposal。`,
+      title: "Project 不可用",
+      description: `${folder.folderName} 当前不存在，未读取该 Project 的 proposal。`,
     };
   }
   if (folder.status === "error") {
     return {
-      title: "Folder 读取失败",
-      description: folder.error ?? `${folder.folderName} 的 proposal 暂时无法读取。`,
+      title: "Project 读取失败",
+      description: `${folder.folderName} 的 proposal 暂时无法读取。`,
     };
   }
   return {
-    title: "此 Folder 暂无 proposal",
+    title: "此 Project 暂无 proposal",
     description: `${folder.folderName} 当前没有变更提案。`,
   };
 });
@@ -90,18 +90,18 @@ watch(
           <PageHeader
             eyebrow="Proposals"
             title="变更提案"
-            description="当前项目的 OpenSpec 变更提案列表。"
+            description="当前 Project 的 OpenSpec 变更提案列表。"
           />
           <label v-if="store.data" class="mt-3 block text-xs text-muted">
-            <span class="sr-only">按 Folder 筛选变更提案</span>
+            <span class="sr-only">按 Project 筛选变更提案</span>
             <select
               :value="store.selectedFolderId ?? ''"
               class="w-full rounded-md border border-default bg-default px-2 py-1.5 text-sm text-highlighted"
-              aria-label="按 Folder 筛选变更提案"
+              aria-label="按 Project 筛选变更提案"
               data-test="proposal-folder-filter"
               @change="store.setFolderFilter(($event.target as HTMLSelectElement).value || null)"
             >
-              <option value="">全部 Folder</option>
+              <option value="">全部 Project</option>
               <option
                 v-for="folder in store.folders"
                 :key="folder.folderId"
@@ -138,8 +138,8 @@ watch(
             color="warning"
             variant="soft"
             icon="i-lucide-triangle-alert"
-            title="部分 Folder 未计入"
-            :description="affectedFolderNames || '部分 Folder 暂不可用。'"
+            title="部分 Project 未计入"
+            :description="affectedFolderNames || '部分 Project 暂不可用。'"
             data-test="proposal-partial-alert"
           />
 

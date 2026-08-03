@@ -7,6 +7,7 @@ import { createRequire } from "module";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import rendererFeatureBoundaries from "./scripts/eslint-rules/renderer-feature-boundaries.mjs";
+import rendererUserTerminology from "./scripts/eslint-rules/renderer-user-terminology.mjs";
 
 const require = createRequire(import.meta.url);
 const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
@@ -88,6 +89,11 @@ export default defineConfig(
       "renderer-features": {
         rules: {
           boundaries: rendererFeatureBoundaries,
+        },
+      },
+      "renderer-terminology": {
+        rules: {
+          "no-internal-user-terms": rendererUserTerminology,
         },
       },
     },
@@ -238,6 +244,7 @@ export default defineConfig(
     files: ["src/renderer/src/**/*.{ts,mts,tsx,vue}"],
     rules: {
       "renderer-features/boundaries": "error",
+      "renderer-terminology/no-internal-user-terms": "error",
     },
   },
 

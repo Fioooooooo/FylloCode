@@ -8,7 +8,7 @@ describe("Workspace navigation gate", () => {
   it("allows Folder and Collection Chat shells when their primary Folder is available", () => {
     expect(evaluateWorkspaceNavigation(chatItem, null)).toEqual({
       enabled: false,
-      reason: "请先打开 Workspace",
+      reason: "请先打开 Project 或 Workspace",
     });
     expect(evaluateWorkspaceNavigation(chatItem, workspaceInfo())).toEqual({ enabled: true });
     expect(
@@ -19,7 +19,7 @@ describe("Workspace navigation gate", () => {
     ).toEqual({ enabled: true });
     expect(evaluateWorkspaceNavigation(chatItem, workspaceInfo({ chatAvailable: false }))).toEqual({
       enabled: false,
-      reason: "Workspace 主目录不可用",
+      reason: "Project 的项目目录不可用",
     });
   });
 });

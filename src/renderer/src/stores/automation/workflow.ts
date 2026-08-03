@@ -19,7 +19,7 @@ export const useWorkflowStore = defineStore("workflow", () => {
   function getCurrentWorkspaceId(): string {
     const workspaceId = useWorkspaceStore().currentWorkspace?.id;
     if (!workspaceId) {
-      throw new Error("当前没有选中的工作区");
+      throw new Error("当前没有打开的 Project 或 Workspace");
     }
     return workspaceId;
   }

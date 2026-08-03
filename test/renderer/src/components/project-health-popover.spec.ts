@@ -143,9 +143,29 @@ describe("ProjectHealthPopover", () => {
     );
     expect(parts[1]).toEqual({
       type: "text",
-      text: "帮我根据当前工作区技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
+      text: "帮我根据当前 Project 的技术栈检查：静态约束、测试约束、流程约束的配置情况并完善",
     });
     expect(routerPush).toHaveBeenCalledWith("/chat");
+  });
+
+  it("uses Workspace terminology for a collection even with one Project", async () => {
+    const wrapper = mountPopover(
+      workspaceInfo({
+        id: "workspace-1",
+        name: "Workspace 1",
+        folderPath: "/tmp/project-1",
+        kind: "collection",
+      })
+    );
+
+    await wrapper.get('[data-test="project-health-button"]').trigger("click");
+
+    expect(wrapper.get('[data-test="project-health-status"]').text()).toContain(
+      "当前 Workspace 尚未进行健康检查"
+    );
+    expect(wrapper.get('[data-test="project-health-button"]').attributes("aria-label")).toBe(
+      "Workspace 健康度"
+    );
   });
 
   it("toasts when sendMessage rejects", async () => {

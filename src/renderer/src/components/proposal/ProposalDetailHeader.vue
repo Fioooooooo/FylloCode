@@ -118,6 +118,10 @@ function getStageCount(): number {
       </div>
 
       <div v-if="proposal" class="flex items-center gap-4 text-sm text-muted">
+        <span class="flex min-w-0 items-center gap-1.5" data-test="proposal-detail-owner">
+          <UIcon name="i-lucide-folder-git-2" class="w-3.5 h-3.5 shrink-0" />
+          <span class="truncate">Project：{{ proposal.folderName }}</span>
+        </span>
         <span class="flex items-center gap-1.5">
           <UIcon name="i-lucide-calendar" class="w-3.5 h-3.5" />
           {{ proposal.date }}

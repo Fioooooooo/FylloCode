@@ -211,8 +211,34 @@ describe("useWorkspaceStore", () => {
     expect(result).toBeNull();
     expect(windowApi.openWorkspace).not.toHaveBeenCalled();
     expect(mockToastAdd).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "工作区目录不存在" })
+      expect.objectContaining({
+        title: "Project 的项目目录不存在",
+        description: "Workspace missing：/tmp/missing",
+      })
     );
+  });
+
+  it("projects an internal missing-path error with the target kind", async () => {
+    vi.mocked(windowApi.openWorkspace).mockResolvedValue({
+      ok: false,
+      error: {
+        code: "WORKSPACE_PRIMARY_FOLDER_MISSING",
+        message: "Workspace primary Folder is missing: /tmp/missing",
+      },
+    });
+
+    const store = useWorkspaceStore();
+    store.workspaces = [
+      launcherItem(workspaceInfo("collection", { kind: "collection", chatAvailable: false })),
+    ];
+
+    await store.openWorkspaceWindow("collection");
+
+    expect(mockToastAdd).toHaveBeenCalledWith({
+      title: "无法打开 Workspace",
+      description: "Workspace 的主 Project 项目目录不可用，请重新定位后再试。",
+      color: "error",
+    });
   });
 
   it("binds a workspace when the launcher window is reused", async () => {

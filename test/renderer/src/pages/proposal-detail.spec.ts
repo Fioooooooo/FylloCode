@@ -226,6 +226,7 @@ describe("ProposalDetailSlideover", () => {
 
     expect(mocks.loadProposals).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain("1/2 tasks");
+    expect(wrapper.get('[data-test="proposal-detail-owner"]').text()).toBe("Project：Repository B");
 
     load.resolve();
     await flushPromises();

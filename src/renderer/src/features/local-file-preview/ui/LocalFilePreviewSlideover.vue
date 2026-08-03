@@ -236,7 +236,7 @@ onUnmounted(() => {
         >
           <UIcon name="i-lucide-shield-alert" class="mt-0.5 size-4 shrink-0" />
           <p>
-            此文件仅获当前窗口预览授权，不属于当前 Session 的 Agent 目录范围，不能作为 Agent
+            此文件仅获当前窗口预览授权，不属于当前 Session 的 Agent Project 授权范围，不能作为 Agent
             resource 发送。
           </p>
         </div>

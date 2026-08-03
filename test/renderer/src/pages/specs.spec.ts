@@ -158,7 +158,7 @@ describe("specs page", () => {
 
     expect(specsApi.getSpecsBrowser).toHaveBeenCalledWith("project-1");
     expect(wrapper.text()).toContain("Specs");
-    expect(wrapper.text()).toContain("当前项目的 OpenSpec 能力规约。");
+    expect(wrapper.text()).toContain("当前 Project 的 OpenSpec 能力规约。");
     expect(wrapper.find('[data-test="specs-loading-skeleton"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="specs-detail-loading"]').exists()).toBe(true);
   });
@@ -229,7 +229,7 @@ describe("specs page", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="specs-partial-alert"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("部分 Folder 未计入");
+    expect(wrapper.text()).toContain("部分 Project 未计入");
     expect(wrapper.get('[aria-label="Repository B：错误"]').attributes("aria-label")).toBe(
       "Repository B：错误"
     );
@@ -239,8 +239,8 @@ describe("specs page", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="specs-list"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain("Folder 读取失败");
-    expect(wrapper.text()).toContain("permission denied");
+    expect(wrapper.text()).toContain("Project 读取失败");
+    expect(wrapper.text()).not.toContain("permission denied");
   });
 
   it("rejects a late response from the previous Workspace and clears its filter", async () => {

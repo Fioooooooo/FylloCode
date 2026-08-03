@@ -193,7 +193,7 @@ describe("guidelines page", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="guidelines-partial-alert"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("部分 Folder 未计入");
+    expect(wrapper.text()).toContain("部分 Project 未计入");
     expect(wrapper.get('[aria-label="Repository B：缺失"]').attributes("aria-label")).toBe(
       "Repository B：缺失"
     );
@@ -203,7 +203,7 @@ describe("guidelines page", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="guidelines-list"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain("Folder 不可用");
+    expect(wrapper.text()).toContain("Project 不可用");
     expect(wrapper.text()).toContain("Repository B 当前不存在");
   });
 
