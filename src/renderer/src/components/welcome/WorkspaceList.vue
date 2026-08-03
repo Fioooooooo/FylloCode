@@ -47,7 +47,7 @@ const emit = defineEmits<{
               <span class="truncate font-semibold text-highlighted">{{
                 workspace.workspaceName
               }}</span>
-              <UBadge size="xs" color="neutral" variant="subtle">
+              <UBadge size="xs" color="neutral" variant="soft">
                 {{ workspaceKindLabel(workspace.workspaceKind) }}
               </UBadge>
               <UBadge
@@ -59,16 +59,18 @@ const emit = defineEmits<{
                 {{ workspace.missingFolderCount }} 个缺失
               </UBadge>
             </div>
-            <div class="truncate text-xs text-muted">{{ workspace.primaryFolderPath }}</div>
-            <div v-if="workspace.workspaceKind === 'collection'" class="mt-1 text-xs text-dimmed">
-              共 {{ workspace.folderCount }} 个 {{ workspacePresentationTerms.member }}
+            <div class="truncate text-xs text-muted">
+              <template v-if="workspace.workspaceKind === 'collection'">
+                <span class="text-dimmed">主 Project：</span>{{ workspace.primaryFolderPath }}
+              </template>
+              <template v-else>{{ workspace.primaryFolderPath }}</template>
             </div>
           </button>
           <div class="flex shrink-0 items-center gap-2">
             <span class="text-xs text-muted">{{ timeAgo(workspace.lastOpenedAt) }}</span>
             <UButton
               icon="i-lucide-settings-2"
-              variant="ghost"
+              variant="soft"
               size="xs"
               color="neutral"
               :aria-label="`编辑 ${workspaceKindLabel(workspace.workspaceKind)}`"
@@ -76,8 +78,8 @@ const emit = defineEmits<{
             />
             <UButton
               v-if="workspace.workspaceKind === 'folder'"
-              icon="i-lucide-copy-plus"
-              variant="ghost"
+              icon="i-lucide-layout-grid"
+              variant="soft"
               size="xs"
               color="neutral"
               aria-label="基于此 Project 创建 Workspace"
@@ -94,14 +96,19 @@ const emit = defineEmits<{
           </div>
         </div>
         <details
-          v-if="workspace.folderCount > 1 || workspace.missingFolderCount"
+          v-if="workspace.workspaceKind === 'collection' || workspace.missingFolderCount"
           class="mt-2 text-xs text-muted"
         >
-          <summary class="cursor-pointer select-none">查看全部 Project</summary>
+          <summary class="cursor-pointer select-none">
+            {{
+              workspace.workspaceKind === "collection"
+                ? `查看全部 ${workspace.folderCount} 个 ${workspacePresentationTerms.member}`
+                : "查看全部 Project"
+            }}
+          </summary>
           <ul class="mt-1 space-y-1 pl-4">
             <li v-for="folder in workspace.folders" :key="folder.folderId" class="break-all">
-              <span v-if="folder.isPrimary" class="text-primary">主 Project · </span
-              >{{ folder.folderPath }}
+              {{ folder.folderPath }}
               <span v-if="folder.pathMissing" class="text-warning"> · 项目目录缺失</span>
             </li>
           </ul>

@@ -175,10 +175,10 @@ async function save(confirmHistoricalSessions = false): Promise<void> {
         <UFormField :label="`${subjectLabel} 名称`" required>
           <UInput v-model="name" class="w-full" autofocus />
         </UFormField>
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-highlighted"
-            >Project（{{ folders.length }}/16）</span
-          >
+        <div class="mb-0 flex items-center justify-between">
+          <span class="text-sm font-medium text-default">
+            {{ isFolderEditing ? "Project 目录" : `Project（${folders.length}/16）` }}
+          </span>
           <UButton
             v-if="!isFolderEditing"
             icon="i-lucide-folder-plus"

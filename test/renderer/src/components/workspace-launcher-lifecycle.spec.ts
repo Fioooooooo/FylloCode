@@ -100,10 +100,12 @@ describe("Project/Workspace launcher lifecycle UI", () => {
     expect(wrapper.text()).toContain("Workspace");
     expect(wrapper.text()).not.toContain("Folder Workspace");
     expect(wrapper.text()).not.toContain("Collection Workspace");
-    expect(wrapper.text()).toContain("共 2 个 Project");
+    expect(wrapper.text()).toContain("查看全部 2 个 Project");
+    expect(wrapper.text()).toContain("主 Project：/work/one");
     expect(wrapper.text()).toContain("1 个缺失");
     expect(wrapper.text()).toContain("/work/missing");
     expect(wrapper.text()).toContain("项目目录缺失");
+    expect(wrapper.text()).not.toContain("主 Project ·");
   });
 
   it("keeps a single-member collection presented as a Workspace", () => {
@@ -118,7 +120,8 @@ describe("Project/Workspace launcher lifecycle UI", () => {
     const wrapper = mount(WorkspaceList, { global: { stubs: commonStubs } });
 
     expect(wrapper.text()).toContain("Solo WorkspaceWorkspace");
-    expect(wrapper.text()).toContain("共 1 个 Project");
+    expect(wrapper.text()).toContain("查看全部 1 个 Project");
+    expect(wrapper.text()).toContain("主 Project：/work/one");
   });
 
   it("keeps Project member controls hidden in edit mode", () => {
@@ -127,6 +130,8 @@ describe("Project/Workspace launcher lifecycle UI", () => {
       global: { stubs: commonStubs },
     });
     expect(wrapper.text()).toContain("编辑 Project");
+    expect(wrapper.text()).toContain("Project 目录");
+    expect(wrapper.text()).not.toContain("Project（1/16）");
     expect(wrapper.text()).toContain("如需组合多个 Project，请创建 Workspace");
     expect(wrapper.find('[aria-label="移除 Project"]').exists()).toBe(false);
     expect(wrapper.find('[aria-label="重新定位项目目录"]').exists()).toBe(true);
