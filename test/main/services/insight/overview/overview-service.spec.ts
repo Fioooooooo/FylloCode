@@ -156,6 +156,38 @@ describe("overview-service", () => {
     ]);
   });
 
+  it("keeps file-system governance complete when one Project has no Git history", async () => {
+    mocks.getGitGovernance.mockImplementation(async (path: string) =>
+      path === "/repo-a"
+        ? {
+            specsGrowth: [{ weekStart: "2026-06-01T00:00:00.000Z", cumulativeCount: 1 }],
+            recentGuidelines: [],
+            guidelinesLastUpdated: null,
+          }
+        : {
+            specsGrowth: [],
+            recentGuidelines: [],
+            guidelinesLastUpdated: null,
+          }
+    );
+
+    const overview = await getProjectOverview("workspace-1");
+
+    expect(overview.repository).toMatchObject({
+      completeness: "complete",
+      excludedFolderIds: [],
+    });
+    expect(overview.repository.folders.map(({ status }) => status)).toEqual(["ready", "ready"]);
+    expect(overview.stats).toMatchObject({
+      specsCount: 5,
+      archiveCount: 2,
+      guidelinesCount: 4,
+      specsThisMonth: 1,
+    });
+    expect(overview.activeChanges).toHaveLength(2);
+    expect(overview.governance.specsGrowth.map(({ folderId }) => folderId)).toEqual(["folder-a"]);
+  });
+
   it("returns partial repository governance without losing Workspace work", async () => {
     mocks.getGitGovernance.mockImplementation(async (path: string) => {
       if (path === "/repo-b") throw new Error("git failed");
@@ -219,6 +251,22 @@ describe("overview-service", () => {
     expect(overview.recentLineages[0]).toMatchObject({
       proposalStatus: "completed",
       archiveCommitHash: "hash-a",
+    });
+  });
+
+  it("keeps recent lineage available when archive commit enrichment has no Git history", async () => {
+    mocks.readRepositoryProposalFiles.mockImplementation(
+      async ({ folderId, folderName }: { folderId: string; folderName: string }) => [
+        proposal(folderId, folderName, "archived"),
+      ]
+    );
+    mocks.buildArchiveCommitIndex.mockResolvedValue(new Map());
+
+    const overview = await getProjectOverview("workspace-1");
+
+    expect(overview.recentLineages[0]).toMatchObject({
+      proposalStatus: "completed",
+      archiveCommitHash: null,
     });
   });
 

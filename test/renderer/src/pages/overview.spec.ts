@@ -314,6 +314,27 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("Repository A");
   });
 
+  it("treats empty Git history fields as complete governance data", async () => {
+    const data = overview();
+    data.stats.specsThisMonth = 0;
+    data.stats.guidelinesLastUpdated = null;
+    data.governance.specsGrowth = [];
+    data.governance.recentGuidelines = [];
+    data.repository.items[0]!.stats.specsThisMonth = 0;
+    data.repository.items[0]!.stats.guidelinesLastUpdated = null;
+    data.repository.folders[0]!.items[0]!.stats.specsThisMonth = 0;
+    data.repository.folders[0]!.items[0]!.stats.guidelinesLastUpdated = null;
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({ ok: true, data });
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="overview-partial-alert"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("暂无规约趋势");
+    expect(wrapper.text()).toContain("暂无 guideline 更新");
+    expect(wrapper.get('[data-test="overview-specs-value"]').text()).toBe("74");
+  });
+
   it("uses the active change title for display and id for slideover opening", async () => {
     vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
       ok: true,

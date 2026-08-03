@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
   readdir: vi.fn(),
+  stat: vi.fn(),
   loggerWarn: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ vi.mock("fs", async () => {
     promises: {
       ...actual.promises,
       readdir: mocks.readdir,
+      stat: mocks.stat,
     },
   };
 });
@@ -93,6 +95,7 @@ describe("overview archive commit index", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.readdir.mockResolvedValue([]);
+    mocks.stat.mockResolvedValue({ isDirectory: () => true, isFile: () => false });
   });
 
   it("maps requested change ids to current archive commit hashes", async () => {
@@ -120,8 +123,9 @@ describe("overview archive commit index", () => {
       committedAt: "2026-06-14T12:00:00.000Z",
     });
     expect(index.has("add-bar")).toBe(false);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.args).toEqual([
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.args).toEqual(["rev-parse", "--verify", "--quiet", "HEAD"]);
+    expect(calls[1]?.args).toEqual([
       "log",
       "--diff-filter=A",
       "--format=COMMIT%x00%H%x00%cI",
@@ -145,7 +149,11 @@ describe("overview archive commit index", () => {
 
   it("falls back to an empty index when git fails", async () => {
     mocks.readdir.mockResolvedValue([dirent("2026-06-14-add-foo", "directory")]);
-    mockSpawnRouter(() => ({ stderr: "fatal: not a git repository", code: 128 }));
+    mockSpawnRouter((_command, args) =>
+      args[0] === "rev-parse"
+        ? { stdout: "head-sha\n" }
+        : { stderr: "fatal: corrupt repository", code: 128 }
+    );
 
     const index = await buildArchiveCommitIndex("/repo", ["add-foo"]);
 
@@ -154,6 +162,27 @@ describe("overview archive commit index", () => {
       "[overview] failed to build archive commit index",
       expect.any(Error)
     );
+  });
+
+  it("returns an empty index without warning for a non-Git Project", async () => {
+    mocks.readdir.mockResolvedValue([dirent("2026-06-14-add-foo", "directory")]);
+    mocks.stat.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
+
+    const index = await buildArchiveCommitIndex("/repo", ["add-foo"]);
+
+    expect(index.size).toBe(0);
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty index without warning for a Git Project without commits", async () => {
+    mocks.readdir.mockResolvedValue([dirent("2026-06-14-add-foo", "directory")]);
+    mockSpawnRouter(() => ({ code: 1 }));
+
+    const index = await buildArchiveCommitIndex("/repo", ["add-foo"]);
+
+    expect(index.size).toBe(0);
+    expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
   it("does not spawn git when no requested changes have archived directories", async () => {

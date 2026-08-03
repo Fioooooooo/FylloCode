@@ -1,5 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "child_process";
-import { basename } from "path";
+import { promises as fs } from "fs";
+import { basename, join } from "path";
 import spawn from "cross-spawn";
 import type { GuidelineChange, SpecsGrowthBucket } from "@shared/types/overview";
 
@@ -15,6 +16,14 @@ export type GitGovernanceStats = {
 const GIT_TIMEOUT_MS = 10_000;
 const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { data: GitGovernanceStats; expireAt: number }>();
+
+type GitCommandResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+};
+
+export type GitHistoryAvailability = "available" | "unavailable";
 
 function collectWeekRanges(now = new Date()): { weekStart: Date; weekEnd: Date }[] {
   const currentWeekStart = new Date(now);
@@ -37,12 +46,12 @@ export function clearGitStatsCache(): void {
   cache.clear();
 }
 
-export function runGit(
+function runGitCommand(
   projectPath: string,
   args: string[],
   timeoutMs = GIT_TIMEOUT_MS
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
+): Promise<GitCommandResult> {
+  return new Promise<GitCommandResult>((resolve, reject) => {
     const child = spawn("git", args, {
       cwd: projectPath,
       stdio: ["ignore", "pipe", "pipe"],
@@ -79,14 +88,58 @@ export function runGit(
     });
     child.on("close", (code) => {
       settle(() => {
-        if (code === 0) {
-          resolve(stdout);
-          return;
-        }
-        reject(new Error(stderr.trim() || stdout.trim() || `git ${args.join(" ")} failed`));
+        resolve({ stdout, stderr, exitCode: code });
       });
     });
   });
+}
+
+function gitCommandError(args: string[], result: GitCommandResult): Error {
+  return new Error(result.stderr.trim() || result.stdout.trim() || `git ${args.join(" ")} failed`);
+}
+
+export async function runGit(
+  projectPath: string,
+  args: string[],
+  timeoutMs = GIT_TIMEOUT_MS
+): Promise<string> {
+  const result = await runGitCommand(projectPath, args, timeoutMs);
+  if (result.exitCode === 0) {
+    return result.stdout;
+  }
+  throw gitCommandError(args, result);
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+export async function getGitHistoryAvailability(
+  projectPath: string
+): Promise<GitHistoryAvailability> {
+  try {
+    await fs.stat(join(projectPath, ".git"));
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return "unavailable";
+    }
+    throw error;
+  }
+
+  const args = ["rev-parse", "--verify", "--quiet", "HEAD"];
+  const result = await runGitCommand(projectPath, args);
+  if (result.exitCode === 0) {
+    return "available";
+  }
+  if (result.exitCode === 1) {
+    return "unavailable";
+  }
+  throw gitCommandError(args, result);
 }
 
 export async function computeSpecsGrowth(
@@ -177,6 +230,14 @@ export async function getGitGovernance(projectPath: string): Promise<GitGovernan
   const cached = cache.get(projectPath);
   if (cached && cached.expireAt > now) {
     return cached.data;
+  }
+
+  if ((await getGitHistoryAvailability(projectPath)) === "unavailable") {
+    return {
+      specsGrowth: [],
+      recentGuidelines: [],
+      guidelinesLastUpdated: null,
+    };
   }
 
   const [specsGrowth, guidelineStats] = await Promise.all([

@@ -4,16 +4,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
+  stat: vi.fn(),
 }));
 
 vi.mock("cross-spawn", () => ({
   default: mocks.spawn,
 }));
 
+vi.mock("fs", async () => {
+  const actual = await vi.importActual<typeof import("fs")>("fs");
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      stat: mocks.stat,
+    },
+  };
+});
+
 import {
   clearGitStatsCache,
   computeRecentGuidelines,
   computeSpecsGrowth,
+  getGitHistoryAvailability,
   getGitGovernance,
 } from "@main/services/insight/overview/git-stats";
 
@@ -60,12 +73,17 @@ function mockSpawnRouter(router: (command: string, args: string[]) => SpawnResul
   return calls;
 }
 
+function fileSystemError(code: string): Error & { code: string } {
+  return Object.assign(new Error(code), { code });
+}
+
 describe("overview git stats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-12T08:00:00.000Z"));
     clearGitStatsCache();
+    mocks.stat.mockResolvedValue({ isDirectory: () => true, isFile: () => false });
   });
 
   afterEach(() => {
@@ -133,9 +151,88 @@ describe("overview git stats", () => {
     await expect(getGitGovernance("/repo")).rejects.toThrow("fatal: not a git repository");
   });
 
+  it("returns uncached defaults for an ordinary non-Git Project", async () => {
+    mocks.stat.mockRejectedValue(fileSystemError("ENOENT"));
+
+    const first = await getGitGovernance("/repo");
+    const second = await getGitGovernance("/repo");
+
+    expect(first).toEqual({
+      specsGrowth: [],
+      recentGuidelines: [],
+      guidelinesLastUpdated: null,
+    });
+    expect(second).toEqual(first);
+    expect(second).not.toBe(first);
+    expect(mocks.stat).toHaveBeenCalledTimes(2);
+    expect(mocks.spawn).not.toHaveBeenCalled();
+  });
+
+  it("returns uncached defaults for a Git Project without a first commit", async () => {
+    const calls = mockSpawnRouter((_command, args) => {
+      expect(args).toEqual(["rev-parse", "--verify", "--quiet", "HEAD"]);
+      return { code: 1 };
+    });
+
+    const first = await getGitGovernance("/repo");
+    const second = await getGitGovernance("/repo");
+
+    expect(first).toEqual({
+      specsGrowth: [],
+      recentGuidelines: [],
+      guidelinesLastUpdated: null,
+    });
+    expect(second).not.toBe(first);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("recognizes linked worktree Git metadata files and an available HEAD", async () => {
+    mocks.stat.mockResolvedValue({ isDirectory: () => false, isFile: () => true });
+    const calls = mockSpawnRouter((_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: "head-sha\n" };
+      return { stdout: "" };
+    });
+
+    await expect(getGitHistoryAvailability("/linked-worktree")).resolves.toBe("available");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toEqual(["rev-parse", "--verify", "--quiet", "HEAD"]);
+  });
+
+  it("does not hide Git metadata permission failures", async () => {
+    mocks.stat.mockRejectedValue(fileSystemError("EACCES"));
+
+    await expect(getGitHistoryAvailability("/repo")).rejects.toMatchObject({ code: "EACCES" });
+    expect(mocks.spawn).not.toHaveBeenCalled();
+  });
+
+  it("does not hide Git process startup failures", async () => {
+    mocks.spawn.mockImplementation(() => {
+      const child = createChild();
+      queueMicrotask(() => child.emit("error", new Error("spawn failed")));
+      return child;
+    });
+
+    await expect(getGitHistoryAvailability("/repo")).rejects.toThrow("spawn failed");
+  });
+
+  it("does not hide Git probe timeouts", async () => {
+    mocks.spawn.mockImplementation(() => createChild());
+
+    const result = getGitHistoryAvailability("/repo");
+    const assertion = expect(result).rejects.toThrow(
+      "git rev-parse --verify --quiet HEAD timed out after 10000ms"
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+  });
+
   it("caches git governance results for sixty seconds", async () => {
     let revListIndex = 0;
     const calls = mockSpawnRouter((_command, args) => {
+      if (args[0] === "rev-parse") {
+        return { stdout: "head-sha\n" };
+      }
       if (args[0] === "rev-list") {
         revListIndex += 1;
         return { stdout: `sha-${revListIndex}\n` };
@@ -154,5 +251,6 @@ describe("overview git stats", () => {
 
     expect(second).toBe(first);
     expect(calls).toHaveLength(callCountAfterFirstLoad);
+    expect(mocks.stat).toHaveBeenCalledTimes(1);
   });
 });

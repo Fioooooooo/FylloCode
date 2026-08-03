@@ -1,7 +1,7 @@
 import { promises as fs, type Dirent } from "fs";
 import { join } from "path";
 import logger from "@main/infra/logger";
-import { runGit } from "./git-stats";
+import { getGitHistoryAvailability, runGit } from "./git-stats";
 
 export type ArchiveCommitInfo = {
   changeId: string;
@@ -145,6 +145,9 @@ export async function buildArchiveCommitIndex(
 
   const anchorPaths = Array.from(archiveDirsByChangeId.values()).map(archiveAnchorPath);
   try {
+    if ((await getGitHistoryAvailability(projectPath)) === "unavailable") {
+      return new Map();
+    }
     const output = await runGit(projectPath, [
       "log",
       "--diff-filter=A",
