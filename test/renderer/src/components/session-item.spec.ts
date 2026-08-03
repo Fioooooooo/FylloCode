@@ -151,7 +151,7 @@ describe("SessionItem", () => {
     expect(openChatSessionMock).toHaveBeenCalledWith("session-2");
   });
 
-  it("renders the agent icon as a right-side watermark", () => {
+  it("renders agent icon when the session agent has a matching icon", () => {
     iconsRef.value = {
       "claude-code": "data:image/png;base64,agent-icon",
     };
@@ -166,16 +166,9 @@ describe("SessionItem", () => {
     });
 
     const icon = wrapper.get('[data-test="session-agent-icon"]');
-    const media = wrapper.get('[data-test="session-media"]');
-
-    expect(media.attributes("aria-label")).toBe("claude-code icon");
-    expect(media.classes()).toEqual(
-      expect.arrayContaining(["pointer-events-none", "absolute", "right-0", "w-20"])
-    );
+    expect(wrapper.find('[data-test="session-media"]').exists()).toBe(true);
     expect(icon.attributes("src")).toBe("data:image/png;base64,agent-icon");
-    expect(icon.attributes("alt")).toBe("");
-    expect(icon.attributes("aria-hidden")).toBe("true");
-    expect(icon.classes()).toEqual(expect.arrayContaining(["object-right", "opacity-[0.08]"]));
+    expect(icon.attributes("alt")).toBe("claude-code icon");
   });
 
   it("renders an origin task indicator when the session has an origin task ref", () => {
@@ -253,7 +246,7 @@ describe("SessionItem", () => {
     expect(wrapper.get('[data-test="session-origin-task-title"]').text()).toBe("正在加载任务…");
   });
 
-  it("renders the fallback icon as a watermark when the agent icon is missing", () => {
+  it("keeps a stable leading slot when the session agent icon is missing", () => {
     const session = {
       ...makeSession("session-3"),
       agentId: "unknown-agent",
@@ -270,10 +263,7 @@ describe("SessionItem", () => {
       },
     });
 
-    const media = wrapper.get('[data-test="session-media"]');
-
-    expect(media.attributes("aria-label")).toBe("unknown-agent icon");
-    expect(media.classes()).toEqual(expect.arrayContaining(["absolute", "right-0", "w-20"]));
+    expect(wrapper.find('[data-test="session-media"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="session-agent-icon"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="session-agent-icon-fallback"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="session-title"]').text()).toBe("Long session title");
@@ -282,7 +272,7 @@ describe("SessionItem", () => {
     expect(wrapper.text()).toContain("4 turns");
   });
 
-  it("keeps the running indicator beside the title", () => {
+  it("keeps the running indicator inside the leading media area", () => {
     const wrapper = mount(SessionItem, {
       props: {
         session: {
@@ -295,9 +285,10 @@ describe("SessionItem", () => {
       },
     });
 
-    const titleRow = wrapper.get('[data-test="session-title-row"]');
-    const indicator = titleRow.get('[data-test="session-running-indicator"]');
+    const media = wrapper.get('[data-test="session-media"]');
+    const indicator = media.get('[data-test="session-running-indicator"]');
 
+    expect(media.classes().some((className) => className.includes("ring-success"))).toBe(false);
     expect(indicator.classes()).toContain("animate-pulse");
     expect(wrapper.find('[data-test="session-status"]').exists()).toBe(false);
   });
@@ -406,12 +397,10 @@ describe("SessionItem", () => {
   it("does not reserve permanent title padding and keeps the action trigger accessible", () => {
     const wrapper = mountSessionItem(makeSession("session-layout"));
 
-    const sessionItem = wrapper.get(".group");
     const titleContainer = wrapper.get('[data-test="session-title"]').element.parentElement;
     const actionButton = wrapper.get('button[aria-label="会话操作"]');
     const actionContainer = actionButton.element.closest(".absolute");
 
-    expect(sessionItem.classes()).toContain("h-12");
     expect(titleContainer?.className).not.toContain("pr-8");
     expect(actionButton.classes()).toEqual(expect.arrayContaining(["h-7", "w-7"]));
     expect(actionContainer?.className).toContain("group-hover:opacity-100");
