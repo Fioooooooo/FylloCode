@@ -86,7 +86,7 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
-        SessionScopeHeader: { template: '<div data-test="scope-header-stub"></div>' },
+        SessionScopePopover: { template: '<div data-test="scope-popover-stub"></div>' },
         ChatAgentAgendaPanel: {
           props: ["entries"],
           template: '<div data-test="chat-agent-agenda-panel">{{ entries.length }}</div>',
@@ -229,6 +229,28 @@ describe("ChatContainer", () => {
     expect(button.attributes("data-icon")).toBe("i-lucide-panel-left-open");
     expect(button.attributes("title")).toBe("展开聊天列表");
     expect(button.attributes("aria-expanded")).toBe("false");
+  });
+
+  it("mounts the Session scope Popover in the header right actions only outside draft mode", async () => {
+    const wrapper = mountContainer();
+    const rightActions = wrapper.get('[data-test="chat-header-right-actions"]');
+
+    expect(rightActions.find('[data-test="scope-popover-stub"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="scope-header-stub"]').exists()).toBe(false);
+
+    const session = makeSession();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    await wrapper.vm.$nextTick();
+
+    const scopePopover = rightActions.get('[data-test="scope-popover-stub"]');
+    expect(scopePopover.element.parentElement).toBe(rightActions.element);
+    expect(wrapper.find('[data-test="scope-header-stub"]').exists()).toBe(false);
+
+    activeSessionIdRef.value = null;
+    await wrapper.vm.$nextTick();
+
+    expect(rightActions.find('[data-test="scope-popover-stub"]').exists()).toBe(false);
   });
 
   it("renders an inline stream error after the message list", async () => {

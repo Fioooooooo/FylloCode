@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FylloCode · Agent Project 授权范围 Popover 原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page: #eef2f6;
+        --chrome: #f6f8fa;
+        --surface: #ffffff;
+        --surface-raised: #f5f7fa;
+        --surface-hover: #edf1f5;
+        --border: #dce2e8;
+        --border-strong: #cbd4dd;
+        --text: #27313b;
+        --text-strong: #151b23;
+        --muted: #6f7b87;
+        --primary: #0d9488;
+        --primary-soft: #ccfbf1;
+        --warning: #b45309;
+        --warning-soft: #fff7ed;
+        --warning-border: #fed7aa;
+        --error: #dc2626;
+        --error-soft: #fef2f2;
+        --error-border: #fecaca;
+        --shadow: 0 14px 38px rgb(15 23 42 / 14%), 0 3px 10px rgb(15 23 42 / 8%);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 880px;
+        min-height: 720px;
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .prototype-page {
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .prototype-controls {
+        display: flex;
+        max-width: 1240px;
+        min-height: 44px;
+        margin: 0 auto 12px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .prototype-heading {
+        min-width: 0;
+      }
+
+      .prototype-heading h1 {
+        margin: 0;
+        color: var(--text-strong);
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .prototype-heading p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .scenario-picker {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .scenario-button {
+        height: 30px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+        transition:
+          background-color 150ms,
+          border-color 150ms,
+          color 150ms;
+      }
+
+      .scenario-button:hover {
+        border-color: var(--border-strong);
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .scenario-button[aria-pressed="true"] {
+        border-color: rgb(13 148 136 / 35%);
+        background: var(--primary-soft);
+        color: #0f766e;
+      }
+
+      .app-window {
+        position: relative;
+        display: flex;
+        max-width: 1240px;
+        height: calc(100vh - 96px);
+        min-height: 620px;
+        max-height: 760px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-raised);
+        box-shadow: 0 8px 30px rgb(15 23 42 / 8%);
+      }
+
+      .window-titlebar {
+        position: absolute;
+        inset: 0 0 auto 0;
+        z-index: 20;
+        display: flex;
+        height: 35px;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 1px solid rgb(220 226 232 / 70%);
+        background: var(--chrome);
+      }
+
+      .traffic-lights {
+        position: absolute;
+        left: 13px;
+        display: flex;
+        gap: 7px;
+      }
+
+      .traffic-light {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+      }
+
+      .traffic-light.red {
+        background: #ff5f57;
+      }
+
+      .traffic-light.yellow {
+        background: #febc2e;
+      }
+
+      .traffic-light.green {
+        background: #28c840;
+      }
+
+      .workspace-pill {
+        display: flex;
+        height: 25px;
+        align-items: center;
+        gap: 5px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 999px;
+        background: #e9edf1;
+        color: #4b5563;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .app-body {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        padding-top: 35px;
+      }
+
+      .activity-bar {
+        display: flex;
+        width: 56px;
+        flex: 0 0 56px;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        padding: 9px 8px;
+        border-right: 1px solid var(--border);
+        background: var(--chrome);
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        margin-bottom: 6px;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--primary);
+        font-size: 14px;
+        font-weight: 750;
+      }
+
+      .rail-button,
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        border: 0;
+        color: var(--muted);
+        cursor: pointer;
+        transition:
+          background-color 150ms,
+          color 150ms;
+      }
+
+      .rail-button {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: transparent;
+      }
+
+      .rail-button:hover,
+      .icon-button:hover {
+        background: var(--surface-hover);
+        color: var(--text-strong);
+      }
+
+      .rail-button.active {
+        position: relative;
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+
+      .rail-button.active::before {
+        position: absolute;
+        left: -8px;
+        width: 3px;
+        height: 22px;
+        border-radius: 0 3px 3px 0;
+        background: var(--primary);
+        content: "";
+      }
+
+      .rail-spacer {
+        flex: 1;
+      }
+
+      .chat-shell {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        padding: 8px;
+        background: #edf1f4;
+      }
+
+      .chat-card {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 9px;
+        background: var(--surface);
+      }
+
+      .chat-header {
+        position: relative;
+        z-index: 10;
+        display: grid;
+        height: 43px;
+        flex: 0 0 43px;
+        grid-template-columns: 1fr 3fr 1fr;
+        align-items: center;
+        padding: 8px 8px 0;
+      }
+
+      .chat-header-left,
+      .chat-header-right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .chat-header-right {
+        position: relative;
+        justify-content: flex-end;
+      }
+
+      .icon-button {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        background: transparent;
+      }
+
+      .icon-button:focus-visible,
+      .scenario-button:focus-visible,
+      .popover-close:focus-visible {
+        outline: 2px solid rgb(13 148 136 / 45%);
+        outline-offset: 2px;
+      }
+
+      .scope-trigger[aria-expanded="true"] {
+        background: var(--surface-hover);
+        color: var(--text-strong);
+      }
+
+      .trigger-status {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        display: none;
+        width: 7px;
+        height: 7px;
+        border: 1.5px solid var(--surface);
+        border-radius: 999px;
+      }
+
+      .trigger-status.changed {
+        display: block;
+        background: #f59e0b;
+      }
+
+      .trigger-status.stale {
+        display: block;
+        background: var(--error);
+      }
+
+      .iconify {
+        width: 17px;
+        height: 17px;
+      }
+
+      .chat-content {
+        position: relative;
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+      }
+
+      .timeline {
+        position: absolute;
+        top: 14px;
+        left: 13px;
+        display: flex;
+        height: 200px;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .timeline-line {
+        width: 2px;
+        flex: 1;
+        border-radius: 2px;
+        background: #e5e9ed;
+      }
+
+      .timeline-line.active {
+        height: 30px;
+        flex: none;
+        background: #2dd4bf;
+      }
+
+      .messages {
+        flex: 1;
+        padding: 24px 80px 12px;
+        overflow: hidden;
+      }
+
+      .message-column {
+        max-width: 710px;
+        margin: 0 auto;
+      }
+
+      .message {
+        margin-bottom: 26px;
+        color: #44505c;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .message.user {
+        max-width: 520px;
+        margin-left: auto;
+        padding: 11px 13px;
+        border: 1px solid #e2e7ec;
+        border-radius: 9px;
+        background: #f3f5f8;
+      }
+
+      .message.agent {
+        max-width: 620px;
+      }
+
+      .message-kicker {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+        color: #77838f;
+        font-size: 12px;
+      }
+
+      .message p {
+        margin: 0 0 7px;
+      }
+
+      .prompt-wrap {
+        padding: 0 22px 18px;
+      }
+
+      .prompt-panel {
+        max-width: 710px;
+        height: 84px;
+        margin: 0 auto;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #f7f8fa;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+      }
+
+      .prompt-placeholder {
+        color: #8b96a2;
+        font-size: 13px;
+      }
+
+      .prompt-actions {
+        display: flex;
+        margin-top: 25px;
+        align-items: center;
+        gap: 12px;
+        color: #788491;
+        font-size: 11px;
+      }
+
+      .prompt-actions .send {
+        display: grid;
+        width: 25px;
+        height: 25px;
+        margin-left: auto;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+      }
+
+      .scope-popover {
+        position: absolute;
+        top: 37px;
+        right: 0;
+        z-index: 30;
+        width: min(380px, calc(100vw - 120px));
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        transform-origin: top right;
+        animation: popover-in 150ms ease-out;
+      }
+
+      .scope-popover[hidden] {
+        display: none;
+      }
+
+      @keyframes popover-in {
+        from {
+          opacity: 0;
+          transform: translateY(-3px) scale(0.99);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scope-popover {
+          animation: none;
+        }
+      }
+
+      .popover-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 14px 12px;
+      }
+
+      .popover-title {
+        margin: 0;
+        color: var(--text-strong);
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      .popover-subtitle {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+
+      .popover-close {
+        display: grid;
+        width: 26px;
+        height: 26px;
+        flex: 0 0 26px;
+        place-items: center;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .popover-close:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .scope-status {
+        display: none;
+        margin: 0 14px 10px;
+        padding: 10px;
+        border: 1px solid;
+        border-radius: 8px;
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+
+      .scope-status.changed {
+        display: flex;
+        border-color: var(--warning-border);
+        background: var(--warning-soft);
+        color: #92400e;
+      }
+
+      .scope-status.stale {
+        display: flex;
+        border-color: var(--error-border);
+        background: var(--error-soft);
+        color: #b91c1c;
+      }
+
+      .status-icon {
+        width: 16px;
+        height: 16px;
+        margin: 1px 8px 0 0;
+        flex: 0 0 16px;
+      }
+
+      .status-heading {
+        display: block;
+        margin-bottom: 2px;
+        font-weight: 650;
+      }
+
+      .project-list {
+        max-height: 296px;
+        margin: 0;
+        padding: 2px 6px 4px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        list-style: none;
+      }
+
+      .project-list::-webkit-scrollbar {
+        width: 9px;
+      }
+
+      .project-list::-webkit-scrollbar-thumb {
+        border: 3px solid var(--surface);
+        border-radius: 999px;
+        background: #c9d1d9;
+      }
+
+      .project-row {
+        display: grid;
+        min-width: 0;
+        grid-template-columns: 12px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 9px 8px;
+        border-radius: 7px;
+      }
+
+      .project-row:hover {
+        background: var(--surface-raised);
+      }
+
+      .primary-dot-slot {
+        display: grid;
+        width: 12px;
+        place-items: center;
+      }
+
+      .primary-dot {
+        display: none;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--primary);
+        box-shadow: 0 0 0 2px rgb(13 148 136 / 13%);
+      }
+
+      .project-row.is-primary .primary-dot {
+        display: block;
+      }
+
+      .project-copy {
+        min-width: 0;
+      }
+
+      .project-name {
+        overflow: hidden;
+        color: var(--text);
+        font-size: 12.5px;
+        font-weight: 550;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .project-path {
+        display: block;
+        margin-top: 2px;
+        overflow: hidden;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 10.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .primary-label {
+        display: none;
+        color: var(--primary);
+        font-size: 10.5px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .project-row.is-primary .primary-label {
+        display: block;
+      }
+
+      .popover-footer {
+        padding: 9px 14px 11px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 10.5px;
+        line-height: 1.45;
+      }
+
+      .prototype-note {
+        position: absolute;
+        right: 12px;
+        bottom: 10px;
+        color: #96a0aa;
+        font-size: 10px;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype-page">
+      <div class="prototype-controls">
+        <div class="prototype-heading">
+          <h1>Agent Project 授权范围 · Popover 原型</h1>
+          <p>上方场景切换仅用于评审，不属于最终产品界面。</p>
+        </div>
+        <div class="scenario-picker" role="group" aria-label="选择原型场景">
+          <button class="scenario-button" type="button" data-scenario="normal" aria-pressed="true">
+            正常 · 4 个 Project
+          </button>
+          <button
+            class="scenario-button"
+            type="button"
+            data-scenario="sixteen"
+            aria-pressed="false"
+          >
+            上限 · 16 个 Project
+          </button>
+          <button
+            class="scenario-button"
+            type="button"
+            data-scenario="changed"
+            aria-pressed="false"
+          >
+            与当前 Workspace 不同
+          </button>
+          <button class="scenario-button" type="button" data-scenario="stale" aria-pressed="false">
+            授权范围已失效
+          </button>
+        </div>
+      </div>
+
+      <div class="app-window" aria-label="FylloCode ChatContainer 原型">
+        <div class="window-titlebar">
+          <div class="traffic-lights" aria-hidden="true">
+            <span class="traffic-light red"></span>
+            <span class="traffic-light yellow"></span>
+            <span class="traffic-light green"></span>
+          </div>
+          <button class="workspace-pill" type="button">
+            FylloCode
+            <iconify-icon
+              class="iconify"
+              icon="lucide:chevron-down"
+              aria-hidden="true"
+            ></iconify-icon>
+          </button>
+        </div>
+
+        <div class="app-body">
+          <nav class="activity-bar" aria-label="主导航">
+            <div class="brand-mark" aria-label="FylloCode">F</div>
+            <button class="rail-button" type="button" title="概览" aria-label="概览">
+              <iconify-icon
+                class="iconify"
+                icon="lucide:layout-grid"
+                aria-hidden="true"
+              ></iconify-icon>
+            </button>
+            <button class="rail-button active" type="button" title="对话" aria-label="对话">
+              <iconify-icon
+                class="iconify"
+                icon="lucide:message-circle"
+                aria-hidden="true"
+              ></iconify-icon>
+            </button>
+            <button class="rail-button" type="button" title="任务" aria-label="任务">
+              <iconify-icon
+                class="iconify"
+                icon="lucide:list-checks"
+                aria-hidden="true"
+              ></iconify-icon>
+            </button>
+            <button class="rail-button" type="button" title="工作流" aria-label="工作流">
+              <iconify-icon
+                class="iconify"
+                icon="lucide:git-branch"
+                aria-hidden="true"
+              ></iconify-icon>
+            </button>
+            <div class="rail-spacer"></div>
+            <button class="rail-button" type="button" title="设置" aria-label="设置">
+              <iconify-icon
+                class="iconify"
+                icon="lucide:settings"
+                aria-hidden="true"
+              ></iconify-icon>
+            </button>
+          </nav>
+
+          <div class="chat-shell">
+            <main class="chat-card">
+              <header class="chat-header">
+                <div class="chat-header-left">
+                  <button
+                    class="icon-button"
+                    type="button"
+                    title="展开聊天列表"
+                    aria-label="展开聊天列表"
+                  >
+                    <iconify-icon
+                      class="iconify"
+                      icon="lucide:panel-left-open"
+                      aria-hidden="true"
+                    ></iconify-icon>
+                  </button>
+                  <button class="icon-button" type="button" title="新建会话" aria-label="新建会话">
+                    <iconify-icon
+                      class="iconify"
+                      icon="lucide:plus"
+                      aria-hidden="true"
+                    ></iconify-icon>
+                  </button>
+                </div>
+                <div aria-hidden="true"></div>
+                <div class="chat-header-right">
+                  <button
+                    id="scope-trigger"
+                    class="icon-button scope-trigger"
+                    type="button"
+                    title="Agent Project 授权范围"
+                    aria-label="Agent Project 授权范围"
+                    aria-controls="scope-popover"
+                    aria-expanded="true"
+                  >
+                    <iconify-icon
+                      class="iconify"
+                      icon="lucide:folder-key"
+                      aria-hidden="true"
+                    ></iconify-icon>
+                    <span id="trigger-status" class="trigger-status" aria-hidden="true"></span>
+                  </button>
+
+                  <section
+                    id="scope-popover"
+                    class="scope-popover"
+                    role="dialog"
+                    aria-modal="false"
+                    aria-labelledby="popover-title"
+                  >
+                    <div class="popover-header">
+                      <div>
+                        <h2 id="popover-title" class="popover-title">Agent 可访问的 Project</h2>
+                        <p id="popover-subtitle" class="popover-subtitle"></p>
+                      </div>
+                      <button
+                        id="popover-close"
+                        class="popover-close"
+                        type="button"
+                        aria-label="关闭授权范围"
+                      >
+                        <iconify-icon
+                          class="iconify"
+                          icon="lucide:x"
+                          aria-hidden="true"
+                        ></iconify-icon>
+                      </button>
+                    </div>
+
+                    <div id="scope-status" class="scope-status" aria-live="polite"></div>
+                    <ul
+                      id="project-list"
+                      class="project-list"
+                      aria-label="Agent 可访问的 Project"
+                    ></ul>
+
+                    <div class="popover-footer">
+                      此授权范围在 Session 创建时固定；Workspace 成员变更不会自动更新当前 Session。
+                    </div>
+                  </section>
+                </div>
+              </header>
+
+              <section class="chat-content" aria-label="对话内容">
+                <div class="timeline" aria-hidden="true">
+                  <span class="timeline-line"></span>
+                  <span class="timeline-line active"></span>
+                  <span class="timeline-line"></span>
+                </div>
+
+                <div class="messages">
+                  <div class="message-column">
+                    <article class="message user">
+                      一个 Workspace 最多绑定 16 个 Project，Agent 的授权范围应该如何展示？
+                    </article>
+                    <article class="message agent">
+                      <div class="message-kicker">
+                        <iconify-icon
+                          class="iconify"
+                          icon="lucide:brain"
+                          aria-hidden="true"
+                        ></iconify-icon>
+                        <span>正在检查当前会话授权…</span>
+                      </div>
+                      <p>当前 Session 使用创建时固定的 Project 授权范围。</p>
+                      <p>
+                        点击 Header 右侧的文件夹钥匙图标，可以查看完整 Project 列表及主 Project。
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="prompt-wrap">
+                  <div class="prompt-panel" aria-label="消息输入区域">
+                    <div class="prompt-placeholder">Type your message here…</div>
+                    <div class="prompt-actions">
+                      <span>＋</span>
+                      <span>Codex</span>
+                      <span>High</span>
+                      <span class="send">
+                        <iconify-icon
+                          class="iconify"
+                          icon="lucide:square"
+                          aria-hidden="true"
+                        ></iconify-icon>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </div>
+        <div class="prototype-note">Prototype · 非生产界面</div>
+      </div>
+    </div>
+
+    <script src="https://code.iconify.design/iconify-icon/3.0.0/iconify-icon.min.js"></script>
+    <script>
+      const projectCatalog = [
+        { name: "FylloCode", path: "/Users/tao/Work/projects/FylloCode", primary: true },
+        { name: "fyllo-agent-runtime", path: "/Users/tao/Work/projects/fyllo-agent-runtime" },
+        { name: "fyllo-mcp-toolkit", path: "/Users/tao/Work/projects/fyllo-mcp-toolkit" },
+        { name: "fyllo-docs", path: "/Users/tao/Work/projects/fyllo-docs" },
+        { name: "desktop-shell", path: "/Users/tao/Work/projects/desktop-shell" },
+        { name: "design-system", path: "/Users/tao/Work/projects/design-system" },
+        { name: "workspace-service", path: "/Users/tao/Work/projects/workspace-service" },
+        { name: "agent-protocol", path: "/Users/tao/Work/projects/agent-protocol" },
+        { name: "openspec-runtime", path: "/Users/tao/Work/projects/openspec-runtime" },
+        { name: "cortex-service", path: "/Users/tao/Work/projects/cortex-service" },
+        { name: "fyllo-plugins", path: "/Users/tao/Work/projects/fyllo-plugins" },
+        { name: "integration-hub", path: "/Users/tao/Work/projects/integration-hub" },
+        { name: "task-orchestrator", path: "/Users/tao/Work/projects/task-orchestrator" },
+        { name: "workflow-engine", path: "/Users/tao/Work/projects/workflow-engine" },
+        { name: "release-tooling", path: "/Users/tao/Work/projects/release-tooling" },
+        { name: "product-handbook", path: "/Users/tao/Work/projects/product-handbook" },
+      ];
+
+      const scenarios = {
+        normal: {
+          projects: projectCatalog.slice(0, 4),
+          status: "normal",
+        },
+        sixteen: {
+          projects: projectCatalog,
+          status: "normal",
+        },
+        changed: {
+          projects: projectCatalog.slice(0, 4),
+          status: "changed",
+          heading: "与当前 Workspace 不同",
+          message:
+            "当前新增 Project：design-system；当前主 Project 已变更。新建 Session 才能获得最新授权。",
+        },
+        stale: {
+          projects: projectCatalog.slice(0, 4),
+          status: "stale",
+          heading: "Project 授权范围已失效",
+          message: "FylloCode 的项目目录已变更。当前 Session 仍使用创建时固定的项目目录。",
+        },
+      };
+
+      const trigger = document.querySelector("#scope-trigger");
+      const triggerStatus = document.querySelector("#trigger-status");
+      const popover = document.querySelector("#scope-popover");
+      const closeButton = document.querySelector("#popover-close");
+      const subtitle = document.querySelector("#popover-subtitle");
+      const scopeStatus = document.querySelector("#scope-status");
+      const projectList = document.querySelector("#project-list");
+      const scenarioButtons = [...document.querySelectorAll("[data-scenario]")];
+
+      function setPopoverOpen(open) {
+        popover.hidden = !open;
+        trigger.setAttribute("aria-expanded", String(open));
+      }
+
+      function renderStatus(scenario) {
+        triggerStatus.className = `trigger-status ${scenario.status}`;
+        scopeStatus.className = `scope-status ${scenario.status}`;
+
+        if (scenario.status === "normal") {
+          scopeStatus.replaceChildren();
+          return;
+        }
+
+        const icon = document.createElement("iconify-icon");
+        icon.className = "status-icon";
+        icon.setAttribute(
+          "icon",
+          scenario.status === "stale" ? "lucide:circle-alert" : "lucide:triangle-alert"
+        );
+        icon.setAttribute("aria-hidden", "true");
+
+        const copy = document.createElement("div");
+        const heading = document.createElement("strong");
+        heading.className = "status-heading";
+        heading.textContent = scenario.heading;
+        const message = document.createElement("span");
+        message.textContent = scenario.message;
+        copy.append(heading, message);
+        scopeStatus.replaceChildren(icon, copy);
+      }
+
+      function renderProject(project) {
+        const row = document.createElement("li");
+        row.className = `project-row${project.primary ? " is-primary" : ""}`;
+
+        const dotSlot = document.createElement("span");
+        dotSlot.className = "primary-dot-slot";
+        const dot = document.createElement("span");
+        dot.className = "primary-dot";
+        dot.setAttribute("aria-hidden", "true");
+        dotSlot.append(dot);
+
+        const copy = document.createElement("div");
+        copy.className = "project-copy";
+        const name = document.createElement("div");
+        name.className = "project-name";
+        name.textContent = project.name;
+        const path = document.createElement("code");
+        path.className = "project-path";
+        path.title = project.path;
+        path.textContent = project.path;
+        copy.append(name, path);
+
+        const primaryLabel = document.createElement("span");
+        primaryLabel.className = "primary-label";
+        primaryLabel.textContent = "主 Project";
+
+        row.append(dotSlot, copy, primaryLabel);
+        return row;
+      }
+
+      function renderScenario(name) {
+        const scenario = scenarios[name];
+        subtitle.textContent = `共 ${scenario.projects.length} 个 Project · 会话创建时固定`;
+        projectList.replaceChildren(...scenario.projects.map(renderProject));
+        projectList.scrollTop = 0;
+        renderStatus(scenario);
+
+        scenarioButtons.forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.scenario === name));
+        });
+        setPopoverOpen(true);
+      }
+
+      trigger.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setPopoverOpen(popover.hidden);
+      });
+
+      closeButton.addEventListener("click", () => {
+        setPopoverOpen(false);
+        trigger.focus();
+      });
+
+      popover.addEventListener("click", (event) => event.stopPropagation());
+      document.addEventListener("click", () => setPopoverOpen(false));
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !popover.hidden) {
+          setPopoverOpen(false);
+          trigger.focus();
+        }
+      });
+
+      scenarioButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          renderScenario(button.dataset.scenario);
+        });
+      });
+
+      renderScenario("normal");
+    </script>
+  </body>
+</html>

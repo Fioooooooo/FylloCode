@@ -10,7 +10,7 @@ import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 import ChatSessionEventRail from "./event/ChatSessionEventRail.vue";
 import ChatPromptTimeline from "./timeline/ChatPromptTimeline.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
-import SessionScopeHeader from "./SessionScopeHeader.vue";
+import SessionScopePopover from "./SessionScopePopover.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError, activeStreamIndicator } = storeToRefs(store);
@@ -72,12 +72,13 @@ function handleCreateSession(): void {
           <OriginTaskBanner />
         </div>
 
-        <div class="flex w-1/5 shrink-0 items-center justify-end gap-1">
-          <!-- Right actions placeholder -->
+        <div
+          class="flex w-1/5 shrink-0 items-center justify-end gap-1"
+          data-test="chat-header-right-actions"
+        >
+          <SessionScopePopover v-if="!isDraft" />
         </div>
       </header>
-
-      <SessionScopeHeader v-if="!isDraft" />
 
       <section class="relative flex-1 min-h-0 isolate">
         <ChatPromptTimeline
