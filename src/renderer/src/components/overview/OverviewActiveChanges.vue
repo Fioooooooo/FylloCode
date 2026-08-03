@@ -10,6 +10,7 @@ import { proposalRefKey, type ProposalRef } from "@shared/types/proposal";
 
 const props = defineProps<{
   changes: ActiveChange[];
+  showFolderBadge: boolean;
 }>();
 
 const { openProposalDetail } = useProposalDetailSlideover();
@@ -57,36 +58,55 @@ function openChange(proposalRef: ProposalRef): void {
         class="cursor-pointer border border-default !bg-default text-left hover:!bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         @click="openChange(change.proposalRef)"
       >
-        <div class="flex min-w-0 items-start justify-between gap-3">
-          <div class="min-w-0 space-y-2">
-            <p class="truncate text-sm font-semibold text-highlighted">
-              {{ change.title }}
-            </p>
-            <UBadge color="neutral" variant="soft" size="sm">
-              {{ change.folderName }}
-            </UBadge>
-            <p class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-              <UIcon name="i-lucide-list-checks" class="size-3.5 shrink-0" />
-              <span class="truncate">{{ taskLine(change) }}</span>
-            </p>
-          </div>
+        <div
+          class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-3 gap-x-3 gap-y-2"
+          data-test="overview-active-change-card-layout"
+        >
+          <p
+            class="truncate self-center text-sm font-semibold text-highlighted"
+            :title="change.title"
+          >
+            {{ change.title }}
+          </p>
           <div
-            class="flex shrink-0 flex-col items-end gap-2 text-right"
+            class="flex shrink-0 items-center justify-end gap-2"
             data-test="overview-active-change-meta"
           >
-            <div class="flex items-center gap-2">
-              <UBadge
-                :color="proposalDisplayStatusConfig[change.status].color"
-                :variant="proposalDisplayStatusConfig[change.status].variant"
-                size="sm"
-                class="font-normal"
-              >
-                {{ proposalDisplayStatusConfig[change.status].label }}
-              </UBadge>
-              <ProposalWorktreeBadge :worktree-path="change.worktreePath" />
-            </div>
-            <span class="text-xs text-muted">{{ createdLabel(change) }}</span>
+            <UBadge
+              :color="proposalDisplayStatusConfig[change.status].color"
+              :variant="proposalDisplayStatusConfig[change.status].variant"
+              size="sm"
+              class="font-normal"
+            >
+              {{ proposalDisplayStatusConfig[change.status].label }}
+            </UBadge>
           </div>
+          <span
+            class="col-span-2 flex min-w-0 items-center gap-1.5 text-xs text-muted"
+            data-test="overview-active-change-task"
+            :title="taskLine(change)"
+          >
+            <UIcon name="i-lucide-list-checks" class="size-3.5 shrink-0" />
+            <span class="truncate">{{ taskLine(change) }}</span>
+          </span>
+          <div
+            class="flex min-w-0 items-center gap-2 text-xs text-muted"
+            data-test="overview-active-change-context"
+          >
+            <UBadge
+              v-if="props.showFolderBadge"
+              color="neutral"
+              variant="soft"
+              size="sm"
+              class="max-w-36 shrink-0"
+              data-test="overview-active-change-owner"
+              :title="change.folderName"
+            >
+              <span class="truncate">{{ change.folderName }}</span>
+            </UBadge>
+            <ProposalWorktreeBadge :worktree-path="change.worktreePath" />
+          </div>
+          <span class="self-center text-right text-xs text-muted">{{ createdLabel(change) }}</span>
         </div>
       </UiSurface>
     </div>

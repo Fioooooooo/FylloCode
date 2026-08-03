@@ -6,11 +6,16 @@ import OverviewRecentLineages from "@renderer/components/overview/OverviewRecent
 import OverviewStatsBar from "@renderer/components/overview/OverviewStatsBar.vue";
 import PageHeader from "@renderer/components/shared/PageHeader.vue";
 import { useKnowledgeStore, useOverviewStore, useWorkspaceStore } from "@renderer/stores";
+import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 
 const workspaceStore = useWorkspaceStore();
 const overviewStore = useOverviewStore();
 const knowledgeStore = useKnowledgeStore();
 
+const overviewTitle = computed(() => {
+  const kind = workspaceStore.currentWorkspace?.kind;
+  return kind ? `${workspaceKindLabel(kind)} 概览` : "概览";
+});
 const knowledgeCount = computed(
   () => (knowledgeStore.data?.entries.length ?? 0) + (knowledgeStore.data?.errors.length ?? 0)
 );
@@ -48,7 +53,7 @@ watch(
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <PageHeader
           eyebrow="Overview"
-          title="项目概览"
+          :title="overviewTitle"
           description="治理状态、活跃工作和最近脉络。"
         />
 
@@ -124,7 +129,10 @@ watch(
           data-test="overview-partial-alert"
         />
         <div class="space-y-6 xl:col-span-8" data-test="overview-dynamic-column">
-          <OverviewActiveChanges :changes="overviewStore.data.activeChanges" />
+          <OverviewActiveChanges
+            :changes="overviewStore.data.activeChanges"
+            :show-folder-badge="workspaceStore.currentWorkspace?.kind === 'collection'"
+          />
 
           <OverviewRecentLineages :lineages="overviewStore.data.recentLineages" />
         </div>

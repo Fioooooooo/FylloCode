@@ -9,15 +9,21 @@ export interface WorkspaceChangesResult {
   warnings: WorkspaceChangeWarning[];
 }
 
-async function scanFolder(folder: McpFolderEntry): Promise<WorkspaceAwareChangeSummary[]> {
+interface FolderScanResult {
+  changes: WorkspaceAwareChangeSummary[];
+  failures: string[];
+}
+
+async function scanFolder(folder: McpFolderEntry): Promise<FolderScanResult> {
   const { workspaces, warnings } = await listReadableWorkspaces(folder.folderPath);
   if (warnings.length > 0) {
     throw new Error(warnings.join(" "));
   }
   const activeChanges: WorkspaceAwareChangeSummary[] = [];
+  const failures: string[] = [];
   const seenNames = new Set<string>();
 
-  // Process linked worktrees first so duplicate names prefer linked entries.
+  // linked 优先，确保 main 与 linked 同名时保留 Proposal 的实际执行位置。
   const orderedWorkspaces = [
     ...workspaces.filter((w) => w.mode === "linked"),
     ...workspaces.filter((w) => w.mode === "main"),
@@ -43,11 +49,12 @@ async function scanFolder(folder: McpFolderEntry): Promise<WorkspaceAwareChangeS
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to list changes for worktree ${workspace.path}: ${message}`);
+      // 单个 worktree 未初始化 OpenSpec 时，不得隐藏同一 Folder 中其他可读 Proposal。
+      failures.push(`Failed to list changes for worktree ${workspace.path}: ${message}`);
     }
   }
 
-  return activeChanges;
+  return { changes: activeChanges, failures };
 }
 
 export async function listWorkspaceChanges(folderId?: string): Promise<WorkspaceChangesResult> {
@@ -55,7 +62,18 @@ export async function listWorkspaceChanges(folderId?: string): Promise<Workspace
   const results = await Promise.all(
     folders.map(async (folder) => {
       try {
-        return { changes: await scanFolder(folder), warning: null };
+        const scan = await scanFolder(folder);
+        return {
+          changes: scan.changes,
+          warning:
+            scan.failures.length > 0
+              ? ({
+                  folderId: folder.folderId,
+                  code: "PROPOSAL_FOLDER_SCAN_FAILED",
+                  message: scan.failures.join(" "),
+                } satisfies WorkspaceChangeWarning)
+              : null,
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return {

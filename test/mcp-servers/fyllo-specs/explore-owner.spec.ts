@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import spawn from "cross-spawn";
@@ -25,10 +25,12 @@ function git(cwd: string, args: string[]): void {
   if (result.status !== 0) throw new Error(result.stderr || result.stdout);
 }
 
-function createRepo(name: string): string {
+function createRepo(name: string, initializeOpenspec = true): string {
   const root = mkdtempSync(join(tmpdir(), `fyllo-explore-${name}-`));
-  mkdirSync(join(root, "openspec", "changes"), { recursive: true });
-  writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n");
+  if (initializeOpenspec) {
+    mkdirSync(join(root, "openspec", "changes"), { recursive: true });
+    writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n");
+  }
   git(root, ["init"]);
   git(root, ["config", "user.name", "Fyllo Test"]);
   git(root, ["config", "user.email", "test@example.com"]);
@@ -39,7 +41,18 @@ function createRepo(name: string): string {
 }
 
 interface ExploreState {
-  activeChanges: Array<{ folderId: string; changeId: string; worktreeMode: string }>;
+  activeChanges: Array<{
+    folderId: string;
+    changeId: string;
+    worktreeMode: string;
+    worktreePath: string;
+  }>;
+  currentChange: {
+    proposalRef: { folderId: string; changeId: string };
+    worktreeMode: string;
+    worktreePath: string;
+  } | null;
+  warnings: Array<{ folderId: string; code: string; message: string }>;
   errors: Array<{
     code: string;
     details: {
@@ -96,6 +109,48 @@ describe("explore repository owners", () => {
       changeId: "owned-change",
       worktreeMode: "main",
     });
+  });
+
+  it("keeps a linked proposal when the owner main worktree has no OpenSpec changes", async () => {
+    const folderPath = createRepo("linked-only", false);
+    folders = [{ folderId: "folder-a", folderName: "A", folderPath }];
+    const created = JSON.parse(
+      await createProposalTool({
+        folderId: "folder-a",
+        changeName: "linked-change",
+        worktreeMode: "linked",
+        includeInstruction: false,
+      })
+    ) as { target: { worktreePath: string } };
+
+    const state = parseState(
+      await exploreTool({
+        folderId: "folder-a",
+        changeName: "linked-change",
+        includeInstruction: false,
+      })
+    );
+    const worktreePath = realpathSync.native(created.target.worktreePath);
+
+    expect(state.activeChanges).toEqual([
+      expect.objectContaining({
+        folderId: "folder-a",
+        changeId: "linked-change",
+        worktreeMode: "linked",
+        worktreePath,
+      }),
+    ]);
+    expect(state.currentChange).toMatchObject({
+      proposalRef: { folderId: "folder-a", changeId: "linked-change" },
+      worktreeMode: "linked",
+      worktreePath,
+    });
+    expect(state.warnings).toEqual([
+      expect.objectContaining({
+        folderId: "folder-a",
+        code: "PROPOSAL_FOLDER_SCAN_FAILED",
+      }),
+    ]);
   });
 
   it("rejects an ownerless currentChange with multiple matches", async () => {

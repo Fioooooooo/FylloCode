@@ -181,10 +181,10 @@ function overview(): ProjectOverview {
   };
 }
 
-function mountPage() {
+function mountPage(workspace = project()) {
   const pinia = createPinia();
   setActivePinia(pinia);
-  useWorkspaceStore().currentWorkspace = project();
+  useWorkspaceStore().currentWorkspace = workspace;
   return mount(OverviewPage, {
     global: {
       plugins: [pinia],
@@ -257,7 +257,7 @@ describe("overview page", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.text()).toContain("项目概览");
+    expect(wrapper.get("h1").text()).toBe("Project 概览");
     expect(wrapper.text()).toContain("实时项目数据");
 
     const dynamicColumn = wrapper.get('[data-test="overview-dynamic-column"]');
@@ -314,6 +314,23 @@ describe("overview page", () => {
     expect(wrapper.text()).toContain("Repository A");
   });
 
+  it("uses the current Workspace kind in the page title", async () => {
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({
+      ok: true,
+      data: overview(),
+    });
+    const workspace = workspaceInfo({
+      id: "workspace-1",
+      name: "Workspace 1",
+      kind: "collection",
+    });
+
+    const wrapper = mountPage(workspace);
+    await flushPromises();
+
+    expect(wrapper.get("h1").text()).toBe("Workspace 概览");
+  });
+
   it("treats empty Git history fields as complete governance data", async () => {
     const data = overview();
     data.stats.specsThisMonth = 0;
@@ -355,9 +372,19 @@ describe("overview page", () => {
         .find('[aria-label="Linked worktree: /tmp/project-1/.worktrees/add-project-overview-page"]')
         .exists()
     ).toBe(true);
-    expect(wrapper.get('[data-test="overview-active-change-meta"]').classes()).toContain(
-      "items-end"
+    expect(wrapper.get('[data-test="overview-active-change-card-layout"]').classes()).toContain(
+      "grid-rows-3"
     );
+    expect(wrapper.get('[data-test="overview-active-change-meta"]').classes()).toContain(
+      "justify-end"
+    );
+    expect(wrapper.find('[data-test="overview-active-change-owner"]').exists()).toBe(false);
+    expect(
+      wrapper
+        .get('[data-test="overview-active-change-context"]')
+        .find('[aria-label="Linked worktree: /tmp/project-1/.worktrees/add-project-overview-page"]')
+        .exists()
+    ).toBe(true);
 
     await wrapper.get('[data-test="overview-active-changes"] button').trigger("click");
 
@@ -366,6 +393,43 @@ describe("overview page", () => {
       changeId: "add-project-overview-page",
     });
     expect(routerMock.push).not.toHaveBeenCalled();
+  });
+
+  it("keeps long and fallback task labels in the dedicated task row", async () => {
+    const data = overview();
+    const longTaskTitle =
+      "这是一个很长的关联任务名称，用来验证它只占用 Project 名称与时间之间的剩余空间";
+    data.activeChanges[0]!.taskTitle = longTaskTitle;
+    data.activeChanges.push({
+      ...data.activeChanges[0]!,
+      proposalRef: { folderId: "folder-b", changeId: "free-discussion" },
+      folderName: "Repository B",
+      title: "Free Discussion Proposal",
+      taskTitle: null,
+      taskRef: null,
+      worktreePath: undefined,
+    });
+    vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({ ok: true, data });
+
+    const workspace = workspaceInfo({
+      id: "workspace-1",
+      name: "Workspace 1",
+      kind: "collection",
+    });
+    const wrapper = mountPage(workspace);
+    await flushPromises();
+
+    const tasks = wrapper.findAll('[data-test="overview-active-change-task"]');
+    expect(tasks).toHaveLength(2);
+    expect(tasks[0]!.attributes("title")).toBe(longTaskTitle);
+    expect(tasks[0]!.classes()).toContain("col-span-2");
+    expect(tasks[0]!.find("span").classes()).toContain("truncate");
+    expect(tasks[1]!.text()).toContain("自由讨论");
+    const context = wrapper.get('[data-test="overview-active-change-context"]');
+    expect(context.get('[data-test="overview-active-change-owner"]').classes()).toContain(
+      "max-w-36"
+    );
+    expect(context.find('[data-test="proposal-worktree-badge"]').exists()).toBe(true);
   });
 
   it("keeps same-name active proposals separated by owner and opens the selected ProposalRef", async () => {
@@ -379,7 +443,12 @@ describe("overview page", () => {
     });
     vi.mocked(overviewApi.getProjectOverview).mockResolvedValue({ ok: true, data });
 
-    const wrapper = mountPage();
+    const workspace = workspaceInfo({
+      id: "workspace-1",
+      name: "Workspace 1",
+      kind: "collection",
+    });
+    const wrapper = mountPage(workspace);
     await flushPromises();
     const cards = wrapper.findAll('[data-test="overview-active-changes"] button');
 
