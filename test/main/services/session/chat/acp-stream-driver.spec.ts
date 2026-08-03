@@ -151,6 +151,7 @@ describe("driveAcpStream", () => {
 
     expect(order).toEqual(["onDone"]);
     expect(output.done).toEqual([42]);
+    expect(session.cancel).not.toHaveBeenCalled();
     expect(sessionRegistry.get("chat", "s3")).toBeUndefined();
   });
 
@@ -176,6 +177,7 @@ describe("driveAcpStream", () => {
     await flush();
 
     expect(output.errors).toEqual([{ code: IpcErrorCodes.ACP_ERROR, message: "boom" }]);
+    expect(session.cancel).not.toHaveBeenCalled();
     expect(sessionRegistry.get("chat", "s4")).toBeUndefined();
   });
 

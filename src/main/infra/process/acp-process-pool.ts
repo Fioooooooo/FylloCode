@@ -502,22 +502,45 @@ export function hasActiveAcpSession(entry: AgentProcess, sessionId: string): boo
 
 export function hasActiveMcpActivation(entry: AgentProcess, sessionId: string): boolean {
   if (!entry.activeSessionIds.has(sessionId)) {
+    logger.info(
+      `[infra.process.acp] MCP activation inactive agentId=${entry.agentId} acpSessionId=${sessionId} reason=session-not-active`
+    );
     return false;
   }
   const activationId = entry.mcpActivationBySessionId.get(sessionId);
   if (activationId === undefined) {
+    logger.info(
+      `[infra.process.acp] MCP activation inactive agentId=${entry.agentId} acpSessionId=${sessionId} reason=activation-not-tracked`
+    );
     return false;
   }
-  return activationId === null || mcpAccessGrantRegistry.isActive(activationId);
+  if (activationId === null) {
+    logger.debug(
+      `[infra.process.acp] MCP activation active agentId=${entry.agentId} acpSessionId=${sessionId} transport=stdio`
+    );
+    return true;
+  }
+  const active = mcpAccessGrantRegistry.isActive(activationId);
+  logger[active ? "debug" : "info"](
+    `[infra.process.acp] MCP activation ${active ? "active" : "inactive"} activationId=${activationId} agentId=${entry.agentId} acpSessionId=${sessionId} transport=http${active ? "" : " reason=grant-inactive"}`
+  );
+  return active;
 }
 
-export function forgetActiveAcpSession(entry: AgentProcess, sessionId: string): void {
+export function forgetActiveAcpSession(
+  entry: AgentProcess,
+  sessionId: string,
+  reason = "session-forgotten"
+): void {
   entry.activeSessionIds.delete(sessionId);
   const activationId = entry.mcpActivationBySessionId.get(sessionId);
   entry.mcpActivationBySessionId.delete(sessionId);
-  mcpAccessGrantRegistry.revokeAcpSession(entry.agentId, sessionId);
+  logger.info(
+    `[infra.process.acp] forgetting ACP Session activationId=${activationId ?? "none"} agentId=${entry.agentId} acpSessionId=${sessionId} reason=${reason}`
+  );
+  mcpAccessGrantRegistry.revokeAcpSession(entry.agentId, sessionId, reason);
   if (activationId) {
-    mcpAccessGrantRegistry.revokeActivation(activationId);
+    mcpAccessGrantRegistry.revokeActivation(activationId, reason);
   }
 }
 

@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     initialize,
+    closeSession: vi.fn(),
     resolveBinaryDistribution,
     child: undefined as unknown,
     capturedClient: undefined as { sessionUpdate: (n: unknown) => unknown } | undefined,
@@ -82,7 +83,7 @@ vi.mock("@agentclientprotocol/sdk", () => ({
     mocks.capturedClient = toClient({}) as { sessionUpdate: (n: unknown) => unknown };
     return {
       initialize: mocks.initialize,
-      closeSession: vi.fn().mockResolvedValue(undefined),
+      closeSession: mocks.closeSession,
     };
   }),
 }));
@@ -159,6 +160,7 @@ describe("acp-process-pool", () => {
       protocolVersion: 1,
       agentCapabilities: { loadSession: true, sessionCapabilities: { resume: {} } },
     });
+    mocks.closeSession.mockResolvedValue(undefined);
     mocks.upsertAgentCapabilities.mockResolvedValue(undefined);
   });
 
@@ -206,8 +208,15 @@ describe("acp-process-pool", () => {
     );
     forgetActiveAcpSession(first, "acp-1");
     expect(hasActiveAcpSession(first, "acp-1")).toBe(false);
-    expect(mocks.grantRegistry.revokeAcpSession).toHaveBeenCalledWith("claude-acp", "acp-1");
-    expect(mocks.grantRegistry.revokeActivation).toHaveBeenCalledWith("activation-1");
+    expect(mocks.grantRegistry.revokeAcpSession).toHaveBeenCalledWith(
+      "claude-acp",
+      "acp-1",
+      "session-forgotten"
+    );
+    expect(mocks.grantRegistry.revokeActivation).toHaveBeenCalledWith(
+      "activation-1",
+      "session-forgotten"
+    );
     markAcpSessionActive(first, "acp-1", null);
     expect(hasActiveMcpActivation(first, "acp-1")).toBe(true);
 
@@ -222,6 +231,7 @@ describe("acp-process-pool", () => {
 
     expect(second).not.toBe(first);
     expect(hasActiveAcpSession(second, "acp-1")).toBe(false);
+    expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-1" });
     expect(mocks.grantRegistry.revokeAgent).toHaveBeenCalledWith("claude-acp");
   });
 
@@ -654,6 +664,7 @@ describe("acp-process-pool", () => {
     queueMicrotask(() => fake.triggerClose());
     await disposePromise;
 
+    expect(mocks.grantRegistry.revokeAgent).toHaveBeenCalledWith("claude-acp");
     expect(killSpy).not.toHaveBeenCalledWith(-12345, expect.anything());
     expect(mocks.spawn).toHaveBeenCalledTimes(1); // no taskkill spawn either
 

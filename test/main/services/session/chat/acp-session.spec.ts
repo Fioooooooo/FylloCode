@@ -12,6 +12,7 @@ import type { SessionEvent } from "@main/domain/session/chat/session-events";
 const mocks = vi.hoisted(() => {
   const sessionHandlers = new Map<string, (notification: SessionNotification) => void>();
   const activeSessionIds = new Set<string>();
+  const mcpActivationBySessionId = new Map<string, string | null>();
   const connection = {
     resumeSession: vi.fn(),
     loadSession: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => {
     connection,
     sessionHandlers,
     activeSessionIds,
+    mcpActivationBySessionId,
     getOrStartProcess: vi.fn(),
     hasActiveAcpSession: vi.fn(),
     hasActiveMcpActivation: vi.fn(),
@@ -41,6 +43,18 @@ const mocks = vi.hoisted(() => {
     assertAgentWorkspaceCompatibility: vi.fn(),
     readAttachmentDataUrl: vi.fn(),
     resolveSessionMemberResource: vi.fn(),
+    forgetActiveAcpSession: vi.fn(
+      (
+        entry: {
+          activeSessionIds: Set<string>;
+          mcpActivationBySessionId?: Map<string, string | null>;
+        },
+        sessionId: string
+      ) => {
+        entry.activeSessionIds.delete(sessionId);
+        entry.mcpActivationBySessionId?.delete(sessionId);
+      }
+    ),
     logger: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -53,12 +67,20 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
   hasActiveAcpSession: mocks.hasActiveAcpSession,
   hasActiveMcpActivation: mocks.hasActiveMcpActivation,
-  markAcpSessionActive: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
-    entry.activeSessionIds.add(sessionId);
-  }),
-  forgetActiveAcpSession: vi.fn((entry: { activeSessionIds: Set<string> }, sessionId: string) => {
-    entry.activeSessionIds.delete(sessionId);
-  }),
+  markAcpSessionActive: vi.fn(
+    (
+      entry: {
+        activeSessionIds: Set<string>;
+        mcpActivationBySessionId?: Map<string, string | null>;
+      },
+      sessionId: string,
+      activationId: string | null = null
+    ) => {
+      entry.activeSessionIds.add(sessionId);
+      entry.mcpActivationBySessionId?.set(sessionId, activationId);
+    }
+  ),
+  forgetActiveAcpSession: mocks.forgetActiveAcpSession,
 }));
 
 vi.mock("@main/infra/mcp/bundled-mcp-servers", () => ({
@@ -146,10 +168,12 @@ describe("AcpSession", () => {
     vi.clearAllMocks();
     mocks.sessionHandlers.clear();
     mocks.activeSessionIds.clear();
+    mocks.mcpActivationBySessionId.clear();
     mocks.getOrStartProcess.mockResolvedValue({
       connection: mocks.connection,
       sessionHandlers: mocks.sessionHandlers,
       activeSessionIds: mocks.activeSessionIds,
+      mcpActivationBySessionId: mocks.mcpActivationBySessionId,
       initializeResponse: initializeResponse(),
     });
     mocks.hasActiveAcpSession.mockReturnValue(true);
@@ -158,6 +182,7 @@ describe("AcpSession", () => {
     mocks.connection.loadSession.mockResolvedValue({});
     mocks.connection.newSession.mockResolvedValue({ sessionId: "acp-new" });
     mocks.connection.prompt.mockResolvedValue({ usage: { outputTokens: 12 } });
+    mocks.connection.cancel.mockResolvedValue(undefined);
     mocks.sessionStore.loadRecoveryState.mockResolvedValue({
       acpSessionId: null,
       configOptions: [],
@@ -369,6 +394,45 @@ describe("AcpSession", () => {
     expect(mocks.connection.prompt).not.toHaveBeenCalled();
     expect(mocks.connection.cancel).toHaveBeenCalledWith({ sessionId: "acp-new" });
     expect(mocks.revokeBundledMcpActivation).toHaveBeenCalledWith(null);
+  });
+
+  it("cancels only the current prompt and reuses its active MCP activation next turn", async () => {
+    const firstPrompt = deferred<{ usage: { outputTokens: number } }>();
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-existing",
+      configOptions: [],
+    });
+    mocks.activeSessionIds.add("acp-existing");
+    mocks.mcpActivationBySessionId.set("acp-existing", "activation-existing");
+    mocks.connection.prompt
+      .mockReturnValueOnce(firstPrompt.promise)
+      .mockResolvedValueOnce({ usage: { outputTokens: 8 } });
+
+    const firstTurn = await createSession();
+    const firstStart = firstTurn.start([{ type: "text", text: "long task" }]);
+    await vi.waitFor(() => expect(mocks.connection.prompt).toHaveBeenCalledOnce());
+
+    firstTurn.cancel();
+
+    expect(mocks.connection.cancel).toHaveBeenCalledOnce();
+    expect(mocks.connection.cancel).toHaveBeenCalledWith({ sessionId: "acp-existing" });
+    expect(mocks.forgetActiveAcpSession).not.toHaveBeenCalled();
+    expect(mocks.activeSessionIds.has("acp-existing")).toBe(true);
+    expect(mocks.mcpActivationBySessionId.get("acp-existing")).toBe("activation-existing");
+
+    firstPrompt.resolve({ usage: { outputTokens: 4 } });
+    await firstStart;
+
+    const secondTurn = await createSession();
+    await secondTurn.start([{ type: "text", text: "continue" }]);
+
+    expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
+    expect(mocks.connection.loadSession).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.connection.prompt).toHaveBeenLastCalledWith({
+      sessionId: "acp-existing",
+      prompt: [{ type: "text", text: "continue" }],
+    });
   });
 
   it("uses direct prompt first when persisted acpSessionId exists", async () => {

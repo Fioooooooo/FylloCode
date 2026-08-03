@@ -159,14 +159,12 @@ export class AcpSession extends EventEmitter {
     this.cancelledAcpSessionIds.add(acpSessionId);
     const entry = this.processEntry;
     if (entry) {
-      forgetActiveAcpSession(entry, acpSessionId);
       void entry.connection.cancel({ sessionId: acpSessionId }).catch(() => {});
       return;
     }
     getOrStartProcess(this.opts.agentId)
       .then((resolvedEntry) => {
         this.processEntry = resolvedEntry;
-        forgetActiveAcpSession(resolvedEntry, acpSessionId);
         return resolvedEntry.connection.cancel({ sessionId: acpSessionId });
       })
       .catch(() => {});
@@ -336,14 +334,14 @@ export class AcpSession extends EventEmitter {
       logger.info(`${this.logPrefix()} no persisted ACP session; proceeding to new session flow`);
       return false;
     }
-    if (
-      !hasActiveAcpSession(context.entry, persistedSessionId) ||
-      !hasActiveMcpActivation(context.entry, persistedSessionId)
-    ) {
+    const acpSessionActive = hasActiveAcpSession(context.entry, persistedSessionId);
+    const mcpActivationActive =
+      acpSessionActive && hasActiveMcpActivation(context.entry, persistedSessionId);
+    if (!acpSessionActive || !mcpActivationActive) {
       logger.info(
-        `${this.logPrefix(persistedSessionId)} persisted session or MCP lease is cold; entering recovery`
+        `${this.logPrefix(persistedSessionId)} persisted session or MCP lease is cold; entering recovery; acpSessionActive=${acpSessionActive}; mcpActivationActive=${mcpActivationActive}`
       );
-      forgetActiveAcpSession(context.entry, persistedSessionId);
+      forgetActiveAcpSession(context.entry, persistedSessionId, "cold-recovery");
       return false;
     }
 

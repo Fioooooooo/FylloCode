@@ -437,8 +437,13 @@ describe("session-probe-service", () => {
     await closeProbe("workspace-1", "claude-code");
 
     expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
+    expect(mocks.forgetActiveAcpSession).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: "claude-code" }),
+      "acp-1"
+    );
     expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-1" });
     expect(mocks.activeSessionIds.has("acp-1")).toBe(false);
+    expect(mocks.mcpActivationBySessionId.has("acp-1")).toBe(false);
     expect(onUpdate).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       agentId: "claude-code",

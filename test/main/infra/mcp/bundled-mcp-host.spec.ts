@@ -40,6 +40,7 @@ const spawnMocks = vi.hoisted(() => ({
 }));
 
 const loggerMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
@@ -331,6 +332,9 @@ describe("bundled MCP host", () => {
     const specsOnlyToken = issueToken(["fyllo-specs"]);
 
     expect((await fetch(specsEndpoint.url)).status).toBe(401);
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      "[bundled-mcp-host] proxy authorization rejected server=fyllo-specs reason=missing-token"
+    );
     expect(
       (
         await fetch(cortexEndpoint.url, {
@@ -338,6 +342,9 @@ describe("bundled MCP host", () => {
         })
       ).status
     ).toBe(403);
+    expect(loggerMocks.warn).toHaveBeenCalledWith(
+      expect.stringContaining("server=fyllo-cortex reason=server-forbidden")
+    );
   });
 
   it("shares one readiness timeout and falls back without duplicate spawns", async () => {
@@ -383,5 +390,21 @@ describe("bundled MCP host", () => {
     expect(getMcpServerEndpoint("fyllo-specs")).toBeNull();
     await stopBundledMcpHost();
     await stopBundledMcpHost();
+  });
+
+  it("revokes every active grant when the host stops", async () => {
+    process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
+    startBundledMcpHost();
+    await waitForBundledMcpInitialReadiness();
+    const token = issueToken(["fyllo-specs"]);
+
+    expect(mcpAccessGrantRegistry.authorize(token, "fyllo-specs").status).toBe("authorized");
+
+    await stopBundledMcpHost();
+
+    expect(mcpAccessGrantRegistry.authorize(token, "fyllo-specs")).toEqual({
+      status: "unauthorized",
+      reason: "grant-not-found",
+    });
   });
 });

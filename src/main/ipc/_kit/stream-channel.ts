@@ -9,7 +9,7 @@ import logger from "@main/infra/logger";
 export interface StreamRunner {
   /** Called once, after renderer signals ready. Must resolve/reject when the stream ends. */
   start(): Promise<void>;
-  /** Called when the port is closed, an error occurs, or renderer cancels. Must be idempotent. */
+  /** 在 stream 进入终态前由 renderer 关闭端口时调用；实现必须幂等。 */
   cancel(): void;
 }
 
@@ -61,6 +61,7 @@ export function makeStreamChannel(options: MakeStreamChannelOptions): IpcRespons
 
     const state = createStreamState(port1, logTag);
     let runner: StreamRunner | null = null;
+    let cancelRequested = false;
 
     const sink: StreamSink = {
       sendChunk(data) {
@@ -78,8 +79,7 @@ export function makeStreamChannel(options: MakeStreamChannelOptions): IpcRespons
     Promise.resolve(onReady(sink))
       .then((created) => {
         runner = created;
-        if (state.finalised) {
-          // onReady may have finalised synchronously via sink.
+        if (cancelRequested) {
           runner.cancel();
         }
       })
@@ -96,9 +96,12 @@ export function makeStreamChannel(options: MakeStreamChannelOptions): IpcRespons
       });
 
     port1.on("close", () => {
-      // Ensure the runner is cancelled if renderer disconnects before done/error.
-      runner?.cancel();
+      const shouldCancel = !state.finalised;
       state.markClosed();
+      if (!shouldCancel) return;
+
+      cancelRequested = true;
+      runner?.cancel();
     });
 
     port1.on("message", (msg) => {

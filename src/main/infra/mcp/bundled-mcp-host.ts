@@ -152,8 +152,11 @@ function handleProxyRequest(
   const token = bearerToken(incoming.headers);
   const authorization = token
     ? mcpAccessGrantRegistry.authorize(token, name)
-    : { status: "unauthorized" as const };
+    : { status: "unauthorized" as const, reason: "missing-token" as const };
   if (authorization.status === "unauthorized") {
+    logger.warn(
+      `[bundled-mcp-host] proxy authorization rejected server=${name} reason=${authorization.reason}`
+    );
     writeProxyError(res, 401, "Unauthorized");
     return;
   }
@@ -476,7 +479,7 @@ async function forceTerminate(child: ChildProcess): Promise<void> {
 
 async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
   currentHost.shuttingDown = true;
-  mcpAccessGrantRegistry.revokeAll();
+  mcpAccessGrantRegistry.revokeAll("host-stopped");
   if (currentHost.initialTimer) {
     clearTimeout(currentHost.initialTimer);
     currentHost.initialTimer = null;

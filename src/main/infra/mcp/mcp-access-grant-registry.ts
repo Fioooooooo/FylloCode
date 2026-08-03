@@ -3,9 +3,10 @@ import {
   parseMcpWorkspaceDescriptor,
   type McpWorkspaceDescriptorV2,
 } from "@shared/types/mcp-workspace";
+import logger from "@main/infra/logger";
 import type { BundledMcpServerName } from "./bundled-mcp-registry";
 
-export const MCP_ACCESS_GRANT_TTL_MS = 60 * 60 * 1000;
+export const MCP_ACCESS_GRANT_DEFAULT_EXPIRES_AT = "2099-12-31T23:59:59.999Z";
 
 export interface McpAccessGrant {
   readonly tokenHash: string;
@@ -28,7 +29,7 @@ export interface IssuedMcpAccessGrant {
 
 export type McpGrantAuthorization =
   | { status: "authorized"; grant: McpAccessGrant }
-  | { status: "unauthorized" }
+  | { status: "unauthorized"; reason: "missing-token" | "grant-not-found" | "expired" }
   | { status: "forbidden" };
 
 export interface McpAccessGrantRegistryDependencies {
@@ -69,8 +70,12 @@ export class McpAccessGrantRegistry {
   }): IssuedMcpAccessGrant {
     const token = this.dependencies.createToken();
     const activationId = this.dependencies.createActivationId();
-    const ttlMs = input.ttlMs ?? MCP_ACCESS_GRANT_TTL_MS;
-    if (!token || !activationId || !Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+    const ttlMs = input.ttlMs;
+    if (
+      !token ||
+      !activationId ||
+      (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || ttlMs <= 0))
+    ) {
       throw new Error("Cannot issue MCP access grant with invalid token, activation, or TTL");
     }
 
@@ -80,7 +85,10 @@ export class McpAccessGrantRegistry {
     }
 
     const issuedAtMs = this.dependencies.now();
-    const expiresAtMs = issuedAtMs + ttlMs;
+    const expiresAt =
+      ttlMs === undefined
+        ? MCP_ACCESS_GRANT_DEFAULT_EXPIRES_AT
+        : new Date(issuedAtMs + ttlMs).toISOString();
     const descriptor = parseMcpWorkspaceDescriptor(input.descriptor);
     const allowedServerNames = Object.freeze([...new Set(input.allowedServerNames)]);
     if (allowedServerNames.length === 0) {
@@ -96,30 +104,48 @@ export class McpAccessGrantRegistry {
       allowedServerNames,
       descriptor,
       issuedAt: new Date(issuedAtMs).toISOString(),
-      expiresAt: new Date(expiresAtMs).toISOString(),
+      expiresAt,
     });
 
     this.grantsByTokenHash.set(tokenHash, grant);
     this.tokenHashByActivationId.set(activationId, tokenHash);
+    logger.info(
+      `[mcp-access-grant] issued activationId=${activationId} agentId=${input.agentId} fylloSessionId=${input.fylloSessionId ?? "none"} workspaceId=${descriptor.workspaceId} servers=${allowedServerNames.join(",")} expiresAt=${grant.expiresAt}`
+    );
     return { token, activationId, expiresAt: grant.expiresAt };
   }
 
   authorize(token: string, serverName: BundledMcpServerName): McpGrantAuthorization {
     if (!token) {
-      return { status: "unauthorized" };
+      logger.warn(
+        `[mcp-access-grant] authorization rejected server=${serverName} reason=missing-token`
+      );
+      return { status: "unauthorized", reason: "missing-token" };
     }
     const tokenHash = hashToken(token);
     const grant = this.grantsByTokenHash.get(tokenHash);
     if (!grant) {
-      return { status: "unauthorized" };
+      logger.warn(
+        `[mcp-access-grant] authorization rejected server=${serverName} reason=grant-not-found`
+      );
+      return { status: "unauthorized", reason: "grant-not-found" };
     }
     if (Date.parse(grant.expiresAt) <= this.dependencies.now()) {
-      this.revokeActivation(grant.activationId);
-      return { status: "unauthorized" };
+      logger.warn(
+        `[mcp-access-grant] authorization rejected activationId=${grant.activationId} agentId=${grant.agentId} acpSessionId=${grant.acpSessionId ?? "none"} server=${serverName} reason=expired expiresAt=${grant.expiresAt}`
+      );
+      this.revokeActivation(grant.activationId, "expired");
+      return { status: "unauthorized", reason: "expired" };
     }
     if (!grant.allowedServerNames.includes(serverName)) {
+      logger.warn(
+        `[mcp-access-grant] authorization rejected activationId=${grant.activationId} agentId=${grant.agentId} acpSessionId=${grant.acpSessionId ?? "none"} server=${serverName} reason=server-forbidden`
+      );
       return { status: "forbidden" };
     }
+    logger.debug(
+      `[mcp-access-grant] authorization accepted activationId=${grant.activationId} agentId=${grant.agentId} acpSessionId=${grant.acpSessionId ?? "none"} server=${serverName}`
+    );
     return { status: "authorized", grant };
   }
 
@@ -132,12 +158,15 @@ export class McpAccessGrantRegistry {
     const key = sessionKey(agentId, acpSessionId);
     const previousActivationId = this.activationIdBySession.get(key);
     if (previousActivationId && previousActivationId !== activationId) {
-      this.revokeActivation(previousActivationId);
+      this.revokeActivation(previousActivationId, "session-activation-replaced");
     }
 
     const updated = Object.freeze({ ...grant, acpSessionId });
     this.grantsByTokenHash.set(grant.tokenHash, updated);
     this.activationIdBySession.set(key, activationId);
+    logger.info(
+      `[mcp-access-grant] bound activationId=${activationId} previousActivationId=${previousActivationId ?? "none"} agentId=${agentId} acpSessionId=${acpSessionId} workspaceId=${grant.workspaceId}`
+    );
   }
 
   isActive(activationId: string): boolean {
@@ -156,9 +185,12 @@ export class McpAccessGrantRegistry {
     return activationId;
   }
 
-  revokeActivation(activationId: string): void {
+  revokeActivation(activationId: string, reason = "explicit"): void {
     const tokenHash = this.tokenHashByActivationId.get(activationId);
     if (!tokenHash) {
+      logger.debug(
+        `[mcp-access-grant] revoke skipped activationId=${activationId} reason=${reason} state=not-found`
+      );
       return;
     }
     const grant = this.grantsByTokenHash.get(tokenHash);
@@ -170,26 +202,36 @@ export class McpAccessGrantRegistry {
     }
     this.grantsByTokenHash.delete(tokenHash);
     this.tokenHashByActivationId.delete(activationId);
+    logger.info(
+      `[mcp-access-grant] revoked activationId=${activationId} agentId=${grant?.agentId ?? "unknown"} acpSessionId=${grant?.acpSessionId ?? "none"} workspaceId=${grant?.workspaceId ?? "unknown"} reason=${reason}`
+    );
   }
 
-  revokeAcpSession(agentId: string, acpSessionId: string): void {
+  revokeAcpSession(agentId: string, acpSessionId: string, reason = "acp-session-revoked"): void {
     const key = sessionKey(agentId, acpSessionId);
     const activationId = this.activationIdBySession.get(key);
     this.activationIdBySession.delete(key);
     if (activationId) {
-      this.revokeActivation(activationId);
+      this.revokeActivation(activationId, reason);
+      return;
     }
+    logger.debug(
+      `[mcp-access-grant] Session revoke skipped agentId=${agentId} acpSessionId=${acpSessionId} reason=${reason} state=not-found`
+    );
   }
 
   revokeAgent(agentId: string): void {
     for (const grant of [...this.grantsByTokenHash.values()]) {
       if (grant.agentId === agentId) {
-        this.revokeActivation(grant.activationId);
+        this.revokeActivation(grant.activationId, "agent-revoked");
       }
     }
   }
 
-  revokeAll(): void {
+  revokeAll(reason = "all-revoked"): void {
+    for (const activationId of [...this.tokenHashByActivationId.keys()]) {
+      this.revokeActivation(activationId, reason);
+    }
     this.grantsByTokenHash.clear();
     this.tokenHashByActivationId.clear();
     this.activationIdBySession.clear();
@@ -202,7 +244,7 @@ export class McpAccessGrantRegistry {
       return null;
     }
     if (Date.parse(grant.expiresAt) <= this.dependencies.now()) {
-      this.revokeActivation(activationId);
+      this.revokeActivation(activationId, "expired");
       return null;
     }
     return grant;
