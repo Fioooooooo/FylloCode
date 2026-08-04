@@ -1,6 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "child_process";
 import { promises as fs } from "fs";
 import spawn from "cross-spawn";
+import { trackAuxiliaryProcess } from "@main/infra/process/auxiliary-process-registry";
 
 const GIT_WORKTREE_TIMEOUT_MS = 5_000;
 
@@ -13,7 +14,9 @@ function runWorktreeList(projectPath: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const child = spawn("git", ["-C", projectPath, "worktree", "list", "--porcelain"], {
       stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     }) as ChildProcessWithoutNullStreams;
+    trackAuxiliaryProcess(child);
     let stdout = "";
     let stderr = "";
     let settled = false;

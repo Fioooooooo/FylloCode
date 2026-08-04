@@ -55,6 +55,8 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  forceStopBundledMcpHost,
+  getBundledMcpProcessIds,
   getMcpServerEndpoint,
   INITIAL_BACKEND_READY_TIMEOUT_MS,
   MAX_RESTART_ATTEMPTS,
@@ -406,5 +408,19 @@ describe("bundled MCP host", () => {
       status: "unauthorized",
       reason: "grant-not-found",
     });
+  });
+
+  it("force-stops every known bundled MCP process group without waiting", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
+    startBundledMcpHost();
+    await waitForChildCount(2);
+    expect(getBundledMcpProcessIds()).toEqual([20_000, 20_001]);
+
+    await forceStopBundledMcpHost();
+
+    expect(killSpy).toHaveBeenCalledWith(-20_000, "SIGKILL");
+    expect(killSpy).toHaveBeenCalledWith(-20_001, "SIGKILL");
+    expect(getBundledMcpProcessIds()).toEqual([]);
+    killSpy.mockRestore();
   });
 });

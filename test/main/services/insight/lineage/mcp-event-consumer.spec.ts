@@ -3,15 +3,10 @@ import { promises as fs } from "fs";
 import type { FSWatcher } from "fs";
 import { join } from "path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import type { Disposable } from "@main/bootstrap/lifecycle";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
 import { createTestTempRoot } from "@test/main/test-temp-root";
 
 const mocks = vi.hoisted(() => ({
-  disposable: null as Disposable | null,
-  registerDisposable: vi.fn((disposable: Disposable) => {
-    mocks.disposable = disposable;
-  }),
   recordProposal: vi.fn(),
   recordRepositoryProposalRelation: vi.fn(),
   recordPlan: vi.fn(),
@@ -46,10 +41,6 @@ vi.mock("fs", async (importOriginal) => {
   };
 });
 
-vi.mock("@main/bootstrap/lifecycle", () => ({
-  registerDisposable: mocks.registerDisposable,
-}));
-
 vi.mock("@main/services/insight/lineage/lineage-service", () => ({
   recordProposal: mocks.recordProposal,
   recordPlan: mocks.recordPlan,
@@ -73,8 +64,10 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  disposeLineageEventConsumers,
   disposeWorkspace,
   ensureLineageEventConsumer,
+  resetLineageEventConsumersForTests,
 } from "@main/services/insight/lineage/mcp-event-consumer";
 
 type WatchCallback = () => void;
@@ -170,7 +163,7 @@ describe("lineage mcp event consumer", () => {
   });
 
   afterEach(() => {
-    mocks.disposable?.dispose();
+    resetLineageEventConsumersForTests();
   });
 
   it("creates one watcher for repeated ensure calls on the same project", async () => {
@@ -362,7 +355,7 @@ describe("lineage mcp event consumer", () => {
       expect(mocks.watcherCloseFns).toHaveLength(1);
     });
 
-    mocks.disposable?.dispose();
+    disposeLineageEventConsumers();
 
     expect(mocks.watcherCloseFns[0]?.close).toHaveBeenCalledTimes(1);
   });

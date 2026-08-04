@@ -4,6 +4,7 @@ import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import logger from "@main/infra/logger";
+import { isShuttingDown } from "@main/bootstrap/lifecycle";
 
 /** Shape of the business-provided runner that drives a single stream. */
 export interface StreamRunner {
@@ -54,6 +55,16 @@ export interface MakeStreamChannelOptions {
  */
 export function makeStreamChannel(options: MakeStreamChannelOptions): IpcResponse<null> {
   const { event, portChannel, portPayload = null, logTag, onReady } = options;
+
+  if (isShuttingDown()) {
+    return {
+      ok: false,
+      error: {
+        code: IpcErrorCodes.APPLICATION_SHUTTING_DOWN,
+        message: "FylloCode 正在退出",
+      },
+    };
+  }
 
   try {
     const { port1, port2 } = new MessageChannelMain();

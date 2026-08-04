@@ -1,0 +1,128 @@
+:root {
+  --fyllo-startup-surface: #f8fafc;
+  --fyllo-startup-track: rgb(100 116 139 / 18%);
+  --fyllo-startup-accent: oklch(70.4% 0.14 182.503);
+  --fyllo-startup-tail: color-mix(in oklab, var(--fyllo-startup-accent) 58%, transparent);
+  --fyllo-startup-tail-soft: color-mix(in oklab, var(--fyllo-startup-accent) 8%, transparent);
+  --fyllo-startup-glow: color-mix(in oklab, var(--fyllo-startup-accent) 28%, transparent);
+  --fyllo-startup-ring-size: 104px;
+  --fyllo-startup-logo-size: 64px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fyllo-startup-surface: #0f172a;
+    --fyllo-startup-track: rgb(148 163 184 / 18%);
+    --fyllo-startup-accent: oklch(77.7% 0.152 181.912);
+    --fyllo-startup-glow: color-mix(in oklab, var(--fyllo-startup-accent) 32%, transparent);
+  }
+}
+
+.fyllo-startup-page,
+.fyllo-startup-overlay {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--fyllo-startup-surface);
+}
+
+.fyllo-startup-page {
+  position: relative;
+  min-height: 100vh;
+}
+
+.fyllo-startup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.fyllo-startup-content {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.fyllo-startup-ring {
+  position: relative;
+  display: grid;
+  width: var(--fyllo-startup-ring-size);
+  height: var(--fyllo-startup-ring-size);
+  place-items: center;
+  border: 2px solid var(--fyllo-startup-track);
+  border-radius: 9999px;
+}
+
+.fyllo-startup-ring::before,
+.fyllo-startup-ring::after {
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  content: "";
+  animation: fyllo-startup-orbit 1.6s linear infinite;
+}
+
+.fyllo-startup-ring::before {
+  background: conic-gradient(
+    transparent 0deg 250deg,
+    var(--fyllo-startup-tail-soft) 286deg,
+    var(--fyllo-startup-tail) 334deg,
+    var(--fyllo-startup-accent) 357deg,
+    transparent 360deg
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 3px));
+}
+
+.fyllo-startup-ring::after {
+  background: radial-gradient(
+    circle at 50% 1px,
+    var(--fyllo-startup-accent) 0 3px,
+    transparent 4px
+  );
+  filter: drop-shadow(0 0 4px var(--fyllo-startup-glow));
+}
+
+.fyllo-startup-logo {
+  width: var(--fyllo-startup-logo-size);
+  height: var(--fyllo-startup-logo-size);
+  margin-top: 10px;
+  animation: fyllo-startup-pulse 2.4s ease-in-out infinite;
+}
+
+.fyllo-startup-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes fyllo-startup-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fyllo-startup-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fyllo-startup-ring::before,
+  .fyllo-startup-ring::after,
+  .fyllo-startup-logo {
+    animation: none;
+  }
+}

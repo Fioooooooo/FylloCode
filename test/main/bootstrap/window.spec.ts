@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   captureMainWindowState,
   DEFAULT_MAIN_WINDOW_SIZE,
+  isFylloInternalUrl,
   isSafeExternalUrl,
   MIN_MAIN_WINDOW_SIZE,
+  resolveFylloWindowLoadTarget,
   resolveMainWindowState,
 } from "@main/bootstrap/window";
 
@@ -106,6 +108,19 @@ describe("window helpers", () => {
     });
   });
 
+  it("resolves startup and formal renderer targets without treating them as external", () => {
+    vi.stubEnv("ELECTRON_RENDERER_URL", "http://localhost:5173");
+
+    expect(resolveFylloWindowLoadTarget("startup")).toEqual({
+      kind: "url",
+      value: "http://localhost:5173/startup.html",
+    });
+    expect(isFylloInternalUrl("http://localhost:5173/startup.html")).toBe(true);
+    expect(isFylloInternalUrl("http://localhost:5173/")).toBe(true);
+
+    vi.unstubAllEnvs();
+  });
+
   it("uses the provided state key when creating and saving a window", async () => {
     vi.resetModules();
 
@@ -169,8 +184,21 @@ describe("window helpers", () => {
       })
     );
     expect(browserWindow.loadFile).toHaveBeenCalledWith("/app/out/renderer/index.html");
+    const workspaceClose = eventHandlers.get("close");
 
-    eventHandlers.get("close")?.();
+    createFylloWindow({
+      stateKey: { role: "launcher" },
+      initialPage: "startup",
+      showImmediately: true,
+      backgroundColor: "#0f172a",
+    });
+
+    expect(BrowserWindow).toHaveBeenLastCalledWith(
+      expect.objectContaining({ show: true, backgroundColor: "#0f172a" })
+    );
+    expect(browserWindow.loadFile).toHaveBeenLastCalledWith("/app/out/renderer/startup.html");
+
+    workspaceClose?.();
 
     expect(saveWindowState).toHaveBeenCalledWith(stateKey, {
       bounds: { x: 123, y: 100, width: 1200, height: 740 },

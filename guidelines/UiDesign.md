@@ -37,6 +37,11 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 - MUST 避免 `transition-all`，优先声明 `transition-colors duration-150`、`transition-opacity duration-200` 等具体属性。证据：`src/renderer/src/components/shared/UiSurface.vue`、`src/renderer/src/components/layout/AppHeader.vue`。
 - SHOULD 使用短而稳定的过渡：颜色/背景/边框使用 `duration-150`，透明度或进入动画使用 `duration-200`；避免 `duration-75` 以下的闪烁和 `duration-500` 以上的拖沓感。
 
+### 启动反馈
+
+- MUST 让静态 `startup.html` 与 Vue `StartupLoading.vue` 共享轻量品牌语言：主题匹配的纯色/轻磨砂背景、FylloCode Logo 和一圈非确定性 teal 进度环；不得展示虚假的百分比、阶段文案或重型组件库。静态页面不得加载 renderer JavaScript，确保主 bundle 未准备好时仍可显示。
+- MUST 让 startup shell 与 Vue overlay 在浅色/深色主题下都避免白闪，并在 `prefers-reduced-motion: reduce` 时禁用环形波动和 Logo pulse；正常动效只使用低频 opacity/rotation，不使用 bounce、强发光或大面积渐变。证据：`src/renderer/startup.html`、`src/renderer/src/assets/startup.css`、`src/renderer/src/components/shared/StartupLoading.vue`。
+
 ### 布局层级
 
 - MUST 保持唯一全局 `<main>` 在 `src/renderer/src/layouts/AppLayout.vue` 中。页面 slot 内不要再嵌套全局 `<main>` 或全局 `<aside>` landmark；分区使用 `div`、`nav`、`section`。证据：`src/renderer/src/layouts/AppLayout.vue`、`src/renderer/src/pages/settings.vue`。

@@ -1,128 +1,135 @@
-import { app, BrowserWindow } from "electron";
-import { electronApp, optimizer, is } from "@electron-toolkit/utils";
-import { registerAllHandlers } from "@main/ipc";
-import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
-import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
-import { setupProbeBroadcast } from "@main/ipc/session/chat";
-import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-in-loader";
-import { scheduleInstalledAgentConnectionWarmup } from "@main/services/platform/acp-agent/connection-warmup";
-import { syncShellPath } from "@main/infra/process/sync-shell-path";
-import { startBundledMcpHost, stopBundledMcpHost } from "@main/infra/mcp/bundled-mcp-host";
+import { app } from "electron";
+import { electronApp, optimizer } from "@electron-toolkit/utils";
+import { isShuttingDown } from "./lifecycle";
 import {
-  runAllMigrations,
-  validateWorkspaceCutoverState,
-  WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
-} from "@main/migrations";
-import { disposeAll, registerDisposable } from "./lifecycle";
-import { workspaceWindowManager } from "./workspace-window-manager";
-import { showWorkspaceUpgradeFailure } from "./workspace-upgrade-failure";
-import logger from "@main/infra/logger";
+  configureLifecycleMetrics,
+  markLifecycleMetric,
+  markLifecycleMetricAt,
+} from "./startup-metrics";
+import { createStartupWindowController, type StartupWindowController } from "./startup";
+import { attachEmergencyShutdown, requestApplicationShutdown } from "./shutdown";
 
-let shuttingDown = false;
+// Canonical 顺序：startup shell → required gate → runtime → renderer critical → background。
+// 完整规则与退出资源清单见本目录 README.md。
 
 export interface PrimaryInstanceController {
   requestWindowAttention(): void;
 }
 
-export async function bootstrapReady(onWindowReady: () => void = () => undefined): Promise<void> {
-  electronApp.setAppUserModelId("com.fyllocode.app");
-
-  app.on("browser-window-created", (_event, window) => {
-    optimizer.watchWindowShortcuts(window);
-  });
-
-  await syncShellPath();
-  await runAllMigrations();
-  const cutoverValidation = await validateWorkspaceCutoverState();
-  if (!cutoverValidation.ok) {
-    const reason = cutoverValidation.issues.map((issue) => issue.message).join("; ");
-    logger.error(
-      `[workspace-upgrade] required migration gate failed (${WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID}): ${reason}`
-    );
-    await showWorkspaceUpgradeFailure({
-      migrationId: WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
-      ...(reason ? { reason } : {}),
-    });
-    return;
-  }
-
-  logger.info(`FylloCode starting — v${app.getVersion()} [${is.dev ? "dev" : "prod"}]`);
-
-  startBundledMcpHost();
-  registerDisposable({
-    name: "bundled-mcp-host",
-    dispose: stopBundledMcpHost,
-  });
-
-  registerAllHandlers();
-  void initBuiltInWorkflows();
-
-  setupProbeBroadcast(workspaceWindowManager);
-  setupAgentEventBroadcast(workspaceWindowManager);
-  setupProposalStatusBroadcast(workspaceWindowManager);
-  workspaceWindowManager.openLauncherWindow();
-  onWindowReady();
-  scheduleInstalledAgentConnectionWarmup();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      workspaceWindowManager.openLauncherWindow();
-      return;
-    }
-
-    workspaceWindowManager.focusLastActiveWindow();
-  });
+export interface StartAppOptions {
+  processEntryAt?: number;
+  singleInstanceLockAt?: number;
 }
 
-export function startApp(): PrimaryInstanceController {
-  let isWindowReady = false;
-  let hasPendingWindowAttention = false;
+interface RuntimeController {
+  focusOrOpenPrimaryWindow(): void;
+}
 
-  const focusOrOpenPrimaryWindow = (): void => {
-    if (!workspaceWindowManager.focusLastActiveWindow()) {
-      workspaceWindowManager.openLauncherWindow();
+let shuttingDown = false;
+let startupWindow: StartupWindowController | null = null;
+let runtimeController: RuntimeController | null = null;
+let startupPromise: Promise<void> | null = null;
+let applicationReady = false;
+
+function replaceClosedStartupWindow(): boolean {
+  if (!applicationReady || runtimeController || startupWindow?.isUsable()) return false;
+  startupWindow = createStartupWindowController();
+  return true;
+}
+
+async function runApplicationStartup(): Promise<void> {
+  if (startupPromise) return startupPromise;
+
+  startupPromise = (async () => {
+    startupWindow = createStartupWindowController();
+    await startupWindow.firstVisible;
+
+    if (isShuttingDown()) return;
+
+    const shellPathReady = import("@main/infra/process/sync-shell-path")
+      .then(({ syncShellPath }) => syncShellPath())
+      .finally(() => markLifecycleMetric("shell-path-settled"));
+    const runtimeModule = await import("./runtime");
+    runtimeController = await runtimeModule.startApplicationRuntime({
+      getStartupWindow: () => startupWindow,
+      shellPathReady,
+    });
+  })();
+
+  try {
+    await startupPromise;
+  } finally {
+    startupPromise = null;
+  }
+}
+
+function focusAvailableWindow(): boolean {
+  if (startupWindow?.focus()) return true;
+  if (runtimeController) {
+    runtimeController.focusOrOpenPrimaryWindow();
+    return true;
+  }
+  return false;
+}
+
+export function startApp(options: StartAppOptions = {}): PrimaryInstanceController {
+  if (options.processEntryAt !== undefined) {
+    configureLifecycleMetrics({ processEntryAt: options.processEntryAt });
+    markLifecycleMetricAt("process-entry", options.processEntryAt);
+    if (options.singleInstanceLockAt !== undefined) {
+      markLifecycleMetricAt("single-instance-lock", options.singleInstanceLockAt);
     }
-  };
+  }
 
+  let hasPendingWindowAttention = false;
   const controller: PrimaryInstanceController = {
     requestWindowAttention(): void {
-      if (!isWindowReady) {
+      if (isShuttingDown()) return;
+      if (!focusAvailableWindow()) {
         hasPendingWindowAttention = true;
-        return;
+        replaceClosedStartupWindow();
       }
-
-      focusOrOpenPrimaryWindow();
     },
   };
 
-  app.whenReady().then(() =>
-    bootstrapReady(() => {
-      isWindowReady = true;
+  void app.whenReady().then(async () => {
+    applicationReady = true;
+    markLifecycleMetric("app-ready");
+    electronApp.setAppUserModelId("com.fyllocode.app");
+    app.on("browser-window-created", (_event, window) => {
+      optimizer.watchWindowShortcuts(window);
+      attachEmergencyShutdown(window);
+    });
 
-      if (hasPendingWindowAttention) {
-        hasPendingWindowAttention = false;
-        focusOrOpenPrimaryWindow();
-      }
-    })
-  );
-
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit();
+    await runApplicationStartup();
+    if (hasPendingWindowAttention && !isShuttingDown()) {
+      hasPendingWindowAttention = false;
+      focusAvailableWindow();
     }
   });
 
-  // Graceful shutdown: intercept the first before-quit, release disposables,
-  // then call `app.exit()` so the second quit goes through unimpeded.
+  app.on("activate", () => {
+    if (isShuttingDown()) return;
+    if (!focusAvailableWindow()) {
+      hasPendingWindowAttention = true;
+      if (!replaceClosedStartupWindow() && !startupPromise) void runApplicationStartup();
+    }
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+
   app.on("before-quit", (event) => {
-    if (shuttingDown) return;
+    if (shuttingDown) {
+      event.preventDefault();
+      return;
+    }
     shuttingDown = true;
     event.preventDefault();
-
-    logger.info("[bootstrap] shutting down, releasing resources…");
-    void disposeAll().finally(() => {
-      logger.info("[bootstrap] shutdown complete");
-      app.exit(0);
+    void requestApplicationShutdown({
+      startupWindow,
+      exit: (code) => app.exit(code),
     });
   });
 

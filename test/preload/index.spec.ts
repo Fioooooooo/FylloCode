@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn(),
+    send: vi.fn(),
   },
   logger: {
     error: vi.fn(),
@@ -60,6 +61,7 @@ describe("preload index API shape", () => {
           release: expect.any(Object),
           acpAgents: expect.any(Object),
           providers: expect.any(Object),
+          lifecycle: expect.any(Object),
         }),
         workspace: expect.objectContaining({
           workspace: expect.any(Object),
@@ -96,5 +98,16 @@ describe("preload index API shape", () => {
     expect(api).not.toHaveProperty("settings");
     expect(api).not.toHaveProperty("project");
     expect(api).not.toHaveProperty("window");
+  });
+
+  it("does not retain IPC listeners when preload executes again after same-window navigation", async () => {
+    await import("@preload/index");
+    vi.resetModules();
+    await import("@preload/index");
+
+    expect(mocks.contextBridge.exposeInMainWorld).toHaveBeenCalledTimes(2);
+    expect(mocks.ipcRenderer.on).not.toHaveBeenCalled();
+    expect(mocks.ipcRenderer.once).not.toHaveBeenCalled();
+    expect(mocks.ipcRenderer.off).not.toHaveBeenCalled();
   });
 });

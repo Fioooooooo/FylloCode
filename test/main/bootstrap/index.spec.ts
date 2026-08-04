@@ -3,252 +3,205 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   appOn: vi.fn(),
   whenReady: vi.fn(),
+  appQuit: vi.fn(),
+  appExit: vi.fn(),
   setAppUserModelId: vi.fn(),
+  watchWindowShortcuts: vi.fn(),
+  createStartupWindowController: vi.fn(),
+  startupFocus: vi.fn(),
+  startupAbort: vi.fn(),
   syncShellPath: vi.fn(),
-  runAllMigrations: vi.fn(),
-  validateWorkspaceCutoverState: vi.fn(),
-  showWorkspaceUpgradeFailure: vi.fn(),
-  startBundledMcpHost: vi.fn(),
-  stopBundledMcpHost: vi.fn(),
-  registerDisposable: vi.fn(),
-  registerAllHandlers: vi.fn(),
-  initBuiltInWorkflows: vi.fn(),
-  setupProbeBroadcast: vi.fn(),
-  setupAgentEventBroadcast: vi.fn(),
-  setupProposalStatusBroadcast: vi.fn(),
-  openLauncherWindow: vi.fn(),
-  focusLastActiveWindow: vi.fn(),
-  scheduleInstalledAgentConnectionWarmup: vi.fn(),
+  startApplicationRuntime: vi.fn(),
+  runtimeFocusOrOpen: vi.fn(),
+  isShuttingDown: vi.fn(),
+  attachEmergencyShutdown: vi.fn(),
+  requestApplicationShutdown: vi.fn(),
+  markLifecycleMetric: vi.fn(),
+  markLifecycleMetricAt: vi.fn(),
+  configureLifecycleMetrics: vi.fn(),
 }));
+
+let resolveReady!: () => void;
+let resolveVisible!: (value: "loaded") => void;
 
 vi.mock("electron", () => ({
   app: {
     on: mocks.appOn,
-    getVersion: () => "0.0.0-test",
     whenReady: mocks.whenReady,
-  },
-  BrowserWindow: {
-    getAllWindows: () => [],
+    quit: mocks.appQuit,
+    exit: mocks.appExit,
   },
 }));
 
 vi.mock("@electron-toolkit/utils", () => ({
   electronApp: { setAppUserModelId: mocks.setAppUserModelId },
-  optimizer: { watchWindowShortcuts: vi.fn() },
-  is: { dev: true },
+  optimizer: { watchWindowShortcuts: mocks.watchWindowShortcuts },
+}));
+
+vi.mock("@main/bootstrap/startup", () => ({
+  createStartupWindowController: mocks.createStartupWindowController,
 }));
 
 vi.mock("@main/infra/process/sync-shell-path", () => ({
   syncShellPath: mocks.syncShellPath,
 }));
-vi.mock("@main/migrations", () => ({
-  runAllMigrations: mocks.runAllMigrations,
-  validateWorkspaceCutoverState: mocks.validateWorkspaceCutoverState,
-  WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID: "20260804_001_retire-legacy-project-storage",
+
+vi.mock("@main/bootstrap/runtime", () => ({
+  startApplicationRuntime: mocks.startApplicationRuntime,
 }));
-vi.mock("@main/bootstrap/workspace-upgrade-failure", () => ({
-  showWorkspaceUpgradeFailure: mocks.showWorkspaceUpgradeFailure,
-}));
-vi.mock("@main/infra/mcp/bundled-mcp-host", () => ({
-  startBundledMcpHost: mocks.startBundledMcpHost,
-  stopBundledMcpHost: mocks.stopBundledMcpHost,
-}));
+
 vi.mock("@main/bootstrap/lifecycle", () => ({
-  registerDisposable: mocks.registerDisposable,
-  disposeAll: vi.fn(),
+  isShuttingDown: mocks.isShuttingDown,
 }));
-vi.mock("@main/ipc", () => ({
-  registerAllHandlers: mocks.registerAllHandlers,
+
+vi.mock("@main/bootstrap/shutdown", () => ({
+  attachEmergencyShutdown: mocks.attachEmergencyShutdown,
+  requestApplicationShutdown: mocks.requestApplicationShutdown,
 }));
-vi.mock("@main/services/automation/workflow/built-in-loader", () => ({
-  initBuiltInWorkflows: mocks.initBuiltInWorkflows,
+
+vi.mock("@main/bootstrap/startup-metrics", () => ({
+  configureLifecycleMetrics: mocks.configureLifecycleMetrics,
+  markLifecycleMetric: mocks.markLifecycleMetric,
+  markLifecycleMetricAt: mocks.markLifecycleMetricAt,
 }));
-vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
-  scheduleInstalledAgentConnectionWarmup: mocks.scheduleInstalledAgentConnectionWarmup,
-}));
-vi.mock("@main/ipc/session/chat", () => ({
-  setupProbeBroadcast: mocks.setupProbeBroadcast,
-}));
-vi.mock("@main/ipc/platform/acp-agents", () => ({
-  setupAgentEventBroadcast: mocks.setupAgentEventBroadcast,
-}));
-vi.mock("@main/ipc/proposal/browser", () => ({
-  setupProposalStatusBroadcast: mocks.setupProposalStatusBroadcast,
-}));
-vi.mock("@main/bootstrap/workspace-window-manager", () => ({
-  workspaceWindowManager: {
-    openLauncherWindow: mocks.openLauncherWindow,
-    focusLastActiveWindow: mocks.focusLastActiveWindow,
-  },
-}));
+
 vi.mock("@main/infra/logger", () => ({
-  default: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
+  default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+function appListener(name: string): (...args: unknown[]) => void {
+  const call = mocks.appOn.mock.calls.find(([eventName]) => eventName === name);
+  if (!call) throw new Error(`Missing app listener: ${name}`);
+  return call[1];
+}
 
 describe("main bootstrap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.whenReady.mockResolvedValue(undefined);
+    vi.resetModules();
+    mocks.isShuttingDown.mockReturnValue(false);
+    mocks.requestApplicationShutdown.mockImplementation(
+      async ({ exit }: { exit(code: number): void }) => exit(0)
+    );
     mocks.syncShellPath.mockResolvedValue(undefined);
-    mocks.runAllMigrations.mockResolvedValue(undefined);
-    mocks.validateWorkspaceCutoverState.mockResolvedValue({ ok: true, issues: [] });
-    mocks.showWorkspaceUpgradeFailure.mockResolvedValue(undefined);
-    mocks.initBuiltInWorkflows.mockReturnValue(new Promise<void>(() => undefined));
-    mocks.focusLastActiveWindow.mockReturnValue(true);
-  });
 
-  it("starts the MCP host without waiting for backend readiness before opening the window", async () => {
-    const callOrder: string[] = [];
-    mocks.startBundledMcpHost.mockImplementation(() => {
-      callOrder.push("start-host");
+    mocks.whenReady.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveReady = resolve;
+      })
+    );
+    const firstVisible = new Promise<"loaded">((resolve) => {
+      resolveVisible = resolve;
     });
-    mocks.registerAllHandlers.mockImplementation(() => {
-      callOrder.push("register-ipc");
+    mocks.createStartupWindowController.mockReturnValue({
+      firstVisible,
+      focus: mocks.startupFocus,
+      isUsable: vi.fn(() => true),
+      abort: mocks.startupAbort,
     });
-    mocks.openLauncherWindow.mockImplementation(() => {
-      callOrder.push("open-window");
-    });
-    mocks.scheduleInstalledAgentConnectionWarmup.mockImplementation(() => {
-      callOrder.push("schedule-warmup");
-    });
-
-    const { bootstrapReady } = await import("@main/bootstrap/index");
-    await bootstrapReady();
-
-    expect(callOrder).toEqual(["start-host", "register-ipc", "open-window", "schedule-warmup"]);
-    expect(mocks.registerDisposable).toHaveBeenCalledWith({
-      name: "bundled-mcp-host",
-      dispose: mocks.stopBundledMcpHost,
+    mocks.startupFocus.mockReturnValue(true);
+    mocks.startApplicationRuntime.mockResolvedValue({
+      focusOrOpenPrimaryWindow: mocks.runtimeFocusOrOpen,
     });
   });
 
-  it("schedules warmup only after prerequisites, event setup, and the first window", async () => {
-    const callOrder: string[] = [];
-    mocks.syncShellPath.mockImplementation(async () => {
-      callOrder.push("shell-path");
-    });
-    mocks.runAllMigrations.mockImplementation(async () => {
-      callOrder.push("migrations");
-    });
-    mocks.startBundledMcpHost.mockImplementation(() => {
-      callOrder.push("start-host");
-    });
-    mocks.registerAllHandlers.mockImplementation(() => {
-      callOrder.push("register-ipc");
-    });
-    mocks.setupProbeBroadcast.mockImplementation(() => {
-      callOrder.push("probe-events");
-    });
-    mocks.setupAgentEventBroadcast.mockImplementation(() => {
-      callOrder.push("agent-events");
-    });
-    mocks.setupProposalStatusBroadcast.mockImplementation(() => {
-      callOrder.push("proposal-events");
-    });
-    mocks.openLauncherWindow.mockImplementation(() => {
-      callOrder.push("open-window");
-    });
-    mocks.scheduleInstalledAgentConnectionWarmup.mockImplementation(() => {
-      callOrder.push("schedule-warmup");
-    });
-
-    const { bootstrapReady } = await import("@main/bootstrap/index");
-    await bootstrapReady();
-
-    expect(callOrder).toEqual([
-      "shell-path",
-      "migrations",
-      "start-host",
-      "register-ipc",
-      "probe-events",
-      "agent-events",
-      "proposal-events",
-      "open-window",
-      "schedule-warmup",
-    ]);
-    expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
-  });
-
-  it("stops bootstrap at the required cutover gate and shows only native failure UI", async () => {
-    mocks.validateWorkspaceCutoverState.mockResolvedValue({
-      ok: false,
-      status: { state: "failed" },
-      issues: [{ type: "required-migration", message: "copy failed" }],
-    });
-    const onWindowReady = vi.fn();
-
-    const { bootstrapReady } = await import("@main/bootstrap/index");
-    await bootstrapReady(onWindowReady);
-
-    expect(mocks.runAllMigrations).toHaveBeenCalledOnce();
-    expect(mocks.validateWorkspaceCutoverState).toHaveBeenCalledOnce();
-    expect(mocks.showWorkspaceUpgradeFailure).toHaveBeenCalledWith({
-      migrationId: "20260804_001_retire-legacy-project-storage",
-      reason: "copy failed",
-    });
-    expect(mocks.startBundledMcpHost).not.toHaveBeenCalled();
-    expect(mocks.registerDisposable).not.toHaveBeenCalled();
-    expect(mocks.registerAllHandlers).not.toHaveBeenCalled();
-    expect(mocks.initBuiltInWorkflows).not.toHaveBeenCalled();
-    expect(mocks.setupProbeBroadcast).not.toHaveBeenCalled();
-    expect(mocks.setupAgentEventBroadcast).not.toHaveBeenCalled();
-    expect(mocks.setupProposalStatusBroadcast).not.toHaveBeenCalled();
-    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
-    expect(mocks.scheduleInstalledAgentConnectionWarmup).not.toHaveBeenCalled();
-    expect(onWindowReady).not.toHaveBeenCalled();
-  });
-
-  it("defers and coalesces window attention until the first window is ready", async () => {
+  it("shows the startup shell before importing PATH/runtime work", async () => {
     const { startApp } = await import("@main/bootstrap/index");
-    const controller = startApp();
+    startApp();
+    resolveReady();
 
-    controller.requestWindowAttention();
-    controller.requestWindowAttention();
+    await vi.waitFor(() => expect(mocks.createStartupWindowController).toHaveBeenCalledOnce());
+    expect(mocks.syncShellPath).not.toHaveBeenCalled();
+    expect(mocks.startApplicationRuntime).not.toHaveBeenCalled();
 
-    expect(mocks.focusLastActiveWindow).not.toHaveBeenCalled();
-    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
-    expect(mocks.scheduleInstalledAgentConnectionWarmup).not.toHaveBeenCalled();
+    resolveVisible("loaded");
+    await vi.waitFor(() => expect(mocks.startApplicationRuntime).toHaveBeenCalledOnce());
 
-    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
-
-    expect(mocks.runAllMigrations).toHaveBeenCalledOnce();
-    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
-    expect(mocks.scheduleInstalledAgentConnectionWarmup).toHaveBeenCalledOnce();
-    expect(mocks.openLauncherWindow.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.focusLastActiveWindow.mock.invocationCallOrder[0]
+    expect(mocks.syncShellPath).toHaveBeenCalledOnce();
+    expect(mocks.startApplicationRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        getStartupWindow: expect.any(Function),
+        shellPathReady: expect.any(Promise),
+      })
     );
   });
 
-  it("focuses the last active window after bootstrap is ready", async () => {
+  it("coalesces attention before app ready and focuses once the shell exists", async () => {
     const { startApp } = await import("@main/bootstrap/index");
     const controller = startApp();
 
-    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
-    mocks.openLauncherWindow.mockClear();
-    mocks.focusLastActiveWindow.mockClear();
-
     controller.requestWindowAttention();
+    controller.requestWindowAttention();
+    expect(mocks.startupFocus).not.toHaveBeenCalled();
 
-    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
-    expect(mocks.openLauncherWindow).not.toHaveBeenCalled();
+    resolveReady();
+    resolveVisible("loaded");
+    await vi.waitFor(() => expect(mocks.startupFocus).toHaveBeenCalledOnce());
   });
 
-  it("opens the launcher when no existing window can be focused", async () => {
-    mocks.focusLastActiveWindow.mockReturnValue(false);
+  it("focuses the visible startup shell for second-instance attention", async () => {
     const { startApp } = await import("@main/bootstrap/index");
     const controller = startApp();
-
-    await vi.waitFor(() => expect(mocks.openLauncherWindow).toHaveBeenCalledOnce());
-    mocks.openLauncherWindow.mockClear();
-    mocks.focusLastActiveWindow.mockClear();
+    resolveReady();
+    await vi.waitFor(() => expect(mocks.createStartupWindowController).toHaveBeenCalledOnce());
 
     controller.requestWindowAttention();
 
-    expect(mocks.focusLastActiveWindow).toHaveBeenCalledOnce();
-    expect(mocks.openLauncherWindow).toHaveBeenCalledOnce();
+    expect(mocks.startupFocus).toHaveBeenCalledOnce();
+    expect(mocks.runtimeFocusOrOpen).not.toHaveBeenCalled();
+  });
+
+  it("recreates startup feedback on macOS activate after the startup window closes", async () => {
+    const { startApp } = await import("@main/bootstrap/index");
+    startApp();
+    resolveReady();
+    await vi.waitFor(() => expect(mocks.createStartupWindowController).toHaveBeenCalledOnce());
+    mocks.startupFocus.mockReturnValue(false);
+    const firstController = mocks.createStartupWindowController.mock.results[0]?.value as {
+      isUsable: ReturnType<typeof vi.fn>;
+    };
+    firstController.isUsable.mockReturnValue(false);
+
+    appListener("activate")();
+
+    expect(mocks.createStartupWindowController).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores attention and activate after the shutdown fence", async () => {
+    mocks.isShuttingDown.mockReturnValue(true);
+    const { startApp } = await import("@main/bootstrap/index");
+    const controller = startApp();
+
+    controller.requestWindowAttention();
+    appListener("activate")();
+
+    expect(mocks.startupFocus).not.toHaveBeenCalled();
+    expect(mocks.runtimeFocusOrOpen).not.toHaveBeenCalled();
+  });
+
+  it("records entry timing supplied by the minimal main entry", async () => {
+    const { startApp } = await import("@main/bootstrap/index");
+    startApp({ processEntryAt: 10, singleInstanceLockAt: 12 });
+
+    expect(mocks.configureLifecycleMetrics).toHaveBeenCalledWith({ processEntryAt: 10 });
+    expect(mocks.markLifecycleMetricAt).toHaveBeenNthCalledWith(1, "process-entry", 10);
+    expect(mocks.markLifecycleMetricAt).toHaveBeenNthCalledWith(2, "single-instance-lock", 12);
+  });
+
+  it("delegates first quit to the shallow shutdown coordinator", async () => {
+    const { startApp } = await import("@main/bootstrap/index");
+    startApp();
+    resolveReady();
+    await vi.waitFor(() => expect(mocks.createStartupWindowController).toHaveBeenCalledOnce());
+    const event = { preventDefault: vi.fn() };
+
+    appListener("before-quit")(event);
+    await vi.waitFor(() => expect(mocks.appExit).toHaveBeenCalledWith(0));
+
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(mocks.requestApplicationShutdown).toHaveBeenCalledWith({
+      startupWindow: expect.any(Object),
+      exit: expect.any(Function),
+    });
   });
 });

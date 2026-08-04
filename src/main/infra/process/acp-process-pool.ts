@@ -12,7 +12,6 @@ import { getAgentById, isCustomAgentId } from "@main/infra/acp/agent-catalog";
 import type { AcpAgentEntry, CatalogAgent } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
-import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { upsertAgentCapabilities } from "@main/infra/storage/agent-capability-store";
 import logger from "@main/infra/logger";
 import { mcpAccessGrantRegistry } from "@main/infra/mcp/mcp-access-grant-registry";
@@ -551,7 +550,11 @@ async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<v
   if (IS_WINDOWS) {
     await new Promise<void>((resolve) => {
       try {
-        const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+        const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+          stdio: "ignore",
+          detached: true,
+        });
+        killer.unref();
         let settled = false;
         const settle = (): void => {
           if (settled) return;
@@ -684,7 +687,8 @@ export async function stopAgentProcess(agentId: string, reason: string): Promise
   await Promise.all(terminations);
 }
 
-async function dispose(): Promise<void> {
+export function beginAcpProcessPoolShutdown(): void {
+  if (shuttingDown) return;
   shuttingDown = true;
   for (const agentId of new Set([
     ...pool.keys(),
@@ -703,6 +707,10 @@ async function dispose(): Promise<void> {
   }
   restartTimers.clear();
   restarting.clear();
+}
+
+export async function disposeAcpProcessPool(): Promise<void> {
+  beginAcpProcessPoolShutdown();
 
   const readyEntries = Array.from(pool.values());
   const startingEntries = Array.from(startingProcesses.values());
@@ -720,4 +728,71 @@ async function dispose(): Promise<void> {
   ]);
 }
 
-registerDisposable({ name: "acp-process-pool", dispose });
+function forceKillProcessTree(child: ChildProcessWithoutNullStreams): void {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const pid = child.pid;
+  if (pid === undefined) return;
+
+  if (IS_WINDOWS) {
+    try {
+      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        detached: true,
+      });
+      killer.unref();
+    } catch (error: unknown) {
+      logger.warn(`[infra.process.acp] emergency taskkill failed for pid=${pid}`, error);
+    }
+    return;
+  }
+
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+      logger.warn(`[infra.process.acp] emergency SIGKILL failed for pgid=${pid}`, error);
+    }
+  }
+}
+
+async function confirmAcpProcessTreeExit(child: ChildProcessWithoutNullStreams): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 100);
+      timer.unref();
+    });
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    if (!IS_WINDOWS) {
+      try {
+        process.kill(-child.pid, 0);
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+      }
+    }
+    forceKillProcessTree(child);
+  }
+}
+
+export async function forceDisposeAcpProcessPool(): Promise<void> {
+  beginAcpProcessPoolShutdown();
+  const children = new Set<ChildProcessWithoutNullStreams>([
+    ...Array.from(pool.values(), (entry) => entry.child),
+    ...Array.from(startingProcesses.values(), (entry) => entry.child),
+  ]);
+  pool.clear();
+  startingProcesses.clear();
+  pendingStarts.clear();
+  giveUp.clear();
+  for (const child of children) forceKillProcessTree(child);
+  await Promise.all([...children].map(confirmAcpProcessTreeExit));
+}
+
+export function getActiveAcpProcessIds(): number[] {
+  return [
+    ...new Set([
+      ...Array.from(pool.values(), (entry) => entry.child.pid),
+      ...Array.from(startingProcesses.values(), (entry) => entry.child.pid),
+    ]),
+  ].filter((pid): pid is number => pid !== undefined);
+}

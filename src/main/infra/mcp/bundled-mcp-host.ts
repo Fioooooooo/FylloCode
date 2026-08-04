@@ -462,7 +462,11 @@ async function forceTerminate(child: ChildProcess): Promise<void> {
   }
   if (IS_WINDOWS) {
     await new Promise<void>((resolve) => {
-      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        detached: true,
+      });
+      killer.unref();
       killer.once("close", () => resolve());
       killer.once("error", () => resolve());
     });
@@ -477,7 +481,9 @@ async function forceTerminate(child: ChildProcess): Promise<void> {
   }
 }
 
-async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
+export function beginBundledMcpHostShutdown(): void {
+  const currentHost = host;
+  if (!currentHost || currentHost.shuttingDown) return;
   currentHost.shuttingDown = true;
   mcpAccessGrantRegistry.revokeAll("host-stopped");
   if (currentHost.initialTimer) {
@@ -491,6 +497,10 @@ async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
     }
     settleInitial(managed);
   }
+}
+
+async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
+  beginBundledMcpHostShutdown();
 
   await startupPromise;
   await closeProxy(currentHost.proxyServer);
@@ -547,4 +557,73 @@ export async function stopBundledMcpHost(): Promise<void> {
     stopPromise = null;
   });
   await stopPromise;
+}
+
+function forceTerminateImmediately(child: ChildProcess): void {
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
+  const pid = child.pid;
+  if (IS_WINDOWS) {
+    try {
+      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        detached: true,
+      });
+      killer.unref();
+    } catch (error: unknown) {
+      logger.warn(`[bundled-mcp-host] emergency taskkill failed for pid=${pid}`, error);
+    }
+    return;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+      logger.warn(`[bundled-mcp-host] emergency SIGKILL failed for pgid=${pid}`, error);
+    }
+  }
+}
+
+async function confirmMcpProcessTreeExit(child: ChildProcess): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 100);
+      timer.unref();
+    });
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    if (!IS_WINDOWS) {
+      try {
+        process.kill(-child.pid, 0);
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+      }
+    }
+    forceTerminateImmediately(child);
+  }
+}
+
+export async function forceStopBundledMcpHost(): Promise<void> {
+  const currentHost = host;
+  if (!currentHost) return;
+  beginBundledMcpHostShutdown();
+  currentHost.proxyServer?.closeAllConnections();
+  currentHost.proxyServer?.close();
+  const children: ChildProcess[] = [];
+  for (const managed of currentHost.servers.values()) {
+    if (managed.process) {
+      children.push(managed.process);
+      forceTerminateImmediately(managed.process);
+    }
+    managed.process = null;
+    managed.backendPort = null;
+    managed.state = "failed";
+  }
+  await Promise.all(children.map(confirmMcpProcessTreeExit));
+}
+
+export function getBundledMcpProcessIds(): number[] {
+  if (!host) return [];
+  return [...host.servers.values()]
+    .map((managed) => managed.process?.pid)
+    .filter((pid): pid is number => pid !== undefined);
 }

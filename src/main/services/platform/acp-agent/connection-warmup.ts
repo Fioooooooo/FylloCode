@@ -1,4 +1,3 @@
-import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { listAgents } from "@main/infra/acp/agent-catalog";
 import { readInstalledRecords } from "@main/infra/acp/detector";
 import logger from "@main/infra/logger";
@@ -22,6 +21,7 @@ const queue: WarmupJob[] = [];
 const pendingByAgent = new Map<string, Promise<AgentConnectionWarmupResult>>();
 let activeWorkers = 0;
 let initialWarmupImmediate: NodeJS.Immediate | null = null;
+let initialWarmupScheduled = false;
 let aborted = false;
 
 function failedResult(agentId: string, error: unknown): AgentConnectionWarmupResult {
@@ -114,11 +114,12 @@ export async function prewarmInstalledAgentConnections(): Promise<AgentConnectio
   return prewarmAgentConnections(await resolveInstalledAgentIds());
 }
 
-export function scheduleInstalledAgentConnectionWarmup(): void {
-  if (aborted || initialWarmupImmediate) {
+export function scheduleInitialAgentConnectionWarmup(): void {
+  if (aborted || initialWarmupScheduled) {
     return;
   }
 
+  initialWarmupScheduled = true;
   initialWarmupImmediate = setImmediate(() => {
     initialWarmupImmediate = null;
     void prewarmInstalledAgentConnections().catch((error: unknown) => {
@@ -127,7 +128,7 @@ export function scheduleInstalledAgentConnectionWarmup(): void {
   });
 }
 
-function dispose(): void {
+export function beginAgentConnectionWarmupShutdown(): void {
   aborted = true;
   if (initialWarmupImmediate) {
     clearImmediate(initialWarmupImmediate);
@@ -143,4 +144,10 @@ function dispose(): void {
   }
 }
 
-registerDisposable({ name: "acp-agent-connection-warmup", dispose });
+export function disposeAgentConnectionWarmup(): void {
+  beginAgentConnectionWarmupShutdown();
+}
+
+export function forceDisposeAgentConnectionWarmup(): void {
+  beginAgentConnectionWarmupShutdown();
+}

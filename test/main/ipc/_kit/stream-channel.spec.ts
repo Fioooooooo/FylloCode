@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beginShutdown, resetLifecycleForTests } from "@main/bootstrap/lifecycle";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
 
 const mocks = vi.hoisted(() => {
   const port1Listeners = new Map<string, (...args: unknown[]) => void>();
@@ -31,6 +33,7 @@ vi.mock("electron", () => ({
 
 describe("makeStreamChannel", () => {
   beforeEach(() => {
+    resetLifecycleForTests();
     vi.clearAllMocks();
     mocks.port1Listeners.clear();
     mocks.port1.on.mockImplementation((event: string, listener: (...args: unknown[]) => void) => {
@@ -159,5 +162,30 @@ describe("makeStreamChannel", () => {
     await Promise.resolve();
 
     expect(runner.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("does not allocate a stream port after the shutdown fence", async () => {
+    const { makeStreamChannel } = await import("@main/ipc/_kit/stream-channel");
+    const postMessage = vi.fn();
+    const onReady = vi.fn();
+    beginShutdown();
+
+    const result = makeStreamChannel({
+      event: { sender: { postMessage } } as never,
+      portChannel: "session:chat:stream:port",
+      logTag: "test",
+      onReady,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: IpcErrorCodes.APPLICATION_SHUTTING_DOWN,
+        message: "FylloCode 正在退出",
+      },
+    });
+    expect(mocks.MessageChannelMain).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(onReady).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import type { FileHandle } from "fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "path";
 import { tmpdir } from "os";
+import type { ChildProcess } from "child_process";
 import { net } from "electron";
 import spawn from "cross-spawn";
 import {
@@ -18,11 +19,11 @@ import {
   findCommandPath,
   readInstalledRecords,
   resolveBinaryDistribution,
-  runCommand,
   writeInstalledRecords,
 } from "@main/infra/acp/detector";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError, type IpcError } from "@shared/errors/ipc-error";
+import { isShuttingDown } from "@main/bootstrap/lifecycle";
 
 type InstallProgressHandler = (progress: AcpInstallProgress) => void;
 type UninstallProgressHandler = (progress: AcpUninstallProgress) => void;
@@ -34,6 +35,28 @@ interface CommandExecutionResult {
 }
 
 let activeMutationAgentId: string | null = null;
+const activeFetchControllers = new Set<AbortController>();
+const activeInstallerChildren = new Set<ChildProcess>();
+const inactiveWaiters = new Set<() => void>();
+let installerShuttingDown = false;
+
+function settleInstallerWaitersIfInactive(): void {
+  if (
+    activeMutationAgentId ||
+    activeFetchControllers.size > 0 ||
+    activeInstallerChildren.size > 0
+  ) {
+    return;
+  }
+  for (const resolve of inactiveWaiters) resolve();
+  inactiveWaiters.clear();
+}
+
+function ensureInstallerAvailable(): void {
+  if (installerShuttingDown || isShuttingDown()) {
+    throw ipcError(IpcErrorCodes.APPLICATION_SHUTTING_DOWN, "FylloCode 正在退出");
+  }
+}
 
 function summarizeCommandOutput(
   stdout: string,
@@ -56,10 +79,13 @@ async function runStreamingCommand(
   env?: Record<string, string>
 ): Promise<CommandExecutionResult> {
   return new Promise<CommandExecutionResult>((resolve, reject) => {
+    ensureInstallerAvailable();
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: env ? { ...process.env, ...env } : process.env,
+      detached: process.platform !== "win32",
     });
+    activeInstallerChildren.add(child);
 
     let stdout = "";
     let stderr = "";
@@ -72,8 +98,14 @@ async function runStreamingCommand(
       stderr += chunk.toString();
     });
 
-    child.on("error", reject);
+    child.on("error", (error) => {
+      activeInstallerChildren.delete(child);
+      settleInstallerWaitersIfInactive();
+      reject(error);
+    });
     child.on("close", (code) => {
+      activeInstallerChildren.delete(child);
+      settleInstallerWaitersIfInactive();
       resolve({ stdout, stderr, code });
     });
   });
@@ -255,7 +287,9 @@ async function writeChunk(fileHandle: FileHandle, chunk: Uint8Array): Promise<vo
 }
 
 async function downloadFile(url: string, outputPath: string): Promise<void> {
+  ensureInstallerAvailable();
   const controller = new AbortController();
+  activeFetchControllers.add(controller);
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let fileHandle: FileHandle | undefined;
 
@@ -295,6 +329,8 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
     } finally {
       clearTimeout(idleTimer);
       clearTimeout(maxDurationTimer);
+      activeFetchControllers.delete(controller);
+      settleInstallerWaitersIfInactive();
       await fileHandle?.close();
     }
   } catch (error) {
@@ -311,7 +347,7 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
       throw ipcError("ENV_MISSING", "当前系统缺少 unzip，无法安装二进制 Agent");
     }
 
-    const result = await runCommand(unzipPath, ["-o", archivePath, "-d", targetDirectory]);
+    const result = await runStreamingCommand(unzipPath, ["-o", archivePath, "-d", targetDirectory]);
     if (result.code !== 0) {
       throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
     }
@@ -335,7 +371,7 @@ async function extractArchive(archivePath: string, targetDirectory: string): Pro
         : extension === ".tar.xz"
           ? ["-xJf", archivePath, "-C", targetDirectory]
           : ["-xf", archivePath, "-C", targetDirectory];
-    const result = await runCommand(tarPath, args);
+    const result = await runStreamingCommand(tarPath, args);
     if (result.code !== 0) {
       throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
     }
@@ -489,6 +525,7 @@ export async function installAgent(
   agent: AcpAgentEntry,
   onProgress: InstallProgressHandler
 ): Promise<AcpInstalledRecord> {
+  ensureInstallerAvailable();
   if (activeMutationAgentId) {
     throw ipcError("INSTALL_BUSY", "请等待当前操作完成");
   }
@@ -510,6 +547,7 @@ export async function installAgent(
     throw error;
   } finally {
     activeMutationAgentId = null;
+    settleInstallerWaitersIfInactive();
   }
 }
 
@@ -518,6 +556,7 @@ export async function uninstallAgent(
   installMethod: AcpInstallMethod,
   onProgress: UninstallProgressHandler
 ): Promise<void> {
+  ensureInstallerAvailable();
   if (activeMutationAgentId) {
     throw ipcError("INSTALL_BUSY", "请等待当前操作完成");
   }
@@ -545,5 +584,65 @@ export async function uninstallAgent(
     throw error;
   } finally {
     activeMutationAgentId = null;
+    settleInstallerWaitersIfInactive();
   }
+}
+
+export function abortActiveAgentOperations(): void {
+  installerShuttingDown = true;
+  for (const controller of activeFetchControllers) controller.abort();
+  for (const child of activeInstallerChildren) {
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // force phase handles process-tree termination if graceful signalling fails.
+    }
+  }
+}
+
+function forceKillInstallerChild(child: ChildProcess): void {
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
+  const pid = child.pid;
+  if (process.platform === "win32") {
+    try {
+      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        detached: true,
+      });
+      killer.unref();
+    } catch {
+      // Emergency teardown is best-effort and must never block process exit.
+    }
+    return;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+      // Emergency teardown is best-effort and must never block process exit.
+    }
+  }
+}
+
+export function forceAbortActiveAgentOperations(): void {
+  abortActiveAgentOperations();
+  for (const child of activeInstallerChildren) forceKillInstallerChild(child);
+}
+
+export async function awaitActiveAgentOperations(): Promise<void> {
+  abortActiveAgentOperations();
+  if (
+    !activeMutationAgentId &&
+    activeFetchControllers.size === 0 &&
+    activeInstallerChildren.size === 0
+  ) {
+    return;
+  }
+  await new Promise<void>((resolve) => inactiveWaiters.add(resolve));
+}
+
+export function getActiveAgentOperationProcessIds(): number[] {
+  return [...activeInstallerChildren]
+    .map((child) => child.pid)
+    .filter((pid): pid is number => pid !== undefined);
 }

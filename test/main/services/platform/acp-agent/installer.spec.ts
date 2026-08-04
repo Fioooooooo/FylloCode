@@ -5,6 +5,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
 import type { AcpAgentEntry } from "@shared/types/acp-agent";
+import { resetLifecycleForTests } from "@main/bootstrap/lifecycle";
 
 const mocks = vi.hoisted(() => ({
   getDataSubPath: vi.fn(),
@@ -13,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   readInstalledRecords: vi.fn(async () => ({})),
   writeInstalledRecords: vi.fn(async () => undefined),
   resolveBinaryDistribution: vi.fn(),
-  runCommand: vi.fn(),
   spawn: vi.fn(),
 }));
 
@@ -26,7 +26,6 @@ vi.mock("@main/infra/acp/detector", () => ({
   findCommandPath: mocks.findCommandPath,
   readInstalledRecords: mocks.readInstalledRecords,
   resolveBinaryDistribution: mocks.resolveBinaryDistribution,
-  runCommand: mocks.runCommand,
   writeInstalledRecords: mocks.writeInstalledRecords,
 }));
 
@@ -49,8 +48,13 @@ function createAgent(overrides: Partial<AcpAgentEntry> = {}): AcpAgentEntry {
   };
 }
 
-function mockSpawnResult(code: number, stdout = "", stderr = ""): void {
-  mocks.spawn.mockImplementation(() => {
+function mockSpawnResult(
+  code: number,
+  stdout = "",
+  stderr = "",
+  onSpawn?: (command: string, args: string[]) => Promise<void> | void
+): void {
+  mocks.spawn.mockImplementation((command: string, args: string[]) => {
     const listeners: Record<string, Array<(value?: unknown) => void>> = {};
     const child = {
       stdout: {
@@ -71,7 +75,9 @@ function mockSpawnResult(code: number, stdout = "", stderr = ""): void {
         listeners[event] ??= [];
         listeners[event]!.push(cb);
         if (event === "close") {
-          queueMicrotask(() => cb(code));
+          queueMicrotask(() => {
+            void Promise.resolve(onSpawn?.(command, args)).then(() => cb(code));
+          });
         }
       }),
     };
@@ -83,6 +89,7 @@ describe("acp-agent installer uninstall", () => {
   let dataRoot: string;
 
   beforeEach(() => {
+    resetLifecycleForTests();
     vi.resetModules();
     vi.clearAllMocks();
     dataRoot = mkdtempSync(join(tmpdir(), "fyllocode-installer-test-"));
@@ -231,10 +238,9 @@ describe("acp-agent installer uninstall", () => {
     );
     mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
     // Emulate extraction: write a normal executable inside the target dir.
-    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
       const dir = args[args.indexOf("-C") + 1];
       await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
-      return { stdout: "", stderr: "", code: 0 };
     });
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
@@ -285,10 +291,9 @@ describe("acp-agent installer uninstall", () => {
     });
     vi.spyOn(net, "fetch").mockResolvedValue(new Response(body) as unknown as Response);
     mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
-    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
       const dir = args[args.indexOf("-C") + 1];
       await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
-      return { stdout: "", stderr: "", code: 0 };
     });
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
@@ -359,10 +364,9 @@ describe("acp-agent installer uninstall", () => {
     // Emulate a malicious archive: a symlink pointing outside the extraction dir.
     const escapeTarget = join(dataRoot, "escape-target.txt");
     await fs.writeFile(escapeTarget, "secret", "utf8");
-    mocks.runCommand.mockImplementation(async (_cmd: string, args: string[]) => {
+    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
       const dir = args[args.indexOf("-C") + 1];
       await fs.symlink(escapeTarget, join(dir, "claude"));
-      return { stdout: "", stderr: "", code: 0 };
     });
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
@@ -399,5 +403,35 @@ describe("acp-agent installer uninstall", () => {
 
     (releaseInstall as (() => void) | null)?.();
     await installPromise;
+  });
+
+  it("aborts an active net.fetch operation during shutdown", async () => {
+    let observedSignal: AbortSignal | undefined;
+    vi.spyOn(net, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          observedSignal = init?.signal ?? undefined;
+          observedSignal?.addEventListener(
+            "abort",
+            () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+            { once: true }
+          );
+        })
+    );
+    const { awaitActiveAgentOperations, installAgent } =
+      await import("@main/services/platform/acp-agent/installer");
+    const installPromise = installAgent(
+      createAgent({
+        distribution: { binary: { darwin: { archive: "https://x/a.zip", cmd: "claude" } } },
+      }),
+      vi.fn()
+    );
+
+    await vi.waitFor(() => expect(observedSignal).toBeDefined());
+    const settling = awaitActiveAgentOperations();
+
+    expect(observedSignal?.aborted).toBe(true);
+    await expect(installPromise).rejects.toMatchObject({ code: "DOWNLOAD_FAILED" });
+    await expect(settling).resolves.toBeUndefined();
   });
 });

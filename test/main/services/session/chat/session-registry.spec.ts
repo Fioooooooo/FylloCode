@@ -1,11 +1,10 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { sessionRegistry } from "@main/services/session/chat/session-registry";
+import {
+  disposeSessionRegistry,
+  resetSessionRegistryForTests,
+  sessionRegistry,
+} from "@main/services/session/chat/session-registry";
 import type { AcpSession } from "@main/services/session/chat/acp-session";
-
-// Mock lifecycle so registering a disposable during module load is a no-op.
-vi.mock("@main/bootstrap/lifecycle", () => ({
-  registerDisposable: vi.fn(),
-}));
 
 // Minimal fake AcpSession: only `.cancel()` is used by the registry.
 function fakeSession(): AcpSession {
@@ -14,7 +13,7 @@ function fakeSession(): AcpSession {
 }
 
 beforeEach(() => {
-  sessionRegistry.cancelAll();
+  resetSessionRegistryForTests();
 });
 
 describe("sessionRegistry", () => {
@@ -96,6 +95,19 @@ describe("sessionRegistry", () => {
     expect(chat.cancel).toHaveBeenCalled();
     expect(apply.cancel).toHaveBeenCalled();
     expect(archive.cancel).toHaveBeenCalled();
+    expect(sessionRegistry.size()).toBe(0);
+  });
+
+  it("cancels and rejects late session registration after shutdown begins", () => {
+    const active = fakeSession();
+    const late = fakeSession();
+    sessionRegistry.register("chat", "active", active);
+
+    disposeSessionRegistry();
+    sessionRegistry.register("chat", "late", late);
+
+    expect(active.cancel).toHaveBeenCalledOnce();
+    expect(late.cancel).toHaveBeenCalledOnce();
     expect(sessionRegistry.size()).toBe(0);
   });
 

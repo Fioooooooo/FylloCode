@@ -40,8 +40,10 @@ keywords: [brand, icon, svg, assets, build]
   和平台图标一起更新。该命令入口与输出见 `package.json` 和 `scripts/icon/build.mjs`。
 - MUST NOT 手工修改 renderer/docs SVG 副本、`resources/app-icon.png` 或 `build/icon.*`。
   `pnpm icon:check` 会在 CI 中检查 SVG 副本和源文件是否漂移。
-- MUST 让 renderer 品牌图标通过 `src/renderer/src/components/shared/Logo.vue` 消费生成的
-  public SVG。需要单色图标时使用其 `neutral` 模式，不得在 Vue 组件重新声明品牌路径。
+- MUST 让 Vue renderer 品牌图标通过 `src/renderer/src/components/shared/Logo.vue` 消费生成的
+  public SVG。需要单色图标时使用其 `neutral` 模式，不得在 Vue 组件重新声明品牌路径。无 JavaScript 的
+  `src/renderer/startup.html` 是明确例外：它可以直接以 `/icon.svg` 消费同一生成副本，但不得复制品牌 path
+  或新增另一份图标资产；Vue `StartupLoading.vue` 仍必须使用 `Logo.vue`。
 - MUST 保留 `build/icon.png`、`build/icon.icns` 和 `build/icon.ico` 的文件名；
   `electron-builder.yml` 将 `build/` 作为 `buildResources`。
 

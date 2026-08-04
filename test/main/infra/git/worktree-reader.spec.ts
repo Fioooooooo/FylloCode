@@ -56,7 +56,7 @@ describe("listRegisteredWorktreePaths", () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       "git",
       ["-C", `${tempRoot}/main`, "worktree", "list", "--porcelain"],
-      { stdio: ["ignore", "pipe", "pipe"] }
+      { stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" }
     );
   });
 

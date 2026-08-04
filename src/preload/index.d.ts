@@ -3,6 +3,7 @@ import type { appApi } from "./api/platform/app";
 import type { providersApi } from "./api/platform/providers";
 import type { releaseApi } from "./api/platform/release";
 import type { settingsApi } from "./api/platform/settings";
+import type { lifecycleApi } from "./api/platform/lifecycle";
 import type { workspaceApi } from "./api/workspace/workspace";
 import type { windowApi } from "./api/workspace/window";
 import type { documentApi } from "./api/workspace/document";
@@ -27,6 +28,7 @@ export interface AppApi {
     release: typeof releaseApi;
     acpAgents: typeof acpAgentsApi;
     providers: typeof providersApi;
+    lifecycle: typeof lifecycleApi;
   };
   workspace: {
     workspace: typeof workspaceApi;

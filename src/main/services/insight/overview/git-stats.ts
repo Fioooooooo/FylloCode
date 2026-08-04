@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import { basename, join } from "path";
 import spawn from "cross-spawn";
 import type { GuidelineChange, SpecsGrowthBucket } from "@shared/types/overview";
+import { trackAuxiliaryProcess } from "@main/infra/process/auxiliary-process-registry";
 
 export type RepositorySpecsGrowthBucket = Omit<SpecsGrowthBucket, "folderId" | "folderName">;
 export type RepositoryGuidelineChange = Omit<GuidelineChange, "folderId" | "folderName">;
@@ -55,7 +56,9 @@ function runGitCommand(
     const child = spawn("git", args, {
       cwd: projectPath,
       stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     }) as ChildProcessWithoutNullStreams;
+    trackAuxiliaryProcess(child);
 
     let stdout = "";
     let stderr = "";

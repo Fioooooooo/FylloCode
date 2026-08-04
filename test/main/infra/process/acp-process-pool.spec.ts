@@ -38,7 +38,6 @@ const mocks = vi.hoisted(() => {
     spawn: vi.fn(),
     readInstalledRecords: vi.fn(),
     getRegistry: vi.fn(),
-    registerDisposable: vi.fn(),
     upsertAgentCapabilities: vi.fn(),
     grantRegistry: {
       bindToAcpSession: vi.fn(),
@@ -61,10 +60,6 @@ vi.mock("@main/infra/acp/detector", () => ({
 
 vi.mock("@main/infra/storage/acp-registry-cache", () => ({
   getRegistry: mocks.getRegistry,
-}));
-
-vi.mock("@main/bootstrap/lifecycle", () => ({
-  registerDisposable: mocks.registerDisposable,
 }));
 
 vi.mock("@main/infra/storage/agent-capability-store", () => ({
@@ -435,11 +430,11 @@ describe("acp-process-pool", () => {
   });
 
   it("rejects new starts after the pool begins shutdown", async () => {
-    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const { disposeAcpProcessPool, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
     await getOrStartProcess("claude-acp");
-    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
 
-    const disposing = dispose();
+    const disposing = disposeAcpProcessPool();
     queueMicrotask(() => (mocks.child as FakeChild).triggerClose());
     await disposing;
 
@@ -457,6 +452,21 @@ describe("acp-process-pool", () => {
     expect(mocks.spawn).toHaveBeenCalledTimes(1);
     const opts = mocks.spawn.mock.calls[0][2];
     expect(opts).toMatchObject({ detached: true });
+  });
+
+  it("force disposal kills the known POSIX process group without waiting", async () => {
+    setPlatform("darwin");
+    const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
+    const { forceDisposeAcpProcessPool, getActiveAcpProcessIds, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+    expect(getActiveAcpProcessIds()).toEqual([12345]);
+
+    await forceDisposeAcpProcessPool();
+
+    expect(killSpy).toHaveBeenCalledWith(-12345, "SIGKILL");
+    expect(getActiveAcpProcessIds()).toEqual([]);
+    killSpy.mockRestore();
   });
 
   it("spawns ACP agent with detached: false on Windows", async () => {
@@ -652,14 +662,12 @@ describe("acp-process-pool", () => {
     setPlatform("darwin");
     const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
 
-    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const { disposeAcpProcessPool, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
     await getOrStartProcess("claude-acp");
 
-    expect(mocks.registerDisposable).toHaveBeenCalledTimes(1);
-    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
-
     const fake = mocks.child as FakeChild;
-    const disposePromise = dispose();
+    const disposePromise = disposeAcpProcessPool();
     // Simulate child exiting cleanly during graceful window.
     queueMicrotask(() => fake.triggerClose());
     await disposePromise;
@@ -676,7 +684,8 @@ describe("acp-process-pool", () => {
     vi.useFakeTimers();
     const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
     try {
-      const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+      const { disposeAcpProcessPool, getOrStartProcess } =
+        await import("@main/infra/process/acp-process-pool");
       await getOrStartProcess("claude-acp");
       expect(mocks.spawn).toHaveBeenCalledTimes(1);
 
@@ -686,8 +695,7 @@ describe("acp-process-pool", () => {
       fake.emit("exit", 1, null);
 
       // Dispose during the backoff window must clear the scheduled timer.
-      const { dispose } = mocks.registerDisposable.mock.calls[0][0];
-      const disposePromise = dispose();
+      const disposePromise = disposeAcpProcessPool();
       queueMicrotask(() => fake.triggerClose());
       await disposePromise;
 
@@ -705,11 +713,11 @@ describe("acp-process-pool", () => {
     vi.useFakeTimers();
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
-    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const { disposeAcpProcessPool, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
     await getOrStartProcess("claude-acp");
-    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
 
-    const disposePromise = dispose();
+    const disposePromise = disposeAcpProcessPool();
     // Drain microtasks so dispose enters the graceful wait.
     await Promise.resolve();
     await Promise.resolve();
@@ -740,11 +748,11 @@ describe("acp-process-pool", () => {
       return true;
     });
 
-    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const { disposeAcpProcessPool, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
     await getOrStartProcess("claude-acp");
-    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
 
-    const disposePromise = dispose();
+    const disposePromise = disposeAcpProcessPool();
     await Promise.resolve();
     await Promise.resolve();
     await vi.advanceTimersByTimeAsync(500);
@@ -770,7 +778,9 @@ describe("acp-process-pool", () => {
     // emits close immediately.
     const taskkillProc = new EventEmitter() as EventEmitter & {
       once: typeof EventEmitter.prototype.once;
+      unref: ReturnType<typeof vi.fn>;
     };
+    taskkillProc.unref = vi.fn();
     mocks.spawn.mockImplementation((cmd: string) => {
       if (cmd === "taskkill") {
         queueMicrotask(() => taskkillProc.emit("close", 0));
@@ -779,12 +789,12 @@ describe("acp-process-pool", () => {
       return mocks.child as FakeChild;
     });
 
-    const { getOrStartProcess } = await import("@main/infra/process/acp-process-pool");
+    const { disposeAcpProcessPool, getOrStartProcess } =
+      await import("@main/infra/process/acp-process-pool");
     await getOrStartProcess("claude-acp");
-    const { dispose } = mocks.registerDisposable.mock.calls[0][0];
 
     vi.useFakeTimers();
-    const disposePromise = dispose();
+    const disposePromise = disposeAcpProcessPool();
     await Promise.resolve();
     await Promise.resolve();
     await vi.advanceTimersByTimeAsync(500);

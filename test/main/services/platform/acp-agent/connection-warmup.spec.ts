@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   listAgents: vi.fn(),
   readInstalledRecords: vi.fn(),
   getOrStartProcess: vi.fn(),
-  registerDisposable: vi.fn(),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -20,9 +19,6 @@ vi.mock("@main/infra/acp/detector", () => ({
 }));
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
-}));
-vi.mock("@main/bootstrap/lifecycle", () => ({
-  registerDisposable: mocks.registerDisposable,
 }));
 vi.mock("@main/infra/logger", () => ({
   default: mocks.logger,
@@ -166,10 +162,10 @@ describe("ACP agent connection warmup", () => {
     vi.useFakeTimers();
     try {
       mocks.listAgents.mockRejectedValue(new Error("catalog unavailable"));
-      const { scheduleInstalledAgentConnectionWarmup } =
+      const { scheduleInitialAgentConnectionWarmup } =
         await import("@main/services/platform/acp-agent/connection-warmup");
 
-      scheduleInstalledAgentConnectionWarmup();
+      scheduleInitialAgentConnectionWarmup();
       expect(mocks.listAgents).not.toHaveBeenCalled();
 
       await vi.runAllTimersAsync();
@@ -189,13 +185,15 @@ describe("ACP agent connection warmup", () => {
     try {
       const starts = new Map(["a", "b"].map((id) => [id, deferred<unknown>()]));
       mocks.getOrStartProcess.mockImplementation((agentId: string) => starts.get(agentId)!.promise);
-      const { prewarmAgentConnections, scheduleInstalledAgentConnectionWarmup } =
-        await import("@main/services/platform/acp-agent/connection-warmup");
-      const disposable = mocks.registerDisposable.mock.calls[0][0] as { dispose(): void };
+      const {
+        beginAgentConnectionWarmupShutdown,
+        prewarmAgentConnections,
+        scheduleInitialAgentConnectionWarmup,
+      } = await import("@main/services/platform/acp-agent/connection-warmup");
 
-      scheduleInstalledAgentConnectionWarmup();
+      scheduleInitialAgentConnectionWarmup();
       const batch = prewarmAgentConnections(["a", "b", "c"]);
-      disposable.dispose();
+      beginAgentConnectionWarmupShutdown();
       await vi.runAllTimersAsync();
 
       expect(mocks.listAgents).not.toHaveBeenCalled();

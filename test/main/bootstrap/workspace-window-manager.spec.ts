@@ -20,6 +20,10 @@ vi.mock("@main/services/session/chat/session-probe-service", () => ({
 vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
   resolveWorkspace: vi.fn(),
 }));
+const saveWindowState = vi.hoisted(() => vi.fn());
+vi.mock("@main/infra/storage/window-state-store", () => ({
+  saveWindowState,
+}));
 
 interface FakeWindow {
   id: number;
@@ -31,6 +35,10 @@ interface FakeWindow {
   close: () => void;
   isMinimized: () => boolean;
   restore: () => void;
+  hide: () => void;
+  isMaximized: () => boolean;
+  getBounds: () => { x: number; y: number; width: number; height: number };
+  getNormalBounds: () => { x: number; y: number; width: number; height: number };
   isDestroyed: () => boolean;
   on: (event: string, handler: () => void) => void;
   handlers: Map<string, () => void>;
@@ -58,6 +66,10 @@ function createFakeWindow(id: number): FakeWindow {
     }),
     isMinimized: vi.fn(() => false),
     restore: vi.fn(),
+    hide: vi.fn(),
+    isMaximized: vi.fn(() => false),
+    getBounds: vi.fn(() => ({ x: 10, y: 20, width: 1000, height: 700 })),
+    getNormalBounds: vi.fn(() => ({ x: 10, y: 20, width: 1000, height: 700 })),
     isDestroyed: vi.fn(() => destroyed),
     on: vi.fn((event: string, handler: () => void) => {
       window.handlers.set(event, handler);
@@ -100,6 +112,41 @@ function createHarness() {
 }
 
 describe("WorkspaceWindowManager", () => {
+  it("reserves a startup window without context and activates only its generation", () => {
+    const { manager, windows } = createHarness();
+    const startupWindow = createFakeWindow(9);
+    windows.push(startupWindow);
+    const ownership = {
+      token: {},
+      stateController: { current: { role: "launcher" as const } },
+    };
+
+    const generation = manager.reserveLauncherWindow(
+      startupWindow as unknown as BrowserWindow,
+      ownership
+    );
+
+    expect(
+      manager.getContextByWebContents(startupWindow.webContents as unknown as WebContents)
+    ).toBeNull();
+    expect(() =>
+      manager.activateLauncherContext(startupWindow as unknown as BrowserWindow, generation + 1)
+    ).toThrow("reservation is no longer valid");
+
+    expect(
+      manager.activateLauncherContext(startupWindow as unknown as BrowserWindow, generation)
+    ).toEqual({ windowId: 9, role: "launcher", workspaceId: null });
+    expect(
+      manager.getContextByWebContents(startupWindow.webContents as unknown as WebContents)
+    ).toEqual({ windowId: 9, role: "launcher", workspaceId: null });
+    expect(
+      manager.isActiveFormalRenderer(
+        startupWindow.webContents as unknown as WebContents,
+        generation
+      )
+    ).toBe(true);
+  });
+
   it("keeps a single launcher window and focuses it when reopened", () => {
     const { manager, windows, createWindow } = createHarness();
 
@@ -242,5 +289,17 @@ describe("WorkspaceWindowManager", () => {
 
     expect(windows[0]?.focus).toHaveBeenCalledOnce();
     expect(windows[1]?.focus).not.toHaveBeenCalled();
+  });
+
+  it("captures state and hides each managed window for shutdown", () => {
+    const { manager, windows } = createHarness();
+    manager.openLauncherWindow();
+    manager.openWorkspaceWindow("workspace-a");
+
+    manager.prepareForShutdown();
+
+    expect(saveWindowState).toHaveBeenCalledTimes(2);
+    expect(windows[0]?.hide).toHaveBeenCalledOnce();
+    expect(windows[1]?.hide).toHaveBeenCalledOnce();
   });
 });

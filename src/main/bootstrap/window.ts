@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, screen, type Rectangle } from "electron";
 import { join } from "path";
+import { pathToFileURL } from "node:url";
 import { is, platform } from "@electron-toolkit/utils";
 import {
   loadWindowState,
@@ -35,6 +36,48 @@ interface WindowStateApplyTarget {
 export interface CreateFylloWindowOptions {
   stateKey: WindowStateKey;
   getStateKey?: () => WindowStateKey;
+  initialPage?: FylloWindowPage | null;
+  showImmediately?: boolean;
+  backgroundColor?: string;
+}
+
+export type FylloWindowPage = "startup" | "index";
+
+export interface FylloWindowLoadTarget {
+  kind: "url" | "file";
+  value: string;
+}
+
+export function resolveFylloWindowLoadTarget(page: FylloWindowPage): FylloWindowLoadTarget {
+  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
+    const baseUrl = process.env["ELECTRON_RENDERER_URL"];
+    return {
+      kind: "url",
+      value: page === "startup" ? new URL("startup.html", `${baseUrl}/`).toString() : baseUrl,
+    };
+  }
+
+  return {
+    kind: "file",
+    value: join(app.getAppPath(), `out/renderer/${page}.html`),
+  };
+}
+
+export function loadFylloWindow(window: BrowserWindow, page: FylloWindowPage): Promise<void> {
+  const target = resolveFylloWindowLoadTarget(page);
+  return target.kind === "url" ? window.loadURL(target.value) : window.loadFile(target.value);
+}
+
+export function isFylloInternalUrl(rawUrl: string): boolean {
+  return (["startup", "index"] as const).some((page) => {
+    const target = resolveFylloWindowLoadTarget(page);
+    const targetUrl = target.kind === "url" ? target.value : pathToFileURL(target.value).toString();
+    try {
+      return new URL(rawUrl).toString() === new URL(targetUrl).toString();
+    } catch {
+      return false;
+    }
+  });
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -186,8 +229,9 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
     height: resolvedState.bounds.height,
     minWidth: MIN_MAIN_WINDOW_SIZE.width,
     minHeight: MIN_MAIN_WINDOW_SIZE.height,
-    show: false,
+    show: options.showImmediately ?? false,
     autoHideMenuBar: true,
+    ...(options.backgroundColor ? { backgroundColor: options.backgroundColor } : {}),
     ...(platform.isLinux ? { icon } : {}),
     ...(platform.isMacOS
       ? {
@@ -205,9 +249,11 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
     mainWindow.maximize();
   }
 
-  mainWindow.on("ready-to-show", () => {
-    mainWindow.show();
-  });
+  if (!options.showImmediately) {
+    mainWindow.on("ready-to-show", () => {
+      mainWindow.show();
+    });
+  }
 
   mainWindow.on("close", () => {
     saveWindowState(getCurrentStateKey(options), captureMainWindowState(mainWindow));
@@ -229,7 +275,7 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
   // top-level navigation to a different document; route safe external URLs to
   // the system browser instead.
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (url === mainWindow.webContents.getURL()) {
+    if (url === mainWindow.webContents.getURL() || isFylloInternalUrl(url)) {
       return;
     }
     event.preventDefault();
@@ -238,10 +284,8 @@ export function createFylloWindow(options: CreateFylloWindowOptions): BrowserWin
     }
   });
 
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
-  } else {
-    mainWindow.loadFile(join(app.getAppPath(), "out/renderer/index.html"));
+  if (options.initialPage !== null) {
+    void loadFylloWindow(mainWindow, options.initialPage ?? "index");
   }
 
   return mainWindow;

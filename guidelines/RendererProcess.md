@@ -41,8 +41,9 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 
 ### Bootstrap
 
-- MUST 通过 `registerBootstrapTasks()` 和 `onFylloBootstrap()` 注册 renderer 启动副作用，而不是在 layout 组件中临时启动。`src/renderer/src/main.ts` 在 mount 后使用共享 `{ pinia, router }` context 运行已注册任务。证据：`src/renderer/src/main.ts`、`src/renderer/src/bootstrap/core.ts`、`src/renderer/src/bootstrap/register.ts`。
-- MUST 保持 bootstrap task 失败隔离。`runBootstrapTasks()` 使用 `Promise.allSettled()` 运行任务并按任务记录失败，因此新增任务应报告自身名称，并避免抛出会阻塞无关启动工作的错误。证据：`src/renderer/src/bootstrap/core.ts`、`test/renderer/src/bootstrap/fyllo-bootstrap.spec.ts`。
+- MUST 通过 `registerBootstrapTasks()` 和 `onFylloBootstrap()` 注册 renderer 启动副作用，而不是在 layout 组件中临时启动；每个 task 必须显式声明 `phase: "critical" | "background"`。`src/renderer/src/main.ts` 在 mount 后使用共享 `{ pinia, router }` context 运行已注册任务。证据：`src/renderer/src/main.ts`、`src/renderer/src/bootstrap/core.ts`、`src/renderer/src/bootstrap/register.ts`。
+- MUST 先并行结算全部 critical task，再启动 background task，并保持每个 task 的失败隔离和 name/phase/duration 结果。Workspace bootstrap 属于 critical，且其内部 context → list → current Workspace → sessions 顺序不变；ACP renderer cache 属于 background，不得阻塞应用可交互。证据：`src/renderer/src/bootstrap/core.ts`、`src/renderer/src/bootstrap/tasks/workspaces.ts`、`src/renderer/src/bootstrap/tasks/acp-agents.ts`、`test/renderer/src/bootstrap/fyllo-bootstrap.spec.ts`。
+- MUST 在 critical 未结算时只渲染 `StartupLoading.vue`，不得提前挂载 Welcome、Workspace `RouterView` 或页面级业务错误；critical 成功或失败结算并在下一 `nextTick()` 后，通过 `window.api.platform.lifecycle.markInteractive()` 通知 main。Background task 状态只能影响其局部 UI。证据：`src/renderer/src/App.vue`、`src/renderer/src/main.ts`、`test/renderer/src/app-startup.spec.ts`。
 - MUST 让 bootstrap task 注册保持幂等；新增任务注册应通过 `registerBootstrapTasks()` 接入，该函数会防止重复注册。证据：`src/renderer/src/bootstrap/register.ts`。
 
 ## 验证

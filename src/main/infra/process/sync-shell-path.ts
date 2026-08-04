@@ -1,5 +1,6 @@
 import spawn from "cross-spawn";
 import { platform } from "@electron-toolkit/utils";
+import { trackAuxiliaryProcess } from "./auxiliary-process-registry";
 
 /**
  * 同步 shell 的 PATH 环境变量到当前进程。
@@ -30,7 +31,9 @@ export async function syncShellPath(): Promise<void> {
       const child = spawn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
         env: process.env,
+        detached: !isWindows,
       });
+      trackAuxiliaryProcess(child);
 
       let stdout = "";
       let stderr = "";

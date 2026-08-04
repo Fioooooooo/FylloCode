@@ -1,7 +1,6 @@
 import * as nodeFs from "fs";
 import { promises as fs } from "fs";
 import { join } from "path";
-import { registerDisposable } from "@main/bootstrap/lifecycle";
 import { mcpEventsDir } from "@main/infra/storage/workspace-paths";
 import logger from "@main/infra/logger";
 import type { McpEvent, McpPlanEvent, McpProposalEvent } from "@shared/types/mcp-event";
@@ -25,6 +24,7 @@ type ConsumerState = {
 };
 
 const consumers = new Map<string, ConsumerState>();
+let shuttingDown = false;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -252,6 +252,9 @@ async function startConsumer(workspaceId: string, state: ConsumerState): Promise
 }
 
 export function ensureLineageEventConsumer(workspaceId: string): void {
+  if (shuttingDown) {
+    return;
+  }
   if (consumers.has(workspaceId)) {
     return;
   }
@@ -277,7 +280,12 @@ export function disposeWorkspace(workspaceId: string): void {
   consumers.delete(workspaceId);
 }
 
-function dispose(): void {
+export function beginLineageEventConsumerShutdown(): void {
+  shuttingDown = true;
+}
+
+export function disposeLineageEventConsumers(): void {
+  beginLineageEventConsumerShutdown();
   for (const state of consumers.values()) {
     state.closed = true;
     state.watcher?.close();
@@ -285,4 +293,11 @@ function dispose(): void {
   consumers.clear();
 }
 
-registerDisposable({ name: "lineage-mcp-event-consumer", dispose });
+export function forceDisposeLineageEventConsumers(): void {
+  disposeLineageEventConsumers();
+}
+
+export function resetLineageEventConsumersForTests(): void {
+  disposeLineageEventConsumers();
+  shuttingDown = false;
+}

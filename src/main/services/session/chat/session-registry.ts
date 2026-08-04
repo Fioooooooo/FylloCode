@@ -1,5 +1,4 @@
 import type { AcpSession } from "@main/services/session/chat/acp-session";
-import { registerDisposable } from "@main/bootstrap/lifecycle";
 import logger from "@main/infra/logger";
 
 /**
@@ -16,6 +15,7 @@ interface OwnedSession {
 }
 
 const byOwnerKey = new Map<string, OwnedSession>();
+let shuttingDown = false;
 
 function compositeKey(owner: SessionOwner, key: string): string {
   return `${owner}::${key}`;
@@ -23,6 +23,10 @@ function compositeKey(owner: SessionOwner, key: string): string {
 
 export const sessionRegistry = {
   register(owner: SessionOwner, key: string, session: AcpSession): void {
+    if (shuttingDown) {
+      session.cancel();
+      return;
+    }
     byOwnerKey.set(compositeKey(owner, key), { owner, key, session });
   },
 
@@ -91,7 +95,20 @@ export const sessionRegistry = {
   },
 };
 
-registerDisposable({
-  name: "session-registry",
-  dispose: () => sessionRegistry.cancelAll(),
-});
+export function beginSessionRegistryShutdown(): void {
+  shuttingDown = true;
+}
+
+export function disposeSessionRegistry(): void {
+  beginSessionRegistryShutdown();
+  sessionRegistry.cancelAll();
+}
+
+export function forceDisposeSessionRegistry(): void {
+  disposeSessionRegistry();
+}
+
+export function resetSessionRegistryForTests(): void {
+  sessionRegistry.cancelAll();
+  shuttingDown = false;
+}

@@ -2,10 +2,12 @@ import { BrowserWindow, type WebContents } from "electron";
 import type { WindowContext } from "@shared/types/window";
 import {
   applyFylloWindowState,
+  captureMainWindowState,
   createFylloWindow,
   type CreateFylloWindowOptions,
 } from "@main/bootstrap/window";
-import type { WindowStateKey } from "@main/infra/storage/window-state-store";
+import type { StartupWindowOwnership } from "@main/bootstrap/startup";
+import { saveWindowState, type WindowStateKey } from "@main/infra/storage/window-state-store";
 import { disposeWorkspace as disposeLineageEventConsumerWorkspace } from "@main/services/insight/lineage/mcp-event-consumer";
 import { proposalStatusService } from "@main/services/proposal/browser/proposal-status-service";
 import { sessionRegistry } from "@main/services/session/chat/session-registry";
@@ -23,6 +25,11 @@ export interface WorkspaceWindowOpenResult {
 
 interface WindowStateController {
   current: WindowStateKey;
+}
+
+interface ReservedLauncher {
+  generation: number;
+  ownershipToken: object;
 }
 
 interface RegisteredWindowIds {
@@ -47,8 +54,11 @@ export class WorkspaceWindowManager {
   private readonly stateControllersByWindowId = new Map<number, WindowStateController>();
   private readonly windows = new Set<BrowserWindow>();
   private readonly skipRuntimeCleanupOnClose = new Set<string>();
+  private readonly reservedLaunchersByWindowId = new Map<number, ReservedLauncher>();
+  private readonly formalGenerationsByWebContentsId = new Map<number, number>();
   private launcherWindow: BrowserWindow | null = null;
   private lastActiveWindow: BrowserWindow | null = null;
+  private nextFormalGeneration = 1;
 
   constructor(options: WorkspaceWindowManagerOptions = {}) {
     this.createWindow = options.createWindow ?? createFylloWindow;
@@ -75,6 +85,64 @@ export class WorkspaceWindowManager {
     this.registerWindow(launcherWindow, this.getLauncherContext(launcherWindow), stateController);
 
     return this.getLauncherContext(launcherWindow);
+  }
+
+  reserveLauncherWindow(window: BrowserWindow, ownership: StartupWindowOwnership): number {
+    if (!this.isUsableWindow(window) || this.getUsableWindow(this.launcherWindow)) {
+      throw new Error("Launcher window cannot be reserved");
+    }
+
+    const generation = this.nextFormalGeneration++;
+    this.launcherWindow = window;
+    this.reservedLaunchersByWindowId.set(window.id, {
+      generation,
+      ownershipToken: ownership.token,
+    });
+    this.registerWindow(window, null, ownership.stateController);
+    return generation;
+  }
+
+  activateLauncherContext(window: BrowserWindow, generation: number): LauncherWindowContext {
+    const reservation = this.reservedLaunchersByWindowId.get(window.id);
+    if (
+      !reservation ||
+      reservation.generation !== generation ||
+      this.launcherWindow !== window ||
+      !this.isUsableWindow(window)
+    ) {
+      throw new Error("Launcher window reservation is no longer valid");
+    }
+
+    const context = this.getLauncherContext(window);
+    this.contextsByWebContentsId.set(window.webContents.id, context);
+    this.formalGenerationsByWebContentsId.set(window.webContents.id, generation);
+    this.reservedLaunchersByWindowId.delete(window.id);
+    return context;
+  }
+
+  getActiveFormalGeneration(webContents: WebContents): number | null {
+    return this.formalGenerationsByWebContentsId.get(webContents.id) ?? null;
+  }
+
+  isActiveFormalRenderer(webContents: WebContents, generation: number): boolean {
+    return this.getActiveFormalGeneration(webContents) === generation;
+  }
+
+  prepareForShutdown(seenOwnershipTokens: Set<object> = new Set()): Set<object> {
+    for (const window of this.windows) {
+      if (!this.isUsableWindow(window)) continue;
+      const reservation = this.reservedLaunchersByWindowId.get(window.id);
+      if (reservation) {
+        if (seenOwnershipTokens.has(reservation.ownershipToken)) continue;
+        seenOwnershipTokens.add(reservation.ownershipToken);
+      }
+      const stateController = this.stateControllersByWindowId.get(window.id);
+      if (stateController) {
+        saveWindowState(stateController.current, captureMainWindowState(window));
+      }
+      window.hide();
+    }
+    return seenOwnershipTokens;
   }
 
   // Workspace window lifecycle strategy:
@@ -158,7 +226,7 @@ export class WorkspaceWindowManager {
 
   sendToAll(channel: string, payload: unknown): void {
     for (const window of this.windows) {
-      if (this.isUsableWindow(window)) {
+      if (this.isUsableWindow(window) && this.contextsByWebContentsId.has(window.webContents.id)) {
         window.webContents.send(channel, payload);
       }
     }
@@ -200,7 +268,7 @@ export class WorkspaceWindowManager {
 
   private registerWindow(
     window: BrowserWindow,
-    context: WindowContext,
+    context: WindowContext | null,
     stateController: WindowStateController
   ): void {
     const ids: RegisteredWindowIds = {
@@ -209,7 +277,9 @@ export class WorkspaceWindowManager {
     };
 
     this.windows.add(window);
-    this.contextsByWebContentsId.set(ids.webContentsId, context);
+    if (context) {
+      this.contextsByWebContentsId.set(ids.webContentsId, context);
+    }
     this.stateControllersByWindowId.set(ids.windowId, stateController);
     this.lastActiveWindow = window;
 
@@ -227,7 +297,9 @@ export class WorkspaceWindowManager {
 
     this.windows.delete(window);
     this.contextsByWebContentsId.delete(ids.webContentsId);
+    this.formalGenerationsByWebContentsId.delete(ids.webContentsId);
     this.stateControllersByWindowId.delete(ids.windowId);
+    this.reservedLaunchersByWindowId.delete(ids.windowId);
 
     if (this.launcherWindow === window) {
       this.launcherWindow = null;

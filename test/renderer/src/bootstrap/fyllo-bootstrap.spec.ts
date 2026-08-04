@@ -13,12 +13,14 @@ describe("fyllo-bootstrap", () => {
 
     onFylloBootstrap({
       name: "first",
+      phase: "critical",
       run() {
         calls.add("first");
       },
     });
     onFylloBootstrap({
       name: "second",
+      phase: "critical",
       run() {
         calls.add("second");
       },
@@ -39,6 +41,7 @@ describe("fyllo-bootstrap", () => {
 
     onFylloBootstrap({
       name: "failing",
+      phase: "critical",
       run() {
         calls.push("failing");
         throw new Error("boom");
@@ -46,6 +49,7 @@ describe("fyllo-bootstrap", () => {
     });
     onFylloBootstrap({
       name: "after",
+      phase: "critical",
       run() {
         calls.push("after");
       },
@@ -58,7 +62,7 @@ describe("fyllo-bootstrap", () => {
 
     expect(calls).toEqual(["failing", "after"]);
     expect(consoleError).toHaveBeenCalledWith(
-      "[bootstrap] task failed: failing",
+      "[bootstrap] critical task failed: failing",
       expect.any(Error)
     );
 
@@ -71,6 +75,7 @@ describe("fyllo-bootstrap", () => {
 
     onFylloBootstrap({
       name: "slow",
+      phase: "critical",
       async run() {
         order.push("slow-start");
         await new Promise((resolve) => setTimeout(resolve, 10));
@@ -79,6 +84,7 @@ describe("fyllo-bootstrap", () => {
     });
     onFylloBootstrap({
       name: "fast",
+      phase: "critical",
       run() {
         order.push("fast");
       },
@@ -92,5 +98,40 @@ describe("fyllo-bootstrap", () => {
     expect(order).toContain("slow-start");
     expect(order).toContain("fast");
     expect(order.indexOf("fast")).toBeLessThan(order.indexOf("slow-end"));
+  });
+
+  it("settles all critical tasks before starting background tasks", async () => {
+    const { bootstrapPhaseState, onFylloBootstrap, runBootstrapTasks } =
+      await import("@renderer/bootstrap/core");
+    const order: string[] = [];
+
+    onFylloBootstrap({
+      name: "workspace",
+      phase: "critical",
+      async run() {
+        order.push("critical-start");
+        await Promise.resolve();
+        order.push("critical-end");
+      },
+    });
+    onFylloBootstrap({
+      name: "acp",
+      phase: "background",
+      run() {
+        order.push("background");
+      },
+    });
+
+    await runBootstrapTasks(
+      { pinia: createPinia(), router: {} as Router },
+      {
+        onCriticalSettled() {
+          order.push(`critical-${bootstrapPhaseState.critical}`);
+        },
+      }
+    );
+
+    expect(order).toEqual(["critical-start", "critical-end", "critical-settled", "background"]);
+    expect(bootstrapPhaseState.background).toBe("settled");
   });
 });

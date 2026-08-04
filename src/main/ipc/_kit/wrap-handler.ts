@@ -2,6 +2,7 @@ import type { IpcResponse } from "@shared/types/ipc";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import logger from "@main/infra/logger";
+import { isShuttingDown } from "@main/bootstrap/lifecycle";
 
 /**
  * Wraps an IPC handler body so it always produces an `IpcResponse<T>`.
@@ -11,6 +12,15 @@ import logger from "@main/infra/logger";
  * the `{ ok: false, error }` shape and logs unexpected exceptions.
  */
 export async function wrapHandler<T>(fn: () => Promise<T> | T): Promise<IpcResponse<T>> {
+  if (isShuttingDown()) {
+    return {
+      ok: false,
+      error: {
+        code: IpcErrorCodes.APPLICATION_SHUTTING_DOWN,
+        message: "FylloCode 正在退出",
+      },
+    };
+  }
   try {
     const data = await fn();
     return { ok: true, data };

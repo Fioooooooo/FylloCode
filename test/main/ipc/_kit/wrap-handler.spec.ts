@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { wrapHandler } from "@main/ipc/_kit/wrap-handler";
 import { ipcError } from "@main/ipc/_kit/errors";
+import { beginShutdown, resetLifecycleForTests } from "@main/bootstrap/lifecycle";
 
 vi.mock("@main/infra/logger", () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 describe("wrapHandler", () => {
+  beforeEach(() => resetLifecycleForTests());
+
   it("returns { ok: true, data } on success", async () => {
     const result = await wrapHandler(() => Promise.resolve(42));
     expect(result).toEqual({ ok: true, data: 42 });
@@ -90,5 +93,19 @@ describe("wrapHandler", () => {
     });
     if (result.ok) throw new Error("expected failure");
     expect(result.error.code).toBe(IpcErrorCodes.UNKNOWN_ERROR);
+  });
+
+  it("rejects new business work after the shutdown fence", async () => {
+    const handler = vi.fn(() => 42);
+    beginShutdown();
+
+    await expect(wrapHandler(handler)).resolves.toEqual({
+      ok: false,
+      error: {
+        code: IpcErrorCodes.APPLICATION_SHUTTING_DOWN,
+        message: "FylloCode 正在退出",
+      },
+    });
+    expect(handler).not.toHaveBeenCalled();
   });
 });

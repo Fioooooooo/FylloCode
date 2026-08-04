@@ -13,6 +13,7 @@ import {
   type CatalogAgent,
 } from "@shared/types/acp-agent";
 import { getDataSubPath } from "@main/infra/paths";
+import { trackAuxiliaryProcess } from "@main/infra/process/auxiliary-process-registry";
 
 interface CommandResult {
   stdout: string;
@@ -90,7 +91,9 @@ export async function runCommand(command: string, args: string[]): Promise<Comma
   return new Promise<CommandResult>((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     });
+    trackAuxiliaryProcess(child);
 
     let stdout = "";
     let stderr = "";

@@ -5,6 +5,7 @@ import { appApi } from "./api/platform/app";
 import { providersApi } from "./api/platform/providers";
 import { releaseApi } from "./api/platform/release";
 import { settingsApi } from "./api/platform/settings";
+import { lifecycleApi } from "./api/platform/lifecycle";
 import { workspaceApi } from "./api/workspace/workspace";
 import { windowApi } from "./api/workspace/window";
 import { documentApi } from "./api/workspace/document";
@@ -29,6 +30,7 @@ const api = {
     release: releaseApi,
     acpAgents: acpAgentsApi,
     providers: providersApi,
+    lifecycle: lifecycleApi,
   },
   workspace: {
     workspace: workspaceApi,
