@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import { dirname, join } from "path";
 import { dump, load } from "js-yaml";
 import { getDataSubPath } from "@main/infra/paths";
+import { resolveChangeDirAnywhere } from "@main/infra/proposal/openspec-reader";
 import { lineageCommitKey, lineageProposalKey } from "@shared/types/lineage";
 import type {
   LineageIndex,
@@ -27,6 +28,19 @@ interface MigrationWarning {
   path: string;
   message: string;
 }
+
+interface AvailableFolderEvidence {
+  folderId: string;
+  folderPath: string;
+}
+
+type ProposalOwnerResolution =
+  | { folderId: string }
+  | {
+      folderId: null;
+      reason: "unsafe-change-id" | "no-repository-match" | "ambiguous-repository-match";
+      matchedFolderIds: string[];
+    };
 
 const FRONTMATTER_RE = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
@@ -75,26 +89,81 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
   }
 }
 
-async function availableFolderIds(
+async function availableFolders(
   workspaceMeta: JsonRecord,
   foldersRoot: string
-): Promise<string[]> {
+): Promise<AvailableFolderEvidence[]> {
   if (!Array.isArray(workspaceMeta.folderIds)) {
     return [];
   }
-  const result: string[] = [];
+  const result: AvailableFolderEvidence[] = [];
   for (const folderId of workspaceMeta.folderIds) {
     if (!isSafeId(folderId)) continue;
     const folderMeta = await readJson(join(foldersRoot, folderId, "meta.json"));
-    if (!isRecord(folderMeta) || typeof folderMeta.path !== "string") continue;
+    if (
+      !isRecord(folderMeta) ||
+      typeof folderMeta.path !== "string" ||
+      folderMeta.path.length === 0
+    ) {
+      continue;
+    }
     try {
       await fs.access(folderMeta.path);
-      result.push(folderId);
+      result.push({ folderId, folderPath: folderMeta.path });
     } catch {
       // Missing Folder paths are not usable evidence owners.
     }
   }
   return result;
+}
+
+async function resolveProposalOwner(
+  workspaceMeta: JsonRecord,
+  folders: AvailableFolderEvidence[],
+  changeId: string
+): Promise<ProposalOwnerResolution> {
+  if (!isSafeId(changeId)) {
+    return { folderId: null, reason: "unsafe-change-id", matchedFolderIds: [] };
+  }
+
+  if (workspaceMeta.kind === "folder" && folders.length === 1) {
+    return { folderId: folders[0]!.folderId };
+  }
+
+  const matchedFolders = (
+    await Promise.all(
+      folders.map(async (folder) =>
+        (await resolveChangeDirAnywhere(folder.folderPath, changeId)) ? folder : null
+      )
+    )
+  ).filter((folder): folder is AvailableFolderEvidence => folder !== null);
+
+  if (matchedFolders.length === 1) {
+    return { folderId: matchedFolders[0]!.folderId };
+  }
+
+  return {
+    folderId: null,
+    reason: matchedFolders.length === 0 ? "no-repository-match" : "ambiguous-repository-match",
+    matchedFolderIds: matchedFolders.map((folder) => folder.folderId),
+  };
+}
+
+function ownerMissingMessage(changeId: string, resolution: ProposalOwnerResolution): string {
+  if (!("reason" in resolution)) {
+    throw new TypeError("ownerMissingMessage requires an unresolved proposal owner");
+  }
+
+  switch (resolution.reason) {
+    case "unsafe-change-id":
+      return `Proposal ${changeId} has no provable Folder owner: changeId is unsafe`;
+    case "ambiguous-repository-match":
+      return `Proposal ${changeId} has no provable Folder owner: repository evidence matched multiple available Folders (${resolution.matchedFolderIds.join(", ")})`;
+    case "no-repository-match":
+      return `Proposal ${changeId} has no provable Folder owner: no repository evidence matched an available Folder`;
+  }
+
+  throw new TypeError("Unknown proposal owner resolution");
 }
 
 function ownerKnowledgeEvidence(
@@ -236,6 +305,8 @@ async function migrateLineage(
   workspaceId: string,
   workspaceDir: string,
   foldersRoot: string,
+  workspaceMeta: JsonRecord,
+  folders: AvailableFolderEvidence[],
   warnings: MigrationWarning[],
   writeFileAtomically: (filePath: string, content: string) => Promise<void>
 ): Promise<void> {
@@ -261,6 +332,33 @@ async function migrateLineage(
       });
       continue;
     }
+
+    let subjectChanged = false;
+    for (const link of subject.links) {
+      if (!isRecord(link) || !Array.isArray(link.proposals)) continue;
+      for (const proposal of link.proposals) {
+        if (!isRecord(proposal) || typeof proposal.changeId !== "string") continue;
+        if (isSafeId(proposal.folderId)) continue;
+
+        const resolution = await resolveProposalOwner(workspaceMeta, folders, proposal.changeId);
+        if (!resolution.folderId) {
+          warnings.push({
+            code: "LINEAGE_OWNER_MISSING",
+            path: filePath,
+            message: ownerMissingMessage(proposal.changeId, resolution),
+          });
+          continue;
+        }
+
+        proposal.folderId = resolution.folderId;
+        subjectChanged = true;
+      }
+    }
+
+    if (subjectChanged) {
+      await writeFileAtomically(filePath, JSON.stringify(subject, null, 2));
+    }
+
     if (isRecord(subject.task) && typeof subject.task.ref === "string") {
       workspaceIndex.tasks[subject.task.ref] = subject.id;
     }
@@ -276,11 +374,6 @@ async function migrateLineage(
       for (const proposal of link.proposals) {
         if (!isRecord(proposal) || typeof proposal.changeId !== "string") continue;
         if (!isSafeId(proposal.folderId)) {
-          warnings.push({
-            code: "LINEAGE_OWNER_MISSING",
-            path: filePath,
-            message: `Proposal ${proposal.changeId} has no provable Folder owner`,
-          });
           continue;
         }
         const proposalRef = { folderId: proposal.folderId, changeId: proposal.changeId };
@@ -341,14 +434,22 @@ export async function migrateCortexWorkspaceScope(
     const meta = await readJson(join(workspaceDir, "meta.json"));
     if (!isRecord(meta)) continue;
     const warnings: MigrationWarning[] = [];
-    const available = await availableFolderIds(meta, foldersRoot);
+    const available = await availableFolders(meta, foldersRoot);
     await migrateKnowledge(
       workspaceDir,
-      available.length === 1 ? available[0]! : null,
+      available.length === 1 ? available[0]!.folderId : null,
       warnings,
       writeFileAtomically
     );
-    await migrateLineage(workspaceId, workspaceDir, foldersRoot, warnings, writeFileAtomically);
+    await migrateLineage(
+      workspaceId,
+      workspaceDir,
+      foldersRoot,
+      meta,
+      available,
+      warnings,
+      writeFileAtomically
+    );
     const warningPath = join(workspaceDir, "migration-warnings", "cortex-workspace-scope.json");
     if (warnings.length > 0) {
       await writeFileAtomically(warningPath, JSON.stringify({ version: 1, warnings }, null, 2));
