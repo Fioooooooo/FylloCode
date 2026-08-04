@@ -9,9 +9,14 @@ export const workspacePresentationTerms = {
 
 export type WorkspaceKindLabel = "Project" | "Workspace";
 export type WorkspaceSubjectLabel = WorkspaceKindLabel | "Project 或 Workspace";
+export type WorkspaceKindIcon = "i-lucide-folder" | "i-lucide-layout-grid";
 
 export function workspaceKindLabel(kind: WorkspaceKind): WorkspaceKindLabel {
   return kind === "folder" ? "Project" : "Workspace";
+}
+
+export function workspaceKindIcon(kind: WorkspaceKind): WorkspaceKindIcon {
+  return kind === "folder" ? "i-lucide-folder" : "i-lucide-layout-grid";
 }
 
 export function workspaceSubjectLabel(kind?: WorkspaceKind): WorkspaceSubjectLabel {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentWorkspaceError,
   workspaceCleanupStateLabel,
+  workspaceKindIcon,
   workspaceKindLabel,
   workspacePrimaryDirectoryLabel,
   workspacePresentationTerms,
@@ -12,6 +13,8 @@ describe("workspace presentation", () => {
   it("maps internal kinds to stable user-facing subjects", () => {
     expect(workspaceKindLabel("folder")).toBe("Project");
     expect(workspaceKindLabel("collection")).toBe("Workspace");
+    expect(workspaceKindIcon("folder")).toBe("i-lucide-folder");
+    expect(workspaceKindIcon("collection")).toBe("i-lucide-layout-grid");
     expect(workspaceSubjectLabel("collection")).toBe("Workspace");
     expect(workspaceSubjectLabel()).toBe("Project 或 Workspace");
     expect(workspacePrimaryDirectoryLabel("folder")).toBe("Project 的项目目录");
@@ -23,6 +26,7 @@ describe("workspace presentation", () => {
 
     expect(collection.folderIds).toHaveLength(1);
     expect(workspaceKindLabel(collection.kind)).toBe("Workspace");
+    expect(workspaceKindIcon(collection.kind)).toBe("i-lucide-layout-grid");
   });
 
   it("provides stable member and path terminology atoms", () => {

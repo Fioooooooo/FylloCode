@@ -89,7 +89,8 @@ const emit = defineEmits<{
               icon="i-lucide-trash-2"
               variant="ghost"
               size="xs"
-              color="error"
+              color="neutral"
+              class="transition-colors hover:bg-error/10 hover:text-error"
               :aria-label="`删除 ${workspaceKindLabel(workspace.workspaceKind)}`"
               @click="emit('remove', workspace)"
             />

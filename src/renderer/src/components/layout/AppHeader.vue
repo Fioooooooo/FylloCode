@@ -1,42 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import { appApi } from "@renderer/api/platform/app";
-import { useDefaultAppRoute } from "@renderer/composables/useDefaultAppRoute";
-import { useWorkspaceStore } from "@renderer/stores";
-import { workspaceKindLabel } from "@renderer/utils/workspace-presentation";
 import { useColorMode } from "@vueuse/core";
-import type { WorkspaceLauncherItem } from "@shared/types/workspace";
 import ProjectHealthPopover from "./ProjectHealthPopover.vue";
+import WorkspaceSwitcher from "./WorkspaceSwitcher.vue";
 
-const { goToDefault } = useDefaultAppRoute();
-const workspaceStore = useWorkspaceStore();
 const colorMode = useColorMode();
-
-const dropdownItems = computed(() => {
-  const workspaceItems = workspaceStore.recentWorkspaces.map(
-    (workspace: WorkspaceLauncherItem) => ({
-      label: `${workspace.workspaceName} · ${workspaceKindLabel(workspace.workspaceKind)}`,
-      onSelect: async () => {
-        await workspaceStore.openRecentWorkspace(workspace);
-      },
-    })
-  );
-
-  return [
-    ...workspaceItems,
-    { type: "separator" as const },
-    {
-      label: "打开 Project",
-      icon: "i-lucide-folder-open",
-      onSelect: async () => {
-        const workspace = await workspaceStore.openFolderWindow();
-        if (workspace) {
-          await goToDefault();
-        }
-      },
-    },
-  ];
-});
 
 function toggleTheme(): void {
   colorMode.value = colorMode.value === "dark" ? "light" : "dark";
@@ -60,28 +28,7 @@ async function openDevTools(): Promise<void> {
 
     <!-- Center: Workspace Switcher -->
     <div class="w-[60%] h-full flex items-center justify-center gap-2">
-      <UDropdownMenu
-        :items="dropdownItems"
-        :content="{
-          align: 'center',
-          side: 'bottom',
-          sideOffset: 4,
-        }"
-        :ui="{
-          content: 'w-full max-h-80 overflow-y-auto',
-        }"
-      >
-        <div
-          class="flex items-center gap-2 px-3 py-0.5 rounded-full bg-elevated cursor-pointer hover:bg-accented transition-colors"
-          style="-webkit-app-region: no-drag"
-        >
-          <span class="truncate max-w-48 text-sm font-normal text-highlighted">
-            {{ workspaceStore.currentWorkspace?.name ?? "未选择 Project 或 Workspace" }}
-          </span>
-          <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" />
-        </div>
-      </UDropdownMenu>
-
+      <WorkspaceSwitcher />
       <ProjectHealthPopover />
     </div>
 

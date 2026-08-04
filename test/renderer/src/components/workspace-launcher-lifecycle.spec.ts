@@ -28,12 +28,18 @@ const modalStub = {
   template: '<section><slot name="body"/><slot name="footer"/></section>',
 };
 const buttonStub = {
+  props: {
+    color: String,
+    variant: String,
+  },
   emits: ["click"],
-  template: '<button type="button" @click="$emit(\'click\')"><slot/></button>',
+  template:
+    '<button type="button" :data-color="color" :data-variant="variant" @click="$emit(\'click\')"><slot/></button>',
 };
 const commonStubs = {
   UModal: modalStub,
   UButton: buttonStub,
+  Button: buttonStub,
   UFormField: { template: "<label><slot/></label>" },
   UInput: { template: "<input />" },
   UIcon: true,
@@ -122,6 +128,21 @@ describe("Project/Workspace launcher lifecycle UI", () => {
     expect(wrapper.text()).toContain("Solo WorkspaceWorkspace");
     expect(wrapper.text()).toContain("查看全部 1 个 Project");
     expect(wrapper.text()).toContain("主 Project：/work/one");
+  });
+
+  it("keeps the recent-item delete action neutral until hover", () => {
+    mocks.recentWorkspaces = [launcher()];
+
+    const wrapper = mount(WorkspaceList, { global: { stubs: commonStubs } });
+    const deleteButton = wrapper.get('[aria-label="删除 Project"]');
+
+    expect(deleteButton.attributes()).toMatchObject({
+      "data-color": "neutral",
+      "data-variant": "ghost",
+    });
+    expect(deleteButton.classes()).toEqual(
+      expect.arrayContaining(["transition-colors", "hover:bg-error/10", "hover:text-error"])
+    );
   });
 
   it("keeps Project member controls hidden in edit mode", () => {
