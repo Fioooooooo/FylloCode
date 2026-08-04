@@ -14,7 +14,7 @@ Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方
 
 ## Proposal 列表
 
-列表页用于查看当前项目中的 proposal 状态。它帮助团队识别哪些变更仍在草稿、哪些已经可以执行、哪些已经归档。
+列表页用于查看当前 Workspace 各 Project 中的 proposal 状态。列表可以按 Project 和状态筛选，并显示 repository-owned 的归属，帮助团队识别哪些变更仍在草稿、哪些已经可以执行、哪些已经归档。同名 change 在不同 Project 中仍是彼此独立的 Proposal。
 
 ## Proposal 详情
 
@@ -39,5 +39,6 @@ Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方
 - 是否有被放弃方案和理由
 - tasks 是否细到可以执行和验收
 - 影响范围是否和项目规范一致
+- Proposal 是否属于正确的 Project，`folderId` 与仓库位置是否匹配
 
 Proposal 通过后再进入 Apply & Archive，可以减少“实现中才发现方案不对”的返工成本。

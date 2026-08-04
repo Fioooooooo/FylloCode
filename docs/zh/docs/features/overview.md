@@ -6,13 +6,19 @@ sidebar:
 
 # 项目概览
 
-项目概览是进入项目后的默认首屏。它把治理状态、进行中的变更、最近的 lineage 脉络和规范演化趋势聚合到一页，让你在开始新工作前先看到项目的真实状态。
+项目概览是打开 Workspace 后的默认首屏。它按 Project 聚合治理状态、进行中的变更、最近的 lineage 脉络和规范演化趋势，让你在开始新工作前先看到整个 Workspace 及各成员 Project 的真实状态。
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/project-overview.png" alt="项目概览页面截图" />
 </figure>
 
-页面数据全部来自项目本地：仓库文件扫描、git 历史查询和 lineage 投影，不依赖任何外部服务。
+同一页面会根据当前窗口身份展示 Project 或 Workspace 视角：下面的截图展示包含多个 Project 的 Workspace 概览。
+
+<figure class="fc-doc-image">
+  <img src="/assets/screenshots/workspace-overview.png" alt="Workspace 概览页面截图" />
+</figure>
+
+页面数据全部来自当前 Workspace 的本地数据：各 Project 的仓库文件扫描、git 历史查询和 Workspace lineage 投影，不依赖任何外部服务。
 
 ## 页面结构
 
@@ -26,17 +32,17 @@ sidebar:
 
 | 入口 | 口径与目标 |
 | --- | --- |
-| 能力规约 | 显示 `openspec/specs/` 下的规约数量，进入 `/specs` |
-| 归档提案 | 显示 `openspec/changes/archive/` 下的归档数量，进入 `/proposal` |
-| 项目准则 | 递归统计 `guidelines/**/*.md`，进入 `/guidelines` |
-| 知识沉淀 | 显示 knowledge 条目与扫描错误总数，进入 `/knowledge` |
-| 工作脉络 | 显示项目 lineage subject 总数，进入 `/lineage` |
+| 能力规约 | 聚合 Workspace 各 Project 的 `openspec/specs/`，进入 `/specs` |
+| 归档提案 | 聚合各 Project 的 `openspec/changes/archive/`，进入 `/proposal` |
+| 项目准则 | 聚合各 Project 的 `guidelines/**/*.md`，进入 `/guidelines` |
+| 知识沉淀 | 显示 Workspace knowledge 条目与扫描错误总数，进入 `/knowledge` |
+| 工作脉络 | 显示 Workspace lineage subject 总数，进入 `/lineage` |
 
 知识沉淀正在加载或失败时只影响该入口，不会让 Overview 主数据进入页面级错误。存在 `suspect`、`unknown` 或扫描错误时，入口会用提示图标和可访问文字显示需关注数量。
 
 ## 进行中
 
-展示当前所有未归档的活跃 Proposal。每个条目会显示 `creating`、`draft` 或 `applying` 状态，并通过 lineage 反查来源任务；linked worktree Proposal 还会显示可查看完整路径的 indicator。点击条目可直接进入对应的 [Proposal 详情](/docs/features/proposal)。
+展示当前 Workspace 内所有 Project 的未归档活跃 Proposal。每个条目会显示 `creating`、`draft` 或 `applying` 状态、所属 Project 和 repository-owned 归属；linked worktree Proposal 还会显示可查看完整路径的 indicator。点击条目可直接进入对应的 [Proposal 详情](/docs/features/proposal)。
 
 ## 最近脉络
 
@@ -58,6 +64,6 @@ sidebar:
 
 ## 数据口径与刷新
 
-- 仓库扫描和 lineage 投影每次进入页面实时读取
-- git 历史查询按项目缓存 60 秒，短时间内反复进入不会重复执行 git 命令
-- 项目缺少 `openspec/`、`guidelines/` 目录，或不是 git 仓库时，对应区块显示为空，不影响页面其余部分
+- 仓库扫描和 lineage 投影每次进入页面实时读取，并保留 Project 归属
+- git 历史查询按 Project 缓存 60 秒，短时间内反复进入不会重复执行 git 命令
+- Project 缺少 `openspec/`、`guidelines/` 目录时，对应治理统计显示为空；没有 Git 历史时仅 Git evolution 显示为空，其余治理信息仍可用

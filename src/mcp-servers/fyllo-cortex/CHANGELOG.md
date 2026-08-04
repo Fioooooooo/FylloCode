@@ -4,6 +4,22 @@ All notable changes to the `fyllo-cortex` MCP server will be documented in this 
 
 The format is based on Keep a Changelog.
 
+## [0.7.0] - 2026-08-04
+
+### Changed
+
+- **Breaking**: Guidelines, knowledge, and lineage now resolve from the Workspace v2 descriptor and preserve the owning Project/Folder identity for repository-backed evidence.
+- **Breaking**: Repository lineage inputs use an explicit `folderId` for Project ownership, and multi-Project callers cannot rely on a single project path or current working directory.
+- Bundled server authorization now follows the active Workspace MCP activation, with the same context model for HTTP and stdio transports.
+
+### Removed
+
+- **Breaking**: Legacy project path, project-data, request-header, and caller-working-directory fallbacks are no longer part of the server contract.
+
+### Compatibility
+
+- Workspace-scoped knowledge remains independent of any single repository; repository evidence and lineage results identify the Project/Folder that owns each source.
+
 ## [0.6.0] - 2026-07-30
 
 ### Added

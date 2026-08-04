@@ -14,10 +14,11 @@ sidebar:
 
 ## 主要能力
 
-- 管理项目内的会话列表
+- 管理 Workspace 内的会话列表
 - 将重要会话置顶到独立分组，重启后仍保持置顶状态
 - 独立折叠“置顶会话”和“最近会话”分组，并在多个展开分组之间平分可用高度
 - 选择已安装的 ACP Agent
+- 在 Chat header 查看固定的 Session scope，区分当前 Workspace、快照外成员和 stale 成员
 - 发送文本和附件上下文
 - 展示 Agent 的思考、工具调用、子 Agent 调用和流式输出状态
 - 支持 Mermaid、Markdown 等结构化内容展示
@@ -43,9 +44,13 @@ sidebar:
 
 当 Claude Code 通过 Agent 工具启动子 Agent 时，父调用会渲染为独立卡片。打开详情后，可以查看 prompt、状态、模型、token、耗时、工具统计、子工具活动和最终回复。详情只连接同一条 assistant 消息内可安全确认的父子工具关系；无法关联的工具仍按普通工具展示。
 
+## Session scope
+
+创建多根 ACP Session 时，FylloCode 会固定当时的 Workspace 成员快照。具备额外目录能力的 Agent 可以同时访问授权的多个 Project；Workspace 后续增删或移动成员不会改变已经运行的 Session。Chat header 的 scope popover 会列出每个 Project、路径和主 Project 标识，并在当前 Workspace 与 Session 快照不一致时显示提醒。关于多根 Workspace 要解决的问题和授权边界，见[多根 Workspace](/docs/features/multi-root-workspace)。
+
 ## 预览本地文件
 
-Agent 输出的 Markdown 链接如果指向 POSIX、Windows drive 或 UNC 绝对路径，点击后会在窗口级 Slideover 中打开只读预览。项目根和当前项目已注册 worktree 内的文件可直接读取；指向这些可信根之外的文件时，FylloCode 会在读取内容前显示完整规范路径、大小和修改时间，并要求选择“仅打开一次”或“打开并在此窗口中信任”。
+Agent 输出的 Markdown 链接如果指向 POSIX、Windows drive 或 UNC 绝对路径，点击后会在窗口级 Slideover 中打开只读预览。当前 Session 快照中各 Project 的根目录和已注册 worktree 内的文件可直接读取；指向这些可信根之外的文件时，FylloCode 会在读取内容前显示完整规范路径、大小和修改时间，并要求选择“仅打开一次”或“打开并在此窗口中信任”。
 
 预览只接受不超过 5 MiB 的 UTF-8 普通文本文件，不支持目录、设备、二进制或无效 UTF-8 文件。链接末尾可使用 `:line[:column]` 定位源码；预览允许搜索、选择和复制，但不提供保存或回写。窗口信任只保存在当前 Renderer Window 的内存中，关闭窗口或重启应用后会失效。
 
@@ -77,4 +82,4 @@ Fyllo Signal 是 Agent 在 assistant 正文中输出的被动展示标记。当�
 
 普通 Agent 会话通常只有当前代码和本次 prompt。FylloCode 会把项目规范、历史决策、任务上下文和 guidelines 组织成 Agent 可读取的背景，让 Agent 在更明确的边界内工作。
 
-对话页面的重点不是替代所有聊天工具，而是让聊天结果进入可治理流程：当问题收敛、决策确定后，应该生成 Proposal；Proposal 通过后进入 Apply & Archive，把实现与变更记录沉淀下来。
+对话页面负责把聊天结果送入可治理流程：当问题收敛、决策确定后，应该生成 Proposal；Proposal 通过后进入 Apply & Archive，把实现与变更记录沉淀下来。

@@ -18,11 +18,12 @@ Task Board is the task entry point in FylloCode. It gathers local tasks and task
 - Create local tasks
 - Start a discussion from a task card
 - Provide task context for later Proposals
+- Bind task targets to one or more Workspace Projects, retaining identifiable stale targets when a member is removed. See [Multi-root Workspace](/en/docs/features/multi-root-workspace) for multi-Project task context.
 - Reserve integration points for external task systems such as Yunxiao
 
 ## Usage Advice
 
-A Task should be more than a title. To make the later Proposal reviewable, include:
+A Task needs a title and enough context for later Proposal review. Include:
 
 - Problem context
 - Current behavior and expected behavior

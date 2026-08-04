@@ -6,7 +6,7 @@ sidebar:
 
 # 项目准则
 
-项目准则页面用于浏览当前项目的 guidelines（工程约定文档）。页面本身是只读的，guideline 的创建和更新由 Agent 在工作中通过 `fyllo-cortex` 的 `guidelines` 工具完成。
+项目准则页面用于浏览当前 Workspace 各 Project 的 guidelines（工程约定文档）。页面本身是只读的，guideline 的创建和更新由 Agent 在工作中通过 `fyllo-cortex` 的 `guidelines` 工具完成，并保留每份文档的 Project 归属。
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/guidelines.png" alt="项目准则页面截图" />
@@ -20,7 +20,7 @@ Guidelines 是项目自己的架构边界、命名约定、测试要求等工程
 
 Guidelines 的价值在于持续跟真实代码保持一致，这依赖一个由 Agent 驱动的小闭环：
 
-- **Chat / Apply 开始时**：FylloCode 扫描当前工作区的 `guidelines/**/*.md`，把每个文件的 frontmatter 组成索引注入给 Agent，Agent 按需读取相关文档全文
+- **Chat / Apply 开始时**：FylloCode 扫描当前 Workspace 各 Project 的 `guidelines/**/*.md`，把每个文件的 frontmatter 组成带归属的索引注入给 Agent，Agent 按需读取相关文档全文
 - **创建 Proposal 前、Apply 或直接实现完成后**：要求 Agent 考虑这次改动是否需要新增或更新 guideline
 - **Archive 前**：再次检查已完成的变更是否改变了命令、架构、测试方式、工作流或数据契约，如果是，归档前更新对应 guideline
 
@@ -28,7 +28,7 @@ Guidelines 的价值在于持续跟真实代码保持一致，这依赖一个由
 
 ## 页面结构
 
-左侧列出当前项目的全部 guideline 文件；右侧显示选中文档的说明和正文。文档如果缺少合法的 frontmatter，页面会用告警图标提示解析异常，此时 Agent 很难只通过索引判断是否需要打开该文档，建议尽快修复。
+左侧按 Project 列出当前 Workspace 的全部 guideline 文件；右侧显示选中文档的说明和正文。文档如果缺少合法的 frontmatter，页面会用告警图标提示解析异常，此时 Agent 很难只通过索引判断是否需要打开该文档，建议尽快修复。
 
 ## 适用场景
 

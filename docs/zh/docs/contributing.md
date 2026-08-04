@@ -76,6 +76,7 @@ PR 需要保持聚焦，标题清楚说明改了什么。如果影响用户可�
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm icon:check
 ```
 
 commit message 格式：
@@ -105,7 +106,7 @@ scope 对应模块或功能区域，例如 `overview`、`chat`、`proposal`、`s
 1. 以最近语义化版本标签到 `HEAD` 为发布范围，核对归档规约、实现和测试。
 2. 对每项已发布变更完成中英文文档审计，更新两份根 changelog 和 `package.json`。
 3. 按各自变更边界独立判断 `fyllo-specs` 与 `fyllo-cortex` 版本。
-4. 准备中英文 release notes，并运行 lint、typecheck 和测试。
+4. 准备中英文 release notes，并运行 `pnpm icon:check`、lint、typecheck 和测试。
 
 构建与打包命令只有在当前对话获得明确授权后才能运行。release commit、annotated tag、push 和 GitHub Release publish 是四个独立审批点；“准备发版”不会自动授权后续步骤。
 

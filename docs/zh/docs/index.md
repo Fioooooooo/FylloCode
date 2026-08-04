@@ -35,8 +35,9 @@ FylloCode 是面向持续使用 Coding Agent 的桌面应用。它不直接替�
 | Proposal | 面向契约变化的方案评审实体，通常包含 proposal、design、specs、tasks 四类产物 |
 | Apply & Archive | 在已确认边界内执行实现，并归档决策、实现结果、spec 更新（如涉及）和 guidelines 演进 |
 | [guideline](/docs/features/guidelines) | 项目自己的工程约定，由 Agent 在 Chat、Apply、Archive 几个检查点自驱动维护，跟真实代码保持同步 |
-| [knowledge](/docs/features/knowledge) | 跨任务、跨会话共享的项目级事实积累，由 Agent 按一套判断标准（flag test）识别并沉淀 |
+| Project / Workspace | Project 是一个仓库成员，Workspace 是可容纳多个 Project 的工作上下文，最多支持 16 个成员 |
+| [knowledge](/docs/features/knowledge) | 跨 Project、跨任务、跨会话共享的 Workspace 级事实积累，由 Agent 按一套判断标准（flag test）识别并沉淀 |
 | [lineage](/docs/guide/lineage) | 串联一次变更各阶段的可追溯线索，让固化结果自动作用到下一次任务 |
 | [fyllo-action](/docs/reference/fyllo-action) | ACP Agent 与 FylloCode 交互的结构化通道，用于任务创建、plan 审阅、knowledge 标记与复核 |
-| fyllo-specs | 内置 MCP server，围绕 OpenSpec 暴露项目规范、Plan 与 Proposal 工作流 |
+| fyllo-specs | 内置 MCP server，围绕 OpenSpec 暴露按 Project 归属的规范、Plan 与 Proposal 工作流 |
 | fyllo-cortex | 内置 MCP server，提供 guidelines、knowledge 与 lineage 工具，用于沉淀项目工程知识并追溯设计决策 |

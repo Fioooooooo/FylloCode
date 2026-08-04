@@ -14,9 +14,9 @@ sidebar:
 
 FylloCode 是桌面应用，适合直接打开本地代码库工作。当前新版本提示会引导用户打开 Release 页面下载安装包，不是后台自动更新。
 
-## 打开项目
+## 打开 Project 或 Workspace
 
-启动 FylloCode 后，选择一个本地代码库作为项目。推荐先从一个已经有明确工程规范的项目开始，这样 `fyllo-specs` 和 `fyllo-cortex` 能更好地发挥作用。
+启动 FylloCode 后，在 Launcher 中选择一个本地代码库作为 Project，也可以把多个 Project 组织到同一个 Workspace 中。关于“一个窗口、多个 Project、一个 Agent 上下文”的使用方式，见[多根 Workspace](/docs/features/multi-root-workspace)。推荐先从一个已经有明确工程规范的 Project 开始，这样 `fyllo-specs` 和 `fyllo-cortex` 能更好地发挥作用。
 
 如果项目还没有 OpenSpec 结构，FylloCode 在创建 proposal 时会补齐最小结构，包括：
 
@@ -71,4 +71,4 @@ FylloCode 通过 Agent Client Protocol 接入不同 Agent。Agent 会按 `native
 
 Proposal 评审通过后，按 `tasks.md` 执行实现；实现完成后归档，把代码变更范围、决策上下文、spec 更新和 guidelines 演进结果沉淀下来，作为下一次任务的背景知识。
 
-建议第一次使用时选择小范围变更，完整走一遍 Task → Chat → Proposal → Apply & Archive。这样能更快理解 FylloCode 的价值，也能暴露团队现有规范中不够清晰的部分。
+建议第一次使用时选择小范围变更，完整走一遍 Task → Chat → Proposal → Apply & Archive。这样能更快理解 FylloCode 的价值，也能暴露 Workspace 中各 Project 现有规范不够清晰的部分。

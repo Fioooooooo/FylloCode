@@ -25,7 +25,7 @@ sidebar:
 
 服务连接页面支持 `focus` 查询参数。项目集成需要配置某个 provider 时，会打开 `/settings/connections?focus=<providerId>`；provider 数据加载和连接探测完成后，页面会滚动并聚焦对应卡片。不带 `focus` 时展示完整连接列表。
 
-服务连接只调整用户可见术语和导航路径。内部 `Provider`、`ProviderConnection`、store 与 API 契约保持不变。更多项目级工具配置见[研发系统集成](/docs/features/integrations)。
+服务连接只调整用户可见术语和导航路径。内部 `Provider`、`ProviderConnection`、store 与 API 契约保持不变。更多 Workspace / Project 绑定的工具配置见[研发系统集成](/docs/features/integrations)。
 
 ## 路径兼容性
 

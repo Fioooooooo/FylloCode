@@ -4,6 +4,23 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.10.0] - 2026-08-04
+
+### Changed
+
+- **Breaking**: Proposal operations now resolve through the Workspace v2 descriptor and an owner-qualified `folderId`; `apply-change` and `archive-change` no longer accept caller-controlled target paths or worktree paths.
+- **Breaking**: `create-proposal` now uses `worktreeMode` (`linked` or `main`) instead of `workspaceMode`, and multi-Project workspaces require an explicit `folderId`.
+- **Breaking**: `explore` aggregates authorized Project-owned changes with owner-qualified Proposal references instead of assuming one current project.
+- Bundled server authorization now follows the active Workspace MCP activation, with the same context model for HTTP and stdio transports.
+
+### Removed
+
+- **Breaking**: Legacy project path, project-data, request-header, and caller-working-directory fallbacks are no longer part of the server contract.
+
+### Compatibility
+
+- Callers using the multi-Project API must supply the Project owner when a change name is not unique; single-Project requests may continue to use the server's unambiguous resolution path.
+
 ## [0.9.0] - 2026-07-30
 
 ### Added

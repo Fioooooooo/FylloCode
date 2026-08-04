@@ -35,8 +35,9 @@ To contribute to the project, continue with the [Contributing Guide](/en/docs/co
 | Proposal | A review artifact for contract-changing work, usually containing proposal, design, specs, and tasks. |
 | Apply & Archive | The implementation stage inside an approved boundary, followed by archiving decisions, results, spec updates (when applicable), and guideline evolution. |
 | [guideline](/en/docs/features/guidelines) | A project's own engineering conventions, self-maintained by the Agent at checkpoints in Chat, Apply, and Archive to stay in sync with the real code. |
-| [knowledge](/en/docs/features/knowledge) | Project-level facts shared across tasks and sessions, identified and captured by the Agent using a judgment test (the "flag test"). |
+| Project / Workspace | A Project is one repository member; a Workspace is the working context that can contain up to 16 Projects. |
+| [knowledge](/en/docs/features/knowledge) | Workspace-level facts shared across Projects, tasks, and sessions, identified and captured by the Agent using a judgment test (the "flag test"). |
 | [lineage](/en/docs/guide/lineage) | A traceable path across the stages of one change, so archived outcomes can inform future tasks. |
 | [fyllo-action](/en/docs/reference/fyllo-action) | The structured channel an ACP Agent uses to interact with FylloCode, for task creation, plan review, and knowledge flag/review. |
-| fyllo-specs | The built-in MCP server that exposes OpenSpec-based project specifications, Plan, and Proposal workflows. |
+| fyllo-specs | The built-in MCP server that exposes Project-owned OpenSpec specifications, Plan, and Proposal workflows. |
 | fyllo-cortex | The built-in MCP server that provides guidelines, knowledge, and lineage tools for accumulating project engineering knowledge and tracing design decisions. |

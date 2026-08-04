@@ -14,7 +14,7 @@ The Proposal page is one of FylloCode's core workspaces. It brings together a ch
 
 ## Proposal List
 
-The list page shows proposal status in the current project. It helps the team identify which changes are still drafts, which are ready to apply, and which have already been archived.
+The list page shows proposal status across the current Workspace's Projects. You can filter by Project and status, and each item displays its repository-owned identity so the team can identify which changes are still drafts, ready to apply, or already archived. The same change name in two Projects still represents two separate Proposals.
 
 ## Proposal Detail
 
@@ -39,5 +39,6 @@ When reviewing a Proposal, focus on:
 - Whether rejected options and reasons are recorded
 - Whether tasks are executable and verifiable
 - Whether the impact scope matches project rules
+- Whether the Proposal belongs to the correct Project and its `folderId` matches the repository location
 
 Moving to Apply & Archive after Proposal approval reduces the cost of discovering plan mistakes during implementation.

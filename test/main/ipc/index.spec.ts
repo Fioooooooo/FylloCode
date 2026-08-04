@@ -16,6 +16,7 @@ import { WorkspaceDocumentChannels } from "@shared/ipc/workspace/document.channe
 const mocks = vi.hoisted(() => ({
   browserWindowFromWebContents: vi.fn(),
   ipcMainHandle: vi.fn(),
+  ipcMainOn: vi.fn(),
   sessionProbeBusOnUpdate: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ vi.mock("electron", async (importOriginal) => {
     ipcMain: {
       ...actual.ipcMain,
       handle: mocks.ipcMainHandle,
+      on: mocks.ipcMainOn,
     },
   };
 });

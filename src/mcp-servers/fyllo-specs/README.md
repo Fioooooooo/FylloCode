@@ -12,7 +12,7 @@ This document focuses on three things:
 
 - the full invocation chain from Electron main process to OpenSpec CLI
 - the stdio and HTTP transport modes
-- the environment-variable contract the server depends on
+- the Workspace v2 context, Project ownership, and environment-variable contract the server depends on
 
 The chain is intentionally written down in detail because it crosses multiple runtimes and packaging boundaries. Future bundled MCP servers should use this as a reference.
 
@@ -23,7 +23,9 @@ The chain is intentionally written down in detail because it crosses multiple ru
 - `src/tools/`: tool handlers
 - `src/tools/instructions/*.md`: prompt text loaded by tools
 - `src/runtime-openspec/`: OpenSpec CLI adapter
-- `src/utils/project-root.ts`: project-root resolver
+- `src/runtime-workspace/`: ProposalRef resolution and fixed Proposal targets
+- `src/utils/project-root.ts`: compatibility helper backed by the shared Workspace resolver
+- `../shared/workspace-resolver.ts`: Workspace v2 and authorized Folder resolver
 - `../../../test/mcp-servers/fyllo-specs/`: Vitest tests
 
 ## Build And Packaging
@@ -139,7 +141,7 @@ Responsibility:
 
 The tools do not spawn child processes directly and do not import `@fission-ai/openspec` as a library.
 
-### 6. `runtime-openspec` resolves project root and CLI path
+### 6. `runtime-openspec` resolves the authorized Folder and CLI path
 
 Files:
 
@@ -149,19 +151,20 @@ Files:
 Responsibility:
 
 - `resolveProjectRoot()`
-  - read the immutable Workspace v2 descriptor
-  - use its only Folder for repository-scoped operations
-  - reject multi-root calls with an owner-required error until the tool contract supplies `folderId`
+  - read the immutable Workspace v2 descriptor through the shared resolver
+  - use the only authorized Folder for legacy single-root helper calls
+  - reject ambiguous multi-root calls unless the tool schema supplies an explicit `folderId`
 - `validateTargetPath()`
-  - accept only that Folder root or a registered worktree of the same repository
+  - accept only the selected Folder root or a registered worktree of the same repository
 - `resolveOpenspecCli()`
   - use `FYLLO_OPENSPEC_CLI_PATH` first
   - otherwise probe fallback candidates
 
-Why the Workspace descriptor exists:
+Why the Workspace descriptor and owner-qualified ProposalRef exist:
 
 - MCP server `cwd` and caller-provided absolute paths are not authorization facts
 - the server must operate only within the activation's fixed Folder allowlist
+- Proposal operations must resolve `{ folderId, changeId }` to a repository-owned target instead of trusting caller paths
 
 Why `FYLLO_OPENSPEC_CLI_PATH` exists:
 

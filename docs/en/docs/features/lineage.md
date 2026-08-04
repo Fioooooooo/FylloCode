@@ -6,7 +6,7 @@ sidebar:
 
 # Work Lineage
 
-The Work Lineage page lists every lineage subject in the current project. Use it to see where a piece of work started, which Chat sessions and Plans shaped it, which Proposals it produced, and which Commit completed it. The page reads local project data without modifying lineage, Session, Plan, or Proposal files.
+The Work Lineage page lists every lineage subject in the current Workspace. Use it to see where a piece of work started, which Chat sessions and Plans shaped it, which Proposals it produced, and which Commit completed it. The page reads local Workspace data, retains Project/Folder ownership for repository sources, and does not modify lineage, Session, Plan, or Proposal files.
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/lineage.png" alt="Work Lineage page screenshot" />
@@ -20,7 +20,7 @@ The left list sorts all subjects by most recent update and provides four filters
 
 | Filter | Entries shown |
 | --- | --- |
-| All | Every work lineage in the current project |
+| All | Every work lineage in the current Workspace |
 | Active | Subjects whose aggregate state is not completed |
 | Archived | Subjects with at least one Proposal whose associated Proposals are all archived |
 | Unlinked | Subjects that are not linked to a task |
@@ -55,8 +55,8 @@ If supplemental Session, Plan, or Proposal metadata is missing, the stable ID re
 
 - Data is a read-only projection of existing lineage subjects, Session metadata, Plan documents, and Proposal metadata.
 - The page cannot create, delete, merge, split, or rebind lineage subjects.
-- Data reloads when the page opens or the current project changes. A late response from the previous project cannot replace current results.
+- Data reloads when the page opens or the current Workspace changes. A late response from the previous Workspace cannot replace current results.
 - A top-level query failure produces a page error instead of presenting partial data as a successful result.
-- Existing projects do not require a data migration.
+- Workspace migration runs during main-process startup; this page reads the projection after settlement completes.
 
 See [Lineage Traceability](/en/docs/guide/lineage) for how subjects are created, how tasks can be added later, and where lineage data is stored.

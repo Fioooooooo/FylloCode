@@ -16,16 +16,16 @@ sidebar:
 
 ## Bundled Transport 与上下文
 
-在 FylloCode 应用内，`fyllo-cortex` 由应用级 bundled MCP host 托管。声明 HTTP MCP 能力的 ACP Agent 会通过稳定 loopback proxy 复用同一个后端进程；每个请求都使用应用运行期 bearer token 鉴权，并通过请求级上下文隔离项目路径、项目数据目录和可选 session 信息。并发项目调用不会通过修改 `process.env` 互相切换上下文。
+在 FylloCode 应用内，`fyllo-cortex` 由应用级 bundled MCP host 托管。声明 HTTP MCP 能力的 ACP Agent 会通过稳定 loopback proxy 复用后端进程；每次 Workspace MCP activation 获得独立 capability，proxy 校验 server scope 后注入 Workspace v2 上下文。stdio 通过 `FYLLO_WORKSPACE_JSON` 接收同一份冻结 descriptor。调用方看不到内部 bearer token，也不能通过自带请求头或 cwd 伪造 Project/Folder 上下文。
 
-Agent 不支持 HTTP、后端未就绪或 host 不可用时，FylloCode 会回退到原有 stdio transport。`guidelines`、`knowledge`、`lineage` 的名称、mode、输入输出、存储位置和错误语义保持不变。设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会完全禁用 bundled MCP 注入。
+Agent 不支持 HTTP、后端未就绪或 host 不可用时，FylloCode 会回退到 stdio transport。`guidelines`、`knowledge`、`lineage` 的 tool 名称和 mode 保持，Workspace v2 下的 owner 输入与 repository evidence 契约已更新。设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会完全禁用 bundled MCP 注入。
 
 ## guidelines tool
 
-`guidelines` 用于维护项目 guidelines。正常读取 guidelines 的路径不是调用 tool，而是：
+`guidelines` 用于维护指定 Project 的 guidelines。正常读取 guidelines 的路径不是调用 tool，而是：
 
-1. FylloCode 在新的 Chat / Apply ACP session 启动时扫描当前工作区的 `guidelines/**/*.md`
-2. 将每个文件的 frontmatter 组成 `<guidelines>` 索引注入 system reminder
+1. FylloCode 在新的 Chat / Apply ACP session 启动时扫描当前 Workspace 中授权 Project 的 `guidelines/**/*.md`
+2. 按 Folder/Project 归属将每个文件的 frontmatter 组成 `<guidelines>` 索引注入 system reminder
 3. Agent 根据索引中的 `path` 直接读取相关 guideline 全文
 
 Archive 阶段不会注入 `<guidelines>` 索引，但会在归档前要求 Agent 检查本次变更是否应该更新 guidelines。
@@ -101,14 +101,14 @@ guidelines 不只由 `fyllo-cortex.guidelines` tool 触发。FylloCode 会在多
 
 Chat 与 Apply 的 `<guidelines>` 索引来自当前 workspace：
 
-- 如果当前阶段有 linked worktree，优先扫描 worktree 下的 `guidelines/`
-- 否则扫描项目主目录下的 `guidelines/`
+- Chat 会按 Session Workspace snapshot 分组扫描各 Project；如果某个 Project 使用 linked worktree，优先扫描该 worktree 下的 `guidelines/`
+- Apply 等单仓库阶段扫描 Proposal owner 的 worktree 或主目录
 - 如果没有 `guidelines/` 或没有 Markdown 文件，就不注入 `<guidelines>` 块
 - frontmatter 中的尖括号会被转义，避免用户编写的元数据提前关闭 `<guidelines>` 块
 
 ## knowledge tool
 
-`knowledge` 用于维护存储在 FylloCode 应用数据目录中的持久化项目知识，与 guidelines 不同，knowledge 条目不写入项目仓库，而是跨任务、跨会话共享的项目级积累。产品层面的浏览方式见 [知识沉淀](/docs/features/knowledge)。
+`knowledge` 用于维护存储在 FylloCode 应用数据目录中的持久化 Workspace 知识，与 guidelines 不同，knowledge 条目不写入 Project 仓库，而是跨 Project、跨任务、跨会话共享的 Workspace 级积累；引用仓库证据时会保留所属 `folderId`。产品层面的浏览方式见 [知识沉淀](/docs/features/knowledge)。
 
 ### 什么时候触发捕获
 
@@ -131,7 +131,7 @@ Agent 完成 `capture` 写入或 `update` 修订后，会放置一张 `knowledge
 
 ## lineage tool
 
-`lineage` 用于查询既有代码背后的设计历史。它返回的是 FylloCode lineage subject 的投影，包含任务摘要、Chat session、proposal、plan、commit hash、proposal 路径和当前 proposal 状态。
+`lineage` 用于查询既有代码背后的设计历史。它返回的是 FylloCode lineage subject 的投影，包含任务摘要、Chat session、proposal、plan、commit hash、proposal 路径和当前 proposal 状态；repository trace 必须明确所属 `folderId`，可选 `worktreePath` 也必须是该 Folder 已注册的 worktree。
 
 常见使用场景是用户问“这段代码为什么这样写”“这个 commit 背后的任务是什么”“这个 proposal 后来落地了吗”。这类问题仅靠 git commit message 往往不够，`lineage` 会把代码变更追溯回任务、对话和 OpenSpec artifacts。
 
@@ -139,12 +139,10 @@ Agent 完成 `capture` 写入或 `update` 修订后，会放置一张 `knowledge
 
 | mode | 输入 | 返回 |
 | --- | --- | --- |
-| `trace-file` | `filePath`，可选 `lineRange` | 查找触碰该文件的 commits，并返回匹配到的 lineage entries；这是回答“为什么这个文件这样写”的首选入口 |
-| `trace-commit` | `commitHash` | 返回该 commit 对应的 lineage entry |
-| `trace-proposal` | `changeId` | 返回该 OpenSpec change 对应的 lineage entry |
+| `trace-file` | `folderId`、`filePath`，可选 `lineRange` / `worktreePath` | 在指定 Project 中查找触碰该文件的 commits，并返回带 repository origin/reference 的 lineage entries |
+| `trace-commit` | `folderId`、`commitHash`，可选 `worktreePath` | 返回该 Project 中 commit 对应的 lineage entry |
+| `trace-proposal` | `folderId`、`changeId`，可选 `worktreePath` | 返回该 Project 中 OpenSpec change 对应的 lineage entry |
 
 当没有匹配结果或项目缺少 lineage 数据时，tool 返回 `null` 或空数组。它只读取项目数据和 git 历史，不修改文件。
 
 ## 适用场景
-
-`fyllo-cortex` 解决的是工程知识如何持续沉淀和重新取用的问题。`guidelines` 让新形成的约定、踩过的坑和边界规则进入后续会话；`knowledge` 让不适合放进 guidelines 的项目级事实（业务背景、用户指令、意外发现）同样能被后续会话取用；`lineage` 让后续 Agent 能从代码、commit 或 proposal 反查当时的任务和决策依据。

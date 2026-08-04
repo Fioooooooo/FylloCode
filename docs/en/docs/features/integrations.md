@@ -30,8 +30,8 @@ The page shows:
   <img src="/assets/screenshots/integration.png" alt="Integration tool page screenshot" />
 </figure>
 
-The project integration page manages project-level tool capabilities such as task reading, result writeback, repository association, and pipeline association. Different providers may expose different tools. When a provider is disconnected or its connection expires, the page opens `/settings/connections?focus=<providerId>` to locate the corresponding service connection.
+The Workspace integration page manages tool capabilities across Projects, such as task reading, result writeback, repository association, and pipeline association. Resources that access a repository are explicitly bound to a Project in the Workspace; removed members remain as stale bindings so historical data is not mistaken for a current resource. Different providers may expose different tools. When a provider is disconnected or its connection expires, the page opens `/settings/connections?focus=<providerId>` to locate the corresponding service connection.
 
 ## Current Focus
 
-Treat the connection state and project tools shown in the application as the available capability. A placeholder for an unavailable provider does not mean connection, task synchronization, or result writeback is supported.
+Treat the connection state and Project-bound tools shown in the application as the available capability. A placeholder for an unavailable provider does not mean connection, task synchronization, or result writeback is supported.

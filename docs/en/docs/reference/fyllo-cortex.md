@@ -16,16 +16,16 @@ sidebar:
 
 ## Bundled Transport and Context
 
-Inside the FylloCode application, `fyllo-cortex` is hosted by an application-level bundled MCP host. ACP Agents that declare HTTP MCP capability reuse one backend process through a stable loopback proxy. Every request uses an application-lifetime bearer token and request-scoped isolation for the project path, project-data directory, and optional session context. Concurrent project calls do not switch one another by mutating `process.env`.
+Inside the FylloCode application, `fyllo-cortex` is hosted by an application-level bundled MCP host. ACP Agents that declare HTTP MCP capability reuse one backend process through a stable loopback proxy; each Workspace MCP activation receives its own capability, and the proxy validates the server scope before injecting Workspace v2 context. stdio receives the same frozen descriptor through `FYLLO_WORKSPACE_JSON`. Callers never see the internal bearer token and cannot forge Project/Folder context through caller headers or cwd.
 
-When an Agent lacks HTTP support, the backend is not ready, or the host is unavailable, FylloCode falls back to the existing stdio transport. The `guidelines`, `knowledge`, and `lineage` names, modes, inputs, outputs, storage locations, and error semantics remain unchanged. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables bundled MCP injection completely.
+When an Agent lacks HTTP support, the backend is not ready, or the host is unavailable, FylloCode falls back to stdio. The `guidelines`, `knowledge`, and `lineage` tool names and modes remain, while Workspace v2 owner inputs and repository-evidence contracts have changed. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables bundled MCP injection completely.
 
 ## guidelines Tool
 
-`guidelines` maintains project guidelines. Normal guideline reading does not go through this tool:
+`guidelines` maintains guidelines for a selected Project. Normal guideline reading does not go through this tool:
 
-1. When a new Chat / Apply ACP session starts, FylloCode scans `guidelines/**/*.md` in the current workspace.
-2. It builds a `<guidelines>` index from each file's frontmatter and injects that index into the system reminder.
+1. When a new Chat / Apply ACP session starts, FylloCode scans `guidelines/**/*.md` in authorized Workspace Projects.
+2. It builds an ownership-qualified `<guidelines>` index from each file's frontmatter and injects that index into the system reminder.
 3. The Agent uses the `path` values in that index to read the relevant guideline documents directly.
 
 The Archive stage does not inject the `<guidelines>` index, but it still requires a final guideline checkpoint before archiving.
@@ -101,20 +101,20 @@ Guidelines are not triggered only by the `fyllo-cortex.guidelines` tool. FylloCo
 
 The Chat and Apply `<guidelines>` index comes from the current workspace:
 
-- If the stage uses a linked worktree, FylloCode scans that worktree's `guidelines/` first.
-- Otherwise it scans the main project `guidelines/`.
+- Chat scans each Project in the Session Workspace snapshot; if a Project uses a linked worktree, FylloCode scans that worktree's `guidelines/` first.
+- Apply and other single-repository stages scan the Proposal owner's worktree or main repository.
 - If there is no `guidelines/` directory or no Markdown files, no `<guidelines>` block is injected.
 - Angle brackets in frontmatter are escaped so user-authored metadata cannot close the `<guidelines>` block early.
 
 ## knowledge Tool
 
-`knowledge` maintains durable project knowledge stored in FylloCode's app data directory. Unlike guidelines, knowledge entries are not written into the project repository — they are a project-level accumulation shared across tasks and sessions. See [Knowledge](/en/docs/features/knowledge) for how to browse entries in the product.
+`knowledge` maintains durable Workspace knowledge stored in FylloCode's app data directory. Unlike guidelines, knowledge entries are not written into a Project repository. They are shared across Projects, tasks, and sessions, while repository evidence retains its owning `folderId`. See [Knowledge](/en/docs/features/knowledge) for the product view.
 
 ### When capture triggers
 
-The Agent doesn't call this tool continuously. It follows a judgment test: if this fact were lost, would a future session pay for it — by re-deriving it, re-reading it, or getting it wrong? When the test is met, the Agent places a `knowledge.flag` [fyllo-action](/en/docs/reference/fyllo-action) card in the session as a low-cost bookmark, without calling the `knowledge` tool yet and without interrupting the current discussion.
+The Agent doesn't call this tool continuously. It follows a judgment test: if this fact were lost, would a future session pay for it by re-deriving it, re-reading it, or getting it wrong? When the test is met, the Agent places a `knowledge.flag` [fyllo-action](/en/docs/reference/fyllo-action) card in the session as a bookmark. It does not call the `knowledge` tool yet or interrupt the discussion.
 
-Only when the user confirms a pending flag card in the chat transcript, or explicitly asks to capture durable knowledge, does the Agent call the `knowledge` tool with `mode: capture` — at which point every pending flag in the session is bundled into one capture request. The session event rail only summarizes and locates these pending items; it has no confirmation buttons.
+The Agent calls the `knowledge` tool with `mode: capture` only after you confirm a pending flag card in the chat transcript or explicitly ask to capture durable knowledge. It bundles every pending flag in the session into one capture request. The session event rail only summarizes and locates these items; it has no confirmation buttons.
 
 ### Maintenance modes
 
@@ -131,7 +131,7 @@ After the Agent finishes a `capture` write or an `update` revision, it places a 
 
 ## lineage Tool
 
-`lineage` retrieves the design history behind existing code. It returns a projection of the FylloCode lineage subject, including task summary, Chat sessions, proposals, plans, commit hashes, proposal paths, and current proposal status.
+`lineage` retrieves the design history behind existing code. It returns a projection of the FylloCode lineage subject, including task summary, Chat sessions, proposals, plans, commit hashes, proposal paths, and current proposal status. Repository traces require an explicit owning `folderId`; an optional `worktreePath` must be registered for that Folder.
 
 Use it when the user asks why code was written a certain way, which task produced a commit, or whether a proposal eventually landed. Git commit messages alone usually cannot answer those questions; `lineage` traces the change back to tasks, discussions, and OpenSpec artifacts.
 
@@ -139,12 +139,12 @@ It has three query modes:
 
 | mode | Input | Returns |
 | --- | --- | --- |
-| `trace-file` | `filePath`, optional `lineRange` | Finds commits that touched the file and returns matching lineage entries. This is the preferred entry point for "why does this file look like this?" questions. |
-| `trace-commit` | `commitHash` | Returns the lineage entry for that commit. |
-| `trace-proposal` | `changeId` | Returns the lineage entry for that OpenSpec change. |
+| `trace-file` | `folderId`, `filePath`, optional `lineRange` / `worktreePath` | Finds commits in the selected Project that touched the file and returns lineage entries with repository origins and references. |
+| `trace-commit` | `folderId`, `commitHash`, optional `worktreePath` | Returns the lineage entry for that commit in the selected Project. |
+| `trace-proposal` | `folderId`, `changeId`, optional `worktreePath` | Returns the lineage entry for that OpenSpec change in the selected Project. |
 
 When there is no match or the project has no lineage data, the tool returns `null` or an empty array. It only reads project data and git history; it does not modify files.
 
 ## When to Use It
 
-`fyllo-cortex` addresses how engineering knowledge is continuously captured and retrieved. `guidelines` carries conventions, pitfalls, and boundary rules into later sessions; `knowledge` carries project-level facts that don't belong in guidelines — business context, user directives, unexpected findings — into later sessions too; `lineage` lets later Agents trace code, commits, or proposals back to the task and decision context that produced them.
+`fyllo-cortex` captures and retrieves engineering knowledge. `guidelines` carries conventions, pitfalls, and boundary rules into later sessions. `knowledge` carries Workspace-level facts that do not belong in guidelines, such as business context, user directives, and unexpected findings. `lineage` lets later Agents trace code, commits, or proposals within an explicit Project/Folder back to the task and decision context that produced them.

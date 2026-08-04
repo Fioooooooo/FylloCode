@@ -14,9 +14,9 @@ Download the installer for your platform from GitHub Releases:
 
 FylloCode is a desktop app designed for working directly with local codebases. The current new-version notice opens the Release page for users to download installers manually. It is not a background auto-update system.
 
-## Open a Project
+## Open a Project or Workspace
 
-After launching FylloCode, choose a local repository as the project. Starting with a project that already has clear engineering rules is recommended, because `fyllo-specs` and `fyllo-cortex` can work better with existing structure.
+After launching FylloCode, choose a local repository as a Project in the Launcher, or organize multiple Projects into one Workspace. See [Multi-root Workspace](/en/docs/features/multi-root-workspace) for the “one window, multiple Projects, one Agent context” model. Starting with a Project that already has clear engineering rules is recommended, because `fyllo-specs` and `fyllo-cortex` can work better with existing structure.
 
 If the project has no OpenSpec structure, FylloCode creates the minimum structure when creating a proposal:
 
@@ -71,4 +71,4 @@ After asking the Agent to create a proposal, it usually generates four artifacts
 
 After Proposal review passes, execute the implementation according to `tasks.md`. After implementation, archive the code change scope, decision context, spec updates, and guideline evolution as background knowledge for the next task.
 
-For your first run, choose a small change and walk through Task -> Chat -> Proposal -> Apply & Archive. This makes FylloCode's value visible quickly and exposes unclear areas in your current project rules.
+For your first run, choose a small change and walk through Task -> Chat -> Proposal -> Apply & Archive. This makes FylloCode's value visible quickly and exposes unclear areas in the rules of your Workspace Projects.

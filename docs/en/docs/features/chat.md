@@ -14,10 +14,11 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 
 ## Main Capabilities
 
-- Manage project sessions
+- Manage sessions in the Workspace
 - Pin important sessions into a separate group, with the pinned state restored after restart
 - Collapse the **Pinned Sessions** and **Recent Sessions** groups independently, sharing available height between expanded groups
 - Select installed ACP Agents
+- Inspect the fixed Session scope in the Chat header, including snapshot-only and stale members
 - Send text and attachment context
 - Display Agent reasoning, tool calls, subagent calls, and streamed output state
 - Render structured content such as Mermaid and Markdown
@@ -43,9 +44,13 @@ Consecutive Thinking and normal tool calls are grouped into a collapsible Activi
 
 When Claude Code starts a subagent through the Agent tool, the parent call appears as a separate card. Opening the details shows the prompt, status, model, tokens, duration, tool statistics, child tool activity, and final response. The details connect only parent-child tool relationships that can be safely confirmed inside the same assistant message; tools that cannot be linked continue to appear as normal tools.
 
+## Session Scope
+
+When a multi-root ACP Session is created, FylloCode fixes the Workspace member snapshot at that moment. Agents with additional-directory support can access multiple authorized Projects at once; later Workspace additions, removals, or relocations do not change a running Session. The Chat header scope popover lists each Project, its path, and the primary-Project marker, and warns when the current Workspace differs from the Session snapshot. See [Multi-root Workspace](/en/docs/features/multi-root-workspace) for the problem it solves and its authorization boundaries.
+
 ## Previewing Local Files
 
-When an Agent emits a Markdown link to a POSIX, Windows drive, or UNC absolute path, clicking it opens a read-only preview in a window-level Slideover. Files under the project root or any registered worktree for the current project can be read directly. For files outside those trusted roots, FylloCode displays the full canonical path, size, and modification time before reading content, then requires either **Open Once** or **Open and Trust in This Window**.
+When an Agent emits a Markdown link to a POSIX, Windows drive, or UNC absolute path, clicking it opens a read-only preview in a window-level Slideover. Files under the roots and registered worktrees of Projects in the current Session snapshot can be read directly. For files outside those trusted roots, FylloCode displays the full canonical path, size, and modification time before reading content, then requires either **Open Once** or **Open and Trust in This Window**.
 
 Preview accepts regular UTF-8 text files up to 5 MiB. Directories, devices, binary content, and invalid UTF-8 are rejected. Add `:line[:column]` to a link to locate source; the preview supports search, selection, and copy, but never save or write-back. Window trust exists only in memory for the current Renderer Window and expires when the window closes or the app restarts.
 
@@ -59,9 +64,9 @@ Fyllo Signal is a passive display marker emitted inside assistant text. The curr
 
 A collapsible rail on the right side of the conversation area collects information that matters but shouldn't interrupt the current discussion:
 
-- **Agent agenda** — the list of action items the Agent has laid out for this session
-- **Proposal cards** — proposals created in this session and their live status
-- **Pending fyllo-action items** — read-only summaries and navigation entries for rail-type actions such as `knowledge.flag` and `knowledge.review`; confirmation still happens on the inline card in the chat transcript
+- **Agent agenda**: the list of action items the Agent has laid out for this session
+- **Proposal cards**: proposals created in this session and their live status
+- **Pending fyllo-action items**: read-only summaries and navigation entries for rail-type actions such as `knowledge.flag` and `knowledge.review`; confirmation still happens on the inline card in the chat transcript
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/chat-rail.png" alt="Session event rail screenshot" />
@@ -77,4 +82,4 @@ Sessions started from a task are automatically bound to that task's [lineage sub
 
 Ordinary Agent sessions usually only have current code and the latest prompt. FylloCode organizes project specs, historical decisions, task context, and guidelines as Agent-readable background so the Agent works inside clearer boundaries.
 
-The Chat page does not aim to replace every chat tool. Its purpose is to move chat outcomes into a governable process: when the problem is clear and the decision is made, create a Proposal. After review, enter Apply & Archive so implementation and change records are preserved.
+Chat moves discussion outcomes into a governable process. When the problem is clear and the decision is made, create a Proposal. After review, enter Apply & Archive so implementation and change records are preserved.

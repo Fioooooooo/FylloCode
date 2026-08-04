@@ -6,7 +6,7 @@ sidebar:
 
 # Knowledge
 
-The Knowledge page lets you browse and audit the knowledge entries captured for the current project. Entry content is displayed read-only; entries are created and updated by the Agent during a session through the `knowledge` tool on `fyllo-cortex`, while entries you no longer need can still be deleted from the page.
+The Knowledge page lets you browse and audit knowledge entries captured for the current Workspace. Entry content is displayed read-only; entries are created and updated by the Agent during a session through the `knowledge` tool on `fyllo-cortex`, while entries you no longer need can still be deleted from the page. Knowledge belongs to the Workspace rather than directly to one Project.
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/knowledge.png" alt="Knowledge page screenshot" />
@@ -14,12 +14,12 @@ The Knowledge page lets you browse and audit the knowledge entries captured for 
 
 ## What gets captured
 
-Knowledge is not a chat transcript summary. It captures facts that a future session would pay for if lost — something that would need to be re-derived, re-read from code or docs, or gotten wrong. The Agent applies a judgment test (informally, the "flag test") during a session to spot this kind of information. Common shapes include:
+Knowledge is not a chat transcript summary. It captures facts that a future session would pay for if lost: facts that would need to be re-derived, re-read from code or docs, or could be misunderstood. The Agent applies a judgment test (informally, the "flag test") during a session to spot this kind of information. Common shapes include:
 
-- **Surprise** — an investigation shows reality contradicted a reasonable assumption
-- **Disproportionate cost** — a long investigation or long read ends in a conclusion far smaller than what was read
-- **User directive** — an instruction or correction from the user that applies beyond the current task
-- **Non-derivable background** — business or historical context only the user could supply
+- **Surprise**: an investigation shows that reality contradicted a reasonable assumption
+- **Disproportionate cost**: a long investigation or read ends in a conclusion far smaller than the material examined
+- **User directive**: an instruction or correction from you that applies beyond the current task
+- **Non-derivable background**: business or historical context only you could supply
 
 Ordinary task instructions, facts cheaply re-derivable from code, specs, or guidelines, temporary debugging state, and secrets or personal data are never captured.
 
@@ -45,10 +45,10 @@ Confirming that card opens the entry's latest saved content from disk for review
 
 ## Page layout
 
-The left panel lists every knowledge entry in the project, grouped by type (`project`, `reference`, `feedback`). The right panel shows the selected entry's content. A `suspect` or `unknown` status marker means the entry may be stale or its source is uncertain — verify it before relying on it.
+The left panel lists every knowledge entry in the Workspace, grouped by type (`project`, `reference`, `feedback`). The right panel shows the selected entry's content. If an entry cites repository files or other evidence, its Project/Folder owner remains visible. A `suspect` or `unknown` marker means the entry may be stale or its source is uncertain. Verify it before relying on it.
 
 Entries can be deleted; deletion cannot be undone.
 
 ## Relationship to lineage
 
-A knowledge entry is not attached to a single lineage subject — it's a project-level accumulation shared across tasks and sessions, not the output of one specific change. Together with [guidelines](/en/docs/features/guidelines), it forms the project background `fyllo-cortex` provides to future Agent sessions. For storage location, indexing, and the judgment criteria in detail, see the [fyllo-cortex reference](/en/docs/reference/fyllo-cortex).
+A knowledge entry is not attached to one lineage subject. It is shared across Projects, tasks, and sessions rather than being the output of one specific change. Together with [guidelines](/en/docs/features/guidelines), it forms the background that `fyllo-cortex` provides to future Agent sessions. Repository evidence retains its Project/Folder owner. See the [fyllo-cortex reference](/en/docs/reference/fyllo-cortex) for storage, indexing, and the judgment criteria.

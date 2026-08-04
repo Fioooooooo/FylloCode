@@ -4,6 +4,38 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.0] - 2026-08-04
+
+FylloCode 现在支持由多个 Project 组成的 Workspace。Launcher、Chat、Overview、Specs、Guidelines、Proposal、Task、Integration 和内置 MCP server 都使用 Workspace 作用域。本版本同时收敛启动与退出生命周期，改善没有 Git 历史的 Project 的治理信息展示。
+
+### 新增
+
+- 统一的 Project / Workspace 管理现在支持最多 16 个 Project、主 Project、缺失或降级成员、目录重定位、回收站删除、恢复、永久清理和最近列表切换
+- 多根 ACP Session 会向具备能力的 Agent 传递额外目录，固定创建时的 Workspace 快照，Chat header 展示当前 scope，并支持在成员 Project 和其 worktree 中预览本地文件、处理附件
+- Specs、Guidelines、Proposal 和 Overview 浏览器现在可以聚合 Workspace 内各 Project 的结果，并按 Project、状态和治理能力筛选或标记归属
+
+### 调整
+
+- Workspace 与 Folder 使用稳定身份模型，升级迁移会结算并退休已验证的旧 Project 存储；无法验证归属的数据不会被盲目删除，结算失败会阻止正常运行并在下次启动重试
+- Proposal 改为 repository-owned：以 `{ folderId, changeId }` 组成 `ProposalRef`，创建、应用和归档始终解析到所属 Project 的固定目标；同名 change 在不同 Project 中不再混淆
+- bundled MCP server 按当前 Workspace 的激活生命周期授权，HTTP 与 stdio 统一使用 Workspace v2 上下文；调用方不再控制 Proposal 的目标路径，也不再依赖旧的 Project 环境变量、请求头或工作目录回退
+- 启动流程采用 startup shell、必需门禁、正常运行和后台任务分阶段编排；ACP/MCP 预热转入后台，退出流程按阶段执行并受有界时限约束，同时强化单实例启动交接
+- Task 支持以 `targetFolderIds` 绑定 Workspace 成员，Integration 资源改为显式绑定 Project；成员移除后保留可识别的 stale 软引用，不把历史数据误认为当前资源
+- 统一 Project / Workspace 术语和图标层级，Project scope 移到 Chat header 的 popover，减少正文区域中的上下文歧义
+
+### 修复
+
+- 修复没有 Git 历史的 Project 在 Overview 中连 Specs、Guidelines、Proposal 等治理统计也被清空的问题；此类 Project 现在仅将 Git evolution 显示为空，真实 Git 错误仍按部分失败处理
+- 修复 MCP grant 在正常完成或取消后被过早撤销，并移除固定一小时过期导致长时间 ACP Session 中断的问题；grant 现在跟随真实激活关闭
+- 修复 ACP 二进制下载在流中断、空闲或超时场景下的处理，避免下载过程无限等待或留下不完整结果
+
+### 备注
+
+- 应用版本升级到 `0.15.0`。
+- `fyllo-specs` MCP server 升级到 `0.10.0`。这是破坏性契约更新：多根 Workspace 下的 Proposal 操作使用 `folderId`，`create-proposal` 使用 `worktreeMode`，并移除调用方目标路径和旧 Project 上下文回退。
+- `fyllo-cortex` MCP server 升级到 `0.7.0`。这是破坏性契约更新：知识与 lineage 采用 Workspace v2，repository evidence 按 `folderId` 标识归属，并移除旧 Project 路径、请求头、环境变量和 cwd 回退。
+- 首次启动可能执行旧 Project 存储的结算迁移；迁移失败时应用会保留数据并在后续启动重试，不会静默删除无法确认来源的孤立数据。
+
 ## [0.14.4] - 2026-07-30
 
 这个版本集中改善 Chat 中的阅读、预览和会话恢复体验：绝对本地文件链接可以在应用内安全预览，Markdown 文件支持原文、渲染和换行模式，Fyllo Signal 则为 Agent 提供无需确认的轻量展示通道。ACP Agent 连接会在后台预热，并在应用重启或连接重建后恢复已确认的 session 配置；内置 MCP server 同时迁移到可复用的应用级 HTTP 托管，并保留 stdio 兼容回退。

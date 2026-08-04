@@ -6,7 +6,7 @@ sidebar:
 
 # Lineage 追溯链路
 
-lineage 是 FylloCode 实现"全程可追溯"的底层机制：一条需求从提出、讨论、形成方案到落地归档，整个过程被记录成一条可回溯的线索。[三线工作方式](/docs/guide/workflow)定义了变更可以怎么走，lineage 负责把实际走过的每一步真实地串起来——无论最终走的是直接实现、Plan 还是 Proposal。
+lineage 是 FylloCode 实现“全程可追溯”的底层机制：一条需求从提出、讨论、形成方案到落地归档，整个过程被记录成一条可回溯的线索。[三线工作方式](/docs/guide/workflow)定义变更路径，lineage 记录实际经过的每一步。最终路径可以是直接实现、Plan 或 Proposal。
 
 ## 核心概念：脉络（Subject）
 
@@ -18,7 +18,7 @@ lineage 中的一条线索称为一条**脉络（subject）**。一条脉络代�
 | 任务快照（task） | 关联任务的引用和快照，包含来源（本地或研发系统）；chat 起源的脉络初始为空 |
 | 会话链接（links） | 这条脉络下的所有 Chat 会话，每个会话记录它产出的 Plan 和 Proposal 列表 |
 
-一条脉络可以串联多个会话、多个 Plan 和多个 Proposal——同一个任务分多次讨论、产出多个变更，都归属同一条脉络。
+一条脉络可以串联多个会话、多个 Plan 和多个 Proposal。同一个任务分多次讨论、产出多个变更时，这些记录都归属同一条脉络。
 
 ## 链路如何建立
 
@@ -42,7 +42,7 @@ Task ──发起讨论──▶ Chat 会话 ──▶ Plan / Proposal ──▶
 
 ### 3. Plan 与 Proposal 自动关联
 
-当会话中的 Agent 通过 `fyllo-specs` 的 `create-plan` 或 `create-proposal` 工具创建 plan 或提案时，对应的 plan slug 或 proposal changeId 会自动记录到会话所在的脉络上。你不需要做任何手动关联——无论这次讨论走的是 Plan 路径还是 Proposal 路径，脉络上都会自然留下记录。直接实现（不调用这两个 tool）则不会产生这类关联，脉络上只保留会话本身。
+当会话中的 Agent 通过 `fyllo-specs` 的 `create-plan` 或 `create-proposal` 工具创建 plan 或提案时，对应的 plan slug 或 proposal changeId 会自动记录到会话所在的脉络上。你不需要手动关联，Plan 和 Proposal 路径都会留下对应记录。直接实现（不调用这两个 tool）则不会产生这类关联，脉络上只保留会话本身。
 
 ### 4. 补建任务：让开放讨论回到主线
 
@@ -54,10 +54,10 @@ chat 起源的脉络可以事后补建任务：
 
 ## 数据存储
 
-lineage 数据完全存储在本地项目数据目录中：
+lineage 数据完全存储在本地 Workspace 数据目录中，并在仓库来源处保留 Project/Folder 归属：
 
 - 每条脉络是一个独立的 JSON 文件（`lineage/subjects/<subjectId>.json`）
-- 一份反查索引（`lineage/index.json`）维护任务引用、会话 ID、proposal changeId 到脉络的映射，索引可随时从脉络文件重建
+- 一份反查索引（`lineage/index.json`）维护任务引用、会话 ID、ProposalRef（`folderId` + changeId）到脉络的映射，索引可随时从脉络文件重建
 
 不依赖数据库，不上传外部服务，随项目数据一起留在本地。
 

@@ -22,11 +22,11 @@
 When each Agent session ends, the code stays. The decisions don't.
 
 - **Three days later, you don't know why this line changed.** The Agent touched 100+ files, and `git blame` only tells
-  you who committed — not the reasoning behind it.
-- **Two months later, no one knows the design rationale.** The Agent picked an architecture direction, and why the
-  alternatives were rejected vanished with the chat window.
-- **Every new session starts from scratch.** Same questions, same constraints, same history — re-explained to a new
-  Agent instance every single time.
+  you who committed, not the reasoning behind it.
+- **Two months later, no one knows the design rationale.** The Agent picked an architecture direction, and the reason
+  for rejecting the alternatives vanished with the chat window.
+- **Every new session starts from scratch.** The same questions, constraints, and history must be explained to a new
+  Agent instance every time.
 - **Every team member's Agent runs on its own rules.** No shared engineering standards, no consistency across agents or
   sessions. The conventions held together by personal habits are accelerating toward collapse.
 
@@ -36,8 +36,8 @@ These problems share one root cause: **Agents lack a persistent, structured gove
 
 ## Core Mechanism
 
-FylloCode sits on top of your existing codebase and toolchain — not replacing your IDE, CI/CD, or project management
-system, but adding a layer above them dedicated to the problem of sustainably using Agents as a team.
+FylloCode sits on top of your existing codebase and toolchain. It does not replace your IDE, CI/CD, or project
+management system. It adds a layer for using Agents as a team and preserving the context that work produces.
 
 ```
 Dev Systems (GitHub / Yunxiao / Jira ...)
@@ -52,14 +52,14 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
    your codebase
 ```
 
-| Capability                     | Description                                                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unified standards**          | The `fyllo-specs` MCP server exposes project-level specs to all agents, persisting across sessions and agent instances                                |
-| **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                       |
-| **Full traceability**          | Task → Chat → Proposal → Apply & Archive — every step recorded as one lineage, from intent to execution                                               |
-| **Project overview**           | Each project opens to an overview page aggregating governance status, active changes, recent lineage threads, and spec/guideline evolution trends     |
-| **Self-evolving rules**        | `fyllo-cortex` maintains `guidelines`, injects their index into sessions, and prompts Agents to evaluate, repair, or create conventions at key stages |
-| **Writes back to dev systems** | Task results sync back to your existing project management tools — no new silos                                                                       |
+| Capability                     | Description                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Unified standards**          | The `fyllo-specs` MCP server exposes Project-owned specs to all Agents, persisting across Workspace sessions and Agent instances                                   |
+| **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                                    |
+| **Full traceability**          | Task → Chat → Proposal → Apply & Archive: every step is recorded as one lineage, from intent to execution                                                          |
+| **Project overview**           | Each Workspace opens to an overview page aggregating governance status, active changes, recent lineage threads, and spec/guideline evolution by Project            |
+| **Self-evolving rules**        | `fyllo-cortex` maintains Project guidelines and Workspace knowledge, injects their context into sessions, and prompts Agents to maintain conventions at key stages |
+| **Writes back to dev systems** | Task results sync back to your existing project management tools without creating another silo                                                                     |
 
 ---
 
@@ -68,7 +68,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 ![FylloCode Workflow](docs/assets/diagrams/workflow.svg)
 
 FylloCode structures every coding task into four phases along a single line, each with defined inputs, outputs, and
-constraints. Every step — its input, decisions, and artifacts — is recorded as one **lineage**, and what gets settled
+constraints. Every step records its input, decisions, and artifacts as one **lineage**, and what gets settled
 feeds straight into the next task.
 
 ```
@@ -80,14 +80,14 @@ feeds straight into the next task.
 ### Task
 
 The entry point of the line. A task can be created directly by a team member or synced in from a connected dev system
-(GitHub / Yunxiao / Jira ...). FylloCode imposes nothing here — it is simply where a unit of work enters the governed
-flow and becomes the shared anchor for everything that follows.
+(GitHub / Yunxiao / Jira ...). FylloCode imposes no process here. This is where a unit of work enters the governed flow
+and becomes the shared anchor for everything that follows.
 
 ### Chat
 
 This is where the approach takes shape. Facing a concrete task, the Agent analyzes the requirement, gathers evidence
-from the codebase, and guides the team through the tradeoffs until you converge on a decision together — rather than
-producing a plan out of thin air. `fyllo-specs` injects the current project spec state so the discussion stays within
+from the codebase, and guides the team through the tradeoffs until you converge on a decision together. It does not
+produce a plan out of thin air. `fyllo-specs` injects the relevant Project spec state from the Workspace so the discussion stays within
 the right boundaries from the start. The reasoning, including the options that were ruled out, is captured as part of
 the lineage instead of vanishing in a chat window.
 
@@ -96,28 +96,28 @@ the lineage instead of vanishing in a chat window.
 Once a decision is reached, the Agent turns it into reviewable, structured artifacts. Output is driven by OpenSpec and
 customizable per project. The default is four structured artifacts:
 
-- `proposal.md` — background, new capabilities, changed capabilities, affected modules
-- `design.md` — Goals and Non-Goals, final decisions on open questions with justifications for rejected alternatives,
+- `proposal.md`: background, new capabilities, changed capabilities, affected modules
+- `design.md`: Goals and Non-Goals, final decisions on open questions with justifications for rejected alternatives,
   change risks
-- `specs` — spec entries extracted from this change, written back to the project knowledge base
-- `tasks.md` — detailed task breakdown by file and function, with acceptance criteria, including whether
+- `specs`: spec entries extracted from this change, written back to the project knowledge base
+- `tasks.md`: detailed task breakdown by file and function, with acceptance criteria, including whether
   guidelines need to be updated
 
-These four artifacts are the substance of the Proposal review — and the record that remains two months later when
-someone asks why the system was designed this way.
+These four artifacts form the Proposal review and preserve the record that remains two months later when someone asks
+why the system was designed this way.
 
 ### Apply & Archive
 
-The Agent executes under `fyllo-specs` constraints. Architecture boundaries, naming conventions, restricted operations —
-all enforced in real time during coding, not caught later in code review. Execution is strictly scoped to what
+The Agent executes under `fyllo-specs` constraints. Architecture boundaries, naming conventions, and restricted
+operations are enforced in real time during coding, not caught later in code review. Execution is strictly scoped to what
 `tasks.md` approved: changes outside that boundary are blocked, ensuring the actual diff matches the reviewed plan. Each
 task runs in an isolated Git worktree by default, keeping the main branch clean until the task is reviewed and merged,
 and multiple tasks can run in parallel at different stages without blocking each other.
 
 Once the change lands, the complete record is automatically archived: code change scope, decision context, spec
 updates, guidelines evolution, and a refreshed project health score. Part of this feeds back into `fyllo-specs` and
-`fyllo-cortex` as background knowledge for the next task — closing the lineage so the next Task no longer starts from
-scratch. The rest syncs to your existing dev systems — no new tool silos.
+`fyllo-cortex` as background knowledge for the next task. This closes the lineage so the next Task no longer starts from
+scratch. The rest syncs to your existing dev systems without creating another tool silo.
 
 ---
 
@@ -126,12 +126,12 @@ scratch. The rest syncs to your existing dev systems — no new tool silos.
 FylloCode works with any API-compatible model. Different phases make different demands on model capability. From
 practical experience:
 
-- **Chat and Proposal** benefit from stronger reasoning models — Claude Opus or GPT-4.5 are good choices. The Agent
+- **Chat and Proposal** benefit from stronger reasoning models. Claude Opus or GPT-4.5 are good choices. The Agent
   needs to deeply understand the project context, weigh tradeoffs across multiple approaches, and make defensible
   design decisions. Model reasoning quality directly affects how credible and reviewable the output is.
 
 - **Apply** can run on smaller, faster models. By this point, task boundaries are precisely defined by `tasks.md`, and
-  the Agent's job is closer to structured execution than open-ended reasoning — smaller models work well here, with the
+  the Agent's job is closer to structured execution than open-ended reasoning. Smaller models work well here, with the
   added benefit of lower cost.
 
 A common pairing: Opus for Chat and Proposal, Sonnet or Haiku for Apply.
@@ -150,14 +150,14 @@ Before it writes any code, a FylloCode Agent has access to:
 - **Change history** (what problem was being solved the last time this area was touched)
 - **Evolving guidelines** (from `fyllo-cortex`, continuously evaluated and maintained through the task flow)
 
-It knows **why** the project became what it is today — not just **what** it is.
+It retains both the reason the project evolved and the current implementation.
 
 ---
 
 ## Team Knowledge Accumulation
 
-Sustaining a project over time means turning what the team learns in practice — mistakes made, conventions reached,
-recurring patterns — into structured context that agents can use directly in the next task.
+Sustaining a project over time means turning what the team learns in practice, including mistakes, conventions, and
+recurring patterns, into structured context that agents can use directly in the next task.
 
 This is currently implemented through `fyllo-cortex.guidelines` plus system reminders: new Chat / Apply sessions receive
 an index of `guidelines/**/*.md`; Chat, Proposal, Apply, Archive, and Project Health Check prompts ask Agents to decide
@@ -167,10 +167,10 @@ conventions instead of a manually maintained document that drifts over time.
 This mechanism addresses one core problem: **how team engineering knowledge accumulates through Agent collaboration
 instead of being reset at the end of every session.**
 
-Sustained maintenance of complex projects requires that every change leaves behind not just modified code, but decision
-traces that future Agents and engineers can understand. FylloCode's architecture is built around this.
+Sustained maintenance of complex projects requires every change to leave modified code and decision traces that future
+Agents and engineers can understand. FylloCode's architecture is built around this.
 
-We're actively expanding knowledge accumulation across more dimensions — guidelines are just the starting point.
+We're actively expanding knowledge accumulation across more dimensions. Guidelines are the starting point.
 
 ---
 
@@ -208,7 +208,7 @@ Download the installer for your platform from the [Releases](https://github.com/
 
 ## Contributing
 
-FylloCode is licensed under MIT. PRs are welcome — please read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) before
+FylloCode is licensed under MIT. PRs are welcome. Please read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) before
 submitting.
 
 ## Acknowledgements
@@ -223,4 +223,4 @@ FylloCode is built on top of these open source projects and protocols:
 
 ## Community
 
-[LinuxDO](https://linux.do/) — Sincere · Friendly · United · Professional
+[LinuxDO](https://linux.do/): Sincere · Friendly · United · Professional

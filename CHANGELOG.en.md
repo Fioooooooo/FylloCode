@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.0] - 2026-08-04
+
+FylloCode now supports Workspaces containing multiple Projects. Launcher, Chat, Overview, Specs, Guidelines, Proposal, Task, Integration, and bundled MCP server contexts use the Workspace scope. Startup and shutdown lifecycle handling is tighter, and Projects without Git history retain their governance information.
+
+### Added
+
+- Workspace management now supports up to 16 Projects, a primary Project, missing or degraded members, directory relocation, recycle-bin deletion, restore, permanent cleanup, and recent switching
+- Multi-root ACP Sessions now pass additional directories to capable Agents, keep a fixed Workspace snapshot, show the active scope in Chat, and cover member Projects and their worktrees for local files and attachments
+- Specs, Guidelines, Proposal, and Overview browsers now aggregate results across Workspace Projects and filter or mark ownership by Project, status, and governance capability
+
+### Changed
+
+- Workspace and Folder now use stable identity models. Upgrade migration settles and retires verified legacy Project storage; data with unverified ownership is not deleted blindly, and a failed settlement blocks normal runtime and retries on the next launch
+- Proposals are now repository-owned: `{ folderId, changeId }` forms a `ProposalRef`, and create, apply, and archive always resolve to the owning Project's fixed target so same-named changes in different Projects cannot be mixed
+- Bundled MCP servers are authorized by the active Workspace activation, with one Workspace v2 context model for HTTP and stdio. Callers no longer control Proposal target paths or rely on legacy Project environment variables, request headers, or working-directory fallbacks
+- Startup is organized into startup shell, required gate, normal runtime, and background phases. ACP/MCP warmup moves to the background, shutdown is phased and time-bounded, and single-instance startup handoff is enforced
+- Tasks can bind Workspace members through `targetFolderIds`, while Integration resources use explicit Project bindings. Removed members remain identifiable as stale soft references instead of being treated as current resources
+- Project / Workspace terminology and icon hierarchy are now consistent, and Project scope moves into a Chat header popover to reduce context ambiguity in the message area
+
+### Fixed
+
+- Fixed Overview clearing Specs, Guidelines, and Proposal governance counts for Projects without Git history. These Projects now show only Git evolution as empty; real Git errors still report partial failure
+- Fixed MCP grants being revoked too early on normal completion or cancellation, and removed the fixed one-hour expiry that could interrupt long-running ACP Sessions; grants now follow the actual activation lifetime
+- Fixed ACP binary-download handling for stream interruption, idle, and timeout cases so downloads do not wait indefinitely or leave incomplete results
+
+### Notes
+
+- The application version is now `0.15.0`.
+- The `fyllo-specs` MCP server is now `0.10.0`. This is a breaking contract update: Proposal operations use `folderId` in multi-root Workspaces, `create-proposal` uses `worktreeMode`, and caller-controlled target paths and legacy Project-context fallbacks are removed.
+- The `fyllo-cortex` MCP server is now `0.7.0`. This is a breaking contract update: knowledge and lineage use Workspace v2, repository evidence identifies ownership with `folderId`, and legacy Project paths, headers, environment variables, and cwd fallbacks are removed.
+- The first launch may run the legacy Project-storage settlement migration. A failed migration preserves data and retries on a later launch; orphaned data whose provenance cannot be confirmed is not silently deleted.
+
 ## [0.14.4] - 2026-07-30
 
 This release improves reading, preview, and recovery in Chat. Absolute local file links can now be previewed safely inside the app, Markdown files gain source, rendered, and wrapping modes, and Fyllo Signal gives Agents a lightweight display channel that requires no confirmation. ACP Agent connections are prewarmed in the background and confirmed session configuration is restored after restart or reconnection; bundled MCP servers also move to a reusable application-level HTTP host while retaining stdio fallback.

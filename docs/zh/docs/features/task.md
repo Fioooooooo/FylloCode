@@ -18,11 +18,12 @@ sidebar:
 - 创建本地任务
 - 从任务卡片发起讨论
 - 为后续 Proposal 提供任务背景
+- 将任务目标绑定到 Workspace 中的一个或多个 Project；成员移除后仍保留可识别的 stale 目标。多 Project 任务的使用方式见[多根 Workspace](/docs/features/multi-root-workspace)
 - 为云效等外部任务系统保留接入位置
 
 ## 使用建议
 
-Task 不应该只是一个标题。为了让后续 Proposal 可审查，建议在任务描述中包含：
+Task 需要标题和足够的上下文，后续 Proposal 才能审查。建议在任务描述中包含：
 
 - 问题背景
 - 当前行为和期望行为

@@ -22,7 +22,7 @@ FylloCode connects different Coding Agents through Agent Client Protocol. The AC
 - Label Agent kinds with FylloCode semantics
 - Configure a custom Agent that isn't in the registry
 
-The page offers three filters — **All**, **Installed**, and **Custom**. The first two browse Agents from the ACP Registry; **Custom** is a separate JSON editing area.
+The page offers three filters: **All**, **Installed**, and **Custom**. The first two browse Agents from the ACP Registry; **Custom** is a separate JSON editing area.
 
 ## Agent Kinds
 
@@ -60,15 +60,19 @@ The configuration is edited as JSON, structured as an `agent_servers` map:
 | `args` | Array of startup arguments, e.g. `["acp"]` (optional). |
 | `env` | Extra environment variables, merged on top of the system environment (optional). |
 
-Saved configuration is written to a local `custom-agents.json`. It is not synced to the registry and isn't covered by FylloCode's install/update management — installing and upgrading the command itself remains the user's responsibility.
+Saved configuration is written to a local `custom-agents.json`. It is not synced to the registry and isn't covered by FylloCode's install/update management. Installing and upgrading the command itself remains your responsibility.
 
 ## Connection Warmup and Reuse
 
-After main-process startup completes, FylloCode prewarms every installed registry Agent and valid custom Agent in the background. Warmup starts the ACP process and completes `initialize` only. It does not create a Chat session or fetch project-level configuration and commands early, and it still runs while only the Launcher is open.
+After main-process startup completes, FylloCode prewarms every installed registry Agent and valid custom Agent in the background. Warmup starts the ACP process and completes `initialize` only. It does not create a Chat session or fetch Workspace-level configuration and commands early, and it still runs while only the Launcher is open.
 
 Installing, upgrading, or saving custom Agents schedules incremental warmup for the affected connections. Before an upgrade, uninstall, or custom-Agent `command`, `args`, or `env` change, FylloCode intentionally stops the old process so the next connection uses the new runtime configuration. One failed Agent does not block window startup or other Agents. If you select an Agent while it is warming up, Chat joins the same in-flight connection instead of starting another process.
 
 After successful initialization, FylloCode caches complete authentication, prompt, MCP, and session capability snapshots. Older prompt-only cache files remain readable and are gradually refreshed after Agents initialize successfully; no manual migration is required.
+
+## Multi-root ACP Sessions
+
+A Workspace can contain up to 16 Projects. When an Agent advertises support for additional directories, FylloCode passes the primary Project and authorized additional Project directories when creating the ACP Session. The Session keeps the Workspace snapshot from creation; later member additions, removals, or relocations do not silently change a running Session's context. The Chat header scope popover distinguishes members in the current snapshot, members only in the latest Workspace, and stale members. See [Multi-root Workspace](/en/docs/features/multi-root-workspace) for the full product model and cross-Project boundaries.
 
 ## Session Configuration Recovery
 

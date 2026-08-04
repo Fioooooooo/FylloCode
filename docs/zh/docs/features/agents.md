@@ -60,15 +60,19 @@ FylloCode 会把 ACP Agent 标注为三类：
 | `args` | 启动参数数组，例如 `["acp"]`（可选） |
 | `env` | 额外环境变量，会合并到系统环境变量之上（可选） |
 
-保存后，配置写入本地的 `custom-agents.json`，不会同步到 registry，也不属于 FylloCode 管理安装/更新的范围——命令本身的安装和升级仍由用户自己维护。
+保存后，配置写入本地的 `custom-agents.json`，不会同步到 registry，也不属于 FylloCode 管理安装/更新的范围。命令本身的安装和升级仍由你自己维护。
 
 ## 连接预热与复用
 
-应用完成主进程启动后，会在后台预热所有已安装的 registry Agent 和有效的自定义 Agent。预热只启动 ACP 进程并完成 `initialize`，不会创建 Chat session，也不会提前取得项目级配置或命令；打开 Launcher 而尚未进入项目时同样会执行。
+应用完成主进程启动后，会在后台预热所有已安装的 registry Agent 和有效的自定义 Agent。预热只启动 ACP 进程并完成 `initialize`，不会创建 Chat session，也不会提前取得 Workspace 级配置或命令；打开 Launcher 而尚未进入 Project 或 Workspace 时同样会执行。
 
 安装、升级或保存自定义 Agent 后，FylloCode 会增量预热受影响的连接。升级、卸载或修改自定义 Agent 的 `command`、`args`、`env` 前，旧进程会先被主动停止；后续连接使用新的运行时配置。单个 Agent 预热失败不会阻塞窗口启动或其他 Agent，用户实际选择正在预热的 Agent 时会复用同一条在途连接，不会重复启动进程。
 
 Agent 成功初始化后，FylloCode 会缓存认证方式以及 prompt、MCP、session 的完整 capability snapshot。旧版只包含 prompt 能力的缓存仍可读取；Agent 后续成功初始化时会逐步刷新为新格式，不需要手动迁移。
+
+## 多根 ACP Session
+
+Workspace 最多可以包含 16 个 Project。Agent 如果声明支持额外目录，FylloCode 会在创建 ACP Session 时把主 Project 与授权的其他 Project 目录一起传入；Session 使用创建时固定的 Workspace 快照，之后增删或移动 Workspace 成员不会静默改变已运行 Session 的上下文。Chat header 的 scope popover 会区分当前快照中的成员、只存在于最新 Workspace 的成员和已经失效的成员。完整的产品定位和跨 Project 使用边界见[多根 Workspace](/docs/features/multi-root-workspace)。
 
 ## Session 配置恢复
 

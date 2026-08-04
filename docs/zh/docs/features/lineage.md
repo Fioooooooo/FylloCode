@@ -6,7 +6,7 @@ sidebar:
 
 # 工作脉络
 
-工作脉络页面用于浏览当前项目的全部 lineage subject，回答一项工作从哪里开始、经过哪些 Chat 会话和 Plan、形成了哪些 Proposal，以及最终关联到哪个 Commit。页面读取项目本地数据，不会修改 lineage、Session、Plan 或 Proposal 文件。
+工作脉络页面用于浏览当前 Workspace 的全部 lineage subject，回答一项工作从哪里开始、经过哪些 Chat 会话和 Plan、形成了哪些 Proposal，以及最终关联到哪个 Commit。页面读取 Workspace 本地数据，并保留相关 Project/Folder 的归属，不会修改 lineage、Session、Plan 或 Proposal 文件。
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/lineage.png" alt="工作脉络页面截图" />
@@ -20,7 +20,7 @@ sidebar:
 
 | 筛选 | 显示范围 |
 | --- | --- |
-| 全部 | 当前项目的全部工作脉络 |
+| 全部 | 当前 Workspace 的全部工作脉络 |
 | 推进中 | 状态不是「已归档」的脉络 |
 | 已归档 | 至少有一个 Proposal，且所有关联 Proposal 都已归档的脉络 |
 | 待关联 | 尚未关联任务的脉络 |
@@ -55,8 +55,8 @@ sidebar:
 
 - 数据来自现有 lineage subject、Session meta、Plan 文档和 Proposal metadata 的只读投影。
 - 页面没有创建、删除、合并、拆分或重新绑定脉络的操作。
-- 打开页面或切换项目时会重新加载数据；旧项目的迟到响应不会覆盖当前项目。
+- 打开页面或切换 Workspace 时会重新加载数据；旧 Workspace 的迟到响应不会覆盖当前结果。
 - 顶层查询失败时显示页面级错误，不把不完整结果当作成功数据。
-- 现有项目不需要执行数据迁移。
+- Workspace 迁移由主进程启动阶段负责；页面只读取迁移完成后的投影。
 
 关于 subject 如何建立、任务如何补建以及数据如何存储，见 [Lineage 追溯链路](/docs/guide/lineage)。

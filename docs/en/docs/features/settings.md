@@ -25,7 +25,7 @@ The ActivityBar Settings item remains active on every `/settings/*` page. Child 
 
 The Service Connections page accepts a `focus` query parameter. When a project integration needs a provider configuration, it opens `/settings/connections?focus=<providerId>`. After provider data loads and connection probes finish, the page scrolls to and focuses the corresponding card. Without `focus`, the page shows the complete connection list.
 
-Service Connections changes only the user-facing terminology and navigation path. Internal `Provider`, `ProviderConnection`, store, and API contracts remain unchanged. See [Engineering Integrations](/en/docs/features/integrations) for project-level tool configuration.
+Service Connections changes only the user-facing terminology and navigation path. Internal `Provider`, `ProviderConnection`, store, and API contracts remain unchanged. See [Engineering Integrations](/en/docs/features/integrations) for Workspace and Project-bound tool configuration.
 
 ## Path Compatibility
 

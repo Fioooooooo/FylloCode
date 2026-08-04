@@ -6,7 +6,7 @@ sidebar:
 
 # Lineage Traceability
 
-Lineage is the mechanism behind FylloCode's end-to-end traceability. A requirement is recorded from creation, discussion, planning, implementation, and archive as one traceable path. The [three execution paths](/en/docs/guide/workflow) define how a change can move. Lineage records what actually happened across that path — whether it took the direct, Plan, or Proposal route.
+Lineage is the mechanism behind FylloCode's end-to-end traceability. It records a requirement from creation through discussion, planning, implementation, and archive as one traceable path. The [three execution paths](/en/docs/guide/workflow) define how a change can move. Lineage records what actually happened, whether the change took the direct, Plan, or Proposal route.
 
 ## Core Concept: Subject
 
@@ -42,7 +42,7 @@ If the conversation is only exploratory and does not produce a proposal, it is n
 
 ### 3. Plan and Proposal Auto-Linking
 
-When an Agent creates a plan or a proposal through the `create-plan` or `create-proposal` tool from `fyllo-specs`, the resulting plan slug or proposal changeId is automatically recorded on the subject of that session. No manual linking is required, whether the discussion took the Plan path or the Proposal path. Direct implementation — which calls neither tool — leaves no such link; the subject keeps only the session itself.
+When an Agent creates a plan or a proposal through the `create-plan` or `create-proposal` tool from `fyllo-specs`, the resulting plan slug or proposal changeId is automatically recorded on the subject of that session. No manual linking is required for either path. Direct implementation calls neither tool, so it leaves no such link and the subject keeps only the session itself.
 
 ### 4. Creating a Task Later
 
@@ -54,10 +54,10 @@ The created task is written back to the same subject. The origin remains `chat`,
 
 ## Data Storage
 
-Lineage data is stored entirely in the local project data directory:
+Lineage data is stored entirely in the local Workspace data directory, with Project/Folder ownership retained for repository sources:
 
 - Each subject is an independent JSON file at `lineage/subjects/<subjectId>.json`.
-- A reverse lookup index at `lineage/index.json` maps task references, session IDs, and proposal changeIds back to subjects. The index can always be rebuilt from subject files.
+- A reverse lookup index at `lineage/index.json` maps task references, session IDs, and ProposalRefs (`folderId` + changeId) back to subjects. The index can always be rebuilt from subject files.
 
 There is no database and no external upload. Data stays local with the project data.
 

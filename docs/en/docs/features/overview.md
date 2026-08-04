@@ -6,13 +6,19 @@ sidebar:
 
 # Project Overview
 
-Project Overview is the default first screen after opening a project. It brings governance status, active changes, recent lineage, and specification evolution into one page so you can see the real project state before starting new work.
+Project Overview is the default first screen after opening a Workspace. It aggregates governance status, active changes, recent lineage, and specification evolution by Project so you can see the real Workspace and member-Project state before starting new work.
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/project-overview.png" alt="Project overview screenshot" />
 </figure>
 
-All page data comes from the local project: repository scanning, git history, and lineage projections. It does not depend on external services.
+The same page presents either a Project or Workspace view depending on the current window identity. The screenshot below shows a Workspace containing multiple Projects.
+
+<figure class="fc-doc-image">
+  <img src="/assets/screenshots/workspace-overview.png" alt="Workspace overview screenshot" />
+</figure>
+
+All page data comes from the current Workspace's local data: repository scans, git history, and Workspace lineage projections for each Project. It does not depend on external services.
 
 ## Page Structure
 
@@ -26,17 +32,17 @@ Five governance entries appear below the ring:
 
 | Entry | Measure and destination |
 | --- | --- |
-| Capability Specs | Counts specs under `openspec/specs/` and opens `/specs`. |
-| Archived Proposals | Counts archives under `openspec/changes/archive/` and opens `/proposal`. |
-| Project Guidelines | Recursively counts `guidelines/**/*.md` and opens `/guidelines`. |
-| Durable Knowledge | Counts knowledge entries and scan errors and opens `/knowledge`. |
-| Work Lineage | Shows the total number of project lineage subjects and opens `/lineage`. |
+| Capability Specs | Aggregates `openspec/specs/` across Workspace Projects and opens `/specs`. |
+| Archived Proposals | Aggregates `openspec/changes/archive/` across Projects and opens `/proposal`. |
+| Project Guidelines | Aggregates `guidelines/**/*.md` across Projects and opens `/guidelines`. |
+| Durable Knowledge | Counts Workspace knowledge entries and scan errors and opens `/knowledge`. |
+| Work Lineage | Shows the total number of Workspace lineage subjects and opens `/lineage`. |
 
 Loading or failure in the Durable Knowledge summary affects only that entry, not the main Overview data. If an entry is `suspect` or `unknown`, or a scan error exists, an alert icon and accessible text report the number that needs attention.
 
 ## Active Changes
 
-This section shows active, unarchived Proposals in the current project. Each item reports `creating`, `draft`, or `applying` and uses lineage to identify the source task. A Proposal in a linked worktree also shows an indicator that reveals the full worktree path. Click an item to open the [Proposal detail](/en/docs/features/proposal).
+This section shows active, unarchived Proposals across the current Workspace's Projects. Each item reports `creating`, `draft`, or `applying`, identifies its owning Project, and uses repository-owned identity for the change. A Proposal in a linked worktree also shows an indicator that reveals the full worktree path. Click an item to open the [Proposal detail](/en/docs/features/proposal).
 
 ## Recent Lineage
 
@@ -58,6 +64,6 @@ Git history is used to show long-term trends in project rules:
 
 ## Data Scope and Refreshing
 
-- Repository scanning and lineage projections are read live when the page opens.
-- Git history is cached per project for 60 seconds to avoid repeated command execution.
-- If the project has no `openspec/`, no `guidelines/`, or is not a git repository, the related block is empty while the rest of the page continues to work.
+- Repository scanning and lineage projections are read live when the page opens and retain Project ownership.
+- Git history is cached per Project for 60 seconds to avoid repeated command execution.
+- If a Project has no `openspec/` or `guidelines/`, the related governance count is empty. If it has no Git history, only Git evolution is empty; the remaining governance information continues to work.

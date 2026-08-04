@@ -30,8 +30,8 @@ FylloCode 的目标不是制造新的任务孤岛，而是把 Agent 工作结果
   <img src="/assets/screenshots/integration.png" alt="集成工具页面截图" />
 </figure>
 
-项目集成页面用于管理项目级工具能力，例如任务读取、结果回写、仓库和流水线关联等。不同 provider 暴露的工具能力可能不同。未连接或连接过期时，页面会打开 `/settings/connections?focus=<providerId>` 定位对应服务连接。
+Workspace 集成页面用于管理跨 Project 的工具能力，例如任务读取、结果回写、仓库和流水线关联等。需要访问具体仓库的资源会显式绑定到 Workspace 中的 Project；成员移除后保留 stale 状态，避免把历史绑定误当成当前资源。不同 provider 暴露的工具能力可能不同。未连接或连接过期时，页面会打开 `/settings/connections?focus=<providerId>` 定位对应服务连接。
 
 ## 当前重点
 
-当前可用能力以页面展示的连接状态和项目工具为准。未开放 provider 的占位不代表已经支持连接、任务同步或结果回写。
+当前可用能力以页面展示的连接状态和 Project 绑定工具为准。未开放 provider 的占位不代表已经支持连接、任务同步或结果回写。
