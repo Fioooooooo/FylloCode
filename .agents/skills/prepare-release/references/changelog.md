@@ -8,6 +8,8 @@ Determine the release range precisely, normally `previous_tag..HEAD`. Read the e
 
 Convert raw evidence into user-facing changes. Do not paste commit subjects as release bullets and do not include unshipped proposals or future intent.
 
+Apply [natural-writing.md](natural-writing.md) to both language versions while drafting and revising changelog prose. The shared standard also applies when a changelog entry is being edited as part of a documentation audit or release-note review.
+
 ## Structure
 
 Preserve the repository's established localized headings and use:

@@ -4,6 +4,8 @@ Use this reference to turn the release range into explicit documentation work. T
 
 Read `documentation-architecture-and-style.md` from the same reference directory before choosing a target page or authoring documentation. Apply its information architecture, content-type, page-template, terminology, voice, and bilingual rules to every audit update.
 
+Apply [natural-writing.md](natural-writing.md) to every authored or substantially rewritten documentation page, README section, guide, reference entry, and onboarding passage produced during the release. This is a shared release-writing standard, not a release-note-only rule.
+
 ## Evidence Order
 
 Inspect evidence in this order:

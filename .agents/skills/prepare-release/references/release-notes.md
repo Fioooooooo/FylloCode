@@ -8,15 +8,53 @@ Read the final changelog entry first. If it does not exist, derive shipped scope
 
 Release notes are shorter than changelogs. Do not dump raw commits, PR titles, issue bookkeeping, or file lists.
 
+## Output Format
+
+When outputting release notes, wrap the complete bilingual note in one fenced Markdown code block. The code block language SHALL be `markdown`, and the note body SHALL start with `## 中文`, place the English section after `---`, and use `*` for highlight bullets.
+
+Use this structure, preserving the section order and blank lines:
+
+```markdown
+## 中文
+
+summary
+
+### 亮点
+
+- xxx
+- xxx
+
+### xxxx
+
+xxxx
+
+---
+
+## English
+
+summary
+
+### Highlights
+
+- xxxx
+- xxxx
+
+### xxxx
+
+xxxx
+```
+
+Keep release-status commentary outside the code block. Do not add a title before `## 中文` unless the user explicitly requests one.
+
 ## Recommended Shape
 
-Prefer:
+Within the required bilingual structure, prefer:
 
-1. `FylloCode vX.Y.Z` title;
-2. a two-to-four-sentence introductory paragraph;
-3. three to five user-visible highlights.
+1. a two-to-four-sentence introductory paragraph for each language;
+2. three to five user-visible highlights in each language;
+3. Fixed, Known Issues, or Notes sections only when needed.
 
-Add Fixed, Known Issues, or Notes sections only when needed. Keep the first screen scannable in seconds.
+Keep the first screen scannable in seconds.
 
 ## Writing Rules
 
@@ -29,6 +67,10 @@ Add Fixed, Known Issues, or Notes sections only when needed. Keep the first scre
 - Translate changelog entries that use routes or compatibility language for engineering precision into user-visible wording, or omit them when they have no direct user value. Do not edit or simplify the changelog solely to match release-note style.
 - Give user-visible known issues explicit treatment when they materially affect the release.
 - Keep wording release-ready and consistent with established FylloCode terminology.
+
+## Natural Writing Review
+
+Before presenting the notes, apply the shared [natural-writing.md](natural-writing.md) checklist to both language versions. The same standard applies to changelogs, product documentation, README files, guides, and other release-related prose; this section only identifies the release-note checkpoint.
 
 ## Bilingual Rules
 

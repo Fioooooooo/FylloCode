@@ -15,7 +15,8 @@ Prepare one evidence-backed release without losing documentation updates or bypa
 4. Read [versioning.md](references/versioning.md) before selecting or changing any application or bundled MCP server version.
 5. Read [changelog.md](references/changelog.md) before editing either root changelog.
 6. Read [release-notes.md](references/release-notes.md) before drafting or publishing release notes.
-7. Inspect `git status --short` and preserve unrelated user changes. Never clean, reset, overwrite, or reformat unrelated work.
+7. Read [natural-writing.md](references/natural-writing.md) before authoring or substantially rewriting any release-related prose.
+8. Inspect `git status --short` and preserve unrelated user changes. Never clean, reset, overwrite, or reformat unrelated work.
 
 ## Establish the Release Boundary
 
@@ -45,6 +46,10 @@ git diff --stat <previous_tag>..HEAD
 Read relevant archived OpenSpec proposals, designs, tasks, capability specs, implementation files, and tests. Treat archived specs and shipped code as stronger evidence than commit subjects. Use commit subjects only as an index into the actual change.
 
 Build a release inventory grouped into user-visible additions, changes, fixes, compatibility notes, contributor changes, and internal-only work. Every release claim must trace to evidence in the selected range.
+
+## Editorial Writing Standard
+
+Apply [natural-writing.md](references/natural-writing.md) to every release-related prose artifact, not only GitHub Release notes. This includes changelogs, product documentation, README files, guides, onboarding copy, bundled-server changelogs, and user-visible release handoff text. Run the review for each language version before final validation, while preserving technical terminology, evidence-backed claims, commands, paths, version numbers, and risk disclosures.
 
 ## Audit and Update Documentation
 
@@ -133,7 +138,7 @@ Never move or replace an existing tag without explicit user instruction. Never p
 
 After a full release's annotated tag has been pushed to `origin`, follow [release-notes.md](references/release-notes.md). Use the final changelog as the primary source, verify highlights against code and specs, and include only shipped claims.
 
-Prepare Chinese and English release-ready text and keep the first screen concise. Do not create an auxiliary release-note file unless the repository already uses one or the user requests it. Do not present or preview release notes earlier in the full release workflow.
+Prepare Chinese and English release-ready text and keep the first screen concise. Apply [natural-writing.md](references/natural-writing.md) before presenting the notes. When outputting release notes, put the complete bilingual note in one `markdown` fenced code block and follow the exact section order and blank-line structure defined in `references/release-notes.md`. Do not put release-status commentary inside that code block. Do not create an auxiliary release-note file unless the repository already uses one or the user requests it. Do not present or preview release notes earlier in the full release workflow.
 
 ## Complete the Handoff
 
