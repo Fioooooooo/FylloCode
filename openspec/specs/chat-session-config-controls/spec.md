@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change consolidate-config-options-menu. Update Purpose after archive.
+定义 ChatPrompt 对 ACP session config options 的展示与交互边界：以单一菜单呈现非 mode 配置，生成 model/thought level 摘要，并保持 Agent 完整配置快照、原始顺序及既有 draft/session 提交流程为事实源。
 
 ## Requirements
 
