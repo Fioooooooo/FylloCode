@@ -1,30 +1,4 @@
-# chat-prompt-timeline Specification
-
-## Purpose
-
-定义 Chat 长对话中用户 prompt 时间线的投影、紧凑导航、摘要预览、键盘操作、阅读位置同步与资源清理边界；本规范的 SHALL 要求和场景是 Renderer 实现该能力的主要行为契约。
-
-## Requirements
-
-### Requirement: Timeline 保持现有 prompt 投影与显示门槛
-
-Renderer SHALL 按消息原始顺序为每条具有可见文本或附件摘要的 user message 生成一个 timeline item，SHALL 隐藏 system reminder，且 SHALL 仅在已有活动会话、消息加载完成并存在至少两个 item 时展示 timeline。
-
-#### Scenario: 混合消息生成 prompt timeline
-
-- **WHEN** 活动会话包含 user、assistant、system reminder 和附件消息
-- **THEN** timeline 仅按原始顺序展示具有可见 user prompt 或附件摘要的 item
-- **AND** assistant 内容与 system reminder 不生成 item
-
-#### Scenario: 单个 prompt 不展示 timeline
-
-- **WHEN** 活动会话仅能投影出一个 timeline item
-- **THEN** Renderer SHALL 隐藏 timeline
-
-#### Scenario: 消息加载期间不展示 timeline
-
-- **WHEN** 活动会话的消息仍在加载
-- **THEN** Renderer SHALL 隐藏 timeline
+## MODIFIED Requirements
 
 ### Requirement: Timeline 使用紧凑等距的左对齐横线
 
@@ -149,49 +123,6 @@ Renderer SHALL 为 timeline 使用单一受控摘要浮层，并 SHALL 支持 tr
 - **THEN** Renderer SHALL 使用关闭延迟避免浮层在跨越间隙时意外关闭
 - **AND** pointer 进入浮层后 SHALL 取消待执行的 transient 关闭
 
-### Requirement: Active prompt 稳定跟随阅读参考线
-
-Renderer SHALL 在消息滚动容器顶部以下 35% 的位置建立阅读参考线，并 SHALL 将 active item 定义为最后一个已经越过该参考线的 prompt。Renderer SHALL 在平滑导航期间锁定目标 active，直到目标到达参考线容差范围或导航结束，再恢复自动跟随。
-
-#### Scenario: 滚动进入新的 prompt 区段
-
-- **WHEN** 用户滚动使下一个 prompt anchor 越过阅读参考线
-- **THEN** active item SHALL 更新为该 prompt
-- **AND** 下一个尚未越过参考线的 prompt SHALL NOT 提前成为 active
-
-#### Scenario: 点击横线平滑定位
-
-- **WHEN** 用户点击一个 timeline 横线
-- **THEN** 消息列表 SHALL 平滑滚动，使目标 prompt 位于阅读参考线
-- **AND** 平滑滚动期间 active SHALL 保持为目标 prompt，不被中间 prompt 覆盖
-
-#### Scenario: Reduced motion 立即定位
-
-- **WHEN** 用户启用了 reduced-motion 并点击 timeline 目标
-- **THEN** 消息列表 SHALL 立即定位目标 prompt
-- **AND** SHALL NOT 执行平滑滚动动画
-
-#### Scenario: 布局变化后重新同步
-
-- **WHEN** streaming、Activity 展开折叠或消息内容变化导致 prompt anchor 位置改变
-- **THEN** Renderer SHALL 重新测量 prompt anchor
-- **AND** active item 与后续定位 SHALL 使用更新后的位置
-
-### Requirement: Timeline 滚动同步避免逐项布局读取
-
-Renderer SHALL 缓存有序 prompt anchor offsets，并 SHALL 通过 animation frame 合并 scroll 更新。普通 scroll frame SHALL 使用缓存查询 active item，而 SHALL NOT 为每个 prompt 查询 DOM 或读取布局位置。
-
-#### Scenario: 长对话持续滚动
-
-- **WHEN** 用户在包含大量 prompt items 的会话中持续滚动
-- **THEN** Renderer SHALL 每个 animation frame 至多执行一次 active 同步
-- **AND** active 同步 SHALL 从缓存 offsets 查询目标，不逐项调用 anchor 布局读取
-
-#### Scenario: Timeline 卸载清理资源
-
-- **WHEN** 用户切换会话或 timeline 宿主卸载
-- **THEN** Renderer SHALL 清理 scroll listener、ResizeObserver、待执行 animation frame 和导航 fallback timer
-
 ### Requirement: Timeline 提供单一键盘导航入口
 
 Renderer SHALL 让 timeline rail 作为一个具有 `slider` 语义的 Tab 停靠点，并 SHALL 提供可见焦点。导览刻度 SHALL NOT 各自进入 Tab 序列。Rail SHALL 以 1、items 总数以及当前 active 或 preview ordinal 提供 `aria-valuemin`、`aria-valuemax`、`aria-valuenow` 和可理解的 `aria-valuetext`。获得焦点后，ArrowUp/ArrowDown SHALL 逐条移动 preview，Home/End SHALL 移到首尾，Enter SHALL 定位当前 preview prompt 并固定完整列表，Escape SHALL 关闭摘要浮层。
@@ -227,6 +158,8 @@ Renderer SHALL 让 timeline rail 作为一个具有 `slider` 语义的 Tab 停�
 - **WHEN** 摘要浮层可见且用户按 Escape
 - **THEN** Renderer SHALL 关闭 transient 或 pinned 浮层
 - **AND** 当前 active prompt SHALL 保持不变
+
+## ADDED Requirements
 
 ### Requirement: Timeline 以透明常态的悬浮层承载交互
 

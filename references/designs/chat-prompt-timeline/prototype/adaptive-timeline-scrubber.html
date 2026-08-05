@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FylloCode · Adaptive Prompt Timeline Prototype</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page: #eef2f6;
+        --chrome: #f6f8fa;
+        --surface: #ffffff;
+        --surface-subtle: #f6f8fa;
+        --surface-hover: #edf2f5;
+        --border: #dde4ea;
+        --border-strong: #cbd5df;
+        --text: #29323d;
+        --text-strong: #17202a;
+        --muted: #778492;
+        --primary: #0d9488;
+        --primary-strong: #0f766e;
+        --primary-soft: #ccfbf1;
+        --shadow: 0 16px 44px rgb(15 23 42 / 16%), 0 3px 10px rgb(15 23 42 / 8%);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-width: 920px;
+        min-height: 700px;
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+      }
+
+      button {
+        font: inherit;
+      }
+
+      button:focus-visible,
+      [tabindex="0"]:focus-visible {
+        outline: 2px solid rgb(13 148 136 / 55%);
+        outline-offset: 2px;
+      }
+
+      .prototype-page {
+        min-height: 100vh;
+        padding: 18px;
+      }
+
+      .prototype-bar {
+        display: flex;
+        width: min(1240px, calc(100vw - 36px));
+        min-height: 48px;
+        margin: 0 auto 12px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .prototype-title h1 {
+        margin: 0;
+        color: var(--text-strong);
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .prototype-title p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .scenario-switcher {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .scenario-label {
+        margin-right: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .scenario-button,
+      .text-button {
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+        transition:
+          background-color 150ms,
+          border-color 150ms,
+          color 150ms;
+      }
+
+      .scenario-button {
+        height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .scenario-button:hover,
+      .text-button:hover {
+        border-color: var(--border-strong);
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .scenario-button[aria-pressed="true"] {
+        border-color: rgb(13 148 136 / 35%);
+        background: var(--primary-soft);
+        color: var(--primary-strong);
+      }
+
+      .app-window {
+        display: flex;
+        width: min(1240px, calc(100vw - 36px));
+        height: calc(100vh - 96px);
+        min-height: 620px;
+        max-height: 790px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-subtle);
+        box-shadow: 0 9px 32px rgb(15 23 42 / 9%);
+      }
+
+      .session-sidebar {
+        width: 232px;
+        flex: 0 0 232px;
+        padding: 12px 10px;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      .new-session {
+        display: grid;
+        width: 100%;
+        height: 34px;
+        place-items: center;
+        border: 1px solid rgb(13 148 136 / 28%);
+        border-radius: 8px;
+        background: rgb(204 251 241 / 35%);
+        color: var(--primary-strong);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .sidebar-heading {
+        margin: 18px 8px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .session-row {
+        padding: 10px 10px;
+        border-radius: 8px;
+      }
+
+      .session-row.active {
+        background: var(--primary-soft);
+      }
+
+      .session-name {
+        overflow: hidden;
+        color: var(--text-strong);
+        font-size: 12px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .session-meta {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .chat-card {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+        margin: 8px;
+        overflow: hidden;
+        border-radius: 9px;
+        background: var(--surface);
+      }
+
+      .chat-header {
+        display: flex;
+        height: 44px;
+        flex: 0 0 44px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        border-bottom: 1px solid rgb(221 228 234 / 75%);
+      }
+
+      .chat-heading {
+        min-width: 0;
+      }
+
+      .chat-title {
+        color: var(--text-strong);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .chat-subtitle {
+        margin-left: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .status-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--primary);
+      }
+
+      .chat-stage {
+        position: relative;
+        display: flex;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .timeline-overlay {
+        position: absolute;
+        top: 26px;
+        left: 10px;
+        z-index: 5;
+        width: 46px;
+      }
+
+      .timeline-floating {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 9px 4px 8px;
+        border: 1px solid transparent;
+        border-radius: 11px;
+        background: transparent;
+        transition:
+          background-color 150ms,
+          border-color 150ms,
+          box-shadow 150ms;
+      }
+
+      .timeline-overlay:hover .timeline-floating,
+      .timeline-overlay:focus-within .timeline-floating,
+      .timeline-overlay:has(.scrubber.dragging) .timeline-floating {
+        border-color: rgb(203 213 223 / 68%);
+        background: rgb(248 250 252 / 78%);
+        box-shadow: 0 5px 18px rgb(15 23 42 / 8%);
+        backdrop-filter: blur(8px);
+      }
+
+      .scrubber {
+        position: relative;
+        width: 38px;
+        height: 164px;
+        border-radius: 8px;
+        cursor: ns-resize;
+        touch-action: none;
+        user-select: none;
+      }
+
+      .guide-track {
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        left: 11px;
+        width: 1px;
+        border-radius: 999px;
+        background: #e3e8ed;
+      }
+
+      .tick {
+        position: absolute;
+        left: 11px;
+        width: 14px;
+        height: 2px;
+        border-radius: 999px;
+        background: #b9c3cc;
+        transform: translateY(-50%);
+      }
+
+      .tick.edge {
+        width: 18px;
+        background: #93a1ae;
+      }
+
+      .active-thumb {
+        position: absolute;
+        left: 8px;
+        z-index: 2;
+        width: 24px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--primary);
+        box-shadow: 0 0 0 3px rgb(13 148 136 / 10%);
+        pointer-events: none;
+        transform: translateY(-50%);
+        transition: top 120ms ease-out;
+      }
+
+      .scrubber.dragging .active-thumb {
+        transition: none;
+      }
+
+      .timeline-count {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .message-scroller {
+        position: relative;
+        min-width: 0;
+        flex: 1;
+        overflow-y: auto;
+        overflow-anchor: none;
+        overscroll-behavior: contain;
+        scroll-behavior: smooth;
+        scrollbar-gutter: stable;
+      }
+
+      .message-scroller.drag-locating {
+        scroll-behavior: auto;
+      }
+
+      .message-list {
+        width: min(720px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 34px 8px 110px;
+      }
+
+      .turn {
+        padding-bottom: 34px;
+        scroll-margin-top: 150px;
+      }
+
+      .user-message {
+        width: min(520px, 82%);
+        margin-left: auto;
+        padding: 11px 13px;
+        border: 1px solid #e3e8ed;
+        border-radius: 10px;
+        background: #f4f6f8;
+        color: #44515e;
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+
+      .assistant-message {
+        width: min(620px, 90%);
+        margin-top: 18px;
+        color: #4c5966;
+        font-size: 12.5px;
+        line-height: 1.7;
+      }
+
+      .assistant-label {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .composer-wrap {
+        position: absolute;
+        right: 18px;
+        bottom: 16px;
+        left: 18px;
+        z-index: 4;
+        pointer-events: none;
+      }
+
+      .composer {
+        width: min(720px, calc(100% - 40px));
+        height: 82px;
+        margin: 0 auto;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgb(248 250 252 / 96%);
+        box-shadow: 0 8px 28px rgb(15 23 42 / 7%);
+      }
+
+      .composer-placeholder {
+        color: #91a0ad;
+        font-size: 13px;
+      }
+
+      .composer-meta {
+        display: flex;
+        margin-top: 25px;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .preview-popover {
+        position: fixed;
+        z-index: 40;
+        width: 330px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(-3px);
+        transition:
+          opacity 150ms,
+          transform 150ms;
+      }
+
+      .preview-popover.open {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateX(0);
+      }
+
+      .popover-header {
+        display: flex;
+        min-height: 47px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .popover-heading {
+        min-width: 0;
+      }
+
+      .popover-title {
+        color: var(--text-strong);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .popover-meta {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .text-button {
+        min-height: 26px;
+        padding: 0 8px;
+        font-size: 10px;
+      }
+
+      .preview-list {
+        margin: 0;
+        padding: 5px;
+        list-style: none;
+      }
+
+      .preview-list.full {
+        max-height: 292px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+
+      .preview-row {
+        display: grid;
+        width: 100%;
+        min-width: 0;
+        height: 34px;
+        grid-template-columns: 28px minmax(0, 1fr);
+        align-items: center;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        padding-left: 2px;
+        text-align: left;
+        transition:
+          background-color 150ms,
+          color 150ms;
+      }
+
+      .preview-row:hover {
+        background: var(--surface-hover);
+      }
+
+      .preview-row.selected {
+        background: rgb(204 251 241 / 55%);
+        color: var(--text-strong);
+      }
+
+      .preview-index {
+        color: var(--muted);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+      }
+
+      .preview-text {
+        min-width: 0;
+        overflow: hidden;
+        padding-right: 9px;
+        font-size: 11.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .popover-footer {
+        display: flex;
+        min-height: 34px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 10px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 9.5px;
+      }
+
+      .key-hint {
+        display: inline-flex;
+        gap: 5px;
+      }
+
+      .key {
+        min-width: 20px;
+        padding: 2px 5px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--surface-subtle);
+        color: #5f6c78;
+        font-size: 9px;
+        text-align: center;
+      }
+
+      .locator-toast {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        z-index: 7;
+        padding: 7px 10px;
+        border: 1px solid rgb(13 148 136 / 25%);
+        border-radius: 7px;
+        background: rgb(240 253 250 / 96%);
+        color: var(--primary-strong);
+        font-size: 11px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -4px);
+        transition:
+          opacity 150ms,
+          transform 150ms;
+      }
+
+      .locator-toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .active-thumb,
+        .preview-popover,
+        .locator-toast,
+        .message-scroller {
+          scroll-behavior: auto;
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="prototype-page">
+      <header class="prototype-bar">
+        <div class="prototype-title">
+          <h1>Adaptive Prompt Timeline</h1>
+          <p>悬浮于消息区之上，不占聊天宽度；透明常态，交互时增强可读性。</p>
+        </div>
+        <div class="scenario-switcher" aria-label="切换对话长度">
+          <span class="scenario-label">对话长度</span>
+          <button class="scenario-button" type="button" data-count="8">8 prompts</button>
+          <button class="scenario-button" type="button" data-count="24">24 prompts</button>
+          <button class="scenario-button" type="button" data-count="61">61 prompts</button>
+        </div>
+      </header>
+
+      <section class="app-window" aria-label="FylloCode timeline 交互原型">
+        <aside class="session-sidebar" aria-label="会话列表">
+          <div class="new-session">新建会话</div>
+          <div class="sidebar-heading">最近会话</div>
+          <div class="session-row active">
+            <div class="session-name">优化 Chat prompt timeline</div>
+            <div class="session-meta"><span id="sidebarCount">61</span> turns · 当前讨论</div>
+          </div>
+          <div class="session-row">
+            <div class="session-name">准备发版 v0.15.0</div>
+            <div class="session-meta">18 turns · Yesterday</div>
+          </div>
+          <div class="session-row">
+            <div class="session-name">完善 multi-root workspace</div>
+            <div class="session-meta">33 turns · 2d ago</div>
+          </div>
+        </aside>
+
+        <section class="chat-card">
+          <header class="chat-header">
+            <div class="chat-heading">
+              <span class="chat-title">当前讨论</span>
+              <span class="chat-subtitle">Chat prompt timeline 优化</span>
+            </div>
+            <div class="status-group">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="headerStatus">10 个视觉刻度 · 61 prompts</span>
+            </div>
+          </header>
+
+          <div class="chat-stage">
+            <aside class="timeline-overlay" aria-label="Prompt timeline 区域">
+              <div class="timeline-floating">
+                <div
+                  id="scrubber"
+                  class="scrubber"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="用户 prompt 时间线"
+                  aria-valuemin="1"
+                  aria-valuemax="61"
+                  aria-valuenow="1"
+                  aria-valuetext="第 1 条 prompt，共 61 条"
+                >
+                  <div class="guide-track" aria-hidden="true"></div>
+                  <div id="tickLayer" aria-hidden="true"></div>
+                  <div id="activeThumb" class="active-thumb" aria-hidden="true"></div>
+                </div>
+                <div id="timelineCount" class="timeline-count">01 / 61</div>
+              </div>
+            </aside>
+
+            <div id="messageScroller" class="message-scroller">
+              <div id="messageList" class="message-list"></div>
+            </div>
+
+            <div class="composer-wrap" aria-hidden="true">
+              <div class="composer">
+                <div class="composer-placeholder">Type your message here…</div>
+                <div class="composer-meta">
+                  <span>GPT-5.6-Sol · High · Default</span>
+                  <span>Context 37%</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="locatorToast" class="locator-toast" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+      </section>
+
+      <aside id="previewPopover" class="preview-popover" aria-label="Prompt 摘要">
+        <div class="popover-header">
+          <div class="popover-heading">
+            <div id="popoverTitle" class="popover-title">附近 prompts</div>
+            <div id="popoverMeta" class="popover-meta"></div>
+          </div>
+          <button id="popoverAction" class="text-button" type="button">固定完整列表</button>
+        </div>
+        <div id="previewList" class="preview-list"></div>
+        <div class="popover-footer">
+          <span id="popoverFooterText">移动指针快速预览</span>
+          <span class="key-hint" aria-label="键盘提示">
+            <span class="key">↑↓</span>
+            <span class="key">Enter</span>
+          </span>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const promptSeeds = [
+        "先检查现有实现和规格，确认 timeline 在长对话中的真实行为。",
+        "如果 prompt 数量超过十个，视觉刻度应该如何表达完整进度？",
+        "取消 active item 的长度变化，但仍然需要知道当前阅读位置。",
+        "hover 时只显示附近摘要，避免一次展示几十条内容。",
+        "每条摘要保持单行，超出宽度后使用省略号。",
+        "点击 timeline 后固定完整列表，并允许独立滚动定位。",
+        "拖动 scrubber 时要即时定位，普通点击则使用平滑滚动。",
+        "键盘用户通过方向键、Home、End 和 Enter 完成导航。",
+        "切换会话后应重新计算 prompt 数量和 active 位置。",
+        "最终方案需要同时适用于短对话和几十轮的长对话。",
+        "滚动消息时，active thumb 应稳定跟随阅读参考线。",
+        "popover 不应该因为指针从 rail 移入内容区而意外关闭。",
+      ];
+
+      const assistantSeeds = [
+        "已记录这个约束。这里将视觉刻度与真实 prompt 数据分开：刻度负责提供整体方向，完整数据仍用于精确定位。",
+        "当前状态会通过一个独立的 teal 滑块表达，不再改变任何刻度的长度或颜色。",
+        "附近摘要用于快速识别；只有用户主动点击后，完整列表才进入可滚动的固定状态。",
+        "定位行为会复用同一套阅读参考线，减少点击跳转与手动滚动之间的状态冲突。",
+      ];
+
+      const state = {
+        count: 61,
+        prompts: [],
+        activeIndex: 0,
+        previewIndex: 0,
+        pinned: false,
+        dragging: false,
+        closeTimer: null,
+        toastTimer: null,
+      };
+
+      const scrubber = document.querySelector("#scrubber");
+      const tickLayer = document.querySelector("#tickLayer");
+      const activeThumb = document.querySelector("#activeThumb");
+      const timelineCount = document.querySelector("#timelineCount");
+      const messageScroller = document.querySelector("#messageScroller");
+      const messageList = document.querySelector("#messageList");
+      const previewPopover = document.querySelector("#previewPopover");
+      const previewList = document.querySelector("#previewList");
+      const popoverTitle = document.querySelector("#popoverTitle");
+      const popoverMeta = document.querySelector("#popoverMeta");
+      const popoverAction = document.querySelector("#popoverAction");
+      const popoverFooterText = document.querySelector("#popoverFooterText");
+      const locatorToast = document.querySelector("#locatorToast");
+
+      function pad(value) {
+        return String(value).padStart(2, "0");
+      }
+
+      function buildPrompts(count) {
+        return Array.from({ length: count }, (_, index) => ({
+          id: `prompt-${index + 1}`,
+          text: `${promptSeeds[index % promptSeeds.length]}${index >= promptSeeds.length ? `（补充 ${index + 1}）` : ""}`,
+          assistant: assistantSeeds[index % assistantSeeds.length],
+        }));
+      }
+
+      function renderTicks() {
+        tickLayer.replaceChildren();
+        const tickCount = Math.min(10, state.count);
+        scrubber.style.height = `${state.count <= 10 ? Math.max(36, (state.count - 1) * 14) : 164}px`;
+        for (let index = 0; index < tickCount; index += 1) {
+          const tick = document.createElement("span");
+          const ratio = tickCount === 1 ? 0 : index / (tickCount - 1);
+          tick.className = `tick${index === 0 || index === tickCount - 1 ? " edge" : ""}`;
+          tick.style.top = `${ratio * 100}%`;
+          tickLayer.appendChild(tick);
+        }
+      }
+
+      function renderMessages() {
+        messageList.replaceChildren();
+        state.prompts.forEach((prompt, index) => {
+          const turn = document.createElement("article");
+          turn.className = "turn";
+          turn.id = prompt.id;
+          turn.dataset.index = String(index);
+
+          const user = document.createElement("div");
+          user.className = "user-message";
+          user.textContent = prompt.text;
+
+          const assistant = document.createElement("div");
+          assistant.className = "assistant-message";
+          const label = document.createElement("span");
+          label.className = "assistant-label";
+          label.textContent = `Assistant · turn ${index + 1}`;
+          const body = document.createElement("span");
+          body.textContent = prompt.assistant;
+          assistant.append(label, body);
+
+          turn.append(user, assistant);
+          messageList.appendChild(turn);
+        });
+      }
+
+      function updateActive(index) {
+        const next = Math.max(0, Math.min(state.count - 1, index));
+        state.activeIndex = next;
+        const ratio = state.count <= 1 ? 0 : next / (state.count - 1);
+        activeThumb.style.top = `${ratio * 100}%`;
+        timelineCount.textContent = `${pad(next + 1)} / ${pad(state.count)}`;
+        scrubber.setAttribute("aria-valuenow", String(next + 1));
+        scrubber.setAttribute("aria-valuetext", `第 ${next + 1} 条 prompt，共 ${state.count} 条`);
+      }
+
+      function showToast(index) {
+        locatorToast.textContent = `已定位到 prompt ${index + 1}`;
+        locatorToast.classList.add("show");
+        window.clearTimeout(state.toastTimer);
+        state.toastTimer = window.setTimeout(() => locatorToast.classList.remove("show"), 900);
+      }
+
+      function locatePrompt(index, behavior = "smooth", announce = true) {
+        const next = Math.max(0, Math.min(state.count - 1, index));
+        const target = messageList.querySelector(`[data-index="${next}"]`);
+        if (!target) return;
+        updateActive(next);
+        const desiredTop = target.offsetTop - messageScroller.clientHeight * 0.35;
+        messageScroller.scrollTo({ top: Math.max(0, desiredTop), behavior });
+        if (announce) showToast(next);
+      }
+
+      function indexFromPointer(event) {
+        const rect = scrubber.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+        return Math.round(ratio * (state.count - 1));
+      }
+
+      function previewWindow(index) {
+        const visibleCount = Math.min(5, state.count);
+        const start = Math.max(0, Math.min(state.count - visibleCount, index - 2));
+        return state.prompts.slice(start, start + visibleCount).map((prompt, offset) => ({
+          prompt,
+          index: start + offset,
+        }));
+      }
+
+      function createPreviewRow(prompt, index, selected) {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = `preview-row${selected ? " selected" : ""}`;
+        row.dataset.index = String(index);
+
+        const itemIndex = document.createElement("span");
+        itemIndex.className = "preview-index";
+        itemIndex.textContent = pad(index + 1);
+        const text = document.createElement("span");
+        text.className = "preview-text";
+        text.textContent = prompt.text;
+        text.title = prompt.text;
+        row.append(itemIndex, text);
+
+        row.addEventListener("click", () => {
+          locatePrompt(index, "smooth");
+          if (!state.pinned) pinPopover(index);
+          else renderPopover(index);
+        });
+        return row;
+      }
+
+      function positionPopover() {
+        const rect = scrubber.getBoundingClientRect();
+        const width = 330;
+        const left = Math.min(window.innerWidth - width - 14, rect.right + 10);
+        const preferredTop = rect.top - 12;
+        const top = Math.max(14, Math.min(window.innerHeight - 390, preferredTop));
+        previewPopover.style.left = `${left}px`;
+        previewPopover.style.top = `${top}px`;
+      }
+
+      function renderPopover(index) {
+        state.previewIndex = Math.max(0, Math.min(state.count - 1, index));
+        previewList.replaceChildren();
+        previewList.classList.toggle("full", state.pinned);
+
+        const rows = state.pinned
+          ? state.prompts.map((prompt, promptIndex) => ({ prompt, index: promptIndex }))
+          : previewWindow(state.previewIndex);
+
+        rows.forEach(({ prompt, index: promptIndex }) => {
+          previewList.appendChild(
+            createPreviewRow(prompt, promptIndex, promptIndex === state.previewIndex)
+          );
+        });
+
+        popoverTitle.textContent = state.pinned ? "全部 user prompts" : "附近 prompts";
+        popoverMeta.textContent = state.pinned
+          ? `${state.count} 条 · 单行摘要 · 列表内滚动`
+          : `预览 ${state.previewIndex + 1} / ${state.count} · 点击 rail 固定完整列表`;
+        popoverAction.textContent = state.pinned ? "关闭" : "固定完整列表";
+        popoverFooterText.textContent = state.pinned ? "点击任意摘要定位消息" : "移动指针快速预览";
+        previewPopover.classList.add("open");
+        positionPopover();
+
+        if (state.pinned) {
+          const selected = previewList.querySelector(".preview-row.selected");
+          selected?.scrollIntoView({ block: "center" });
+        }
+      }
+
+      function showHoverPreview(index) {
+        if (state.pinned) return;
+        window.clearTimeout(state.closeTimer);
+        renderPopover(index);
+      }
+
+      function closePopover() {
+        state.pinned = false;
+        previewPopover.classList.remove("open");
+      }
+
+      function closeHoverPreviewSoon() {
+        if (state.pinned) return;
+        window.clearTimeout(state.closeTimer);
+        state.closeTimer = window.setTimeout(() => {
+          if (!state.pinned) previewPopover.classList.remove("open");
+        }, 180);
+      }
+
+      function pinPopover(index = state.previewIndex) {
+        state.pinned = true;
+        renderPopover(index);
+      }
+
+      function setScenario(count) {
+        state.count = count;
+        state.prompts = buildPrompts(count);
+        state.activeIndex = 0;
+        state.previewIndex = 0;
+        state.pinned = false;
+        previewPopover.classList.remove("open");
+
+        document.querySelectorAll(".scenario-button").forEach((button) => {
+          button.setAttribute("aria-pressed", String(Number(button.dataset.count) === count));
+        });
+        document.querySelector("#sidebarCount").textContent = String(count);
+        document.querySelector("#headerStatus").textContent =
+          count <= 10
+            ? `${count} 个逐项刻度 · ${count} prompts`
+            : `10 个视觉刻度 · ${count} prompts`;
+        scrubber.setAttribute("aria-valuemax", String(count));
+
+        renderTicks();
+        renderMessages();
+        messageScroller.scrollTop = 0;
+        updateActive(0);
+        window.requestAnimationFrame(() => {
+          messageScroller.scrollTop = 0;
+          updateActive(0);
+        });
+      }
+
+      scrubber.addEventListener("pointermove", (event) => {
+        const index = indexFromPointer(event);
+        showHoverPreview(index);
+        if (state.dragging) locatePrompt(index, "auto", false);
+      });
+
+      scrubber.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        state.dragging = true;
+        scrubber.classList.add("dragging");
+        messageScroller.classList.add("drag-locating");
+        scrubber.setPointerCapture(event.pointerId);
+        const index = indexFromPointer(event);
+        showHoverPreview(index);
+        locatePrompt(index, "auto", false);
+      });
+
+      scrubber.addEventListener("pointerup", (event) => {
+        if (!state.dragging) return;
+        state.dragging = false;
+        scrubber.classList.remove("dragging");
+        messageScroller.classList.remove("drag-locating");
+        if (scrubber.hasPointerCapture(event.pointerId))
+          scrubber.releasePointerCapture(event.pointerId);
+        const index = indexFromPointer(event);
+        locatePrompt(index, "smooth");
+        pinPopover(index);
+      });
+
+      scrubber.addEventListener("pointercancel", () => {
+        state.dragging = false;
+        scrubber.classList.remove("dragging");
+        messageScroller.classList.remove("drag-locating");
+      });
+
+      scrubber.addEventListener("pointerleave", closeHoverPreviewSoon);
+
+      scrubber.addEventListener(
+        "wheel",
+        (event) => {
+          event.preventDefault();
+          const direction = event.deltaY > 0 ? 1 : -1;
+          const next = Math.max(0, Math.min(state.count - 1, state.previewIndex + direction));
+          showHoverPreview(next);
+          locatePrompt(next, "auto", false);
+        },
+        { passive: false }
+      );
+
+      scrubber.addEventListener("keydown", (event) => {
+        if (!["ArrowUp", "ArrowDown", "Home", "End", "Enter", "Escape"].includes(event.key)) return;
+        event.preventDefault();
+        if (event.key === "Escape") {
+          closePopover();
+          return;
+        }
+        if (event.key === "Enter") {
+          locatePrompt(state.previewIndex, "smooth");
+          pinPopover(state.previewIndex);
+          return;
+        }
+
+        let next = state.previewIndex;
+        if (event.key === "ArrowUp") next = Math.max(0, next - 1);
+        if (event.key === "ArrowDown") next = Math.min(state.count - 1, next + 1);
+        if (event.key === "Home") next = 0;
+        if (event.key === "End") next = state.count - 1;
+        showHoverPreview(next);
+      });
+
+      previewPopover.addEventListener("pointerenter", () => window.clearTimeout(state.closeTimer));
+      previewPopover.addEventListener("pointerleave", closeHoverPreviewSoon);
+
+      popoverAction.addEventListener("click", () => {
+        if (state.pinned) closePopover();
+        else pinPopover(state.previewIndex);
+      });
+
+      messageScroller.addEventListener(
+        "scroll",
+        () => {
+          if (state.dragging) return;
+          if (messageScroller.scrollTop < 8) {
+            updateActive(0);
+            return;
+          }
+          const readingLine = messageScroller.scrollTop + messageScroller.clientHeight * 0.35;
+          const turns = [...messageList.querySelectorAll(".turn")];
+          let active = 0;
+          for (let index = 0; index < turns.length; index += 1) {
+            if (turns[index].offsetTop <= readingLine) active = index;
+            else break;
+          }
+          updateActive(active);
+        },
+        { passive: true }
+      );
+
+      document.querySelectorAll(".scenario-button").forEach((button) => {
+        button.addEventListener("click", () => setScenario(Number(button.dataset.count)));
+      });
+
+      window.addEventListener("resize", () => {
+        if (previewPopover.classList.contains("open")) positionPopover();
+      });
+
+      document.addEventListener("pointerdown", (event) => {
+        if (!state.pinned) return;
+        if (previewPopover.contains(event.target) || scrubber.contains(event.target)) return;
+        closePopover();
+      });
+
+      setScenario(61);
+    </script>
+  </body>
+</html>

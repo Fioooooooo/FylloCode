@@ -436,7 +436,7 @@ describe("ChatContainer", () => {
     expect(promptPanel.closest('[data-test="event-rail"]')).toBeNull();
   });
 
-  it("constrains the compact timeline without changing the message column or event rail", () => {
+  it("keeps the timeline floating without reserving message-column width", () => {
     const session = makeSessionWithUserPrompt();
     session.agentAgenda = [{ content: "Step 1", priority: "high", status: "completed" }];
     activeSessionRef.value = session;
@@ -444,13 +444,17 @@ describe("ChatContainer", () => {
 
     const wrapper = mountContainer();
     const timeline = wrapper.get('[data-test="chat-prompt-timeline"]');
-    const timelineHost = timeline.element.closest(".h-fit");
+    const timelineHost = timeline.element.closest(".absolute");
+    const messageScrollContainer = wrapper.get('[data-test="chat-message-scroll-container"]');
 
     expect(timelineHost).not.toBeNull();
+    expect(timelineHost?.classList.contains("absolute")).toBe(true);
+    expect(timelineHost?.classList.contains("left-2")).toBe(true);
     expect(timelineHost?.classList.contains("top-4")).toBe(true);
     expect(timelineHost?.classList.contains("bottom-4")).toBe(false);
     expect(timelineHost?.classList.contains("max-h-[calc(100%-2rem)]")).toBe(true);
-    expect(wrapper.get('[data-test="chat-message-scroll-container"] .max-w-3xl')).toBeTruthy();
+    expect(messageScrollContainer.classes().some((name) => name.startsWith("w-"))).toBe(false);
+    expect(messageScrollContainer.get(".max-w-3xl")).toBeTruthy();
     expect(wrapper.find('[data-test="event-rail"]').exists()).toBe(true);
   });
 
