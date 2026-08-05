@@ -6,7 +6,7 @@ sidebar:
 
 # Lineage Traceability
 
-Lineage is the mechanism behind FylloCode's end-to-end traceability. It records a requirement from creation through discussion, planning, implementation, and archive as one traceable path. The [three execution paths](/en/docs/guide/workflow) define how a change can move. Lineage records what actually happened, whether the change took the direct, Plan, or Proposal route.
+Lineage is the mechanism behind FylloCode's end-to-end traceability. It records a requirement from creation through discussion, planning, implementation, and archive as one traceable path. The [three execution paths](/en/docs/guide/change-paths) define how a change can move. Lineage records what actually happened, whether the change took the direct, Plan, or Proposal route.
 
 ## Core Concept: Subject
 

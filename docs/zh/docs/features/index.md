@@ -29,7 +29,7 @@ FylloCode 按 Workspace 中一次 Agent 编码任务的治理路径组织功能�
 
 ## 推荐理解方式
 
-先从一个 Task 开始，在 Chat 中判断这次改动该走[直接实现、Plan 还是 Proposal](/docs/guide/workflow)，再沿 Apply & Archive 看完整流程。这是日常使用的主线。知识沉淀、项目准则、能力规约和工作脉络提供背景：前两者由 `fyllo-cortex` 在明确检查点辅助 Agent 维护，能力规约是 Proposal 归档后的正式契约，工作脉络则是浏览[串联主线各步骤的 lineage](/docs/guide/lineage)的入口。ACP Agents、研发系统集成和设置是支撑能力。
+先从一个 Task 开始，在 Chat 中判断这次改动该走[直接实现、Plan 还是 Proposal](/docs/guide/change-paths)，再沿 Apply & Archive 看完整流程。这是日常使用的主线。知识沉淀、项目准则、能力规约和工作脉络提供背景：前两者由 `fyllo-cortex` 在明确检查点辅助 Agent 维护，能力规约是 Proposal 归档后的正式契约，工作脉络则是浏览[串联主线各步骤的 lineage](/docs/guide/lineage)的入口。ACP Agents、研发系统集成和设置是支撑能力。
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/proposal-detail.png" alt="Proposal 详情页截图" />

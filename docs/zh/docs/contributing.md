@@ -36,7 +36,7 @@ FylloCode 自身也在用 FylloCode 开发。参与贡献时，推荐使用 Rele
 1. 下载最新 Release
 2. 打开 FylloCode 仓库作为项目
 3. （可选）在 Task 中描述你要做的改动
-4. 在对话里和 Agent 收敛方案，按[改动性质选择直接实现、Plan 还是 Proposal](/docs/guide/workflow)，再走 Apply & Archive
+4. 在对话里和 Agent 收敛方案，按[改动性质选择直接实现、Plan 还是 Proposal](/docs/guide/change-paths)，再走 Apply & Archive
 5. 回到代码仓库检查 diff 和验证结果
 
 ## 提交流程

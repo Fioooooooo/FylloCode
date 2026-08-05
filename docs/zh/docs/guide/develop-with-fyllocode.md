@@ -15,7 +15,7 @@ FylloCode 自身也在用 FylloCode 开发。对于参与贡献者，推荐使�
 1. 下载最新 Release 版本
 2. 打开 FylloCode 仓库作为项目
 3. 在 Task 中描述你要修复的问题或要做的改动
-4. 在对话里和 Agent 收敛方案，按[改动性质选择直接实现、Plan 还是 Proposal](/docs/guide/workflow)，再走 Apply & Archive
+4. 在对话里和 Agent 收敛方案，按[改动性质选择直接实现、Plan 还是 Proposal](/docs/guide/change-paths)，再走 Apply & Archive
 5. 回到代码仓库检查 diff、测试结果和归档内容
 
 ## 什么时候可以直接提交 PR

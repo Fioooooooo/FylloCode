@@ -29,7 +29,7 @@ FylloCode organizes its features around the governance path of an Agent coding t
 
 ## How to Read It
 
-Start from a Task and decide in Chat whether this change should take the [direct, Plan, or Proposal](/en/docs/guide/workflow) path. Then follow Apply & Archive through the same main path. Knowledge, Guidelines, Specs, and Work Lineage provide background: `fyllo-cortex` helps the Agent maintain the first two at explicit checkpoints, Specs is the formal contract left after a Proposal archives, and Work Lineage lets you browse the [lineage](/en/docs/guide/lineage) that connects the path. ACP Agents, engineering integrations, and Settings support this workflow.
+Start from a Task and decide in Chat whether this change should take the [direct, Plan, or Proposal](/en/docs/guide/change-paths) path. Then follow Apply & Archive through the same main path. Knowledge, Guidelines, Specs, and Work Lineage provide background: `fyllo-cortex` helps the Agent maintain the first two at explicit checkpoints, Specs is the formal contract left after a Proposal archives, and Work Lineage lets you browse the [lineage](/en/docs/guide/lineage) that connects the path. ACP Agents, engineering integrations, and Settings support this workflow.
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/proposal-detail.png" alt="Proposal detail screenshot" />

@@ -17,7 +17,7 @@ When an Agent only needs to display information that requires no confirmation, i
 | Type | Where it appears | Triggered when | What happens after confirmation |
 | --- | --- | --- | --- |
 | `task.create` | Inline card in the chat transcript | The Agent identifies a follow-up task worth tracking | FylloCode creates a local task and binds the current session to that task's lineage |
-| `plan.create` | Inline card in the chat transcript | The Agent finishes writing a [Plan](/en/docs/guide/workflow#plan) document | FylloCode opens the plan for your review; once approved, the Agent implements it |
+| `plan.create` | Inline card in the chat transcript | The Agent finishes writing a [Plan](/en/docs/guide/change-paths#plan) document | FylloCode opens the plan for your review; once approved, the Agent implements it |
 | `knowledge.flag` | Inline chat card + read-only event-rail entry | The Agent notices a fact worth capturing during discussion | Doesn't interrupt the conversation; once you confirm the inline card, all pending flags in the session are bundled into one capture request |
 | `knowledge.review` | Inline chat card + read-only event-rail entry | The Agent completes a knowledge capture that created or updated an entry | FylloCode opens that entry's latest saved content from disk for editing and review |
 

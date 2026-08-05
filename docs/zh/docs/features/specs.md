@@ -14,7 +14,7 @@ sidebar:
 
 ## specs 是什么
 
-Spec 描述项目某个能力的需求和验收场景，是 Proposal 走 [OpenSpec 路径](/docs/guide/workflow#proposal) 时沉淀下来的正式契约。一个 Proposal 归档后，其中涉及的能力变化会合并进对应的 spec 文件，成为项目规约的一部分。只有走 Proposal 路径并涉及需求或契约变化的改动，才会产生新的 spec。
+Spec 描述项目某个能力的需求和验收场景，是 Proposal 走 [OpenSpec 路径](/docs/guide/change-paths#proposal) 时沉淀下来的正式契约。一个 Proposal 归档后，其中涉及的能力变化会合并进对应的 spec 文件，成为项目规约的一部分。只有走 Proposal 路径并涉及需求或契约变化的改动，才会产生新的 spec。
 
 ## 页面结构
 

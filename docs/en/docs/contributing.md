@@ -36,7 +36,7 @@ Recommended flow:
 1. Download the latest Release.
 2. Open the FylloCode repository as a project.
 3. Optionally describe the change in a Task.
-4. Use Chat to converge on a plan, choose [direct implementation, Plan, or Proposal](/en/docs/guide/workflow) based on the change, then run Apply & Archive.
+4. Use Chat to converge on a plan, choose [direct implementation, Plan, or Proposal](/en/docs/guide/change-paths) based on the change, then run Apply & Archive.
 5. Return to the repository to inspect the diff and verification results.
 
 ## Contribution Flow

@@ -17,7 +17,7 @@ sidebar:
 | Type | 呈现位置 | 触发方 | 确认后发生什么 |
 | --- | --- | --- | --- |
 | `task.create` | 对话正文内联卡片 | Agent 在讨论中识别到一个值得跟踪的后续任务 | FylloCode 创建本地任务，并把当前会话绑定到该任务的 lineage |
-| `plan.create` | 对话正文内联卡片 | Agent 完成一份 [Plan](/docs/guide/workflow#plan) 文档 | FylloCode 打开该 plan 供你审阅；批准后 Agent 按 plan 执行 |
+| `plan.create` | 对话正文内联卡片 | Agent 完成一份 [Plan](/docs/guide/change-paths#plan) 文档 | FylloCode 打开该 plan 供你审阅；批准后 Agent 按 plan 执行 |
 | `knowledge.flag` | 对话内联卡片 + 会话事件栏只读记录 | Agent 在讨论中发现一条值得沉淀的事实 | 不立即打断对话；你在内联卡片确认后，会话内所有待处理的 flag 会被打包成一次 capture 请求 |
 | `knowledge.review` | 对话内联卡片 + 会话事件栏只读记录 | Agent 完成一次 knowledge capture，写入或更新了条目 | FylloCode 从磁盘打开该 knowledge 条目的最新内容供你编辑和审阅 |
 

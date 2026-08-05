@@ -14,7 +14,7 @@ The Specs page lets you browse OpenSpec capability specs from the authorized Pro
 
 ## What specs are
 
-A spec describes the requirements and acceptance scenarios for one capability of the project. It's the formal contract that comes out of a Proposal that took the [OpenSpec path](/en/docs/guide/workflow#proposal). When a Proposal is archived, its capability changes merge into the corresponding spec file and become part of the project's specs. Only Proposal-path changes that touch requirements or contracts produce a new spec.
+A spec describes the requirements and acceptance scenarios for one capability of the project. It's the formal contract that comes out of a Proposal that took the [OpenSpec path](/en/docs/guide/change-paths#proposal). When a Proposal is archived, its capability changes merge into the corresponding spec file and become part of the project's specs. Only Proposal-path changes that touch requirements or contracts produce a new spec.
 
 ## Page layout
 

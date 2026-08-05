@@ -5,126 +5,268 @@ markdownStyles: false
 
 hero:
   name: FylloCode
-  text: Coding Agent 的治理层
-  tagline: 从 Task、Chat 到 Proposal、Archive，由 lineage 把每一步串成一条可追溯的决策主线，让 Agent 遵守同一套持续进化的规则。
+  text: 让 Agent 不必每次从零了解项目
+  tagline: FylloCode 是一个连接本地 Coding Agent 的项目工作台，把任务、规范、决策和知识留在项目里。切换会话或更换 Agent 时，直接从项目最新状态继续，不必重新解释项目背景。
   image:
     src: /assets/fyllocode.svg
-    alt: FylloCode
+    alt: FylloCode 标志
   actions:
     - theme: brand
       text: 快速开始
       link: /docs/guide/getting-started
     - theme: alt
+      text: 了解工作方式
+      link: /docs/guide/change-paths
+    - theme: alt
       text: 下载桌面端
       link: https://github.com/Fioooooooo/FylloCode/releases
-    - theme: alt
-      text: 了解工作流
-      link: /docs/guide/workflow
 ---
 
-<main class="fc-landing">
-  <section class="fc-section">
-    <div class="fc-section__inner">
-      <div class="fc-section__header">
-        <h2>Agent 写下代码之前，先留下可审查的决策</h2>
-        <p>
-          FylloCode 不替代 IDE、CI/CD 或项目管理系统。它在现有代码库和研发工具链之上，为持续使用 Coding Agent
-          的工程开发提供结构化的上下文、约束和留痕。
-        </p>
+<div class="fc-landing">
+  <section class="fc-agent-strip" aria-label="Agent 接入">
+    <div class="fc-agent-strip__inner">
+      <div class="fc-agent-strip__row">
+        <p class="fc-agent-strip__label">连接你的 Agent</p>
+        <ul class="fc-agent-strip__list">
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/claude-code.svg" alt="" aria-hidden="true" />
+            <span>Claude Code</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/codex.svg" alt="" aria-hidden="true" />
+            <span>Codex</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/gemini-cli.svg" alt="" aria-hidden="true" />
+            <span>Gemini CLI</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/cursor.svg" alt="" aria-hidden="true" />
+            <span>Cursor</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/pi.svg" alt="" aria-hidden="true" />
+            <span>Pi</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/opencode.svg" alt="" aria-hidden="true" />
+            <span>OpenCode</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/kimi-cli.svg" alt="" aria-hidden="true" />
+            <span>Kimi Code</span>
+          </li>
+          <li class="fc-agent-strip__item">
+            <img class="fc-agent-strip__icon" src="/assets/agents/qwen-code.svg" alt="" aria-hidden="true" />
+            <span>Qwen Code</span>
+          </li>
+        </ul>
       </div>
-      <div class="fc-grid">
-        <article class="fc-card">
-          <h3>统一规范</h3>
-          <p>向所有 Agent 暴露项目级规范，让架构边界、命名约定和禁区做到跨 Agent、跨会话持续生效。</p>
-        </article>
-        <article class="fc-card">
-          <h3>决策留档</h3>
-          <p>每个 proposal 的依据、取舍和被放弃的方案都会沉淀为结构化记录，而不是停留在一次聊天里。</p>
-        </article>
-        <article class="fc-card">
-          <h3>全程可追溯</h3>
-          <p>从任务意图到沟通决策，再到实现、审查和归档，每个阶段都有明确产物，方便回看一次变更为什么发生。</p>
-        </article>
-        <article class="fc-card">
-          <h3>规则自进化</h3>
-          <p>将确认过的实践沉淀为持久化知识，Agent 的下一次执行自动从最新规则开始。</p>
-        </article>
-      </div>
+      <p class="fc-agent-strip__note">可接入任意支持 ACP 的 Agent</p>
     </div>
   </section>
-
-  <section class="fc-section fc-section--tinted">
-    <div class="fc-section__inner">
-      <div class="fc-section__header">
-        <h2>一条可追溯、自进化的变更主线</h2>
-        <p>
-          从 Task 到 Chat，再到 Plan 或 Proposal、Apply &amp; Archive，每一步的输入、决策和产物都被 lineage 记录成一条可追溯的线索。
-          固化下来的知识与规范会自动成为下一次任务的起点，让主线闭环、持续进化。
-        </p>
-      </div>
-      <div class="fc-steps">
-        <article class="fc-step">
-          <strong>01</strong>
-          <h3>Task</h3>
-          <p>主线的起点，可以直接创建，也可以从已接入的第三方研发系统同步进来，作为后续协作的统一入口。</p>
-        </article>
-        <article class="fc-step">
-          <strong>02</strong>
-          <h3>Chat</h3>
-          <p>Agent 在对话里分析需求、检索代码佐证、引导权衡取舍，与你一起收敛出最终决策，而不是凭空给出方案。</p>
-        </article>
-        <article class="fc-step">
-          <strong>03</strong>
-          <h3>Plan / Proposal</h3>
-          <p>不改变契约的工作写成一份轻量 plan；一旦涉及公开 API、schema 等契约变化，升级为 proposal、design、specs、tasks 四件套，让方案评审有实体，也让未来能追溯设计依据。</p>
-        </article>
-        <article class="fc-step">
-          <strong>04</strong>
-          <h3>Apply &amp; Archive</h3>
-          <p>Agent 在约束下实现变更，归档时把决策上下文、spec 更新和 guidelines 演进沉淀为下一次任务的背景知识。</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="fc-section">
+  <section class="fc-section fc-lineage-section">
     <div class="fc-section__inner fc-showcase">
-      <div class="fc-split">
-        <h2>从任务看板到 Proposal 归档</h2>
-        <p>
-          产品界面围绕一次变更的完整生命周期组织：任务看板负责收口入口，Proposal 页面承载评审和归档，对话面板负责与 Agent
-          推进执行，Workflow 编辑器负责把流程固化下来。
-        </p>
-        <div class="fc-links">
-          <a class="fc-link" href="/docs/features/overview">项目概览</a>
-          <a class="fc-link" href="/docs/features/task">任务看板</a>
-          <a class="fc-link" href="/docs/features/proposal">Proposal 评审</a>
-          <a class="fc-link" href="/docs/features/workflow">Workflow 编排</a>
-        </div>
-      </div>
-      <figure class="fc-screenshot">
-        <img src="/assets/screenshots/task.png" alt="FylloCode 任务看板截图" />
+      <figure class="fc-diagram-frame">
+        <img src="/assets/diagrams/lineage.png" alt="任务和对话汇入会话，再连接方案、提案与提交的工作脉络图" />
+        <figcaption>任务和对话汇入同一条脉络，再连接方案、提案与提交</figcaption>
       </figure>
-    </div>
-  </section>
-
-  <section class="fc-section fc-section--tinted">
-    <div class="fc-section__inner fc-showcase">
-      <figure class="fc-screenshot">
-        <img src="/assets/screenshots/acp-registry.png" alt="FylloCode ACP Agents 截图" />
-      </figure>
-      <div class="fc-split">
-        <h2>接入现有 Agent 与研发系统</h2>
-        <p>
-          FylloCode 通过 ACP 接入不同 Coding Agent，通过集成提供方把任务结果回写到已有研发系统。可以保留现有工具链，同时补上
-          Agent 协作需要的治理层。
-        </p>
+      <div class="fc-showcase__content">
+        <span class="fc-eyebrow">工作脉络</span>
+        <h2>从任务到提交，整条工作脉络都留得下来</h2>
+        <p>FylloCode 把任务、对话、方案、提案和提交串起来。回看一项改动时，既能看到结果，也能找到它的来处和依据。</p>
+        <ul class="fc-key-list">
+          <li><strong>从哪里开始</strong><span>任务或对话都能成为一条工作的起点。</span></li>
+          <li><strong>怎么决定</strong><span>讨论、方案和提案都能回看。</span></li>
+          <li><strong>落到哪里</strong><span>最终结果和提交继续留在同一条脉络。</span></li>
+        </ul>
         <div class="fc-links">
-          <a class="fc-link" href="/docs/features/agents">ACP Agents</a>
-          <a class="fc-link" href="/docs/features/integrations">研发系统集成</a>
-          <a class="fc-link" href="/docs/reference/acp-agent-kind">Agent 分类</a>
+          <a class="fc-link" href="/docs/guide/lineage">阅读工作脉络指南</a>
+          <a class="fc-link" href="/docs/features/lineage">查看工作脉络</a>
         </div>
       </div>
     </div>
   </section>
-</main>
+  <section class="fc-section fc-section--tinted fc-path-section">
+    <div class="fc-section__inner">
+      <div class="fc-section__header">
+        <span class="fc-eyebrow">工作路径</span>
+        <h2>不同的改动，走不同的路</h2>
+        <p>简单改动直接做，需要梳理先写方案，改变契约再进入提案。</p>
+      </div>
+      <div class="fc-path-layout">
+        <figure class="fc-diagram-frame">
+          <img src="/assets/diagrams/three-paths.png" alt="一次改动根据性质分流到三条工作路径的图" />
+          <figcaption>一次改动根据性质分流到三条工作路径</figcaption>
+        </figure>
+        <div class="fc-path-grid">
+          <article class="fc-path-card">
+            <span class="fc-path-card__number">01</span>
+            <div>
+              <h3>直接实现</h3>
+              <p>范围清楚，直接完成。</p>
+            </div>
+          </article>
+          <article class="fc-path-card">
+            <span class="fc-path-card__number">02</span>
+            <div>
+              <h3>方案</h3>
+              <p>先理清方案，再开始改。</p>
+            </div>
+          </article>
+          <article class="fc-path-card fc-path-card--featured">
+            <span class="fc-path-card__number">03</span>
+            <div>
+              <h3>提案</h3>
+              <p>评审契约变化，留下正式依据。</p>
+            </div>
+          </article>
+          <div class="fc-links">
+            <a class="fc-link" href="/docs/guide/change-paths">了解三线工作方式</a>
+            <a class="fc-link" href="/docs/features/proposal">查看提案</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="fc-section fc-proposal-record-section">
+    <div class="fc-section__inner fc-showcase fc-showcase--reverse">
+      <div class="fc-showcase__content">
+        <span class="fc-eyebrow">提案记录</span>
+        <h2>提案把背景、取舍和执行依据放在一起</h2>
+        <p>需要评审的改动，不只留下结论，也保留为什么选择它、如何控制风险，以及最后如何落地。</p>
+        <div class="fc-links">
+          <a class="fc-link" href="/docs/features/proposal">查看提案</a>
+          <a class="fc-link" href="/docs/guide/change-paths">了解评审流程</a>
+        </div>
+      </div>
+      <figure class="fc-diagram-frame">
+        <img src="/assets/diagrams/proposal.png" alt="提案将背景、方案取舍、风险、迁移、任务和能力规约连接成决策记录的图" />
+        <figcaption>提案把背景、取舍、风险、迁移、任务和规约放在同一份记录里</figcaption>
+      </figure>
+    </div>
+  </section>
+  <section class="fc-section fc-context-section">
+    <div class="fc-section__inner">
+      <div class="fc-section__header">
+        <span class="fc-eyebrow">项目资料</span>
+        <h2>项目里的信息，各有自己的位置</h2>
+        <p>FylloCode 不把所有内容混在一份记忆里。</p>
+      </div>
+      <div class="fc-context-grid">
+        <article class="fc-context-card fc-context-card--lineage">
+          <span class="fc-context-card__token">工作脉络</span>
+          <h3>记录这项工作如何发生</h3>
+          <p>把任务、对话、方案和提交串成一条可回看的脉络。</p>
+          <a class="fc-link fc-link--on-dark" href="/docs/features/lineage">查看工作脉络</a>
+        </article>
+        <article class="fc-context-card">
+          <span class="fc-context-card__token">项目准则</span>
+          <h3>记录项目应该怎么做</h3>
+          <p>把架构、测试和工作约定放回代码库。</p>
+          <a class="fc-link" href="/docs/features/guidelines">查看项目准则</a>
+        </article>
+        <article class="fc-context-card">
+          <span class="fc-context-card__token">知识</span>
+          <h3>记录代码之外的重要事实</h3>
+          <p>保存代码里推不出来、但下次工作仍然重要的内容。</p>
+          <a class="fc-link" href="/docs/features/knowledge">查看知识沉淀</a>
+        </article>
+        <article class="fc-context-card">
+          <span class="fc-context-card__token">能力规约</span>
+          <h3>记录正式的能力边界</h3>
+          <p>把已经确认的行为和契约写成项目规约。</p>
+          <a class="fc-link" href="/docs/features/specs">查看能力规约</a>
+        </article>
+      </div>
+    </div>
+  </section>
+  <section class="fc-section fc-section--tinted fc-evolution-section">
+    <div class="fc-section__inner">
+      <div class="fc-section__header">
+        <span class="fc-eyebrow">持续沉淀</span>
+        <h2>每做完一项工作，项目也会更清楚</h2>
+        <p>新的决策、约定、事实和契约在合适的位置留下来，并继续影响下一次工作。</p>
+      </div>
+      <div class="fc-evolution-grid">
+        <article class="fc-evolution-card">
+          <div class="fc-evolution-copy">
+            <span class="fc-context-card__token">项目准则</span>
+            <h3>约定跟着代码变化</h3>
+            <p>项目约定随真实变更更新，保留版本和审阅边界。</p>
+            <a class="fc-link" href="/docs/features/guidelines">了解项目准则演进</a>
+          </div>
+          <figure class="fc-evolution-media">
+            <img src="/assets/diagrams/guideline.png" alt="代码变更推动项目准则演进并影响下一次工作" />
+          </figure>
+        </article>
+        <article class="fc-evolution-card">
+          <div class="fc-evolution-copy">
+            <span class="fc-context-card__token">知识</span>
+            <h3>事实留下来源和新鲜度</h3>
+            <p>重要事实先标记来源，再由用户确认是否沉淀，过期时可以重新核查。</p>
+            <a class="fc-link" href="/docs/features/knowledge">了解透明沉淀</a>
+          </div>
+          <figure class="fc-evolution-media">
+            <img src="/assets/diagrams/knowledge.png" alt="重要事实经过来源检查和用户审阅后沉淀为知识" />
+          </figure>
+        </article>
+      </div>
+    </div>
+  </section>
+  <section class="fc-section fc-section--tinted fc-settlement-section">
+    <div class="fc-section__inner fc-showcase">
+      <figure class="fc-diagram-frame">
+        <img src="/assets/diagrams/project-state.png" alt="三条工作路径将相关结果回流到项目状态，并由工作脉络、项目准则、知识和能力规约共同影响下一次会话的图" />
+        <figcaption>每一条工作路径都会把产出结果回流到项目，供下一次会话继续使用</figcaption>
+      </figure>
+      <div class="fc-showcase__content">
+        <span class="fc-eyebrow">工作结果</span>
+        <h2>一次工作完成，结果会回流到项目里</h2>
+        <p>Direct、Plan 和 Proposal 会把各自相关的结果回流到项目状态。工作脉络、项目准则、能力规约和知识并列留下对应内容，继续影响下一次工作，新对话不用从头开始。</p>
+        <ul class="fc-key-list">
+          <li><strong>记录</strong><span>保留这次工作如何发生，以及最终落在哪里。</span></li>
+          <li><strong>继续</strong><span>让下一次协作从已经更新的项目状态开始。</span></li>
+        </ul>
+        <div class="fc-links">
+          <a class="fc-link" href="/docs/guide/change-paths">了解完整工作流程</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="fc-section fc-scale-section">
+    <div class="fc-section__inner">
+      <div class="fc-section__header">
+        <span class="fc-eyebrow">从一个项目开始</span>
+        <h2>在熟悉的项目里开始</h2>
+        <p>连接本地项目、常用 Agent 和既有研发系统，在一个工作区中继续已有工作方式。</p>
+      </div>
+      <div class="fc-scale-layout">
+        <figure class="fc-diagram-frame fc-scale-diagram">
+          <img src="/assets/diagrams/workspace.png" alt="工作区连接多个项目、Agent 客户端和研发系统，同时保留上下文边界的图" />
+          <figcaption>一个工作区，连接多个项目、Agent 和既有系统</figcaption>
+        </figure>
+        <div class="fc-scale-content">
+          <article>
+            <h3>打开</h3>
+            <p>选择一个项目，也可以把多个项目放入工作区。</p>
+            <a class="fc-link" href="/docs/guide/getting-started#打开-project-或-workspace">打开项目或工作区</a>
+          </article>
+          <article>
+            <h3>连接</h3>
+            <p>接入支持 ACP 的 Agent 和现有研发系统。</p>
+            <div class="fc-links">
+              <a class="fc-link" href="/docs/features/agents">查看 Agent</a>
+              <a class="fc-link" href="/docs/features/integrations">查看研发系统集成</a>
+            </div>
+          </article>
+          <article>
+            <h3>开始</h3>
+            <p>创建一项任务，完成第一条工作脉络。</p>
+            <a class="fc-link" href="/docs/guide/change-paths">开始第一条工作主线</a>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

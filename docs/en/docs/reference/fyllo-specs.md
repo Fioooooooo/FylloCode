@@ -6,7 +6,7 @@ sidebar:
 
 # fyllo-specs MCP
 
-`fyllo-specs` is a built-in MCP server in FylloCode. It started as a thin wrapper around the OpenSpec CLI, later gained linked worktree management, and then gained `create-plan`, so the Plan path in the [three execution paths](/en/docs/guide/workflow) is also carried by this server.
+`fyllo-specs` is a built-in MCP server in FylloCode. It started as a thin wrapper around the OpenSpec CLI, later gained linked worktree management, and then gained `create-plan`, so the Plan path in the [three execution paths](/en/docs/guide/change-paths) is also carried by this server.
 
 ## Tool List
 
@@ -20,7 +20,7 @@ sidebar:
 | `apply-change` | Read artifacts of a specified change and implement according to tasks. |
 | `archive-change` | Complete archive, move the change into archive, and handle workspace finalization. |
 
-`create-plan` and `create-proposal` correspond to the Plan and Proposal paths in the [three execution paths](/en/docs/guide/workflow); direct implementation calls neither.
+`create-plan` and `create-proposal` correspond to the Plan and Proposal paths in the [three execution paths](/en/docs/guide/change-paths); direct implementation calls neither.
 
 ## Response Shape
 

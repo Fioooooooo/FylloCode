@@ -6,7 +6,7 @@ sidebar:
 
 # fyllo-specs MCP
 
-`fyllo-specs` 是 FylloCode 内置的 MCP server。它最初只是对 OpenSpec CLI 的简单封装，之后陆续加入了 linked worktree 管理，再后来加入了 `create-plan`，让 [三线工作方式](/docs/guide/workflow) 中的 Plan 路径也由这个 server 承载。
+`fyllo-specs` 是 FylloCode 内置的 MCP server。它最初只是对 OpenSpec CLI 的简单封装，之后陆续加入了 linked worktree 管理，再后来加入了 `create-plan`，让 [三线工作方式](/docs/guide/change-paths) 中的 Plan 路径也由这个 server 承载。
 
 ## 工具列表
 
@@ -20,7 +20,7 @@ sidebar:
 | `apply-change` | 读取指定 change 的 artifacts，按 tasks 推进实现 |
 | `archive-change` | 完成归档动作，将 change 移入 archive，并处理 workspace finalization |
 
-`create-plan` 和 `create-proposal` 分别对应 [三线工作方式](/docs/guide/workflow) 里的 Plan 与 Proposal 路径；直接实现不调用这两个 tool 中的任何一个。
+`create-plan` 和 `create-proposal` 分别对应 [三线工作方式](/docs/guide/change-paths) 里的 Plan 与 Proposal 路径；直接实现不调用这两个 tool 中的任何一个。
 
 ## 响应形态
 

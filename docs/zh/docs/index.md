@@ -20,7 +20,7 @@ FylloCode 是面向持续使用 Coding Agent 的桌面应用。它不直接替�
 
 1. [为什么需要 FylloCode](/docs/guide/why)
 2. [快速开始](/docs/guide/getting-started)
-3. [三线工作方式](/docs/guide/workflow)
+3. [三线工作方式](/docs/guide/change-paths)
 4. [Lineage 追溯链路](/docs/guide/lineage)
 
 想参与项目开发，可以继续阅读[贡献指南](/docs/contributing)和[用 FylloCode 开发 FylloCode](/docs/guide/develop-with-fyllocode)。

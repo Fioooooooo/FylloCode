@@ -20,7 +20,7 @@ These docs answer three questions:
 
 1. [Why FylloCode](/en/docs/guide/why)
 2. [Getting Started](/en/docs/guide/getting-started)
-3. [Three Execution Paths](/en/docs/guide/workflow)
+3. [Three Execution Paths](/en/docs/guide/change-paths)
 4. [Lineage Traceability](/en/docs/guide/lineage)
 
 To contribute to the project, continue with the [Contributing Guide](/en/docs/contributing) and [Developing FylloCode with FylloCode](/en/docs/guide/develop-with-fyllocode).
