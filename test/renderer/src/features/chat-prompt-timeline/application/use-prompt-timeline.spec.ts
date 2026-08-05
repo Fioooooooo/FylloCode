@@ -1,9 +1,8 @@
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, nextTick, ref, type Ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { usePromptTimeline } from "@renderer/composables/usePromptTimeline";
-import type { MessageMeta, Session } from "@shared/types/chat";
-import type { UIMessage } from "ai";
+import { usePromptTimeline } from "@renderer/features/chat-prompt-timeline/application/use-prompt-timeline";
+import type { ChatPromptTimelineItem } from "@renderer/features/chat-prompt-timeline/model/chat-prompt-timeline";
 
 type TimelineApi = ReturnType<typeof usePromptTimeline>;
 
@@ -22,33 +21,14 @@ let animationFrameCallbacks = new Map<number, FrameRequestCallback>();
 let nextAnimationFrameId = 0;
 let resizeObservers: ResizeObserverHarness[] = [];
 
-function message(
-  id: string,
-  role: UIMessage<MessageMeta>["role"],
-  text: string
-): UIMessage<MessageMeta> {
-  return {
+function timelineItems(...ids: string[]): ChatPromptTimelineItem[] {
+  return ids.map((id, index) => ({
     id,
-    role,
-    parts: [{ type: "text", text }],
-    metadata: { sessionId: "session-1", createdAt: new Date("2026-06-30T00:00:00.000Z") },
-  };
-}
-
-function session(messages: UIMessage<MessageMeta>[]): Session {
-  return {
-    id: "session-1",
-    workspaceId: "project-1",
-    agentId: "agent-1",
-    title: "Session",
-    isPinned: false,
-    status: "ended",
-    turnCount: 1,
-    tokenUsage: { used: 0, size: 1000 },
-    createdAt: new Date("2026-06-30T00:00:00.000Z"),
-    updatedAt: new Date("2026-06-30T00:00:00.000Z"),
-    messages,
-  };
+    messageId: id,
+    index: index + 1,
+    label: String(index + 1),
+    preview: `Prompt ${index + 1}`,
+  }));
 }
 
 function rect(top: number, height = 10): DOMRect {
@@ -110,17 +90,16 @@ function makeContainer(anchorInputs: AnchorInput[]): {
   return { anchors, container, content, offsets, scrollToMock };
 }
 
-function mountTimelineHost(initialSession: Session | null = null): {
+function mountTimelineHost(initialItems: ChatPromptTimelineItem[] = []): {
   api: TimelineApi;
-  activeSession: Ref<Session | null>;
   activeSessionId: Ref<string | null>;
   isLoadingMessages: Ref<boolean>;
   messageContentRef: Ref<HTMLElement | null>;
   messageScrollContainerRef: Ref<HTMLElement | null>;
   wrapper: VueWrapper;
 } {
-  const activeSession = ref<Session | null>(initialSession);
-  const activeSessionId = ref<string | null>(initialSession?.id ?? null);
+  const promptTimelineItems = ref(initialItems);
+  const activeSessionId = ref<string | null>(initialItems.length > 0 ? "session-1" : null);
   const isLoadingMessages = ref(false);
   const messageContentRef = ref<HTMLElement | null>(null);
   const messageScrollContainerRef = ref<HTMLElement | null>(null);
@@ -130,7 +109,7 @@ function mountTimelineHost(initialSession: Session | null = null): {
     defineComponent({
       setup() {
         api = usePromptTimeline({
-          activeSession,
+          promptTimelineItems,
           activeSessionId,
           isLoadingMessages,
           messageContentRef,
@@ -147,7 +126,6 @@ function mountTimelineHost(initialSession: Session | null = null): {
 
   return {
     api,
-    activeSession,
     activeSessionId,
     isLoadingMessages,
     messageContentRef,
@@ -230,13 +208,9 @@ describe("usePromptTimeline", () => {
     vi.unstubAllGlobals();
   });
 
-  it("derives prompt timeline items and display state", () => {
+  it("uses injected prompt timeline items and derives display state", () => {
     const { api, activeSessionId, isLoadingMessages } = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("assistant-1", "assistant", "Ignored"),
-        message("user-2", "user", "Second prompt"),
-      ])
+      timelineItems("user-1", "user-2")
     );
 
     expect(api.promptTimelineItems.value.map((item) => item.id)).toEqual(["user-1", "user-2"]);
@@ -251,19 +225,14 @@ describe("usePromptTimeline", () => {
   });
 
   it("hides the timeline when there is only one prompt", () => {
-    const { api } = mountTimelineHost(session([message("user-1", "user", "Only prompt")]));
+    const { api } = mountTimelineHost(timelineItems("user-1"));
 
     expect(api.promptTimelineItems.value).toHaveLength(1);
     expect(api.showPromptTimeline.value).toBe(false);
   });
 
   it("activates the last prompt that has crossed the 35% reading line", async () => {
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2"));
     const fixture = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 36 },
@@ -279,12 +248,7 @@ describe("usePromptTimeline", () => {
   });
 
   it("coalesces scroll updates and does not read anchor layout on the scroll path", async () => {
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2"));
     const fixture = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 80 },
@@ -311,12 +275,7 @@ describe("usePromptTimeline", () => {
   });
 
   it("remeasures anchors when observed message content changes size", async () => {
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2"));
     const fixture = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 90 },
@@ -333,13 +292,7 @@ describe("usePromptTimeline", () => {
 
   it("positions smooth navigation at the reading line and locks active during travel", async () => {
     vi.useFakeTimers();
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-        message("user-3", "user", "Third prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2", "user-3"));
     const fixture = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 100 },
@@ -363,12 +316,7 @@ describe("usePromptTimeline", () => {
   });
 
   it("uses immediate positioning for drag intent and reduced motion", async () => {
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2"));
     const fixture = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 100 },
@@ -385,12 +333,7 @@ describe("usePromptTimeline", () => {
 
   it("cleans listeners, observers, frames, and navigation timers on replacement and unmount", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const host = mountTimelineHost(
-      session([
-        message("user-1", "user", "First prompt"),
-        message("user-2", "user", "Second prompt"),
-      ])
-    );
+    const host = mountTimelineHost(timelineItems("user-1", "user-2"));
     const first = makeContainer([
       { messageId: "user-1", offset: 10 },
       { messageId: "user-2", offset: 100 },
@@ -415,7 +358,7 @@ describe("usePromptTimeline", () => {
   });
 
   it("ignores missing containers and anchors", async () => {
-    const host = mountTimelineHost(session([message("user-1", "user", "First prompt")]));
+    const host = mountTimelineHost(timelineItems("user-1"));
     await expect(host.api.locateUserPrompt("user-1")).resolves.toBeUndefined();
 
     const fixture = makeContainer([{ messageId: "user-1", offset: 10 }]);

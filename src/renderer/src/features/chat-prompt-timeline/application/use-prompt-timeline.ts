@@ -1,9 +1,5 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from "vue";
-import {
-  collectChatPromptTimelineItems,
-  type ChatPromptTimelineItem,
-} from "@renderer/utils/chat-prompt-timeline";
-import type { Session } from "@shared/types/chat";
+import type { ChatPromptTimelineItem } from "../model/chat-prompt-timeline";
 
 const READING_LINE_RATIO = 0.35;
 const NAVIGATION_TOLERANCE_PX = 3;
@@ -12,7 +8,7 @@ const NAVIGATION_FALLBACK_MS = 1200;
 export type PromptTimelineNavigationIntent = "smooth" | "immediate";
 
 interface UsePromptTimelineInput {
-  activeSession: Readonly<Ref<Session | null | undefined>>;
+  promptTimelineItems: Readonly<Ref<ChatPromptTimelineItem[]>>;
   activeSessionId: Readonly<Ref<string | null>>;
   isLoadingMessages: Readonly<Ref<boolean>>;
   messageContentRef: Ref<HTMLElement | null>;
@@ -71,9 +67,7 @@ export function usePromptTimeline(options: UsePromptTimelineInput): {
   locateUserPrompt: (messageId: string, intent?: PromptTimelineNavigationIntent) => Promise<void>;
 } {
   const activePromptTimelineItemId = ref<string | null>(null);
-  const promptTimelineItems = computed(() =>
-    collectChatPromptTimelineItems(options.activeSession.value?.messages ?? [])
-  );
+  const promptTimelineItems = computed(() => options.promptTimelineItems.value);
   const promptTimelineItemIds = computed(() => promptTimelineItems.value.map((item) => item.id));
   const showPromptTimeline = computed(
     () =>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectChatPromptTimelineItems } from "@renderer/utils/chat-prompt-timeline";
+import { projectChatPromptTimelineItems } from "@renderer/features/chat-prompt-timeline/integration/chat-message-projection";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
 
@@ -16,9 +16,9 @@ function message(
   };
 }
 
-describe("collectChatPromptTimelineItems", () => {
+describe("projectChatPromptTimelineItems", () => {
   it("collects visible user text prompts in order", () => {
-    const items = collectChatPromptTimelineItems([
+    const items = projectChatPromptTimelineItems([
       message("assistant-1", "assistant", [{ type: "text", text: "ignored" }]),
       message("user-1", "user", [{ type: "text", text: "First prompt" }]),
       message("user-2", "user", [
@@ -46,7 +46,7 @@ describe("collectChatPromptTimelineItems", () => {
   });
 
   it("excludes system reminder text from previews", () => {
-    const items = collectChatPromptTimelineItems([
+    const items = projectChatPromptTimelineItems([
       message("user-1", "user", [
         { type: "text", text: "<system-reminder>\nhidden\n</system-reminder>" },
         { type: "text", text: "visible prompt" },
@@ -61,7 +61,7 @@ describe("collectChatPromptTimelineItems", () => {
   });
 
   it("uses attachment summaries when a user message has no visible text", () => {
-    const items = collectChatPromptTimelineItems([
+    const items = projectChatPromptTimelineItems([
       message("user-1", "user", [
         {
           type: "file",
@@ -83,7 +83,7 @@ describe("collectChatPromptTimelineItems", () => {
   });
 
   it("preserves prompt order while filtering hidden and empty user messages", () => {
-    const items = collectChatPromptTimelineItems([
+    const items = projectChatPromptTimelineItems([
       message("user-attachment", "user", [
         {
           type: "file",

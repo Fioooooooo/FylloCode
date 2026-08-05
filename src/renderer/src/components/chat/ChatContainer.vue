@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
+import { ChatPromptTimeline } from "@renderer/features/chat-prompt-timeline";
 import { useChatStore, useSessionStore } from "@renderer/stores";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import ChatMessageSkeleton from "@renderer/components/chat/message/ChatMessageSkeleton.vue";
@@ -8,7 +9,6 @@ import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";
 import ChatStreamError from "./ChatStreamError.vue";
 import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 import ChatSessionEventRail from "./event/ChatSessionEventRail.vue";
-import ChatPromptTimeline from "./timeline/ChatPromptTimeline.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
 import SessionScopePopover from "./SessionScopePopover.vue";
 

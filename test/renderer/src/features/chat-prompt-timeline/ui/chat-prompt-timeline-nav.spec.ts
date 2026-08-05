@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import ChatPromptTimelineNav from "@renderer/components/chat/timeline/ChatPromptTimelineNav.vue";
-import type { ChatPromptTimelineItem } from "@renderer/utils/chat-prompt-timeline";
+import ChatPromptTimelineNav from "@renderer/features/chat-prompt-timeline/ui/ChatPromptTimelineNav.vue";
+import type { ChatPromptTimelineItem } from "@renderer/features/chat-prompt-timeline/model/chat-prompt-timeline";
 
 function makeItems(count: number): ChatPromptTimelineItem[] {
   return Array.from({ length: count }, (_, index) => ({

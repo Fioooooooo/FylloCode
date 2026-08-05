@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import type { PromptTimelineNavigationIntent } from "@renderer/composables/usePromptTimeline";
-import type { ChatPromptTimelineItem } from "@renderer/utils/chat-prompt-timeline";
+import type { PromptTimelineNavigationIntent } from "../application/use-prompt-timeline";
+import type { ChatPromptTimelineItem } from "../model/chat-prompt-timeline";
 
 const MAX_GUIDE_COUNT = 10;
 const SHORT_GUIDE_STEP_PX = 14;

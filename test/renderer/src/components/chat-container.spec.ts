@@ -113,6 +113,15 @@ function makeSession(commands: AcpAvailableCommand[] = []): Session {
   };
 }
 
+function makeAssistantMessage(id: string): Session["messages"][number] {
+  return {
+    id,
+    role: "assistant",
+    metadata: { sessionId: "session-1", createdAt: new Date("2026-05-12T00:00:00.000Z") },
+    parts: [],
+  } as Session["messages"][number];
+}
+
 function makeSessionWithPendingAction(): Session {
   const session = makeSession();
   session.messages = [
@@ -181,7 +190,7 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
 
     const session = makeSession([{ name: "review", description: "Review code" }]);
-    session.messages = [{} as Session["messages"][number]];
+    session.messages = [makeAssistantMessage("message-1")];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
     await wrapper.vm.$nextTick();
@@ -193,7 +202,7 @@ describe("ChatContainer", () => {
 
   it("forwards the active session stream indicator projection to the message list", async () => {
     const session = makeSession();
-    session.messages = [{} as Session["messages"][number]];
+    session.messages = [makeAssistantMessage("message-1")];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
     activeStreamIndicatorRef.value = { messageId: "renderer-message-1", startedAt: 1234 };
@@ -255,7 +264,7 @@ describe("ChatContainer", () => {
 
   it("renders an inline stream error after the message list", async () => {
     const session = makeSession();
-    session.messages = [{} as Session["messages"][number], {} as Session["messages"][number]];
+    session.messages = [makeAssistantMessage("message-1"), makeAssistantMessage("message-2")];
     activeSessionRef.value = session;
     activeSessionIdRef.value = session.id;
     streamErrorRef.value = {
