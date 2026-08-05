@@ -93,7 +93,6 @@ function planEvent(overrides: Partial<McpPlanEvent> = {}): McpPlanEvent {
     createdAt: "2026-06-10T00:00:00.000Z",
     sessionId: "session-1",
     workspaceId: "",
-    folderId: "folder-1",
     planSlug: "2026-06-29-plan-a",
     ...overrides,
   };
@@ -217,14 +216,29 @@ describe("lineage mcp event consumer", () => {
     await vi.waitFor(() => {
       expect(existsSync(filePath)).toBe(false);
     });
-    expect(mocks.recordPlan).toHaveBeenCalledWith(
-      projectPath,
-      "session-1",
-      "2026-06-29-plan-a",
-      "folder-1"
-    );
+    expect(mocks.recordPlan).toHaveBeenCalledWith(projectPath, "session-1", "2026-06-29-plan-a");
     expect(mocks.ensureChatSubject).not.toHaveBeenCalled();
     expect(mocks.watchProposal).not.toHaveBeenCalled();
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
+    expect(mocks.resolveRepositoryTarget).not.toHaveBeenCalled();
+  });
+
+  it("ignores legacy Folder ownership on a plan event", async () => {
+    const projectPath = createTestTempRoot("fyllo-lineage-plan-legacy-owner-");
+    const legacyEvent = {
+      ...planEvent(),
+      folderId: "legacy-folder",
+    } as McpEvent;
+    const filePath = await writeEventFile(projectPath, "event.json", legacyEvent);
+
+    ensureLineageEventConsumer(projectPath);
+
+    await vi.waitFor(() => {
+      expect(existsSync(filePath)).toBe(false);
+    });
+    expect(mocks.recordPlan).toHaveBeenCalledWith(projectPath, "session-1", "2026-06-29-plan-a");
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
+    expect(mocks.resolveRepositoryTarget).not.toHaveBeenCalled();
   });
 
   it("creates a chat subject and retries when recordProposal returns null", async () => {
@@ -253,6 +267,19 @@ describe("lineage mcp event consumer", () => {
     });
     expect(mocks.ensureChatSubject).toHaveBeenCalledWith(projectPath, "session-1");
     expect(mocks.recordPlan).toHaveBeenCalledTimes(2);
+    expect(mocks.recordPlan).toHaveBeenNthCalledWith(
+      1,
+      projectPath,
+      "session-1",
+      "2026-06-29-plan-a"
+    );
+    expect(mocks.recordPlan).toHaveBeenNthCalledWith(
+      2,
+      projectPath,
+      "session-1",
+      "2026-06-29-plan-a"
+    );
+    expect(mocks.getRequiredWorkspaceInfo).not.toHaveBeenCalled();
   });
 
   it("skips damaged files while consuming valid files in the same scan", async () => {
@@ -343,6 +370,26 @@ describe("lineage mcp event consumer", () => {
     ensureLineageEventConsumer(workspaceId);
 
     await vi.waitFor(() => expect(mocks.logger.error).toHaveBeenCalled());
+    expect(existsSync(filePath)).toBe(true);
+    expect(mocks.recordProposal).not.toHaveBeenCalled();
+  });
+
+  it("rejects a proposal event whose worktree mode does not match the resolved target", async () => {
+    const workspaceId = createTestTempRoot("fyllo-lineage-worktree-mode-mismatch-");
+    const filePath = await writeEventFile(
+      workspaceId,
+      "event.json",
+      proposalEvent({ worktreeMode: "main", worktreePath: "/registered/linked-worktree" })
+    );
+    mocks.resolveRepositoryTarget.mockResolvedValueOnce({
+      workspaceId,
+      folderId: "folder-1",
+      worktreePath: "/registered/linked-worktree",
+    });
+
+    ensureLineageEventConsumer(workspaceId);
+
+    await vi.waitFor(() => expect(mocks.logger.warn).toHaveBeenCalled());
     expect(existsSync(filePath)).toBe(true);
     expect(mocks.recordProposal).not.toHaveBeenCalled();
   });

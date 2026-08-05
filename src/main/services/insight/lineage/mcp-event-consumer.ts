@@ -61,8 +61,6 @@ function isMcpPlanEvent(value: unknown): value is McpPlanEvent {
     value.sessionId.length > 0 &&
     typeof value.workspaceId === "string" &&
     value.workspaceId.length > 0 &&
-    typeof value.folderId === "string" &&
-    value.folderId.length > 0 &&
     typeof value.planSlug === "string" &&
     value.planSlug.length > 0
   );
@@ -99,16 +97,16 @@ async function consumeEventFile(
   }
 
   try {
-    const workspace = await getRequiredWorkspaceInfo(workspaceId);
-    const folderId = event.tool === "create-proposal" ? event.proposalRef.folderId : event.folderId;
-    const owner = workspace.folders.find((folder) => folder.folderId === folderId);
-    if (!owner || owner.pathMissing) {
-      logger.warn(
-        `[lineage-mcp-event] skipped event with unauthorized Folder: workspace=${workspaceId} folder=${folderId}`
-      );
-      return;
-    }
     if (event.tool === "create-proposal") {
+      const workspace = await getRequiredWorkspaceInfo(workspaceId);
+      const folderId = event.proposalRef.folderId;
+      const owner = workspace.folders.find((folder) => folder.folderId === folderId);
+      if (!owner || owner.pathMissing) {
+        logger.warn(
+          `[lineage-mcp-event] skipped event with unauthorized Folder: workspace=${workspaceId} folder=${folderId}`
+        );
+        return;
+      }
       const target = await resolveRepositoryTarget({
         workspaceId,
         folderId,
@@ -125,14 +123,14 @@ async function consumeEventFile(
     let subject =
       event.tool === "create-proposal"
         ? await recordProposal(workspaceId, event.sessionId, event.proposalRef)
-        : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
+        : await recordPlan(workspaceId, event.sessionId, event.planSlug);
 
     if (!subject) {
       await ensureChatSubject(workspaceId, event.sessionId);
       subject =
         event.tool === "create-proposal"
           ? await recordProposal(workspaceId, event.sessionId, event.proposalRef)
-          : await recordPlan(workspaceId, event.sessionId, event.planSlug, event.folderId);
+          : await recordPlan(workspaceId, event.sessionId, event.planSlug);
     }
 
     if (!subject) {

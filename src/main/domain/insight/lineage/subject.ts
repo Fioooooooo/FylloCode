@@ -88,8 +88,7 @@ export function appendPlan(
   subject: Subject,
   sessionId: string,
   slug: string,
-  now: string,
-  folderId?: string
+  now: string
 ): Subject {
   const targetLink = subject.links.find((link) => link.sessionId === sessionId);
   // Idempotent: a plan is recorded only once per session link.
@@ -108,7 +107,6 @@ export function appendPlan(
               {
                 slug,
                 createdAt: now,
-                ...(folderId ? { folderId } : {}),
               },
             ],
           }

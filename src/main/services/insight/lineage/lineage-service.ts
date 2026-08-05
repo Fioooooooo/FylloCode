@@ -251,8 +251,7 @@ export async function recordProposal(
 export async function recordPlan(
   workspaceId: string,
   sessionId: string,
-  slug: string,
-  folderId?: string
+  slug: string
 ): Promise<Subject | null> {
   const now = nowIso();
   const index = await readWritableIndex(workspaceId, now);
@@ -266,7 +265,7 @@ export async function recordPlan(
     return null;
   }
 
-  const nextSubject = appendPlan(subject, sessionId, slug, now, folderId);
+  const nextSubject = appendPlan(subject, sessionId, slug, now);
   await writeSubjectWithIndex(workspaceId, nextSubject, index);
   return nextSubject;
 }

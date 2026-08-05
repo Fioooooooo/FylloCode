@@ -17,7 +17,6 @@ export type McpPlanEvent = {
   createdAt: string;
   sessionId: string;
   workspaceId: string;
-  folderId: string;
   planSlug: string;
 };
 

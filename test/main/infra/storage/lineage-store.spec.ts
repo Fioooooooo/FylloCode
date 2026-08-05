@@ -191,6 +191,46 @@ describe("lineage-store", () => {
     await expect(readSubject(workspaceId, "subject-1")).resolves.toEqual(subject());
   });
 
+  it("ignores legacy Folder ownership on Workspace-scoped plan links", async () => {
+    mkdirSync(lineageSubjectsDir(workspaceId), { recursive: true });
+    writeFileSync(
+      subjectFilePath(),
+      JSON.stringify(
+        {
+          ...subject(),
+          links: [
+            {
+              sessionId: "session-1",
+              createdAt: now,
+              proposals: [],
+              plans: [
+                {
+                  slug: "2026-06-29-plan-a",
+                  createdAt: now,
+                  folderId: "legacy-folder",
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    await expect(readSubject(workspaceId, "subject-1")).resolves.toMatchObject({
+      links: [
+        {
+          plans: [{ slug: "2026-06-29-plan-a", createdAt: now }],
+        },
+      ],
+    });
+    expect((await readSubject(workspaceId, "subject-1"))?.links[0]?.plans[0]).not.toHaveProperty(
+      "folderId"
+    );
+  });
+
   it("drops plans from index normalization", async () => {
     await writeIndex(workspaceId, {
       ...index(),

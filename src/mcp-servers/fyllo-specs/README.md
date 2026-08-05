@@ -141,6 +141,12 @@ Responsibility:
 
 The tools do not spawn child processes directly and do not import `@fission-ai/openspec` as a library.
 
+`create-plan` is the Workspace/Session-scoped exception in this tool set. It writes directly under
+the descriptor's `workspaceDataDir` and `sessionId`, so it neither resolves nor accepts a Folder
+owner, including in multi-root Workspaces. Its best-effort MCP event carries Workspace/Session
+identity only. Repository-scoped OpenSpec operations continue to select an authorized Folder and,
+when required, an owner-qualified ProposalRef through the shared resolver.
+
 ### 6. `runtime-openspec` resolves the authorized Folder and CLI path
 
 Files:

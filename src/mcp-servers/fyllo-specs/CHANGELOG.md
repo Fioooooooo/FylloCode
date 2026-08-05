@@ -4,6 +4,16 @@ All notable changes to the `fyllo-specs` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [Unreleased]
+
+### Fixed
+
+- `create-plan` now creates Workspace/Session-scoped plans in multi-root Workspaces without requiring an unavailable `folderId`.
+
+### Changed
+
+- Plan MCP events now carry Workspace/Session identity without a repository owner; Proposal events retain owner-qualified repository validation.
+
 ## [0.10.0] - 2026-08-04
 
 ### Changed

@@ -21,7 +21,6 @@ export type LineageProposalLink = {
 export type LineagePlanLink = {
   slug: string;
   createdAt: string;
-  folderId?: string;
 };
 
 export type LineageSessionLink = {
