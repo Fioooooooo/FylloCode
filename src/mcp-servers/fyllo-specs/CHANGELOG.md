@@ -6,6 +6,8 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-05
+
 ### Fixed
 
 - `create-plan` now creates Workspace/Session-scoped plans in multi-root Workspaces without requiring an unavailable `folderId`.

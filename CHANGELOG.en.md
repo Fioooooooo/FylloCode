@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.1] - 2026-08-05
+
+This release improves Session configuration and long-conversation navigation in Chat, and fixes Plan creation in multi-root Workspaces. The configuration entry stays compact as Agents expose more options, while the prompt timeline keeps the complete history accessible at a fixed visual density.
+
+### Added
+
+- The Chat prompt timeline can preview up to five nearby prompts and pin a complete prompt list. Dragging, scrolling the wheel, clicking, and keyboard controls can navigate the full history, while the pinned list scrolls independently.
+
+### Changed
+
+- The ChatPrompt footer now collects Agent-provided non-mode Session configuration in one menu. The trigger prioritizes a model and thought-level summary, select options use submenus, and boolean options can be toggled directly as top-level checkboxes.
+- The prompt timeline shows one guide for each of 2–10 prompts, then stays at 10 guides for longer conversations. A separate teal thumb tracks the current reading position without increasing the timeline height as the conversation grows.
+
+### Fixed
+
+- Fixed `fyllo-specs create-plan` failing in multi-root Workspaces because it incorrectly required a unique Folder owner. Plans remain isolated by Workspace and Session, while Proposal ownership and validation are unchanged.
+
+### Notes
+
+- The application version is now `0.15.1`.
+- The `fyllo-specs` MCP server is now `0.10.1`, fixing `create-plan` in multi-root Workspaces without changing tool inputs, outputs, or the session-scoped Plan semantics.
+- The `fyllo-cortex` MCP server remains at `0.7.0`; this release does not modify that server.
+
 ## [0.15.0] - 2026-08-04
 
 FylloCode now supports Workspaces containing multiple Projects. Launcher, Chat, Overview, Specs, Guidelines, Proposal, Task, Integration, and bundled MCP server contexts use the Workspace scope. Startup and shutdown lifecycle handling is tighter, and Projects without Git history retain their governance information.

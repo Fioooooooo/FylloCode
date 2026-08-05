@@ -42,6 +42,8 @@ sidebar:
 
 plan 文档以 `<workspaceDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.md` 路径写入，属于当前会话，不写入任何 Project 仓库，也不创建 linked worktree。工具只负责生成带 frontmatter 和标题骨架的模板文件；plan 正文由 Agent 调研后写入。
 
+`create-plan` 只使用 Workspace / Session 上下文，在单 Project 和 multi-root Workspace 中都不解析、接受或推断 `folderId`。因此一份 Plan 可以覆盖同一 Session 授权范围内的多个 Project；相同 slug 在不同 Workspace 或 Session 中仍写入彼此隔离的路径。只有 repository-owned 的 Proposal 操作需要明确 Project owner。
+
 如果调研过程中发现改动会影响需求、公开 API、schema、协议、持久化格式、用户可见行为或职责边界，应当停止完善这份 plan，改为调用 `create-proposal`，而不是把 plan 写完再另起 proposal。
 
 ## worktreeMode 与 Project 归属

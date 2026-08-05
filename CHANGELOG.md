@@ -4,6 +4,29 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.1] - 2026-08-05
+
+这个版本改善 Chat 中的 Session 配置与长对话导航，并修复 multi-root Workspace 无法创建 Plan 的问题。配置入口在选项增多时保持紧凑，prompt timeline 也能以固定视觉密度浏览完整历史。
+
+### 新增
+
+- Chat prompt timeline 支持最多五条附近 prompt 摘要和可固定的完整 prompt 列表；拖动、滚轮、点击与键盘操作都能定位完整历史，固定列表在独立区域内滚动
+
+### 调整
+
+- ChatPrompt footer 将 Agent 提供的非 mode Session 配置收拢到单一菜单；触发按钮优先显示 model 与 thought level 摘要，select 配置使用子菜单，boolean 配置可通过一级 checkbox 直接切换
+- Prompt timeline 在 2–10 条 prompt 时逐项显示导览刻度，超过 10 条后保持 10 个固定刻度，并使用独立 teal thumb 表示当前阅读位置，不再随对话长度持续增高
+
+### 修复
+
+- 修复 multi-root Workspace 中 `fyllo-specs create-plan` 因错误要求唯一 Folder owner 而失败的问题；Plan 继续按 Workspace / Session 隔离，Proposal 的 Project 归属与校验保持不变
+
+### 备注
+
+- 应用版本升级到 `0.15.1`。
+- `fyllo-specs` MCP server 升级到 `0.10.1`，修复 multi-root Workspace 中的 `create-plan`，不改变 tool 输入、输出或 Plan 的 session-scoped 语义。
+- `fyllo-cortex` MCP server 保持 `0.7.0`；本次发布范围没有修改该 server。
+
 ## [0.15.0] - 2026-08-04
 
 FylloCode 现在支持由多个 Project 组成的 Workspace。Launcher、Chat、Overview、Specs、Guidelines、Proposal、Task、Integration 和内置 MCP server 都使用 Workspace 作用域。本版本同时收敛启动与退出生命周期，改善没有 Git 历史的 Project 的治理信息展示。

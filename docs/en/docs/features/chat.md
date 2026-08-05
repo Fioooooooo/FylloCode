@@ -8,16 +8,13 @@ sidebar:
 
 The Chat page carries Agent collaboration inside a project context. It is where the Chat stage lands on the main path. Agents analyze requirements, inspect code evidence, guide tradeoff discussions, converge on decisions with you, and then move toward Proposal and Apply & Archive.
 
-<figure class="fc-doc-image">
-  <img src="/assets/screenshots/chat.png" alt="Chat page screenshot" />
-</figure>
-
 ## Main Capabilities
 
 - Manage sessions in the Workspace
 - Pin important sessions into a separate group, with the pinned state restored after restart
 - Collapse the **Pinned Sessions** and **Recent Sessions** groups independently, sharing available height between expanded groups
 - Select installed ACP Agents
+- Inspect and change Agent-provided Session configuration from one menu
 - Inspect the fixed Session scope in the Chat header, including snapshot-only and stale members
 - Send text and attachment context
 - Display Agent reasoning, tool calls, subagent calls, and streamed output state
@@ -32,9 +29,17 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 
 **Pinned Sessions** and **Recent Sessions** are each sorted by recent activity. Every non-empty group can be collapsed independently. When both groups are expanded, they share the remaining height below their headers and scroll separately. Collapsing a group does not interrupt background execution, and expanding it restores the previous scroll position. Collapse state lasts only for the current Chat-sidebar mount and is not written to session metadata.
 
+## Adjusting Session Configuration
+
+When an Agent provides Session configuration, the composer shows one configuration button. The button prioritizes the current values as “model · thought level,” shows either value when only one is available, and falls back to `Config` when neither category exists. The button is hidden when there is no visible configuration.
+
+The menu presents select configuration through submenus and boolean configuration as top-level checkboxes. It preserves the Agent's option order. After a change, FylloCode refreshes the summary, current values, and available options from the Agent's complete configuration snapshot, so related changes such as a model updating its thought levels appear together.
+
 ## Locating Past Messages
 
-A timeline appears in the top-left of the conversation area, marking every message you've sent in the current session. While scrolling a long conversation, the timeline highlights the node matching your current reading position; clicking or dragging the line index locates the matching message. The timeline also supports keyboard focus, arrow-key preview, Enter to locate, and Escape to close the summary popover. The timeline is hidden when there are fewer than two messages.
+When the current session has at least two user prompts, a floating timeline appears in the top-left of the conversation area. Each of 2–10 prompts gets a guide; longer conversations stay at 10 guides, while the full rail still maps continuously to every prompt. A separate teal thumb follows the current reading position, so the timeline does not keep growing or reduce the message-column width.
+
+Hovering or using the arrow keys shows up to five nearby prompt summaries. Clicking the timeline or pressing Enter pins the complete prompt list, which scrolls independently and lets you locate any message by selecting its summary. Dragging or using the mouse wheel moves through prompts quickly, Home and End jump to the boundaries, and Escape closes the summary popover. The timeline is hidden when there are fewer than two prompts.
 
 ## Reading Agent Activity
 

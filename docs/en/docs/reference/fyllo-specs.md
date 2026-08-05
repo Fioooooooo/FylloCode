@@ -42,6 +42,8 @@ When `includeInstruction: false` is passed, only JSON state is returned. Do not 
 
 The plan document is written to `<workspaceDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.md`. It belongs to the current session, is not written into any Project repository, and does not create a linked worktree. The tool only generates a template file with frontmatter and heading skeleton; the plan body is written by the Agent after investigation.
 
+`create-plan` uses only Workspace and Session context. It does not resolve, accept, or infer a `folderId` in either single-Project or multi-root Workspaces. A Plan can therefore cover multiple Projects authorized for the same Session, while identical slugs in different Workspaces or Sessions remain isolated in separate paths. Only repository-owned Proposal operations require an explicit Project owner.
+
 If the investigation reveals that the change affects requirements, a public API, a schema, a protocol, a persistence format, user-visible behavior, or an ownership boundary, stop refining this plan and call `create-proposal`. Do not finish the plan first and start a separate proposal afterward.
 
 ## worktreeMode and Project Ownership
