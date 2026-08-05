@@ -4,7 +4,11 @@ import { Writable, Readable } from "stream";
 import spawn from "cross-spawn";
 import { app } from "electron";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
-import type { RequestPermissionRequest, SessionNotification } from "@agentclientprotocol/sdk";
+import type {
+  ClientCapabilities,
+  RequestPermissionRequest,
+  SessionNotification,
+} from "@agentclientprotocol/sdk";
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 import { readInstalledRecords, resolveBinaryDistribution } from "@main/infra/acp/detector";
 import { getRegistry } from "@main/infra/storage/acp-registry-cache";
@@ -60,6 +64,14 @@ interface RestartState {
   reject: (error: Error) => void;
   generation: number;
 }
+
+type BooleanConfigClientCapabilities = ClientCapabilities & {
+  session: {
+    configOptions: {
+      boolean: Record<string, never>;
+    };
+  };
+};
 
 const pool = new Map<string, AgentProcess>();
 const startingProcesses = new Map<string, StartingProcess>();
@@ -293,9 +305,16 @@ async function startProcess(
       throw new Error(`[infra.process.acp] start of ${agentId} was invalidated before initialize`);
     }
 
+    const clientCapabilities: BooleanConfigClientCapabilities = {
+      session: {
+        configOptions: {
+          boolean: {},
+        },
+      },
+    };
     const initializeResponse = await connection.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: {},
+      clientCapabilities,
       clientInfo: { name: "FylloCode", version: app.getVersion() },
     });
     if (!isCurrentGeneration(agentId, generation)) {
