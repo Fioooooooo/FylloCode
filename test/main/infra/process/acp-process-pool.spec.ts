@@ -212,6 +212,8 @@ describe("acp-process-pool", () => {
       "activation-1",
       "session-forgotten"
     );
+    expect(() => forgetActiveAcpSession(first, "acp-1")).not.toThrow();
+    expect(() => forgetActiveAcpSession(first, "acp-1")).not.toThrow();
     markAcpSessionActive(first, "acp-1", null);
     expect(hasActiveMcpActivation(first, "acp-1")).toBe(true);
 

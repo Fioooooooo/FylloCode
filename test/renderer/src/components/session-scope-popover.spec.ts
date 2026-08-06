@@ -66,6 +66,7 @@ function scopedSession(folderCount = 2): Session {
     id: "session-1",
     workspaceId: "workspace-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",

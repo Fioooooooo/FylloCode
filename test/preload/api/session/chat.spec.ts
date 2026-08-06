@@ -226,6 +226,24 @@ describe("preload chatApi.streamMessage", () => {
     });
   });
 
+  it("invokes createSession with an explicit session mode", async () => {
+    const { chatApi } = await import("@preload/api/session/chat");
+
+    await chatApi.createSession({
+      workspaceId: "workspace-1",
+      title: "Native session",
+      agentId: "agent-1",
+      sessionMode: "native",
+    });
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.createSession, {
+      workspaceId: "workspace-1",
+      title: "Native session",
+      agentId: "agent-1",
+      sessionMode: "native",
+    });
+  });
+
   it("passes acpSessionId in streamMessage options", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
@@ -255,11 +273,20 @@ describe("preload chatApi.streamMessage", () => {
   it("invokes probe methods on the correct channels", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
-    await chatApi.probeEnsure({ agentId: "agent-1", workspaceId: "workspace-1" });
-    await chatApi.probeClose({ agentId: "agent-1", workspaceId: "workspace-1" });
+    await chatApi.probeEnsure({
+      agentId: "agent-1",
+      workspaceId: "workspace-1",
+      sessionMode: "native",
+    });
+    await chatApi.probeClose({
+      agentId: "agent-1",
+      workspaceId: "workspace-1",
+      sessionMode: "native",
+    });
     await chatApi.probeSetConfigOption({
       workspaceId: "workspace-1",
       agentId: "agent-1",
+      sessionMode: "native",
       configId: "model",
       type: "select",
       value: "sonnet",
@@ -268,14 +295,17 @@ describe("preload chatApi.streamMessage", () => {
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.ensure, {
       agentId: "agent-1",
       workspaceId: "workspace-1",
+      sessionMode: "native",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.close, {
       workspaceId: "workspace-1",
       agentId: "agent-1",
+      sessionMode: "native",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatProbeChannels.setConfigOption, {
       workspaceId: "workspace-1",
       agentId: "agent-1",
+      sessionMode: "native",
       configId: "model",
       type: "select",
       value: "sonnet",
@@ -292,7 +322,7 @@ describe("preload chatApi.streamMessage", () => {
     )?.[1];
     expect(listener).toBeTypeOf("function");
 
-    const payload = { agentId: "agent-1", snapshot: null };
+    const payload = { agentId: "agent-1", sessionMode: "native", snapshot: null };
     listener({}, payload);
     unsubscribe();
 

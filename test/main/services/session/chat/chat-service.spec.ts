@@ -52,6 +52,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
     sessionId: "session-1",
     agentId: "claude-acp",
+    sessionMode: "fyllocode",
     title: "Session",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },
@@ -233,6 +234,7 @@ describe("chat-service", () => {
 
     const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
     expect(persistedMeta.acpSessionId).toBe("sess-A");
+    expect(persistedMeta.sessionMode).toBe("fyllocode");
     expect(persistedMeta.configOptions).toEqual([
       expect.objectContaining({ id: "model", currentValue: "sonnet" }),
     ]);
@@ -271,6 +273,29 @@ describe("chat-service", () => {
       expect.objectContaining({ workspaceSnapshot: probeSnapshot })
     );
     expect(session.workspaceSnapshot).toEqual(probeSnapshot);
+  });
+
+  it("createSession persists native mode and returns it to the renderer", async () => {
+    mocks.createSessionMeta.mockImplementation(async (_path, m) => m);
+
+    const session = await createSession({
+      workspaceId: "workspace-1",
+      title: "native draft",
+      agentId: "claude-acp",
+      sessionMode: "native",
+    });
+
+    const persistedMeta = mocks.createSessionMeta.mock.calls[0]![1] as SessionMeta;
+    expect(persistedMeta.sessionMode).toBe("native");
+    expect(session.sessionMode).toBe("native");
+  });
+
+  it("maps a legacy meta without sessionMode to fyllocode", async () => {
+    mocks.listSessionMetas.mockResolvedValue([meta({ sessionMode: undefined })]);
+
+    const sessions = await listSessions("workspace-1");
+
+    expect(sessions[0]?.sessionMode).toBe("fyllocode");
   });
 
   it("ensureSessionWorkspaceSnapshot lazily backfills a legacy Folder Session", async () => {

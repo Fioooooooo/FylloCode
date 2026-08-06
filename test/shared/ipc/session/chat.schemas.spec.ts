@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createSessionInputSchema,
   persistMessageInputSchema,
+  probeCloseInputSchema,
+  probeEnsureInputSchema,
+  probeSetConfigOptionInputSchema,
   setConfigOptionInputSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { chatPromptPartSchema } from "@shared/types/chat-prompt";
@@ -14,7 +17,20 @@ describe("createSessionInputSchema", () => {
   };
 
   it("accepts payload without fylloSessionId", () => {
-    expect(createSessionInputSchema.parse(base)).toEqual(base);
+    expect(createSessionInputSchema.parse(base)).toEqual({
+      ...base,
+      sessionMode: "fyllocode",
+    });
+  });
+
+  it.each(["fyllocode", "native"] as const)("accepts %s session mode", (sessionMode) => {
+    expect(createSessionInputSchema.parse({ ...base, sessionMode }).sessionMode).toBe(sessionMode);
+  });
+
+  it("rejects an unknown session mode", () => {
+    expect(createSessionInputSchema.safeParse({ ...base, sessionMode: "unknown" }).success).toBe(
+      false
+    );
   });
 
   it("accepts payload with fylloSessionId", () => {
@@ -26,7 +42,59 @@ describe("createSessionInputSchema", () => {
     ).toEqual({
       ...base,
       fylloSessionId: "session-probe",
+      sessionMode: "fyllocode",
     });
+  });
+});
+
+describe("probe session mode schemas", () => {
+  it("defaults probe ensure, close, and config requests to fyllocode", () => {
+    expect(
+      probeEnsureInputSchema.parse({ agentId: "agent-1", workspaceId: "w1" }).sessionMode
+    ).toBe("fyllocode");
+    expect(probeCloseInputSchema.parse({ agentId: "agent-1", workspaceId: "w1" }).sessionMode).toBe(
+      "fyllocode"
+    );
+    expect(
+      probeSetConfigOptionInputSchema.parse({
+        agentId: "agent-1",
+        workspaceId: "w1",
+        configId: "model",
+        type: "select",
+        value: "sonnet",
+      }).sessionMode
+    ).toBe("fyllocode");
+  });
+
+  it.each(["fyllocode", "native"] as const)("accepts %s for every probe request", (sessionMode) => {
+    expect(
+      probeEnsureInputSchema.parse({ agentId: "agent-1", workspaceId: "w1", sessionMode })
+        .sessionMode
+    ).toBe(sessionMode);
+    expect(
+      probeCloseInputSchema.parse({ agentId: "agent-1", workspaceId: "w1", sessionMode })
+        .sessionMode
+    ).toBe(sessionMode);
+    expect(
+      probeSetConfigOptionInputSchema.parse({
+        agentId: "agent-1",
+        workspaceId: "w1",
+        sessionMode,
+        configId: "model",
+        type: "select",
+        value: "sonnet",
+      }).sessionMode
+    ).toBe(sessionMode);
+  });
+
+  it("rejects an unknown probe session mode", () => {
+    expect(
+      probeEnsureInputSchema.safeParse({
+        agentId: "agent-1",
+        workspaceId: "w1",
+        sessionMode: "unknown",
+      }).success
+    ).toBe(false);
   });
 });
 

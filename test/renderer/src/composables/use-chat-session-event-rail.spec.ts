@@ -26,6 +26,7 @@ function session(messages: UIMessage<MessageMeta>[] = []): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "agent-1",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",

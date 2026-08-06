@@ -4,6 +4,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
+import type { ChatSessionMode } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { DraftProbeState } from "@renderer/stores/session/session";
 
@@ -78,12 +79,16 @@ const sendMessage = vi.fn<
 const cancelStream = vi.fn();
 const setSessionAgent = vi.fn(() => Promise.resolve());
 const setDraftAgent = vi.fn();
+const setDraftSessionMode = vi.fn((sessionMode: ChatSessionMode) => {
+  draftSessionModeRef.value = sessionMode;
+});
 const createSession = vi.fn();
 const refreshCapabilities = vi.fn(() => Promise.resolve());
 const getPromptCapabilities = vi.fn();
 const saveAttachment = vi.hoisted(() => vi.fn());
 const activeSessionRef = ref<Session | null>(null);
 const draftAgentIdRef = ref<string | null>("claude-code");
+const draftSessionModeRef = ref<ChatSessionMode>("fyllocode");
 const activeDraftProbeRef = ref<DraftProbeState | null>(null);
 const chatStatusRef = ref<"ready" | "submitted" | "streaming" | "error">("ready");
 const promptCapabilitiesRef = ref({
@@ -124,10 +129,12 @@ vi.mock("@renderer/stores/session/session", () => ({
   useSessionStore: () => ({
     activeSession: computed(() => activeSessionRef.value),
     draftAgentId: computed(() => draftAgentIdRef.value),
+    draftSessionMode: draftSessionModeRef,
     activeDraftProbe: computed(() => activeDraftProbeRef.value),
     createSession,
     setSessionAgent,
     setDraftAgent,
+    setDraftSessionMode,
   }),
 }));
 
@@ -141,6 +148,7 @@ vi.mock("pinia", async (importOriginal) => {
         chatStatus: computed(() => chatStatusRef.value),
         activeSession: computed(() => activeSessionRef.value),
         draftAgentId: computed(() => draftAgentIdRef.value),
+        draftSessionMode: draftSessionModeRef,
         activeDraftProbe: computed(() => activeDraftProbeRef.value),
       };
     },
@@ -152,6 +160,7 @@ function makeSession(commands: AcpAvailableCommand[] = []): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",
@@ -175,6 +184,12 @@ function mountPanel(): VueWrapper {
         UChatPromptSubmit: promptSubmitStub,
         ChatPromptSubmit: promptSubmitStub,
         SlashCommandMenu: slashCommandStub,
+        SessionModeTabs: {
+          props: ["modelValue"],
+          emits: ["update:modelValue"],
+          template:
+            '<button data-test="session-mode-tabs" type="button" :data-mode="modelValue" @click="$emit(\'update:modelValue\', \'native\')">{{ modelValue }}</button>',
+        },
         AttachmentList: {
           props: ["attachments"],
           emits: ["remove"],
@@ -228,9 +243,11 @@ describe("ChatPromptPanel", () => {
     setActivePinia(createPinia());
     activeSessionRef.value = null;
     draftAgentIdRef.value = "claude-code";
+    draftSessionModeRef.value = "fyllocode";
     activeDraftProbeRef.value = null;
     chatStatusRef.value = "ready";
     sendMessage.mockClear();
+    setDraftSessionMode.mockClear();
     sendMessage.mockResolvedValue(true);
     cancelStream.mockClear();
     createSession.mockReset();
@@ -296,10 +313,26 @@ describe("ChatPromptPanel", () => {
     expect(wrapper.find('[data-test="slash-button"]').exists()).toBe(true);
   });
 
+  it("shows mode tabs only for drafts and forwards the selected mode", async () => {
+    const wrapper = mountPanel();
+
+    expect(wrapper.get('[data-test="session-mode-tabs"]').attributes("data-mode")).toBe(
+      "fyllocode"
+    );
+    await wrapper.get('[data-test="session-mode-tabs"]').trigger("click");
+    expect(setDraftSessionMode).toHaveBeenCalledWith("native");
+    expect(draftSessionModeRef.value).toBe("native");
+
+    activeSessionRef.value = makeSession();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="session-mode-tabs"]').exists()).toBe(false);
+  });
+
   it("shows the slash button in draft state when the ready probe has commands", async () => {
     activeSessionRef.value = null;
     activeDraftProbeRef.value = {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -316,6 +349,7 @@ describe("ChatPromptPanel", () => {
     activeSessionRef.value = null;
     activeDraftProbeRef.value = {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "starting",
       fylloSessionId: null,
       acpSessionId: null,
@@ -492,6 +526,7 @@ describe("ChatPromptPanel", () => {
   it("keeps a ready-probe multi-file selection in the draft without creating a session", async () => {
     activeDraftProbeRef.value = {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",

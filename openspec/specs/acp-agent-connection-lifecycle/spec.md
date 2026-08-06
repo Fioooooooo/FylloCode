@@ -205,39 +205,45 @@
 
 ### Requirement: 持久化 ACP session 配置跨 cold connection 恢复
 
-系统 SHALL 将 session meta 中最后一次由 Agent 确认的完整 `configOptions` 作为该 FylloCode session 的 cold recovery 期望配置。应用重启、Agent process 重建或其他 connection-local session 状态丢失后，系统 SHALL 在首个续聊 prompt 前先激活目标 ACP session，并通过 `session/set_config_option` 恢复所有仍受当前 Agent schema 支持的持久化选值。
+系统 SHALL将 Session meta中最后一次由 Agent确认的完整 `configOptions`作为该 Chat Session的 cold recovery期望配置。应用重启、Agent process重建或其他 connection-local session状态丢失后，系统 SHALL在首个续聊 prompt前先激活目标 ACP session，并通过 `session/set_config_option`恢复所有仍受当前 Agent schema支持的持久化选值。`fyllocode` Session在 fresh fallback时 SHALL继续按现有规则注入一次 persisted history reminder与 system reminder；`native` Session SHALL恢复配置但 SHALL NOT注入任一 reminder。
 
 #### Scenario: 应用重启后 resume 返回默认配置
 
-- **WHEN** session meta 保存了非默认配置且应用重启后的 Agent 支持 `resumeSession`
-- **AND** `resumeSession` 返回同一 option schema 但 currentValue 为 Agent 默认值
-- **THEN** 系统 SHALL 在发送首个 prompt 前把持久化选值重放到该 ACP session
-- **AND** 系统 SHALL 只在 Agent 确认最终配置后更新 renderer 与 session meta
+- **WHEN** Session meta保存了非默认配置且应用重启后的 Agent支持 `resumeSession`
+- **AND** `resumeSession`返回同一 option schema但 currentValue为 Agent默认值
+- **THEN** 系统 SHALL在发送首个 prompt前把持久化选值重放到该 ACP session
+- **AND** 系统 SHALL只在 Agent确认最终配置后更新 renderer与 Session meta
 
 #### Scenario: loadSession 返回默认配置
 
-- **WHEN** cold session 不支持 resume 但支持 `loadSession`
-- **AND** `loadSession` 返回的兼容 option 使用默认 currentValue
-- **THEN** 系统 SHALL 在 replay 结束后、发送首个 prompt 前恢复持久化选值
-- **AND** 历史 replay suppression 与消息去重语义 SHALL 保持不变
+- **WHEN** cold Session不支持 resume但支持 `loadSession`
+- **AND** `loadSession`返回的兼容 option使用默认 currentValue
+- **THEN** 系统 SHALL在 replay结束后、发送首个 prompt前恢复持久化选值
+- **AND** 历史 replay suppression与消息去重语义 SHALL保持不变
 
-#### Scenario: fresh fallback 创建新 ACP session
+#### Scenario: FylloCode fresh fallback 创建新 ACP session
 
-- **WHEN** 已持久化 ACP session 无法 resume 或 load 且 recovery 创建 fresh ACP session
-- **THEN** 系统 SHALL 在 fresh session 的首个 prompt 前把仍受新 session schema 支持的持久化选值应用到新 ACP session
-- **AND** existing persisted history reminder 与 system reminder SHALL 继续只注入一次
+- **WHEN** `fyllocode` Session的持久化 ACP session无法 resume或load且 recovery创建 fresh ACP session
+- **THEN** 系统 SHALL在 fresh session的首个 prompt前把仍受新 session schema支持的持久化选值应用到新 ACP session
+- **AND** existing persisted history reminder与 system reminder SHALL继续只注入一次
+
+#### Scenario: Native fresh fallback 创建新 ACP session
+
+- **WHEN** `native` Session的持久化 ACP session无法 resume或load且 recovery创建 fresh ACP session
+- **THEN** 系统 SHALL在 fresh session的首个 prompt前恢复仍受支持的持久化选值
+- **AND** SHALL NOT注入 persisted history reminder或 FylloCode system reminder
 
 #### Scenario: cold process 不先发送 direct prompt
 
-- **WHEN** session meta 存在 ACP session ID 但当前 Agent process 未激活该 session
-- **THEN** 系统 SHALL NOT 使用该 ID 先发送 direct prompt
-- **AND** 系统 SHALL 先进入 resume、load 或 fresh newSession recovery
+- **WHEN** Session meta存在 ACP session ID但当前 Agent process未激活该 session
+- **THEN** 系统 SHALL NOT使用该 ID先发送 direct prompt
+- **AND** 系统 SHALL先进入 resume、load或 fresh newSession recovery
 
 #### Scenario: warm process 继续已有 session
 
-- **WHEN** 目标 ACP session 已在当前 Agent process 中激活且持久化配置没有新的待恢复状态
-- **THEN** 系统 SHALL 继续使用 direct prompt
-- **AND** 系统 SHALL NOT 在每个 turn 重复重放全部配置
+- **WHEN** 目标 ACP session已在当前 Agent process中激活且持久化配置没有新的待恢复状态
+- **THEN** 系统 SHALL继续使用 direct prompt
+- **AND** 系统 SHALL NOT在每个 turn重复重放全部配置
 
 ### Requirement: 配置恢复以 Agent 完整 live snapshot 逐步收敛
 

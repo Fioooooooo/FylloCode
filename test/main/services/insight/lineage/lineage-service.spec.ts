@@ -250,6 +250,7 @@ describe("lineage-service", () => {
     await createSessionMeta(projectPath, {
       sessionId: "session-chat",
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       title: "Session",
       turnCount: 0,
       tokenUsage: { used: 0, size: 0 },
@@ -301,6 +302,7 @@ describe("lineage-service", () => {
     await createSessionMeta(projectPath, {
       sessionId: "session-new",
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       title: "Session",
       turnCount: 0,
       tokenUsage: { used: 0, size: 0 },
@@ -330,6 +332,7 @@ describe("lineage-service", () => {
     await createSessionMeta(projectPath, {
       sessionId: "session-chat",
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       title: "Session",
       turnCount: 0,
       tokenUsage: { used: 0, size: 0 },

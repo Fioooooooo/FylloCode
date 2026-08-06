@@ -1,4 +1,5 @@
 import type { ClientSideConnection, SessionNotification } from "@agentclientprotocol/sdk";
+import { DEFAULT_CHAT_SESSION_MODE, type ChatSessionMode } from "@shared/types/chat";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
@@ -13,11 +14,6 @@ import {
   onAgentProcessInvalidated,
   setPendingProbeHandler,
 } from "@main/infra/process/acp-process-pool";
-import {
-  createBundledMcpActivation,
-  revokeBundledMcpActivation,
-  toAcpMcpServer,
-} from "@main/infra/mcp/bundled-mcp-servers";
 import { newSessionId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
 import { valueExistsInSchema } from "@main/domain/session/chat/session-config-recovery";
@@ -26,7 +22,7 @@ import { buildPayload, isMethodNotFoundError } from "./acp-config-option-rpc";
 import type { ProbeEntry } from "./session-probe-registry";
 import { sessionProbeRegistry, toProbeSnapshot } from "./session-probe-registry";
 import { sessionProbeBus } from "./session-probe-bus";
-import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
+import { createChatRuntimeProfile } from "./session-runtime-profile";
 
 type AgentProcessEntry = Awaited<ReturnType<typeof getOrStartProcess>>;
 type ProbeNotificationHandler = (notification: SessionNotification) => void;
@@ -34,6 +30,7 @@ type ProbeNotificationHandler = (notification: SessionNotification) => void;
 export interface SetProbeConfigOptionInput {
   workspaceId: string;
   agentId: string;
+  sessionMode?: ChatSessionMode;
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
@@ -42,11 +39,12 @@ export interface SetProbeConfigOptionInput {
 export function getProbeWorkspaceSnapshotForPromotion(
   workspaceId: string,
   agentId: string,
-  acpSessionId: string
+  acpSessionId: string,
+  sessionMode?: ChatSessionMode
 ): SessionWorkspaceSnapshot | null {
   return (
-    sessionProbeRegistry.getForPromotion(workspaceId, agentId, acpSessionId)?.workspaceSnapshot ??
-    null
+    sessionProbeRegistry.getForPromotion(workspaceId, agentId, acpSessionId, sessionMode)
+      ?.workspaceSnapshot ?? null
   );
 }
 
@@ -122,13 +120,19 @@ function normalizeIpcErrorCode(code: string | undefined): IpcErrorCode {
   return code && knownCodes.includes(code) ? (code as IpcErrorCode) : IpcErrorCodes.ACP_ERROR;
 }
 
-function emitUpdate(workspaceId: string, agentId: string, snapshot: ProbeSnapshot | null): void {
-  sessionProbeBus.emitUpdate({ workspaceId, agentId, snapshot });
+function emitUpdate(
+  workspaceId: string,
+  agentId: string,
+  sessionMode: ChatSessionMode,
+  snapshot: ProbeSnapshot | null
+): void {
+  sessionProbeBus.emitUpdate({ workspaceId, agentId, sessionMode, snapshot });
 }
 
 function setFailedEntry(
   workspaceId: string,
   agentId: string,
+  sessionMode: ChatSessionMode,
   error: unknown,
   workspaceSnapshot: SessionWorkspaceSnapshot,
   fylloSessionId = newSessionId()
@@ -136,6 +140,7 @@ function setFailedEntry(
   const entry: ProbeEntry = {
     workspaceId,
     agentId,
+    sessionMode,
     status: "failed",
     fylloSessionId,
     acpSessionId: null,
@@ -147,7 +152,7 @@ function setFailedEntry(
     startedAt: Date.now(),
   };
   sessionProbeRegistry.set(workspaceId, agentId, entry);
-  emitUpdate(workspaceId, agentId, toProbeSnapshot(entry));
+  emitUpdate(workspaceId, agentId, sessionMode, toProbeSnapshot(entry));
   return entry;
 }
 
@@ -160,19 +165,20 @@ function setFailedEntry(
  */
 function createProbeHandler(
   workspaceId: string,
-  agentId: string
+  agentId: string,
+  sessionMode: ChatSessionMode
 ): (notification: SessionNotification) => void {
   return (notification: SessionNotification): void => {
     if (notification.update.sessionUpdate !== "available_commands_update") {
       return;
     }
     const entry = sessionProbeRegistry.get(workspaceId, agentId);
-    if (!entry) {
+    if (!entry || entry.sessionMode !== sessionMode) {
       return;
     }
     entry.availableCommands = normalizeAvailableCommands(notification.update);
     sessionProbeRegistry.set(workspaceId, agentId, entry);
-    emitUpdate(workspaceId, agentId, toProbeSnapshot(entry));
+    emitUpdate(workspaceId, agentId, sessionMode, toProbeSnapshot(entry));
   };
 }
 
@@ -195,13 +201,40 @@ async function getConnection(agentId: string): Promise<ClientSideConnection> {
   return entry.connection;
 }
 
+export function ensureProbe(
+  workspaceId: string,
+  agentId: string,
+  sessionMode: ChatSessionMode,
+  workspaceSnapshot: SessionWorkspaceSnapshot
+): Promise<ProbeSnapshot>;
+export function ensureProbe(
+  workspaceId: string,
+  agentId: string,
+  workspaceSnapshot: SessionWorkspaceSnapshot,
+  sessionMode?: ChatSessionMode
+): Promise<ProbeSnapshot>;
 export async function ensureProbe(
   workspaceId: string,
   agentId: string,
-  workspaceSnapshot: SessionWorkspaceSnapshot
+  sessionModeOrSnapshot: ChatSessionMode | SessionWorkspaceSnapshot,
+  snapshotOrSessionMode?: SessionWorkspaceSnapshot | ChatSessionMode
 ): Promise<ProbeSnapshot> {
+  const sessionMode =
+    typeof sessionModeOrSnapshot === "string"
+      ? sessionModeOrSnapshot
+      : typeof snapshotOrSessionMode === "string"
+        ? snapshotOrSessionMode
+        : DEFAULT_CHAT_SESSION_MODE;
+  const workspaceSnapshot =
+    typeof sessionModeOrSnapshot === "string"
+      ? (snapshotOrSessionMode as SessionWorkspaceSnapshot)
+      : sessionModeOrSnapshot;
   const workspaceCwd = workspaceSnapshot.cwd;
-  const existing = sessionProbeRegistry.get(workspaceId, agentId);
+  let existing = sessionProbeRegistry.get(workspaceId, agentId);
+  if (existing && existing.sessionMode !== sessionMode) {
+    await closeProbe(workspaceId, agentId, existing.sessionMode);
+    existing = undefined;
+  }
   if (existing?.status === "ready") {
     const processEntry = await getProcess(agentId);
     if (
@@ -210,7 +243,7 @@ export async function ensureProbe(
     ) {
       return toProbeSnapshot(existing);
     }
-    await closeProbe(workspaceId, agentId);
+    await closeProbe(workspaceId, agentId, sessionMode);
   }
   if (existing?.status === "starting" && existing.inflightEnsure) {
     return toProbeSnapshot(await existing.inflightEnsure);
@@ -219,6 +252,7 @@ export async function ensureProbe(
   const startingEntry: ProbeEntry = {
     workspaceId,
     agentId,
+    sessionMode,
     status: "starting",
     fylloSessionId: newSessionId(),
     acpSessionId: null,
@@ -231,19 +265,17 @@ export async function ensureProbe(
   sessionProbeRegistry.set(workspaceId, agentId, startingEntry);
 
   const inflightEnsure = (async (): Promise<ProbeEntry> => {
-    const probeHandler = createProbeHandler(workspaceId, agentId);
+    const probeHandler = createProbeHandler(workspaceId, agentId, sessionMode);
     probeHandlersByKey.set(probeKey(workspaceId, agentId), probeHandler);
     try {
       const processEntry = await getProcess(agentId);
       const supportsHttp =
         processEntry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
-      const descriptor = await createSessionMcpWorkspaceDescriptor(
-        workspaceSnapshot,
-        startingEntry.fylloSessionId
-      );
-      const mcpActivation = await createBundledMcpActivation({
+      const runtimeProfile = await createChatRuntimeProfile({
+        sessionMode,
         agentId,
-        descriptor,
+        workspaceSnapshot,
+        fylloSessionId: startingEntry.fylloSessionId,
         supportsHttp,
       });
       let activationBound = false;
@@ -260,12 +292,12 @@ export async function ensureProbe(
             const createdSession = await processEntry.connection.newSession({
               cwd: workspaceCwd,
               additionalDirectories: workspaceSnapshot.additionalDirectories,
-              mcpServers: mcpActivation.servers.map(toAcpMcpServer),
+              mcpServers: runtimeProfile.mcpServers,
             });
             markAcpSessionActive(
               processEntry,
               createdSession.sessionId,
-              mcpActivation.activationId
+              runtimeProfile.mcpActivationId
             );
             activationBound = true;
             processEntry.sessionHandlers.set(createdSession.sessionId, probeHandler);
@@ -278,7 +310,7 @@ export async function ensureProbe(
         });
       } finally {
         if (!activationBound) {
-          revokeBundledMcpActivation(mcpActivation.activationId);
+          runtimeProfile.revoke();
         }
       }
       const current = sessionProbeRegistry.get(workspaceId, agentId);
@@ -293,10 +325,11 @@ export async function ensureProbe(
       const readyEntry: ProbeEntry = {
         workspaceId,
         agentId,
+        sessionMode,
         status: "ready",
         fylloSessionId: startingEntry.fylloSessionId,
         acpSessionId: response.sessionId,
-        mcpActivationId: mcpActivation.activationId,
+        mcpActivationId: runtimeProfile.mcpActivationId,
         configOptions: normalizeAcpSessionConfigOptions(response.configOptions),
         // Carry whatever the probe handler has already accumulated. The commands
         // usually arrive asynchronously after newSession returns, so this is
@@ -306,7 +339,7 @@ export async function ensureProbe(
         startedAt: startingEntry.startedAt,
       };
       sessionProbeRegistry.set(workspaceId, agentId, readyEntry);
-      emitUpdate(workspaceId, agentId, toProbeSnapshot(readyEntry));
+      emitUpdate(workspaceId, agentId, sessionMode, toProbeSnapshot(readyEntry));
       return readyEntry;
     } catch (error: unknown) {
       detachProbeFallback(workspaceId, agentId);
@@ -317,6 +350,7 @@ export async function ensureProbe(
       const failedEntry = setFailedEntry(
         workspaceId,
         agentId,
+        sessionMode,
         error,
         workspaceSnapshot,
         startingEntry.fylloSessionId
@@ -332,12 +366,25 @@ export async function ensureProbe(
   return toProbeSnapshot(await inflightEnsure);
 }
 
-export async function closeProbe(workspaceId: string, agentId: string): Promise<void> {
+export async function closeProbe(
+  workspaceId: string,
+  agentId: string,
+  expectedSessionMode?: ChatSessionMode
+): Promise<void> {
+  const current = sessionProbeRegistry.get(workspaceId, agentId);
+  if (current && expectedSessionMode !== undefined && current.sessionMode !== expectedSessionMode) {
+    return;
+  }
   const entry = sessionProbeRegistry.delete(workspaceId, agentId);
   // Always clear the probe fallback handler so it does not leak after close,
   // even when no ready session exists to close.
   detachProbeFallback(workspaceId, agentId);
-  emitUpdate(workspaceId, agentId, null);
+  emitUpdate(
+    workspaceId,
+    agentId,
+    entry?.sessionMode ?? expectedSessionMode ?? DEFAULT_CHAT_SESSION_MODE,
+    null
+  );
   if (!entry || entry.status !== "ready" || entry.acpSessionId === null) {
     return;
   }
@@ -380,9 +427,15 @@ export async function closeWorkspaceProbes(workspaceId: string): Promise<void> {
 export async function takeProbeFor(
   workspaceId: string,
   agentId: string,
-  expectedAcpSessionId: string
+  expectedAcpSessionId: string,
+  expectedSessionMode?: ChatSessionMode
 ): Promise<ProbeEntry | null> {
-  const entry = sessionProbeRegistry.takeFor(workspaceId, agentId, expectedAcpSessionId);
+  const entry = sessionProbeRegistry.takeFor(
+    workspaceId,
+    agentId,
+    expectedAcpSessionId,
+    expectedSessionMode
+  );
   if (!entry) {
     return null;
   }
@@ -401,6 +454,9 @@ export async function setProbeConfigOption(
   const entry = sessionProbeRegistry.get(input.workspaceId, input.agentId);
   if (!entry || entry.status !== "ready" || entry.acpSessionId === null) {
     throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "probe 未就绪");
+  }
+  if (input.sessionMode !== undefined && entry.sessionMode !== input.sessionMode) {
+    throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "probe sessionMode 与当前 entry 不匹配");
   }
 
   const schema = entry.configOptions.find((option) => option.id === input.configId);
@@ -440,7 +496,7 @@ export async function setProbeConfigOption(
 
   entry.configOptions = normalizeAcpSessionConfigOptions(response.configOptions);
   const snapshot = toProbeSnapshot(entry);
-  emitUpdate(input.workspaceId, input.agentId, snapshot);
+  emitUpdate(input.workspaceId, input.agentId, entry.sessionMode, snapshot);
   return snapshot;
 }
 
@@ -454,6 +510,6 @@ onAgentProcessInvalidated(({ agentId }) => {
   const removed = sessionProbeRegistry.deleteAgent(agentId);
   for (const entry of removed) {
     detachProbeFallback(entry.workspaceId, agentId);
-    emitUpdate(entry.workspaceId, agentId, null);
+    emitUpdate(entry.workspaceId, agentId, entry.sessionMode, null);
   }
 });

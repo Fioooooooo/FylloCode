@@ -2,8 +2,10 @@ import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import { defineStore } from "pinia";
 import { useToast } from "@nuxt/ui/composables";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type {
-  AcpAvailableCommand,
+import {
+  DEFAULT_CHAT_SESSION_MODE,
+  type AcpAvailableCommand,
+  type ChatSessionMode,
   Message,
   AgendaEntry,
   Session,
@@ -47,6 +49,7 @@ export type DraftProbeStatus = ProbeStatus;
 
 export interface DraftProbeState {
   agentId: string;
+  sessionMode: ChatSessionMode;
   status: DraftProbeStatus;
   fylloSessionId: string | null;
   acpSessionId: string | null;
@@ -91,6 +94,7 @@ export interface SessionStore {
   activeSessionScopeDiff: ComputedRef<SessionScopeDiff | null>;
   taskInfoBySessionId: Ref<Map<string, OriginTaskInfo>>;
   draftAgentId: Ref<string | null>;
+  draftSessionMode: Ref<ChatSessionMode>;
   draftProbeByAgent: Ref<Map<string, DraftProbeState>>;
   activeDraftProbe: ComputedRef<DraftProbeState | null>;
   sessionProposals: Ref<Record<string, ProposalMeta[]>>;
@@ -102,10 +106,12 @@ export interface SessionStore {
   upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
   removeSessionProposal: (sessionId: string, proposalRef: ProposalRef) => void;
   subscribeProposalStatus: () => () => void;
+  setDraftSessionMode: (sessionMode: ChatSessionMode) => void;
   createSession: (
     input: {
       workspaceId: string;
       agentId: string;
+      sessionMode?: ChatSessionMode;
       title?: string;
       configOptions?: AcpSessionConfigOption[];
       availableCommands?: AcpAvailableCommand[];
@@ -131,15 +137,24 @@ export interface SessionStore {
     state: FylloActionState
   ) => Promise<void>;
   setSessionAgentAgenda: (sessionId: string, entries: AgendaEntry[]) => void;
-  ensureDraftProbe: (agentId: string, workspaceId: string) => Promise<void>;
-  closeDraftProbe: (agentId: string) => Promise<void>;
+  ensureDraftProbe: (
+    agentId: string,
+    workspaceId: string,
+    sessionMode?: ChatSessionMode
+  ) => Promise<void>;
+  closeDraftProbe: (agentId: string, sessionMode?: ChatSessionMode) => Promise<void>;
   setDraftConfigOption: (input: {
     agentId: string;
+    sessionMode?: ChatSessionMode;
     configId: string;
     type: "select" | "boolean";
     value: string | boolean;
   }) => Promise<void>;
-  applyProbeUpdate: (agentId: string, snapshot: ProbeSnapshot | null) => void;
+  applyProbeUpdate: (
+    agentId: string,
+    snapshot: ProbeSnapshot | null,
+    sessionMode?: ChatSessionMode
+  ) => void;
   subscribeProbeUpdates: () => () => void;
   setDraftAgent: (agentId: string) => void;
   clearSessions: () => void;
@@ -176,6 +191,7 @@ function normalizeTokenUsage(tokenUsage: Partial<TokenUsage> | null | undefined)
 function normalizeSession(session: SerializedSession): Session {
   return {
     ...session,
+    sessionMode: session.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
     isPinned: session.isPinned === true,
     tokenUsage: normalizeTokenUsage(session.tokenUsage),
     createdAt: toDate(session.createdAt),
@@ -213,6 +229,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   const activeSessionId = ref<string | null>(null);
   const taskInfoBySessionId = ref<Map<string, OriginTaskInfo>>(new Map());
   const draftAgentId = ref<string | null>(null);
+  const draftSessionMode = ref<ChatSessionMode>(DEFAULT_CHAT_SESSION_MODE);
   const draftProbeByAgent = ref<Map<string, DraftProbeState>>(new Map());
   const sessionProposals = ref<Record<string, ProposalMeta[]>>({});
   let unsubscribeStatusChanged: (() => void) | null = null;
@@ -294,6 +311,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   const loadedSessionIds = new Set<string>();
   let sessionsLoadGeneration = 0;
   let ensureDraftProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  let draftProbeGeneration = 0;
 
   function syncDraftAgentId(preferredAgentId: string | null = draftAgentId.value): void {
     draftAgentId.value = acpAgentsStore.resolveInstalledAgent(preferredAgentId);
@@ -303,6 +321,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   // switch watcher and beginDraftSession so entering the draft state always
   // ensures a probe even when effectiveAgentId itself does not change.
   function scheduleDraftProbe(agentId: string | null, workspaceId: string | null): void {
+    const generation = ++draftProbeGeneration;
     if (ensureDraftProbeTimer) {
       clearTimeout(ensureDraftProbeTimer);
       ensureDraftProbeTimer = null;
@@ -316,10 +335,16 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       return;
     }
 
+    const sessionMode = draftSessionMode.value;
     ensureDraftProbeTimer = setTimeout(() => {
       ensureDraftProbeTimer = null;
-      if (activeSessionId.value === null && draftAgentId.value === agentId) {
-        void ensureDraftProbe(agentId, workspaceId);
+      if (
+        activeSessionId.value === null &&
+        draftAgentId.value === agentId &&
+        draftSessionMode.value === sessionMode &&
+        draftProbeGeneration === generation
+      ) {
+        void ensureDraftProbe(agentId, workspaceId, sessionMode, generation);
       }
     }, 200);
   }
@@ -522,11 +547,36 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   function beginDraftSession(): void {
     const preferredAgentId = activeSession.value?.agentId ?? draftAgentId.value;
     activeSessionId.value = null;
+    const previousMode = draftSessionMode.value;
+    draftSessionMode.value = DEFAULT_CHAT_SESSION_MODE;
     syncDraftAgentId(preferredAgentId);
+    const probe = preferredAgentId ? draftProbeByAgent.value.get(preferredAgentId) : undefined;
+    if (preferredAgentId && probe && probe.sessionMode !== DEFAULT_CHAT_SESSION_MODE) {
+      void closeDraftProbe(preferredAgentId, probe.sessionMode);
+    }
+    if (previousMode !== DEFAULT_CHAT_SESSION_MODE) {
+      draftProbeGeneration += 1;
+    }
     // effectiveAgentId may not change when re-entering the draft state with the
     // same agent, so the agent-switch watcher won't fire. Schedule the probe
     // explicitly so the config options bar renders for the carried-over agent.
     scheduleDraftProbe(draftAgentId.value, useWorkspaceStore().currentWorkspace?.id ?? null);
+  }
+
+  function setDraftSessionMode(sessionMode: ChatSessionMode): void {
+    if (activeSessionId.value !== null || draftSessionMode.value === sessionMode) {
+      return;
+    }
+
+    const previousMode = draftSessionMode.value;
+    draftSessionMode.value = sessionMode;
+    draftProbeGeneration += 1;
+    const agentId = draftAgentId.value;
+    const probe = agentId ? draftProbeByAgent.value.get(agentId) : undefined;
+    if (agentId && probe && probe.sessionMode === previousMode) {
+      void closeDraftProbe(agentId, previousMode);
+    }
+    scheduleDraftProbe(agentId, useWorkspaceStore().currentWorkspace?.id ?? null);
   }
 
   function setDraftAgent(agentId: string): void {
@@ -548,6 +598,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
     session.workspaceId = nextSession.workspaceId;
     session.agentId = nextSession.agentId;
+    session.sessionMode = nextSession.sessionMode ?? DEFAULT_CHAT_SESSION_MODE;
     session.title = nextSession.title;
     session.isPinned = nextSession.isPinned;
     session.status = nextSession.status;
@@ -652,8 +703,10 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function setDraftProbe(agentId: string, snapshot: ProbeSnapshot): void {
+    const sessionMode = snapshot.sessionMode ?? DEFAULT_CHAT_SESSION_MODE;
     draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
       agentId: snapshot.agentId,
+      sessionMode,
       status: snapshot.status,
       fylloSessionId: snapshot.fylloSessionId,
       acpSessionId: snapshot.acpSessionId,
@@ -663,10 +716,16 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     });
   }
 
-  async function ensureDraftProbe(agentId: string, workspaceId: string): Promise<void> {
+  async function ensureDraftProbe(
+    agentId: string,
+    workspaceId: string,
+    sessionMode: ChatSessionMode = draftSessionMode.value,
+    generation = draftProbeGeneration
+  ): Promise<void> {
     const starting = new Map(draftProbeByAgent.value);
     starting.set(agentId, {
       agentId,
+      sessionMode,
       status: "starting",
       fylloSessionId: null,
       acpSessionId: null,
@@ -675,15 +734,39 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     });
     draftProbeByAgent.value = starting;
 
+    const isCurrentScope = (): boolean =>
+      activeSessionId.value === null &&
+      (draftAgentId.value === null || draftAgentId.value === agentId) &&
+      draftSessionMode.value === sessionMode &&
+      useWorkspaceStore().currentWorkspace?.id === workspaceId &&
+      draftProbeGeneration === generation;
+
+    const closeStaleProbe = (): void => {
+      void chatApi.probeClose({ workspaceId, agentId, sessionMode }).catch(() => undefined);
+    };
+
     try {
-      const result = await chatApi.probeEnsure({ agentId, workspaceId });
+      const result = await chatApi.probeEnsure({ agentId, workspaceId, sessionMode });
       if (result.ok) {
+        if (
+          !isCurrentScope() ||
+          (result.data.sessionMode ?? DEFAULT_CHAT_SESSION_MODE) !== sessionMode
+        ) {
+          closeStaleProbe();
+          return;
+        }
         setDraftProbe(agentId, result.data);
+        return;
+      }
+
+      if (!isCurrentScope()) {
+        closeStaleProbe();
         return;
       }
 
       draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
         agentId,
+        sessionMode,
         status: "failed",
         fylloSessionId: null,
         acpSessionId: null,
@@ -692,8 +775,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         error: result.error,
       });
     } catch (error: unknown) {
+      if (!isCurrentScope()) {
+        closeStaleProbe();
+        return;
+      }
       draftProbeByAgent.value = new Map(draftProbeByAgent.value).set(agentId, {
         agentId,
+        sessionMode,
         status: "failed",
         fylloSessionId: null,
         acpSessionId: null,
@@ -707,7 +795,15 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
   }
 
-  async function closeDraftProbe(agentId: string): Promise<void> {
+  async function closeDraftProbe(
+    agentId: string,
+    expectedSessionMode = draftProbeByAgent.value.get(agentId)?.sessionMode ??
+      draftSessionMode.value
+  ): Promise<void> {
+    const current = draftProbeByAgent.value.get(agentId);
+    if (current && current.sessionMode !== expectedSessionMode) {
+      return;
+    }
     const next = new Map(draftProbeByAgent.value);
     next.delete(agentId);
     draftProbeByAgent.value = next;
@@ -717,25 +813,44 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     try {
-      await chatApi.probeClose({ workspaceId, agentId });
+      await chatApi.probeClose({ workspaceId, agentId, sessionMode: expectedSessionMode });
     } catch {
       // close is best-effort; local draft state has already been cleared.
     }
   }
 
-  function applyProbeUpdate(agentId: string, snapshot: ProbeSnapshot | null): void {
+  function applyProbeUpdate(
+    agentId: string,
+    snapshot: ProbeSnapshot | null,
+    sessionMode?: ChatSessionMode
+  ): void {
+    const expectedMode = sessionMode ?? draftSessionMode.value;
+    const current = draftProbeByAgent.value.get(agentId);
+    if (
+      expectedMode !== draftSessionMode.value ||
+      (current && current.sessionMode !== expectedMode)
+    ) {
+      return;
+    }
     if (snapshot === null) {
+      if (current && current.sessionMode !== expectedMode) {
+        return;
+      }
       const next = new Map(draftProbeByAgent.value);
       next.delete(agentId);
       draftProbeByAgent.value = next;
       return;
     }
 
+    if ((snapshot.sessionMode ?? DEFAULT_CHAT_SESSION_MODE) !== expectedMode) {
+      return;
+    }
     setDraftProbe(agentId, snapshot);
   }
 
   async function setDraftConfigOption(input: {
     agentId: string;
+    sessionMode?: ChatSessionMode;
     configId: string;
     type: "select" | "boolean";
     value: string | boolean;
@@ -750,6 +865,11 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     if (!entry || !target) {
       throw new Error(`Config option not found: ${input.configId}`);
     }
+    const sessionMode = input.sessionMode ?? entry.sessionMode;
+    if (entry.sessionMode !== sessionMode || sessionMode !== draftSessionMode.value) {
+      throw new Error("Draft probe mode changed while setting the config option");
+    }
+    const requestGeneration = draftProbeGeneration;
 
     const previousValue = target.currentValue;
     if (target.type === "select" && typeof input.value === "string") {
@@ -763,11 +883,18 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     chatStore.markConfigOptionPending(input.configId);
 
     try {
-      const result = await chatApi.probeSetConfigOption({ ...input, workspaceId });
+      const result = await chatApi.probeSetConfigOption({ ...input, workspaceId, sessionMode });
       if (!result.ok) {
         throw new Error(result.error.message || result.error.code);
       }
-      setDraftProbe(input.agentId, result.data);
+      if (
+        draftProbeGeneration === requestGeneration &&
+        draftSessionMode.value === sessionMode &&
+        draftProbeByAgent.value.get(input.agentId)?.sessionMode === sessionMode &&
+        (result.data.sessionMode ?? DEFAULT_CHAT_SESSION_MODE) === sessionMode
+      ) {
+        setDraftProbe(input.agentId, result.data);
+      }
     } catch (error: unknown) {
       const rollbackEntry = draftProbeByAgent.value.get(input.agentId);
       const rollbackTarget = rollbackEntry?.configOptions.find(
@@ -793,12 +920,12 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
   }
 
   function subscribeProbeUpdates(): () => void {
-    return chatApi.onProbeUpdate(({ workspaceId, agentId, snapshot }) => {
+    return chatApi.onProbeUpdate(({ workspaceId, agentId, sessionMode, snapshot }) => {
       if (workspaceId !== useWorkspaceStore().currentWorkspace?.id) {
         return;
       }
 
-      applyProbeUpdate(agentId, snapshot);
+      applyProbeUpdate(agentId, snapshot, sessionMode);
     });
   }
 
@@ -851,6 +978,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     input: {
       workspaceId: string;
       agentId: string;
+      sessionMode?: ChatSessionMode;
       title?: string;
       configOptions?: AcpSessionConfigOption[];
       availableCommands?: AcpAvailableCommand[];
@@ -864,6 +992,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       workspaceId: input.workspaceId,
       title: input.title ?? "New Session",
       agentId: input.agentId,
+      sessionMode: input.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
       ...(input.configOptions !== undefined ? { configOptions: input.configOptions } : {}),
       ...(input.availableCommands !== undefined
         ? { availableCommands: input.availableCommands }
@@ -1027,6 +1156,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     () => [effectiveAgentId.value, useWorkspaceStore().currentWorkspace?.id ?? null] as const,
     ([nextAgentId, workspaceId], oldValues) => {
       const previousAgentId = oldValues?.[0] ?? null;
+      const previousWorkspaceId = oldValues?.[1] ?? null;
 
       if (nextAgentId && nextAgentId !== previousAgentId) {
         void acpAgentsStore.refreshCapabilities(nextAgentId).catch(() => {
@@ -1034,10 +1164,16 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
         });
       }
 
-      if (previousAgentId && previousAgentId !== nextAgentId) {
+      if (
+        previousAgentId &&
+        (previousAgentId !== nextAgentId || previousWorkspaceId !== workspaceId)
+      ) {
         const wasDraft = draftProbeByAgent.value.has(previousAgentId);
         if (wasDraft) {
-          void closeDraftProbe(previousAgentId);
+          void closeDraftProbe(
+            previousAgentId,
+            draftProbeByAgent.value.get(previousAgentId)?.sessionMode
+          );
         }
       }
 
@@ -1064,6 +1200,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     activeSessionScopeDiff,
     taskInfoBySessionId,
     draftAgentId,
+    draftSessionMode,
     draftProbeByAgent,
     activeDraftProbe,
     sessionProposals,
@@ -1075,6 +1212,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     upsertSessionProposal,
     removeSessionProposal,
     subscribeProposalStatus,
+    setDraftSessionMode,
     createSession,
     activateCreatedSession,
     beginDraftSession,

@@ -32,6 +32,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
     sessionId: "session-1",
     agentId: "claude-acp",
+    sessionMode: "fyllocode",
     title: "Session",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0, cost: undefined },
@@ -149,6 +150,31 @@ describe("session-store", () => {
 
     await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
       meta({ sessionId: "session-2" })
+    );
+  });
+
+  it("round-trips native session mode and normalizes legacy or invalid values", async () => {
+    await saveSessionMeta(workspaceId, meta({ sessionMode: "native" }));
+
+    await expect(loadSessionMeta(workspaceId, "session-1")).resolves.toEqual(
+      meta({ sessionMode: "native" })
+    );
+
+    const legacyRecord = { ...meta({ sessionId: "session-2" }) } as Record<string, unknown>;
+    delete legacyRecord.sessionMode;
+    mkdirSync(dirname(sessionMetaPath("session-2")), { recursive: true });
+    writeFileSync(sessionMetaPath("session-2"), JSON.stringify(legacyRecord), "utf8");
+    await expect(loadSessionMeta(workspaceId, "session-2")).resolves.toEqual(
+      meta({ sessionId: "session-2", sessionMode: "fyllocode" })
+    );
+
+    writeFileSync(
+      sessionMetaPath("session-3"),
+      JSON.stringify({ ...meta({ sessionId: "session-3" }), sessionMode: "unknown" }),
+      "utf8"
+    );
+    await expect(loadSessionMeta(workspaceId, "session-3")).resolves.toEqual(
+      meta({ sessionId: "session-3", sessionMode: "fyllocode" })
     );
   });
 

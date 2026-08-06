@@ -1,6 +1,6 @@
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, Session, Message } from "@shared/types/chat";
+import type { AcpAvailableCommand, ChatSessionMode, Session, Message } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
@@ -23,6 +23,7 @@ export interface StreamCallbacks {
 type ProbeConfigOptionInput = {
   workspaceId: string;
   agentId: string;
+  sessionMode?: ChatSessionMode;
   configId: string;
   type: "select" | "boolean";
   value: string | boolean;
@@ -41,6 +42,7 @@ export const chatApi = {
     workspaceId: string;
     title: string;
     agentId?: string;
+    sessionMode: ChatSessionMode;
     configOptions?: AcpSessionConfigOption[];
     availableCommands?: AcpAvailableCommand[];
     acpSessionId?: string;
@@ -135,11 +137,16 @@ export const chatApi = {
   probeEnsure(input: {
     agentId: string;
     workspaceId: string;
+    sessionMode?: ChatSessionMode;
   }): Promise<IpcResponse<ProbeSnapshot>> {
     return window.api.session.chat.probeEnsure(input);
   },
 
-  probeClose(input: { workspaceId: string; agentId: string }): Promise<IpcResponse<void>> {
+  probeClose(input: {
+    workspaceId: string;
+    agentId: string;
+    sessionMode?: ChatSessionMode;
+  }): Promise<IpcResponse<void>> {
     return window.api.session.chat.probeClose(input);
   },
 
@@ -151,6 +158,7 @@ export const chatApi = {
     handler: (payload: {
       workspaceId: string;
       agentId: string;
+      sessionMode: ChatSessionMode;
       snapshot: ProbeSnapshot | null;
     }) => void
   ): () => void {

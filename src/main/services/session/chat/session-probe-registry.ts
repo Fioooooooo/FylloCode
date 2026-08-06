@@ -1,11 +1,13 @@
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { AcpAvailableCommand } from "@shared/types/chat";
+import type { ChatSessionMode } from "@shared/types/chat";
 import type { ProbeSnapshot, ProbeStatus } from "@shared/types/chat-probe";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 export interface ProbeEntry {
   workspaceId: string;
   agentId: string;
+  sessionMode: ChatSessionMode;
   status: ProbeStatus;
   fylloSessionId: string;
   acpSessionId: string | null;
@@ -36,10 +38,19 @@ class SessionProbeRegistry {
     return entry;
   }
 
-  takeFor(workspaceId: string, agentId: string, expectedAcpSessionId: string): ProbeEntry | null {
+  takeFor(
+    workspaceId: string,
+    agentId: string,
+    expectedAcpSessionId: string,
+    expectedSessionMode?: ChatSessionMode
+  ): ProbeEntry | null {
     const key = this.entryKey(workspaceId, agentId);
     const entry = this.entries.get(key);
-    if (!entry || entry.acpSessionId !== expectedAcpSessionId) {
+    if (
+      !entry ||
+      entry.acpSessionId !== expectedAcpSessionId ||
+      (expectedSessionMode !== undefined && entry.sessionMode !== expectedSessionMode)
+    ) {
       return null;
     }
     this.entries.delete(key);
@@ -49,10 +60,14 @@ class SessionProbeRegistry {
   getForPromotion(
     workspaceId: string,
     agentId: string,
-    expectedAcpSessionId: string
+    expectedAcpSessionId: string,
+    expectedSessionMode?: ChatSessionMode
   ): ProbeEntry | null {
     const entry = this.get(workspaceId, agentId);
-    return entry?.acpSessionId === expectedAcpSessionId ? entry : null;
+    return entry?.acpSessionId === expectedAcpSessionId &&
+      (expectedSessionMode === undefined || entry.sessionMode === expectedSessionMode)
+      ? entry
+      : null;
   }
 
   deleteWorkspace(workspaceId: string): ProbeEntry[] {
@@ -97,6 +112,7 @@ class SessionProbeRegistry {
 export function toProbeSnapshot(entry: ProbeEntry): ProbeSnapshot {
   return {
     agentId: entry.agentId,
+    sessionMode: entry.sessionMode,
     status: entry.status,
     fylloSessionId: entry.fylloSessionId,
     acpSessionId: entry.acpSessionId,

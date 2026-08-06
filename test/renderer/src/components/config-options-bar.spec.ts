@@ -53,6 +53,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     status: "running",
     turnCount: 1,
@@ -395,6 +396,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.draftAgentId = "claude-code";
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -453,6 +455,7 @@ describe("ConfigOptionsBar", () => {
     sessionStore.draftAgentId = "claude-code";
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",

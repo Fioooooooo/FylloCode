@@ -7,6 +7,13 @@ import type { SessionWorkspaceSnapshot } from "./workspace";
 export type { ChatStatus };
 export type ModeType = "auto" | "manual";
 export type SidebarTab = "sessions";
+export const CHAT_SESSION_MODES = ["fyllocode", "native"] as const;
+export type ChatSessionMode = (typeof CHAT_SESSION_MODES)[number];
+export const DEFAULT_CHAT_SESSION_MODE: ChatSessionMode = "fyllocode";
+
+export function isChatSessionMode(value: unknown): value is ChatSessionMode {
+  return value === "fyllocode" || value === "native";
+}
 
 export interface MessageMeta {
   sessionId: string;
@@ -40,6 +47,7 @@ export interface Session {
   id: string;
   workspaceId: string;
   agentId: string;
+  sessionMode: ChatSessionMode;
   title: string;
   isPinned: boolean;
   status: "running" | "ended";

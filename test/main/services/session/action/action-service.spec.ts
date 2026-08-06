@@ -27,6 +27,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
     sessionId: "session-1",
     agentId: "claude-acp",
+    sessionMode: "fyllocode",
     title: "Session",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },

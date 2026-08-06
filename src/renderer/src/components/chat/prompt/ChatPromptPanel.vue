@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useChatAttachment } from "@renderer/composables/useChatAttachment";
 import { useChatPrompt } from "@renderer/composables/useChatPrompt";
+import { SessionModeTabs } from "@renderer/features/chat-session-mode";
 import { useAcpAgentsStore, useChatStore, useSessionStore } from "@renderer/stores";
 import AttachmentList from "./AttachmentList.vue";
 import ConfigOptionsBar from "./ConfigOptionsBar.vue";
@@ -14,7 +15,8 @@ const chatStore = useChatStore();
 const acpAgentsStore = useAcpAgentsStore();
 const sessionStore = useSessionStore();
 const { chatStatus } = storeToRefs(chatStore);
-const { activeSession, draftAgentId, activeDraftProbe } = storeToRefs(sessionStore);
+const { activeSession, draftAgentId, draftSessionMode, activeDraftProbe } =
+  storeToRefs(sessionStore);
 
 const agent = computed<string | undefined>(
   () => activeSession.value?.agentId ?? draftAgentId.value ?? undefined
@@ -67,71 +69,80 @@ const submitDisabled = computed(() => promptBusy.value || input.value.trim().len
 
 <template>
   <div class="p-4">
-    <div
-      :ref="setPromptShellRef"
-      @keydown.capture="handlePromptKeydown"
-      @input.capture="handlePromptInput"
-      @keyup.capture="handlePromptKeyup"
-      @focusout="handlePromptFocusOut"
-    >
-      <UChatPrompt
-        v-model="input"
-        :placeholder="temporaryPlaceholder"
-        variant="subtle"
-        :maxrows="15"
-        class="sticky bottom-0 [view-transition-name:chat-prompt]"
-        :ui="{ base: 'px-1.5' }"
-        @submit="handleSubmit"
+    <div class="flex flex-col items-start gap-2">
+      <SessionModeTabs
+        v-if="!activeSession"
+        :model-value="draftSessionMode"
+        @update:model-value="sessionStore.setDraftSessionMode"
+      />
+
+      <div
+        :ref="setPromptShellRef"
+        class="w-full"
+        @keydown.capture="handlePromptKeydown"
+        @input.capture="handlePromptInput"
+        @keyup.capture="handlePromptKeyup"
+        @focusout="handlePromptFocusOut"
       >
-        <template v-if="attachments.length > 0" #header>
-          <AttachmentList :attachments="attachments" @remove="removeAttachment" />
-        </template>
+        <UChatPrompt
+          v-model="input"
+          :placeholder="temporaryPlaceholder"
+          variant="subtle"
+          :maxrows="15"
+          class="sticky bottom-0 [view-transition-name:chat-prompt]"
+          :ui="{ base: 'px-1.5' }"
+          @submit="handleSubmit"
+        >
+          <template v-if="attachments.length > 0" #header>
+            <AttachmentList :attachments="attachments" @remove="removeAttachment" />
+          </template>
 
-        <template #footer>
-          <div class="inline-flex items-center gap-0.5 min-w-0">
-            <PromptActionMenu
-              :prompt-capabilities="promptCapabilities"
-              @select-files="handleAttachmentSelect"
-            />
-            <SlashCommandMenu
-              v-model:open="commandMenuOpen"
-              v-model:search-term="commandSearchTerm"
-              :commands="availableCommands"
-              @button-trigger="handleSlashButtonClick"
-              @select="handleCommandSelect"
-            />
-            <ConfigOptionsBar />
-          </div>
+          <template #footer>
+            <div class="inline-flex min-w-0 items-center gap-0.5">
+              <PromptActionMenu
+                :prompt-capabilities="promptCapabilities"
+                @select-files="handleAttachmentSelect"
+              />
+              <SlashCommandMenu
+                v-model:open="commandMenuOpen"
+                v-model:search-term="commandSearchTerm"
+                :commands="availableCommands"
+                @button-trigger="handleSlashButtonClick"
+                @select="handleCommandSelect"
+              />
+              <ConfigOptionsBar />
+            </div>
 
-          <div class="inline-flex items-center gap-2 min-w-0">
-            <ContextUsageRing
-              v-if="activeSession && activeSession.tokenUsage.used > 0"
-              :used="activeSession.tokenUsage.used"
-              :size="activeSession.tokenUsage.size"
-              :cost="activeSession.tokenUsage.cost"
-            />
-            <!--            暂时隐藏这个 button -->
-            <!--            <UTooltip :text="promptCapabilities.audio ? '语音输入' : '当前 agent 不支持音频输入'">-->
-            <!--              <UButton-->
-            <!--                variant="ghost"-->
-            <!--                color="neutral"-->
-            <!--                size="sm"-->
-            <!--                icon="i-lucide-audio-lines"-->
-            <!--                :disabled="!promptCapabilities.audio"-->
-            <!--                aria-label="语音输入"-->
-            <!--                @click="handleAudioClick"-->
-            <!--              />-->
-            <!--            </UTooltip>-->
-            <UChatPromptSubmit
-              :status="chatStatus"
-              color="neutral"
-              size="sm"
-              :disabled="submitDisabled"
-              @stop="chatStore.cancelStream()"
-            />
-          </div>
-        </template>
-      </UChatPrompt>
+            <div class="inline-flex min-w-0 items-center gap-2">
+              <ContextUsageRing
+                v-if="activeSession && activeSession.tokenUsage.used > 0"
+                :used="activeSession.tokenUsage.used"
+                :size="activeSession.tokenUsage.size"
+                :cost="activeSession.tokenUsage.cost"
+              />
+              <!--            暂时隐藏这个 button -->
+              <!--            <UTooltip :text="promptCapabilities.audio ? '语音输入' : '当前 agent 不支持音频输入'">-->
+              <!--              <UButton-->
+              <!--                variant="ghost"-->
+              <!--                color="neutral"-->
+              <!--                size="sm"-->
+              <!--                icon="i-lucide-audio-lines"-->
+              <!--                :disabled="!promptCapabilities.audio"-->
+              <!--                aria-label="语音输入"-->
+              <!--                @click="handleAudioClick"-->
+              <!--              />-->
+              <!--            </UTooltip>-->
+              <UChatPromptSubmit
+                :status="chatStatus"
+                color="neutral"
+                size="sm"
+                :disabled="submitDisabled"
+                @stop="chatStore.cancelStream()"
+              />
+            </div>
+          </template>
+        </UChatPrompt>
+      </div>
     </div>
   </div>
 </template>

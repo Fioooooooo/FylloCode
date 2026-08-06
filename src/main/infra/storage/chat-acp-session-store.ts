@@ -3,6 +3,7 @@ import type {
   AcpSessionStore,
 } from "@main/domain/session/chat/acp-session-store";
 import { loadSessionMeta, upsertSessionMeta } from "@main/infra/storage/session-store";
+import { DEFAULT_CHAT_SESSION_MODE } from "@shared/types/chat";
 
 const DEFAULT_TOKEN_USAGE = { used: 0, size: 0 };
 
@@ -33,6 +34,7 @@ export class ChatAcpSessionStore implements AcpSessionStore {
         sessionId: this.sessionId,
         acpSessionId,
         agentId: this.agentId,
+        sessionMode: meta?.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
         title: meta?.title ?? "New Session",
         turnCount: nextTurnCount,
         tokenUsage: meta?.tokenUsage ?? DEFAULT_TOKEN_USAGE,

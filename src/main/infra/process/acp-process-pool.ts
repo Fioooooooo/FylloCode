@@ -534,7 +534,7 @@ export function hasActiveMcpActivation(entry: AgentProcess, sessionId: string): 
   }
   if (activationId === null) {
     logger.debug(
-      `[infra.process.acp] MCP activation active agentId=${entry.agentId} acpSessionId=${sessionId} transport=stdio`
+      `[infra.process.acp] MCP activation active agentId=${entry.agentId} acpSessionId=${sessionId} transport=stdio-or-empty-mcp`
     );
     return true;
   }

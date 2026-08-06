@@ -4,7 +4,14 @@ import { sessionsDir } from "@main/infra/storage/workspace-paths";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import { getFylloActionContract } from "@shared/fyllo-action/registry";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, MessageMeta, TokenUsage } from "@shared/types/chat";
+import {
+  DEFAULT_CHAT_SESSION_MODE,
+  isChatSessionMode,
+  type AcpAvailableCommand,
+  type ChatSessionMode,
+  type MessageMeta,
+  type TokenUsage,
+} from "@shared/types/chat";
 import type { FylloActionState, FylloActionStateStatus } from "@shared/fyllo-action/protocol";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import {
@@ -18,6 +25,7 @@ export interface SessionMeta {
   acpSessionId?: string;
   originTaskRef?: LineageTaskRef;
   agentId: string;
+  sessionMode: ChatSessionMode;
   title: string;
   isPinned?: boolean;
   turnCount: number;
@@ -294,6 +302,7 @@ function normalizeSessionMetaRecord(raw: SessionMetaRecord): SessionMetaRecord {
   const workspaceSnapshot = sessionWorkspaceSnapshotSchema.safeParse(raw.workspaceSnapshot);
   return {
     ...rest,
+    sessionMode: isChatSessionMode(raw.sessionMode) ? raw.sessionMode : DEFAULT_CHAT_SESSION_MODE,
     ...(typeof isPinned === "boolean" ? { isPinned } : {}),
     tokenUsage: normalizeTokenUsage(raw.tokenUsage as Partial<TokenUsage> | undefined),
     available_commands: Array.isArray(raw.available_commands) ? raw.available_commands : undefined,

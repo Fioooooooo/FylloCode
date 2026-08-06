@@ -75,6 +75,7 @@ function makeSession(id: string): Session {
     id,
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: `Session ${id}`,
     isPinned: false,
     status: "ended",
@@ -188,6 +189,16 @@ describe("SessionItem", () => {
 
     expect(wrapper.find('[data-test="session-origin-task-indicator"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="session-meta"]').text()).toContain("1 turns");
+  });
+
+  it("does not display the session mode in the session list", () => {
+    const session = makeSession("session-native");
+    session.sessionMode = "native";
+
+    const wrapper = mountSessionItem(session);
+
+    expect(wrapper.text()).not.toContain("FylloCode");
+    expect(wrapper.text()).not.toContain("原生");
   });
 
   it("loads origin task info when hovering the indicator", async () => {

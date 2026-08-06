@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/session/chat";
 import { useSessionStore } from "@renderer/stores";
-import type { ChatStatus, MessageMeta } from "@shared/types/chat";
+import type { ChatStatus, MessageMeta, Session } from "@shared/types/chat";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 
 vi.mock("@renderer/api/session/chat", () => ({
@@ -202,11 +202,12 @@ function mockUserTextOverflow(isOverflowing: (text: string) => boolean): void {
   });
 }
 
-function createSession() {
+function createSession(): Session {
   return {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended" as const,

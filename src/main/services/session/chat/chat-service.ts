@@ -1,4 +1,9 @@
-import type { Message, Session } from "@shared/types/chat";
+import {
+  DEFAULT_CHAT_SESSION_MODE,
+  type ChatSessionMode,
+  type Message,
+  type Session,
+} from "@shared/types/chat";
 import type { UIMessage } from "ai";
 import type { MessageMeta } from "@shared/types/chat";
 import type { AcpAvailableCommand } from "@shared/types/chat";
@@ -46,6 +51,7 @@ export function toSession(meta: SessionMeta, workspaceId: string): Session {
     id: meta.sessionId,
     workspaceId,
     agentId: meta.agentId,
+    sessionMode: meta.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
     title: meta.title,
     isPinned: meta.isPinned === true,
     status: "ended",
@@ -75,6 +81,7 @@ export async function createSession(input: {
   workspaceId: string;
   title: string;
   agentId: string;
+  sessionMode?: ChatSessionMode;
   configOptions?: AcpSessionConfigOption[] | unknown[];
   availableCommands?: AcpAvailableCommand[];
   acpSessionId?: string;
@@ -89,6 +96,7 @@ export async function createSession(input: {
   const meta: SessionMeta = {
     sessionId: input.fylloSessionId ? input.fylloSessionId : newSessionId(),
     agentId: input.agentId,
+    sessionMode: input.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
     title: input.title,
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },

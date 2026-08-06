@@ -4,6 +4,7 @@ import {
   workspaceFilePromptPartSchema,
 } from "@shared/types/chat-prompt";
 import { lineageTaskRefSchema } from "@shared/ipc/insight/lineage.schemas";
+import { CHAT_SESSION_MODES, DEFAULT_CHAT_SESSION_MODE } from "@shared/types/chat";
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
@@ -69,6 +70,7 @@ export const createSessionInputSchema = z.object({
   workspaceId: z.string().min(1),
   title: z.string().min(1),
   agentId: z.string().min(1),
+  sessionMode: z.enum(CHAT_SESSION_MODES).default(DEFAULT_CHAT_SESSION_MODE),
   taskRef: lineageTaskRefSchema.optional(),
   fylloSessionId: z.string().min(1).optional(),
   configOptions: z.array(z.unknown()).optional(),
@@ -194,17 +196,20 @@ export type SetConfigOptionInput = z.infer<typeof setConfigOptionInputSchema>;
 export const probeEnsureInputSchema = z.object({
   agentId: z.string().min(1),
   workspaceId: z.string().min(1),
+  sessionMode: z.enum(CHAT_SESSION_MODES).default(DEFAULT_CHAT_SESSION_MODE),
 });
 
 export const probeCloseInputSchema = z.object({
   workspaceId: z.string().min(1),
   agentId: z.string().min(1),
+  sessionMode: z.enum(CHAT_SESSION_MODES).default(DEFAULT_CHAT_SESSION_MODE),
 });
 
 const probeSetConfigOptionBaseSchema = z.object({
   workspaceId: z.string().min(1),
   agentId: z.string().min(1),
   configId: z.string().min(1),
+  sessionMode: z.enum(CHAT_SESSION_MODES).default(DEFAULT_CHAT_SESSION_MODE),
 });
 
 const probeSetConfigOptionSelectSchema = probeSetConfigOptionBaseSchema.extend({

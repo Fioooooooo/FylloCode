@@ -215,6 +215,7 @@ describe("registerChatHandlers", () => {
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       title: "Session",
       turnCount: 0,
       tokenUsage: { used: 0, size: 0 },
@@ -239,6 +240,7 @@ describe("registerChatHandlers", () => {
     });
     mocks.ensureProbe.mockResolvedValue({
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -248,6 +250,7 @@ describe("registerChatHandlers", () => {
     mocks.closeProbe.mockResolvedValue(undefined);
     mocks.setProbeConfigOption.mockResolvedValue({
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -296,7 +299,8 @@ describe("registerChatHandlers", () => {
     expect(mocks.getProbeWorkspaceSnapshotForPromotion).toHaveBeenCalledWith(
       "workspace-1",
       "claude-acp",
-      "acp-probe"
+      "acp-probe",
+      "fyllocode"
     );
     expect(mocks.createSession).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceSnapshot: probeSnapshot })
@@ -335,11 +339,17 @@ describe("registerChatHandlers", () => {
     const listener = vi.mocked(sessionProbeBus.onUpdate).mock.calls[0]?.[0];
     expect(listener).toBeTypeOf("function");
 
-    listener?.({ workspaceId: "workspace-1", agentId: "codex", snapshot: null });
+    listener?.({
+      workspaceId: "workspace-1",
+      agentId: "codex",
+      sessionMode: "fyllocode",
+      snapshot: null,
+    });
 
     expect(manager.sendToWorkspace).toHaveBeenCalledWith("workspace-1", ChatProbeChannels.update, {
       workspaceId: "workspace-1",
       agentId: "codex",
+      sessionMode: "fyllocode",
       snapshot: null,
     });
   });
@@ -1307,12 +1317,14 @@ describe("registerChatHandlers", () => {
     expect(mocks.ensureProbe).toHaveBeenCalledWith(
       "workspace-1",
       "claude-acp",
+      "fyllocode",
       expect.objectContaining({ cwd: "/tmp/project", additionalDirectories: [] })
     );
-    expect(mocks.closeProbe).toHaveBeenCalledWith("workspace-1", "claude-acp");
+    expect(mocks.closeProbe).toHaveBeenCalledWith("workspace-1", "claude-acp", "fyllocode");
     expect(mocks.setProbeConfigOption).toHaveBeenCalledWith({
       agentId: "claude-acp",
       workspaceId: "workspace-1",
+      sessionMode: "fyllocode",
       configId: "model",
       type: "select",
       value: "sonnet",
@@ -1341,6 +1353,7 @@ describe("registerChatHandlers", () => {
     mocks.takeProbeFor.mockReturnValueOnce({
       workspaceId: "workspace-1",
       agentId: "claude-acp",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -1368,7 +1381,12 @@ describe("registerChatHandlers", () => {
     };
     const control = await mocks.onReady!(sink);
 
-    expect(mocks.takeProbeFor).toHaveBeenCalledWith("workspace-1", "claude-acp", "acp-probe");
+    expect(mocks.takeProbeFor).toHaveBeenCalledWith(
+      "workspace-1",
+      "claude-acp",
+      "acp-probe",
+      "fyllocode"
+    );
     expect(mocks.patchSessionMeta).toHaveBeenCalledWith(
       "workspace-1",
       "session-1",
@@ -1390,6 +1408,16 @@ describe("registerChatHandlers", () => {
   });
 
   it("returns a stream error when acpSessionId does not match registry", async () => {
+    mocks.loadSessionMeta.mockResolvedValue({
+      sessionId: "session-1",
+      agentId: "claude-acp",
+      sessionMode: "native",
+      title: "Session",
+      turnCount: 0,
+      tokenUsage: { used: 0, size: 0 },
+      createdAt: "2026-05-09T00:00:00.000Z",
+      updatedAt: "2026-05-09T00:00:00.000Z",
+    });
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
@@ -1408,6 +1436,13 @@ describe("registerChatHandlers", () => {
       sendError: vi.fn(),
     };
     await mocks.onReady!(sink);
+
+    expect(mocks.takeProbeFor).toHaveBeenCalledWith(
+      "workspace-1",
+      "claude-acp",
+      "acp-probe",
+      "native"
+    );
 
     expect(sink.sendError).toHaveBeenCalledWith(
       IpcErrorCodes.VALIDATION_ERROR,

@@ -33,6 +33,7 @@ function makeSession(
     id,
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: id,
     isPinned: options.isPinned ?? false,
     status: "ended",

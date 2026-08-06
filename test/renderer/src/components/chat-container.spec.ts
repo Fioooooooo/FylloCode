@@ -86,6 +86,10 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
+        SessionModeBadge: {
+          props: ["sessionMode"],
+          template: '<span data-test="session-mode-badge">{{ sessionMode }}</span>',
+        },
         SessionScopePopover: { template: '<div data-test="scope-popover-stub"></div>' },
         ChatAgentAgendaPanel: {
           props: ["entries"],
@@ -101,6 +105,7 @@ function makeSession(commands: AcpAvailableCommand[] = []): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",
@@ -238,6 +243,23 @@ describe("ChatContainer", () => {
     expect(button.attributes("data-icon")).toBe("i-lucide-panel-left-open");
     expect(button.attributes("title")).toBe("展开聊天列表");
     expect(button.attributes("aria-expanded")).toBe("false");
+  });
+
+  it("renders the established session mode badge after the header buttons", async () => {
+    const wrapper = mountContainer({ sidebarCollapsed: true });
+    const leftActions = wrapper.get('[data-test="chat-header-left-actions"]');
+
+    expect(leftActions.find('[data-test="session-mode-badge"]').exists()).toBe(false);
+
+    const session = makeSession();
+    session.sessionMode = "native";
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    await wrapper.vm.$nextTick();
+
+    const badge = leftActions.get('[data-test="session-mode-badge"]');
+    expect(badge.text()).toBe("native");
+    expect(badge.element.previousElementSibling?.tagName).toBe("BUTTON");
   });
 
   it("mounts the Session scope Popover in the header right actions only outside draft mode", async () => {

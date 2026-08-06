@@ -9,6 +9,7 @@ function makeEntry(overrides: Partial<ProbeEntry> = {}): ProbeEntry {
   return {
     workspaceId: "workspace-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     status: "ready",
     fylloSessionId: "session-probe",
     acpSessionId: "acp-1",
@@ -43,6 +44,7 @@ describe("session-probe-registry", () => {
 
     expect(snapshot.availableCommands).toEqual([{ name: "init", description: "Initialize" }]);
     expect(snapshot.fylloSessionId).toBe("session-P");
+    expect(snapshot.sessionMode).toBe("fyllocode");
   });
 
   it("set/get round-trips availableCommands", () => {
@@ -126,5 +128,21 @@ describe("session-probe-registry", () => {
     expect(
       sessionProbeRegistry.getForPromotion("workspace-1", "claude-code", "different-acp")
     ).toBeNull();
+  });
+
+  it("requires the expected mode when promoting a probe", () => {
+    const entry = makeEntry({ sessionMode: "native" });
+    sessionProbeRegistry.set("workspace-1", "claude-code", entry);
+
+    expect(
+      sessionProbeRegistry.getForPromotion("workspace-1", "claude-code", "acp-1", "native")
+    ).toBe(entry);
+    expect(
+      sessionProbeRegistry.getForPromotion("workspace-1", "claude-code", "acp-1", "fyllocode")
+    ).toBeNull();
+    expect(
+      sessionProbeRegistry.takeFor("workspace-1", "claude-code", "acp-1", "fyllocode")
+    ).toBeNull();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBe(entry);
   });
 });

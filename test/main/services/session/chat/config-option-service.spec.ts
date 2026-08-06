@@ -67,6 +67,7 @@ function makeMeta(overrides: Partial<SessionMeta> = {}): SessionMeta {
     sessionId: "session-1",
     acpSessionId: "acp-1",
     agentId: "claude-acp",
+    sessionMode: "fyllocode",
     title: "T",
     turnCount: 0,
     tokenUsage: { used: 0, size: 0 },

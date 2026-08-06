@@ -69,6 +69,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     status: "ended",
     turnCount: 1,

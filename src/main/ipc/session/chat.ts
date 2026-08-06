@@ -4,7 +4,7 @@ import {
   SessionChatProbeChannels,
   SessionChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
-import type { Message } from "@shared/types/chat";
+import { DEFAULT_CHAT_SESSION_MODE, type Message } from "@shared/types/chat";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import {
   createSessionInputSchema,
@@ -109,7 +109,12 @@ export function registerChatHandlers(): void {
     wrapHandler(async () => {
       const form = validate(createSessionInputSchema, input);
       const workspaceSnapshot = form.acpSessionId
-        ? getProbeWorkspaceSnapshotForPromotion(form.workspaceId, form.agentId, form.acpSessionId)
+        ? getProbeWorkspaceSnapshotForPromotion(
+            form.workspaceId,
+            form.agentId,
+            form.acpSessionId,
+            form.sessionMode
+          )
         : null;
       if (form.acpSessionId && !workspaceSnapshot) {
         throw ipcError(
@@ -241,14 +246,14 @@ export function registerChatHandlers(): void {
         await resolveWorkspace(form.workspaceId)
       );
       await assertAgentWorkspaceCompatibility(form.agentId, workspaceSnapshot);
-      return ensureProbe(form.workspaceId, form.agentId, workspaceSnapshot);
+      return ensureProbe(form.workspaceId, form.agentId, form.sessionMode, workspaceSnapshot);
     })
   );
 
   ipcMain.handle(SessionChatProbeChannels.close, (_event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(probeCloseInputSchema, input);
-      await closeProbe(form.workspaceId, form.agentId);
+      await closeProbe(form.workspaceId, form.agentId, form.sessionMode);
     })
   );
 
@@ -277,10 +282,14 @@ export function registerChatHandlers(): void {
       logTag: "chat",
       onReady: async (sink) => {
         const meta = await loadSessionMeta(workspaceId, sessionId);
-        const agentId = inputAgentId || meta?.agentId;
+        if (!meta) {
+          throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
+        }
+        const agentId = inputAgentId || meta.agentId;
         if (!agentId) {
           throw ipcError(IpcErrorCodes.VALIDATION_ERROR, "agentId is required");
         }
+        const sessionMode = meta.sessionMode ?? DEFAULT_CHAT_SESSION_MODE;
         const workspaceSnapshot = await ensureSessionWorkspaceSnapshot(workspaceId, sessionId);
         await assertAgentWorkspaceCompatibility(agentId, workspaceSnapshot);
         const workspaceCwd = workspaceSnapshot.cwd;
@@ -301,7 +310,7 @@ export function registerChatHandlers(): void {
         // or create its own ACP session.
         let presetAcpSessionId: string | undefined;
         if (acpSessionId) {
-          const probeEntry = await takeProbeFor(workspaceId, agentId, acpSessionId);
+          const probeEntry = await takeProbeFor(workspaceId, agentId, acpSessionId, sessionMode);
           if (!probeEntry) {
             sink.sendError(
               IpcErrorCodes.VALIDATION_ERROR,
@@ -331,6 +340,7 @@ export function registerChatHandlers(): void {
           cwd: workspaceCwd,
           additionalDirectories: workspaceSnapshot.additionalDirectories,
           workspaceSnapshot,
+          sessionMode,
           owner: "chat",
           sessionStore,
           reminderContext: {

@@ -148,8 +148,8 @@ describe("session-probe-service", () => {
       },
     });
     mocks.hasActiveMcpActivation.mockImplementation(
-      (entry: { mcpActivationBySessionId: Map<string, string> }, sessionId: string) =>
-        entry.mcpActivationBySessionId.has(sessionId)
+      (entry: { activeSessionIds: Set<string> }, sessionId: string) =>
+        entry.activeSessionIds.has(sessionId)
     );
     mocks.createSessionMcpWorkspaceDescriptor.mockImplementation(
       async (snapshot: ReturnType<typeof workspaceSnapshot>, sessionId: string) => ({
@@ -310,6 +310,60 @@ describe("session-probe-service", () => {
     expect(mocks.newSession).toHaveBeenCalledTimes(1);
   });
 
+  it("reuses a ready probe when the requested mode is unchanged", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    const snapshot = workspaceSnapshot("workspace-1", "/tmp/project");
+
+    await ensureProbe("workspace-1", "claude-code", "native", snapshot);
+    const reused = await ensureProbe("workspace-1", "claude-code", "native", snapshot);
+
+    expect(reused.sessionMode).toBe("native");
+    expect(mocks.newSession).toHaveBeenCalledTimes(1);
+    expect(mocks.closeSession).not.toHaveBeenCalled();
+  });
+
+  it("replaces a ready probe when the requested mode changes", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+    mocks.newSession
+      .mockResolvedValueOnce({ sessionId: "acp-fyllo", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-native", configOptions: [] });
+    const snapshot = workspaceSnapshot("workspace-1", "/tmp/project");
+
+    await ensureProbe("workspace-1", "claude-code", "fyllocode", snapshot);
+    const native = await ensureProbe("workspace-1", "claude-code", "native", snapshot);
+
+    expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-fyllo" });
+    expect(native).toMatchObject({ sessionMode: "native", acpSessionId: "acp-native" });
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.sessionMode).toBe("native");
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledTimes(1);
+    expect(mocks.newSession).toHaveBeenLastCalledWith({
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+      mcpServers: [],
+    });
+  });
+
+  it("creates a native probe without bundled MCP activation", async () => {
+    const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
+
+    const snapshot = await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      "native",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
+
+    expect(snapshot.sessionMode).toBe("native");
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")?.mcpActivationId).toBeNull();
+    expect(mocks.createSessionMcpWorkspaceDescriptor).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.newSession).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+      mcpServers: [],
+    });
+  });
+
   it("waits for bundled MCP readiness before calling newSession", async () => {
     const { ensureProbe } = await import("@main/services/session/chat/session-probe-service");
     let resolveActivation!: (value: { activationId: string; servers: [] }) => void;
@@ -447,6 +501,7 @@ describe("session-probe-service", () => {
     expect(onUpdate).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       snapshot: null,
     });
 
@@ -531,6 +586,7 @@ describe("session-probe-service", () => {
     expect(onUpdate).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       snapshot: null,
     });
 
@@ -559,11 +615,13 @@ describe("session-probe-service", () => {
     expect(onUpdate).toHaveBeenCalledWith({
       workspaceId: "project-a",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       snapshot: null,
     });
     expect(onUpdate).toHaveBeenCalledWith({
       workspaceId: "project-b",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       snapshot: null,
     });
     expect(onUpdate).toHaveBeenCalledTimes(2);

@@ -71,6 +71,7 @@ function session(overrides: Partial<Session> = {}): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",
@@ -101,6 +102,7 @@ describe("useSessionStore", () => {
       ok: true,
       data: {
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         status: "ready",
         fylloSessionId: "session-probe",
         acpSessionId: "acp-1",
@@ -113,6 +115,7 @@ describe("useSessionStore", () => {
       ok: true,
       data: {
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         status: "ready",
         fylloSessionId: "session-probe",
         acpSessionId: "acp-1",
@@ -624,6 +627,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).toHaveBeenCalledWith({
       agentId: "claude-code",
       workspaceId: "project-1",
+      sessionMode: "fyllocode",
     });
     expect(store.draftProbeByAgent.get("claude-code")).toMatchObject({
       status: "ready",
@@ -642,10 +646,149 @@ describe("useSessionStore", () => {
     ]);
   });
 
+  it("defaults draft sessions to FylloCode mode", () => {
+    expect(useSessionStore().draftSessionMode).toBe("fyllocode");
+  });
+
+  it("reuses a probe when selecting the same mode and replaces it for native mode", async () => {
+    vi.useFakeTimers();
+    const store = useSessionStore();
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      sessionMode: "fyllocode",
+      status: "ready",
+      fylloSessionId: "session-fyllo",
+      acpSessionId: "acp-fyllo",
+      configOptions: [],
+      availableCommands: [],
+    });
+    store.draftAgentId = "claude-code";
+    await nextTick();
+    mocks.probeClose.mockClear();
+    mocks.probeEnsure.mockClear();
+
+    store.setDraftSessionMode("fyllocode");
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mocks.probeClose).not.toHaveBeenCalled();
+    expect(mocks.probeEnsure).not.toHaveBeenCalled();
+    expect(store.draftProbeByAgent.get("claude-code")?.acpSessionId).toBe("acp-fyllo");
+
+    mocks.probeEnsure.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        agentId: "claude-code",
+        sessionMode: "native",
+        status: "ready",
+        fylloSessionId: "session-native",
+        acpSessionId: "acp-native",
+        configOptions: [],
+        availableCommands: [],
+      },
+    });
+    store.setDraftSessionMode("native");
+
+    expect(store.draftSessionMode).toBe("native");
+    expect(store.draftProbeByAgent.has("claude-code")).toBe(false);
+    expect(mocks.probeClose).toHaveBeenCalledWith({
+      workspaceId: "project-1",
+      agentId: "claude-code",
+      sessionMode: "fyllocode",
+    });
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      workspaceId: "project-1",
+      sessionMode: "native",
+    });
+    expect(store.draftProbeByAgent.get("claude-code")?.sessionMode).toBe("native");
+  });
+
+  it("ignores probe updates from the previous mode", () => {
+    const store = useSessionStore();
+    store.setDraftSessionMode("native");
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      sessionMode: "native",
+      status: "ready",
+      fylloSessionId: "session-native",
+      acpSessionId: "acp-native",
+      configOptions: [],
+      availableCommands: [],
+    });
+
+    store.applyProbeUpdate(
+      "claude-code",
+      {
+        agentId: "claude-code",
+        sessionMode: "fyllocode",
+        status: "ready",
+        fylloSessionId: "session-old",
+        acpSessionId: "acp-old",
+        configOptions: [],
+        availableCommands: [],
+      },
+      "fyllocode"
+    );
+    store.applyProbeUpdate("claude-code", null, "fyllocode");
+
+    expect(store.draftProbeByAgent.get("claude-code")?.sessionMode).toBe("native");
+    expect(store.draftProbeByAgent.get("claude-code")?.acpSessionId).toBe("acp-native");
+  });
+
+  it("resets the draft mode and re-probes the default mode", async () => {
+    vi.useFakeTimers();
+    useAcpAgentsStore().statuses = {
+      "claude-code": { id: "claude-code", installed: true },
+    } as never;
+    const store = useSessionStore();
+    store.draftAgentId = "claude-code";
+    store.setDraftSessionMode("native");
+    store.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      sessionMode: "native",
+      status: "ready",
+      fylloSessionId: "session-native",
+      acpSessionId: "acp-native",
+      configOptions: [],
+      availableCommands: [],
+    });
+    mocks.probeEnsure.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        agentId: "claude-code",
+        sessionMode: "fyllocode",
+        status: "ready",
+        fylloSessionId: "session-fyllo",
+        acpSessionId: "acp-fyllo",
+        configOptions: [],
+        availableCommands: [],
+      },
+    });
+    mocks.probeClose.mockClear();
+    mocks.probeEnsure.mockClear();
+
+    store.beginDraftSession();
+
+    expect(store.draftSessionMode).toBe("fyllocode");
+    expect(mocks.probeClose).toHaveBeenCalledWith({
+      workspaceId: "project-1",
+      agentId: "claude-code",
+      sessionMode: "native",
+    });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({
+      agentId: "claude-code",
+      workspaceId: "project-1",
+      sessionMode: "fyllocode",
+    });
+  });
+
   it("applyProbeUpdate writes availableCommands into the draft probe state", () => {
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -671,6 +814,7 @@ describe("useSessionStore", () => {
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -685,6 +829,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeClose).toHaveBeenCalledWith({
       workspaceId: "project-1",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
     });
   });
 
@@ -701,6 +846,7 @@ describe("useSessionStore", () => {
     const chatStore = useChatStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -735,6 +881,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeSetConfigOption).toHaveBeenCalledWith({
       workspaceId: "project-1",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       configId: "model",
       type: "select",
       value: "sonnet",
@@ -759,6 +906,7 @@ describe("useSessionStore", () => {
     const store = useSessionStore();
     store.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-1",
@@ -778,7 +926,11 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
-    expect(mocks.probeEnsure).toHaveBeenCalledWith({ agentId: "codex", workspaceId: "project-1" });
+    expect(mocks.probeEnsure).toHaveBeenCalledWith({
+      agentId: "codex",
+      workspaceId: "project-1",
+      sessionMode: "fyllocode",
+    });
   });
 
   it("draftAgentId watcher does not probe established sessions", async () => {
@@ -839,6 +991,7 @@ describe("useSessionStore", () => {
     expect(mocks.probeEnsure).toHaveBeenCalledWith({
       agentId: "claude-code",
       workspaceId: "project-1",
+      sessionMode: "fyllocode",
     });
   });
 

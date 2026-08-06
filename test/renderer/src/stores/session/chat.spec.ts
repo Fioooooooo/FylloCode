@@ -102,6 +102,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",
@@ -152,6 +153,7 @@ describe("useChatStore", () => {
         id: "session-1",
         workspaceId: "project-1",
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         title: "hello world",
         isPinned: false,
         status: "ended",
@@ -195,6 +197,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "hello world",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
     });
     expect(sessionStore.activeSessionId).toBe("session-1");
     expect(sessionStore.sessions).toHaveLength(1);
@@ -225,6 +228,87 @@ describe("useChatStore", () => {
     expect(chatStore.chatStatus).toBe("submitted");
   });
 
+  it("persists native mode when sending the first draft message", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.setDraftSessionMode("native");
+    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
+      ok: true,
+      data: makeSession({ sessionMode: "native" }),
+    });
+
+    await useChatStore().sendMessage(textParts("native prompt"));
+
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      workspaceId: "project-1",
+      title: "native prompt",
+      agentId: "claude-code",
+      sessionMode: "native",
+    });
+    expect(sessionStore.activeSession?.sessionMode).toBe("native");
+  });
+
+  it("promotes a matching native draft probe into the first Session", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.setDraftSessionMode("native");
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      sessionMode: "native",
+      status: "ready",
+      fylloSessionId: "native-session",
+      acpSessionId: "native-acp",
+      configOptions: [],
+      availableCommands: [],
+    });
+    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
+      ok: true,
+      data: makeSession({ sessionMode: "native" }),
+    });
+
+    await useChatStore().sendMessage(textParts("use native probe"));
+
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      workspaceId: "project-1",
+      title: "use native probe",
+      agentId: "claude-code",
+      sessionMode: "native",
+      configOptions: [],
+      availableCommands: [],
+      acpSessionId: "native-acp",
+      fylloSessionId: "native-session",
+    });
+    expect(chatApi.streamMessage).toHaveBeenCalledWith(
+      "session-1",
+      "project-1",
+      "claude-code",
+      [{ type: "text", text: "use native probe" }],
+      expect.any(Object),
+      { acpSessionId: "native-acp" }
+    );
+    expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(false);
+  });
+
+  it("discards a late draft creation when the mode changes during submission", async () => {
+    prepareDraftConversation();
+    const createRequest = deferred<{ ok: true; data: Session }>();
+    vi.mocked(chatApi.createSession).mockReturnValueOnce(createRequest.promise);
+
+    const sending = useChatStore().sendMessage(textParts("mode can change"));
+    useSessionStore().setDraftSessionMode("native");
+    createRequest.resolve({
+      ok: true,
+      data: makeSession({ id: "session-late", sessionMode: "fyllocode" }),
+    });
+
+    await expect(sending).resolves.toBe(false);
+    expect(chatApi.removeSession).toHaveBeenCalledWith("session-late", "project-1");
+    expect(useSessionStore().activeSessionId).toBeNull();
+    expect(useSessionStore().draftSessionMode).toBe("native");
+    expect(chatApi.persistMessage).not.toHaveBeenCalled();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+  });
+
   it("rejects attachment-only and system-reminder-only store submissions", async () => {
     prepareDraftConversation();
     const chatStore = useChatStore();
@@ -253,6 +337,7 @@ describe("useChatStore", () => {
     const sessionStore = useSessionStore();
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -302,6 +387,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "review these files",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       configOptions: [],
       availableCommands: [],
       acpSessionId: "acp-probe",
@@ -343,6 +429,7 @@ describe("useChatStore", () => {
     const sessionStore = useSessionStore();
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -515,6 +602,7 @@ describe("useChatStore", () => {
         id: "session-setup",
         workspaceId: "project-1",
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         title: "hello world",
         isPinned: false,
         status: "ended",
@@ -618,6 +706,7 @@ describe("useChatStore", () => {
     ];
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -640,6 +729,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "hello world",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       configOptions: probeConfigOptions,
       availableCommands: [{ name: "init", description: "Initialize" }],
       acpSessionId: "acp-probe",
@@ -660,6 +750,7 @@ describe("useChatStore", () => {
     const sessionStore = useSessionStore();
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "failed",
       fylloSessionId: "session-probe",
       acpSessionId: null,
@@ -689,6 +780,7 @@ describe("useChatStore", () => {
         id: "session-1",
         workspaceId: "project-1",
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         title: "Session",
         isPinned: false,
         status: "ended",
@@ -702,6 +794,7 @@ describe("useChatStore", () => {
     sessionStore.activeSessionId = "session-1";
     sessionStore.applyProbeUpdate("claude-code", {
       agentId: "claude-code",
+      sessionMode: "fyllocode",
       status: "ready",
       fylloSessionId: "session-probe",
       acpSessionId: "acp-probe",
@@ -751,6 +844,7 @@ describe("useChatStore", () => {
         id: "session-2",
         workspaceId: "project-1",
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         title: "hello world this message is in",
         isPinned: false,
         status: "ended",
@@ -774,6 +868,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "hello world this message is in",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
     });
     expect(sessionStore.activeSession?.title).toBe("hello world this message is in");
   });
@@ -787,6 +882,7 @@ describe("useChatStore", () => {
         id: "session-2",
         workspaceId: "project-1",
         agentId: "claude-code",
+        sessionMode: "fyllocode",
         title: "hello world this message is in",
         isPinned: false,
         status: "ended",
@@ -811,6 +907,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "hello world this message is in",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
     });
     expect(useSessionStore().activeSession?.title).toBe("hello world this message is in");
   });
@@ -841,6 +938,7 @@ describe("useChatStore", () => {
       workspaceId: "project-1",
       title: "修复解析器内存泄漏",
       agentId: "claude-code",
+      sessionMode: "fyllocode",
     });
   });
 
@@ -1466,6 +1564,7 @@ describe("useChatStore", () => {
           id: "session-1",
           workspaceId: "project-1",
           agentId: "claude-code",
+          sessionMode: "fyllocode",
           title: "Session",
           isPinned: false,
           status: "running",

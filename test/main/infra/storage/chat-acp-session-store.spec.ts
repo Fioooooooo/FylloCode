@@ -23,6 +23,7 @@ function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
     sessionId: "session-1",
     agentId: "agent-0",
+    sessionMode: "fyllocode",
     title: "Session",
     turnCount: 2,
     tokenUsage: { used: 11, size: 22 },
@@ -163,6 +164,7 @@ describe("chat-acp-session-store", () => {
       sessionId: "session-1",
       acpSessionId: "acp-new",
       agentId: "agent-1",
+      sessionMode: "fyllocode",
       title: "Session",
       turnCount: 3,
       tokenUsage: {
@@ -180,6 +182,8 @@ describe("chat-acp-session-store", () => {
           options: [{ value: "plan", name: "Plan" }],
         },
       ],
+      actionStates: undefined,
+      workspaceSnapshot: undefined,
       createdAt: "2026-05-14T00:00:00.000Z",
       updatedAt: "2026-05-18T08:00:00.000Z",
     });

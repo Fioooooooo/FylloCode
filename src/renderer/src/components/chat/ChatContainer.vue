@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
+import { SessionModeBadge } from "@renderer/features/chat-session-mode";
 import { ChatPromptTimeline } from "@renderer/features/chat-prompt-timeline";
 import { useChatStore, useSessionStore } from "@renderer/stores";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
@@ -45,7 +46,7 @@ function handleCreateSession(): void {
   <div class="flex-1 flex min-h-0 min-w-0 relative space-x-2 bg-elevated">
     <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-default rounded-lg relative">
       <header class="p-2 pb-0 shrink-0 flex items-center">
-        <div class="flex w-1/5 shrink-0 items-center gap-1">
+        <div class="flex w-1/5 shrink-0 items-center gap-1" data-test="chat-header-left-actions">
           <UButton
             :icon="sidebarToggleIcon"
             size="sm"
@@ -65,6 +66,10 @@ function handleCreateSession(): void {
             title="新建会话"
             aria-label="新建会话"
             @click="handleCreateSession"
+          />
+          <SessionModeBadge
+            v-if="!isDraft && activeSession"
+            :session-mode="activeSession.sessionMode"
           />
         </div>
 

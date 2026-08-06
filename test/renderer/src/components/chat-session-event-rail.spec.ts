@@ -44,6 +44,7 @@ function makeSession(agentAgenda: AgendaEntry[] = []): Session {
     id: "session-1",
     workspaceId: "project-1",
     agentId: "claude-code",
+    sessionMode: "fyllocode",
     title: "Session",
     isPinned: false,
     status: "ended",

@@ -421,6 +421,7 @@ export const useChatStore = defineStore("chat", () => {
 
     if (!currentSession) {
       const draftAgentIdSnapshot = sessionStore.draftAgentId;
+      const draftSessionModeSnapshot = sessionStore.draftSessionMode;
       if (!draftAgentIdSnapshot) {
         toast.add({
           title: "暂无可用 Agent",
@@ -437,6 +438,7 @@ export const useChatStore = defineStore("chat", () => {
       // 深克隆防止新会话对 draft probe 状态的修改产生副作用。
       const carryProbe =
         probeBeforeCreate?.status === "ready" &&
+        probeBeforeCreate.sessionMode === draftSessionModeSnapshot &&
         probeBeforeCreate.acpSessionId &&
         probeBeforeCreate.fylloSessionId
           ? {
@@ -457,6 +459,7 @@ export const useChatStore = defineStore("chat", () => {
           {
             workspaceId: workspaceIdSnapshot,
             agentId: draftAgentIdSnapshot,
+            sessionMode: draftSessionModeSnapshot,
             title: fallbackTitleSnapshot,
             ...(options.taskRef ? { taskRef: options.taskRef } : {}),
             ...(carryProbe ?? {}),
@@ -465,7 +468,9 @@ export const useChatStore = defineStore("chat", () => {
         );
         if (
           !isCurrentDraftRun(streamRunId) ||
-          workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot
+          workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
+          sessionStore.draftSessionMode !== draftSessionModeSnapshot ||
+          createdSession.sessionMode !== draftSessionModeSnapshot
         ) {
           throw new Error("Draft scope changed while creating the Session");
         }
@@ -481,7 +486,8 @@ export const useChatStore = defineStore("chat", () => {
           !isCurrentDraftRun(streamRunId) ||
           workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
           sessionStore.activeSessionId !== null ||
-          sessionStore.draftAgentId !== draftAgentIdSnapshot
+          sessionStore.draftAgentId !== draftAgentIdSnapshot ||
+          sessionStore.draftSessionMode !== draftSessionModeSnapshot
         ) {
           throw new Error("Draft scope changed while saving attachments");
         }
@@ -492,7 +498,8 @@ export const useChatStore = defineStore("chat", () => {
           !isCurrentDraftRun(streamRunId) ||
           workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
           sessionStore.activeSessionId !== null ||
-          sessionStore.draftAgentId !== draftAgentIdSnapshot
+          sessionStore.draftAgentId !== draftAgentIdSnapshot ||
+          sessionStore.draftSessionMode !== draftSessionModeSnapshot
         ) {
           throw new Error("Draft scope changed while persisting the first message");
         }
@@ -509,7 +516,7 @@ export const useChatStore = defineStore("chat", () => {
         clearDraftRunIfCurrent(streamRunId);
         const streamOptions = carryProbe ? { acpSessionId: carryProbe.acpSessionId } : {};
         if (carryProbe) {
-          sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null);
+          sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null, draftSessionModeSnapshot);
         }
         streamSessionMessage(
           activeSession,

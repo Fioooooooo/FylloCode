@@ -41,6 +41,7 @@ import type { SessionOwner } from "@main/services/session/chat/session-registry"
 import type { TextUIPart } from "ai";
 import { resolveSystemReminder } from "@main/services/session/chat/system-reminder";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
+import { DEFAULT_CHAT_SESSION_MODE, type ChatSessionMode } from "@shared/types/chat";
 import { normalizePromptCapabilities } from "@shared/types/acp-agent";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError } from "@shared/errors/ipc-error";
@@ -55,6 +56,8 @@ import { readAttachmentDataUrl } from "@main/infra/storage/attachment-store";
 import { resolveSessionMemberResource } from "./member-resource-resolver";
 import type { McpWorkspaceDescriptorV2 } from "@shared/types/mcp-workspace";
 import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
+import { createChatRuntimeProfile } from "./session-runtime-profile";
+import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
 
 interface ReminderContext {
   changeId?: string;
@@ -73,7 +76,7 @@ type PromptPart =
   | { type: "resource_link"; uri: string; name: string; mimeType: string };
 interface StartContext {
   entry: Awaited<ReturnType<typeof getOrStartProcess>>;
-  mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
+  mcpWorkspaceDescriptor?: McpWorkspaceDescriptorV2;
   runtimeState: SessionRuntimeState;
   recoveryState: AcpSessionRecoveryState;
 }
@@ -90,6 +93,7 @@ export interface AcpSessionOpts {
   cwd: string;
   additionalDirectories: string[];
   workspaceSnapshot?: SessionWorkspaceSnapshot;
+  sessionMode?: ChatSessionMode;
   mcpWorkspaceDescriptor?: McpWorkspaceDescriptorV2;
   owner: SessionOwner;
   sessionStore: AcpSessionStore;
@@ -171,7 +175,7 @@ export class AcpSession extends EventEmitter {
   }
 
   private async prepareStartContext(): Promise<StartContext | null> {
-    let mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
+    let mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2 | undefined;
     if (this.opts.owner === "chat") {
       if (!this.opts.workspaceSnapshot) {
         throw ipcError(
@@ -179,11 +183,15 @@ export class AcpSession extends EventEmitter {
           "Chat ACP Session requires a frozen Workspace snapshot"
         );
       }
-      mcpWorkspaceDescriptor = await createSessionMcpWorkspaceDescriptor(
-        this.opts.workspaceSnapshot,
-        this.opts.fylloSessionId
-      );
-      renderWorkspaceSection(this.opts.workspaceSnapshot);
+      if ((this.opts.sessionMode ?? DEFAULT_CHAT_SESSION_MODE) === "fyllocode") {
+        mcpWorkspaceDescriptor = await createSessionMcpWorkspaceDescriptor(
+          this.opts.workspaceSnapshot,
+          this.opts.fylloSessionId
+        );
+        renderWorkspaceSection(this.opts.workspaceSnapshot);
+      } else {
+        await assertSessionWorkspaceSnapshotCurrent(this.opts.workspaceSnapshot);
+      }
       await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
     } else {
       if (!this.opts.mcpWorkspaceDescriptor) {
@@ -548,7 +556,7 @@ export class AcpSession extends EventEmitter {
     initializeResponse: InitializeResponse;
     runtimeState: SessionRuntimeState;
     recoveryState: AcpSessionRecoveryState;
-    mcpWorkspaceDescriptor: McpWorkspaceDescriptorV2;
+    mcpWorkspaceDescriptor?: McpWorkspaceDescriptorV2;
     prompt: string;
   }): Promise<ReconciledRecoveryOutcome> {
     const {
@@ -573,10 +581,34 @@ export class AcpSession extends EventEmitter {
       cwd: this.opts.cwd,
       additionalDirectories: this.opts.additionalDirectories,
       createMcpActivation: async () => {
+        const supportsHttp =
+          entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true;
+        if (this.opts.owner === "chat") {
+          if (!this.opts.workspaceSnapshot) {
+            throw ipcError(
+              IpcErrorCodes.VALIDATION_ERROR,
+              "Chat ACP Session requires a frozen Workspace snapshot"
+            );
+          }
+          return createChatRuntimeProfile({
+            sessionMode: this.opts.sessionMode ?? DEFAULT_CHAT_SESSION_MODE,
+            agentId: this.opts.agentId,
+            workspaceSnapshot: this.opts.workspaceSnapshot,
+            fylloSessionId: this.opts.fylloSessionId,
+            supportsHttp,
+            ...(mcpWorkspaceDescriptor ? { mcpWorkspaceDescriptor } : {}),
+          });
+        }
+        if (!mcpWorkspaceDescriptor) {
+          throw ipcError(
+            IpcErrorCodes.VALIDATION_ERROR,
+            `${this.opts.owner} ACP Session requires an owner-only MCP Workspace descriptor`
+          );
+        }
         const activation = await createBundledMcpActivation({
           agentId: this.opts.agentId,
           descriptor: mcpWorkspaceDescriptor,
-          supportsHttp: entry.initializeResponse.agentCapabilities?.mcpCapabilities?.http === true,
+          supportsHttp,
         });
         return {
           mcpServers: activation.servers.map(toAcpMcpServer),
@@ -623,7 +655,10 @@ export class AcpSession extends EventEmitter {
     }
 
     let recoveryHistoryReminder: TextUIPart | null = null;
-    if (activation.createdNewSession) {
+    if (
+      activation.createdNewSession &&
+      !(this.opts.owner === "chat" && this.opts.sessionMode === "native")
+    ) {
       const historyMessages = await this.recoveryContext.loadPersistedHistory();
       this.throwIfCancelled("after loading persisted history");
       recoveryHistoryReminder = buildHistoryReminder(historyMessages, prompt);
@@ -649,6 +684,9 @@ export class AcpSession extends EventEmitter {
     fylloSessionId: string;
     agentId: string;
   }): Promise<TextUIPart[]> {
+    if (this.opts.owner === "chat" && this.opts.sessionMode === "native") {
+      return [];
+    }
     // Reminders are only injected when a brand-new ACP session is created. Resumed/loaded sessions
     // already carry the agent's internal context, so injecting reminders again would duplicate them.
     if (!args.createdNewSession) {

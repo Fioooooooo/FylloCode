@@ -264,6 +264,89 @@ describe("AcpSession", () => {
     });
   });
 
+  it("keeps native new sessions empty-MCP and skips FylloCode reminders", async () => {
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    const session = await createSession({ sessionMode: "native", onReminderInjected });
+
+    await session.start([{ type: "text", text: "hello" }]);
+
+    expect(mocks.assertAgentWorkspaceCompatibility).toHaveBeenCalledWith(
+      "claude-acp",
+      expect.objectContaining({ workspaceId: "workspace-1" })
+    );
+    expect(mocks.createSessionMcpWorkspaceDescriptor).not.toHaveBeenCalled();
+    expect(mocks.assertSessionWorkspaceSnapshotCurrent).toHaveBeenCalledOnce();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(onReminderInjected).not.toHaveBeenCalled();
+    expect(mocks.connection.newSession).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+      mcpServers: [],
+    });
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-new",
+      prompt: [{ type: "text", text: "hello" }],
+    });
+  });
+
+  it("reuses a warm native session with a direct prompt", async () => {
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-native",
+      configOptions: [],
+    });
+    mocks.activeSessionIds.add("acp-native");
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    const session = await createSession({ sessionMode: "native", onReminderInjected });
+
+    await session.start([{ type: "text", text: "continue" }]);
+
+    expect(mocks.connection.resumeSession).not.toHaveBeenCalled();
+    expect(mocks.connection.loadSession).not.toHaveBeenCalled();
+    expect(mocks.connection.newSession).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(onReminderInjected).not.toHaveBeenCalled();
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-native",
+      prompt: [{ type: "text", text: "continue" }],
+    });
+  });
+
+  it("does not load persisted history or reminders on native fresh fallback", async () => {
+    const loadPersistedHistory = vi
+      .fn()
+      .mockResolvedValue([{ role: "user", parts: [{ type: "text", text: "old" }] }]);
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+      acpSessionId: "acp-missing",
+      configOptions: [],
+    });
+    mocks.hasActiveAcpSession.mockReturnValue(false);
+    mocks.connection.resumeSession.mockRejectedValueOnce(
+      Object.assign(new Error("session missing"), { code: "RESOURCE_NOT_FOUND" })
+    );
+    mocks.connection.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error("session missing"), { code: "RESOURCE_NOT_FOUND" })
+    );
+    const session = await createSession({
+      sessionMode: "native",
+      onReminderInjected,
+      recoveryContext: { hasPersistedHistory: true, loadPersistedHistory },
+    });
+
+    await session.start([{ type: "text", text: "new" }]);
+
+    expect(loadPersistedHistory).not.toHaveBeenCalled();
+    expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(onReminderInjected).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-new",
+      prompt: [{ type: "text", text: "new" }],
+    });
+  });
+
   it("fails stale validation before acquiring an Agent process", async () => {
     mocks.assertSessionWorkspaceSnapshotCurrent.mockRejectedValueOnce(
       Object.assign(new Error("removed"), { code: IpcErrorCodes.SESSION_FOLDER_REMOVED })
@@ -273,6 +356,19 @@ describe("AcpSession", () => {
     await expect(session.start([{ type: "text", text: "hello" }])).rejects.toMatchObject({
       code: IpcErrorCodes.SESSION_FOLDER_REMOVED,
     });
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+  });
+
+  it("fails stale validation for native mode before acquiring an Agent process", async () => {
+    mocks.assertSessionWorkspaceSnapshotCurrent.mockRejectedValueOnce(
+      Object.assign(new Error("removed"), { code: IpcErrorCodes.SESSION_FOLDER_REMOVED })
+    );
+    const session = await createSession({ sessionMode: "native" });
+
+    await expect(session.start([{ type: "text", text: "hello" }])).rejects.toMatchObject({
+      code: IpcErrorCodes.SESSION_FOLDER_REMOVED,
+    });
+    expect(mocks.createSessionMcpWorkspaceDescriptor).not.toHaveBeenCalled();
     expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
   });
 
@@ -309,6 +405,7 @@ describe("AcpSession", () => {
       expect.objectContaining({ workspaceId: "workspace-1" }),
       "session-1"
     );
+    expect(mocks.createSessionMcpWorkspaceDescriptor).toHaveBeenCalledTimes(1);
     expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith({
       agentId: "claude-acp",
       descriptor: expect.objectContaining({
