@@ -23,6 +23,7 @@ import {
   updateSessionInputSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { wrapHandler } from "../_kit/wrap-handler";
+import { requireWorkspaceSender } from "../_kit/workspace-scope";
 import { resolveWorkspace } from "@main/services/workspace/_public";
 import { createSessionWorkspaceSnapshot } from "@main/domain/session/chat/session-workspace-snapshot";
 import { assertAgentWorkspaceCompatibility } from "@main/services/session/chat/agent-workspace-compatibility";
@@ -31,6 +32,7 @@ import { makeStreamChannel } from "../_kit/stream-channel";
 import { ipcError } from "../_kit/errors";
 import { AcpSession, driveAcpStream } from "@main/services/session/_public";
 import {
+  assertSessionBelongsToWorkspace,
   createSession,
   ensureSessionWorkspaceSnapshot,
   listSessions,
@@ -190,9 +192,11 @@ export function registerChatHandlers(): void {
     })
   );
 
-  ipcMain.handle(SessionChatChannels.saveAttachment, (_event, input: unknown) =>
+  ipcMain.handle(SessionChatChannels.saveAttachment, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(saveAttachmentInputSchema, input);
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      await assertSessionBelongsToWorkspace(form.workspaceId, form.sessionId);
       const saved = await saveAttachment(
         form.workspaceId,
         form.sessionId,
@@ -208,9 +212,11 @@ export function registerChatHandlers(): void {
     })
   );
 
-  ipcMain.handle(SessionChatChannels.readAttachmentDataUrl, (_event, input: unknown) =>
+  ipcMain.handle(SessionChatChannels.readAttachmentDataUrl, (event, input: unknown) =>
     wrapHandler(async () => {
       const form = validate(readAttachmentDataUrlInputSchema, input);
+      requireWorkspaceSender(event.sender, form.workspaceId);
+      await assertSessionBelongsToWorkspace(form.workspaceId, form.sessionId);
       const dataUrl = await readAttachmentDataUrl(
         form.workspaceId,
         form.sessionId,

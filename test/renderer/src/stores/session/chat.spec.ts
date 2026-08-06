@@ -15,11 +15,12 @@ vi.mock("@renderer/api/session/chat", () => ({
   chatApi: {
     listSessions: vi.fn(),
     createSession: vi.fn(),
-    updateSession: vi.fn(),
     removeSession: vi.fn(),
+    updateSession: vi.fn(),
     loadMessages: vi.fn(),
     persistMessage: vi.fn(),
     streamMessage: vi.fn(),
+    saveAttachment: vi.fn(),
     setConfigOption: vi.fn(),
     probeEnsure: vi.fn(),
     probeClose: vi.fn(),
@@ -165,6 +166,7 @@ describe("useChatStore", () => {
       ok: true,
       data: undefined,
     });
+    vi.mocked(chatApi.removeSession).mockResolvedValue({ ok: true, data: undefined });
     vi.mocked(chatApi.streamMessage).mockReturnValue(() => {});
     vi.mocked(chatApi.onProbeUpdate).mockReturnValue(vi.fn());
   });
@@ -221,6 +223,178 @@ describe("useChatStore", () => {
     );
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
+  });
+
+  it("rejects attachment-only and system-reminder-only store submissions", async () => {
+    prepareDraftConversation();
+    const chatStore = useChatStore();
+
+    await expect(
+      chatStore.sendMessage([
+        {
+          type: "attachment",
+          attachmentId: "11111111-1111-4111-8111-111111111111",
+          mediaType: "image/png",
+          filename: "diagram.png",
+        },
+      ])
+    ).resolves.toBe(false);
+    await expect(
+      chatStore.sendMessage([{ type: "text", text: "<system-reminder>internal</system-reminder>" }])
+    ).resolves.toBe(false);
+
+    expect(chatApi.createSession).not.toHaveBeenCalled();
+    expect(chatApi.persistMessage).not.toHaveBeenCalled();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+  });
+
+  it("materializes ready-probe attachments into one invisible session before activation", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      fylloSessionId: "session-probe",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+      availableCommands: [],
+    });
+    const createRequest = deferred<{ ok: true; data: Session }>();
+    const persistRequest = deferred<{ ok: true; data: undefined }>();
+    vi.mocked(chatApi.createSession).mockReturnValueOnce(createRequest.promise);
+    vi.mocked(chatApi.persistMessage).mockReturnValueOnce(persistRequest.promise);
+    const materializeAttachments = vi.fn().mockResolvedValue([
+      {
+        type: "attachment",
+        attachmentId: "11111111-1111-4111-8111-111111111111",
+        mediaType: "image/png",
+        filename: "diagram.png",
+      },
+      {
+        type: "attachment",
+        attachmentId: "22222222-2222-4222-8222-222222222222",
+        mediaType: "text/markdown",
+        filename: "notes.md",
+      },
+    ]);
+
+    const sending = useChatStore().sendMessage(
+      [{ type: "text", text: "  review\nthese files  " }],
+      { materializeAttachments }
+    );
+    expect(sessionStore.sessions).toEqual([]);
+    expect(sessionStore.activeSessionId).toBeNull();
+
+    createRequest.resolve({
+      ok: true,
+      data: makeSession({ id: "session-probe", title: "review these files" }),
+    });
+    await vi.waitFor(() => {
+      expect(materializeAttachments).toHaveBeenCalledWith({
+        workspaceId: "project-1",
+        sessionId: "session-probe",
+      });
+      expect(chatApi.persistMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(sessionStore.sessions).toEqual([]);
+    expect(sessionStore.activeSessionId).toBeNull();
+    expect(chatApi.createSession).toHaveBeenCalledWith({
+      workspaceId: "project-1",
+      title: "review these files",
+      agentId: "claude-code",
+      configOptions: [],
+      availableCommands: [],
+      acpSessionId: "acp-probe",
+      fylloSessionId: "session-probe",
+    });
+    expect(chatApi.persistMessage).toHaveBeenCalledWith(
+      "session-probe",
+      "project-1",
+      expect.objectContaining({
+        parts: [
+          { type: "text", text: "  review\nthese files  " },
+          expect.objectContaining({ attachmentId: "11111111-1111-4111-8111-111111111111" }),
+          expect.objectContaining({ attachmentId: "22222222-2222-4222-8222-222222222222" }),
+        ],
+      })
+    );
+
+    persistRequest.resolve({ ok: true, data: undefined });
+    await expect(sending).resolves.toBe(true);
+    expect(sessionStore.activeSessionId).toBe("session-probe");
+    expect(sessionStore.sessions).toHaveLength(1);
+    expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(false);
+    expect(chatApi.streamMessage).toHaveBeenCalledWith(
+      "session-probe",
+      "project-1",
+      "claude-code",
+      expect.arrayContaining([
+        expect.objectContaining({ type: "text" }),
+        expect.objectContaining({ attachmentId: "11111111-1111-4111-8111-111111111111" }),
+        expect.objectContaining({ attachmentId: "22222222-2222-4222-8222-222222222222" }),
+      ]),
+      expect.any(Object),
+      { acpSessionId: "acp-probe" }
+    );
+  });
+
+  it("rolls back an uncommitted ready-probe session when attachment materialization fails", async () => {
+    prepareDraftConversation();
+    const sessionStore = useSessionStore();
+    sessionStore.applyProbeUpdate("claude-code", {
+      agentId: "claude-code",
+      status: "ready",
+      fylloSessionId: "session-probe",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+      availableCommands: [],
+    });
+    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
+      ok: true,
+      data: makeSession({ id: "session-probe", title: "upload files" }),
+    });
+
+    const sent = await useChatStore().sendMessage([{ type: "text", text: "upload files" }], {
+      materializeAttachments: vi.fn().mockRejectedValue(new Error("second attachment failed")),
+    });
+
+    expect(sent).toBe(false);
+    expect(chatApi.removeSession).toHaveBeenCalledWith("session-probe", "project-1");
+    expect(sessionStore.sessions).toEqual([]);
+    expect(sessionStore.activeSessionId).toBeNull();
+    expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(true);
+    expect(chatApi.persistMessage).not.toHaveBeenCalled();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+  });
+
+  it("rolls back when the first durable message append fails", async () => {
+    prepareDraftConversation();
+    vi.mocked(chatApi.persistMessage).mockResolvedValueOnce({
+      ok: false,
+      error: { code: "UNKNOWN_ERROR", message: "write failed" },
+    });
+
+    const sent = await useChatStore().sendMessage([{ type: "text", text: "hello" }]);
+
+    expect(sent).toBe(false);
+    expect(chatApi.removeSession).toHaveBeenCalledWith("session-1", "project-1");
+    expect(useSessionStore().activeSessionId).toBeNull();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+  });
+
+  it("discards a late draft creation after the Workspace scope changes", async () => {
+    prepareDraftConversation();
+    const createRequest = deferred<{ ok: true; data: Session }>();
+    vi.mocked(chatApi.createSession).mockReturnValueOnce(createRequest.promise);
+    const sending = useChatStore().sendMessage(textParts("hello"));
+
+    useWorkspaceStore().currentWorkspace = workspaceInfo({ id: "project-2" });
+    createRequest.resolve({ ok: true, data: makeSession({ id: "session-late" }) });
+
+    await expect(sending).resolves.toBe(false);
+    expect(chatApi.removeSession).toHaveBeenCalledWith("session-late", "project-1");
+    expect(useSessionStore().activeSessionId).toBeNull();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
   });
 
   it("tracks a session-local indicator from the first assistant chunk until stream completion", async () => {
@@ -357,7 +531,9 @@ describe("useChatStore", () => {
     expect(chatStore.chatStatus).toBe("ready");
     expect(chatApi.streamMessage).not.toHaveBeenCalled();
     expect(chatApi.persistMessage).not.toHaveBeenCalled();
-    expect(sessionStore.activeSession?.messages).toHaveLength(0);
+    expect(sessionStore.activeSession).toBeNull();
+    expect(sessionStore.sessions).toHaveLength(0);
+    expect(chatApi.removeSession).toHaveBeenCalledWith("session-setup", "project-1");
   });
 
   it("ignores a late stream error after cancelling before the first chunk", async () => {
@@ -639,37 +815,17 @@ describe("useChatStore", () => {
     expect(useSessionStore().activeSession?.title).toBe("hello world this message is in");
   });
 
-  it("falls back to DEFAULT_SESSION_TITLE when all text parts are system-reminder", async () => {
+  it("rejects system-reminder-only content without creating a default Session", async () => {
     prepareDraftConversation();
 
-    vi.mocked(chatApi.createSession).mockResolvedValueOnce({
-      ok: true,
-      data: {
-        id: "session-2",
-        workspaceId: "project-1",
-        agentId: "claude-code",
-        title: "New Session",
-        isPinned: false,
-        status: "ended",
-        turnCount: 0,
-        tokenUsage: { used: 0, size: 0 },
-        createdAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
-        updatedAt: "2026-04-30T09:00:00.000Z" as unknown as Date,
-        messages: [],
-      },
-    });
-
     const chatStore = useChatStore();
-    await chatStore.sendMessage([
+    const sent = await chatStore.sendMessage([
       { type: "text", text: "<system-reminder>\nonly reminder\n</system-reminder>" },
     ]);
 
-    expect(chatApi.createSession).toHaveBeenCalledWith({
-      workspaceId: "project-1",
-      title: "New Session",
-      agentId: "claude-code",
-    });
-    expect(useSessionStore().activeSession?.title).toBe("New Session");
+    expect(sent).toBe(false);
+    expect(chatApi.createSession).not.toHaveBeenCalled();
+    expect(useSessionStore().activeSession).toBeNull();
   });
 
   it("extracts **标题** from the first non-reminder text part", async () => {

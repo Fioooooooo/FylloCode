@@ -52,7 +52,9 @@ function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
 }
 
 function getPrimaryText(parts: ChatPromptPart[]): string {
-  const primary = parts.find((part) => part.type === "text" && !isSystemReminderPart(part));
+  const primary = parts.find(
+    (part) => part.type === "text" && !isSystemReminderPart(part) && part.text.trim().length > 0
+  );
   return primary?.type === "text" ? primary.text : "";
 }
 
@@ -92,6 +94,11 @@ interface DraftStreamState {
   status: ChatStatus;
   error: StreamError | null;
 }
+
+type MaterializePromptAttachments = (target: {
+  workspaceId: string;
+  sessionId: string;
+}) => Promise<ChatPromptPart[]>;
 
 export const useChatStore = defineStore("chat", () => {
   const toast = useToast();
@@ -247,14 +254,19 @@ export const useChatStore = defineStore("chat", () => {
     return userMessage;
   }
 
-  function persistMessage(sessionId: string, workspaceId: string, message: Message): Promise<void> {
-    return chatApi
-      .persistMessage(sessionId, workspaceId, JSON.parse(JSON.stringify(message)) as Message)
-      .then(() => undefined)
-      .catch((err: unknown) => {
-        console.error("Failed to persist message:", err);
-        throw err;
-      });
+  async function persistMessage(
+    sessionId: string,
+    workspaceId: string,
+    message: Message
+  ): Promise<void> {
+    const response = await chatApi.persistMessage(
+      sessionId,
+      workspaceId,
+      JSON.parse(JSON.stringify(message)) as Message
+    );
+    if (!response.ok) {
+      throw new Error(response.error.message);
+    }
   }
 
   function streamSessionMessage(
@@ -380,14 +392,21 @@ export const useChatStore = defineStore("chat", () => {
   interface SendMessageOptions {
     taskRef?: LineageTaskRef;
     awaitDurableAppend?: boolean;
+    materializeAttachments?: MaterializePromptAttachments;
+  }
+
+  async function discardUncommittedSession(workspaceId: string, sessionId: string): Promise<void> {
+    const response = await chatApi.removeSession(sessionId, workspaceId);
+    if (!response.ok) {
+      throw new Error(response.error.message);
+    }
   }
 
   async function sendMessageCore(
     parts: ChatPromptPart[],
     options: SendMessageOptions = {}
   ): Promise<{ messageId?: string }> {
-    const hasPromptContent = parts.some((part) => part.type !== "text" || part.text.trim());
-    if (!hasPromptContent) {
+    if (!getPrimaryText(parts).trim()) {
       return {};
     }
 
@@ -400,13 +419,7 @@ export const useChatStore = defineStore("chat", () => {
       return {};
     }
 
-    let activeSession = currentSession;
-    let streamOptions: { acpSessionId?: string } = {};
-    let streamRunId: number;
-
-    // Draft state: there is no active session yet. Create one, optionally carrying over a
-    // ready probe session so the user does not have to wait for the agent to initialize again.
-    if (!activeSession) {
+    if (!currentSession) {
       const draftAgentIdSnapshot = sessionStore.draftAgentId;
       if (!draftAgentIdSnapshot) {
         toast.add({
@@ -417,7 +430,7 @@ export const useChatStore = defineStore("chat", () => {
         return {};
       }
 
-      streamRunId = beginDraftStreamRun();
+      const streamRunId = beginDraftStreamRun();
       const fallbackTitleSnapshot = buildFallbackSessionTitle(parts);
       const probeBeforeCreate = sessionStore.draftProbeByAgent.get(draftAgentIdSnapshot);
       // 从 draft probe 复用已就绪的 ACP session，避免用户等待重新初始化。
@@ -437,24 +450,55 @@ export const useChatStore = defineStore("chat", () => {
               fylloSessionId: probeBeforeCreate.fylloSessionId,
             }
           : null;
+      let createdSession: Session | null = null;
 
       try {
-        const createdSession = await sessionStore.createSession({
-          workspaceId: workspaceIdSnapshot,
-          agentId: draftAgentIdSnapshot,
-          title: fallbackTitleSnapshot,
-          ...(options?.taskRef ? { taskRef: options.taskRef } : {}),
-          ...(carryProbe ?? {}),
-        });
+        createdSession = await sessionStore.createSession(
+          {
+            workspaceId: workspaceIdSnapshot,
+            agentId: draftAgentIdSnapshot,
+            title: fallbackTitleSnapshot,
+            ...(options.taskRef ? { taskRef: options.taskRef } : {}),
+            ...(carryProbe ?? {}),
+          },
+          { activate: false }
+        );
         if (
           !isCurrentDraftRun(streamRunId) ||
           workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot
         ) {
-          clearDraftRunIfCurrent(streamRunId);
-          return {};
+          throw new Error("Draft scope changed while creating the Session");
         }
-        activeSession = sessionStore.activeSession ?? createdSession;
-        setSessionStreamState(activeSession.id, {
+
+        const attachmentParts = options.materializeAttachments
+          ? await options.materializeAttachments({
+              workspaceId: workspaceIdSnapshot,
+              sessionId: createdSession.id,
+            })
+          : [];
+        const promptParts = [...parts, ...attachmentParts];
+        if (
+          !isCurrentDraftRun(streamRunId) ||
+          workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
+          sessionStore.activeSessionId !== null ||
+          sessionStore.draftAgentId !== draftAgentIdSnapshot
+        ) {
+          throw new Error("Draft scope changed while saving attachments");
+        }
+
+        const userMessage = queueUserMessage(createdSession, promptParts, sessionStore);
+        await persistMessage(createdSession.id, workspaceIdSnapshot, userMessage);
+        if (
+          !isCurrentDraftRun(streamRunId) ||
+          workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
+          sessionStore.activeSessionId !== null ||
+          sessionStore.draftAgentId !== draftAgentIdSnapshot
+        ) {
+          throw new Error("Draft scope changed while persisting the first message");
+        }
+
+        const activeSession = sessionStore.activateCreatedSession(createdSession);
+        setSessionStreamState(createdSession.id, {
           runId: streamRunId,
           status: "submitted",
           cancel: null,
@@ -463,36 +507,74 @@ export const useChatStore = defineStore("chat", () => {
           replyStartedAt: null,
         });
         clearDraftRunIfCurrent(streamRunId);
+        const streamOptions = carryProbe ? { acpSessionId: carryProbe.acpSessionId } : {};
         if (carryProbe) {
-          streamOptions = { acpSessionId: carryProbe.acpSessionId };
           sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null);
         }
+        streamSessionMessage(
+          activeSession,
+          workspaceIdSnapshot,
+          promptParts,
+          sessionStore,
+          streamRunId,
+          streamOptions
+        );
+        return { messageId: userMessage.id };
       } catch (error: unknown) {
+        if (createdSession) {
+          try {
+            await discardUncommittedSession(workspaceIdSnapshot, createdSession.id);
+          } catch (cleanupError: unknown) {
+            console.error("Failed to discard uncommitted Session:", cleanupError);
+          }
+        }
         if (isCurrentDraftRun(streamRunId)) {
           clearDraftRunIfCurrent(streamRunId);
         }
         toast.add({
-          title: "创建会话失败",
+          title: "发送消息失败",
           description: error instanceof Error ? error.message : String(error),
           color: "error",
         });
         return {};
       }
-    } else {
-      streamRunId = beginSessionStreamRun(activeSession.id);
     }
 
-    if (!isCurrentSessionRun(activeSession.id, streamRunId)) {
+    let promptParts = parts;
+    try {
+      const attachmentParts = options.materializeAttachments
+        ? await options.materializeAttachments({
+            workspaceId: workspaceIdSnapshot,
+            sessionId: currentSession.id,
+          })
+        : [];
+      promptParts = [...parts, ...attachmentParts];
+    } catch (error: unknown) {
+      toast.add({
+        title: "附件保存失败",
+        description: error instanceof Error ? error.message : String(error),
+        color: "error",
+      });
       return {};
     }
 
-    const userMessage = queueUserMessage(activeSession, parts, sessionStore);
-    const persistPromise = persistMessage(activeSession.id, workspaceIdSnapshot, userMessage).catch(
-      (err: unknown) => {
-        console.error("Failed to persist message:", err);
-        throw err;
-      }
-    );
+    if (
+      workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
+      sessionStore.activeSessionId !== currentSession.id
+    ) {
+      return {};
+    }
+
+    const streamRunId = beginSessionStreamRun(currentSession.id);
+    const userMessage = queueUserMessage(currentSession, promptParts, sessionStore);
+    const persistPromise = persistMessage(
+      currentSession.id,
+      workspaceIdSnapshot,
+      userMessage
+    ).catch((err: unknown) => {
+      console.error("Failed to persist message:", err);
+      throw err;
+    });
 
     if (options.awaitDurableAppend) {
       await persistPromise;
@@ -501,21 +583,22 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     streamSessionMessage(
-      activeSession,
+      currentSession,
       workspaceIdSnapshot,
-      parts,
+      promptParts,
       sessionStore,
       streamRunId,
-      streamOptions
+      {}
     );
     return { messageId: userMessage.id };
   }
 
   async function sendMessage(
     parts: ChatPromptPart[],
-    options?: { taskRef?: LineageTaskRef }
-  ): Promise<void> {
-    await sendMessageCore(parts, options);
+    options?: { taskRef?: LineageTaskRef; materializeAttachments?: MaterializePromptAttachments }
+  ): Promise<boolean> {
+    const result = await sendMessageCore(parts, options);
+    return result.messageId !== undefined;
   }
 
   async function sendMessageAndAwaitDurableAppend(

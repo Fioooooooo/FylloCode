@@ -124,7 +124,7 @@ describe("ProjectHealthPopover", () => {
     const sessionStore = useSessionStore();
     const chatStore = useChatStore();
     const beginDraftSession = vi.spyOn(sessionStore, "beginDraftSession");
-    const sendMessage = vi.spyOn(chatStore, "sendMessage").mockResolvedValue();
+    const sendMessage = vi.spyOn(chatStore, "sendMessage").mockResolvedValue(true);
 
     await wrapper.get('[data-test="project-health-button"]').trigger("click");
     await wrapper.get('[data-test="project-health-start"]').trigger("click");

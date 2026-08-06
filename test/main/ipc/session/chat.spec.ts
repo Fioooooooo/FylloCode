@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => {
     listSessions: vi.fn(),
     updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
+    assertSessionBelongsToWorkspace: vi.fn(),
+    requireWorkspaceSender: vi.fn(),
     resolveWorkspace: vi.fn(),
     createSessionWorkspaceSnapshot: vi.fn(),
     ensureSessionWorkspaceSnapshot: vi.fn(),
@@ -76,6 +78,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
+  assertSessionBelongsToWorkspace: mocks.assertSessionBelongsToWorkspace,
   createSession: mocks.createSession,
   listSessions: mocks.listSessions,
   loadSessionMessages: vi.fn(),
@@ -83,6 +86,10 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   removeSession: vi.fn(),
   ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
   updateSession: mocks.updateSession,
+}));
+
+vi.mock("@main/ipc/_kit/workspace-scope", () => ({
+  requireWorkspaceSender: mocks.requireWorkspaceSender,
 }));
 
 vi.mock("@main/services/workspace/_public", () => ({
@@ -199,6 +206,7 @@ describe("registerChatHandlers", () => {
     mocks.createSessionWorkspaceSnapshot.mockReturnValue(workspaceSnapshot);
     mocks.ensureSessionWorkspaceSnapshot.mockResolvedValue(workspaceSnapshot);
     mocks.assertAgentWorkspaceCompatibility.mockResolvedValue(undefined);
+    mocks.assertSessionBelongsToWorkspace.mockResolvedValue(undefined);
     mocks.createSession.mockResolvedValue({ id: "session-created" });
     mocks.getProbeWorkspaceSnapshotForPromotion.mockReturnValue(null);
     mocks.getByTask.mockResolvedValue(null);
@@ -392,9 +400,10 @@ describe("registerChatHandlers", () => {
 
   it("reads scoped attachment handles as data URLs", async () => {
     mocks.readAttachmentDataUrl.mockResolvedValueOnce("data:image/png;base64,AAAA");
+    const sender = { id: 1 };
 
     const result = await handler(ChatChannels.readAttachmentDataUrl)(
-      {},
+      { sender },
       {
         workspaceId: "workspace-1",
         sessionId: "session-1",
@@ -409,12 +418,102 @@ describe("registerChatHandlers", () => {
         dataUrl: "data:image/png;base64,AAAA",
       },
     });
+    expect(mocks.requireWorkspaceSender).toHaveBeenCalledWith(sender, "workspace-1");
+    expect(mocks.assertSessionBelongsToWorkspace).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.readAttachmentDataUrl).toHaveBeenCalledWith(
       "workspace-1",
       "session-1",
       "00000000-0000-4000-8000-000000000001",
       "image/png"
     );
+  });
+
+  it("validates sender and Session ownership before saving an attachment", async () => {
+    mocks.saveAttachment.mockResolvedValueOnce({
+      attachmentId: "00000000-0000-4000-8000-000000000001",
+      name: "diagram.png",
+      mimeType: "image/png",
+    });
+    const sender = { id: 2 };
+
+    const result = await handler(ChatChannels.saveAttachment)(
+      { sender },
+      {
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        fileName: "diagram.png",
+        mimeType: "image/png",
+        base64Data: "AAAA",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        attachmentId: "00000000-0000-4000-8000-000000000001",
+        name: "diagram.png",
+        mimeType: "image/png",
+      },
+    });
+    expect(mocks.requireWorkspaceSender).toHaveBeenCalledWith(sender, "workspace-1");
+    expect(mocks.assertSessionBelongsToWorkspace).toHaveBeenCalledWith("workspace-1", "session-1");
+    expect(mocks.saveAttachment).toHaveBeenCalledWith(
+      "workspace-1",
+      "session-1",
+      "diagram.png",
+      "image/png",
+      "AAAA"
+    );
+  });
+
+  it("rejects attachment access from the wrong Workspace sender", async () => {
+    mocks.requireWorkspaceSender.mockImplementationOnce(() => {
+      throw Object.assign(new Error("wrong Workspace"), {
+        code: IpcErrorCodes.WORKSPACE_NOT_FOUND,
+      });
+    });
+
+    const result = await handler(ChatChannels.saveAttachment)(
+      { sender: { id: 3 } },
+      {
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        fileName: "diagram.png",
+        mimeType: "image/png",
+        base64Data: "AAAA",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.WORKSPACE_NOT_FOUND }),
+    });
+    expect(mocks.assertSessionBelongsToWorkspace).not.toHaveBeenCalled();
+    expect(mocks.saveAttachment).not.toHaveBeenCalled();
+  });
+
+  it("rejects attachment reads when the Session is not owned by the Workspace", async () => {
+    mocks.assertSessionBelongsToWorkspace.mockRejectedValueOnce(
+      Object.assign(new Error("Session is not owned by Workspace"), {
+        code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED,
+      })
+    );
+
+    const result = await handler(ChatChannels.readAttachmentDataUrl)(
+      { sender: { id: 4 } },
+      {
+        workspaceId: "workspace-1",
+        sessionId: "other-session",
+        attachmentId: "00000000-0000-4000-8000-000000000001",
+        mediaType: "image/png",
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.SESSION_RESOURCE_UNAUTHORIZED }),
+    });
+    expect(mocks.readAttachmentDataUrl).not.toHaveBeenCalled();
   });
 
   it("rejects invalid readAttachmentDataUrl input before reading", async () => {

@@ -10,7 +10,10 @@ import {
 
 export function useChatPrompt(options: {
   hasAvailableCommands: Ref<boolean>;
-  attachmentParts?: Readonly<Ref<ChatPromptPart[]>>;
+  materializeAttachmentParts?: (target: {
+    workspaceId: string;
+    sessionId: string;
+  }) => Promise<ChatPromptPart[]>;
   submitDisabled?: Readonly<Ref<boolean>>;
   afterSubmit?: () => void;
 }): {
@@ -176,12 +179,16 @@ export function useChatPrompt(options: {
     }
 
     const text = input.value.trim();
-    const attachmentParts = options.attachmentParts?.value ?? [];
-    if (!text && attachmentParts.length === 0) {
+    if (!text) {
       return;
     }
 
-    await chatStore.sendMessage([{ type: "text", text: input.value }, ...attachmentParts]);
+    const sent = await chatStore.sendMessage([{ type: "text", text: input.value }], {
+      materializeAttachments: options.materializeAttachmentParts,
+    });
+    if (!sent) {
+      return;
+    }
     options.afterSubmit?.();
     input.value = "";
     clearTemporaryPlaceholder();

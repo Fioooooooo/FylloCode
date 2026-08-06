@@ -4,6 +4,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
+import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { DraftProbeState } from "@renderer/stores/session/session";
 
 const buttonStub = {
@@ -63,7 +64,17 @@ const slashCommandStub = {
   `,
 };
 
-const sendMessage = vi.fn(async () => undefined);
+const sendMessage = vi.fn<
+  (
+    parts: ChatPromptPart[],
+    options?: {
+      materializeAttachments?: (target: {
+        workspaceId: string;
+        sessionId: string;
+      }) => Promise<ChatPromptPart[]>;
+    }
+  ) => Promise<boolean>
+>();
 const cancelStream = vi.fn();
 const setSessionAgent = vi.fn(() => Promise.resolve());
 const setDraftAgent = vi.fn();
@@ -195,6 +206,14 @@ function mountPanel(): VueWrapper {
                 type="button"
                 @click="$emit('select-files', [{ name: 'notes.md', type: 'text/markdown', size: 2048 }])"
               />
+              <button
+                data-test="prompt-action-upload-multiple"
+                type="button"
+                @click="$emit('select-files', [
+                  { name: 'diagram.png', type: 'image/png', size: 24576 },
+                  { name: 'notes.md', type: 'text/markdown', size: 2048 }
+                ])"
+              />
             </div>
           `,
         },
@@ -212,6 +231,7 @@ describe("ChatPromptPanel", () => {
     activeDraftProbeRef.value = null;
     chatStatusRef.value = "ready";
     sendMessage.mockClear();
+    sendMessage.mockResolvedValue(true);
     cancelStream.mockClear();
     createSession.mockReset();
     setSessionAgent.mockClear();
@@ -329,8 +349,12 @@ describe("ChatPromptPanel", () => {
     await textarea.setValue("hello world");
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
     await wrapper.vm.$nextTick();
-    expect(sendMessage).toHaveBeenCalledWith([{ type: "text", text: "hello world" }]);
+    expect(sendMessage).toHaveBeenCalledWith(
+      [{ type: "text", text: "hello world" }],
+      expect.objectContaining({ materializeAttachments: expect.any(Function) })
+    );
 
+    await textarea.setValue("next message");
     await wrapper.get('[data-test="stop-button"]').trigger("click");
     expect(cancelStream).toHaveBeenCalledTimes(1);
   });
@@ -461,6 +485,55 @@ describe("ChatPromptPanel", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
+    expect(createSession).not.toHaveBeenCalled();
+    expect(saveAttachment).not.toHaveBeenCalled();
+  });
+
+  it("keeps a ready-probe multi-file selection in the draft without creating a session", async () => {
+    activeDraftProbeRef.value = {
+      agentId: "claude-code",
+      status: "ready",
+      fylloSessionId: "session-probe",
+      acpSessionId: "acp-probe",
+      configOptions: [],
+      availableCommands: [],
+    };
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-multiple"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
+    expect(activeSessionRef.value).toBeNull();
+    expect(createSession).not.toHaveBeenCalled();
+    expect(saveAttachment).not.toHaveBeenCalled();
+  });
+
+  it("requires non-empty text even when attachments are selected", async () => {
+    const wrapper = mountPanel();
+
+    expect(wrapper.get('[data-test="stop-button"]').attributes("disabled")).toBeDefined();
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await wrapper.get("textarea").setValue("   ");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("1");
+  });
+
+  it("keeps text and attachments when submission fails", async () => {
+    sendMessage.mockResolvedValueOnce(false);
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
+    await wrapper.get("textarea").setValue("retry this");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("retry this");
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("1");
   });
 
   it("removes attachments and revokes image previews", async () => {
@@ -483,6 +556,7 @@ describe("ChatPromptPanel", () => {
       audio: false,
       embeddedContext: true,
     };
+    activeSessionRef.value = makeSession();
     const wrapper = mountPanel();
 
     await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
@@ -493,7 +567,10 @@ describe("ChatPromptPanel", () => {
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
     await wrapper.vm.$nextTick();
 
-    expect(sendMessage).toHaveBeenCalledWith([{ type: "text", text: "see image" }]);
+    expect(sendMessage).toHaveBeenCalledWith(
+      [{ type: "text", text: "see image" }],
+      expect.objectContaining({ materializeAttachments: expect.any(Function) })
+    );
     expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("");
     expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
@@ -517,6 +594,15 @@ describe("ChatPromptPanel", () => {
         mimeType: "text/markdown",
       },
     });
+    let submittedParts: unknown[] = [];
+    sendMessage.mockImplementationOnce(async (parts, options) => {
+      const attachmentParts = await options?.materializeAttachments?.({
+        workspaceId: "project-1",
+        sessionId: "session-1",
+      });
+      submittedParts = [...parts, ...(attachmentParts ?? [])];
+      return true;
+    });
     const wrapper = mountPanel();
 
     await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
@@ -524,11 +610,11 @@ describe("ChatPromptPanel", () => {
     await vi.waitFor(() => {
       expect(saveAttachment).toHaveBeenCalledTimes(2);
     });
-    await wrapper.get("textarea").setValue("");
+    await wrapper.get("textarea").setValue("review files");
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
 
-    expect(sendMessage).toHaveBeenCalledWith([
-      { type: "text", text: "" },
+    expect(submittedParts).toEqual([
+      { type: "text", text: "review files" },
       {
         type: "attachment",
         attachmentId: "22222222-2222-4222-8222-222222222222",

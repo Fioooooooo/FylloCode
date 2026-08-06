@@ -83,6 +83,14 @@ function session(overrides: Partial<Session> = {}): Session {
   };
 }
 
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe("useSessionStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -508,6 +516,29 @@ describe("useSessionStore", () => {
 
     expect(mocks.getByTask).not.toHaveBeenCalled();
     expect(store.taskInfoBySessionId.has("session-new")).toBe(false);
+  });
+
+  it("keeps a persisted session invisible until it is explicitly activated", async () => {
+    const store = useSessionStore();
+    const request = deferred<{ ok: true; data: Session }>();
+    mocks.createSession.mockReturnValueOnce(request.promise);
+
+    const creation = store.createSession(
+      { workspaceId: "project-1", agentId: "claude-code", title: "Draft title" },
+      { activate: false }
+    );
+    expect(store.sessions).toEqual([]);
+    expect(store.activeSessionId).toBeNull();
+
+    request.resolve({ ok: true, data: session({ id: "session-deferred", title: "Draft title" }) });
+    const created = await creation;
+    expect(store.sessions).toEqual([]);
+    expect(store.activeSessionId).toBeNull();
+
+    const activated = store.activateCreatedSession(created);
+    expect(activated.id).toBe("session-deferred");
+    expect(store.sessions.map((item) => item.id)).toEqual(["session-deferred"]);
+    expect(store.activeSessionId).toBe("session-deferred");
   });
 
   it("setSessionConfigOptions overwrites configOptions for the session", () => {

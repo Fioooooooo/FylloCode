@@ -31,13 +31,16 @@ const promptCapabilities = computed(() => acpAgentsStore.getPromptCapabilities(a
 const {
   attachments,
   hasPendingAttachments,
-  attachmentParts,
+  materializeAttachmentParts,
   handleAttachmentSelect,
   removeAttachment,
   clearAttachments,
 } = useChatAttachment(promptCapabilities);
-const submitDisabled = computed(
-  () => chatStatus.value === "streaming" || hasPendingAttachments.value
+const promptBusy = computed(
+  () =>
+    chatStatus.value === "submitted" ||
+    chatStatus.value === "streaming" ||
+    hasPendingAttachments.value
 );
 
 const {
@@ -55,10 +58,11 @@ const {
   handleCommandSelect,
 } = useChatPrompt({
   hasAvailableCommands,
-  attachmentParts,
-  submitDisabled,
+  materializeAttachmentParts,
+  submitDisabled: promptBusy,
   afterSubmit: () => clearAttachments(),
 });
+const submitDisabled = computed(() => promptBusy.value || input.value.trim().length === 0);
 </script>
 
 <template>

@@ -11,12 +11,17 @@ import {
 import type { AcpPromptCapabilities } from "@shared/types/acp-agent";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 
+export interface ChatAttachmentTarget {
+  workspaceId: string;
+  sessionId: string;
+}
+
 /**
  * Manage user-selected file attachments for the chat prompt.
  *
  * Responsibilities:
  * - Read selected files as base64 data URLs.
- * - Ensure a session exists (creating a draft session if needed) before persisting.
+ * - Keep draft attachments local until the first real session has been created.
  * - Persist attachments through the chat IPC API and produce prompt parts that respect
  *   the current agent's capabilities (image vs. embedded context / resource_link).
  */
@@ -24,6 +29,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   attachments: Ref<ChatPromptAttachment[]>;
   hasPendingAttachments: ComputedRef<boolean>;
   attachmentParts: ComputedRef<ChatPromptPart[]>;
+  materializeAttachmentParts: (target: ChatAttachmentTarget) => Promise<ChatPromptPart[]>;
   handleAttachmentSelect: (files: File[]) => void;
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
@@ -35,10 +41,9 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   const attachments = ref<ChatPromptAttachment[]>([]);
   const savingAttachmentCount = ref(0);
   const isSavingAttachments = computed(() => savingAttachmentCount.value > 0);
-  const hasPendingAttachments = computed(
-    () =>
-      isSavingAttachments.value || attachments.value.some((attachment) => !attachment.attachmentId)
-  );
+  const hasPendingAttachments = computed(() => isSavingAttachments.value);
+  const fileByAttachmentId = new Map<string, File>();
+  const targetByAttachmentId = new Map<string, ChatAttachmentTarget>();
   // 附件始终以 opaque attachment part 表达；capability 只决定是否允许发送。
   const attachmentParts = computed<ChatPromptPart[]>(() => {
     const parts: ChatPromptPart[] = [];
@@ -78,47 +83,20 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     });
   }
 
-  async function ensureAttachmentSession(): Promise<{
-    workspaceId: string;
-    sessionId: string;
-  } | null> {
-    const active = activeSession.value;
-    const workspaceId = workspaceStore.currentWorkspace?.id ?? active?.workspaceId;
-    if (!workspaceId) {
-      toast.add({ title: "请先打开项目", color: "warning" });
-      return null;
-    }
-    if (active) {
-      return { workspaceId, sessionId: active.id };
-    }
-
-    // No active session yet: create a draft session so the attachment has somewhere to live.
-    const agentId = draftAgentId.value;
-    if (!agentId) {
-      toast.add({
-        title: "暂无可用 Agent",
-        description: "请先安装 Agent 后再上传附件",
-        color: "error",
-      });
-      return null;
-    }
-
-    const createdSession = await sessionStore.createSession({
-      workspaceId,
-      agentId,
-      title: "New Session",
-    });
-    return { workspaceId, sessionId: createdSession.id };
+  function targetsMatch(
+    left: ChatAttachmentTarget | undefined,
+    right: ChatAttachmentTarget
+  ): boolean {
+    return left?.workspaceId === right.workspaceId && left.sessionId === right.sessionId;
   }
 
-  async function persistAttachment(file: File, attachment: ChatPromptAttachment): Promise<void> {
+  async function saveAttachmentToTarget(
+    file: File,
+    attachment: ChatPromptAttachment,
+    target: ChatAttachmentTarget
+  ): Promise<void> {
     savingAttachmentCount.value += 1;
     try {
-      const target = await ensureAttachmentSession();
-      if (!target) {
-        throw new Error("Cannot save attachment without a session");
-      }
-
       const base64Data = await readFileAsBase64(file);
       const response = await chatApi.saveAttachment(
         target.workspaceId,
@@ -133,6 +111,19 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
 
       attachment.attachmentId = response.data.attachmentId;
       attachment.mediaType = response.data.mimeType;
+      targetByAttachmentId.set(attachment.id, target);
+    } finally {
+      savingAttachmentCount.value -= 1;
+    }
+  }
+
+  async function persistSelectedAttachment(
+    file: File,
+    attachment: ChatPromptAttachment,
+    target: ChatAttachmentTarget
+  ): Promise<void> {
+    try {
+      await saveAttachmentToTarget(file, attachment, target);
     } catch (error: unknown) {
       removeAttachment(attachment.id);
       toast.add({
@@ -140,14 +131,51 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
         description: error instanceof Error ? error.message : String(error),
         color: "error",
       });
-    } finally {
-      savingAttachmentCount.value -= 1;
     }
+  }
+
+  async function materializeAttachmentParts(
+    target: ChatAttachmentTarget
+  ): Promise<ChatPromptPart[]> {
+    for (const attachment of attachments.value) {
+      if (
+        attachment.attachmentId &&
+        !targetsMatch(targetByAttachmentId.get(attachment.id), target)
+      ) {
+        attachment.attachmentId = null;
+        targetByAttachmentId.delete(attachment.id);
+      }
+    }
+
+    const pendingAttachments = attachments.value.filter((attachment) => !attachment.attachmentId);
+    const results = await Promise.allSettled(
+      pendingAttachments.map(async (attachment) => {
+        const file = fileByAttachmentId.get(attachment.id);
+        if (!file) {
+          throw new Error(`Attachment source is unavailable: ${attachment.name}`);
+        }
+        await saveAttachmentToTarget(file, attachment, target);
+      })
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    if (failure) {
+      for (const attachment of pendingAttachments) {
+        attachment.attachmentId = null;
+        targetByAttachmentId.delete(attachment.id);
+      }
+      throw failure.reason;
+    }
+
+    return attachmentParts.value;
   }
 
   function clearAttachments(): void {
     const sentAttachments = attachments.value;
     attachments.value = [];
+    fileByAttachmentId.clear();
+    targetByAttachmentId.clear();
     sentAttachments.forEach(revokeChatPromptAttachmentPreview);
   }
 
@@ -159,11 +187,36 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     const nextAttachments = files.map((file) =>
       createChatPromptAttachment(file, `attachment-${attachmentId++}`)
     );
-    attachments.value = [...attachments.value, ...nextAttachments];
     nextAttachments.forEach((attachment, index) => {
       const file = files[index];
       if (file) {
-        void persistAttachment(file, attachment);
+        fileByAttachmentId.set(attachment.id, file);
+      }
+    });
+    attachments.value = [...attachments.value, ...nextAttachments];
+
+    const active = activeSession.value;
+    const workspaceId = workspaceStore.currentWorkspace?.id ?? active?.workspaceId;
+    if (!active) {
+      if (!draftAgentId.value) {
+        toast.add({
+          title: "暂无可用 Agent",
+          description: "请先安装 Agent 后再上传附件",
+          color: "error",
+        });
+      }
+      return;
+    }
+    if (!workspaceId) {
+      toast.add({ title: "请先打开项目", color: "warning" });
+      return;
+    }
+
+    const target = { workspaceId, sessionId: active.id };
+    nextAttachments.forEach((attachment, index) => {
+      const file = files[index];
+      if (file) {
+        void persistSelectedAttachment(file, attachment, target);
       }
     });
   }
@@ -178,18 +231,23 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     const [removedAttachment] = attachments.value.splice(index, 1);
 
     if (removedAttachment) {
+      fileByAttachmentId.delete(removedAttachment.id);
+      targetByAttachmentId.delete(removedAttachment.id);
       revokeChatPromptAttachmentPreview(removedAttachment);
     }
   }
 
   onBeforeUnmount(() => {
     attachments.value.forEach(revokeChatPromptAttachmentPreview);
+    fileByAttachmentId.clear();
+    targetByAttachmentId.clear();
   });
 
   return {
     attachments,
     hasPendingAttachments,
     attachmentParts,
+    materializeAttachmentParts,
     handleAttachmentSelect,
     removeAttachment,
     clearAttachments,

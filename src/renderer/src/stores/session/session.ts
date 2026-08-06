@@ -102,16 +102,20 @@ export interface SessionStore {
   upsertSessionProposal: (sessionId: string, proposal: ProposalMeta) => void;
   removeSessionProposal: (sessionId: string, proposalRef: ProposalRef) => void;
   subscribeProposalStatus: () => () => void;
-  createSession: (input: {
-    workspaceId: string;
-    agentId: string;
-    title?: string;
-    configOptions?: AcpSessionConfigOption[];
-    availableCommands?: AcpAvailableCommand[];
-    acpSessionId?: string;
-    fylloSessionId?: string;
-    taskRef?: LineageTaskRef;
-  }) => Promise<Session>;
+  createSession: (
+    input: {
+      workspaceId: string;
+      agentId: string;
+      title?: string;
+      configOptions?: AcpSessionConfigOption[];
+      availableCommands?: AcpAvailableCommand[];
+      acpSessionId?: string;
+      fylloSessionId?: string;
+      taskRef?: LineageTaskRef;
+    },
+    options?: { activate?: boolean }
+  ) => Promise<Session>;
+  activateCreatedSession: (session: Session) => Session;
   beginDraftSession: () => void;
   selectSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
@@ -829,16 +833,33 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
   }
 
-  async function createSession(input: {
-    workspaceId: string;
-    agentId: string;
-    title?: string;
-    configOptions?: AcpSessionConfigOption[];
-    availableCommands?: AcpAvailableCommand[];
-    acpSessionId?: string;
-    fylloSessionId?: string;
-    taskRef?: LineageTaskRef;
-  }): Promise<Session> {
+  function activateCreatedSession(session: Session): Session {
+    if (useWorkspaceStore().currentWorkspace?.id !== session.workspaceId) {
+      return session;
+    }
+
+    sessions.value = [session, ...sessions.value.filter((item) => item.id !== session.id)];
+    activeSessionId.value = session.id;
+    loadedSessionIds.add(session.id);
+    // createSession 不经过 selectSession，需主动填充任务信息，否则首次发起讨论时
+    // OriginTaskBanner 拿不到 taskInfoBySessionId，要等重新加载 sessionList 才显示。
+    void ensureSessionOriginTaskInfo(session);
+    return findSession(session.id) ?? session;
+  }
+
+  async function createSession(
+    input: {
+      workspaceId: string;
+      agentId: string;
+      title?: string;
+      configOptions?: AcpSessionConfigOption[];
+      availableCommands?: AcpAvailableCommand[];
+      acpSessionId?: string;
+      fylloSessionId?: string;
+      taskRef?: LineageTaskRef;
+    },
+    options: { activate?: boolean } = {}
+  ): Promise<Session> {
     const result = await chatApi.createSession({
       workspaceId: input.workspaceId,
       title: input.title ?? "New Session",
@@ -856,16 +877,11 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
 
     const session = normalizeSession(result.data);
-    if (useWorkspaceStore().currentWorkspace?.id !== input.workspaceId) {
+    if (options.activate === false) {
       return session;
     }
-    sessions.value = [session, ...sessions.value.filter((item) => item.id !== session.id)];
-    activeSessionId.value = session.id;
-    loadedSessionIds.add(session.id);
-    // createSession 不经过 selectSession，需主动填充任务信息，否则首次发起讨论时
-    // OriginTaskBanner 拿不到 taskInfoBySessionId，要等重新加载 sessionList 才显示。
-    void ensureSessionOriginTaskInfo(session);
-    return findSession(session.id) ?? session;
+
+    return activateCreatedSession(session);
   }
 
   async function selectSession(sessionId: string): Promise<void> {
@@ -1060,6 +1076,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     removeSessionProposal,
     subscribeProposalStatus,
     createSession,
+    activateCreatedSession,
     beginDraftSession,
     selectSession,
     renameSession,
