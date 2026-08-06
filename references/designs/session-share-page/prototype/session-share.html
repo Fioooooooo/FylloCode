@@ -1,0 +1,1513 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>重构 ACP 进程池与 session 探针生命周期 — FylloCode 会话分享</title>
+    <style>
+      :root {
+        --bg: #faf9f5;
+        --surface: #ffffff;
+        --surface-2: #f4f2ec;
+        --text: #1f1e1b;
+        --text-2: #5f5e5a;
+        --text-3: #96948d;
+        --border: rgba(0, 0, 0, 0.1);
+        --border-strong: rgba(0, 0, 0, 0.18);
+        --read-bg: #e6f1fb;
+        --read-fg: #0c447c;
+        --search-bg: #e1f5ee;
+        --search-fg: #085041;
+        --edit-bg: #faece7;
+        --edit-fg: #712b13;
+        --edit-bd: #f0997b;
+        --exec-bg: #eeedfe;
+        --exec-fg: #3c3489;
+        --dele-bg: #fbeaf0;
+        --dele-fg: #72243e;
+        --add-fg: #1a7f37;
+        --add-bg: #e6ffec;
+        --del-fg: #a32d2d;
+        --del-bg: #ffebe9;
+        --ok: #3b6d11;
+        --fail: #a32d2d;
+        --revert-bg: #fcebeb;
+        --revert-fg: #791f1f;
+        --serif: Georgia, "Songti SC", "Noto Serif SC", serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1c1b18;
+          --surface: #262521;
+          --surface-2: #2f2e29;
+          --text: #ece9e2;
+          --text-2: #b4b2a9;
+          --text-3: #807e76;
+          --border: rgba(255, 255, 255, 0.12);
+          --border-strong: rgba(255, 255, 255, 0.22);
+          --read-bg: #0c447c;
+          --read-fg: #b5d4f4;
+          --search-bg: #085041;
+          --search-fg: #9fe1cb;
+          --edit-bg: #4a1b0c;
+          --edit-fg: #f5c4b3;
+          --edit-bd: #993c1d;
+          --exec-bg: #26215c;
+          --exec-fg: #cecbf6;
+          --dele-bg: #4b1528;
+          --dele-fg: #f4c0d1;
+          --add-fg: #7ee787;
+          --add-bg: rgba(46, 160, 67, 0.18);
+          --del-fg: #f09595;
+          --del-bg: rgba(226, 75, 74, 0.16);
+          --ok: #97c459;
+          --fail: #f09595;
+          --revert-bg: #501313;
+          --revert-fg: #f7c1c1;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          15px/1.7 -apple-system,
+          "PingFang SC",
+          "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+      }
+      main {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0;
+        line-height: 1.4;
+      }
+      .meta-line {
+        font-size: 13px;
+        color: var(--text-3);
+        margin-top: 6px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        font-size: 12px;
+        padding: 3px 11px;
+        border-radius: 99px;
+        background: var(--surface-2);
+        color: var(--text-2);
+      }
+      .chip.k-read {
+        background: var(--read-bg);
+        color: var(--read-fg);
+      }
+      .chip.k-edit {
+        background: var(--edit-bg);
+        color: var(--edit-fg);
+      }
+      .chip.k-exec {
+        background: var(--exec-bg);
+        color: var(--exec-fg);
+      }
+      .chip.k-search {
+        background: var(--search-bg);
+        color: var(--search-fg);
+      }
+      .chip.k-delegate {
+        background: var(--dele-bg);
+        color: var(--dele-fg);
+      }
+
+      nav.turn-nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        gap: 2px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 24px -20px 0;
+        padding: 8px 20px;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+      }
+      nav.turn-nav a {
+        color: var(--text-2);
+        text-decoration: none;
+        padding: 3px 9px;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
+      nav.turn-nav a:hover {
+        background: var(--surface-2);
+        color: var(--text);
+      }
+      nav.turn-nav .nav-count {
+        color: var(--text-3);
+        margin-right: 6px;
+      }
+
+      section.card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-top: 20px;
+      }
+      .sec-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 12px;
+      }
+      .sec-title {
+        font-size: 12px;
+        color: var(--text-3);
+        letter-spacing: 0.06em;
+      }
+      .totals {
+        font-size: 13px;
+        color: var(--text-2);
+        font-family: var(--mono);
+      }
+      .add {
+        color: var(--add-fg);
+      }
+      .del {
+        color: var(--del-fg);
+      }
+
+      details.group {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 8px;
+      }
+      details.group summary {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 8px 12px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 13px;
+        font-family: var(--mono);
+      }
+      details.group summary > span:last-child {
+        margin-left: auto;
+      }
+      details.group summary::-webkit-details-marker {
+        display: none;
+      }
+      details.group summary::before {
+        content: "▸";
+        color: var(--text-3);
+        margin-right: 6px;
+      }
+      details.group[open] summary::before {
+        content: "▾";
+      }
+      details.group[open] summary {
+        background: var(--surface-2);
+        border-radius: 8px 8px 0 0;
+      }
+      .group-files {
+        padding: 4px 12px 10px 34px;
+        font-size: 13px;
+        font-family: var(--mono);
+      }
+      .file-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 3px 0;
+      }
+      .file-note {
+        font-size: 11px;
+        color: var(--text-3);
+        font-family: inherit;
+        margin-left: 8px;
+      }
+      .dim {
+        color: var(--text-3);
+      }
+
+      .cmd-list {
+        font-size: 13px;
+        font-family: var(--mono);
+        line-height: 2.1;
+      }
+      .cmd-ok::before {
+        content: "✓ ";
+        color: var(--ok);
+      }
+      .cmd-fail::before {
+        content: "✗ ";
+        color: var(--fail);
+      }
+      .aside-note {
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--text-3);
+      }
+
+      .phase {
+        margin-top: 36px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .phase h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .phase .pd {
+        font-size: 12px;
+        color: var(--text-3);
+      }
+      .badge-revert {
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 99px;
+        background: var(--revert-bg);
+        color: var(--revert-fg);
+      }
+
+      .turn {
+        margin-top: 22px;
+        padding-left: 20px;
+        border-left: 2px solid var(--border);
+      }
+      .turn-label {
+        font-size: 12px;
+        color: var(--text-3);
+        margin-bottom: 8px;
+      }
+      .prompt {
+        background: var(--surface-2);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 14px;
+      }
+      .injected-note {
+        font-size: 12px;
+        color: var(--text-3);
+        margin-top: 6px;
+      }
+      .acts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 12px;
+      }
+      details.act {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      details.act[open] {
+        flex-basis: 100%;
+      }
+      details.act > summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        padding: 4px 11px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        color: var(--text-2);
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+      }
+      details.act > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.act > summary::after {
+        content: "▾";
+        font-size: 10px;
+        opacity: 0.6;
+      }
+      details.act[open] > summary::after {
+        content: "▴";
+      }
+      details.act.k-edit > summary {
+        background: var(--edit-bg);
+        color: var(--edit-fg);
+        border-color: var(--edit-bd);
+      }
+      details.act.k-delegate > summary {
+        background: var(--dele-bg);
+        color: var(--dele-fg);
+      }
+      .act-body {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 12px;
+        margin: 2px 0 4px;
+      }
+      .act-body .head {
+        color: var(--text-2);
+        margin-bottom: 6px;
+      }
+      .act-items {
+        line-height: 2;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .more-line {
+        color: var(--text-3);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .diff {
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.9;
+        margin: 6px 0;
+      }
+      .diff div {
+        padding: 0 8px;
+        white-space: pre-wrap;
+      }
+      .diff .l-add {
+        background: var(--add-bg);
+        color: var(--add-fg);
+      }
+      .diff .l-del {
+        background: var(--del-bg);
+        color: var(--del-fg);
+      }
+      .diff .l-ctx {
+        color: var(--text-3);
+      }
+      .out {
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.7;
+        background: var(--surface-2);
+        border-radius: 6px;
+        padding: 8px 12px;
+        white-space: pre-wrap;
+        margin: 6px 0;
+      }
+      .out .snip {
+        color: var(--text-3);
+        font-style: italic;
+      }
+      .evidence {
+        color: var(--text-3);
+        font-size: 11px;
+        margin-top: 6px;
+        font-family: var(--mono);
+      }
+
+      .reasoning {
+        display: none;
+        margin-top: 12px;
+        padding: 8px 14px;
+        border-left: 3px solid var(--border-strong);
+        font-size: 13px;
+        color: var(--text-3);
+        font-style: italic;
+      }
+      body.show-reasoning .reasoning {
+        display: block;
+      }
+
+      .response {
+        margin-top: 14px;
+        font-family: var(--serif);
+        font-size: 15.5px;
+        line-height: 1.85;
+      }
+      .response p {
+        margin: 0 0 0.8em;
+      }
+      .response p:last-child {
+        margin-bottom: 0;
+      }
+      .response code {
+        font-family: var(--mono);
+        font-size: 13px;
+        background: var(--surface-2);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+
+      details.tc {
+        margin-top: 10px;
+        padding-left: 20px;
+        border-left: 2px solid var(--border);
+      }
+      details.tc > summary {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 13px;
+        padding: 6px 0;
+      }
+      details.tc > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.tc .tl {
+        color: var(--text-3);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      details.tc .tp {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-2);
+      }
+      details.tc .tchips {
+        color: var(--text-3);
+        font-size: 12px;
+        white-space: nowrap;
+        font-family: var(--mono);
+      }
+      details.tc .tc-body {
+        font-size: 13.5px;
+        color: var(--text-2);
+        font-family: var(--serif);
+        padding: 4px 0 10px;
+        line-height: 1.8;
+      }
+
+      footer.audit {
+        margin-top: 44px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--text-3);
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+      }
+      footer.audit label {
+        cursor: pointer;
+        user-select: none;
+        color: var(--text-2);
+      }
+      footer.audit .hash {
+        font-family: var(--mono);
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+
+    <script type="application/json" id="session-data">
+      {
+        "meta": {
+          "title": "重构 ACP 进程池与 session 探针生命周期",
+          "agent": "Claude Code",
+          "sessionMode": "fyllocode",
+          "workspace": "FylloCode",
+          "createdAt": "2026-08-04",
+          "durationMin": 385,
+          "turnCount": 28,
+          "tokenUsage": { "used": 1240000, "cost": { "amount": 18.4, "currency": "USD" } },
+          "kindStats": { "read": 214, "search": 41, "edit": 63, "execute": 96, "delegate": 5 }
+        },
+        "changes": {
+          "totals": { "files": 12, "added": 885, "removed": 201 },
+          "note": "阶段 3 的事件驱动实现已整体回退（第 15 轮），其改动不计入净变更。",
+          "groups": [
+            {
+              "dir": "src/main/infra/process/",
+              "open": true,
+              "added": 214,
+              "removed": 96,
+              "files": [
+                { "name": "acp-process-pool.ts", "added": 214, "removed": 96, "editCount": 11 }
+              ]
+            },
+            {
+              "dir": "src/main/services/session/chat/",
+              "open": true,
+              "added": 140,
+              "removed": 59,
+              "files": [
+                { "name": "session-probe-service.ts", "added": 88, "removed": 41, "editCount": 7 },
+                { "name": "session-probe-registry.ts", "added": 52, "removed": 18, "editCount": 4 }
+              ]
+            },
+            {
+              "dir": "src/main/bootstrap/",
+              "open": false,
+              "added": 83,
+              "removed": 38,
+              "files": [
+                { "name": "runtime.ts", "added": 36, "removed": 22, "editCount": 3 },
+                { "name": "shutdown.ts", "added": 28, "removed": 9, "editCount": 3 },
+                { "name": "workspace-window-manager.ts", "added": 19, "removed": 7, "editCount": 2 }
+              ]
+            },
+            {
+              "dir": "test/main/（5 个文件）",
+              "open": false,
+              "added": 412,
+              "removed": 2,
+              "files": [
+                { "name": "acp-process-pool.spec.ts", "added": 186, "removed": 2, "editCount": 5 },
+                {
+                  "name": "session-probe-service.spec.ts",
+                  "added": 94,
+                  "removed": 0,
+                  "editCount": 3
+                },
+                {
+                  "name": "session-probe-registry.spec.ts",
+                  "added": 58,
+                  "removed": 0,
+                  "editCount": 2
+                },
+                { "name": "runtime.spec.ts", "added": 42, "removed": 0, "editCount": 1 },
+                { "name": "shutdown.spec.ts", "added": 32, "removed": 0, "editCount": 1 }
+              ]
+            },
+            {
+              "dir": "其他",
+              "open": false,
+              "added": 36,
+              "removed": 6,
+              "files": [
+                { "name": "src/shared/types/ipc.ts", "added": 12, "removed": 2, "editCount": 1 },
+                { "name": "guidelines/MainProcess.md", "added": 24, "removed": 6, "editCount": 2 }
+              ]
+            }
+          ]
+        },
+        "commands": [
+          { "cmd": "pnpm typecheck", "ok": true, "note": "共跑 9 次" },
+          { "cmd": "pnpm test acp-process-pool", "ok": false, "note": "阶段 3/4 共失败 5 次" },
+          { "cmd": "pnpm test acp-process-pool", "ok": true },
+          { "cmd": "pnpm test（全量 1,842 用例）", "ok": true, "note": "4 分 11 秒" },
+          { "cmd": "pnpm lint", "ok": true },
+          { "cmd": "pnpm build", "ok": true }
+        ],
+        "commandNote": "共执行 96 条命令，此处仅列关键结果",
+        "readCount": 214,
+        "commandCount": 96,
+        "phases": [
+          { "title": "需求澄清与现状探索", "range": "轮 1–4" },
+          { "title": "方案设计与评审", "range": "轮 5–8" },
+          { "title": "第一次实现：事件驱动", "range": "轮 9–15", "reverted": true },
+          { "title": "重新实现：引用计数", "range": "轮 16–23" },
+          { "title": "测试回归与收尾", "range": "轮 24–28" }
+        ],
+        "turns": [
+          {
+            "n": 1,
+            "phase": {
+              "id": 1,
+              "title": "阶段 1 · 需求澄清与现状探索",
+              "digest": "轮 1–4 · 读取 58 · 搜索 16 · 命令 12"
+            },
+            "prompt": "ACP 进程池现在退出时偶发卡死，session 探针也有泄漏。帮我梳理整个生命周期，然后重构。",
+            "injectedNote": "系统注入的 session prompt 已剥离（356 行）",
+            "reasoning": [
+              "两个症状可能同源：pool 与 registry 互相持有引用，销毁顺序不确定。先全量读生命周期相关代码。"
+            ],
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "read",
+                    "summary": "读取 12 个文件",
+                    "more": 4,
+                    "items": [
+                      { "label": "src/main/infra/process/acp-process-pool.ts" },
+                      { "label": "src/main/services/session/chat/session-probe-service.ts" },
+                      { "label": "src/main/services/session/chat/session-probe-registry.ts" },
+                      { "label": "src/main/bootstrap/runtime.ts" },
+                      { "label": "src/main/bootstrap/shutdown.ts" },
+                      { "label": "src/main/bootstrap/workspace-window-manager.ts" },
+                      { "label": "guidelines/MainProcess.md" },
+                      { "label": "src/shared/types/ipc.ts" }
+                    ],
+                    "evidence": "msg_a1f0 / exec-1101 起 12 条"
+                  },
+                  {
+                    "kind": "search",
+                    "summary": "搜索 6 次",
+                    "more": 4,
+                    "items": [
+                      { "label": "grep \"registerProbe\" src/ — 9 处调用点" },
+                      { "label": "grep \"dispose\" src/main/infra/process/" }
+                    ],
+                    "evidence": "msg_a1f0 / exec-1113 起 6 条"
+                  },
+                  {
+                    "kind": "delegate",
+                    "summary": "委派 Explore 子任务",
+                    "detail": {
+                      "command": "Explore：盘点 session-probe-registry 的全部消费方与销毁路径",
+                      "ok": true,
+                      "outputHead": "9 处调用点，其中 3 处（window-manager、shutdown、chat-service）各自直接调用 dispose，无统一归属。",
+                      "outputTail": null,
+                      "hash": "sha256:2ac0…91be"
+                    },
+                    "evidence": "msg_a1f0 / exec-1120"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "梳理完了。生命周期现状是三方互相纠缠：`acp-process-pool` 持有进程句柄，`session-probe-registry` 持有定时器与 pool 的回调引用，bootstrap 的三个模块（runtime、shutdown、window-manager）各自在不同时机调用 dispose，没有统一归属。\n\n两个症状确实同源：窗口关闭走 window-manager 的 dispose，但 probe 定时器注册在 registry 里没被级联；shutdown 等 pool 退出时，pool 又在等 registry 的回调释放——偶发互等即卡死。下一步我先给出候选方案再动手。"
+              }
+            ]
+          },
+          {
+            "n": 2,
+            "prompt": "把探针泄漏的复现步骤跑给我看",
+            "lite": {
+              "chips": "◉ 3 · ❯ 6",
+              "one": "复现成功：窗口关闭后 probe 定时器仍存活，泄漏点是 registry 的 dispose 未级联到定时器句柄。"
+            }
+          },
+          {
+            "n": 3,
+            "prompt": "shutdown 卡死呢？",
+            "lite": {
+              "chips": "◉ 5 · ❯ 4",
+              "one": "定位到 shutdown 等待进程退出的 Promise 无超时，且 SIGTERM 在 pool 重启窗口期会被吞掉。"
+            }
+          },
+          {
+            "n": 4,
+            "prompt": "好，总结一下问题清单",
+            "lite": {
+              "chips": "纯文本轮",
+              "one": "三个根因：dispose 不级联、shutdown 无超时、pool 与 registry 生命周期互相引用。"
+            }
+          },
+          {
+            "n": 5,
+            "phase": {
+              "id": 2,
+              "title": "阶段 2 · 方案设计与评审",
+              "digest": "轮 5–8 · 读取 21 · 委派 3 · 命令 6"
+            },
+            "prompt": "给出两个候选方案对比",
+            "lite": {
+              "chips": "◉ 4",
+              "one": "方案 A：事件总线解耦三方；方案 B：引用计数租约 + 显式 ownership。给出了权衡表，A 改动面小但异步语义存疑。"
+            }
+          },
+          {
+            "n": 6,
+            "prompt": "分别评估两个方案对现有测试的冲击",
+            "reasoning": ["两个评估互相独立，各派一个子 agent 并行跑，比自己串行读快。"],
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "delegate",
+                    "summary": "委派 2 个评估子任务",
+                    "items": [
+                      { "label": "子任务 A：事件总线方案对 47 个存量用例的冲击面" },
+                      { "label": "子任务 B：租约方案对 mock 结构的冲击面" }
+                    ],
+                    "evidence": "msg_c2d8 / exec-2301、exec-2302"
+                  },
+                  {
+                    "kind": "read",
+                    "summary": "读取 5 个测试文件",
+                    "items": [
+                      { "label": "test/main/infra/process/acp-process-pool.spec.ts" },
+                      { "label": "test/main/services/session/chat/session-probe-service.spec.ts" },
+                      { "label": "test/main/bootstrap/shutdown.spec.ts" },
+                      { "label": "test/main/bootstrap/runtime.spec.ts" },
+                      { "label": "test/main/bootstrap/workspace-window-manager.spec.ts" }
+                    ],
+                    "evidence": "msg_c2d8 / exec-2310 起 5 条"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "评估结论：方案 A 存量用例只需改 8 个，但有 12 个用例依赖同步销毁顺序，事件化后这些断言全部变成时序敏感；方案 B 要改 19 个用例的 mock 结构，但断言语义不变。\n\n短期成本 A 低，长期风险 A 高。我的倾向是 B，但 A 的改动面确实诱人——这个决策留给你。"
+              }
+            ]
+          },
+          {
+            "n": 7,
+            "prompt": "先按方案 A 做，改动面小先试试",
+            "lite": {
+              "chips": "纯文本轮",
+              "one": "确认以事件总线为核心的改造顺序：pool 先行、registry 跟进、bootstrap 最后接线。"
+            }
+          },
+          {
+            "n": 8,
+            "prompt": "开始前把基线测试跑一遍",
+            "lite": { "chips": "❯ 3", "one": "基线全绿：相关 47 个用例通过，记录耗时作为对照。" }
+          },
+          {
+            "n": 9,
+            "phase": {
+              "id": 3,
+              "title": "阶段 3 · 第一次实现：事件驱动",
+              "digest": "轮 9–15 · 修改 21 · 命令 30 · 读取 48",
+              "reverted": true
+            },
+            "prompt": "开始实现方案 A",
+            "reasoning": [
+              "先把 pool 的直接回调替换为事件发布，registry 改为订阅方，保持接口不变。"
+            ],
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "edit",
+                    "summary": "修改 acp-process-pool.ts",
+                    "detail": {
+                      "file": "src/main/infra/process/acp-process-pool.ts",
+                      "added": 64,
+                      "removed": 31,
+                      "editCount": 4,
+                      "snippet": [
+                        ["del", "    this.onProcessExit?.(handle.processId);"],
+                        [
+                          "add",
+                          "    this.events.emit(\"process-exit\", { processId: handle.processId });"
+                        ]
+                      ]
+                    },
+                    "evidence": "msg_e4a2 / exec-3401 起 4 条"
+                  },
+                  {
+                    "kind": "edit",
+                    "summary": "修改 session-probe-registry.ts",
+                    "detail": {
+                      "file": "src/main/services/session/chat/session-probe-registry.ts",
+                      "added": 38,
+                      "removed": 15,
+                      "editCount": 2,
+                      "snippet": [
+                        [
+                          "add",
+                          "    pool.events.on(\"process-exit\", (e) => this.releaseByProcess(e.processId));"
+                        ]
+                      ]
+                    },
+                    "evidence": "msg_e4a2 / exec-3406"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "第一批改造完成：pool 不再直接回调 registry，改为发布 `process-exit` / `process-spawn` 事件，registry 作为订阅方自行释放。先跑类型检查和相关测试。"
+              },
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm typecheck",
+                    "detail": {
+                      "command": "pnpm typecheck",
+                      "ok": true,
+                      "outputHead": "✓ no errors found",
+                      "outputTail": null,
+                      "hash": "sha256:11f2…8d03"
+                    },
+                    "evidence": "msg_e4a2 / exec-3410"
+                  },
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm test acp-process-pool（失败）",
+                    "detail": {
+                      "command": "pnpm test acp-process-pool",
+                      "ok": false,
+                      "outputHead": "FAIL test/main/infra/process/acp-process-pool.spec.ts\n  ✗ releases probes before pool teardown\n  ✗ shutdown drains pending probes",
+                      "outputTail": "Tests: 2 failed, 45 passed",
+                      "hash": "sha256:9ab4…c771"
+                    },
+                    "evidence": "msg_e4a2 / exec-3411"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "两个用例挂了，都是断言\"销毁前 probe 已释放\"——事件异步派发让释放时机晚于断言点。这正是评估时预警的时序敏感问题，先按事件顺序修。"
+              }
+            ]
+          },
+          {
+            "n": 10,
+            "prompt": "继续修",
+            "lite": {
+              "chips": "✎ 4 · ❯ 6",
+              "one": "修复事件顺序后，又暴露出 shutdown 期间事件订阅方重入 dispose 的问题。"
+            }
+          },
+          {
+            "n": 11,
+            "prompt": "重入问题怎么解？",
+            "lite": {
+              "chips": "◉ 6 · ✎ 2",
+              "one": "加了状态机守卫挡住重入，但窗口销毁路径与事件派发之间仍有竞态。"
+            }
+          },
+          {
+            "n": 12,
+            "prompt": "flaky 的测试查一下",
+            "lite": {
+              "chips": "❯ 8 · ◉ 4",
+              "one": "复跑 20 次失败 3 次：竞态发生在事件异步派发与 window-manager 同步 dispose 之间。"
+            }
+          },
+          {
+            "n": 13,
+            "prompt": "试试把派发改成同步",
+            "lite": {
+              "chips": "✎ 3 · ❯ 5",
+              "one": "同步派发解决了竞态，但立即引入重入死锁——事件驱动开始对抗进程销毁的天然同步顺序。"
+            }
+          },
+          {
+            "n": 14,
+            "prompt": "你的判断？",
+            "lite": {
+              "chips": "纯文本轮",
+              "one": "建议回退：方案 A 与 Electron 窗口销毁的同步语义根本冲突，补丁在叠补丁，改走方案 B。"
+            }
+          },
+          {
+            "n": 15,
+            "prompt": "同意，回退，换方案 B",
+            "revert": true,
+            "reasoning": [
+              "回退代码但保留资产：问题清单、新增的时序测试用例、以及'哪里会竞态'的知识都带到方案 B。"
+            ],
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "execute",
+                    "summary": "回退工作区改动",
+                    "detail": {
+                      "command": "git restore --source=HEAD --worktree -- src/ && git status --short",
+                      "ok": true,
+                      "outputHead": "?? test/main/infra/process/acp-process-pool.spec.ts（时序用例保留）",
+                      "outputTail": null,
+                      "hash": "sha256:f2e9…3a17"
+                    },
+                    "evidence": "msg_g6b1 / exec-4501"
+                  },
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm test（基线复验）",
+                    "detail": {
+                      "command": "pnpm test acp-process-pool session-probe",
+                      "ok": true,
+                      "outputHead": "Tests: 47 passed",
+                      "outputTail": null,
+                      "hash": "sha256:0d21…77c8"
+                    },
+                    "evidence": "msg_g6b1 / exec-4502"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "已回退到基线并复验通过。三样资产保留下来：问题清单、阶段 3 新写的 6 个时序敏感用例（它们恰好是方案 B 的验收标准）、以及竞态点的定位知识。\n\n复盘一句话：事件驱动适合解耦\"谁在什么时候发生\"，但进程销毁需要的是\"谁必须在谁之前完成\"——这是顺序契约，不是事件。方案 B 的租约模型直接表达这个契约。"
+              }
+            ]
+          },
+          {
+            "n": 16,
+            "phase": {
+              "id": 4,
+              "title": "阶段 4 · 重新实现：引用计数",
+              "digest": "轮 16–23 · 修改 34 · 命令 38 · 读取 62"
+            },
+            "prompt": "按方案 B 铺骨架",
+            "lite": {
+              "chips": "✎ 5 · ❯ 3",
+              "one": "引用计数句柄 AcpProcessLease 落地：pool 只管租约的发放与计数归零后的回收。"
+            }
+          },
+          {
+            "n": 17,
+            "prompt": "把 registry 接到租约上",
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "edit",
+                    "summary": "修改 session-probe-registry.ts",
+                    "detail": {
+                      "file": "src/main/services/session/chat/session-probe-registry.ts",
+                      "added": 34,
+                      "removed": 12,
+                      "editCount": 2,
+                      "snippet": [
+                        ["ctx", "  register(sessionId: string, probe: SessionProbe): void {"],
+                        ["del", "    this.probes.set(sessionId, probe);"],
+                        ["add", "    const lease = this.pool.acquireLease(probe.processId);"],
+                        ["add", "    this.probes.set(sessionId, { probe, lease });"]
+                      ]
+                    },
+                    "evidence": "msg_j8c3 / exec-5601"
+                  },
+                  {
+                    "kind": "edit",
+                    "summary": "修改 session-probe-service.ts",
+                    "detail": {
+                      "file": "src/main/services/session/chat/session-probe-service.ts",
+                      "added": 41,
+                      "removed": 19,
+                      "editCount": 3,
+                      "snippet": [["add", "    entry.lease.release();"]]
+                    },
+                    "evidence": "msg_j8c3 / exec-5605"
+                  },
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm typecheck",
+                    "detail": {
+                      "command": "pnpm typecheck",
+                      "ok": true,
+                      "outputHead": "✓ no errors found",
+                      "outputTail": null,
+                      "hash": "sha256:6b30…e412"
+                    },
+                    "evidence": "msg_j8c3 / exec-5609"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "registry 不再直接持有进程引用：注册即取租约，注销即释放。销毁顺序由计数归零驱动，`pool` 在最后一个租约释放前不会回收进程——互等死锁在结构上不可能出现了。"
+              }
+            ]
+          },
+          {
+            "n": 18,
+            "prompt": "bootstrap 侧接线",
+            "lite": {
+              "chips": "✎ 6 · ◉ 4",
+              "one": "runtime、shutdown、window-manager 三处统一走租约释放链，删除各自为政的 dispose 调用。"
+            }
+          },
+          {
+            "n": 19,
+            "prompt": "IPC 类型补上",
+            "lite": {
+              "chips": "✎ 2",
+              "one": "shared/types/ipc.ts 增加租约状态事件类型，渲染进程可观测进程存活。"
+            }
+          },
+          {
+            "n": 20,
+            "prompt": "跑一下相关测试",
+            "lite": {
+              "chips": "❯ 4",
+              "one": "12 个用例失败：多数是旧 mock 假设 pool 直接持有 probe，需按租约结构重写。"
+            }
+          },
+          {
+            "n": 21,
+            "prompt": "把测试修到绿",
+            "reasoning": ["mock 重写有统一模式：假 pool 换成带计数的 stub lease。批量处理。"],
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "edit",
+                    "summary": "修改 5 个测试文件",
+                    "more": 2,
+                    "items": [
+                      { "label": "test/main/infra/process/acp-process-pool.spec.ts +186 −2" },
+                      {
+                        "label": "test/main/services/session/chat/session-probe-service.spec.ts +94"
+                      },
+                      {
+                        "label": "test/main/services/session/chat/session-probe-registry.spec.ts +58"
+                      }
+                    ],
+                    "evidence": "msg_m1e7 / exec-6701 起 5 条"
+                  },
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm test（失败）",
+                    "detail": {
+                      "command": "pnpm test acp-process-pool session-probe",
+                      "ok": false,
+                      "outputHead": "FAIL acp-process-pool.spec.ts\n  ✗ recycles process after last lease release\n\nexpected pool.size to be 0, received 1",
+                      "outputTail": "Tests: 1 failed, 58 passed\n（中间 214 行截断，完整输出 sha256:d4a8…09f2）",
+                      "hash": "sha256:d4a8…09f2"
+                    },
+                    "evidence": "msg_m1e7 / exec-6710"
+                  },
+                  {
+                    "kind": "edit",
+                    "summary": "修复计数归零回收",
+                    "detail": {
+                      "file": "src/main/infra/process/acp-process-pool.ts",
+                      "added": 6,
+                      "removed": 2,
+                      "editCount": 1,
+                      "snippet": [
+                        ["del", "    if (entry.leaseCount === 0) this.recycle(entry);"],
+                        [
+                          "add",
+                          "    if (entry.leaseCount === 0 && !entry.recycling) void this.recycle(entry);"
+                        ]
+                      ]
+                    },
+                    "evidence": "msg_m1e7 / exec-6714"
+                  },
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm test（通过）",
+                    "detail": {
+                      "command": "pnpm test acp-process-pool session-probe",
+                      "ok": true,
+                      "outputHead": "Tests: 59 passed, 59 total",
+                      "outputTail": null,
+                      "hash": "sha256:41c7…b3d5"
+                    },
+                    "evidence": "msg_m1e7 / exec-6716"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "59 个用例全绿，包括阶段 3 留下的 6 个时序用例——它们在租约模型下第一次全部稳定通过。挂掉的那个是回收重入：归零瞬间并发 acquire 会二次触发 recycle，加了 `recycling` 守卫。"
+              }
+            ]
+          },
+          {
+            "n": 22,
+            "prompt": "泄漏复现脚本再跑",
+            "lite": {
+              "chips": "❯ 5",
+              "one": "窗口关闭后定时器清零，泄漏消失；shutdown 在 3 秒内干净退出。"
+            }
+          },
+          {
+            "n": 23,
+            "prompt": "压力测一下：10 窗口反复开关",
+            "lite": {
+              "chips": "❯ 6",
+              "one": "10 窗口开关 50 轮无泄漏，租约计数最终归零，无僵尸进程。"
+            }
+          },
+          {
+            "n": 24,
+            "phase": {
+              "id": 5,
+              "title": "阶段 5 · 测试回归与收尾",
+              "digest": "轮 24–28 · 命令 10 · 修改 4"
+            },
+            "prompt": "全量测试",
+            "lite": {
+              "chips": "❯ 3",
+              "one": "全量 1,842 个用例通过，耗时 4 分 11 秒，较基线无回归。"
+            }
+          },
+          {
+            "n": 25,
+            "prompt": "更新 MainProcess 指南",
+            "lite": {
+              "chips": "✎ 2 · ◉ 3",
+              "one": "生命周期章节改写为租约模型，并把阶段 3 的回退经验记入设计取舍。"
+            }
+          },
+          {
+            "n": 26,
+            "prompt": "typecheck + lint",
+            "lite": { "chips": "❯ 4", "one": "全部通过。" }
+          },
+          {
+            "n": 27,
+            "prompt": "这次的坑写进 guidelines 了吗？",
+            "lite": {
+              "chips": "◉ 2",
+              "one": "已增补\"事件驱动 vs 生命周期同步语义\"一节，含判断标准。"
+            }
+          },
+          {
+            "n": 28,
+            "prompt": "收尾总结",
+            "blocks": [
+              {
+                "t": "acts",
+                "a": [
+                  {
+                    "kind": "execute",
+                    "summary": "pnpm build",
+                    "detail": {
+                      "command": "pnpm build",
+                      "ok": true,
+                      "outputHead": "✓ typecheck passed\n✓ built in 42.3s",
+                      "outputTail": null,
+                      "hash": "sha256:88e1…4f60"
+                    },
+                    "evidence": "msg_r5g9 / exec-7801"
+                  }
+                ]
+              },
+              {
+                "t": "md",
+                "x": "收尾完成。净变更 12 个文件 +885 −201：核心是 `acp-process-pool` 的租约模型、registry/service 的租约接入、bootstrap 三模块的统一释放链，以及 5 个测试文件的重写。两个原始症状（探针泄漏、shutdown 卡死）均已消除并有压力测试背书。\n\n遗留一项：渲染进程对租约状态事件的消费尚未实现，只定义了类型——建议另开会话处理。"
+              }
+            ]
+          }
+        ],
+        "audit": {
+          "redactions": ["路径相对化 96 处", "[redacted] 2 处（命令输出中的本机用户名）"],
+          "sourceHash": "sha256:5c17ab90…e4d2",
+          "exportedAt": "2026-08-06T14:02:00+08:00",
+          "generator": "FylloCode 0.15.1"
+        }
+      }
+    </script>
+
+    <script>
+      (function () {
+        const data = JSON.parse(document.getElementById("session-data").textContent);
+        const esc = (s) =>
+          String(s).replace(
+            /[&<>"]/g,
+            (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]
+          );
+        const stat = (n) =>
+          n >= 1000000
+            ? (n / 1000000).toFixed(1) + "M"
+            : n >= 1000
+              ? Math.round(n / 1000) + "k"
+              : String(n);
+        const KIND = {
+          read: { cls: "k-read", icon: "◉", label: "读取" },
+          search: { cls: "k-search", icon: "⌕", label: "搜索" },
+          edit: { cls: "k-edit", icon: "✎", label: "修改" },
+          execute: { cls: "k-exec", icon: "❯", label: "命令" },
+          delegate: { cls: "k-delegate", icon: "⇢", label: "委派" },
+        };
+        const md = (text) =>
+          esc(text)
+            .split("\n\n")
+            .map((p) => "<p>" + p.replace(/`([^`]+)`/g, "<code>$1</code>") + "</p>")
+            .join("");
+        const diffStat = (a, r) =>
+          (a ? '<span class="add">+' + a + "</span> " : "") +
+          (r ? '<span class="del">−' + r + "</span>" : "");
+
+        function renderHeader(m) {
+          const chips = Object.entries(m.kindStats)
+            .map(([k, n]) => {
+              const d = KIND[k];
+              return (
+                '<span class="chip ' + d.cls + '">' + d.icon + " " + d.label + " " + n + "</span>"
+              );
+            })
+            .join("");
+          const cost = m.tokenUsage.cost;
+          const hours = (m.durationMin / 60).toFixed(1);
+          return (
+            "<header><h1>" +
+            esc(m.title) +
+            "</h1>" +
+            '<p class="meta-line">' +
+            [
+              m.agent,
+              m.sessionMode + " 模式",
+              m.createdAt,
+              hours + " 小时",
+              m.workspace + " 工作区",
+            ]
+              .map(esc)
+              .join(" · ") +
+            "</p>" +
+            '<div class="chips"><span class="chip">' +
+            m.turnCount +
+            " 轮对话</span>" +
+            chips +
+            '<span class="chip">' +
+            stat(m.tokenUsage.used) +
+            " tokens · $" +
+            cost.amount.toFixed(2) +
+            "</span></div></header>"
+          );
+        }
+
+        function renderNav(phases) {
+          return (
+            '<nav class="turn-nav"><span class="nav-count">' +
+            data.meta.turnCount +
+            " 轮</span>" +
+            phases
+              .map(
+                (p, i) =>
+                  '<a href="#phase-' +
+                  (i + 1) +
+                  '">' +
+                  (i + 1) +
+                  " " +
+                  esc(p.title) +
+                  (p.reverted ? " ↩" : "") +
+                  "</a>"
+              )
+              .join("") +
+            '<a href="#audit" style="margin-left:auto">审计</a></nav>'
+          );
+        }
+
+        function renderChanges(c, cmds) {
+          const groups = c.groups
+            .map((g) => {
+              const rows = g.files
+                .map(
+                  (f) =>
+                    '<div class="file-row"><span>' +
+                    esc(f.name) +
+                    (f.editCount > 1
+                      ? '<span class="file-note">改动 ' + f.editCount + " 次</span>"
+                      : "") +
+                    "</span><span>" +
+                    diffStat(f.added, f.removed) +
+                    "</span></div>"
+                )
+                .join("");
+              return (
+                '<details class="group"' +
+                (g.open ? " open" : "") +
+                "><summary><span>" +
+                esc(g.dir) +
+                ' <span class="dim">' +
+                g.files.length +
+                " 个文件</span></span><span>" +
+                diffStat(g.added, g.removed) +
+                "</span></summary>" +
+                '<div class="group-files">' +
+                rows +
+                "</div></details>"
+              );
+            })
+            .join("");
+          const cmdRows = cmds
+            .map(
+              (x) =>
+                '<div class="' +
+                (x.ok ? "cmd-ok" : "cmd-fail") +
+                '">' +
+                esc(x.cmd) +
+                (x.note ? '<span class="file-note">' + esc(x.note) + "</span>" : "") +
+                "</div>"
+            )
+            .join("");
+          return (
+            '<section class="card"><div class="sec-head"><span class="sec-title">这次会话改了什么</span>' +
+            '<span class="totals">' +
+            c.totals.files +
+            " 个文件 · " +
+            diffStat(c.totals.added, c.totals.removed) +
+            "</span></div>" +
+            groups +
+            (c.note ? '<p class="aside-note">↩ ' + esc(c.note) + "</p>" : "") +
+            '<div class="sec-head" style="margin-top:18px"><span class="sec-title">关键命令</span>' +
+            '<span class="totals dim">' +
+            esc(data.commandNote) +
+            "</span></div>" +
+            '<div class="cmd-list">' +
+            cmdRows +
+            "</div>" +
+            '<p class="aside-note">另读取 ' +
+            data.readCount +
+            " 个文件、共执行 " +
+            data.commandCount +
+            " 条命令 — 见下方时间线。完整代码变更请以 git / proposal 为准。</p></section>"
+          );
+        }
+
+        function renderActivity(a) {
+          const d = KIND[a.kind];
+          let body = "";
+          if (a.items) {
+            body =
+              '<div class="act-body"><div class="act-items">' +
+              a.items.map((it) => "<div>" + esc(it.label) + "</div>").join("") +
+              "</div>" +
+              (a.more ? '<div class="more-line">…还有 ' + a.more + " 条，见原始记录</div>" : "") +
+              '<div class="evidence">证据：' +
+              esc(a.evidence) +
+              "</div></div>";
+          } else if (a.detail && a.kind === "edit") {
+            const t = a.detail;
+            body =
+              '<div class="act-body"><div class="head">Edit · ' +
+              esc(t.file) +
+              " · " +
+              diffStat(t.added, t.removed) +
+              (t.editCount > 1
+                ? ' <span class="dim">（本轮共 ' + t.editCount + " 次，示例为其一）</span>"
+                : "") +
+              "</div>" +
+              '<div class="diff">' +
+              t.snippet
+                .map(([kind, line]) => {
+                  const cls = kind === "add" ? "l-add" : kind === "del" ? "l-del" : "l-ctx";
+                  const sign = kind === "add" ? "+ " : kind === "del" ? "− " : "  ";
+                  return '<div class="' + cls + '">' + sign + esc(line) + "</div>";
+                })
+                .join("") +
+              '</div><div class="evidence">证据：' +
+              esc(a.evidence) +
+              "</div></div>";
+          } else if (a.detail) {
+            const t = a.detail;
+            body =
+              '<div class="act-body"><div class="head">' +
+              (t.ok ? "✓" : "✗") +
+              " " +
+              esc(t.command) +
+              "</div>" +
+              '<div class="out">' +
+              esc(t.outputHead) +
+              (t.outputTail ? '\n<span class="snip">…</span>\n' + esc(t.outputTail) : "") +
+              "</div>" +
+              '<div class="evidence">证据：' +
+              esc(a.evidence) +
+              " · 完整输出 " +
+              esc(t.hash) +
+              "</div></div>";
+          }
+          return (
+            '<details class="act ' +
+            d.cls +
+            '"><summary>' +
+            d.icon +
+            " " +
+            esc(a.summary) +
+            "</summary>" +
+            body +
+            "</details>"
+          );
+        }
+
+        function renderBlocks(blocks) {
+          return blocks
+            .map((b) =>
+              b.t === "acts"
+                ? '<div class="acts">' + b.a.map(renderActivity).join("") + "</div>"
+                : '<div class="response">' + md(b.x) + "</div>"
+            )
+            .join("");
+        }
+
+        function renderTurn(t) {
+          let html = "";
+          if (t.phase) {
+            html +=
+              '<div class="phase" id="phase-' +
+              t.phase.id +
+              '"><h2>' +
+              esc(t.phase.title) +
+              "</h2>" +
+              (t.phase.reverted ? '<span class="badge-revert">已回退</span>' : "") +
+              '<span class="pd">' +
+              esc(t.phase.digest) +
+              "</span></div>";
+          }
+          if (t.lite) {
+            html +=
+              '<details class="tc"><summary><span class="tl">第 ' +
+              t.n +
+              ' 轮</span><span class="tp">' +
+              esc(t.prompt) +
+              '</span><span class="tchips">' +
+              esc(t.lite.chips) +
+              "</span></summary>" +
+              '<div class="tc-body">' +
+              esc(t.lite.one) +
+              "</div></details>";
+            return html;
+          }
+          html +=
+            '<article class="turn" id="turn-' +
+            t.n +
+            '">' +
+            '<p class="turn-label">第 ' +
+            t.n +
+            " 轮 · 用户" +
+            (t.revert ? ' <span class="badge-revert">回退</span>' : "") +
+            "</p>" +
+            '<div class="prompt">' +
+            esc(t.prompt) +
+            "</div>" +
+            (t.injectedNote ? '<p class="injected-note">' + esc(t.injectedNote) + "</p>" : "") +
+            (t.reasoning || []).map((r) => '<div class="reasoning">' + esc(r) + "</div>").join("") +
+            renderBlocks(t.blocks) +
+            "</article>";
+          return html;
+        }
+
+        function renderAudit(a) {
+          return (
+            '<footer class="audit" id="audit"><span>已脱敏：' +
+            a.redactions.map(esc).join(" · ") +
+            '</span><span class="hash">原始记录 ' +
+            esc(a.sourceHash) +
+            "</span>" +
+            "<span>导出于 " +
+            esc(a.exportedAt) +
+            " · " +
+            esc(a.generator) +
+            "</span>" +
+            '<label><input type="checkbox" id="toggle-reasoning" /> 显示思考过程</label></footer>'
+          );
+        }
+
+        document.getElementById("app").innerHTML =
+          renderHeader(data.meta) +
+          renderNav(data.phases) +
+          renderChanges(data.changes, data.commands) +
+          '<div class="sec-title" style="margin-top:28px">时间线 · 关键轮全文展示，常规轮折叠为单行</div>' +
+          data.turns.map(renderTurn).join("") +
+          renderAudit(data.audit);
+
+        document.getElementById("toggle-reasoning").addEventListener("change", (e) => {
+          document.body.classList.toggle("show-reasoning", e.target.checked);
+        });
+      })();
+    </script>
+  </body>
+</html>
