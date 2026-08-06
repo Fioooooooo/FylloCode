@@ -9,6 +9,7 @@ function createFakeWindow() {
   Object.assign(webContents, {
     id: 10,
     getURL: vi.fn(() => "file:///app/out/renderer/startup.html"),
+    isDestroyed: vi.fn(() => destroyed),
   });
   let destroyed = false;
   const window = Object.assign(windowEvents, {
@@ -25,6 +26,13 @@ function createFakeWindow() {
       destroyed = true;
       windowEvents.emit("closed");
     }),
+  });
+  Object.defineProperty(window, "webContents", {
+    configurable: true,
+    get: () => {
+      if (destroyed) throw new TypeError("Object has been destroyed");
+      return webContents;
+    },
   });
   return window;
 }
@@ -80,6 +88,19 @@ describe("StartupWindowController", () => {
     expect(() => controller.takeOwnership()).toThrow("ownership is unavailable");
     controller.abort();
     await expect(controller.loadFormalRenderer()).rejects.toThrow("unavailable");
+  });
+
+  it("aborts safely after the handed-off window has already been destroyed", async () => {
+    const window = createFakeWindow();
+    const controller = new StartupWindowController({
+      createWindow: () => window as unknown as BrowserWindow,
+    });
+    controller.takeOwnership();
+
+    window.destroy();
+
+    expect(() => controller.abort()).not.toThrow();
+    await expect(controller.firstVisible).resolves.toBe("closed");
   });
 
   it("restores and focuses the startup window for attention requests", () => {

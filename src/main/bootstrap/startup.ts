@@ -93,7 +93,6 @@ export class StartupWindowController {
 
   abort(): void {
     this.aborted = true;
-    this.clearBarrierResources();
     this.settleBarrier("closed");
   }
 
@@ -141,8 +140,12 @@ export class StartupWindowController {
       clearTimeout(this.barrierTimer);
       this.barrierTimer = null;
     }
-    this.window.webContents.removeListener("did-finish-load", this.handleDidFinishLoad);
-    this.window.webContents.removeListener("did-fail-load", this.handleDidFailLoad);
+    if (this.window.isDestroyed()) return;
+
+    const webContents = this.window.webContents;
+    if (webContents.isDestroyed()) return;
+    webContents.removeListener("did-finish-load", this.handleDidFinishLoad);
+    webContents.removeListener("did-fail-load", this.handleDidFailLoad);
   }
 }
 
