@@ -437,6 +437,14 @@ export async function getOrStartProcess(agentId: string): Promise<AgentProcess> 
   return start;
 }
 
+/**
+ * 返回现有的 ready 进程，但绝不触发启动。资源清理必须使用该入口，避免退出期间反向创建 ACP 进程。
+ */
+export function getReadyProcess(agentId: string): AgentProcess | null {
+  const existing = pool.get(agentId);
+  return existing?.ready ? existing : null;
+}
+
 function scheduleRestart(agentId: string, nextFailures: number, generation: number): void {
   const delayMs = BACKOFF_MS[Math.min(nextFailures - 1, BACKOFF_MS.length - 1)];
   logger.info(

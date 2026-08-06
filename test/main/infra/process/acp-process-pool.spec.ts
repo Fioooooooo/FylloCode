@@ -182,6 +182,17 @@ describe("acp-process-pool", () => {
     expect(entry.initializeResponse).toEqual(initResponse);
   });
 
+  it("reads an existing ready process without starting another one", async () => {
+    const { getOrStartProcess, getReadyProcess } =
+      await import("@main/infra/process/acp-process-pool");
+
+    expect(getReadyProcess("claude-acp")).toBeNull();
+    const entry = await getOrStartProcess("claude-acp");
+
+    expect(getReadyProcess("claude-acp")).toBe(entry);
+    expect(mocks.spawn).toHaveBeenCalledTimes(1);
+  });
+
   it("tracks active sessions only within one process generation", async () => {
     const {
       forgetActiveAcpSession,

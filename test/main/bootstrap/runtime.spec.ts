@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   beginRendererInteractiveFallback: vi.fn(),
   cancelRendererInteractiveFallback: vi.fn(),
   configureShutdownRuntimeResources: vi.fn(),
+  disposeSessionProbes: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -89,6 +90,9 @@ vi.mock("@main/services/proposal/_public", () => ({
 }));
 vi.mock("@main/services/session/chat/session-registry", () => ({
   disposeSessionRegistry: vi.fn(),
+}));
+vi.mock("@main/services/session/chat/session-probe-service", () => ({
+  disposeSessionProbes: mocks.disposeSessionProbes,
 }));
 vi.mock("@main/services/platform/lifecycle/renderer-readiness", () => ({
   configureRendererReadiness: mocks.configureRendererReadiness,

@@ -97,6 +97,16 @@ describe("session-probe-registry", () => {
     expect(sessionProbeRegistry.get("project-a", "codex")).toBe(otherAgentEntry);
   });
 
+  it("deleteAll returns and removes every probe", () => {
+    const first = makeEntry({ workspaceId: "project-a", acpSessionId: "acp-a" });
+    const second = makeEntry({ workspaceId: "project-b", acpSessionId: "acp-b" });
+    sessionProbeRegistry.set(first.workspaceId, first.agentId, first);
+    sessionProbeRegistry.set(second.workspaceId, second.agentId, second);
+
+    expect(sessionProbeRegistry.deleteAll()).toEqual([first, second]);
+    expect(sessionProbeRegistry.keys()).toEqual([]);
+  });
+
   it("takeFor returns the entry with availableCommands when acpSessionId matches", () => {
     const entry = makeEntry({
       acpSessionId: "acp-x",

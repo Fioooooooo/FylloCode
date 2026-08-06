@@ -291,15 +291,17 @@ describe("WorkspaceWindowManager", () => {
     expect(windows[1]?.focus).not.toHaveBeenCalled();
   });
 
-  it("captures state and hides each managed window for shutdown", () => {
-    const { manager, windows } = createHarness();
+  it("captures state, hides windows, and suppresses close-triggered cleanup during shutdown", () => {
+    const { manager, windows, runtimeCleanup } = createHarness();
     manager.openLauncherWindow();
     manager.openWorkspaceWindow("workspace-a");
 
     manager.prepareForShutdown();
+    windows[1]?.close();
 
     expect(saveWindowState).toHaveBeenCalledTimes(2);
     expect(windows[0]?.hide).toHaveBeenCalledOnce();
     expect(windows[1]?.hide).toHaveBeenCalledOnce();
+    expect(runtimeCleanup).not.toHaveBeenCalled();
   });
 });

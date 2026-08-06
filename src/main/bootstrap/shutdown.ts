@@ -34,6 +34,11 @@ export const SHUTDOWN_PHASES = [
         api: "disposeSessions",
       },
       {
+        name: "session-probes",
+        owner: "services/session/chat",
+        api: "disposeSessionProbes",
+      },
+      {
         name: "proposal-status-watchers",
         owner: "services/proposal/browser",
         api: "unwatchProposals",
@@ -116,6 +121,7 @@ export interface ShutdownRuntimeResources {
   cancelRendererFallback(): void;
   beginWarmupShutdown(): void;
   disposeSessions(): void;
+  disposeSessionProbes(): Promise<void>;
   unwatchProposals(): void;
   disposeLineage(): void;
   revokeMcpGrants(): void;
@@ -191,6 +197,7 @@ function createShutdownPhases(
         },
         { name: "agent-connection-warmup", run: () => resources?.beginWarmupShutdown() },
         { name: "session-registry", run: () => resources?.disposeSessions() },
+        { name: "session-probes", run: () => resources?.disposeSessionProbes() },
         { name: "proposal-status-watchers", run: () => resources?.unwatchProposals() },
         { name: "lineage-event-watchers", run: () => resources?.disposeLineage() },
         { name: "mcp-access-grants", run: () => resources?.revokeMcpGrants() },

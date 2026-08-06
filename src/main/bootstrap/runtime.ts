@@ -41,6 +41,7 @@ import {
 import { disposeLineageEventConsumers } from "@main/services/insight/lineage/mcp-event-consumer";
 import { proposalStatusService } from "@main/services/proposal/_public";
 import { disposeSessionRegistry } from "@main/services/session/chat/session-registry";
+import { disposeSessionProbes } from "@main/services/session/chat/session-probe-service";
 import {
   beginRendererInteractiveFallback,
   cancelRendererInteractiveFallback,
@@ -213,6 +214,7 @@ export async function startApplicationRuntime(
     cancelRendererFallback: () => cancelRendererInteractiveFallback(),
     beginWarmupShutdown: beginAgentConnectionWarmupShutdown,
     disposeSessions: disposeSessionRegistry,
+    disposeSessionProbes,
     unwatchProposals: () => proposalStatusService.unwatchAll(),
     disposeLineage: disposeLineageEventConsumers,
     revokeMcpGrants: () => mcpAccessGrantRegistry.revokeAll("application-shutdown"),

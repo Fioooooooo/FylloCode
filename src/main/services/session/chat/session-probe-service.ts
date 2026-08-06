@@ -9,6 +9,7 @@ import {
   clearPendingProbeHandler,
   forgetActiveAcpSession,
   getOrStartProcess,
+  getReadyProcess,
   hasActiveMcpActivation,
   markAcpSessionActive,
   onAgentProcessInvalidated,
@@ -389,8 +390,10 @@ export async function closeProbe(
     return;
   }
 
+  const processEntry = getReadyProcess(agentId);
+  if (!processEntry) return;
+
   try {
-    const processEntry = await getProcess(agentId);
     processEntry.sessionHandlers.delete(entry.acpSessionId);
     forgetActiveAcpSession(processEntry, entry.acpSessionId);
     await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
@@ -409,8 +412,10 @@ export async function closeWorkspaceProbes(workspaceId: string): Promise<void> {
         return;
       }
 
+      const processEntry = getReadyProcess(entry.agentId);
+      if (!processEntry) return;
+
       try {
-        const processEntry = await getProcess(entry.agentId);
         processEntry.sessionHandlers.delete(entry.acpSessionId);
         forgetActiveAcpSession(processEntry, entry.acpSessionId);
         await processEntry.connection.closeSession({ sessionId: entry.acpSessionId });
@@ -420,6 +425,38 @@ export async function closeWorkspaceProbes(workspaceId: string): Promise<void> {
           error
         );
       }
+    })
+  );
+}
+
+/**
+ * 在 ACP process pool terminate 前失效并关闭所有 draft probe，避免窗口销毁阶段再发起清理 RPC。
+ */
+export async function disposeSessionProbes(): Promise<void> {
+  const entries = sessionProbeRegistry.deleteAll();
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      detachProbeFallback(entry.workspaceId, entry.agentId);
+      if (entry.status === "starting") {
+        await entry.inflightEnsure?.catch(() => undefined);
+        return;
+      }
+      if (entry.status !== "ready" || entry.acpSessionId === null) return;
+
+      const processEntry = getReadyProcess(entry.agentId);
+      if (!processEntry) return;
+
+      processEntry.sessionHandlers.delete(entry.acpSessionId);
+      forgetActiveAcpSession(processEntry, entry.acpSessionId);
+      await processEntry.connection
+        .closeSession({ sessionId: entry.acpSessionId })
+        .catch((error: unknown) => {
+          logger.error(
+            `[chat-probe] closeSession failed during shutdown for workspace=${entry.workspaceId} agent=${entry.agentId}`,
+            error
+          );
+        });
     })
   );
 }

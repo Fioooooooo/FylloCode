@@ -31,6 +31,7 @@ function createResources(
     cancelRendererFallback: vi.fn(),
     beginWarmupShutdown: vi.fn(),
     disposeSessions: vi.fn(),
+    disposeSessionProbes: vi.fn(async () => undefined),
     unwatchProposals: vi.fn(),
     disposeLineage: vi.fn(),
     revokeMcpGrants: vi.fn(),
@@ -96,6 +97,10 @@ describe("application shutdown coordinator", () => {
 
     settleMigration();
     await vi.waitFor(() => expect(resources.disposeAcpProcessPool).toHaveBeenCalledOnce());
+    expect(resources.disposeSessionProbes).toHaveBeenCalledOnce();
+    expect(vi.mocked(resources.disposeSessionProbes).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(resources.beginAcpProcessPoolShutdown).mock.invocationCallOrder[0] ?? 0
+    );
     expect(resources.stopBundledMcpHost).toHaveBeenCalledOnce();
     expect(exit).not.toHaveBeenCalled();
 

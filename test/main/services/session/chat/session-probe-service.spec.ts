@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   activeSessionIds: new Set<string>(),
   mcpActivationBySessionId: new Map<string, string>(),
   getOrStartProcess: vi.fn(),
+  getReadyProcess: vi.fn(),
   createBundledMcpActivation: vi.fn(),
   revokeBundledMcpActivation: vi.fn(),
   createSessionMcpWorkspaceDescriptor: vi.fn(),
@@ -75,6 +76,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
+  getReadyProcess: mocks.getReadyProcess,
   onAgentProcessInvalidated: mocks.onAgentProcessInvalidated,
   setPendingProbeHandler: mocks.setPendingProbeHandler,
   clearPendingProbeHandler: mocks.clearPendingProbeHandler,
@@ -132,7 +134,7 @@ describe("session-probe-service", () => {
     mocks.activeSessionIds.clear();
     mocks.mcpActivationBySessionId.clear();
     sessionProbeRegistry.clear();
-    mocks.getOrStartProcess.mockResolvedValue({
+    const processEntry = {
       agentId: "claude-code",
       sessionHandlers: mocks.sessionHandlers,
       activeSessionIds: mocks.activeSessionIds,
@@ -146,7 +148,9 @@ describe("session-probe-service", () => {
         protocolVersion: 1,
         agentCapabilities: {},
       },
-    });
+    };
+    mocks.getOrStartProcess.mockResolvedValue(processEntry);
+    mocks.getReadyProcess.mockReturnValue(processEntry);
     mocks.hasActiveMcpActivation.mockImplementation(
       (entry: { activeSessionIds: Set<string> }, sessionId: string) =>
         entry.activeSessionIds.has(sessionId)
@@ -522,6 +526,42 @@ describe("session-probe-service", () => {
 
     expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
     expect(mocks.logger.error).toHaveBeenCalled();
+  });
+
+  it("disposes every probe before process-pool termination without starting a process", async () => {
+    const { disposeSessionProbes, ensureProbe } =
+      await import("@main/services/session/chat/session-probe-service");
+    mocks.newSession
+      .mockResolvedValueOnce({ sessionId: "acp-a", configOptions: [] })
+      .mockResolvedValueOnce({ sessionId: "acp-b", configOptions: [] });
+    await ensureProbe("workspace-a", "claude-code", workspaceSnapshot("workspace-a", "/tmp/a"));
+    await ensureProbe("workspace-b", "claude-code", workspaceSnapshot("workspace-b", "/tmp/b"));
+    mocks.getOrStartProcess.mockClear();
+
+    await disposeSessionProbes();
+
+    expect(sessionProbeRegistry.keys()).toEqual([]);
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-a" });
+    expect(mocks.closeSession).toHaveBeenCalledWith({ sessionId: "acp-b" });
+  });
+
+  it("does not acquire or log an error when a probe outlives its ACP process", async () => {
+    const { closeWorkspaceProbes, ensureProbe } =
+      await import("@main/services/session/chat/session-probe-service");
+    await ensureProbe(
+      "workspace-1",
+      "claude-code",
+      workspaceSnapshot("workspace-1", "/tmp/project")
+    );
+    mocks.getOrStartProcess.mockClear();
+    mocks.getReadyProcess.mockReturnValueOnce(null);
+
+    await closeWorkspaceProbes("workspace-1");
+
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.logger.error).not.toHaveBeenCalled();
+    expect(sessionProbeRegistry.get("workspace-1", "claude-code")).toBeUndefined();
   });
 
   it("sets a probe config option and returns the latest snapshot", async () => {

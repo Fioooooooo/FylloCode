@@ -131,6 +131,11 @@ export class WorkspaceWindowManager {
   prepareForShutdown(seenOwnershipTokens: Set<object> = new Set()): Set<object> {
     for (const window of this.windows) {
       if (!this.isUsableWindow(window)) continue;
+      const context = this.contextsByWebContentsId.get(window.webContents.id);
+      if (context?.role === "workspace") {
+        // 全局 quiesce 统一清理 Workspace runtime；app.exit 销毁窗口时不得重复触发异步清理。
+        this.skipRuntimeCleanupOnClose.add(context.workspaceId);
+      }
       const reservation = this.reservedLaunchersByWindowId.get(window.id);
       if (reservation) {
         if (seenOwnershipTokens.has(reservation.ownershipToken)) continue;

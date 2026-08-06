@@ -92,6 +92,12 @@ class SessionProbeRegistry {
     return removed;
   }
 
+  deleteAll(): ProbeEntry[] {
+    const removed = [...this.entries.values()];
+    this.entries.clear();
+    return removed;
+  }
+
   clear(): void {
     this.entries.clear();
   }
