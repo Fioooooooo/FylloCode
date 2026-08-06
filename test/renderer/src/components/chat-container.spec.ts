@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { useToast } from "@nuxt/ui/composables";
 import ChatContainer from "@renderer/components/chat/ChatContainer.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
 
@@ -183,6 +184,10 @@ describe("ChatContainer", () => {
       "matchMedia",
       vi.fn(() => ({ matches: false }))
     );
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
     window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
     window.HTMLElement.prototype.scrollTo = scrollToMock;
   });
@@ -282,6 +287,74 @@ describe("ChatContainer", () => {
     await wrapper.vm.$nextTick();
 
     expect(rightActions.find('[data-test="scope-popover-stub"]').exists()).toBe(false);
+  });
+
+  it("shows the current Session actions menu after the scope Popover", async () => {
+    const wrapper = mountContainer();
+    const rightActions = wrapper.get('[data-test="chat-header-right-actions"]');
+
+    expect(rightActions.find('[data-test="chat-session-actions-trigger"]').exists()).toBe(false);
+
+    const session = makeSession();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    await wrapper.vm.$nextTick();
+
+    const scopePopover = rightActions.get('[data-test="scope-popover-stub"]');
+    const trigger = rightActions.get('[data-test="chat-session-actions-trigger"]');
+    expect(trigger.attributes("aria-label")).toBe("会话操作");
+    expect(trigger.attributes("title")).toBe("会话操作");
+    expect(scopePopover.element.nextElementSibling?.contains(trigger.element)).toBe(true);
+    expect(rightActions.get('[data-test="dropdown-item-复制会话 ID"]').text()).toBe("复制会话 ID");
+
+    activeSessionRef.value = null;
+    await wrapper.vm.$nextTick();
+
+    expect(rightActions.find('[data-test="chat-session-actions-trigger"]').exists()).toBe(false);
+  });
+
+  it("copies the active Session id and follows Session switches", async () => {
+    const currentSession = { ...makeSession(), id: "session-current" };
+    activeSessionRef.value = currentSession;
+    activeSessionIdRef.value = currentSession.id;
+    const wrapper = mountContainer();
+    const toast = useToast();
+
+    await wrapper.get('[data-test="dropdown-item-复制会话 ID"]').trigger("click");
+    await flushPromises();
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("session-current");
+    expect(toast.add).toHaveBeenLastCalledWith({
+      title: "会话 ID 已复制",
+      color: "success",
+    });
+
+    const nextSession = { ...currentSession, id: "session-next" };
+    activeSessionRef.value = nextSession;
+    activeSessionIdRef.value = nextSession.id;
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-test="dropdown-item-复制会话 ID"]').trigger("click");
+    await flushPromises();
+
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("session-next");
+  });
+
+  it("reports clipboard errors when copying the active Session id", async () => {
+    const session = makeSession();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("denied"));
+    const wrapper = mountContainer();
+    const toast = useToast();
+
+    await wrapper.get('[data-test="dropdown-item-复制会话 ID"]').trigger("click");
+    await flushPromises();
+
+    expect(toast.add).toHaveBeenLastCalledWith({
+      title: "会话 ID 复制失败",
+      description: "denied",
+      color: "error",
+    });
   });
 
   it("renders an inline stream error after the message list", async () => {

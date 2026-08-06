@@ -12,6 +12,7 @@ import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
 import ChatSessionEventRail from "./event/ChatSessionEventRail.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
 import SessionScopePopover from "./SessionScopePopover.vue";
+import ChatSessionActionsMenu from "./ChatSessionActionsMenu.vue";
 
 const store = useChatStore();
 const { chatStatus, streamError, activeStreamIndicator } = storeToRefs(store);
@@ -82,6 +83,7 @@ function handleCreateSession(): void {
           data-test="chat-header-right-actions"
         >
           <SessionScopePopover v-if="!isDraft" />
+          <ChatSessionActionsMenu v-if="activeSession" :session-id="activeSession.id" />
         </div>
       </header>
 
