@@ -10,6 +10,11 @@ import {
   FYLLO_WORKSPACE_CONTEXT_HEADER,
   parseMcpWorkspaceDescriptor,
 } from "@shared/types/mcp-workspace";
+import {
+  FYLLO_SPAWN_RPC_PROTOCOL,
+  FYLLO_SPAWN_RPC_VERSION,
+  type FylloSpawnRpcRequest,
+} from "@shared/types/fyllo-spawn-rpc";
 
 class FakeChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -17,6 +22,8 @@ class FakeChild extends EventEmitter {
   readonly pid: number;
   exitCode: number | null = null;
   signalCode: NodeJS.Signals | null = null;
+  connected = true;
+  readonly sent: unknown[] = [];
 
   constructor(pid: number) {
     super();
@@ -29,6 +36,13 @@ class FakeChild extends EventEmitter {
     }
     this.signalCode = signal;
     queueMicrotask(() => this.emit("exit", null, signal));
+    return true;
+  }
+
+  send(message: unknown, callback?: (error: Error | null) => void): boolean {
+    if (!this.connected) return false;
+    this.sent.push(message);
+    callback?.(null);
     return true;
   }
 }
@@ -60,21 +74,31 @@ import {
   getMcpServerEndpoint,
   INITIAL_BACKEND_READY_TIMEOUT_MS,
   MAX_RESTART_ATTEMPTS,
+  registerBundledMcpRpcHandler,
   startBundledMcpHost,
   stopBundledMcpHost,
   waitForBundledMcpInitialReadiness,
 } from "@main/infra/mcp/bundled-mcp-host";
 
 const backendServers: Server[] = [];
+const rpcHandlerDisposers: Array<() => void> = [];
 const originalDisable = process.env.FYLLO_DISABLE_BUNDLED_MCP;
 
-function childFor(name: "fyllo-specs" | "fyllo-cortex", index = 0): FakeChild {
-  const matches = spawnMocks.calls.filter((call) => call.args[0]?.includes(name));
+function childFor(name: "fyllo-specs" | "fyllo-cortex" | "fyllo-spawn", index = 0): FakeChild {
+  const matches = spawnMocks.calls.filter((call) =>
+    call.args[0]?.includes(`/mcp-servers/${name}/`)
+  );
   const child = matches[index]?.child;
   if (!child) {
     throw new Error(`Missing fake child for ${name} at index ${index}`);
   }
   return child;
+}
+
+async function startHostAndReadySpawn(): Promise<void> {
+  startBundledMcpHost();
+  await waitForChildCount(3);
+  childFor("fyllo-spawn").emit("message", { type: "ready", port: 65_003 });
 }
 
 async function waitForChildCount(count: number): Promise<void> {
@@ -120,7 +144,9 @@ async function startBackend(name: string): Promise<number> {
   return (server.address() as AddressInfo).port;
 }
 
-function issueToken(allowedServerNames: Array<"fyllo-specs" | "fyllo-cortex">): string {
+function issueToken(
+  allowedServerNames: Array<"fyllo-specs" | "fyllo-cortex" | "fyllo-spawn">
+): string {
   const folderPath = resolve("/work/project");
   return mcpAccessGrantRegistry.issue({
     agentId: "agent-1",
@@ -142,6 +168,18 @@ function decodeWorkspaceContext(value: unknown): unknown {
     return null;
   }
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
+}
+
+function rpcRequest(requestId: string, prompt = "inspect"): FylloSpawnRpcRequest {
+  return {
+    protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+    version: FYLLO_SPAWN_RPC_VERSION,
+    kind: "request",
+    requestId,
+    method: "prompt_to_agent",
+    caller: { workspaceId: "workspace-1", parentSessionId: "session-1" },
+    params: { agentId: "agent-1", prompt },
+  };
 }
 
 async function closeBackendServers(): Promise<void> {
@@ -168,6 +206,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  for (const dispose of rpcHandlerDisposers.splice(0)) dispose();
   await stopBundledMcpHost();
   await closeBackendServers();
   mcpAccessGrantRegistry.revokeAll();
@@ -181,12 +220,129 @@ afterEach(async () => {
 });
 
 describe("bundled MCP host", () => {
+  it("routes concurrent child RPC requests and correlates their responses", async () => {
+    rpcHandlerDisposers.push(
+      registerBundledMcpRpcHandler("fyllo-spawn", async (request) => ({
+        requestId: request.requestId,
+      }))
+    );
+    await startHostAndReadySpawn();
+    const child = childFor("fyllo-spawn");
+
+    child.emit("message", rpcRequest("request-a"));
+    child.emit("message", rpcRequest("request-b"));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(child.sent).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requestId: "request-a", ok: true }),
+        expect.objectContaining({ requestId: "request-b", ok: true }),
+      ])
+    );
+  });
+
+  it("rejects duplicate request IDs while the first request is pending", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    rpcHandlerDisposers.push(
+      registerBundledMcpRpcHandler("fyllo-spawn", async () => {
+        await pending;
+        return { done: true };
+      })
+    );
+    await startHostAndReadySpawn();
+    const child = childFor("fyllo-spawn");
+
+    child.emit("message", rpcRequest("duplicate"));
+    child.emit("message", rpcRequest("duplicate"));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(child.sent).toContainEqual(
+      expect.objectContaining({
+        requestId: "duplicate",
+        ok: false,
+        error: expect.objectContaining({ code: "SPAWN_INVALID_REQUEST" }),
+      })
+    );
+    finish();
+  });
+
+  it("aborts a matching RPC request when the child sends cancel", async () => {
+    let observedSignal: AbortSignal | undefined;
+    rpcHandlerDisposers.push(
+      registerBundledMcpRpcHandler(
+        "fyllo-spawn",
+        (_request, signal) =>
+          new Promise<void>((resolve) => {
+            observedSignal = signal;
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          })
+      )
+    );
+    await startHostAndReadySpawn();
+    const child = childFor("fyllo-spawn");
+    child.emit("message", rpcRequest("cancel-me"));
+    child.emit("message", {
+      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+      version: FYLLO_SPAWN_RPC_VERSION,
+      kind: "cancel",
+      requestId: "cancel-me",
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(observedSignal?.aborted).toBe(true);
+    expect(child.sent).toHaveLength(0);
+  });
+
+  it("fences late responses from an exited child generation", async () => {
+    let finishOld!: () => void;
+    const oldPending = new Promise<void>((resolve) => {
+      finishOld = resolve;
+    });
+    rpcHandlerDisposers.push(
+      registerBundledMcpRpcHandler("fyllo-spawn", async (request) => {
+        if (request.method !== "prompt_to_agent") throw new Error("Unexpected method");
+        if (request.params.prompt === "old") await oldPending;
+        return { prompt: request.params.prompt };
+      })
+    );
+    await startHostAndReadySpawn();
+    const oldChild = childFor("fyllo-spawn");
+    oldChild.emit("message", rpcRequest("same-id", "old"));
+    oldChild.emit("exit", 1, null);
+    await new Promise<void>((resolve) => setTimeout(resolve, 260));
+    await waitForChildCount(4);
+    const newChild = childFor("fyllo-spawn", 1);
+    newChild.emit("message", rpcRequest("same-id", "new"));
+    finishOld();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(oldChild.sent).toHaveLength(0);
+    expect(newChild.sent).toContainEqual(
+      expect.objectContaining({ requestId: "same-id", ok: true, result: { prompt: "new" } })
+    );
+  });
+
+  it("ignores malformed RPC envelopes without invoking the handler", async () => {
+    const handler = vi.fn();
+    rpcHandlerDisposers.push(registerBundledMcpRpcHandler("fyllo-spawn", handler));
+    await startHostAndReadySpawn();
+    const child = childFor("fyllo-spawn");
+
+    child.emit("message", { ...rpcRequest("bad"), version: 99 });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(child.sent).toHaveLength(0);
+  });
+
   it("keeps one random proxy URL while routing names to independent backend ports", async () => {
     const specsPort = await startBackend("specs");
     const cortexPort = await startBackend("cortex");
 
-    startBundledMcpHost();
-    await waitForChildCount(2);
+    await startHostAndReadySpawn();
     childFor("fyllo-specs").emit("message", { type: "ready", port: specsPort });
     childFor("fyllo-cortex").emit("message", { type: "ready", port: cortexPort });
     await waitForBundledMcpInitialReadiness();
@@ -261,8 +417,7 @@ describe("bundled MCP host", () => {
 
   it("returns 404 for unknown routes and 503 for a known unavailable backend", async () => {
     const specsPort = await startBackend("specs");
-    startBundledMcpHost();
-    await waitForChildCount(2);
+    await startHostAndReadySpawn();
     childFor("fyllo-specs").emit("message", { type: "ready", port: specsPort });
     childFor("fyllo-cortex").emit("message", { type: "ready", port: 65_000 });
     await waitForBundledMcpInitialReadiness();
@@ -285,8 +440,7 @@ describe("bundled MCP host", () => {
     const firstPort = await startBackend("first");
     const secondPort = await startBackend("second");
     const cortexPort = await startBackend("cortex");
-    startBundledMcpHost();
-    await waitForChildCount(2);
+    await startHostAndReadySpawn();
     const firstChild = childFor("fyllo-specs");
     firstChild.emit("message", { type: "ready", port: firstPort });
     childFor("fyllo-cortex").emit("message", { type: "ready", port: cortexPort });
@@ -296,7 +450,7 @@ describe("bundled MCP host", () => {
     const token = issueToken(["fyllo-specs"]);
     firstChild.emit("exit", 1, null);
     await new Promise((resolve) => setTimeout(resolve, 260));
-    await waitForChildCount(3);
+    await waitForChildCount(4);
     childFor("fyllo-specs", 1).emit("message", { type: "ready", port: secondPort });
     const after = getMcpServerEndpoint("fyllo-specs")!;
 
@@ -323,8 +477,7 @@ describe("bundled MCP host", () => {
   it("rejects invalid and cross-server capabilities before forwarding", async () => {
     const specsPort = await startBackend("specs");
     const cortexPort = await startBackend("cortex");
-    startBundledMcpHost();
-    await waitForChildCount(2);
+    await startHostAndReadySpawn();
     childFor("fyllo-specs").emit("message", { type: "ready", port: specsPort });
     childFor("fyllo-cortex").emit("message", { type: "ready", port: cortexPort });
     await waitForBundledMcpInitialReadiness();
@@ -351,7 +504,7 @@ describe("bundled MCP host", () => {
 
   it("shares one readiness timeout and falls back without duplicate spawns", async () => {
     startBundledMcpHost();
-    await waitForChildCount(2);
+    await waitForChildCount(3);
     vi.useFakeTimers();
 
     const firstWait = waitForBundledMcpInitialReadiness();
@@ -359,14 +512,13 @@ describe("bundled MCP host", () => {
     await vi.advanceTimersByTimeAsync(INITIAL_BACKEND_READY_TIMEOUT_MS);
     await expect(Promise.all([firstWait, secondWait])).resolves.toEqual([undefined, undefined]);
 
-    expect(spawnMocks.calls).toHaveLength(2);
+    expect(spawnMocks.calls).toHaveLength(3);
     expect(getMcpServerEndpoint("fyllo-specs")).toBeNull();
     expect(getMcpServerEndpoint("fyllo-cortex")).toBeNull();
   });
 
   it("stops restarting after the configured maximum attempts", async () => {
-    startBundledMcpHost();
-    await waitForChildCount(2);
+    await startHostAndReadySpawn();
     childFor("fyllo-specs").emit("message", { type: "ready", port: 60_001 });
     childFor("fyllo-cortex").emit("message", { type: "ready", port: 60_002 });
     await waitForBundledMcpInitialReadiness();
@@ -412,14 +564,14 @@ describe("bundled MCP host", () => {
 
   it("force-stops every known bundled MCP process group without waiting", async () => {
     const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
-    startBundledMcpHost();
-    await waitForChildCount(2);
-    expect(getBundledMcpProcessIds()).toEqual([20_000, 20_001]);
+    await startHostAndReadySpawn();
+    expect(getBundledMcpProcessIds()).toEqual([20_000, 20_001, 20_002]);
 
     await forceStopBundledMcpHost();
 
     expect(killSpy).toHaveBeenCalledWith(-20_000, "SIGKILL");
     expect(killSpy).toHaveBeenCalledWith(-20_001, "SIGKILL");
+    expect(killSpy).toHaveBeenCalledWith(-20_002, "SIGKILL");
     expect(getBundledMcpProcessIds()).toEqual([]);
     killSpy.mockRestore();
   });

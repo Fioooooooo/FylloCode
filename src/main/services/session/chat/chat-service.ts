@@ -30,6 +30,7 @@ import {
 import { newSessionId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
+import { deleteSpawnedSessionsForParent } from "../spawn/spawn-parent-lifecycle";
 
 export async function assertSessionBelongsToWorkspace(
   workspaceId: string,
@@ -175,6 +176,7 @@ export async function updateSession(input: {
 }
 
 export async function removeSession(input: { id: string; workspaceId: string }): Promise<void> {
+  await deleteSpawnedSessionsForParent(input.workspaceId, input.id);
   await deleteSessionStore(input.workspaceId, input.id);
 }
 

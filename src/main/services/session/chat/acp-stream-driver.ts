@@ -49,6 +49,30 @@ export interface AcpStreamHooks {
   doneFailureCode?: IpcErrorCode;
 }
 
+export type AcpTurnCompletion =
+  | { status: "done"; totalTokens: number; message: Message | null }
+  | { status: "error"; code: string; message: string; partialMessage: Message | null }
+  | { status: "cancelled"; partialMessage: Message | null };
+
+export interface AcpTurnHooks {
+  onContentEvent?(event: SessionEvent): void;
+  onControlEvent?(event: SessionEvent): void;
+  onDone?(event: { totalTokens: number; message: Message | null }): void | Promise<void>;
+  onError?(event: {
+    code: string;
+    message: string;
+    partialMessage: Message | null;
+  }): void | Promise<void>;
+  onCancel?(event: { partialMessage: Message | null }): void | Promise<void>;
+  onFinalizationError?(error: unknown): void;
+}
+
+export interface AcpTurnRunner {
+  start: () => Promise<void>;
+  cancel: () => void;
+  completion: Promise<AcpTurnCompletion>;
+}
+
 // 需要进入 MessageAssembler 并转发为 stream chunk 的内容类事件。
 // 控制类事件（session_id_resolved / done / error / usage 等）走 switch 分支单独处理。
 const CONTENT_KINDS = new Set([
@@ -57,6 +81,98 @@ const CONTENT_KINDS = new Set([
   "tool_call_start",
   "tool_call_update",
 ]);
+
+export function driveAcpTurn(args: {
+  session: AcpSession;
+  owner: SessionOwner;
+  registryKey: string;
+  messageSessionId: string;
+  hooks: AcpTurnHooks;
+  logTag: string;
+  start: () => Promise<void>;
+}): AcpTurnRunner {
+  const { session, owner, registryKey, messageSessionId, hooks, logTag } = args;
+  const assembler = new MessageAssembler(messageSessionId);
+  let terminal = false;
+  let resolveCompletion!: (completion: AcpTurnCompletion) => void;
+  const completion = new Promise<AcpTurnCompletion>((resolve) => {
+    resolveCompletion = resolve;
+  });
+
+  const finish = (
+    result: AcpTurnCompletion,
+    hook: (() => void | Promise<void>) | undefined
+  ): void => {
+    if (terminal) return;
+    terminal = true;
+    sessionRegistry.unregister(owner, registryKey);
+    void Promise.resolve()
+      .then(() => hook?.())
+      .catch((error: unknown) => {
+        logger.error(`[${logTag}] failed to finalise ACP turn`, error);
+        hooks.onFinalizationError?.(error);
+      })
+      .finally(() => {
+        resolveCompletion(result);
+      });
+  };
+
+  sessionRegistry.register(owner, registryKey, session);
+  session.on("event", (event: SessionEvent) => {
+    if (terminal) return;
+    if (CONTENT_KINDS.has(event.kind)) {
+      assembler.apply(event);
+      hooks.onContentEvent?.(event);
+      return;
+    }
+
+    switch (event.kind) {
+      case "session_id_resolved":
+        return;
+      case "done": {
+        const message = assembler.flush();
+        finish(
+          { status: "done", totalTokens: event.totalTokens, message },
+          hooks.onDone
+            ? () => hooks.onDone?.({ totalTokens: event.totalTokens, message })
+            : undefined
+        );
+        return;
+      }
+      case "error": {
+        const partialMessage = assembler.flush();
+        finish(
+          { status: "error", code: event.code, message: event.message, partialMessage },
+          hooks.onError
+            ? () =>
+                hooks.onError?.({
+                  code: event.code,
+                  message: event.message,
+                  partialMessage,
+                })
+            : undefined
+        );
+        return;
+      }
+      default:
+        hooks.onControlEvent?.(event);
+    }
+  });
+
+  return {
+    start: args.start,
+    cancel: () => {
+      if (terminal) return;
+      session.cancel();
+      const partialMessage = assembler.flush();
+      finish(
+        { status: "cancelled", partialMessage },
+        hooks.onCancel ? () => hooks.onCancel?.({ partialMessage }) : undefined
+      );
+    },
+    completion,
+  };
+}
 
 /**
  * Wire an AcpSession's event stream to a StreamOutput with a single, shared
@@ -73,77 +189,49 @@ export function driveAcpStream(args: {
   hooks: AcpStreamHooks;
   logTag: string;
   start: () => Promise<void>;
-}): { start: () => Promise<void>; cancel: () => void } {
+}): AcpTurnRunner {
   const { session, owner, registryKey, messageSessionId, output, hooks, logTag } = args;
-  const assembler = new MessageAssembler(messageSessionId);
-
-  const persistAssembledMessage = async (): Promise<void> => {
-    try {
-      const message = assembler.flush();
-      if (!message) return;
-      await hooks.persistMessage(message);
-    } catch (error: unknown) {
+  const persistPartial = (message: Message | null): void => {
+    if (!message) return;
+    void Promise.resolve(hooks.persistMessage(message)).catch((error: unknown) => {
       logger.error(`[${logTag}] failed to persist partial message on stop`, error);
-    }
+    });
   };
 
-  sessionRegistry.register(owner, registryKey, session);
-
-  session.on("event", (ev: SessionEvent) => {
-    if (CONTENT_KINDS.has(ev.kind)) {
-      assembler.apply(ev);
-      const chunk = toMessageChunk(ev);
-      if (chunk) output.sendChunk(chunk);
-      return;
-    }
-
-    switch (ev.kind) {
-      case "session_id_resolved":
-        // Persisted inside AcpSession; nothing to forward.
-        return;
-      case "done":
-        void (async () => {
-          const message = assembler.flush();
-          if (message) await hooks.persistMessage(message);
-          if (hooks.onDone) await hooks.onDone({ totalTokens: ev.totalTokens });
-          output.sendDone(ev.totalTokens);
-          sessionRegistry.unregister(owner, registryKey);
-        })().catch((error: unknown) => {
-          logger.error(`[${logTag}] failed to finalise completed message`, error);
-          output.sendError(
-            hooks.doneFailureCode ?? mapAcpErrorCode((error as { code?: string }).code ?? ""),
-            error instanceof Error ? error.message : String(error)
-          );
-          sessionRegistry.unregister(owner, registryKey);
-        });
-        return;
-      case "error":
-        // Both the partial-message persist and the onError side effect are
-        // fire-and-forget; sendError + unregister run synchronously right after
-        // so the renderer is finalised without waiting on persistence.
-        void persistAssembledMessage();
+  return driveAcpTurn({
+    session,
+    owner,
+    registryKey,
+    messageSessionId,
+    logTag,
+    start: args.start,
+    hooks: {
+      onContentEvent: (event) => {
+        const chunk = toMessageChunk(event);
+        if (chunk) output.sendChunk(chunk);
+      },
+      onControlEvent: (event) => hooks.onControlEvent?.(event, output),
+      onDone: async ({ totalTokens, message }) => {
+        if (message) await hooks.persistMessage(message);
+        if (hooks.onDone) await hooks.onDone({ totalTokens });
+        output.sendDone(totalTokens);
+      },
+      onError: ({ code, message, partialMessage }) => {
+        persistPartial(partialMessage);
         if (hooks.onError) {
-          void hooks.onError({ code: ev.code, message: ev.message }).catch((error: unknown) => {
+          void Promise.resolve(hooks.onError({ code, message })).catch((error: unknown) => {
             logger.error(`[${logTag}] failed to run error side effect`, error);
           });
         }
-        output.sendError(mapAcpErrorCode(ev.code), ev.message);
-        sessionRegistry.unregister(owner, registryKey);
-        return;
-      default:
-        // Control events (usage/commands/config/agenda/session_info): the driver
-        // never forwards or persists these; the handler decides via onControlEvent.
-        hooks.onControlEvent?.(ev, output);
-        return;
-    }
-  });
-
-  return {
-    start: args.start,
-    cancel: () => {
-      session.cancel();
-      void persistAssembledMessage();
-      sessionRegistry.unregister(owner, registryKey);
+        output.sendError(mapAcpErrorCode(code), message);
+      },
+      onCancel: ({ partialMessage }) => persistPartial(partialMessage),
+      onFinalizationError: (error) => {
+        output.sendError(
+          hooks.doneFailureCode ?? mapAcpErrorCode((error as { code?: string }).code ?? ""),
+          error instanceof Error ? error.message : String(error)
+        );
+      },
     },
-  };
+  });
 }

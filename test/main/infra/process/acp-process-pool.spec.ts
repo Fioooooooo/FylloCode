@@ -356,6 +356,24 @@ describe("acp-process-pool", () => {
     expect(mocks.spawn).toHaveBeenCalledTimes(1);
   });
 
+  it("invalidates the current process generation on the first unexpected exit", async () => {
+    const { getOrStartProcess, onAgentProcessInvalidated, stopAgentProcess } =
+      await import("@main/infra/process/acp-process-pool");
+    await getOrStartProcess("claude-acp");
+    const invalidated = vi.fn();
+    onAgentProcessInvalidated(invalidated);
+
+    const fake = mocks.child as FakeChild;
+    fake.exitCode = 1;
+    fake.emit("exit", 1, null);
+
+    expect(invalidated).toHaveBeenCalledWith({
+      agentId: "claude-acp",
+      reason: expect.stringContaining("generation 0 exited unexpectedly"),
+    });
+    await stopAgentProcess("claude-acp", "test-cleanup");
+  });
+
   it("stops a child stuck in initialize and prevents the stale start from entering the pool", async () => {
     let resolveInit!: (value: unknown) => void;
     mocks.initialize.mockImplementationOnce(

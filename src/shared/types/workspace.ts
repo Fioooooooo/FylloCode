@@ -88,6 +88,7 @@ export interface UpdateWorkspaceDefinitionInput {
 export type WorkspaceRuntimeReferenceKind =
   | "probe"
   | "chat"
+  | "spawn"
   | "proposal-create"
   | "apply"
   | "archive"

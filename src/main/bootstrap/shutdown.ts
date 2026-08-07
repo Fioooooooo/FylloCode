@@ -29,6 +29,11 @@ export const SHUTDOWN_PHASES = [
         api: "beginWarmupShutdown",
       },
       {
+        name: "spawned-sessions",
+        owner: "services/session/spawn",
+        api: "beginSpawnShutdown",
+      },
+      {
         name: "session-registry",
         owner: "services/session/chat",
         api: "disposeSessions",
@@ -73,6 +78,17 @@ export const SHUTDOWN_PHASES = [
         name: "auxiliary-command-quiesce",
         owner: "infra/process",
         api: "beginAuxiliaryProcessShutdown",
+      },
+    ],
+  },
+  {
+    name: "settle-spawned-sessions",
+    tasks: [
+      {
+        name: "spawned-sessions",
+        owner: "services/session/spawn",
+        api: "disposeSpawnSessions",
+        forceApi: "forceDisposeSpawnSessions",
       },
     ],
   },
@@ -129,6 +145,9 @@ export interface ShutdownRuntimeResources {
   awaitInstallerOperations(): Promise<void>;
   forceAbortInstallerOperations(): void;
   abortAndAwaitWorkflowInitialization(): Promise<void>;
+  beginSpawnShutdown(): void;
+  disposeSpawnSessions(): Promise<void>;
+  forceDisposeSpawnSessions(): void;
   beginAcpProcessPoolShutdown(): void;
   disposeAcpProcessPool(): Promise<void>;
   forceDisposeAcpProcessPool(): Promise<void> | void;
@@ -196,6 +215,7 @@ function createShutdownPhases(
           run: () => resources?.cancelRendererFallback(),
         },
         { name: "agent-connection-warmup", run: () => resources?.beginWarmupShutdown() },
+        { name: "spawned-sessions", run: () => resources?.beginSpawnShutdown() },
         { name: "session-registry", run: () => resources?.disposeSessions() },
         { name: "session-probes", run: () => resources?.disposeSessionProbes() },
         { name: "proposal-status-watchers", run: () => resources?.unwatchProposals() },
@@ -216,6 +236,16 @@ function createShutdownPhases(
         {
           name: "auxiliary-command-quiesce",
           run: () => resources?.beginAuxiliaryProcessShutdown(),
+        },
+      ],
+    },
+    {
+      name: "settle-spawned-sessions",
+      tasks: [
+        {
+          name: "spawned-sessions",
+          run: () => resources?.disposeSpawnSessions(),
+          force: () => resources?.forceDisposeSpawnSessions(),
         },
       ],
     },
@@ -289,6 +319,7 @@ function runEmergencyShutdown(): void {
   const resources = runtimeResources;
   resources?.cancelRendererFallback();
   resources?.beginWarmupShutdown();
+  resources?.beginSpawnShutdown();
   resources?.disposeSessions();
   resources?.unwatchProposals();
   resources?.disposeLineage();
@@ -296,6 +327,7 @@ function runEmergencyShutdown(): void {
   resources?.abortInstallerOperations();
   resources?.forceAbortInstallerOperations();
   resources?.beginAcpProcessPoolShutdown();
+  resources?.forceDisposeSpawnSessions();
   void resources?.forceDisposeAcpProcessPool();
   resources?.beginMcpHostShutdown();
   void resources?.forceStopBundledMcpHost();

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import { recoverSessionConfig } from "@main/services/session/chat/session-config-recovery-service";
+import {
+  applySessionConfigOverrides,
+  recoverSessionConfig,
+} from "@main/services/session/chat/session-config-recovery-service";
 
 const mocks = vi.hoisted(() => ({
   logger: {
@@ -169,5 +172,53 @@ describe("session-config-recovery-service", () => {
         liveOptions: unchanged,
       })
     ).rejects.toThrow("did not converge");
+  });
+
+  it("按请求顺序应用 spawn overrides，并使用每次返回的完整 schema", async () => {
+    const setSessionConfigOption = vi
+      .fn()
+      .mockResolvedValueOnce({
+        configOptions: [
+          select("model", "saved"),
+          select("thought", "default", ["default", "deep"]),
+        ],
+      })
+      .mockResolvedValueOnce({
+        configOptions: [select("model", "saved"), select("thought", "deep", ["default", "deep"])],
+      });
+
+    const result = await applySessionConfigOverrides({
+      connection: connection(setSessionConfigOption),
+      sessionId: "acp-1",
+      liveOptions: [select("model", "default"), select("thought", "default", ["default", "deep"])],
+      overrides: { model: "saved", thought: "deep" },
+    });
+
+    expect(setSessionConfigOption.mock.calls).toEqual([
+      [{ sessionId: "acp-1", configId: "model", value: "saved" }],
+      [{ sessionId: "acp-1", configId: "thought", value: "deep" }],
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("拒绝未知或类型不兼容的 override，set-option 失败则逐项返回 warning", async () => {
+    await expect(
+      applySessionConfigOverrides({
+        connection: connection(),
+        sessionId: "acp-1",
+        liveOptions: [select("model", "default")],
+        overrides: { missing: "saved" },
+      })
+    ).rejects.toMatchObject({ code: "SPAWN_INVALID_REQUEST" });
+
+    const result = await applySessionConfigOverrides({
+      connection: connection(vi.fn().mockRejectedValue(new Error("unsupported now"))),
+      sessionId: "acp-1",
+      liveOptions: [select("model", "default")],
+      overrides: { model: "saved" },
+    });
+    expect(result).toMatchObject({
+      warnings: [{ optionId: "model", message: "unsupported now" }],
+    });
   });
 });

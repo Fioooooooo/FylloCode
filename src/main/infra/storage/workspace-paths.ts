@@ -1,7 +1,10 @@
 import { join } from "path";
 import { getDataSubPath } from "@main/infra/paths";
 
-export function assertStorageIdentity(id: string, label: "Workspace" | "Folder"): string {
+export function assertStorageIdentity(
+  id: string,
+  label: "Workspace" | "Folder" | "Session" | "Response"
+): string {
   if (!id || id === "." || id === ".." || /[\\/\0]/.test(id)) {
     throw new Error(`${label} ID is not safe for storage`);
   }
@@ -34,6 +37,57 @@ export function sessionDir(workspaceId: string, sessionId: string): string {
 
 export function sessionPlansDir(workspaceId: string, sessionId: string): string {
   return join(sessionDir(workspaceId, sessionId), "plans");
+}
+
+export function spawnedSessionsDir(workspaceId: string, parentSessionId: string): string {
+  return join(sessionDir(workspaceId, assertStorageIdentity(parentSessionId, "Session")), "spawn");
+}
+
+export function spawnedSessionDir(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return join(
+    spawnedSessionsDir(workspaceId, parentSessionId),
+    assertStorageIdentity(spawnedSessionId, "Session")
+  );
+}
+
+export function spawnedSessionMetaPath(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return join(spawnedSessionDir(workspaceId, parentSessionId, spawnedSessionId), "meta.json");
+}
+
+export function spawnedSessionMessagesPath(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return join(spawnedSessionDir(workspaceId, parentSessionId, spawnedSessionId), "messages.jsonl");
+}
+
+export function spawnedSessionResponsesDir(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return join(spawnedSessionDir(workspaceId, parentSessionId, spawnedSessionId), "responses");
+}
+
+export function spawnedSessionResponsePath(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string,
+  responseId: string
+): string {
+  return join(
+    spawnedSessionResponsesDir(workspaceId, parentSessionId, spawnedSessionId),
+    `${assertStorageIdentity(responseId, "Response")}.md`
+  );
 }
 
 export function tasksDir(workspaceId: string): string {

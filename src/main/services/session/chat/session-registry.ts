@@ -6,7 +6,7 @@ import logger from "@main/infra/logger";
  * so that chat `sessionId`, apply `runId`, and archive `workspaceId:changeId`
  * cannot collide.
  */
-export type SessionOwner = "chat" | "apply" | "archive";
+export type SessionOwner = "chat" | "apply" | "archive" | "spawn";
 
 interface OwnedSession {
   owner: SessionOwner;
@@ -19,6 +19,18 @@ let shuttingDown = false;
 
 function compositeKey(owner: SessionOwner, key: string): string {
   return `${owner}::${key}`;
+}
+
+export function spawnSessionRegistryKey(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return `${workspaceId}:${parentSessionId}:${spawnedSessionId}`;
+}
+
+function spawnParentKeyPrefix(workspaceId: string, parentSessionId: string): string {
+  return `${workspaceId}:${parentSessionId}:`;
 }
 
 export const sessionRegistry = {
@@ -55,6 +67,26 @@ export const sessionRegistry = {
       }
       byOwnerKey.delete(k);
     }
+  },
+
+  cancelSpawnedByParent(workspaceId: string, parentSessionId: string): void {
+    const keyPrefix = spawnParentKeyPrefix(workspaceId, parentSessionId);
+    for (const [key, entry] of byOwnerKey) {
+      if (entry.owner !== "spawn" || !entry.key.startsWith(keyPrefix)) continue;
+      try {
+        entry.session.cancel();
+      } catch (error) {
+        logger.warn(`[session-registry] cancel ${key} failed`, error);
+      }
+      byOwnerKey.delete(key);
+    }
+  },
+
+  listSpawnedByParent(workspaceId: string, parentSessionId: string): string[] {
+    const keyPrefix = spawnParentKeyPrefix(workspaceId, parentSessionId);
+    return [...byOwnerKey.values()]
+      .filter((entry) => entry.owner === "spawn" && entry.key.startsWith(keyPrefix))
+      .map((entry) => entry.key.slice(keyPrefix.length));
   },
 
   cancelWorkspace(workspaceId: string): void {

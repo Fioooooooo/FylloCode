@@ -82,6 +82,26 @@ describe("sessionRegistry", () => {
     expect(sessionRegistry.get("chat", "workspace-b:session-1")).toBe(projectBChat);
   });
 
+  it("cancels and lists spawned turns by their exact parent Session", () => {
+    const parentAFirst = fakeSession();
+    const parentASecond = fakeSession();
+    const parentB = fakeSession();
+    sessionRegistry.register("spawn", "workspace-a:parent-a:spawn-1", parentAFirst);
+    sessionRegistry.register("spawn", "workspace-a:parent-a:spawn-2", parentASecond);
+    sessionRegistry.register("spawn", "workspace-a:parent-b:spawn-1", parentB);
+
+    expect(sessionRegistry.listSpawnedByParent("workspace-a", "parent-a")).toEqual([
+      "spawn-1",
+      "spawn-2",
+    ]);
+    sessionRegistry.cancelSpawnedByParent("workspace-a", "parent-a");
+
+    expect(parentAFirst.cancel).toHaveBeenCalledOnce();
+    expect(parentASecond.cancel).toHaveBeenCalledOnce();
+    expect(parentB.cancel).not.toHaveBeenCalled();
+    expect(sessionRegistry.listSpawnedByParent("workspace-a", "parent-a")).toEqual([]);
+  });
+
   it("cancelAll() cancels across every owner and empties the registry", () => {
     const chat = fakeSession();
     const apply = fakeSession();

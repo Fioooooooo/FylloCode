@@ -3,10 +3,16 @@ import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import {
   planSessionConfigRecovery,
   sessionConfigFingerprint,
+  valueExistsInSchema,
 } from "@main/domain/session/chat/session-config-recovery";
 import logger from "@main/infra/logger";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 import { buildPayload } from "./acp-config-option-rpc";
+
+export interface ConfigOverrideWarning {
+  optionId: string;
+  message: string;
+}
 
 export interface RecoverSessionConfigParams {
   connection: ClientSideConnection;
@@ -77,4 +83,44 @@ export async function recoverSessionConfig({
   }
 
   throw new Error(`ACP config recovery for ${sessionId} exceeded ${maxIterations} iterations`);
+}
+
+export async function applySessionConfigOverrides(input: {
+  connection: ClientSideConnection;
+  sessionId: string;
+  liveOptions: AcpSessionConfigOption[];
+  overrides: Record<string, string | boolean>;
+}): Promise<{ options: AcpSessionConfigOption[]; warnings: ConfigOverrideWarning[] }> {
+  let options = input.liveOptions;
+  const warnings: ConfigOverrideWarning[] = [];
+  for (const [optionId, value] of Object.entries(input.overrides)) {
+    const schema = options.find((option) => option.id === optionId);
+    if (!schema) {
+      throw Object.assign(new Error(`Unknown config option: ${optionId}`), {
+        code: "SPAWN_INVALID_REQUEST",
+      });
+    }
+    if (!valueExistsInSchema(schema, value)) {
+      throw Object.assign(new Error(`Invalid value for config option: ${optionId}`), {
+        code: "SPAWN_INVALID_REQUEST",
+      });
+    }
+    try {
+      const response = await input.connection.setSessionConfigOption({
+        sessionId: input.sessionId,
+        configId: optionId,
+        ...buildPayload(schema.type, value),
+      } as Parameters<ClientSideConnection["setSessionConfigOption"]>[0]);
+      if (!Array.isArray(response.configOptions)) {
+        throw new Error("Agent did not return a complete configOptions snapshot");
+      }
+      options = normalizeAcpSessionConfigOptions(response.configOptions);
+    } catch (error) {
+      warnings.push({
+        optionId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return { options, warnings };
 }

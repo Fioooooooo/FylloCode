@@ -12,6 +12,11 @@ import {
   lineageSubjectsDir,
   mcpEventsDir,
   sessionPlansDir,
+  spawnedSessionDir,
+  spawnedSessionMessagesPath,
+  spawnedSessionMetaPath,
+  spawnedSessionResponsePath,
+  spawnedSessionsDir,
   sessionsDir,
   tasksPath,
   workspaceDataDir,
@@ -36,6 +41,19 @@ describe("Workspace storage path helpers", () => {
     const root = "/tmp/fyllocode-test/workspaces/workspace-1";
     expect(sessionsDir("workspace-1")).toBe(`${root}/sessions`);
     expect(sessionPlansDir("workspace-1", "session-1")).toBe(`${root}/sessions/session-1/plans`);
+    expect(spawnedSessionsDir("workspace-1", "session-1")).toBe(`${root}/sessions/session-1/spawn`);
+    expect(spawnedSessionDir("workspace-1", "session-1", "spawn-1")).toBe(
+      `${root}/sessions/session-1/spawn/spawn-1`
+    );
+    expect(spawnedSessionMetaPath("workspace-1", "session-1", "spawn-1")).toBe(
+      `${root}/sessions/session-1/spawn/spawn-1/meta.json`
+    );
+    expect(spawnedSessionMessagesPath("workspace-1", "session-1", "spawn-1")).toBe(
+      `${root}/sessions/session-1/spawn/spawn-1/messages.jsonl`
+    );
+    expect(spawnedSessionResponsePath("workspace-1", "session-1", "spawn-1", "response-1")).toBe(
+      `${root}/sessions/session-1/spawn/spawn-1/responses/response-1.md`
+    );
     expect(tasksPath("workspace-1")).toBe(`${root}/tasks/tasks.json`);
     expect(knowledgeDir("workspace-1")).toBe(`${root}/knowledge`);
     expect(lineageDir("workspace-1")).toBe(`${root}/lineage`);
@@ -48,5 +66,11 @@ describe("Workspace storage path helpers", () => {
   it("rejects identities that can escape the storage root", () => {
     expect(() => workspaceDataDir("../outside")).toThrow("Workspace ID is not safe");
     expect(() => folderDataDir("folder/child")).toThrow("Folder ID is not safe");
+    expect(() => spawnedSessionDir("workspace-1", "../parent", "spawn-1")).toThrow(
+      "Session ID is not safe"
+    );
+    expect(() =>
+      spawnedSessionResponsePath("workspace-1", "parent-1", "spawn-1", "../secret")
+    ).toThrow("Response ID is not safe");
   });
 });

@@ -43,6 +43,12 @@ import { proposalStatusService } from "@main/services/proposal/_public";
 import { disposeSessionRegistry } from "@main/services/session/chat/session-registry";
 import { disposeSessionProbes } from "@main/services/session/chat/session-probe-service";
 import {
+  registerSpawnRpcBridge,
+  unregisterSpawnRpcBridge,
+} from "@main/services/session/spawn/spawn-rpc-bridge";
+import { spawnedSessionManager } from "@main/services/session/spawn/spawned-session-manager";
+import { registerSpawnParentDeletionHandler } from "@main/services/session/spawn/spawn-parent-lifecycle";
+import {
   beginRendererInteractiveFallback,
   cancelRendererInteractiveFallback,
   configureRendererReadiness,
@@ -67,6 +73,7 @@ interface StartApplicationRuntimeOptions {
 let protectedMigration: Promise<void> | null = null;
 let builtInWorkflowInitialization: Promise<void> | null = null;
 let builtInWorkflowAbortController: AbortController | null = null;
+let unregisterSpawnParentDeletion: (() => void) | null = null;
 
 export function getProtectedMigration(): Promise<void> | null {
   return protectedMigration;
@@ -230,6 +237,14 @@ export async function startApplicationRuntime(
     beginAcpProcessPoolShutdown,
     disposeAcpProcessPool,
     forceDisposeAcpProcessPool,
+    beginSpawnShutdown: () => {
+      unregisterSpawnRpcBridge();
+      unregisterSpawnParentDeletion?.();
+      unregisterSpawnParentDeletion = null;
+      spawnedSessionManager.beginShutdown();
+    },
+    disposeSpawnSessions: () => spawnedSessionManager.dispose(),
+    forceDisposeSpawnSessions: () => spawnedSessionManager.forceDispose(),
     beginMcpHostShutdown: beginBundledMcpHostShutdown,
     stopBundledMcpHost,
     forceStopBundledMcpHost,
@@ -260,6 +275,12 @@ export async function startApplicationRuntime(
     builtInWorkflowInitialization = null;
     builtInWorkflowAbortController = null;
   });
+  spawnedSessionManager.start();
+  registerSpawnRpcBridge();
+  unregisterSpawnParentDeletion ??= registerSpawnParentDeletionHandler(
+    (workspaceId, parentSessionId) =>
+      spawnedSessionManager.deleteParent(workspaceId, parentSessionId)
+  );
   startBundledMcpHost();
   markLifecycleMetric("runtime-wired");
 

@@ -11,7 +11,7 @@ import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 type AcpMcpServers = NonNullable<Parameters<ClientSideConnection["newSession"]>[0]["mcpServers"]>;
 
-export interface ChatRuntimeProfile {
+export interface SessionRuntimeProfile {
   mcpServers: AcpMcpServers;
   mcpActivationId: string | null;
   revoke(): void;
@@ -24,7 +24,7 @@ export async function createChatRuntimeProfile(input: {
   fylloSessionId: string;
   supportsHttp: boolean;
   mcpWorkspaceDescriptor?: McpWorkspaceDescriptorV2;
-}): Promise<ChatRuntimeProfile> {
+}): Promise<SessionRuntimeProfile> {
   if (input.sessionMode === "native") {
     return {
       mcpServers: [],
@@ -46,5 +46,13 @@ export async function createChatRuntimeProfile(input: {
     mcpServers: activation.servers.map(toAcpMcpServer),
     mcpActivationId: activation.activationId,
     revoke: () => revokeBundledMcpActivation(activation.activationId),
+  };
+}
+
+export function createSpawnRuntimeProfile(): SessionRuntimeProfile {
+  return {
+    mcpServers: [],
+    mcpActivationId: null,
+    revoke: () => undefined,
   };
 }

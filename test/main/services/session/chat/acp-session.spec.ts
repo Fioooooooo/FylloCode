@@ -290,6 +290,32 @@ describe("AcpSession", () => {
     });
   });
 
+  it("uses an explicit spawn runtime with the parent snapshot and no MCP or reminder", async () => {
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    const session = await createSession({ owner: "spawn", onReminderInjected });
+
+    await session.start([{ type: "text", text: "delegate" }]);
+
+    expect(mocks.assertSessionWorkspaceSnapshotCurrent).toHaveBeenCalledOnce();
+    expect(mocks.assertAgentWorkspaceCompatibility).toHaveBeenCalledWith(
+      "claude-acp",
+      expect.objectContaining({ workspaceId: "workspace-1" })
+    );
+    expect(mocks.createSessionMcpWorkspaceDescriptor).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).not.toHaveBeenCalled();
+    expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(onReminderInjected).not.toHaveBeenCalled();
+    expect(mocks.connection.newSession).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      additionalDirectories: [],
+      mcpServers: [],
+    });
+    expect(mocks.connection.prompt).toHaveBeenCalledWith({
+      sessionId: "acp-new",
+      prompt: [{ type: "text", text: "delegate" }],
+    });
+  });
+
   it("reuses a warm native session with a direct prompt", async () => {
     mocks.sessionStore.loadRecoveryState.mockResolvedValue({
       acpSessionId: "acp-native",
@@ -1137,6 +1163,45 @@ describe("AcpSession", () => {
       await session.start([{ type: "text", text: "hello" }]);
 
       expect(seen).toContainEqual({ kind: "config_options_update", options: sampleOptions });
+    });
+
+    it("spawn 在首次 prompt 前应用 config override，并逐项报告 set warning", async () => {
+      const configurable = [
+        {
+          ...sampleOptions[0],
+          currentValue: "sonnet",
+          options: [
+            { value: "sonnet", name: "Sonnet" },
+            { value: "opus", name: "Opus" },
+          ],
+        },
+      ];
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: configurable,
+      });
+      mocks.connection.setSessionConfigOption.mockRejectedValueOnce(new Error("not supported"));
+      const onConfigWarnings = vi.fn();
+
+      const session = await createSession({
+        owner: "spawn",
+        configOverrides: { model: "opus" },
+        onConfigWarnings,
+      });
+      await session.start([{ type: "text", text: "delegate" }]);
+
+      expect(mocks.connection.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: "acp-new",
+        configId: "model",
+        value: "opus",
+      });
+      expect(mocks.connection.setSessionConfigOption.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.connection.prompt.mock.invocationCallOrder[0]
+      );
+      expect(onConfigWarnings).toHaveBeenCalledWith([
+        { optionId: "model", message: "not supported" },
+      ]);
+      expect(mocks.connection.prompt).toHaveBeenCalledOnce();
     });
 
     it("emits empty config_options_update when newSession returns null configOptions", async () => {

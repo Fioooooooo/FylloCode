@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const serverMocks = vi.hoisted(() => ({
   specs: vi.fn().mockResolvedValue(undefined),
   cortex: vi.fn().mockResolvedValue(undefined),
+  spawn: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/mcp-servers/fyllo-specs/src/server", () => ({
@@ -11,6 +12,10 @@ vi.mock("../../src/mcp-servers/fyllo-specs/src/server", () => ({
 
 vi.mock("../../src/mcp-servers/fyllo-cortex/src/server", () => ({
   startServer: serverMocks.cortex,
+}));
+
+vi.mock("../../src/mcp-servers/fyllo-spawn/src/server", () => ({
+  startServer: serverMocks.spawn,
 }));
 
 const shutdownEvents = ["SIGTERM", "SIGINT", "disconnect"] as const;
@@ -60,6 +65,13 @@ describe("bundled MCP child process lifecycle", () => {
     await expectDisconnectAbort(
       () => import("../../src/mcp-servers/fyllo-cortex/src/index"),
       serverMocks.cortex
+    );
+  });
+
+  it("aborts fyllo-spawn when the parent IPC channel disconnects", async () => {
+    await expectDisconnectAbort(
+      () => import("../../src/mcp-servers/fyllo-spawn/src/index"),
+      serverMocks.spawn
     );
   });
 });

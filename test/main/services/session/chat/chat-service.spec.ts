@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   newSessionId: vi.fn(),
   resolveWorkspace: vi.fn(),
   assertSessionWorkspaceSnapshotCurrent: vi.fn(),
+  deleteSession: vi.fn(),
+  deleteSpawnedSessionsForParent: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -21,7 +23,7 @@ vi.mock("@main/infra/storage/project-store", () => ({
 vi.mock("@main/infra/storage/session-store", () => ({
   appendMessage: vi.fn(),
   createSessionMeta: mocks.createSessionMeta,
-  deleteSession: vi.fn(),
+  deleteSession: mocks.deleteSession,
   listSessionMetas: mocks.listSessionMetas,
   loadMessages: vi.fn(),
   loadSessionMeta: mocks.loadSessionMeta,
@@ -40,11 +42,16 @@ vi.mock("@main/services/session/chat/session-workspace-service", () => ({
   assertSessionWorkspaceSnapshotCurrent: mocks.assertSessionWorkspaceSnapshotCurrent,
 }));
 
+vi.mock("@main/services/session/spawn/spawn-parent-lifecycle", () => ({
+  deleteSpawnedSessionsForParent: mocks.deleteSpawnedSessionsForParent,
+}));
+
 import {
   assertSessionBelongsToWorkspace,
   createSession,
   ensureSessionWorkspaceSnapshot,
   listSessions,
+  removeSession,
   updateSession,
 } from "@main/services/session/chat/chat-service";
 
@@ -111,6 +118,16 @@ describe("chat-service", () => {
     mocks.newSessionId.mockReturnValue("session-generated");
     mocks.resolveWorkspace.mockResolvedValue(resolvedWorkspace());
     mocks.assertSessionWorkspaceSnapshotCurrent.mockImplementation(async (value) => value);
+  });
+
+  it("删除父 Session 时先清理 spawned Sessions，再删除父级持久化", async () => {
+    await removeSession({ workspaceId: "workspace-1", id: "session-1" });
+
+    expect(mocks.deleteSpawnedSessionsForParent).toHaveBeenCalledWith("workspace-1", "session-1");
+    expect(mocks.deleteSession).toHaveBeenCalledWith("workspace-1", "session-1");
+    expect(mocks.deleteSpawnedSessionsForParent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteSession.mock.invocationCallOrder[0] ?? 0
+    );
   });
 
   it("rejects a Session comparison context outside the scoped Workspace store", async () => {

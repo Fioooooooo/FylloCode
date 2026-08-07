@@ -5,7 +5,11 @@ vi.mock("@main/bootstrap/lifecycle", () => ({
   registerDisposable: vi.fn(),
 }));
 
-import { driveAcpStream, type StreamOutput } from "@main/services/session/chat/acp-stream-driver";
+import {
+  driveAcpStream,
+  driveAcpTurn,
+  type StreamOutput,
+} from "@main/services/session/chat/acp-stream-driver";
 import { sessionRegistry } from "@main/services/session/chat/session-registry";
 import type { AcpSession } from "@main/services/session/chat/acp-session";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
@@ -227,5 +231,34 @@ describe("driveAcpStream", () => {
     expect(output.errors).toEqual([
       { code: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED, message: "disk full" },
     ]);
+  });
+
+  it("exposes the shared turn completion with one assembled message", async () => {
+    const session = createFakeSession();
+    const messages: unknown[] = [];
+    const runner = driveAcpTurn({
+      session,
+      owner: "spawn",
+      registryKey: "workspace-1:parent-1:spawn-1",
+      messageSessionId: "spawn-1",
+      logTag: "spawn-test",
+      start: async () => {},
+      hooks: {
+        onDone: async ({ message }) => {
+          if (message) messages.push(message);
+        },
+      },
+    });
+
+    session.emit("event", { kind: "text_delta", text: "delegated" } satisfies SessionEvent);
+    session.emit("event", { kind: "done", totalTokens: 7 } satisfies SessionEvent);
+
+    await expect(runner.completion).resolves.toMatchObject({
+      status: "done",
+      totalTokens: 7,
+      message: { role: "assistant", parts: [{ type: "text", text: "delegated" }] },
+    });
+    expect(messages).toHaveLength(1);
+    expect(sessionRegistry.get("spawn", "workspace-1:parent-1:spawn-1")).toBeUndefined();
   });
 });

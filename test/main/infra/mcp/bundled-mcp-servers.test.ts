@@ -156,10 +156,32 @@ describe("bundled mcp servers", () => {
       supportsHttp: false,
     });
 
+    expect(activation.servers.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-cortex"]);
     expect(activation.servers.every((spec) => spec.type === "stdio")).toBe(true);
     expect(activation.activationId).toBeNull();
     expect(hostMocks.getMcpServerEndpoint).not.toHaveBeenCalled();
     expect(grantMocks.issue).not.toHaveBeenCalled();
+  });
+
+  it("injects an HTTP-only server only when its backend is ready", async () => {
+    hostMocks.getMcpServerEndpoint.mockImplementation((name: string) =>
+      name === "fyllo-spawn" ? { url: "http://127.0.0.1:50100/mcp/fyllo-spawn" } : null
+    );
+
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
+      supportsHttp: true,
+    });
+
+    expect(activation.servers.map((spec) => [spec.name, spec.type])).toEqual([
+      ["fyllo-specs", "stdio"],
+      ["fyllo-cortex", "stdio"],
+      ["fyllo-spawn", "http"],
+    ]);
+    expect(grantMocks.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedServerNames: ["fyllo-spawn"] })
+    );
   });
 
   it("respects the complete disable flag without waiting for host", async () => {

@@ -39,6 +39,9 @@ function createResources(
     awaitInstallerOperations: vi.fn(async () => undefined),
     forceAbortInstallerOperations: vi.fn(),
     abortAndAwaitWorkflowInitialization: vi.fn(async () => undefined),
+    beginSpawnShutdown: vi.fn(),
+    disposeSpawnSessions: vi.fn(async () => undefined),
+    forceDisposeSpawnSessions: vi.fn(),
     beginAcpProcessPoolShutdown: vi.fn(),
     disposeAcpProcessPool: vi.fn(async () => undefined),
     forceDisposeAcpProcessPool: vi.fn(),
@@ -97,6 +100,11 @@ describe("application shutdown coordinator", () => {
 
     settleMigration();
     await vi.waitFor(() => expect(resources.disposeAcpProcessPool).toHaveBeenCalledOnce());
+    expect(resources.beginSpawnShutdown).toHaveBeenCalledOnce();
+    expect(resources.disposeSpawnSessions).toHaveBeenCalledOnce();
+    expect(vi.mocked(resources.disposeSpawnSessions).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(resources.disposeAcpProcessPool).mock.invocationCallOrder[0] ?? 0
+    );
     expect(resources.disposeSessionProbes).toHaveBeenCalledOnce();
     expect(vi.mocked(resources.disposeSessionProbes).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(resources.beginAcpProcessPoolShutdown).mock.invocationCallOrder[0] ?? 0
@@ -155,6 +163,7 @@ describe("application shutdown coordinator", () => {
     expect(secondWindow.hide).toHaveBeenCalledOnce();
     expect(resources.revokeMcpGrants).toHaveBeenCalledOnce();
     expect(resources.forceAbortInstallerOperations).toHaveBeenCalledOnce();
+    expect(resources.forceDisposeSpawnSessions).toHaveBeenCalledOnce();
     expect(resources.forceDisposeAcpProcessPool).toHaveBeenCalledOnce();
     expect(resources.forceStopBundledMcpHost).toHaveBeenCalledOnce();
   });

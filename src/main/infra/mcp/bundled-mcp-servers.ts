@@ -11,6 +11,7 @@ import {
 } from "./bundled-mcp-host";
 import {
   bundledMcpServers,
+  getBundledMcpTransportPolicy,
   resolveBundlePath,
   type BundledMcpServerRegistration,
 } from "./bundled-mcp-registry";
@@ -92,11 +93,14 @@ export async function createBundledMcpActivation(opts: {
 
   return {
     activationId: issued?.activationId ?? null,
-    servers: bundledMcpServers.map((server) => {
+    servers: bundledMcpServers.flatMap<McpServerSpec>((server) => {
       const endpoint = endpoints.get(server.name);
-      return endpoint && issued
-        ? buildHttpSpec(server, endpoint, issued.token)
-        : buildStdioSpec(server, opts.descriptor);
+      if (endpoint && issued) {
+        return [buildHttpSpec(server, endpoint, issued.token)];
+      }
+      return getBundledMcpTransportPolicy(server) === "http-only"
+        ? []
+        : [buildStdioSpec(server, opts.descriptor)];
     }),
   };
 }

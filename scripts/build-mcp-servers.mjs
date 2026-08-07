@@ -13,6 +13,10 @@ const bundledMcpServers = [
     name: "fyllo-cortex",
     external: [],
   },
+  {
+    name: "fyllo-spawn",
+    external: [],
+  },
 ];
 
 const sharedBuildOptions = {

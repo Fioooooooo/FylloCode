@@ -28,8 +28,9 @@ flowchart LR
 ```mermaid
 flowchart LR
   A["snapshot-and-hide"] --> B["quiesce"]
-  B --> C["terminate"]
-  C --> D["finalize"]
+  B --> C["settle-spawned-sessions"]
+  C --> D["terminate"]
+  D --> E["finalize"]
 ```
 
 同一 phase 的独立任务并行，phase 之间严格串行。运行期资源共享一个绝对 deadline；已进入写盘区间的 required migration 是唯一 protected-mutation 例外，必须先安全结算。
@@ -38,6 +39,7 @@ flowchart LR
 | ------------------------ | --------------------------------------- | ------------------------------- | ----------------------- |
 | ACP warmup               | cancel initial/fallback/queue           | 交给 process pool               | 无                      |
 | Chat sessions            | cancel active sessions                  | generation invalidation         | process pool            |
+| Spawned sessions         | fence RPC、cancel active turns          | settle / force dispose          | 复用 process pool       |
 | Draft session probes     | 失效 registry、关闭 ready probe         | 交给 process pool               | process pool            |
 | ACP process pool         | 拒绝 acquire                            | dispose / process-tree force    | pool 登记               |
 | Bundled MCP host         | 停止 activation、撤销 grant、取消 timer | stop / process-tree force       | host 登记               |
@@ -45,7 +47,7 @@ flowchart LR
 | Agent installer          | abort fetch、拒绝 mutation              | terminate npx/uvx/archive child | installer 登记          |
 | Auxiliary commands       | 停止 shell/Git/detector 新命令          | dispose / process-tree force    | auxiliary registry 登记 |
 
-`shutdown.ts#SHUTDOWN_PHASES` 是退出任务、owner、API 与 PID ownership 的可执行清单；本表只解释规则，不另建第二套顺序。`snapshot-and-hide` 在等待 protected migration 前同步执行，保证用户立即看到应用退出，并标记 Workspace 窗口销毁时不再重复清理 runtime；随后 quiesce 中的 timer、watcher、session、draft probe、grant 与 installer 任务并行，terminate 中 ACP、bundled MCP 与 auxiliary child 并行。Draft probe 清理只复用现有 ready ACP 进程，禁止为关闭资源重新 spawn Agent。
+`shutdown.ts#SHUTDOWN_PHASES` 是退出任务、owner、API 与 PID ownership 的可执行清单；本表只解释规则，不另建第二套顺序。`snapshot-and-hide` 在等待 protected migration 前同步执行，保证用户立即看到应用退出，并标记 Workspace 窗口销毁时不再重复清理 runtime；随后 quiesce 中的 timer、watcher、session、draft probe、grant 与 installer 任务并行，spawned sessions 在独立 settle phase 中于 ACP process pool terminate 前结算，最后 terminate 中 ACP、bundled MCP 与 auxiliary child 并行。Spawned session 与 Draft probe 清理只复用现有 ready ACP 进程，禁止为关闭资源重新 spawn Agent。
 
 ### 子进程审计
 

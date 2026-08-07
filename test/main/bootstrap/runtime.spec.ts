@@ -31,6 +31,14 @@ const mocks = vi.hoisted(() => ({
   cancelRendererInteractiveFallback: vi.fn(),
   configureShutdownRuntimeResources: vi.fn(),
   disposeSessionProbes: vi.fn(),
+  registerSpawnRpcBridge: vi.fn(),
+  unregisterSpawnRpcBridge: vi.fn(),
+  registerSpawnParentDeletionHandler: vi.fn(),
+  unregisterSpawnParentDeletion: vi.fn(),
+  beginSpawnShutdown: vi.fn(),
+  startSpawnSessions: vi.fn(),
+  disposeSpawnSessions: vi.fn(),
+  forceDisposeSpawnSessions: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -93,6 +101,22 @@ vi.mock("@main/services/session/chat/session-registry", () => ({
 }));
 vi.mock("@main/services/session/chat/session-probe-service", () => ({
   disposeSessionProbes: mocks.disposeSessionProbes,
+}));
+vi.mock("@main/services/session/spawn/spawn-rpc-bridge", () => ({
+  registerSpawnRpcBridge: mocks.registerSpawnRpcBridge,
+  unregisterSpawnRpcBridge: mocks.unregisterSpawnRpcBridge,
+}));
+vi.mock("@main/services/session/spawn/spawn-parent-lifecycle", () => ({
+  registerSpawnParentDeletionHandler: mocks.registerSpawnParentDeletionHandler,
+}));
+vi.mock("@main/services/session/spawn/spawned-session-manager", () => ({
+  spawnedSessionManager: {
+    start: mocks.startSpawnSessions,
+    beginShutdown: mocks.beginSpawnShutdown,
+    dispose: mocks.disposeSpawnSessions,
+    forceDispose: mocks.forceDisposeSpawnSessions,
+    deleteParent: vi.fn(),
+  },
 }));
 vi.mock("@main/services/platform/lifecycle/renderer-readiness", () => ({
   configureRendererReadiness: mocks.configureRendererReadiness,
@@ -160,6 +184,7 @@ describe("application runtime", () => {
     mocks.reserveLauncherWindow.mockReturnValue(7);
     mocks.focusLastActiveWindow.mockReturnValue(true);
     mocks.showMessageBox.mockResolvedValue({ response: 0 });
+    mocks.registerSpawnParentDeletionHandler.mockReturnValue(mocks.unregisterSpawnParentDeletion);
   });
 
   it("waits for gate and PATH before wiring, then activates the formal generation", async () => {
@@ -183,6 +208,9 @@ describe("application runtime", () => {
     expect(mocks.reserveLauncherWindow).toHaveBeenCalledWith(startup.window, expect.any(Object));
     expect(mocks.activateLauncherContext).toHaveBeenCalledWith(startup.window, 7);
     expect(mocks.startBundledMcpHost).toHaveBeenCalledOnce();
+    expect(mocks.registerSpawnRpcBridge).toHaveBeenCalledOnce();
+    expect(mocks.startSpawnSessions).toHaveBeenCalledOnce();
+    expect(mocks.registerSpawnParentDeletionHandler).toHaveBeenCalledOnce();
     expect(mocks.scheduleInitialAgentConnectionWarmup).not.toHaveBeenCalled();
   });
 

@@ -379,16 +379,18 @@ async function startProcess(
       }
 
       const nextFailures = entry.failures + 1;
+      const reason = `${agentId} process generation ${generation} exited unexpectedly`;
+      broadcastProcessInvalidated(agentId, reason);
+      const nextGeneration = invalidateGeneration(agentId);
       if (nextFailures > BACKOFF_MS.length) {
         giveUp.add(agentId);
-        const reason = `${agentId} crashed ${nextFailures} times, giving up`;
-        logger.error(`[infra.process.acp] ${reason}`);
-        broadcastProcessInvalidated(agentId, reason);
-        broadcastAgentUnavailable(agentId, reason);
+        const unavailableReason = `${agentId} crashed ${nextFailures} times, giving up`;
+        logger.error(`[infra.process.acp] ${unavailableReason}`);
+        broadcastAgentUnavailable(agentId, unavailableReason);
         return;
       }
 
-      scheduleRestart(agentId, nextFailures, generation);
+      scheduleRestart(agentId, nextFailures, nextGeneration);
     });
 
     return entry;

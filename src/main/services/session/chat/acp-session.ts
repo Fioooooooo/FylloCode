@@ -48,7 +48,11 @@ import { ipcError } from "@shared/errors/ipc-error";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import { activateAcpSession } from "./acp-session-activation";
-import { recoverSessionConfig } from "./session-config-recovery-service";
+import {
+  applySessionConfigOverrides,
+  recoverSessionConfig,
+  type ConfigOverrideWarning,
+} from "./session-config-recovery-service";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 import { assertAgentWorkspaceCompatibility } from "./agent-workspace-compatibility";
 import { renderWorkspaceSection } from "./system-reminder/providers/workspace";
@@ -56,7 +60,7 @@ import { readAttachmentDataUrl } from "@main/infra/storage/attachment-store";
 import { resolveSessionMemberResource } from "./member-resource-resolver";
 import type { McpWorkspaceDescriptorV2 } from "@shared/types/mcp-workspace";
 import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
-import { createChatRuntimeProfile } from "./session-runtime-profile";
+import { createChatRuntimeProfile, createSpawnRuntimeProfile } from "./session-runtime-profile";
 import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
 
 interface ReminderContext {
@@ -101,6 +105,8 @@ export interface AcpSessionOpts {
   onReminderInjected?: (reminderPart: TextUIPart) => Promise<void>;
   recoveryContext?: Partial<RecoveryContext>;
   presetAcpSessionId?: string;
+  configOverrides?: Record<string, string | boolean>;
+  onConfigWarnings?: (warnings: ConfigOverrideWarning[]) => void;
 }
 
 /**
@@ -192,6 +198,15 @@ export class AcpSession extends EventEmitter {
       } else {
         await assertSessionWorkspaceSnapshotCurrent(this.opts.workspaceSnapshot);
       }
+      await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
+    } else if (this.opts.owner === "spawn") {
+      if (!this.opts.workspaceSnapshot) {
+        throw ipcError(
+          IpcErrorCodes.VALIDATION_ERROR,
+          "Spawn ACP Session requires a frozen Workspace snapshot"
+        );
+      }
+      await assertSessionWorkspaceSnapshotCurrent(this.opts.workspaceSnapshot);
       await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
     } else {
       if (!this.opts.mcpWorkspaceDescriptor) {
@@ -599,6 +614,9 @@ export class AcpSession extends EventEmitter {
             ...(mcpWorkspaceDescriptor ? { mcpWorkspaceDescriptor } : {}),
           });
         }
+        if (this.opts.owner === "spawn") {
+          return createSpawnRuntimeProfile();
+        }
         if (!mcpWorkspaceDescriptor) {
           throw ipcError(
             IpcErrorCodes.VALIDATION_ERROR,
@@ -646,6 +664,16 @@ export class AcpSession extends EventEmitter {
         persistedOptions: recoveryState.configOptions,
         liveOptions: activation.configOptions,
       });
+      if (this.opts.configOverrides && Object.keys(this.opts.configOverrides).length > 0) {
+        const overrideResult = await applySessionConfigOverrides({
+          connection: entry.connection,
+          sessionId: activation.sessionId,
+          liveOptions: configOptions,
+          overrides: this.opts.configOverrides,
+        });
+        configOptions = overrideResult.options;
+        this.opts.onConfigWarnings?.(overrideResult.warnings);
+      }
       this.throwIfCancelled("after config recovery");
     } catch (error: unknown) {
       // 仅完成 activation 还不能安全复用 direct prompt；恢复失败或取消后，
@@ -657,6 +685,7 @@ export class AcpSession extends EventEmitter {
     let recoveryHistoryReminder: TextUIPart | null = null;
     if (
       activation.createdNewSession &&
+      this.opts.owner !== "spawn" &&
       !(this.opts.owner === "chat" && this.opts.sessionMode === "native")
     ) {
       const historyMessages = await this.recoveryContext.loadPersistedHistory();
@@ -684,7 +713,10 @@ export class AcpSession extends EventEmitter {
     fylloSessionId: string;
     agentId: string;
   }): Promise<TextUIPart[]> {
-    if (this.opts.owner === "chat" && this.opts.sessionMode === "native") {
+    if (
+      this.opts.owner === "spawn" ||
+      (this.opts.owner === "chat" && this.opts.sessionMode === "native")
+    ) {
       return [];
     }
     // Reminders are only injected when a brand-new ACP session is created. Resumed/loaded sessions

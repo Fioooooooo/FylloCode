@@ -1192,7 +1192,7 @@ describe("registerChatHandlers", () => {
     });
   });
 
-  it("persists only the final reconciled config event and ignores recovery errors", async () => {
+  it("ignores late config events after a terminal recovery error", async () => {
     handler(ChatStreamChannels.streamMessage)(
       { sender: { postMessage: vi.fn() } },
       {
@@ -1232,15 +1232,14 @@ describe("registerChatHandlers", () => {
     ];
     mocks.eventHandler!({ kind: "config_options_update", options: finalOptions });
 
-    await vi.waitFor(() => {
-      const configPatches = mocks.patchSessionMeta.mock.calls.filter(
-        ([, , patch]) => typeof patch === "object" && patch !== null && "configOptions" in patch
-      );
-      expect(configPatches).toHaveLength(1);
-      expect(configPatches[0]?.[2]).toEqual(
-        expect.objectContaining({ configOptions: finalOptions })
-      );
-    });
+    await Promise.resolve();
+    const configPatches = mocks.patchSessionMeta.mock.calls.filter(
+      ([, , patch]) => typeof patch === "object" && patch !== null && "configOptions" in patch
+    );
+    expect(configPatches).toEqual([]);
+    expect(sink.sendChunk).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "config_options_update" })
+    );
   });
 
   it("rejects setConfigOption input missing configId before calling service", async () => {
