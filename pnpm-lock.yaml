@@ -11,12 +11,6 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.25.0
         version: 0.25.1(zod@4.4.3)
-      '@codemirror/lang-yaml':
-        specifier: ^6.1.3
-        version: 6.1.3
-      '@codemirror/theme-one-dark':
-        specifier: ^6.1.3
-        version: 6.1.3
       '@electron-toolkit/preload':
         specifier: ^3.0.2
         version: 3.0.2(electron@39.8.8)
@@ -29,12 +23,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
-      '@vueuse/core':
-        specifier: ^14.3.0
-        version: 14.3.0(vue@3.5.35(typescript@6.0.3))
-      '@vueuse/integrations':
-        specifier: ^14.3.0
-        version: 14.3.0(focus-trap@8.2.1)(fuse.js@7.4.2)(sortablejs@1.15.7)(vue@3.5.35(typescript@6.0.3))
       ai:
         specifier: ^6.0.198
         version: 6.0.198(zod@4.4.3)
@@ -50,34 +38,19 @@ importers:
       js-yaml:
         specifier: ^4.2.0
         version: 4.2.0
-      katex:
-        specifier: ^0.17.0
-        version: 0.17.0
-      markstream-vue:
-        specifier: 1.0.5
-        version: 1.0.5(katex@0.17.0)(mermaid@11.16.0)(stream-monaco@0.0.46(monaco-editor@0.55.1))(vue@3.5.35(typescript@6.0.3))
-      mermaid:
-        specifier: ^11.16.0
-        version: 11.16.0
       nanoid:
         specifier: ^5.1.11
         version: 5.1.11
-      pinia:
-        specifier: ^3.0.4
-        version: 3.0.4(typescript@6.0.3)(vue@3.5.35(typescript@6.0.3))
-      sortablejs:
-        specifier: ^1.15.7
-        version: 1.15.7
-      stream-monaco:
-        specifier: 0.0.46
-        version: 0.0.46(monaco-editor@0.55.1)
-      vue-codemirror:
-        specifier: ^6.1.1
-        version: 6.1.1(codemirror@6.0.2)(vue@3.5.35(typescript@6.0.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@codemirror/lang-yaml':
+        specifier: ^6.1.3
+        version: 6.1.3
+      '@codemirror/theme-one-dark':
+        specifier: ^6.1.3
+        version: 6.1.3
       '@electron-toolkit/eslint-config-prettier':
         specifier: 3.0.0
         version: 3.0.0(eslint@10.7.0(jiti@2.7.0))(prettier@3.9.5)
@@ -114,6 +87,12 @@ importers:
       '@vue/test-utils':
         specifier: ^2.4.11
         version: 2.4.11(@vue/compiler-dom@3.5.35)(@vue/server-renderer@3.5.35(vue@3.5.35(typescript@6.0.3)))(vue@3.5.35(typescript@6.0.3))
+      '@vueuse/core':
+        specifier: ^14.3.0
+        version: 14.3.0(vue@3.5.35(typescript@6.0.3))
+      '@vueuse/integrations':
+        specifier: ^14.3.0
+        version: 14.3.0(focus-trap@8.2.1)(fuse.js@7.4.2)(sortablejs@1.15.7)(vue@3.5.35(typescript@6.0.3))
       electron:
         specifier: ^39.2.6
         version: 39.8.8
@@ -132,15 +111,33 @@ importers:
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
+      katex:
+        specifier: ^0.17.0
+        version: 0.17.0
       lint-staged:
         specifier: ^17.0.8
         version: 17.0.8
+      markstream-vue:
+        specifier: 1.0.5
+        version: 1.0.5(katex@0.17.0)(mermaid@11.16.0)(stream-monaco@0.0.46(monaco-editor@0.55.1))(vue@3.5.35(typescript@6.0.3))
+      mermaid:
+        specifier: ^11.16.0
+        version: 11.16.0
+      pinia:
+        specifier: ^3.0.4
+        version: 3.0.4(typescript@6.0.3)(vue@3.5.35(typescript@6.0.3))
       prettier:
         specifier: ^3.9.5
         version: 3.9.5
       simple-git-hooks:
         specifier: ^2.13.1
         version: 2.13.1
+      sortablejs:
+        specifier: ^1.15.7
+        version: 1.15.7
+      stream-monaco:
+        specifier: 0.0.46
+        version: 0.0.46(monaco-editor@0.55.1)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -162,6 +159,9 @@ importers:
       vue:
         specifier: ^3.5.35
         version: 3.5.35(typescript@6.0.3)
+      vue-codemirror:
+        specifier: ^6.1.1
+        version: 6.1.1(codemirror@6.0.2)(vue@3.5.35(typescript@6.0.3))
       vue-eslint-parser:
         specifier: ^10.4.1
         version: 10.4.1(eslint@10.7.0(jiti@2.7.0))

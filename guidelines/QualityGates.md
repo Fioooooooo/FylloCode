@@ -1,19 +1,20 @@
 ---
 name: Quality Gates
-description: Governs the project's type checking, linting, formatting, hooks, and CI quality commands.
-keywords: [quality, lint, typecheck, format, ci, hooks]
+description: Governs the project's dependency classification, type checking, linting, formatting, hooks, and CI quality commands.
+keywords: [quality, dependencies, packaging, typecheck, lint, ci]
 ---
 
 # Quality Gates
 
 ## 范围
 
-- 覆盖：根目录质量脚本、TypeScript 严格性、ESLint/Prettier 配置、git hooks 和 GitHub Actions CI。
+- 覆盖：根依赖分类、质量脚本、TypeScript 严格性、ESLint/Prettier 配置、git hooks 和 GitHub Actions CI。
 - 不覆盖：测试文件位置和 Vitest project 细节；见 `guidelines/Testing.md`。
 
 ## 规则
 
 - MUST 使用 pnpm 10+ 和 Node.js 22+ 执行项目命令。证据：`package.json` 的 `engines`、`packageManager` 和 `CONTRIBUTING.md`。
+- MUST 将仅供 `src/renderer/**` 构建使用且已由 Vite 打入 `out/renderer/**` 的库声明在 `devDependencies`，避免 electron-builder 将其完整生产依赖树再次复制进 `app.asar/node_modules`；`dependencies` 只保留 `out/main/**`、`out/preload/**`、bundled MCP 未内联的运行时依赖及生产环境直接启动的 CLI，其中 `@fission-ai/openspec` 与 `@modelcontextprotocol/sdk` 必须保持生产依赖。证据：`package.json`、`electron.vite.config.ts`、`electron-builder.yml`、`scripts/build-mcp-servers.mjs`、`src/main/infra/mcp/bundled-mcp-registry.ts`。
 - MUST 使用与 `.nvmrc` 和 `pnpm-lock.yaml` 一致的本地环境执行项目命令；当当前 worktree 环境尚未准备好或需要修复时，使用 `sh scripts/prepare-worktree-env.sh`。该脚本按 `.nvmrc` 切换 Node 版本，并在依赖缺失、锁文件不一致或 `node_modules` 为软链时通过 `pnpm install --frozen-lockfile` 按锁文件安装依赖；具体执行节奏见 `AGENTS.md`。证据：`.nvmrc`、`scripts/prepare-worktree-env.sh`、`AGENTS.md`。
 - MUST 通过 `pnpm typecheck` 运行类型检查；该命令委托给 `typecheck:node`（`tsc --noEmit -p tsconfig.node.json --composite false`）和 `typecheck:web`（`vue-tsc --noEmit -p tsconfig.web.json --composite false`）。证据：`package.json`。
 - MUST 保持严格 TypeScript 检查。项目从 `@electron-toolkit/tsconfig/tsconfig.json` 继承 `strict: true`，并且 `tsconfig.node.json` 与 `tsconfig.web.json` 都覆盖了 `noImplicitAny: true`；没有 proposal 时不得关闭 strict 子选项。
