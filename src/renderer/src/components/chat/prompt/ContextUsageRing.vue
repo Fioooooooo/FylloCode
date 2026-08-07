@@ -4,6 +4,8 @@ import type { TokenUsage } from "@shared/types/chat";
 
 const props = defineProps<TokenUsage>();
 
+type ContextUsageLevel = "normal" | "high" | "critical" | "danger";
+
 const radius = 13;
 const circumference = 2 * Math.PI * radius;
 
@@ -15,41 +17,64 @@ const percent = computed(() => {
   return Math.min(100, Math.max(0, (props.used / props.size) * 100));
 });
 
-const percentValueLabel = computed(() => `${Math.round(percent.value)}`);
+const percentValueLabel = computed(() => `${Math.floor(percent.value)}`);
 const percentLabel = computed(() => `${percentValueLabel.value}%`);
-const remaining = computed(() => Math.max(0, props.size - props.used));
 const strokeOffset = computed(() => circumference * (1 - percent.value / 100));
+const usageLevel = computed<ContextUsageLevel>(() => {
+  if (percent.value >= 95) {
+    return "danger";
+  }
+
+  if (percent.value >= 90) {
+    return "critical";
+  }
+
+  if (percent.value >= 75) {
+    return "high";
+  }
+
+  return "normal";
+});
+const usageAdvice = computed(() => {
+  switch (usageLevel.value) {
+    case "high":
+      return "Context 占用过高，请留意后续用量";
+    case "critical":
+      return "请新建会话或总结当前对话";
+    case "danger":
+      return "下一次提问可能失败，请新建会话";
+    default:
+      return null;
+  }
+});
 const tooltipRows = computed(() => {
   const rows = [
     {
       label: "Context",
       value: `${formatTokens(props.used)} / ${formatTokens(props.size)} tokens (${percentLabel.value})`,
     },
-    {
-      label: "Remaining",
-      value: `${formatTokens(remaining.value)} tokens`,
-    },
   ];
 
-  if (props.cost) {
+  if (usageAdvice.value) {
     rows.push({
-      label: "Cost",
-      value: formatCost(props.cost.amount, props.cost.currency),
+      label: "建议",
+      value: usageAdvice.value,
     });
   }
 
   return rows;
 });
 const usageColorClass = computed(() => {
-  if (percent.value >= 80) {
-    return "text-error";
+  switch (usageLevel.value) {
+    case "high":
+      return "text-warning";
+    case "critical":
+      return "text-orange-500 dark:text-orange-400";
+    case "danger":
+      return "text-error";
+    default:
+      return "text-success";
   }
-
-  if (percent.value >= 50) {
-    return "text-warning";
-  }
-
-  return "text-success";
 });
 
 const tooltipText = computed(() =>
@@ -63,14 +88,6 @@ function formatTokens(value: number): string {
   }
   const k = value / 1000;
   return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
-}
-
-function formatCost(amount: number, currency: string): string {
-  return `${new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 6,
-  }).format(amount)} ${currency}`;
 }
 </script>
 

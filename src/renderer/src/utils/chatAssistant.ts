@@ -30,7 +30,7 @@ const ACTIVITY_KIND_LABELS: Record<ActivityKind, { verb: string; noun: string }>
   read: { verb: "Read", noun: "file" },
   write: { verb: "Write", noun: "file" },
   edit: { verb: "Edit", noun: "file" },
-  search: { verb: "Search", noun: "tool" },
+  search: { verb: "Search", noun: "page" },
   execute: { verb: "Run", noun: "command" },
   other: { verb: "Run", noun: "tool" },
 };
