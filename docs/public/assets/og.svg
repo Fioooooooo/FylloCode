@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f4f8f8"/>
+
+  <!-- Subtle angular background motif -->
+  <path d="M900 -24 H1218 V250 H1164 L1010 -18 Z" fill="#2dd4bf" opacity="0.045"/>
+  <path d="M1018 18 H1218 V194 H1168 L1064 18 Z" fill="#0891b2" opacity="0.035"/>
+  <path d="M-20 462 H160 L250 630 H-20 Z" fill="#0f766e" opacity="0.035"/>
+  <path d="M874 76 H1126 L1180 170 H928 Z" fill="none" stroke="#0f766e" stroke-width="2" opacity="0.075"/>
+  <path d="M36 476 H190 L258 594 H104 Z" fill="none" stroke="#0891b2" stroke-width="2" opacity="0.065"/>
+
+  <!-- Exact FylloCode mark from supplied SVG; uniformly scaled to 130px tall -->
+  <g transform="translate(310.6 250) scale(0.458536)">
+    <g fill-rule="evenodd">
+      <path fill="#0f766e" d="M0 0l163.23 283.51 41-70.73L81.23 0H0z"/>
+      <path fill="#2dd4bf" d="M0 0h326l-40 71H41L0 0z"/>
+      <path fill="#0891b2" d="M55 95h218.46l-40 71H96L55 95z"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="504" y="315" fill="#0f172a"
+        font-family="Inter, 'Inter Display', Arial, sans-serif"
+        font-size="88" font-weight="500" letter-spacing="-2.2"
+        dominant-baseline="central">FylloCode</text>
+</svg>

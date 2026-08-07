@@ -11,7 +11,7 @@ const sidebar = createLocaleSidebar({
 });
 
 export const en = {
-  description: "The team governance layer for Coding Agents.",
+  description: "An open-source project workspace for Claude Code, Codex, and other local Coding Agents.",
   themeConfig: {
     nav: [
       { text: "Docs", link: "/en/docs/" },

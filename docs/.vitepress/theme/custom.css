@@ -9,6 +9,7 @@
   --fc-panel: #f4f8f8;
   --fc-frame: #e9f0f2;
   --fc-accent-surface: #0f766e;
+  --fc-accent-surface-hover: #0d9488;
   --fc-accent-ink: #f0fdfa;
   --fc-radius: 16px;
   --vp-home-hero-name-color: transparent;
@@ -28,6 +29,7 @@
   --fc-panel: #101e22;
   --fc-frame: #172a2d;
   --fc-accent-surface: #115e59;
+  --fc-accent-surface-hover: #0f766e;
   --fc-accent-ink: #ccfbf1;
   --vp-home-hero-image-background-image: linear-gradient(135deg, #164e63 10%, #115e59 50%, #134e4a 86%);
 }
@@ -58,6 +60,43 @@
   .VPHero .tagline {
     font-size: 18px;
     line-height: 32px;
+  }
+}
+
+/*
+ * 平板及以上：hero 与 Agent 接入条合计占满首屏，细节内容全部落到折叠线以下。
+ *
+ * `.VPHero` 自带 `margin-top: -navHeight`，盒子从视口顶端起算，所以这里不再扣导航高度。
+ * `--fc-agent-strip-h` 是接入条的预期高度：窄屏 Agent 列表会折成两行，故分档取值。
+ * 两侧都用 min-height——接入条实际更矮时补足到预期值，更高时整体略微超出一屏而不是被裁切。
+ */
+@media (min-width: 768px) {
+  :root {
+    --fc-agent-strip-h: 152px;
+  }
+
+  .VPHero.VPHomeHero {
+    display: flex;
+    min-height: calc(100vh - var(--fc-agent-strip-h));
+    min-height: calc(100dvh - var(--fc-agent-strip-h));
+    align-items: center;
+    padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 32px);
+    padding-bottom: 32px;
+  }
+
+  .VPHero.VPHomeHero .container {
+    width: 100%;
+  }
+
+  .fc-agent-strip__inner {
+    min-height: var(--fc-agent-strip-h);
+    align-content: center;
+  }
+}
+
+@media (min-width: 1100px) {
+  :root {
+    --fc-agent-strip-h: 108px;
   }
 }
 
@@ -167,7 +206,8 @@
 }
 
 .fc-section__header h2,
-.fc-showcase__content h2 {
+.fc-showcase__content h2,
+.fc-cta h2 {
   margin: 0;
   color: var(--vp-c-text-1);
   font-size: clamp(2rem, 4vw, 3.15rem);
@@ -177,7 +217,8 @@
 }
 
 .fc-section__header p,
-.fc-showcase__content > p {
+.fc-showcase__content > p,
+.fc-cta > p {
   max-width: 68ch;
   margin: 16px 0 0;
   color: var(--fc-muted);
@@ -285,7 +326,6 @@
 
 .fc-path-card h3,
 .fc-context-card h3,
-.fc-evolution-card h3,
 .fc-scale-content h3 {
   margin: 0;
   color: var(--vp-c-text-1);
@@ -295,7 +335,6 @@
 
 .fc-path-card p,
 .fc-context-card p,
-.fc-evolution-card p,
 .fc-scale-content p {
   margin: 8px 0 0;
   color: var(--fc-muted);
@@ -354,37 +393,6 @@
   margin-top: auto;
 }
 
-.fc-evolution-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.fc-evolution-card {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--fc-line);
-  border-radius: var(--fc-radius);
-  padding: 26px;
-  background: var(--vp-c-bg);
-}
-
-.fc-evolution-copy .fc-link {
-  margin-top: 20px;
-}
-
-.fc-evolution-media {
-  margin: 26px 0 0;
-}
-
-.fc-evolution-media img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--fc-line);
-  border-radius: 10px;
-}
-
 .fc-scale-layout {
   grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
 }
@@ -409,6 +417,124 @@
 
 .fc-scale-content article > .fc-link {
   margin-top: 24px;
+}
+
+.fc-cta {
+  display: flex;
+  max-width: 720px;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.fc-cta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.fc-btn {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  border: 1px solid var(--fc-line);
+  border-radius: 10px;
+  padding: 0 22px;
+  color: var(--vp-c-brand-1);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.fc-btn:hover {
+  border-color: var(--vp-c-brand-2);
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.fc-btn:focus-visible {
+  outline: 3px solid rgba(20, 184, 166, 0.4);
+  outline-offset: 3px;
+}
+
+.fc-btn--brand {
+  border-color: var(--fc-accent-surface);
+  background: var(--fc-accent-surface);
+  color: var(--fc-accent-ink);
+}
+
+.fc-btn--brand:hover {
+  border-color: var(--fc-accent-surface-hover);
+  background: var(--fc-accent-surface-hover);
+  color: var(--fc-accent-ink);
+}
+
+.fc-trust {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 22px;
+  margin: 20px 0 0;
+  padding: 0;
+  color: var(--fc-muted);
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.fc-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.fc-trust li::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--vp-c-brand-2);
+  content: "";
+}
+
+.fc-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fc-platform {
+  display: flex;
+  min-width: 176px;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--fc-line);
+  border-radius: 12px;
+  padding: 16px 20px;
+  background: var(--fc-panel);
+}
+
+.fc-platform strong {
+  color: var(--vp-c-text-1);
+  font-size: 0.95rem;
+}
+
+.fc-platform span {
+  color: var(--fc-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .fc-links {
@@ -489,10 +615,6 @@
   .fc-context-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .fc-evolution-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 767px) {
@@ -521,13 +643,34 @@
   }
 
   .fc-section__header h2,
-  .fc-showcase__content h2 {
+  .fc-showcase__content h2,
+  .fc-cta h2 {
     font-size: 2rem;
   }
 
   .fc-section__header p,
-  .fc-showcase__content > p {
+  .fc-showcase__content > p,
+  .fc-cta > p {
     font-size: 1rem;
+  }
+
+  .fc-cta__actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .fc-btn {
+    justify-content: center;
+  }
+
+  .fc-platforms {
+    width: 100%;
+    flex-direction: column;
+    margin-top: 28px;
+  }
+
+  .fc-platform {
+    min-width: 0;
   }
 
   .fc-key-list li {
@@ -551,14 +694,11 @@
   .fc-diagram-frame figcaption {
     margin: 10px 2px 2px;
   }
-
-  .fc-evolution-card {
-    padding: 22px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fc-link {
+  .fc-link,
+  .fc-btn {
     transition: none;
   }
 }
