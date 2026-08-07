@@ -129,7 +129,7 @@ describe("Codex ACP event adapter", () => {
     ]) {
       expect(event).toMatchObject({
         toolName: "fyllo-specs/explore",
-        title: "Call fyllo-specs/explore",
+        title: "MCP fyllo-specs/explore",
       });
     }
   });

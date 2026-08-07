@@ -27,7 +27,7 @@ describe("Claude Code ACP event adapter", () => {
     ]) {
       expect(event).toMatchObject({
         toolName: "tavily/tavily_search",
-        title: "Call tavily/tavily_search",
+        title: "MCP tavily/tavily_search",
       });
     }
   });
