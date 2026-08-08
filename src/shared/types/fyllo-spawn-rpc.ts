@@ -23,6 +23,7 @@ export const spawnCallerSchema = z
 
 export const spawnConfigValueSchema = z.union([z.string(), z.boolean()]);
 export const spawnConfigOverrideSchema = z.record(z.string().min(1), spawnConfigValueSchema);
+export const spawnTurnModeSchema = z.enum(["sync", "background"]);
 
 export const spawnMethodSchema = z.enum([
   "available_agents",
@@ -38,6 +39,7 @@ export const promptToAgentParamsSchema = z
     prompt: z.string().min(1),
     sessionId: identitySchema.optional(),
     config: spawnConfigOverrideSchema.optional(),
+    background: z.boolean().default(false),
   })
   .strict();
 export const checkSessionStatusParamsSchema = z.object({ sessionId: identitySchema }).strict();
@@ -171,8 +173,26 @@ export const spawnWarningSchema = z
   .strict();
 
 const promptSessionBaseSchema = z.object({ sessionId: identitySchema });
+const spawnTerminalErrorCodeSchema = z.enum([
+  "TURN_INACTIVITY_TIMEOUT",
+  "TURN_CANCEL_UNCONFIRMED",
+  "TURN_FAILED",
+  "TURN_PERSIST_FAILED",
+  "AGENT_PROCESS_INVALIDATED",
+  "APP_SHUTDOWN",
+  "APP_RESTARTED",
+]);
 
 export const promptToAgentResultSchema = z.discriminatedUnion("status", [
+  promptSessionBaseSchema
+    .extend({
+      status: z.literal("accepted"),
+      turnId: identitySchema,
+      startedAt: z.string().datetime(),
+      config: z.array(spawnConfigOptionSummarySchema),
+      warnings: z.array(spawnWarningSchema),
+    })
+    .strict(),
   promptSessionBaseSchema
     .extend({
       status: z.literal("completed"),
@@ -198,12 +218,18 @@ export const promptToAgentResultSchema = z.discriminatedUnion("status", [
       retryable: z.literal(true),
     })
     .strict(),
-  promptSessionBaseSchema.extend({ status: z.literal("expired") }).strict(),
+  promptSessionBaseSchema
+    .extend({
+      status: z.literal("expired"),
+      code: z.literal("AGENT_PROCESS_INVALIDATED").optional(),
+      message: z.string().min(1).optional(),
+    })
+    .strict(),
   promptSessionBaseSchema.extend({ status: z.literal("not_found") }).strict(),
   promptSessionBaseSchema
     .extend({
       status: z.literal("error"),
-      code: z.enum(["TURN_INACTIVITY_TIMEOUT", "TURN_CANCEL_UNCONFIRMED", "TURN_FAILED"]),
+      code: spawnTerminalErrorCodeSchema,
       message: z.string().min(1),
     })
     .strict(),
@@ -222,6 +248,8 @@ export const checkSessionStatusResultSchema = z.discriminatedUnion("status", [
   z
     .object({
       status: z.literal("running"),
+      turnId: identitySchema,
+      mode: spawnTurnModeSchema,
       startedAt: z.string().datetime(),
       lastActivityAt: z.string().datetime(),
       recentActivity: z.array(spawnRecentActivitySchema).max(3),
@@ -230,6 +258,7 @@ export const checkSessionStatusResultSchema = z.discriminatedUnion("status", [
   z
     .object({
       status: z.literal("idle"),
+      latestTurnId: identitySchema.optional(),
       latestResponseId: identitySchema.optional(),
     })
     .strict(),
@@ -240,7 +269,20 @@ export const checkSessionStatusResultSchema = z.discriminatedUnion("status", [
       message: z.string().min(1),
     })
     .strict(),
-  z.object({ status: z.literal("expired") }).strict(),
+  z
+    .object({
+      status: z.literal("expired"),
+      code: z.literal("AGENT_PROCESS_INVALIDATED").optional(),
+      message: z.string().min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("interrupted"),
+      code: z.enum(["APP_SHUTDOWN", "APP_RESTARTED"]),
+      message: z.string().min(1),
+    })
+    .strict(),
 ]);
 
 export const readResponseResultSchema = z
@@ -254,12 +296,12 @@ export const readResponseResultSchema = z
 export type SpawnCaller = z.infer<typeof spawnCallerSchema>;
 export type SpawnMethod = z.infer<typeof spawnMethodSchema>;
 export type AvailableAgentsParams = z.infer<typeof availableAgentsParamsSchema>;
-export type PromptToAgentParams = z.infer<typeof promptToAgentParamsSchema>;
+export type PromptToAgentParams = z.input<typeof promptToAgentParamsSchema>;
 export type CheckSessionStatusParams = z.infer<typeof checkSessionStatusParamsSchema>;
 export type ReadResponseParams = z.infer<typeof readResponseParamsSchema>;
 export type SpawnRpcErrorCode = z.infer<typeof spawnRpcErrorCodeSchema>;
 export type SpawnRpcError = z.infer<typeof spawnRpcErrorSchema>;
-export type FylloSpawnRpcRequest = z.infer<typeof fylloSpawnRpcRequestSchema>;
+export type FylloSpawnRpcRequest = z.input<typeof fylloSpawnRpcRequestSchema>;
 export type FylloSpawnRpcCancel = z.infer<typeof fylloSpawnRpcCancelSchema>;
 export type FylloSpawnRpcResponse = z.infer<typeof fylloSpawnRpcResponseSchema>;
 export type FylloSpawnRpcMessage = z.infer<typeof fylloSpawnRpcMessageSchema>;
@@ -267,7 +309,10 @@ export type AvailableAgent = z.infer<typeof availableAgentSchema>;
 export type AvailableAgentsResult = z.infer<typeof availableAgentsResultSchema>;
 export type SpawnConfigOptionSummary = z.infer<typeof spawnConfigOptionSummarySchema>;
 export type SpawnWarning = z.infer<typeof spawnWarningSchema>;
+export type SpawnTurnMode = z.infer<typeof spawnTurnModeSchema>;
+export type SpawnRecentActivity = z.infer<typeof spawnRecentActivitySchema>;
 export type PromptToAgentResult = z.infer<typeof promptToAgentResultSchema>;
+export type PromptToAgentAcceptedResult = Extract<PromptToAgentResult, { status: "accepted" }>;
 export type CheckSessionStatusResult = z.infer<typeof checkSessionStatusResultSchema>;
 export type ReadResponseResult = z.infer<typeof readResponseResultSchema>;
 

@@ -1,8 +1,10 @@
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { parseMcpWorkspaceDescriptor } from "@shared/types/mcp-workspace";
 import { runWithRequestContext } from "../../../src/mcp-servers/shared/request-context";
-import { callerFromContext } from "../../../src/mcp-servers/fyllo-spawn/src/tools";
+import { callerFromContext, registerTools } from "../../../src/mcp-servers/fyllo-spawn/src/tools";
+import type { SpawnRpcClient } from "../../../src/mcp-servers/fyllo-spawn/src/rpc-client";
 
 function context(sessionId?: string) {
   return parseMcpWorkspaceDescriptor({
@@ -30,5 +32,21 @@ describe("fyllo-spawn trusted caller", () => {
     expect(() => runWithRequestContext(context(), () => callerFromContext())).toThrowError(
       expect.objectContaining({ code: "SPAWN_PARENT_SESSION_REQUIRED" })
     );
+  });
+
+  it("documents background ownership without exposing a response path", () => {
+    const registerTool = vi.fn();
+    registerTools(
+      { registerTool } as unknown as McpServer,
+      { call: vi.fn() } as unknown as SpawnRpcClient
+    );
+    const promptRegistration = registerTool.mock.calls.find(([name]) => name === "prompt_to_agent");
+    const description = promptRegistration?.[1]?.description as string;
+
+    expect(description).toContain("background=true");
+    expect(description).toContain("check_session_status");
+    expect(description).toContain("responseId + read_response");
+    expect(description).toContain("no absolute runtime limit");
+    expect(description).not.toContain("responsePath");
   });
 });

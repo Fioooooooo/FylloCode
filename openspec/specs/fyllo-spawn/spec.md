@@ -100,47 +100,65 @@ Main SHALL 根据可信 caller identity加载父 Chat Session meta，重新校�
 
 ### Requirement: prompt_to_agent 支持新建、续聊与 config override
 
-`prompt_to_agent` SHALL在省略 spawned sessionId时创建新 Session，在提供 owner-matched spawned sessionId时继续当前进程世代仍 active的 ACP Session。新 Session SHALL以 `newSession().configOptions`作为首次 config主要来源；config override SHALL在 prompt前按 option id、类型与候选值验证并逐项设置。设置失败 SHALL不阻断 prompt，但 SHALL通过结构化 warnings返回。
+`prompt_to_agent` SHALL在省略spawned sessionId时创建新Session，在提供owner-matched spawned sessionId时继续当前进程世代仍active的ACP Session。新Session SHALL以`newSession().configOptions`作为首次config schema和snapshot的主要来源；resume/load SHALL使用现有config recovery收敛持久化值与activation live options。config override SHALL在每次prompt前按option id、类型与候选值验证并逐项设置，包含仍active ACP Session的warm direct prompt路径。设置失败 SHALL不阻断prompt，但 SHALL通过结构化warnings返回；首次accepted或同步terminal snapshot SHALL不依赖异步`config_option_update`到达。
 
-#### Scenario: 首次 prompt返回 config
+#### Scenario: 同步首次prompt返回config
 
-- **WHEN** `newSession`返回 model与thought level config options且 prompt成功
-- **THEN** tool结果 SHALL包含 spawned sessionId、完成响应和精简 config snapshot
-- **AND** SHALL NOT等待异步 config update才发送 prompt
+- **WHEN**`newSession`返回model与thought level config options且同步prompt成功
+- **THEN**tool结果 SHALL包含spawned sessionId、完成响应和精简config snapshot
+- **AND** SHALL NOT等待异步config update才发送prompt
 
-#### Scenario: 首轮指定 config
+#### Scenario: 后台首次prompt返回config
 
-- **WHEN**调用方在新 Session请求中提交 `config: { model: "o3" }`且该值属于 `newSession`返回候选
-- **THEN** Main SHALL在发送 prompt前调用现有 set-config-option RPC
-- **AND**完成结果 SHALL反映成功应用后的 current value
+- **WHEN**`newSession`返回完整config options且后台prompt已经提交
+- **THEN**accepted结果 SHALL包含基于该返回值并应用本轮override后的config snapshot
+- **AND**后续异步config update SHALL NOT改变已经返回的accepted snapshot
+
+#### Scenario: 首轮指定config
+
+- **WHEN**调用方在新Session请求中提交`config: { model: "o3" }`且该值属于`newSession`返回候选
+- **THEN**Main SHALL在发送prompt前调用现有set-config-option RPC
+- **AND**accepted或完成结果 SHALL反映成功应用后的current value
+
+#### Scenario: warm续聊指定config
+
+- **WHEN**调用方续聊仍active的spawned ACP Session并提交合法config override
+- **THEN**Main SHALL在direct prompt前验证和应用该override
+- **AND** SHALL NOT因跳过cold recovery而静默忽略override
 
 #### Scenario: config设置失败
 
-- **WHEN**一个合法 config override被 Agent拒绝但 ACP Session仍可 prompt
-- **THEN**系统 SHALL继续发送 prompt
-- **AND**结果 SHALL包含该 option的 warning且不得声称设置成功
+- **WHEN**一个合法config override被Agent拒绝但ACP Session仍可prompt
+- **THEN**系统 SHALL继续发送prompt
+- **AND**accepted或完成结果 SHALL包含该option的warning且不得声称设置成功
 
 ### Requirement: 系统只限制瞬时并发而不限制累计 spawned Session
 
-同一 spawned Session SHALL同时最多运行一个 active turn；单个父 Session SHALL同时最多运行4个 spawned turns，全应用 SHALL同时最多运行8个 spawned turns。系统 SHALL不限制累计创建的 spawned Session数量或父 Session使用时长，且 SHALL不因达到 resident idle软目标拒绝新 Session。
+同一spawned Session SHALL同时最多运行一个active turn；单个父Session SHALL同时最多运行4个spawned turns，全应用 SHALL同时最多运行8个spawned turns。active SHALL从reservation成功持续到terminal finalization结束；background首次accepted、MCP HTTP response结束或Workspace window关闭 SHALL NOT提前释放计数。系统 SHALL不限制累计创建的spawned Session数量、父Session使用时长或turn绝对运行时长，且 SHALL不因达到resident idle软目标拒绝新Session。
 
-#### Scenario: 同一 Session已有 active turn
+#### Scenario: 同一Session已有active turn
 
-- **WHEN**同一 owner再次向仍在 running或cancelling的 spawned Session发送 prompt
-- **THEN** `prompt_to_agent` SHALL立即返回 `busy`
-- **AND** SHALL包含 startedAt与lastActivityAt且不排队第二个 turn
+- **WHEN**同一owner再次向仍在starting、running或cancelling的spawned Session发送prompt
+- **THEN**`prompt_to_agent` SHALL立即返回busy
+- **AND** SHALL包含startedAt与lastActivityAt且不排队第二个turn
 
-#### Scenario: 达到父 Session并发上限
+#### Scenario: 后台首次调用已经返回
 
-- **WHEN**同一父 Session已有4个 active spawned turns并请求第五个
-- **THEN**系统 SHALL返回 retryable `SPAWN_CAPACITY_EXCEEDED`
-- **AND**现有4个 turns SHALL继续运行
+- **WHEN**background调用已返回accepted但turn尚未terminal
+- **THEN**该turn SHALL继续占用父Session与全局active容量
+- **AND**其他请求 SHALL按同一1/4/8限制判断busy或capacity_exceeded
 
-#### Scenario: 长期顺序创建 Session
+#### Scenario: 达到父Session并发上限
 
-- **WHEN**父 Session长期运行并已累计完成超过任意 resident idle软目标数量的 spawned Sessions
-- **THEN**系统 SHALL仍允许在 active容量可用时创建新 Session
-- **AND** MAY LRU卸载 idle内存 entry但 SHALL保留磁盘历史
+- **WHEN**同一父Session已有4个active spawned turns并请求第五个
+- **THEN**系统 SHALL返回retryable `SPAWN_CAPACITY_EXCEEDED`
+- **AND**现有4个turns SHALL继续运行
+
+#### Scenario: 长期顺序创建Session
+
+- **WHEN**父Session长期运行并已累计完成超过任意resident idle软目标数量的spawned Sessions
+- **THEN**系统 SHALL仍允许在active容量可用时创建新Session
+- **AND** MAY LRU卸载idle内存entry但 SHALL保留磁盘历史
 
 ### Requirement: Inactivity watchdog 取消无进展 turn
 
@@ -166,79 +184,199 @@ Main SHALL 根据可信 caller identity加载父 Chat Session meta，重新校�
 
 ### Requirement: Spawned 对话与响应持久化在父 Session子目录
 
-系统 SHALL将 spawned meta、完整 `UIMessage` JSONL和不可变 turn response写入 `sessionDir(workspaceId, parentSessionId)/spawn/<spawnedSessionId>/`。每轮 SHALL先持久化主 Agent发送给子 Agent的 `role=user` prompt，再持久化统一 MessageAssembler产生的 assistant message。meta SHALL使用versioned schema和原子替换，单 Session写入 SHALL串行。
+系统 SHALL将spawned meta、versioned turn records、完整`UIMessage` JSONL和不可变turn response写入`sessionDir(workspaceId, parentSessionId)/spawn/<spawnedSessionId>/`。每轮 SHALL先持久化主Agent发送给子Agent的`role=user` prompt，再持久化统一MessageAssembler产生的assistant message。response SHALL在terminal success record引用其responseId前durable；turn record和meta SHALL使用versioned schema与原子替换，单Session写入 SHALL串行。
 
-#### Scenario: 成功完成一轮 prompt
+#### Scenario: 成功完成一轮同步prompt
 
-- **WHEN**主 Agent向子 Agent发送 prompt并收到 assistant输出
-- **THEN**messages.jsonl SHALL按顺序包含 role=user prompt和role=assistant message
-- **AND**responses目录 SHALL新增以 responseId标识且之后不覆盖的 Markdown结果
-- **AND**meta SHALL更新turnCount、tokenUsage、latestResponseId与updatedAt
+- **WHEN**主Agent以同步模式向子Agent发送prompt并收到assistant输出
+- **THEN**messages.jsonl SHALL按顺序包含role=user prompt和role=assistant message
+- **AND**responses目录 SHALL新增以responseId标识且之后不覆盖的Markdown结果
+- **AND**turn record与meta SHALL更新turnCount、tokenUsage、latestResponseId与updatedAt
+
+#### Scenario: 成功完成一轮后台prompt
+
+- **WHEN**background turn收到assistant输出且response写入成功
+- **THEN**系统 SHALL先durable写入不可变response
+- **AND**再将turn record原子转换为completed、记录responseId并建立pending notification
+- **AND**status或notification SHALL NOT在response可读前声称completed
 
 #### Scenario: prompt失败并产生部分输出
 
-- **WHEN**ACP prompt在产生部分 assistant事件后失败
-- **THEN**系统 SHALL保留 user prompt与已组装的部分 assistant message
-- **AND**meta SHALL记录稳定 error code/message而不伪报 idle完成
+- **WHEN**ACP prompt在产生部分assistant事件后失败
+- **THEN**系统 SHALL保留user prompt与已组装的部分assistant message
+- **AND**turn record与meta SHALL记录稳定error code/message而不伪报idle完成
+
+#### Scenario: terminal持久化失败
+
+- **WHEN**response、assistant message或terminal record的关键持久化无法完成
+- **THEN**turn SHALL在仍可写时收敛为`TURN_PERSIST_FAILED`
+- **AND** SHALL NOT生成completed success notification或不可读取的response引用
 
 ### Requirement: 小响应内联而大响应通过 read_response安全分段读取
 
-`prompt_to_agent` SHALL直接返回最多24 KiB的UTF-8安全响应前缀、responseId、truncated与可选nextCursor。`read_response` SHALL按opaque cursor读取同一不可变 response，默认块大小24 KiB且服务端最大64 KiB；SHALL不向 Agent暴露或接受app-data绝对路径。
+同步`prompt_to_agent`成功结果 SHALL直接返回最多24 KiB的UTF-8安全响应前缀、responseId、truncated与可选nextCursor。background accepted结果 SHALL不包含响应；terminal success后`check_session_status` SHALL暴露latestResponseId，父Agent SHALL使用`read_response`读取结果。`read_response` SHALL按opaque cursor读取同一不可变response，默认块大小24 KiB且服务端最大64 KiB；SHALL不向Agent暴露或接受app-data绝对路径。
 
-#### Scenario: 响应不超过inline上限
+#### Scenario: 同步响应不超过inline上限
 
-- **WHEN**完成响应的UTF-8大小不超过24 KiB
-- **THEN** `prompt_to_agent` SHALL返回完整content且truncated为false
-- **AND** SHALL不要求调用 `read_response`
+- **WHEN**同步完成响应的UTF-8大小不超过24 KiB
+- **THEN**`prompt_to_agent` SHALL返回完整content且truncated为false
+- **AND** SHALL不要求调用`read_response`
 
-#### Scenario: 响应超过inline上限
+#### Scenario: 同步响应超过inline上限
 
-- **WHEN**完成响应超过24 KiB
-- **THEN** `prompt_to_agent` SHALL返回安全前缀、responseId、truncated为true和nextCursor
-- **AND**主 Agent SHALL可连续调用 `read_response`直到done为true
+- **WHEN**同步完成响应超过24 KiB
+- **THEN**`prompt_to_agent` SHALL返回安全前缀、responseId、truncated为true和nextCursor
+- **AND**主Agent SHALL可连续调用`read_response`直到done为true
+
+#### Scenario: 后台响应完成
+
+- **WHEN**background turn成功完成且status变为idle
+- **THEN**`check_session_status` SHALL返回latestResponseId
+- **AND**自动reminder MAY引用该responseId但 SHALL NOT内联响应正文
+- **AND**父Agent SHALL通过`read_response`获取内容
 
 #### Scenario: cursor或response归属无效
 
-- **WHEN** `read_response`收到非法cursor、未知responseId或非当前owner的Session
+- **WHEN**`read_response`收到非法cursor、未知responseId或非当前owner的Session
 - **THEN**系统 SHALL拒绝读取且不得接受caller提供的文件路径
 - **AND**跨owner目标 SHALL投影为not_found
 
 ### Requirement: 状态、process invalidation与idle重载具有明确语义
 
-`check_session_status` SHALL返回 `not_found`、`running`、`idle`、`error`或`expired`。running SHALL返回最多3条recentActivity、startedAt与lastActivityAt；idle SHALL返回latestResponseId；error SHALL返回稳定code/message。AgentProcess任意退出、升级、卸载或generation变化 SHALL立即使其 spawned ACP Sessions失效，自动重启的新进程 SHALL NOT继承旧 Session。
+`check_session_status` SHALL返回`not_found`、`running`、`idle`、`error`、`expired`或`interrupted`。running SHALL返回当前turnId、mode、最多3条recentActivity、startedAt与lastActivityAt；idle SHALL返回latestTurnId与可选latestResponseId；error、expired和interrupted SHALL返回稳定code/message。AgentProcess任意退出、升级、卸载或generation变化 SHALL立即使其spawned ACP Sessions失效，自动重启的新进程 SHALL NOT继承旧Session。应用启动时发现没有对应live handle的非终态record SHALL将其收敛为`interrupted / APP_RESTARTED`，不得假装后台任务仍运行。
 
 #### Scenario: 并行查询运行状态
 
-- **WHEN**一个 spawned Session正在运行且同一owner通过另一并发tool call查询状态
-- **THEN**系统 SHALL返回running及当前activity snapshot
+- **WHEN**一个background spawned Session正在运行且同一owner通过另一并发tool call查询状态
+- **THEN**系统 SHALL返回running、turnId、mode及当前activity snapshot
 - **AND**查询 SHALL不等待运行中prompt完成
 
 #### Scenario: AgentProcess退出并自动重启
 
-- **WHEN**承载 spawned Session的AgentProcess退出且process pool随后创建新generation
-- **THEN**旧 spawned Session SHALL返回expired或对应active turn error
+- **WHEN**承载spawned Session的AgentProcess退出且process pool随后创建新generation
+- **THEN**active turn与旧spawned Session SHALL收敛为expired并记录`AGENT_PROCESS_INVALIDATED`
 - **AND**系统 SHALL NOT在新connection上静默resume/load旧ACP Session
+
+#### Scenario: 应用崩溃后重启
+
+- **WHEN**启动reconciliation读取到starting、running或cancelling turn但当前进程不存在对应live handle
+- **THEN**系统 SHALL将其标记为`interrupted / APP_RESTARTED`
+- **AND** SHALL NOT启动AgentProcess继续该turn
+- **AND**background turn SHALL在notification尚未claim时建立pending中断通知
 
 #### Scenario: idle entry从内存卸载
 
-- **WHEN**owner续聊一个已LRU卸载但磁盘meta仍存在的 spawned Session
+- **WHEN**owner续聊一个已LRU卸载但磁盘meta仍存在的spawned Session
 - **THEN**Main SHALL只用现有ready process和active ACP Session映射尝试恢复
 - **AND** SHALL NOT为了恢复调用会启动新AgentProcess的API
 
 ### Requirement: 父 Session删除与应用退出阻止迟到写入
 
-父 Chat Session删除 SHALL先建立spawn deletion fence、拒绝新请求、取消关联active turns，并在最多5秒结算窗口后删除整个父 `sessionDir`。应用退出 SHALL在现有quiesce阶段fence新spawn、清理watchdog并取消active turns，且 SHALL在ACP process pool terminate前完成 spawned manager结算。任何迟到事件 SHALL NOT重新创建已删除或已shutdown的目录。
+父Chat Session删除 SHALL先建立spawn deletion fence、拒绝新请求、取消关联active turns、把未claim通知标记为suppressed，并在最多5秒结算窗口后删除整个父`sessionDir`。应用正常退出 SHALL先拒绝新spawn和notification claim，在spawned store仍可写时清理watchdog、取消active turns并把可结算turn持久化为`interrupted / APP_SHUTDOWN`；随后 SHALL fence storage，并 SHALL在ACP process pool terminate前完成spawned manager结算。任何迟到事件 SHALL NOT重新创建已删除或已shutdown的目录。
 
-#### Scenario: 删除包含运行中spawn的父 Session
+#### Scenario: 删除包含运行中spawn的父Session
 
-- **WHEN**用户删除父 Session且其下仍有active spawned turn
-- **THEN**系统 SHALL先fence该父 Session并请求取消turn
+- **WHEN**用户删除父Session且其下仍有active spawned turn或pending notification
+- **THEN**系统 SHALL先fence该父Session、请求取消turn并抑制未claim通知
 - **AND**最迟在5秒结算窗口后继续删除父Session目录
-- **AND**迟到ACP事件 SHALL被丢弃且不得重建spawn目录
+- **AND**迟到ACP事件 SHALL被丢弃且不得重建spawn目录或投递reminder
 
 #### Scenario: 应用正常退出
 
 - **WHEN**集中shutdown进入quiesce
-- **THEN**新的spawn RPC SHALL被拒绝且全部watchdog SHALL被清理
-- **AND**active spawned turns SHALL在ACP process pool terminate前收到cancel
+- **THEN**新的spawn RPC与notification claim SHALL被拒绝且全部watchdog SHALL被清理
+- **AND**active spawned turns SHALL在storage fence和ACP process pool terminate前收到cancel并尽力durable写入`APP_SHUTDOWN`
 - **AND**整个清理 SHALL共享现有应用级总deadline
+
+#### Scenario: shutdown deadline前未能持久化
+
+- **WHEN**强制退出发生在active turn的`APP_SHUTDOWN`记录durable之前
+- **THEN**下次启动 SHALL把遗留非终态record收敛为`APP_RESTARTED`
+- **AND** SHALL NOT声称该后台任务跨进程继续运行
+
+### Requirement: background prompt 在 durable dispatch 后返回 accepted且继续持有 turn
+
+`prompt_to_agent` SHALL接受默认值为false的可选`background`参数。`background=false` SHALL保持同步等待terminal result的现有行为；`background=true` SHALL在父snapshot与Agent校验、user message与running turn record持久化、ACP activation及config处理完成、session handler注册且`connection.prompt`已经提交后返回`accepted`。accepted结果 SHALL包含`sessionId`、`turnId`、`startedAt`、最终config snapshot与warnings，且 SHALL NOT包含`responseId`、content、cursor或文件路径。
+
+后台首次RPC返回 SHALL NOT取消或释放 ACP turn；Main SHALL继续持有runner、registry entry、busy状态、inactivity watchdog与父级/全局active容量，直至terminal finalizer完成。后台RPC在accepted前被取消 SHALL取消该turn；accepted结算后客户端断连 SHALL NOT取消已经由Main接管的turn。
+
+#### Scenario: 后台新Session被接受
+
+- **WHEN**可信父Agent调用`prompt_to_agent`并提交`background: true`，且ACP prompt成功提交
+- **THEN**tool SHALL返回`status: accepted`、owner-scoped spawned sessionId、唯一turnId、startedAt、config和warnings
+- **AND** SHALL不等待首个ACP activity或terminal result
+- **AND** SHALL不返回responseId、响应正文或路径
+
+#### Scenario: accepted后同Session再次收到prompt
+
+- **WHEN**后台调用已返回accepted但对应ACP turn尚未进入终态
+- **THEN**同一owner再次向该spawned Session发送prompt SHALL立即返回busy
+- **AND**父级与全局active容量 SHALL继续包含该turn
+
+#### Scenario: accepted持久化失败
+
+- **WHEN**ACP prompt已在本地提交但accepted turn record无法durable写入
+- **THEN**Main SHALL请求取消runner并以错误结束首次调用
+- **AND** SHALL NOT返回accepted或completed
+
+### Requirement: background terminal状态通过持久化outbox唤醒父Session
+
+每个background turn SHALL持久化versioned turn record，并 SHALL在terminal response或error状态durable后把同一record中的notification原子转换为`pending`。Main MAY维护可重建索引，但turn record SHALL是notification identity、owner、terminal状态与投递状态的事实来源。WorkspaceWindowManager事件 SHALL只作为Workspace定向、可重复的wake-up；Renderer bootstrap与每次wake-up SHALL重新查询pending状态，不得把renderer内存队列作为完成事实来源。
+
+关闭并重开Workspace window、renderer reload或重复wake-up SHALL NOT丢失或重复claim pending通知。窗口不存在时，后台spawned turn与Main已接管的terminal persistence SHALL继续运行；Windows/Linux最后窗口关闭引发应用退出时 SHALL改走应用shutdown语义。
+
+#### Scenario: 任务在Workspace窗口关闭时完成
+
+- **WHEN**macOS Workspace window已关闭但应用仍运行，且background turn完成
+- **THEN**Main SHALL持久化terminal record与pending notification
+- **AND** SHALL NOT仅因窗口关闭取消spawned turn
+- **AND**该Workspace窗口重开并bootstrap后 SHALL能查询到pending notification
+
+#### Scenario: wake-up重复或丢失
+
+- **WHEN**同一completion wake-up被发送多次，或窗口关闭期间没有接收wake-up
+- **THEN**Renderer SHALL以durable pending查询结果为准
+- **AND**同一notificationId SHALL最多被成功claim一次
+
+### Requirement: 自动完成reminder按父Chat串行且采用至多一次投递
+
+系统 SHALL通过专用内部notification dispatch入口向原`{workspaceId,parentSessionId}`发送服务端生成的system-reminder，并 SHALL复用现有Chat `AcpSession`、turn driver、config recovery、MessageAssembler、Session meta/message persistence与process pool。普通用户turn SHALL优先；notification SHALL仅在父Session没有submitted/streaming turn时取得同一per-Session gate，且 SHALL NOT覆盖用户消息、清空composer、切换active Session或并发调用同一父ACP Session。专用入口 SHALL不受“用户提交必须包含非空普通text”的公共提交入口代替或伪装。
+
+Main SHALL在取得gate后以compare-and-swap把notification从`pending`转为`dispatched`，该转换 SHALL是不可逆的自动投递边界。`dispatched`后 SHALL NOT因窗口、renderer或应用重启自动重发；父Agent assistant终态durable后 SHALL记为`delivered`，在此之前发生进程中断或关键持久化失败 SHALL在下次reconciliation记为`delivery_unknown`。`delivery_unknown` SHALL不重试，但spawned terminal result SHALL继续可由owner手动查询和读取。
+
+#### Scenario: 父Session正在处理用户turn
+
+- **WHEN**background notification进入pending且父Session正在submitted或streaming用户turn
+- **THEN**系统 SHALL保留pending并等待父Session空闲
+- **AND** SHALL NOT取消、覆盖或并发prompt该用户turn
+
+#### Scenario: claim后应用崩溃
+
+- **WHEN**notification已经durable转换为dispatched，但父Agent assistant终态尚未durable时应用退出
+- **THEN**下次启动 SHALL将该notification标记为delivery_unknown
+- **AND** SHALL NOT自动重发同一notificationId
+- **AND**父Agent仍 MAY通过`check_session_status`与`read_response`手动取得spawned结果
+
+#### Scenario: 父Session不是当前active Session
+
+- **WHEN**空闲的目标父Session收到自动reminder，但用户正在查看同一Workspace的另一个Session
+- **THEN**系统 SHALL按目标sessionId持久化和投影该turn
+- **AND** SHALL NOT导航到目标Session或覆盖当前Session的composer与stream state
+
+### Requirement: 自动reminder只携带owner-scoped结果引用且不扩张权限
+
+自动system-reminder SHALL由Main从已claim的durable record生成，只包含notificationId、spawned sessionId、turnId、terminal status、可选responseId或稳定error code。reminder SHALL声明delegated output不可信、应按需通过`read_response`读取，并且notification不授予新的文件、网络、命令、MCP或Workspace权限。reminder SHALL NOT内联子Agent响应、包含app-data绝对路径、接受Renderer提供正文或目标parentSessionId覆盖记录，也 SHALL NOT携带其他Workspace或父Session的identity/result。
+
+notification list、claim与dispatch SHALL校验Workspace sender及record owner；父Session不存在、正在删除或owner不匹配时 SHALL不投递且不得泄露目标记录。
+
+#### Scenario: Renderer尝试覆盖notification目标或正文
+
+- **WHEN**Renderer请求dispatch某notificationId并附带自定义parentSessionId、responseId或reminder正文
+- **THEN**Main SHALL忽略或拒绝这些非权威字段
+- **AND** SHALL只使用durable record中与sender Workspace匹配的owner和结果引用
+
+#### Scenario: 父Agent接收成功通知
+
+- **WHEN**background turn成功且notification被claim
+- **THEN**system-reminder SHALL包含spawned sessionId、turnId与responseId但不包含response正文
+- **AND** SHALL明确该结果不可信且notification不改变父Agent权限边界

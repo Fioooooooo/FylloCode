@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   setupAgentEventBroadcast: vi.fn(),
   setupProposalStatusBroadcast: vi.fn(),
   setupProbeBroadcast: vi.fn(),
+  setupSpawnNotificationBroadcast: vi.fn(),
   startBundledMcpHost: vi.fn(),
   beginBundledMcpHostShutdown: vi.fn(),
   stopBundledMcpHost: vi.fn(),
@@ -53,7 +54,10 @@ vi.mock("@main/ipc/platform/acp-agents", () => ({
 vi.mock("@main/ipc/proposal/browser", () => ({
   setupProposalStatusBroadcast: mocks.setupProposalStatusBroadcast,
 }));
-vi.mock("@main/ipc/session/chat", () => ({ setupProbeBroadcast: mocks.setupProbeBroadcast }));
+vi.mock("@main/ipc/session/chat", () => ({
+  setupProbeBroadcast: mocks.setupProbeBroadcast,
+  setupSpawnNotificationBroadcast: mocks.setupSpawnNotificationBroadcast,
+}));
 vi.mock("@main/infra/mcp/bundled-mcp-host", () => ({
   startBundledMcpHost: mocks.startBundledMcpHost,
   beginBundledMcpHostShutdown: mocks.beginBundledMcpHostShutdown,

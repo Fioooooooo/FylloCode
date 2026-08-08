@@ -1,15 +1,22 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SpawnedSessionMeta } from "@main/infra/storage/spawned-session-store";
+import type {
+  SpawnedSessionMeta,
+  SpawnedTurnRecord,
+} from "@main/infra/storage/spawned-session-store";
 
 const mocks = vi.hoisted(() => ({
   metas: new Map<string, SpawnedSessionMeta>(),
+  turns: new Map<string, SpawnedTurnRecord>(),
   messages: [] as Array<{ owner: { sessionId: string }; message: unknown }>,
   responses: new Map<string, string>(),
   sessions: [] as Array<EventEmitter & { opts: Record<string, unknown> }>,
   start: vi.fn(),
   cancel: vi.fn(),
   failResponseWrite: false,
+  failMessageRole: "" as "" | "user" | "assistant",
+  failTurnPatchPhases: new Set<string>(),
+  failMetaPatchStatuses: new Set<string>(),
   loadSessionMeta: vi.fn(),
   ensureSnapshot: vi.fn(),
   listAgents: vi.fn(),
@@ -22,10 +29,21 @@ const mocks = vi.hoisted(() => ({
   assertCompatibility: vi.fn(),
   invalidations: [] as Array<(event: { agentId: string; reason: string }) => void>,
   deleteSpawnedSessionParent: vi.fn(),
+  suppressParent: vi.fn(),
+  beginNotificationShutdown: vi.fn(),
+  fenceParent: vi.fn(),
+  beginStoreShutdown: vi.fn(),
 }));
 
 function key(owner: { workspaceId: string; parentSessionId: string; sessionId: string }): string {
   return `${owner.workspaceId}/${owner.parentSessionId}/${owner.sessionId}`;
+}
+
+function turnKey(
+  owner: { workspaceId: string; parentSessionId: string; sessionId: string },
+  turnId: string
+): string {
+  return `${key(owner)}/${turnId}`;
 }
 
 vi.mock("@main/infra/acp/agent-catalog", () => ({
@@ -70,21 +88,53 @@ vi.mock("@main/infra/storage/spawned-session-store", async () => {
       const current = mocks.metas.get(key(owner));
       if (!current) return null;
       const delta = typeof patch === "function" ? patch(current) : patch;
+      if (delta.status && mocks.failMetaPatchStatuses.has(delta.status)) {
+        throw new Error(`meta ${delta.status} failed`);
+      }
       const next = { ...current, ...delta } as SpawnedSessionMeta;
       mocks.metas.set(key(owner), structuredClone(next));
       return next;
     }),
     appendSpawnedSessionMessage: vi.fn(async (owner, message) => {
+      const role = (message as { role?: string }).role;
+      if (role === mocks.failMessageRole) throw new Error(`${role} message failed`);
       mocks.messages.push({ owner, message });
+    }),
+    createSpawnedTurnRecord: vi.fn(async (record: SpawnedTurnRecord) => {
+      mocks.turns.set(turnKey(record, record.turnId), structuredClone(record));
+    }),
+    loadLatestSpawnedTurnRecord: vi.fn(async (owner) => {
+      return (
+        [...mocks.turns.values()]
+          .filter(
+            (record) =>
+              record.workspaceId === owner.workspaceId &&
+              record.parentSessionId === owner.parentSessionId &&
+              record.sessionId === owner.sessionId
+          )
+          .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+          .at(-1) ?? null
+      );
+    }),
+    patchSpawnedTurnRecord: vi.fn(async (owner, turnId, patch) => {
+      const current = mocks.turns.get(turnKey(owner, turnId));
+      if (!current) return null;
+      const delta = typeof patch === "function" ? patch(current) : patch;
+      if (delta.phase && mocks.failTurnPatchPhases.has(delta.phase)) {
+        throw new Error(`turn ${delta.phase} failed`);
+      }
+      const next = { ...current, ...delta } as SpawnedTurnRecord;
+      mocks.turns.set(turnKey(owner, turnId), structuredClone(next));
+      return next;
     }),
     writeSpawnedSessionResponse: vi.fn(async (owner, responseId, content) => {
       if (mocks.failResponseWrite) throw new Error("response disk full");
       mocks.responses.set(`${key(owner)}/${responseId}`, content);
     }),
     readSpawnedSessionResponseChunk: vi.fn(async () => ({ content: "chunk", done: true })),
-    fenceSpawnedSessionParent: vi.fn(),
+    fenceSpawnedSessionParent: mocks.fenceParent,
     deleteSpawnedSessionParent: mocks.deleteSpawnedSessionParent,
-    beginSpawnedSessionStoreShutdown: vi.fn(),
+    beginSpawnedSessionStoreShutdown: mocks.beginStoreShutdown,
   };
 });
 
@@ -96,8 +146,15 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
       mocks.sessions.push(this);
     }
 
-    start(): Promise<void> {
-      return mocks.start(this);
+    async start(): Promise<void> {
+      const startPromise = Promise.resolve(mocks.start(this));
+      const sessionStore = this.opts.sessionStore as
+        { persistAcpSessionId(acpSessionId: string): Promise<void> } | undefined;
+      await sessionStore?.persistAcpSessionId("acp-fake");
+      const onPromptDispatched = this.opts.onPromptDispatched as
+        ((input: { acpSessionId: string; configOptions: [] }) => Promise<void>) | undefined;
+      await onPromptDispatched?.({ acpSessionId: "acp-fake", configOptions: [] });
+      await startPromise;
     }
 
     cancel(): void {
@@ -106,6 +163,19 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
   }
   return { AcpSession: FakeAcpSession };
 });
+
+vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
+  spawnNotificationService: {
+    pendingNotification: (notificationId: string, updatedAt: string) => ({
+      notificationId,
+      state: "pending",
+      updatedAt,
+    }),
+    terminalPersisted: vi.fn(),
+    suppressParent: mocks.suppressParent,
+    beginShutdown: mocks.beginNotificationShutdown,
+  },
+}));
 
 import {
   MAX_ACTIVE_SPAWN_TURNS_GLOBAL,
@@ -156,10 +226,14 @@ describe("SpawnedSessionManager", () => {
     vi.useRealTimers();
     vi.clearAllMocks();
     mocks.metas.clear();
+    mocks.turns.clear();
     mocks.messages.length = 0;
     mocks.responses.clear();
     mocks.sessions.length = 0;
     mocks.failResponseWrite = false;
+    mocks.failMessageRole = "";
+    mocks.failTurnPatchPhases.clear();
+    mocks.failMetaPatchStatuses.clear();
     mocks.invalidations.length = 0;
     mocks.loadSessionMeta.mockResolvedValue({ workspaceSnapshot: snapshot });
     mocks.ensureSnapshot.mockResolvedValue(snapshot);
@@ -180,6 +254,7 @@ describe("SpawnedSessionManager", () => {
       };
     });
     mocks.deleteSpawnedSessionParent.mockResolvedValue(undefined);
+    mocks.suppressParent.mockResolvedValue(undefined);
     mocks.start.mockImplementation(async (session: EventEmitter) => {
       session.emit("event", { kind: "text_delta", text: "done" });
       session.emit("event", { kind: "done", totalTokens: 2 });
@@ -351,7 +426,7 @@ describe("SpawnedSessionManager", () => {
 
     expect(result).toMatchObject({
       status: "error",
-      code: "TURN_FAILED",
+      code: "TURN_PERSIST_FAILED",
       message: "response disk full",
     });
     const stored = [...mocks.metas.values()][0];
@@ -409,7 +484,12 @@ describe("SpawnedSessionManager", () => {
     await waitForSessions(1);
 
     mocks.invalidations.at(-1)?.({ agentId: "agent-1", reason: "process exited" });
-    await expect(running).resolves.toEqual({ status: "expired", sessionId: "running" });
+    await expect(running).resolves.toEqual({
+      status: "expired",
+      sessionId: "running",
+      code: "AGENT_PROCESS_INVALIDATED",
+      message: "process exited",
+    });
     expect(mocks.cancel).toHaveBeenCalledOnce();
 
     mocks.start.mockImplementation(async (session: EventEmitter) => {
@@ -430,6 +510,35 @@ describe("SpawnedSessionManager", () => {
     await manager.dispose();
   });
 
+  it("background accepted 后 AgentProcess 失效会 durable expired 并建立错误通知", async () => {
+    mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+    const manager = new SpawnedSessionManager();
+    manager.start();
+    const accepted = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "background",
+      background: true,
+    });
+    expect(accepted.status).toBe("accepted");
+    if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+    mocks.invalidations.at(-1)?.({ agentId: "agent-1", reason: "generation replaced" });
+    await vi.waitFor(() =>
+      expect(
+        mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
+      ).toMatchObject({
+        phase: "expired",
+        error: { code: "AGENT_PROCESS_INVALIDATED" },
+        notification: { state: "pending" },
+      })
+    );
+    await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
+      status: "expired",
+      code: "AGENT_PROCESS_INVALIDATED",
+    });
+    await manager.dispose();
+  });
+
   it("删除父 Session 会 fence 新请求、取消关联 turn，并等待结算后删除数据", async () => {
     mocks.metas.set(key({ ...caller, sessionId: "running" }), meta("running"));
     mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
@@ -447,10 +556,45 @@ describe("SpawnedSessionManager", () => {
       caller.workspaceId,
       caller.parentSessionId
     );
+    expect(mocks.suppressParent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fenceParent.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.fenceParent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteSpawnedSessionParent.mock.invocationCallOrder[0]!
+    );
     await expect(
       manager.promptToAgent(caller, { agentId: "agent-1", prompt: "late" })
     ).rejects.toMatchObject({ code: "SPAWN_PARENT_SESSION_NOT_FOUND" });
     await manager.dispose();
+  });
+
+  it("shutdown 在 store 可写时把 background turn 持久化为 APP_SHUTDOWN 后再 fence", async () => {
+    mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+    const manager = new SpawnedSessionManager();
+    const accepted = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "background",
+      background: true,
+    });
+    expect(accepted.status).toBe("accepted");
+    if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+    await manager.dispose();
+
+    expect(
+      mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
+    ).toMatchObject({
+      phase: "interrupted",
+      error: { code: "APP_SHUTDOWN" },
+      notification: { state: "pending" },
+    });
+    const interruptedPatchOrder = vi
+      .mocked(await import("@main/infra/storage/spawned-session-store"))
+      .patchSpawnedTurnRecord.mock.invocationCallOrder.at(-1)!;
+    expect(interruptedPatchOrder).toBeLessThan(
+      mocks.beginStoreShutdown.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.beginNotificationShutdown).toHaveBeenCalledOnce();
   });
 
   it("有事件时重置 inactivity timer，无事件 10 分钟后取消并等待 grace", async () => {
@@ -482,6 +626,209 @@ describe("SpawnedSessionManager", () => {
       code: "TURN_INACTIVITY_TIMEOUT",
     });
     expect(mocks.cancel).toHaveBeenCalledOnce();
+    mocks.sessions[0]?.emit("event", { kind: "text_delta", text: "late" });
+    await expect(
+      manager.checkSessionStatus(caller, [...mocks.metas.values()][0]!.sessionId)
+    ).resolves.toMatchObject({
+      status: "error",
+      code: "TURN_INACTIVITY_TIMEOUT",
+    });
+    await manager.dispose();
+  });
+
+  it("持续 ACP activity 可运行超过多个 inactivity 窗口且没有绝对时长取消", async () => {
+    vi.useFakeTimers();
+    let settleStart!: () => void;
+    mocks.start.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          settleStart = resolve;
+        })
+    );
+    const manager = new SpawnedSessionManager();
+    const request = manager.promptToAgent(caller, { agentId: "agent-1", prompt: "long active" });
+    for (let index = 0; index < 50 && mocks.sessions.length === 0; index += 1) {
+      await Promise.resolve();
+    }
+
+    for (let window = 0; window < 3; window += 1) {
+      await vi.advanceTimersByTimeAsync(SPAWN_TURN_INACTIVITY_TIMEOUT_MS - 1);
+      mocks.sessions[0]?.emit("event", { kind: "usage_update", used: window + 1, size: 10 });
+    }
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    mocks.sessions[0]?.emit("event", { kind: "done", totalTokens: 3 });
+    settleStart();
+    await expect(request).resolves.toMatchObject({ status: "completed" });
+    await manager.dispose();
+  });
+
+  it("background 在 prompt dispatched 后返回 accepted，且断连不取消并持续占用 busy", async () => {
+    let settleStart!: () => void;
+    let runningSession!: EventEmitter;
+    mocks.start.mockImplementation(
+      (session: EventEmitter) =>
+        new Promise<void>((resolve) => {
+          runningSession = session;
+          settleStart = resolve;
+        })
+    );
+    const manager = new SpawnedSessionManager();
+    const controller = new AbortController();
+
+    const accepted = await manager.promptToAgent(
+      caller,
+      { agentId: "agent-1", prompt: "background", background: true },
+      controller.signal
+    );
+
+    expect(accepted).toMatchObject({
+      status: "accepted",
+      sessionId: expect.any(String),
+      turnId: expect.any(String),
+      config: [],
+      warnings: [],
+    });
+    if (accepted.status !== "accepted") throw new Error("expected accepted");
+    await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
+      status: "running",
+      turnId: accepted.turnId,
+      mode: "background",
+    });
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "duplicate",
+        sessionId: accepted.sessionId,
+      })
+    ).resolves.toMatchObject({ status: "busy" });
+
+    controller.abort();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    runningSession.emit("event", { kind: "done", totalTokens: 1 });
+    settleStart();
+    await vi.waitFor(() =>
+      expect(
+        mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
+      ).toMatchObject({
+        phase: "completed",
+        notification: { state: "pending" },
+      })
+    );
+    await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
+      status: "idle",
+      latestTurnId: accepted.turnId,
+      latestResponseId: expect.any(String),
+    });
+    await manager.dispose();
+  });
+
+  it("background accepted 后仍计入父级 active 4 容量，terminal 后释放", async () => {
+    const pending: Array<{ session: EventEmitter; resolve: () => void }> = [];
+    mocks.start.mockImplementation(
+      (session: EventEmitter) =>
+        new Promise<void>((resolve) => {
+          pending.push({ session, resolve });
+        })
+    );
+    const manager = new SpawnedSessionManager();
+    const accepted = await Promise.all(
+      Array.from({ length: MAX_ACTIVE_SPAWN_TURNS_PER_PARENT }, (_, index) =>
+        manager.promptToAgent(caller, {
+          agentId: "agent-1",
+          prompt: `background-${index}`,
+          background: true,
+        })
+      )
+    );
+    expect(accepted.every((result) => result.status === "accepted")).toBe(true);
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "over capacity",
+        background: true,
+      })
+    ).resolves.toMatchObject({ status: "capacity_exceeded" });
+
+    pending[0]?.session.emit("event", { kind: "done", totalTokens: 0 });
+    pending[0]?.resolve();
+    await vi.waitFor(() =>
+      expect(
+        [...mocks.turns.values()].filter((record) => record.phase === "completed")
+      ).toHaveLength(1)
+    );
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "capacity released",
+        background: true,
+      })
+    ).resolves.toMatchObject({ status: "accepted" });
+
+    for (const item of pending) {
+      item.session.emit("event", { kind: "done", totalTokens: 0 });
+      item.resolve();
+    }
+    await manager.dispose();
+  });
+
+  it("极快 terminal 会等待 accepted durable write 后再写 completed", async () => {
+    const manager = new SpawnedSessionManager();
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "fast",
+      background: true,
+    });
+    expect(result.status).toBe("accepted");
+    if (result.status !== "accepted") throw new Error("expected accepted");
+    await vi.waitFor(() =>
+      expect(
+        mocks.turns.get(turnKey(callerWithSession(result.sessionId), result.turnId))
+      ).toMatchObject({
+        phase: "completed",
+      })
+    );
+    await manager.dispose();
+  });
+
+  it("accepted running record 持久化失败时不返回 accepted，并收敛为 error", async () => {
+    mocks.failTurnPatchPhases.add("running");
+    const manager = new SpawnedSessionManager();
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "cannot accept",
+        background: true,
+      })
+    ).rejects.toMatchObject({ code: "SPAWN_INTERNAL_ERROR" });
+    expect([...mocks.turns.values()][0]).toMatchObject({ phase: "error" });
+    await manager.dispose();
+  });
+
+  it.each([
+    ["assistant message", () => (mocks.failMessageRole = "assistant")],
+    ["response", () => (mocks.failResponseWrite = true)],
+    ["completed turn", () => mocks.failTurnPatchPhases.add("completed")],
+    ["idle meta", () => mocks.failMetaPatchStatuses.add("idle")],
+  ])("%s terminal 写失败不会留下 completed response 引用", async (_label, fail) => {
+    fail();
+    const manager = new SpawnedSessionManager();
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "fault injection",
+    });
+
+    expect(result).toMatchObject({ status: "error", code: "TURN_PERSIST_FAILED" });
+    const turn = [...mocks.turns.values()][0];
+    expect(turn).toMatchObject({
+      phase: "error",
+      error: { code: "TURN_PERSIST_FAILED" },
+    });
+    expect(turn?.responseId).toBeUndefined();
     await manager.dispose();
   });
 });
+
+function callerWithSession(sessionId: string) {
+  return { ...caller, sessionId };
+}

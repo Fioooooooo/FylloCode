@@ -228,3 +228,35 @@ export const probeSetConfigOptionInputSchema = z.discriminatedUnion("type", [
 ]);
 
 export type ProbeSetConfigOptionInput = z.infer<typeof probeSetConfigOptionInputSchema>;
+
+export const listSpawnNotificationsInputSchema = z
+  .object({ workspaceId: z.string().min(1) })
+  .strict();
+
+export const dispatchSpawnNotificationInputSchema = z
+  .object({
+    workspaceId: z.string().min(1),
+    notificationId: z.string().min(1).max(256),
+  })
+  .strict();
+
+export const spawnNotificationWakePayloadSchema = z
+  .object({ workspaceId: z.string().min(1) })
+  .strict();
+
+export const spawnNotificationSummarySchema = z
+  .object({
+    notificationId: z.string().min(1).max(256),
+    parentSessionId: z.string().min(1),
+    spawnedSessionId: z.string().min(1),
+    turnId: z.string().min(1),
+    status: z.enum(["completed", "error", "expired", "interrupted"]),
+    responseId: z.string().min(1).optional(),
+    errorCode: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type SpawnNotificationSummary = z.infer<typeof spawnNotificationSummarySchema>;
+export type SpawnNotificationDispatchResult = {
+  status: "dispatched" | "not_pending" | "busy";
+};

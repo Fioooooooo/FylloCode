@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcMain } from "electron";
 import {
   SessionChatChannels as ChatChannels,
+  SessionChatNotificationChannels as ChatNotificationChannels,
   SessionChatProbeChannels as ChatProbeChannels,
   SessionChatStreamChannels as ChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
@@ -10,6 +11,7 @@ import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import type { AcpSessionOpts } from "@main/services/session/chat/acp-session";
 import { ChatAcpSessionStore } from "@main/infra/storage/chat-acp-session-store";
 import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
+import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
 
 const mocks = vi.hoisted(() => {
   let eventHandler: ((ev: SessionEvent) => void) | null = null;
@@ -50,6 +52,9 @@ const mocks = vi.hoisted(() => {
     ensureLineageEventConsumer: vi.fn(),
     takeProbeFor: vi.fn(),
     getProbeWorkspaceSnapshotForPromotion: vi.fn(),
+    listSpawnNotifications: vi.fn(),
+    reconcileSpawnNotifications: vi.fn(),
+    setSpawnNotificationWakeHandler: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
     cancel: vi.fn(),
@@ -131,6 +136,18 @@ vi.mock("@main/services/session/chat/session-probe-bus", () => ({
   },
 }));
 
+vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
+  spawnNotificationService: {
+    list: mocks.listSpawnNotifications,
+    reconcileWorkspace: mocks.reconcileSpawnNotifications,
+    setWakeHandler: mocks.setSpawnNotificationWakeHandler,
+  },
+}));
+
+vi.mock("@main/services/session/spawn/spawned-session-manager", () => ({
+  spawnedSessionManager: { isTurnLive: vi.fn(() => false) },
+}));
+
 vi.mock("@main/infra/storage/session-store", () => ({
   appendMessage: mocks.appendMessage,
   loadSessionMeta: mocks.loadSessionMeta,
@@ -191,6 +208,7 @@ vi.mock("@main/ipc/_kit/stream-channel", () => ({
 describe("registerChatHandlers", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    chatTurnGate.clear();
     mocks.eventHandler = null;
     mocks.onReady = null;
     mocks.streamChannelOptions = null;
@@ -212,6 +230,8 @@ describe("registerChatHandlers", () => {
     mocks.getByTask.mockResolvedValue(null);
     mocks.linkTaskSession.mockResolvedValue(null);
     mocks.listSessions.mockResolvedValue([]);
+    mocks.listSpawnNotifications.mockResolvedValue([]);
+    mocks.reconcileSpawnNotifications.mockResolvedValue(undefined);
     mocks.loadSessionMeta.mockResolvedValue({
       sessionId: "session-1",
       agentId: "claude-acp",
@@ -270,6 +290,68 @@ describe("registerChatHandlers", () => {
     expect(call).toBeTruthy();
     return call![1] as (event: unknown, input: unknown) => unknown;
   }
+
+  it("notification list/dispatch 强制校验 sender Workspace 且不接受目标覆盖", async () => {
+    mocks.listSpawnNotifications.mockResolvedValue([
+      {
+        notificationId: "notification-1",
+        parentSessionId: "parent-1",
+        spawnedSessionId: "spawn-1",
+        turnId: "turn-1",
+        status: "completed",
+        responseId: "response-1",
+      },
+    ]);
+    const sender = {};
+
+    const list = await handler(ChatNotificationChannels.list)(
+      { sender },
+      { workspaceId: "workspace-1" }
+    );
+    const dispatch = await handler(ChatNotificationChannels.dispatch)(
+      { sender },
+      { workspaceId: "workspace-1", notificationId: "missing" }
+    );
+
+    expect(mocks.requireWorkspaceSender).toHaveBeenCalledWith(sender, "workspace-1");
+    expect(mocks.reconcileSpawnNotifications).toHaveBeenCalledWith(
+      "workspace-1",
+      expect.any(Function)
+    );
+    expect(list).toEqual({
+      ok: true,
+      data: expect.arrayContaining([expect.objectContaining({ notificationId: "notification-1" })]),
+    });
+    expect(dispatch).toEqual({ ok: true, data: { status: "not_pending" } });
+
+    const malicious = await handler(ChatNotificationChannels.dispatch)(
+      { sender },
+      {
+        workspaceId: "workspace-1",
+        notificationId: "notification-1",
+        parentSessionId: "other-parent",
+      }
+    );
+    expect(malicious).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
+    });
+  });
+
+  it("spawn notification wake 只向对应 Workspace 发送 level-triggered 事件", async () => {
+    const { setupSpawnNotificationBroadcast } = await import("@main/ipc/session/chat");
+    const manager = { sendToWorkspace: vi.fn(() => false) } as unknown as WorkspaceWindowManager;
+    setupSpawnNotificationBroadcast(manager);
+    const wake = mocks.setSpawnNotificationWakeHandler.mock.calls.at(-1)?.[0];
+    expect(wake).toBeTypeOf("function");
+
+    wake("workspace-1");
+    expect(manager.sendToWorkspace).toHaveBeenCalledWith(
+      "workspace-1",
+      ChatNotificationChannels.wake,
+      { workspaceId: "workspace-1" }
+    );
+  });
 
   it("promotes a probe with its matching frozen Workspace snapshot", async () => {
     const probeSnapshot = {
@@ -1434,7 +1516,10 @@ describe("registerChatHandlers", () => {
       sendDone: vi.fn(),
       sendError: vi.fn(),
     };
-    await mocks.onReady!(sink);
+    await expect(mocks.onReady!(sink)).rejects.toMatchObject({
+      code: IpcErrorCodes.VALIDATION_ERROR,
+      message: expect.stringContaining("probe acpSessionId"),
+    });
 
     expect(mocks.takeProbeFor).toHaveBeenCalledWith(
       "workspace-1",
@@ -1443,10 +1528,7 @@ describe("registerChatHandlers", () => {
       "native"
     );
 
-    expect(sink.sendError).toHaveBeenCalledWith(
-      IpcErrorCodes.VALIDATION_ERROR,
-      expect.stringContaining("probe acpSessionId")
-    );
+    expect(sink.sendError).not.toHaveBeenCalled();
     expect(mocks.patchSessionMeta).not.toHaveBeenCalledWith(
       "workspace-1",
       "session-1",

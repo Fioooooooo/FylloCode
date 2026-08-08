@@ -89,6 +89,36 @@ describe("spawn-rpc-bridge", () => {
     );
   });
 
+  it("直接返回 manager 的 background accepted snapshot", async () => {
+    const accepted = {
+      status: "accepted",
+      sessionId: "spawn-1",
+      turnId: "turn-1",
+      startedAt: new Date().toISOString(),
+      config: [],
+      warnings: [],
+    };
+    mocks.promptToAgent.mockResolvedValue(accepted);
+    registerSpawnRpcBridge();
+    const controller = new AbortController();
+
+    await expect(
+      mocks.handler?.(
+        request("prompt_to_agent", {
+          agentId: "agent-1",
+          prompt: "work",
+          background: true,
+        }),
+        controller.signal
+      )
+    ).resolves.toEqual(accepted);
+    expect(mocks.promptToAgent).toHaveBeenCalledWith(
+      { workspaceId: "workspace-1", parentSessionId: "parent-1" },
+      { agentId: "agent-1", prompt: "work", background: true },
+      controller.signal
+    );
+  });
+
   it("注销 bridge 后调用 transport disposer", () => {
     registerSpawnRpcBridge();
     unregisterSpawnRpcBridge();

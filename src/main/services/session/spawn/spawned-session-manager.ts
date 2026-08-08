@@ -14,16 +14,20 @@ import { loadSessionMeta } from "@main/infra/storage/session-store";
 import {
   appendSpawnedSessionMessage,
   beginSpawnedSessionStoreShutdown,
+  createSpawnedTurnRecord,
   deleteSpawnedSessionParent,
   fenceSpawnedSessionParent,
   inlineSpawnedResponse,
+  loadLatestSpawnedTurnRecord,
   loadSpawnedSessionMeta,
+  patchSpawnedTurnRecord,
   patchSpawnedSessionMeta,
   readSpawnedSessionResponseChunk,
   spawnedMessageToResponseMarkdown,
   writeSpawnedSessionMeta,
   writeSpawnedSessionResponse,
   type SpawnedSessionMeta,
+  type SpawnedTurnRecord,
 } from "@main/infra/storage/spawned-session-store";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { MessageMeta, TokenUsage } from "@shared/types/chat";
@@ -31,6 +35,7 @@ import {
   type AvailableAgentsResult,
   type CheckSessionStatusResult,
   type PromptToAgentParams,
+  type PromptToAgentAcceptedResult,
   type PromptToAgentResult,
   type ReadResponseParams,
   type ReadResponseResult,
@@ -38,12 +43,17 @@ import {
   type SpawnConfigOptionSummary,
   type SpawnRpcErrorCode,
   type SpawnWarning,
+  type SpawnTurnMode,
 } from "@shared/types/fyllo-spawn-rpc";
 import { AcpSession, type AcpSessionOpts } from "@main/services/session/chat/acp-session";
 import { driveAcpTurn, type AcpTurnRunner } from "@main/services/session/chat/acp-stream-driver";
 import { assertAgentWorkspaceCompatibility } from "@main/services/session/chat/agent-workspace-compatibility";
 import { ensureSessionWorkspaceSnapshot } from "@main/services/session/chat/chat-service";
-import { spawnSessionRegistryKey } from "@main/services/session/chat/session-registry";
+import {
+  sessionRegistry,
+  spawnSessionRegistryKey,
+} from "@main/services/session/chat/session-registry";
+import { spawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 export const MAX_ACTIVE_SPAWN_TURNS_PER_PARENT = 4;
@@ -83,6 +93,8 @@ interface SpawnOwner extends SpawnCaller {
 
 interface ActiveTurn {
   owner: SpawnOwner;
+  turnId: string;
+  mode: SpawnTurnMode;
   agentId?: string;
   startedAt: string;
   lastActivityAt: string;
@@ -95,6 +107,18 @@ interface ActiveTurn {
   settledPromise: Promise<void>;
   timedOut: boolean;
   forceError?: { code: string; message: string };
+  acceptedSettled: boolean;
+  acceptedSucceeded: boolean;
+  acceptedResolve: (result: PromptToAgentResult) => void;
+  acceptedReject: (error: unknown) => void;
+  acceptedPromise: Promise<PromptToAgentResult>;
+  notificationId?: string;
+}
+
+interface SpawnTurnHandle {
+  accepted: Promise<PromptToAgentResult>;
+  completion: Promise<PromptToAgentResult>;
+  cancel: () => void;
 }
 
 interface LiveEntry {
@@ -201,10 +225,57 @@ export class SpawnedSessionManager {
       ...caller,
       sessionId: params.sessionId ?? randomUUID(),
     };
-    const reservation = this.reserve(owner);
+    const mode: SpawnTurnMode = params.background === true ? "background" : "sync";
+    const reservation = this.reserve(owner, mode);
     if (reservation) return reservation;
     const active = this.activeTurns.get(ownerKey(owner))!;
+    const handle = this.createTurnHandle(caller, owner, params, active, signal);
+    if (mode === "background") {
+      void handle.completion.catch(() => undefined);
+      return handle.accepted;
+    }
+    return handle.completion;
+  }
+
+  private createTurnHandle(
+    caller: SpawnCaller,
+    owner: SpawnOwner,
+    params: PromptToAgentParams,
+    active: ActiveTurn,
+    signal?: AbortSignal
+  ): SpawnTurnHandle {
+    const completion = this.executeTurn(caller, owner, params, active, signal)
+      .then((result) => {
+        if (!active.acceptedSettled) {
+          active.acceptedSettled = true;
+          active.acceptedResolve(result);
+        }
+        return result;
+      })
+      .catch((error: unknown) => {
+        if (!active.acceptedSettled) {
+          active.acceptedSettled = true;
+          active.acceptedReject(error);
+        }
+        throw error;
+      })
+      .finally(() => this.release(owner));
+    return {
+      accepted: active.acceptedPromise,
+      completion,
+      cancel: () => active.runner?.cancel(),
+    };
+  }
+
+  private async executeTurn(
+    caller: SpawnCaller,
+    owner: SpawnOwner,
+    params: PromptToAgentParams,
+    active: ActiveTurn,
+    signal?: AbortSignal
+  ): Promise<PromptToAgentResult> {
     let hasPersistedSession = false;
+    let hasPersistedTurn = false;
 
     try {
       if (signal?.aborted) {
@@ -273,6 +344,23 @@ export class SpawnedSessionManager {
         storeOwner(owner),
         userMessage(owner.sessionId, params.prompt, this.runtime.now())
       );
+      const turnRecord: SpawnedTurnRecord = {
+        version: 1,
+        ...owner,
+        turnId: active.turnId,
+        agentId: meta.agentId,
+        mode: active.mode,
+        phase: "starting",
+        startedAt: active.startedAt,
+        lastActivityAt: active.lastActivityAt,
+        recentActivity: [],
+        config: [],
+        warnings: [],
+        createdAt: active.startedAt,
+        updatedAt: this.nowIso(),
+      };
+      await createSpawnedTurnRecord(turnRecord);
+      hasPersistedTurn = true;
 
       const result = await this.runTurn({
         owner,
@@ -302,6 +390,17 @@ export class SpawnedSessionManager {
           updatedAt: this.nowIso(),
         }).catch(() => undefined);
       }
+      if (hasPersistedTurn) {
+        await patchSpawnedTurnRecord(storeOwner(owner), active.turnId, {
+          phase: "error",
+          responseId: undefined,
+          error: {
+            code: typeof candidate.code === "string" ? candidate.code : "TURN_FAILED",
+            message,
+          },
+          updatedAt: this.nowIso(),
+        }).catch(() => undefined);
+      }
       if (candidate.code === "SPAWN_INVALID_REQUEST") {
         throw new SpawnServiceError("SPAWN_INVALID_REQUEST", message);
       }
@@ -318,8 +417,6 @@ export class SpawnedSessionManager {
         throw new SpawnServiceError(candidate.code as SpawnRpcErrorCode, message);
       }
       throw new SpawnServiceError("SPAWN_INTERNAL_ERROR", message);
-    } finally {
-      this.release(owner);
     }
   }
 
@@ -333,6 +430,8 @@ export class SpawnedSessionManager {
     if (active) {
       return {
         status: "running",
+        turnId: active.turnId,
+        mode: active.mode,
         startedAt: active.startedAt,
         lastActivityAt: active.lastActivityAt,
         recentActivity: [...active.recentActivity],
@@ -340,6 +439,21 @@ export class SpawnedSessionManager {
     }
     const meta = await loadSpawnedSessionMeta(storeOwner(owner));
     if (!meta) return { status: "not_found" };
+    const latestTurn = await loadLatestSpawnedTurnRecord(storeOwner(owner));
+    if (latestTurn?.phase === "interrupted" && latestTurn.error) {
+      return { status: "interrupted", ...latestTurn.error } as CheckSessionStatusResult;
+    }
+    if (latestTurn?.phase === "expired") {
+      return {
+        status: "expired",
+        ...(latestTurn.error
+          ? { code: "AGENT_PROCESS_INVALIDATED" as const, message: latestTurn.error.message }
+          : {}),
+      };
+    }
+    if (latestTurn?.phase === "error" && latestTurn.error) {
+      return { status: "error", ...latestTurn.error };
+    }
     if (meta.status === "error" && meta.error) {
       return { status: "error", ...meta.error };
     }
@@ -351,7 +465,24 @@ export class SpawnedSessionManager {
     ) {
       return { status: "expired" };
     }
-    return { status: "idle", latestResponseId: meta.latestResponseId };
+    return {
+      status: "idle",
+      latestTurnId: latestTurn?.turnId,
+      latestResponseId: meta.latestResponseId,
+    };
+  }
+
+  isTurnLive(
+    record: Pick<SpawnedTurnRecord, "workspaceId" | "parentSessionId" | "sessionId" | "turnId">
+  ): boolean {
+    const active = this.activeTurns.get(
+      ownerKey({
+        workspaceId: record.workspaceId,
+        parentSessionId: record.parentSessionId,
+        sessionId: record.sessionId,
+      })
+    );
+    return active?.turnId === record.turnId;
   }
 
   async readResponse(caller: SpawnCaller, params: ReadResponseParams): Promise<ReadResponseResult> {
@@ -376,7 +507,6 @@ export class SpawnedSessionManager {
 
   async deleteParent(workspaceId: string, parentSessionId: string): Promise<void> {
     this.deletingParents.add(parentKey({ workspaceId, parentSessionId }));
-    fenceSpawnedSessionParent(workspaceId, parentSessionId);
     const prefix = `${workspaceId}\0${parentSessionId}\0`;
     const running = [...this.activeTurns.entries()].filter(([key]) => key.startsWith(prefix));
     for (const [, active] of running) {
@@ -386,10 +516,13 @@ export class SpawnedSessionManager {
       };
       active.runner?.cancel();
     }
+    sessionRegistry.cancel("chat", `${workspaceId}:${parentSessionId}`);
     await Promise.race([
       Promise.all(running.map(([, active]) => active.settledPromise)).then(() => undefined),
       this.delay(SPAWN_TURN_CANCEL_GRACE_MS),
     ]);
+    await spawnNotificationService.suppressParent(workspaceId, parentSessionId);
+    fenceSpawnedSessionParent(workspaceId, parentSessionId);
     for (const [key] of this.liveEntries) {
       if (key.startsWith(prefix)) this.liveEntries.delete(key);
     }
@@ -399,9 +532,13 @@ export class SpawnedSessionManager {
   beginShutdown(): void {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
-    beginSpawnedSessionStoreShutdown();
+    spawnNotificationService.beginShutdown();
     for (const active of this.activeTurns.values()) {
       this.clearInactivityTimer(active);
+      active.forceError = {
+        code: "APP_SHUTDOWN",
+        message: "FylloCode shut down before the spawned turn reached a terminal state",
+      };
       active.runner?.cancel();
     }
   }
@@ -409,6 +546,7 @@ export class SpawnedSessionManager {
   async dispose(): Promise<void> {
     this.beginShutdown();
     await Promise.allSettled([...this.activeTurns.values()].map((active) => active.settledPromise));
+    beginSpawnedSessionStoreShutdown();
     this.activeTurns.clear();
     this.activeByParent.clear();
     this.liveEntries.clear();
@@ -419,6 +557,7 @@ export class SpawnedSessionManager {
 
   forceDispose(): void {
     this.beginShutdown();
+    beginSpawnedSessionStoreShutdown();
     this.activeTurns.clear();
     this.activeByParent.clear();
     this.liveEntries.clear();
@@ -427,7 +566,7 @@ export class SpawnedSessionManager {
     this.disposeProcessInvalidation = null;
   }
 
-  private reserve(owner: SpawnOwner): PromptToAgentResult | null {
+  private reserve(owner: SpawnOwner, mode: SpawnTurnMode): PromptToAgentResult | null {
     if (this.deletingParents.has(parentKey(owner))) {
       throw new SpawnServiceError(
         "SPAWN_PARENT_SESSION_NOT_FOUND",
@@ -460,8 +599,17 @@ export class SpawnedSessionManager {
     const settledPromise = new Promise<void>((resolve) => {
       settledResolve = resolve;
     });
+    let acceptedResolve!: (result: PromptToAgentResult) => void;
+    let acceptedReject!: (error: unknown) => void;
+    const acceptedPromise = new Promise<PromptToAgentResult>((resolve, reject) => {
+      acceptedResolve = resolve;
+      acceptedReject = reject;
+    });
+    void acceptedPromise.catch(() => undefined);
     this.activeTurns.set(key, {
       owner,
+      turnId: randomUUID(),
+      mode,
       startedAt: now,
       lastActivityAt: now,
       recentActivity: [],
@@ -470,6 +618,12 @@ export class SpawnedSessionManager {
       settledResolve,
       settledPromise,
       timedOut: false,
+      acceptedSettled: false,
+      acceptedSucceeded: false,
+      acceptedResolve,
+      acceptedReject,
+      acceptedPromise,
+      ...(mode === "background" ? { notificationId: randomUUID() } : {}),
     });
     this.activeByParent.set(parent, (this.activeByParent.get(parent) ?? 0) + 1);
     return null;
@@ -519,8 +673,31 @@ export class SpawnedSessionManager {
     let configOptions = input.meta.configOptions;
     let latestUsage: TokenUsage | undefined;
     let finalizationError: unknown;
+    let removeAbort = (): void => undefined;
     const responseId = randomUUID();
     const sessionStore = new SpawnedAcpSessionStore(input.owner, () => this.nowIso());
+    const notification = (updatedAt: string) =>
+      input.active.acceptedSucceeded && input.active.notificationId
+        ? spawnNotificationService.pendingNotification(input.active.notificationId, updatedAt)
+        : undefined;
+    const settleAcceptedError = (code: string, message: string): void => {
+      if (input.active.acceptedSettled) return;
+      input.active.acceptedSettled = true;
+      input.active.acceptedReject(Object.assign(new Error(message), { code }));
+    };
+    const patchTerminalTurn = async (patch: Partial<SpawnedTurnRecord>): Promise<void> => {
+      const updatedAt = this.nowIso();
+      const next = await patchSpawnedTurnRecord(storeOwner(input.owner), input.active.turnId, {
+        lastActivityAt: input.active.lastActivityAt,
+        recentActivity: [...input.active.recentActivity],
+        config: summarizeConfig(configOptions),
+        warnings: [...warnings],
+        ...patch,
+        ...(notification(updatedAt) ? { notification: notification(updatedAt) } : {}),
+        updatedAt,
+      });
+      spawnNotificationService.terminalPersisted(next);
+    };
     const sessionOpts: AcpSessionOpts = {
       fylloSessionId: input.owner.sessionId,
       agentId: input.meta.agentId,
@@ -532,7 +709,49 @@ export class SpawnedSessionManager {
       owner: "spawn",
       sessionStore,
       configOverrides: input.config,
-      onConfigWarnings: (next) => warnings.push(...next),
+      onConfigWarnings: (next) => {
+        for (const warning of next) {
+          if (
+            !warnings.some(
+              (existing) =>
+                existing.optionId === warning.optionId && existing.message === warning.message
+            )
+          ) {
+            warnings.push(warning);
+          }
+        }
+      },
+      onPromptDispatched: async ({ configOptions: dispatchedConfig }) => {
+        configOptions = dispatchedConfig;
+        const updatedAt = this.nowIso();
+        await patchSpawnedSessionMeta(storeOwner(input.owner), {
+          processGeneration: input.processGeneration,
+          configOptions,
+          updatedAt,
+        });
+        await patchSpawnedTurnRecord(storeOwner(input.owner), input.active.turnId, {
+          phase: "running",
+          config: summarizeConfig(configOptions),
+          warnings: [...warnings],
+          lastActivityAt: input.active.lastActivityAt,
+          recentActivity: [...input.active.recentActivity],
+          updatedAt,
+        });
+        const accepted: PromptToAgentAcceptedResult = {
+          status: "accepted",
+          sessionId: input.owner.sessionId,
+          turnId: input.active.turnId,
+          startedAt: input.active.startedAt,
+          config: summarizeConfig(configOptions),
+          warnings: [...warnings],
+        };
+        if (!input.active.acceptedSettled) {
+          input.active.acceptedSucceeded = true;
+          input.active.acceptedSettled = true;
+          input.active.acceptedResolve(accepted);
+        }
+        if (input.active.mode === "background") removeAbort();
+      },
     };
     const session = new AcpSession(sessionOpts);
     const runner = driveAcpTurn({
@@ -545,6 +764,7 @@ export class SpawnedSessionManager {
       ),
       messageSessionId: input.owner.sessionId,
       logTag: "spawn",
+      runtimeScope: "app",
       start: () => session.start([{ type: "text", text: input.prompt }]),
       hooks: {
         onContentEvent: (event) => this.touch(input.active, event),
@@ -556,27 +776,41 @@ export class SpawnedSessionManager {
           }
         },
         onDone: async ({ totalTokens, message }) => {
-          if (message) await appendSpawnedSessionMessage(storeOwner(input.owner), message);
-          const markdown = spawnedMessageToResponseMarkdown(message);
-          await writeSpawnedSessionResponse(storeOwner(input.owner), responseId, markdown);
-          await patchSpawnedSessionMeta(storeOwner(input.owner), (current) => ({
-            processGeneration: input.processGeneration,
-            status: "idle",
-            configOptions,
-            turnCount: current.turnCount + 1,
-            tokenUsage: latestUsage ?? {
-              ...current.tokenUsage,
-              used: current.tokenUsage.used + totalTokens,
-            },
-            latestResponseId: responseId,
-            error: undefined,
-            updatedAt: this.nowIso(),
-          }));
+          await input.active.acceptedPromise;
+          try {
+            if (message) await appendSpawnedSessionMessage(storeOwner(input.owner), message);
+            const markdown = spawnedMessageToResponseMarkdown(message);
+            await writeSpawnedSessionResponse(storeOwner(input.owner), responseId, markdown);
+            await patchTerminalTurn({ phase: "completed", responseId, error: undefined });
+            await patchSpawnedSessionMeta(storeOwner(input.owner), (current) => ({
+              processGeneration: input.processGeneration,
+              status: "idle",
+              configOptions,
+              turnCount: current.turnCount + 1,
+              tokenUsage: latestUsage ?? {
+                ...current.tokenUsage,
+                used: current.tokenUsage.used + totalTokens,
+              },
+              latestResponseId: responseId,
+              error: undefined,
+              updatedAt: this.nowIso(),
+            }));
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            await patchTerminalTurn({
+              phase: "error",
+              responseId: undefined,
+              error: { code: "TURN_PERSIST_FAILED", message },
+            }).catch(() => undefined);
+            throw error;
+          }
         },
         onError: async ({ code, message, partialMessage }) => {
+          settleAcceptedError(code, message);
           if (partialMessage) {
             await appendSpawnedSessionMessage(storeOwner(input.owner), partialMessage);
           }
+          await patchTerminalTurn({ phase: "error", error: { code, message } });
           await patchSpawnedSessionMeta(storeOwner(input.owner), {
             status: "error",
             configOptions,
@@ -585,9 +819,14 @@ export class SpawnedSessionManager {
           });
         },
         onCancel: async ({ partialMessage }) => {
+          settleAcceptedError("SPAWN_RPC_CANCELLED", "Spawn request was cancelled");
           if (partialMessage) {
             await appendSpawnedSessionMessage(storeOwner(input.owner), partialMessage);
           }
+          await patchTerminalTurn({
+            phase: "error",
+            error: { code: "TURN_CANCELLED", message: "Spawned turn was cancelled" },
+          });
           await patchSpawnedSessionMeta(storeOwner(input.owner), {
             status: "error",
             error: { code: "TURN_CANCELLED", message: "Spawned turn was cancelled" },
@@ -602,7 +841,6 @@ export class SpawnedSessionManager {
     input.active.runner = runner;
     this.armInactivityTimer(input.active);
 
-    let removeAbort = (): void => undefined;
     const abortPromise = new Promise<never>((_resolve, reject) => {
       if (!input.signal) return;
       const onAbort = (): void => {
@@ -645,6 +883,7 @@ export class SpawnedSessionManager {
         const message = confirmed
           ? "Spawned turn was cancelled after 10 minutes without ACP activity"
           : "Spawned turn did not confirm cancellation within 5 seconds";
+        await patchTerminalTurn({ phase: "error", error: { code, message } });
         await patchSpawnedSessionMeta(storeOwner(input.owner), {
           status: "error",
           error: { code, message },
@@ -654,12 +893,32 @@ export class SpawnedSessionManager {
       }
 
       if (input.active.forceError) {
+        const interrupted = input.active.forceError.code === "APP_SHUTDOWN";
+        await patchTerminalTurn({
+          phase: interrupted ? "interrupted" : "expired",
+          error: input.active.forceError,
+        });
         await patchSpawnedSessionMeta(storeOwner(input.owner), {
-          status: "expired",
+          status: interrupted ? "error" : "expired",
           error: input.active.forceError,
           updatedAt: this.nowIso(),
         });
-        return { status: "expired", sessionId: input.owner.sessionId };
+        if (interrupted) {
+          return {
+            status: "error",
+            sessionId: input.owner.sessionId,
+            code: "APP_SHUTDOWN",
+            message: input.active.forceError.message,
+          };
+        }
+        return input.active.forceError.code === "AGENT_PROCESS_INVALIDATED"
+          ? {
+              status: "expired",
+              sessionId: input.owner.sessionId,
+              code: "AGENT_PROCESS_INVALIDATED",
+              message: input.active.forceError.message,
+            }
+          : { status: "expired", sessionId: input.owner.sessionId };
       }
       if (outcome.completion.status === "error") {
         if (
@@ -696,7 +955,7 @@ export class SpawnedSessionManager {
         return {
           status: "error",
           sessionId: input.owner.sessionId,
-          code: "TURN_FAILED",
+          code: "TURN_PERSIST_FAILED",
           message,
         };
       }

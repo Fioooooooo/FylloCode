@@ -26,6 +26,9 @@ vi.mock("@renderer/api/session/chat", () => ({
     probeClose: vi.fn(),
     probeSetConfigOption: vi.fn(),
     onProbeUpdate: vi.fn(),
+    listSpawnNotifications: vi.fn(),
+    dispatchSpawnNotification: vi.fn(),
+    onSpawnNotificationsWake: vi.fn(),
   },
 }));
 
@@ -171,6 +174,135 @@ describe("useChatStore", () => {
     vi.mocked(chatApi.removeSession).mockResolvedValue({ ok: true, data: undefined });
     vi.mocked(chatApi.streamMessage).mockReturnValue(() => {});
     vi.mocked(chatApi.onProbeUpdate).mockReturnValue(vi.fn());
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
+      ok: true,
+      data: { status: "not_pending" },
+    });
+    vi.mocked(chatApi.onSpawnNotificationsWake).mockReturnValue(vi.fn());
+    vi.mocked(chatApi.loadMessages).mockResolvedValue({ ok: true, data: [] });
+  });
+
+  it("按 parent sessionId 派发通知并刷新非 active Session，不切换当前会话", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    const parent = makeSession({ id: "parent-1", title: "Parent" });
+    const active = makeSession({ id: "active-1", title: "Active" });
+    sessionStore.sessions = [parent, active];
+    sessionStore.activeSessionId = "active-1";
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          notificationId: "notification-1",
+          parentSessionId: "parent-1",
+          spawnedSessionId: "spawn-1",
+          turnId: "turn-1",
+          status: "completed",
+          responseId: "response-1",
+        },
+      ],
+    });
+    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
+      ok: true,
+      data: { status: "dispatched" },
+    });
+    vi.mocked(chatApi.loadMessages).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [{ type: "text", text: "ack" }],
+          metadata: { sessionId: "parent-1", createdAt: new Date() },
+        },
+      ],
+    });
+
+    await useChatStore().requestSpawnNotificationDrain("project-1");
+
+    expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith("project-1", "notification-1");
+    expect(chatApi.loadMessages).toHaveBeenCalledWith("parent-1", "project-1");
+    expect(sessionStore.activeSessionId).toBe("active-1");
+    expect(parent.messages).toHaveLength(1);
+    expect(active.messages).toHaveLength(0);
+  });
+
+  it("目标 Session 有用户 turn 时保持 pending，用户 terminal 后再 drain", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    const parent = makeSession({ id: "parent-1" });
+    sessionStore.sessions = [parent];
+    sessionStore.activeSessionId = "parent-1";
+    let callbacks!: StreamCallbacks;
+    vi.mocked(chatApi.streamMessage).mockImplementation(
+      (_sessionId, _workspaceId, _agentId, _parts, nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return vi.fn();
+      }
+    );
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          notificationId: "notification-1",
+          parentSessionId: "parent-1",
+          spawnedSessionId: "spawn-1",
+          turnId: "turn-1",
+          status: "error",
+          errorCode: "TURN_FAILED",
+        },
+      ],
+    });
+    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
+      ok: true,
+      data: { status: "dispatched" },
+    });
+
+    await useChatStore().sendMessage(textParts("user first"));
+    await useChatStore().requestSpawnNotificationDrain("project-1");
+    expect(chatApi.dispatchSpawnNotification).not.toHaveBeenCalled();
+
+    callbacks.onDone({ totalTokens: 1 });
+    await vi.waitFor(() =>
+      expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith("project-1", "notification-1")
+    );
+  });
+
+  it("notification dispatch 持有目标 arbiter 时拒绝并发用户 prompt", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          notificationId: "notification-1",
+          parentSessionId: "parent-1",
+          spawnedSessionId: "spawn-1",
+          turnId: "turn-1",
+          status: "completed",
+          responseId: "response-1",
+        },
+      ],
+    });
+    const dispatch = deferred<{
+      ok: true;
+      data: { status: "dispatched" };
+    }>();
+    vi.mocked(chatApi.dispatchSpawnNotification).mockReturnValue(dispatch.promise);
+
+    const drain = useChatStore().requestSpawnNotificationDrain("project-1");
+    await vi.waitFor(() => expect(chatApi.dispatchSpawnNotification).toHaveBeenCalled());
+    await expect(useChatStore().sendMessage(textParts("racing user"))).resolves.toBe(false);
+    expect(chatApi.persistMessage).not.toHaveBeenCalled();
+    expect(chatApi.streamMessage).not.toHaveBeenCalled();
+    dispatch.resolve({ ok: true, data: { status: "dispatched" } });
+    await drain;
   });
 
   it("creates a real session lazily when sending the first draft message", async () => {

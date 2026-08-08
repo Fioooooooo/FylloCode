@@ -6,6 +6,7 @@ import type { ChatStatus, Message, ModeType, Session } from "@shared/types/chat"
 import type { MessageChunkData } from "@shared/types/ipc";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { LineageTaskRef } from "@shared/types/lineage";
+import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
 import { chatApi, type StreamError } from "@renderer/api/session/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
@@ -107,6 +108,9 @@ export const useChatStore = defineStore("chat", () => {
   const draftStreamState = ref<DraftStreamState | null>(null);
   let nextStreamRunId = 0;
   const pendingConfigIdSet = ref<Set<string>>(new Set());
+  const localTurnIntents = new Map<string, "user" | "notification">();
+  const notificationDrainRequests = new Set<string>();
+  const notificationDrainByWorkspace = new Map<string, Promise<void>>();
   const activeSessionStreamState = computed<ChatSessionStreamState | null>(() => {
     const sessionId = useSessionStore().activeSessionId;
     return sessionId ? (streamStateBySessionId.value.get(sessionId) ?? null) : null;
@@ -156,6 +160,58 @@ export const useChatStore = defineStore("chat", () => {
     const next = new Set(pendingConfigIdSet.value);
     next.delete(configId);
     pendingConfigIdSet.value = next;
+  }
+
+  function tryAcquireLocalTurn(sessionId: string, kind: "user" | "notification"): boolean {
+    if (localTurnIntents.has(sessionId)) return false;
+    const state = streamStateBySessionId.value.get(sessionId);
+    if (state?.status === "submitted" || state?.status === "streaming") return false;
+    localTurnIntents.set(sessionId, kind);
+    return true;
+  }
+
+  function releaseLocalTurn(sessionId: string, kind: "user" | "notification"): void {
+    if (localTurnIntents.get(sessionId) === kind) localTurnIntents.delete(sessionId);
+  }
+
+  async function dispatchPendingNotification(
+    workspaceId: string,
+    notification: SpawnNotificationSummary
+  ): Promise<void> {
+    if (!tryAcquireLocalTurn(notification.parentSessionId, "notification")) return;
+    try {
+      const result = await chatApi.dispatchSpawnNotification(
+        workspaceId,
+        notification.notificationId
+      );
+      if (!result.ok || result.data.status !== "dispatched") return;
+      await useSessionStore().refreshSessionMessages(notification.parentSessionId);
+    } finally {
+      releaseLocalTurn(notification.parentSessionId, "notification");
+    }
+  }
+
+  async function drainSpawnNotifications(workspaceId: string): Promise<void> {
+    notificationDrainRequests.add(workspaceId);
+    const existing = notificationDrainByWorkspace.get(workspaceId);
+    if (existing) return existing;
+    const run = (async () => {
+      while (notificationDrainRequests.delete(workspaceId)) {
+        if (useWorkspaceStore().currentWorkspace?.id !== workspaceId) return;
+        const result = await chatApi.listSpawnNotifications(workspaceId);
+        if (!result.ok) throw new Error(result.error.message);
+        await Promise.all(
+          result.data.map((notification) => dispatchPendingNotification(workspaceId, notification))
+        );
+      }
+    })().finally(() => notificationDrainByWorkspace.delete(workspaceId));
+    notificationDrainByWorkspace.set(workspaceId, run);
+    return run;
+  }
+
+  function requestSpawnNotificationDrain(workspaceId?: string): Promise<void> {
+    const target = workspaceId ?? useWorkspaceStore().currentWorkspace?.id;
+    return target ? drainSpawnNotifications(target) : Promise.resolve();
   }
 
   function nextRunId(): number {
@@ -361,6 +417,7 @@ export const useChatStore = defineStore("chat", () => {
           activeSession.updatedAt = new Date();
           activeSession.status = "ended";
           sessionStore.sortSessions();
+          void requestSpawnNotificationDrain(workspaceId);
         },
         onError(err) {
           if (!isCurrentSessionRun(sessionId, streamRunId)) {
@@ -380,6 +437,7 @@ export const useChatStore = defineStore("chat", () => {
           activeSession.updatedAt = new Date();
           sessionStore.sortSessions();
           console.error("Stream error:", err.code, err.message);
+          void requestSpawnNotificationDrain(workspaceId);
         },
       },
       options
@@ -548,6 +606,7 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     let promptParts = parts;
+    if (!tryAcquireLocalTurn(currentSession.id, "user")) return {};
     try {
       const attachmentParts = options.materializeAttachments
         ? await options.materializeAttachments({
@@ -557,6 +616,7 @@ export const useChatStore = defineStore("chat", () => {
         : [];
       promptParts = [...parts, ...attachmentParts];
     } catch (error: unknown) {
+      releaseLocalTurn(currentSession.id, "user");
       toast.add({
         title: "附件保存失败",
         description: error instanceof Error ? error.message : String(error),
@@ -569,10 +629,12 @@ export const useChatStore = defineStore("chat", () => {
       workspaceStore.currentWorkspace?.id !== workspaceIdSnapshot ||
       sessionStore.activeSessionId !== currentSession.id
     ) {
+      releaseLocalTurn(currentSession.id, "user");
       return {};
     }
 
     const streamRunId = beginSessionStreamRun(currentSession.id);
+    releaseLocalTurn(currentSession.id, "user");
     const userMessage = queueUserMessage(currentSession, promptParts, sessionStore);
     const persistPromise = persistMessage(
       currentSession.id,
@@ -648,6 +710,7 @@ export const useChatStore = defineStore("chat", () => {
     if (session) {
       session.status = "ended";
     }
+    void requestSpawnNotificationDrain(session?.workspaceId);
   }
 
   async function setConfigOption(input: {
@@ -728,5 +791,6 @@ export const useChatStore = defineStore("chat", () => {
     resetChatState,
     cancelStream,
     setConfigOption,
+    requestSpawnNotificationDrain,
   };
 });

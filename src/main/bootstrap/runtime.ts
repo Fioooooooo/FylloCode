@@ -4,7 +4,7 @@ import { is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
 import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
-import { setupProbeBroadcast } from "@main/ipc/session/chat";
+import { setupProbeBroadcast, setupSpawnNotificationBroadcast } from "@main/ipc/session/chat";
 import {
   beginBundledMcpHostShutdown,
   forceStopBundledMcpHost,
@@ -266,6 +266,7 @@ export async function startApplicationRuntime(
   });
   registerAllHandlers();
   setupProbeBroadcast(workspaceWindowManager);
+  setupSpawnNotificationBroadcast(workspaceWindowManager);
   setupAgentEventBroadcast(workspaceWindowManager);
   setupProposalStatusBroadcast(workspaceWindowManager);
   builtInWorkflowAbortController = new AbortController();

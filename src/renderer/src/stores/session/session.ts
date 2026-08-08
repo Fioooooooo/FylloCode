@@ -124,6 +124,7 @@ export interface SessionStore {
   activateCreatedSession: (session: Session) => Session;
   beginDraftSession: () => void;
   selectSession: (sessionId: string) => Promise<void>;
+  refreshSessionMessages: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   setSessionPinned: (sessionId: string, isPinned: boolean) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -1049,6 +1050,25 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     }
   }
 
+  async function refreshSessionMessages(sessionId: string): Promise<void> {
+    const session = sessions.value.find((item) => item.id === sessionId);
+    if (!session) return;
+    const workspaceId = useWorkspaceStore().currentWorkspace?.id ?? session.workspaceId;
+    const result = await chatApi.loadMessages(sessionId, workspaceId);
+    if (!result.ok) throw new Error(result.error.message);
+    if (
+      useWorkspaceStore().currentWorkspace?.id !== workspaceId ||
+      sessions.value.find((item) => item.id === sessionId) !== session
+    ) {
+      return;
+    }
+    session.messages = result.data.map((message) => normalizeMessage(message));
+    session.updatedAt = new Date();
+    session.status = "ended";
+    loadedSessionIds.add(sessionId);
+    sortSessions();
+  }
+
   async function renameSession(sessionId: string, title: string): Promise<void> {
     const workspaceStore = useWorkspaceStore();
     const workspaceId = workspaceStore.currentWorkspace?.id;
@@ -1217,6 +1237,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     activateCreatedSession,
     beginDraftSession,
     selectSession,
+    refreshSessionMessages,
     renameSession,
     setSessionPinned,
     deleteSession,

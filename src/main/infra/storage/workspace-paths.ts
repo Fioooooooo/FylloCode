@@ -3,7 +3,7 @@ import { getDataSubPath } from "@main/infra/paths";
 
 export function assertStorageIdentity(
   id: string,
-  label: "Workspace" | "Folder" | "Session" | "Response"
+  label: "Workspace" | "Folder" | "Session" | "Response" | "Turn"
 ): string {
   if (!id || id === "." || id === ".." || /[\\/\0]/.test(id)) {
     throw new Error(`${label} ID is not safe for storage`);
@@ -87,6 +87,26 @@ export function spawnedSessionResponsePath(
   return join(
     spawnedSessionResponsesDir(workspaceId, parentSessionId, spawnedSessionId),
     `${assertStorageIdentity(responseId, "Response")}.md`
+  );
+}
+
+export function spawnedSessionTurnsDir(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string
+): string {
+  return join(spawnedSessionDir(workspaceId, parentSessionId, spawnedSessionId), "turns");
+}
+
+export function spawnedSessionTurnPath(
+  workspaceId: string,
+  parentSessionId: string,
+  spawnedSessionId: string,
+  turnId: string
+): string {
+  return join(
+    spawnedSessionTurnsDir(workspaceId, parentSessionId, spawnedSessionId),
+    `${assertStorageIdentity(turnId, "Turn")}.json`
   );
 }
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SessionChatChannels as ChatChannels,
+  SessionChatNotificationChannels as ChatNotificationChannels,
   SessionChatProbeChannels as ChatProbeChannels,
   SessionChatStreamChannels as ChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
@@ -328,5 +329,38 @@ describe("preload chatApi.streamMessage", () => {
 
     expect(handler).toHaveBeenCalledWith(payload);
     expect(mocks.ipcRenderer.off).toHaveBeenCalledWith(ChatProbeChannels.update, listener);
+  });
+
+  it("只用 Workspace 与 opaque id 查询和派发 spawn 通知", async () => {
+    const { chatApi } = await import("@preload/api/session/chat");
+
+    await chatApi.listSpawnNotifications("workspace-1");
+    await chatApi.dispatchSpawnNotification("workspace-1", "notification-1");
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatNotificationChannels.list, {
+      workspaceId: "workspace-1",
+    });
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatNotificationChannels.dispatch, {
+      workspaceId: "workspace-1",
+      notificationId: "notification-1",
+    });
+  });
+
+  it("spawn notification wake listener 可幂等销毁且不暴露路径", async () => {
+    const { chatApi } = await import("@preload/api/session/chat");
+    const handler = vi.fn();
+    const unsubscribe = chatApi.onSpawnNotificationsWake(handler);
+    const listener = mocks.ipcRenderer.on.mock.calls.find(
+      ([channel]) => channel === ChatNotificationChannels.wake
+    )?.[1];
+    expect(listener).toBeTypeOf("function");
+
+    listener({}, { workspaceId: "workspace-1" });
+    unsubscribe();
+    unsubscribe();
+
+    expect(handler).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
+    expect(mocks.ipcRenderer.off).toHaveBeenCalledWith(ChatNotificationChannels.wake, listener);
+    expect(mocks.ipcRenderer.off).toHaveBeenCalledTimes(1);
   });
 });

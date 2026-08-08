@@ -352,7 +352,7 @@ export class WorkspaceWindowManager {
 
 async function cleanupWorkspaceRuntimeForWindow(workspaceId: string): Promise<void> {
   await closeWorkspaceProbes(workspaceId);
-  sessionRegistry.cancelWorkspace(workspaceId);
+  sessionRegistry.cancelWindowOwnedWorkspace(workspaceId);
 
   proposalStatusService.unwatchWorkspace(workspaceId);
   disposeLineageEventConsumerWorkspace(workspaceId);

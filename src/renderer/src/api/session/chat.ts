@@ -4,6 +4,10 @@ import type { AcpAvailableCommand, ChatSessionMode, Session, Message } from "@sh
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
+import type {
+  SpawnNotificationDispatchResult,
+  SpawnNotificationSummary,
+} from "@shared/ipc/session/chat.schemas";
 
 // Renderer-side wrapper for session:chat IPC. Keeps components/composables free of direct
 // window.api usage and provides a typed, normalized surface.
@@ -163,5 +167,20 @@ export const chatApi = {
     }) => void
   ): () => void {
     return window.api.session.chat.onProbeUpdate(handler);
+  },
+
+  listSpawnNotifications(workspaceId: string): Promise<IpcResponse<SpawnNotificationSummary[]>> {
+    return window.api.session.chat.listSpawnNotifications(workspaceId);
+  },
+
+  dispatchSpawnNotification(
+    workspaceId: string,
+    notificationId: string
+  ): Promise<IpcResponse<SpawnNotificationDispatchResult>> {
+    return window.api.session.chat.dispatchSpawnNotification(workspaceId, notificationId);
+  },
+
+  onSpawnNotificationsWake(handler: (payload: { workspaceId: string }) => void): () => void {
+    return window.api.session.chat.onSpawnNotificationsWake(handler);
   },
 };

@@ -82,6 +82,28 @@ describe("sessionRegistry", () => {
     expect(sessionRegistry.get("chat", "workspace-b:session-1")).toBe(projectBChat);
   });
 
+  it("window cleanup 保留 app-owned Session", () => {
+    const userChat = fakeSession();
+    const notificationChat = fakeSession();
+    const spawn = fakeSession();
+    sessionRegistry.register("chat", "workspace-a:user", userChat, "window");
+    sessionRegistry.register("chat", "workspace-a:notification", notificationChat, "app");
+    sessionRegistry.register("spawn", "workspace-a:parent:spawn", spawn, "app");
+
+    sessionRegistry.cancelWindowOwnedWorkspace("workspace-a");
+
+    expect(userChat.cancel).toHaveBeenCalledOnce();
+    expect(notificationChat.cancel).not.toHaveBeenCalled();
+    expect(spawn.cancel).not.toHaveBeenCalled();
+  });
+
+  it("拒绝同 owner/key 覆盖活跃 Session", () => {
+    sessionRegistry.register("chat", "workspace-a:session", fakeSession());
+    expect(() =>
+      sessionRegistry.register("chat", "workspace-a:session", fakeSession())
+    ).toThrowError(/already registered/);
+  });
+
   it("cancels and lists spawned turns by their exact parent Session", () => {
     const parentAFirst = fakeSession();
     const parentASecond = fakeSession();

@@ -2,6 +2,7 @@ import { ipcRenderer } from "electron";
 import type { IpcResponse, MessageChunkData } from "@shared/types/ipc";
 import {
   SessionChatChannels,
+  SessionChatNotificationChannels,
   SessionChatProbeChannels,
   SessionChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
@@ -10,6 +11,10 @@ import type { AcpAvailableCommand, ChatSessionMode, Session, Message } from "@sh
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
+import type {
+  SpawnNotificationDispatchResult,
+  SpawnNotificationSummary,
+} from "@shared/ipc/session/chat.schemas";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId" | "isPinned">>;
 type ProbeConfigOptionInput = {
@@ -298,6 +303,36 @@ export const chatApi = {
     ipcRenderer.on(SessionChatProbeChannels.update, listener);
     return () => {
       ipcRenderer.off(SessionChatProbeChannels.update, listener);
+    };
+  },
+
+  listSpawnNotifications(workspaceId: string): Promise<IpcResponse<SpawnNotificationSummary[]>> {
+    return ipcRenderer.invoke(SessionChatNotificationChannels.list, { workspaceId });
+  },
+
+  dispatchSpawnNotification(
+    workspaceId: string,
+    notificationId: string
+  ): Promise<IpcResponse<SpawnNotificationDispatchResult>> {
+    return ipcRenderer.invoke(SessionChatNotificationChannels.dispatch, {
+      workspaceId,
+      notificationId,
+    });
+  },
+
+  onSpawnNotificationsWake(handler: (payload: { workspaceId: string }) => void): () => void {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { workspaceId: string }
+    ): void => {
+      handler(payload);
+    };
+    ipcRenderer.on(SessionChatNotificationChannels.wake, listener);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      ipcRenderer.off(SessionChatNotificationChannels.wake, listener);
     };
   },
 };

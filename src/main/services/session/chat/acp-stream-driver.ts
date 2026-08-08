@@ -4,7 +4,11 @@ import type { MessageChunkData } from "@shared/types/ipc";
 import type { IpcErrorCode } from "@shared/constants/error-codes";
 import { MessageAssembler } from "@main/services/session/chat/message-assembler";
 import { toMessageChunk, mapAcpErrorCode } from "@main/services/session/chat/session-event-mapper";
-import { sessionRegistry, type SessionOwner } from "@main/services/session/chat/session-registry";
+import {
+  sessionRegistry,
+  type SessionOwner,
+  type SessionRuntimeScope,
+} from "@main/services/session/chat/session-registry";
 import type { AcpSession } from "@main/services/session/chat/acp-session";
 import logger from "@main/infra/logger";
 
@@ -90,6 +94,7 @@ export function driveAcpTurn(args: {
   hooks: AcpTurnHooks;
   logTag: string;
   start: () => Promise<void>;
+  runtimeScope?: SessionRuntimeScope;
 }): AcpTurnRunner {
   const { session, owner, registryKey, messageSessionId, hooks, logTag } = args;
   const assembler = new MessageAssembler(messageSessionId);
@@ -117,7 +122,7 @@ export function driveAcpTurn(args: {
       });
   };
 
-  sessionRegistry.register(owner, registryKey, session);
+  sessionRegistry.register(owner, registryKey, session, args.runtimeScope);
   session.on("event", (event: SessionEvent) => {
     if (terminal) return;
     if (CONTENT_KINDS.has(event.kind)) {
@@ -189,6 +194,7 @@ export function driveAcpStream(args: {
   hooks: AcpStreamHooks;
   logTag: string;
   start: () => Promise<void>;
+  runtimeScope?: SessionRuntimeScope;
 }): AcpTurnRunner {
   const { session, owner, registryKey, messageSessionId, output, hooks, logTag } = args;
   const persistPartial = (message: Message | null): void => {
@@ -205,6 +211,7 @@ export function driveAcpStream(args: {
     messageSessionId,
     logTag,
     start: args.start,
+    runtimeScope: args.runtimeScope,
     hooks: {
       onContentEvent: (event) => {
         const chunk = toMessageChunk(event);

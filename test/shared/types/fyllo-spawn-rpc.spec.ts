@@ -6,6 +6,8 @@ import {
   checkSessionStatusResultSchema,
   fylloSpawnRpcMessageSchema,
   fylloSpawnRpcRequestSchema,
+  promptToAgentParamsSchema,
+  promptToAgentResultSchema,
   readResponseParamsSchema,
 } from "@shared/types/fyllo-spawn-rpc";
 
@@ -21,7 +23,38 @@ const request = {
 
 describe("fyllo-spawn RPC contract", () => {
   it("parses a method-specific request", () => {
-    expect(fylloSpawnRpcRequestSchema.parse(request)).toEqual(request);
+    expect(fylloSpawnRpcRequestSchema.parse(request)).toEqual({
+      ...request,
+      params: { ...request.params, background: false },
+    });
+  });
+
+  it("defaults prompt_to_agent to synchronous mode", () => {
+    expect(promptToAgentParamsSchema.parse(request.params)).toMatchObject({ background: false });
+    expect(promptToAgentParamsSchema.parse({ ...request.params, background: true })).toMatchObject({
+      background: true,
+    });
+  });
+
+  it("accepts a strict background accepted snapshot without a response payload", () => {
+    const accepted = {
+      status: "accepted",
+      sessionId: "spawn-1",
+      turnId: "turn-1",
+      startedAt: new Date().toISOString(),
+      config: [],
+      warnings: [],
+    };
+    expect(promptToAgentResultSchema.parse(accepted)).toEqual(accepted);
+    expect(
+      promptToAgentResultSchema.safeParse({ ...accepted, responseId: "response-1" }).success
+    ).toBe(false);
+    expect(promptToAgentResultSchema.safeParse({ ...accepted, content: "leak" }).success).toBe(
+      false
+    );
+    expect(
+      promptToAgentResultSchema.safeParse({ ...accepted, responsePath: "/tmp/response" }).success
+    ).toBe(false);
   });
 
   it("rejects unknown protocol versions and message kinds", () => {
@@ -71,6 +104,8 @@ describe("fyllo-spawn RPC contract", () => {
     expect(
       checkSessionStatusResultSchema.safeParse({
         status: "running",
+        turnId: "turn-1",
+        mode: "background",
         startedAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
         recentActivity: [activity, activity, activity],
@@ -79,9 +114,28 @@ describe("fyllo-spawn RPC contract", () => {
     expect(
       checkSessionStatusResultSchema.safeParse({
         status: "running",
+        turnId: "turn-1",
+        mode: "background",
         startedAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
         recentActivity: [activity, activity, activity, activity],
+      }).success
+    ).toBe(false);
+  });
+
+  it("parses interrupted status with stable restart codes", () => {
+    expect(
+      checkSessionStatusResultSchema.safeParse({
+        status: "interrupted",
+        code: "APP_RESTARTED",
+        message: "Application restarted",
+      }).success
+    ).toBe(true);
+    expect(
+      checkSessionStatusResultSchema.safeParse({
+        status: "interrupted",
+        code: "TURN_FAILED",
+        message: "wrong branch",
       }).success
     ).toBe(false);
   });

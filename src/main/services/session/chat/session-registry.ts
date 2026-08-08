@@ -1,5 +1,6 @@
 import type { AcpSession } from "@main/services/session/chat/acp-session";
 import logger from "@main/infra/logger";
+import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
 
 /**
  * Categories of in-flight ACP sessions. Each owner has its own key space
@@ -7,11 +8,13 @@ import logger from "@main/infra/logger";
  * cannot collide.
  */
 export type SessionOwner = "chat" | "apply" | "archive" | "spawn";
+export type SessionRuntimeScope = "window" | "app";
 
 interface OwnedSession {
   owner: SessionOwner;
   key: string;
   session: AcpSession;
+  runtimeScope: SessionRuntimeScope;
 }
 
 const byOwnerKey = new Map<string, OwnedSession>();
@@ -34,12 +37,23 @@ function spawnParentKeyPrefix(workspaceId: string, parentSessionId: string): str
 }
 
 export const sessionRegistry = {
-  register(owner: SessionOwner, key: string, session: AcpSession): void {
+  register(
+    owner: SessionOwner,
+    key: string,
+    session: AcpSession,
+    runtimeScope: SessionRuntimeScope = owner === "spawn" ? "app" : "window"
+  ): void {
     if (shuttingDown) {
       session.cancel();
       return;
     }
-    byOwnerKey.set(compositeKey(owner, key), { owner, key, session });
+    const composite = compositeKey(owner, key);
+    if (byOwnerKey.has(composite)) {
+      throw Object.assign(new Error(`Session already registered: ${owner}:${key}`), {
+        code: "SESSION_ALREADY_ACTIVE",
+      });
+    }
+    byOwnerKey.set(composite, { owner, key, session, runtimeScope });
   },
 
   get(owner: SessionOwner, key: string): AcpSession | undefined {
@@ -104,6 +118,19 @@ export const sessionRegistry = {
     }
   },
 
+  cancelWindowOwnedWorkspace(workspaceId: string): void {
+    const keyPrefix = `${workspaceId}:`;
+    for (const [key, entry] of byOwnerKey) {
+      if (!entry.key.startsWith(keyPrefix) || entry.runtimeScope !== "window") continue;
+      try {
+        entry.session.cancel();
+      } catch (error) {
+        logger.warn(`[session-registry] cancel ${key} failed`, error);
+      }
+      byOwnerKey.delete(key);
+    }
+  },
+
   listWorkspace(workspaceId: string): Array<{ owner: SessionOwner; key: string }> {
     const keyPrefix = `${workspaceId}:`;
     return [...byOwnerKey.values()]
@@ -134,6 +161,7 @@ export function beginSessionRegistryShutdown(): void {
 export function disposeSessionRegistry(): void {
   beginSessionRegistryShutdown();
   sessionRegistry.cancelAll();
+  chatTurnGate.clear();
 }
 
 export function forceDisposeSessionRegistry(): void {
@@ -142,5 +170,6 @@ export function forceDisposeSessionRegistry(): void {
 
 export function resetSessionRegistryForTests(): void {
   sessionRegistry.cancelAll();
+  chatTurnGate.clear();
   shuttingDown = false;
 }

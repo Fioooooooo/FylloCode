@@ -10,7 +10,10 @@ import {
   spawnedSessionMetaPath,
   spawnedSessionResponsePath,
   spawnedSessionResponsesDir,
+  spawnedSessionTurnPath,
+  spawnedSessionTurnsDir,
   spawnedSessionsDir,
+  sessionsDir,
 } from "@main/infra/storage/workspace-paths";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { MessageMeta, TokenUsage } from "@shared/types/chat";
@@ -18,7 +21,15 @@ import {
   DEFAULT_RESPONSE_CHUNK_BYTES,
   MAX_INLINE_RESPONSE_BYTES,
   MAX_RESPONSE_CHUNK_BYTES,
+  spawnConfigOptionSummarySchema,
+  spawnRecentActivitySchema,
+  spawnTurnModeSchema,
+  spawnWarningSchema,
   type ReadResponseResult,
+  type SpawnConfigOptionSummary,
+  type SpawnRecentActivity,
+  type SpawnTurnMode,
+  type SpawnWarning,
 } from "@shared/types/fyllo-spawn-rpc";
 import {
   sessionWorkspaceSnapshotSchema,
@@ -70,10 +81,90 @@ export interface SpawnedSessionMeta {
   updatedAt: string;
 }
 
-interface StoreOwner {
+export interface SpawnedStoreOwner {
   workspaceId: string;
   parentSessionId: string;
   sessionId: string;
+}
+
+export const spawnedTurnPhaseSchema = z.enum([
+  "starting",
+  "running",
+  "cancelling",
+  "completed",
+  "error",
+  "expired",
+  "interrupted",
+]);
+
+export const spawnNotificationStateSchema = z.enum([
+  "pending",
+  "dispatched",
+  "delivered",
+  "delivery_unknown",
+  "suppressed",
+]);
+
+const spawnNotificationSchema = z
+  .object({
+    notificationId: z.string().min(1).max(256),
+    state: spawnNotificationStateSchema,
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+const spawnedTurnRecordSchema = z
+  .object({
+    version: z.literal(1),
+    workspaceId: z.string().min(1),
+    parentSessionId: z.string().min(1),
+    sessionId: z.string().min(1),
+    turnId: z.string().min(1),
+    agentId: z.string().min(1),
+    mode: spawnTurnModeSchema,
+    phase: spawnedTurnPhaseSchema,
+    startedAt: z.string().datetime(),
+    lastActivityAt: z.string().datetime(),
+    recentActivity: z.array(spawnRecentActivitySchema).max(3),
+    config: z.array(spawnConfigOptionSummarySchema),
+    warnings: z.array(spawnWarningSchema),
+    responseId: z.string().min(1).optional(),
+    error: z
+      .object({ code: z.string().min(1), message: z.string().min(1) })
+      .strict()
+      .optional(),
+    notification: spawnNotificationSchema.optional(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type SpawnedTurnPhase = z.infer<typeof spawnedTurnPhaseSchema>;
+export type SpawnNotificationState = z.infer<typeof spawnNotificationStateSchema>;
+
+export interface SpawnedTurnRecord {
+  version: 1;
+  workspaceId: string;
+  parentSessionId: string;
+  sessionId: string;
+  turnId: string;
+  agentId: string;
+  mode: SpawnTurnMode;
+  phase: SpawnedTurnPhase;
+  startedAt: string;
+  lastActivityAt: string;
+  recentActivity: SpawnRecentActivity[];
+  config: SpawnConfigOptionSummary[];
+  warnings: SpawnWarning[];
+  responseId?: string;
+  error?: { code: string; message: string };
+  notification?: {
+    notificationId: string;
+    state: SpawnNotificationState;
+    updatedAt: string;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 const writeQueues = new Map<string, Promise<void>>();
@@ -85,11 +176,11 @@ function parentKey(workspaceId: string, parentSessionId: string): string {
   return `${workspaceId}\0${parentSessionId}`;
 }
 
-function ownerKey(owner: StoreOwner): string {
+function ownerKey(owner: SpawnedStoreOwner): string {
   return `${owner.workspaceId}\0${owner.parentSessionId}\0${owner.sessionId}`;
 }
 
-function assertWritable(owner: Pick<StoreOwner, "workspaceId" | "parentSessionId">): void {
+function assertWritable(owner: Pick<SpawnedStoreOwner, "workspaceId" | "parentSessionId">): void {
   if (shuttingDown || fencedParents.has(parentKey(owner.workspaceId, owner.parentSessionId))) {
     throw Object.assign(new Error("Spawned Session storage is fenced"), {
       code: "SPAWN_STORAGE_FENCED",
@@ -97,7 +188,7 @@ function assertWritable(owner: Pick<StoreOwner, "workspaceId" | "parentSessionId
   }
 }
 
-async function withWriteQueue<T>(owner: StoreOwner, task: () => Promise<T>): Promise<T> {
+async function withWriteQueue<T>(owner: SpawnedStoreOwner, task: () => Promise<T>): Promise<T> {
   const key = ownerKey(owner);
   const previous = writeQueues.get(key) ?? Promise.resolve();
   let release!: () => void;
@@ -120,8 +211,24 @@ function parseMeta(input: unknown): SpawnedSessionMeta {
   return storedMetaSchema.parse(input) as SpawnedSessionMeta;
 }
 
+function parseTurnRecord(input: unknown): SpawnedTurnRecord {
+  return spawnedTurnRecordSchema.parse(input) as SpawnedTurnRecord;
+}
+
+function assertTurnOwner(record: SpawnedTurnRecord, owner: SpawnedStoreOwner): void {
+  if (
+    record.workspaceId !== owner.workspaceId ||
+    record.parentSessionId !== owner.parentSessionId ||
+    record.sessionId !== owner.sessionId
+  ) {
+    throw Object.assign(new Error("Spawned turn owner does not match its storage path"), {
+      code: "SPAWN_INVALID_REQUEST",
+    });
+  }
+}
+
 export async function loadSpawnedSessionMeta(
-  owner: StoreOwner
+  owner: SpawnedStoreOwner
 ): Promise<SpawnedSessionMeta | null> {
   try {
     return parseMeta(
@@ -155,7 +262,7 @@ export async function writeSpawnedSessionMeta(meta: SpawnedSessionMeta): Promise
 }
 
 export async function patchSpawnedSessionMeta(
-  owner: StoreOwner,
+  owner: SpawnedStoreOwner,
   patch:
     Partial<SpawnedSessionMeta> | ((current: SpawnedSessionMeta) => Partial<SpawnedSessionMeta>)
 ): Promise<SpawnedSessionMeta | null> {
@@ -177,7 +284,7 @@ export async function patchSpawnedSessionMeta(
 }
 
 export async function appendSpawnedSessionMessage(
-  owner: StoreOwner,
+  owner: SpawnedStoreOwner,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
   await withWriteQueue(owner, async () => {
@@ -193,7 +300,7 @@ export async function appendSpawnedSessionMessage(
 }
 
 export async function loadSpawnedSessionMessages(
-  owner: StoreOwner
+  owner: SpawnedStoreOwner
 ): Promise<Array<UIMessage<MessageMeta>>> {
   try {
     const content = await fs.readFile(
@@ -208,7 +315,7 @@ export async function loadSpawnedSessionMessages(
 }
 
 export async function writeSpawnedSessionResponse(
-  owner: StoreOwner,
+  owner: SpawnedStoreOwner,
   responseId: string,
   content: string
 ): Promise<void> {
@@ -303,7 +410,7 @@ export function inlineSpawnedResponse(content: string, responseId: string): Read
 }
 
 export async function readSpawnedSessionResponseChunk(input: {
-  owner: StoreOwner;
+  owner: SpawnedStoreOwner;
   responseId: string;
   cursor?: string;
   maxBytes?: number;
@@ -335,6 +442,231 @@ export async function readSpawnedSessionResponseChunk(input: {
   } finally {
     await handle.close();
   }
+}
+
+export async function createSpawnedTurnRecord(record: SpawnedTurnRecord): Promise<void> {
+  const parsed = parseTurnRecord(record);
+  const owner = {
+    workspaceId: parsed.workspaceId,
+    parentSessionId: parsed.parentSessionId,
+    sessionId: parsed.sessionId,
+  };
+  assertTurnOwner(parsed, owner);
+  await withWriteQueue(owner, async () => {
+    const path = spawnedSessionTurnPath(
+      owner.workspaceId,
+      owner.parentSessionId,
+      owner.sessionId,
+      parsed.turnId
+    );
+    await fs.mkdir(dirname(path), { recursive: true });
+    try {
+      await fs.access(path);
+      throw Object.assign(new Error("Spawned turn already exists"), { code: "EEXIST" });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    assertWritable(owner);
+    writeFileAtomicSync(path, `${JSON.stringify(parsed, null, 2)}\n`);
+  });
+}
+
+export async function loadSpawnedTurnRecord(
+  owner: SpawnedStoreOwner,
+  turnId: string
+): Promise<SpawnedTurnRecord | null> {
+  try {
+    const record = parseTurnRecord(
+      JSON.parse(
+        await fs.readFile(
+          spawnedSessionTurnPath(owner.workspaceId, owner.parentSessionId, owner.sessionId, turnId),
+          "utf8"
+        )
+      ) as unknown
+    );
+    assertTurnOwner(record, owner);
+    return record;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function patchSpawnedTurnRecord(
+  owner: SpawnedStoreOwner,
+  turnId: string,
+  patch: Partial<SpawnedTurnRecord> | ((current: SpawnedTurnRecord) => Partial<SpawnedTurnRecord>)
+): Promise<SpawnedTurnRecord | null> {
+  return withWriteQueue(owner, async () => {
+    const path = spawnedSessionTurnPath(
+      owner.workspaceId,
+      owner.parentSessionId,
+      owner.sessionId,
+      turnId
+    );
+    let current: SpawnedTurnRecord;
+    try {
+      current = parseTurnRecord(JSON.parse(await fs.readFile(path, "utf8")) as unknown);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    assertTurnOwner(current, owner);
+    const delta = typeof patch === "function" ? patch(current) : patch;
+    const next = parseTurnRecord({ ...current, ...delta });
+    assertTurnOwner(next, owner);
+    if (next.turnId !== turnId) {
+      throw Object.assign(new Error("Spawned turn identity cannot be changed"), {
+        code: "SPAWN_INVALID_REQUEST",
+      });
+    }
+    assertWritable(owner);
+    writeFileAtomicSync(path, `${JSON.stringify(next, null, 2)}\n`);
+    return next;
+  });
+}
+
+async function readTurnRecordsFromOwner(owner: SpawnedStoreOwner): Promise<SpawnedTurnRecord[]> {
+  let entries;
+  try {
+    entries = await fs.readdir(
+      spawnedSessionTurnsDir(owner.workspaceId, owner.parentSessionId, owner.sessionId),
+      { withFileTypes: true }
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const records: SpawnedTurnRecord[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const turnId = entry.name.slice(0, -".json".length);
+    try {
+      const record = await loadSpawnedTurnRecord(owner, turnId);
+      if (record) records.push(record);
+    } catch {
+      // 单个损坏记录不能阻断同一 Workspace 其余通知的恢复。
+    }
+  }
+  return records.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+export async function listSpawnedTurnRecords(
+  owner: SpawnedStoreOwner
+): Promise<SpawnedTurnRecord[]> {
+  return readTurnRecordsFromOwner(owner);
+}
+
+export async function loadLatestSpawnedTurnRecord(
+  owner: SpawnedStoreOwner
+): Promise<SpawnedTurnRecord | null> {
+  const records = await readTurnRecordsFromOwner(owner);
+  return records.at(-1) ?? null;
+}
+
+export async function listSpawnedTurnRecordsForWorkspace(
+  workspaceId: string
+): Promise<SpawnedTurnRecord[]> {
+  let parents;
+  try {
+    parents = await fs.readdir(sessionsDir(workspaceId), { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const records: SpawnedTurnRecord[] = [];
+  for (const parent of parents) {
+    if (!parent.isDirectory()) continue;
+    let spawned;
+    try {
+      spawned = await fs.readdir(spawnedSessionsDir(workspaceId, parent.name), {
+        withFileTypes: true,
+      });
+    } catch {
+      continue;
+    }
+    for (const session of spawned) {
+      if (!session.isDirectory()) continue;
+      try {
+        records.push(
+          ...(await readTurnRecordsFromOwner({
+            workspaceId,
+            parentSessionId: parent.name,
+            sessionId: session.name,
+          }))
+        );
+      } catch {
+        // 目录名或单个owner损坏时继续处理其他Session。
+      }
+    }
+  }
+  return records.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+export async function listPendingSpawnNotifications(
+  workspaceId: string
+): Promise<SpawnedTurnRecord[]> {
+  return (await listSpawnedTurnRecordsForWorkspace(workspaceId)).filter(
+    (record) => record.notification?.state === "pending"
+  );
+}
+
+export async function claimSpawnNotification(
+  workspaceId: string,
+  notificationId: string,
+  updatedAt: string
+): Promise<SpawnedTurnRecord | null> {
+  const candidate = (await listPendingSpawnNotifications(workspaceId)).find(
+    (record) => record.notification?.notificationId === notificationId
+  );
+  if (!candidate) return null;
+  const owner = {
+    workspaceId: candidate.workspaceId,
+    parentSessionId: candidate.parentSessionId,
+    sessionId: candidate.sessionId,
+  };
+  return patchSpawnedTurnRecord(owner, candidate.turnId, (current) => {
+    if (
+      current.notification?.notificationId !== notificationId ||
+      current.notification.state !== "pending"
+    ) {
+      throw Object.assign(new Error("Spawn notification is no longer pending"), {
+        code: "SPAWN_NOTIFICATION_NOT_PENDING",
+      });
+    }
+    return {
+      notification: { notificationId, state: "dispatched", updatedAt },
+      updatedAt,
+    };
+  }).catch((error: unknown) => {
+    if ((error as { code?: unknown }).code === "SPAWN_NOTIFICATION_NOT_PENDING") return null;
+    throw error;
+  });
+}
+
+export async function setSpawnNotificationState(
+  owner: SpawnedStoreOwner,
+  turnId: string,
+  notificationId: string,
+  state: Exclude<SpawnNotificationState, "pending" | "dispatched">,
+  updatedAt: string
+): Promise<SpawnedTurnRecord | null> {
+  return patchSpawnedTurnRecord(owner, turnId, (current) => {
+    if (current.notification?.notificationId !== notificationId) {
+      throw Object.assign(new Error("Spawn notification identity does not match"), {
+        code: "SPAWN_INVALID_REQUEST",
+      });
+    }
+    if (current.notification.state === "suppressed" && state !== "suppressed") return {};
+    if (
+      (current.notification.state === "delivered" ||
+        current.notification.state === "delivery_unknown") &&
+      state !== "suppressed"
+    ) {
+      return {};
+    }
+    return { notification: { notificationId, state, updatedAt }, updatedAt };
+  });
 }
 
 export function spawnedMessageToResponseMarkdown(message: UIMessage<MessageMeta> | null): string {

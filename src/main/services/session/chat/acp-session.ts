@@ -107,6 +107,10 @@ export interface AcpSessionOpts {
   presetAcpSessionId?: string;
   configOverrides?: Record<string, string | boolean>;
   onConfigWarnings?: (warnings: ConfigOverrideWarning[]) => void;
+  onPromptDispatched?: (event: {
+    acpSessionId: string;
+    configOptions: AcpSessionConfigOption[];
+  }) => void | Promise<void>;
 }
 
 /**
@@ -128,6 +132,7 @@ export class AcpSession extends EventEmitter {
   private readonly recoveryContext: RecoveryContext;
   private readonly presetAcpSessionId?: string;
   private processEntry: Awaited<ReturnType<typeof getOrStartProcess>> | null = null;
+  private promptDispatched = false;
 
   constructor(private readonly opts: AcpSessionOpts) {
     super();
@@ -343,6 +348,7 @@ export class AcpSession extends EventEmitter {
       runtimeState: context.runtimeState,
       sessionId: acpSessionId,
       prompt: promptParts,
+      configOptions: context.recoveryState.configOptions,
     });
     this.throwIfCancelled("after preset prompt");
     this.emitDone(result);
@@ -373,6 +379,14 @@ export class AcpSession extends EventEmitter {
     this.acpSessionId = persistedSessionId;
     logger.info(`${this.logPrefix(persistedSessionId)} attempting direct prompt`);
     this.throwIfCancelled("before direct prompt");
+    const configOptions = await this.applyTurnConfigOverrides({
+      connection: context.entry.connection,
+      sessionId: persistedSessionId,
+      options: context.recoveryState.configOptions,
+    });
+    if (this.opts.configOverrides && Object.keys(this.opts.configOverrides).length > 0) {
+      this.emitConfigOptions(configOptions);
+    }
 
     const directPromptResult = await this.tryDirectPrompt({
       connection: context.entry.connection,
@@ -380,6 +394,7 @@ export class AcpSession extends EventEmitter {
       sessionId: persistedSessionId,
       prompt: parts,
       runtimeState: context.runtimeState,
+      configOptions,
     });
     this.throwIfCancelled("after direct prompt");
 
@@ -462,6 +477,7 @@ export class AcpSession extends EventEmitter {
       runtimeState: context.runtimeState,
       sessionId: recovery.sessionId,
       prompt: promptParts,
+      configOptions: recovery.configOptions,
     });
     this.throwIfCancelled("after prompt");
     this.emitDone(result);
@@ -538,6 +554,7 @@ export class AcpSession extends EventEmitter {
     sessionId: string;
     prompt: ChatPromptPart[];
     runtimeState: SessionRuntimeState;
+    configOptions: AcpSessionConfigOption[];
   }): Promise<
     | { status: "completed"; result: unknown }
     | { status: "recover" }
@@ -552,6 +569,7 @@ export class AcpSession extends EventEmitter {
         runtimeState: args.runtimeState,
         sessionId: args.sessionId,
         prompt: await this.toAcpPromptParts(args.prompt),
+        configOptions: args.configOptions,
       });
       return { status: "completed", result };
     } catch (error: unknown) {
@@ -664,16 +682,11 @@ export class AcpSession extends EventEmitter {
         persistedOptions: recoveryState.configOptions,
         liveOptions: activation.configOptions,
       });
-      if (this.opts.configOverrides && Object.keys(this.opts.configOverrides).length > 0) {
-        const overrideResult = await applySessionConfigOverrides({
-          connection: entry.connection,
-          sessionId: activation.sessionId,
-          liveOptions: configOptions,
-          overrides: this.opts.configOverrides,
-        });
-        configOptions = overrideResult.options;
-        this.opts.onConfigWarnings?.(overrideResult.warnings);
-      }
+      configOptions = await this.applyTurnConfigOverrides({
+        connection: entry.connection,
+        sessionId: activation.sessionId,
+        options: configOptions,
+      });
       this.throwIfCancelled("after config recovery");
     } catch (error: unknown) {
       // 仅完成 activation 还不能安全复用 direct prompt；恢复失败或取消后，
@@ -782,6 +795,7 @@ export class AcpSession extends EventEmitter {
     runtimeState: SessionRuntimeState;
     sessionId: string;
     prompt: PromptPart[];
+    configOptions: AcpSessionConfigOption[];
   }): Promise<unknown> {
     this.throwIfCancelled("before prompt dispatch");
 
@@ -812,10 +826,42 @@ export class AcpSession extends EventEmitter {
     logger.info(
       `${this.logPrefix(args.sessionId)} sending prompt; promptParts=${args.prompt.length}; suppressReplay=${args.runtimeState.suppressReplay}`
     );
-    return args.connection.prompt({
+    const promptPromise = args.connection.prompt({
       sessionId: args.sessionId,
       prompt: args.prompt,
     });
+    try {
+      if (!this.promptDispatched) {
+        await this.opts.onPromptDispatched?.({
+          acpSessionId: args.sessionId,
+          configOptions: structuredClone(args.configOptions),
+        });
+        this.promptDispatched = true;
+      }
+    } catch (error: unknown) {
+      this.cancelResolvedAcpSession(args.sessionId);
+      void promptPromise.catch(() => undefined);
+      throw error;
+    }
+    return promptPromise;
+  }
+
+  private async applyTurnConfigOverrides(input: {
+    connection: ClientSideConnection;
+    sessionId: string;
+    options: AcpSessionConfigOption[];
+  }): Promise<AcpSessionConfigOption[]> {
+    if (!this.opts.configOverrides || Object.keys(this.opts.configOverrides).length === 0) {
+      return input.options;
+    }
+    const result = await applySessionConfigOverrides({
+      connection: input.connection,
+      sessionId: input.sessionId,
+      liveOptions: input.options,
+      overrides: this.opts.configOverrides,
+    });
+    this.opts.onConfigWarnings?.(result.warnings);
+    return result.options;
   }
 
   private assertPromptCapabilities(

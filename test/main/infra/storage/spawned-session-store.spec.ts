@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,19 +13,30 @@ vi.mock("@main/infra/paths", () => ({
 
 import {
   appendSpawnedSessionMessage,
+  claimSpawnNotification,
+  createSpawnedTurnRecord,
   deleteSpawnedSessionParent,
   fenceSpawnedSessionParent,
   inlineSpawnedResponse,
   loadSpawnedSessionMessages,
   loadSpawnedSessionMeta,
+  loadSpawnedTurnRecord,
+  listPendingSpawnNotifications,
+  listSpawnedTurnRecords,
+  patchSpawnedTurnRecord,
   readSpawnedSessionResponseChunk,
   resetSpawnedSessionStoreForTests,
   spawnedMessageToResponseMarkdown,
   writeSpawnedSessionMeta,
   writeSpawnedSessionResponse,
   type SpawnedSessionMeta,
+  type SpawnedTurnRecord,
 } from "@main/infra/storage/spawned-session-store";
-import { spawnedSessionsDir } from "@main/infra/storage/workspace-paths";
+import {
+  spawnedSessionTurnPath,
+  spawnedSessionTurnsDir,
+  spawnedSessionsDir,
+} from "@main/infra/storage/workspace-paths";
 
 const owner = { workspaceId: "workspace-1", parentSessionId: "parent-1", sessionId: "spawn-1" };
 
@@ -58,6 +69,26 @@ function message(role: "user" | "assistant", text: string): UIMessage<MessageMet
     role,
     parts: [{ type: "text", text }],
     metadata: { sessionId: owner.sessionId, createdAt: new Date() },
+  };
+}
+
+function turn(overrides: Partial<SpawnedTurnRecord> = {}): SpawnedTurnRecord {
+  const now = new Date().toISOString();
+  return {
+    version: 1,
+    ...owner,
+    turnId: "turn-1",
+    agentId: "agent-1",
+    mode: "background",
+    phase: "running",
+    startedAt: now,
+    lastActivityAt: now,
+    recentActivity: [],
+    config: [],
+    warnings: [],
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
   };
 }
 
@@ -98,6 +129,94 @@ describe("spawned-session-store", () => {
         "utf8"
       )
     ).toBe("first");
+  });
+
+  it("creates and atomically patches strict sidecar turn records", async () => {
+    await createSpawnedTurnRecord(turn());
+    await expect(createSpawnedTurnRecord(turn())).rejects.toMatchObject({ code: "EEXIST" });
+
+    const completedAt = new Date(Date.now() + 1_000).toISOString();
+    await patchSpawnedTurnRecord(owner, "turn-1", {
+      phase: "completed",
+      responseId: "response-1",
+      notification: {
+        notificationId: "notification-1",
+        state: "pending",
+        updatedAt: completedAt,
+      },
+      updatedAt: completedAt,
+    });
+
+    await expect(loadSpawnedTurnRecord(owner, "turn-1")).resolves.toMatchObject({
+      phase: "completed",
+      responseId: "response-1",
+      notification: { notificationId: "notification-1", state: "pending" },
+    });
+  });
+
+  it("claims a pending notification at most once", async () => {
+    const now = new Date().toISOString();
+    await createSpawnedTurnRecord(
+      turn({
+        phase: "completed",
+        responseId: "response-1",
+        notification: {
+          notificationId: "notification-1",
+          state: "pending",
+          updatedAt: now,
+        },
+      })
+    );
+
+    const [first, second] = await Promise.all([
+      claimSpawnNotification("workspace-1", "notification-1", now),
+      claimSpawnNotification("workspace-1", "notification-1", now),
+    ]);
+
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    await expect(listPendingSpawnNotifications("workspace-1")).resolves.toEqual([]);
+    await expect(loadSpawnedTurnRecord(owner, "turn-1")).resolves.toMatchObject({
+      notification: { state: "dispatched" },
+    });
+  });
+
+  it("isolates Workspace notification scans and unsafe turn identities", async () => {
+    const now = new Date().toISOString();
+    await createSpawnedTurnRecord(
+      turn({
+        phase: "completed",
+        notification: {
+          notificationId: "notification-1",
+          state: "pending",
+          updatedAt: now,
+        },
+      })
+    );
+    await expect(listPendingSpawnNotifications("workspace-2")).resolves.toEqual([]);
+    await expect(createSpawnedTurnRecord(turn({ turnId: "../escape" }))).rejects.toThrow(
+      "Turn ID is not safe for storage"
+    );
+  });
+
+  it("keeps legacy meta readable and skips corrupt turn records during scans", async () => {
+    await writeSpawnedSessionMeta(meta());
+    await createSpawnedTurnRecord(turn());
+    const turnsDir = spawnedSessionTurnsDir(
+      owner.workspaceId,
+      owner.parentSessionId,
+      owner.sessionId
+    );
+    await mkdir(turnsDir, { recursive: true });
+    await writeFile(
+      spawnedSessionTurnPath(owner.workspaceId, owner.parentSessionId, owner.sessionId, "corrupt"),
+      "{not-json",
+      "utf8"
+    );
+
+    await expect(loadSpawnedSessionMeta(owner)).resolves.toMatchObject({ version: 1 });
+    await expect(listSpawnedTurnRecords(owner)).resolves.toEqual([
+      expect.objectContaining({ turnId: "turn-1" }),
+    ]);
   });
 
   it("chunks UTF-8 without splitting multi-byte characters", async () => {
@@ -150,6 +269,9 @@ describe("spawned-session-store", () => {
     await expect(
       appendSpawnedSessionMessage(owner, message("assistant", "late"))
     ).rejects.toMatchObject({ code: "SPAWN_STORAGE_FENCED" });
+    await expect(createSpawnedTurnRecord(turn())).rejects.toMatchObject({
+      code: "SPAWN_STORAGE_FENCED",
+    });
     await deleteSpawnedSessionParent(owner.workspaceId, owner.parentSessionId);
     await expect(loadSpawnedSessionMeta(owner)).resolves.toBeNull();
   });

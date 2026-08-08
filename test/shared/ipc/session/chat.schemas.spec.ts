@@ -6,6 +6,9 @@ import {
   probeEnsureInputSchema,
   probeSetConfigOptionInputSchema,
   setConfigOptionInputSchema,
+  dispatchSpawnNotificationInputSchema,
+  listSpawnNotificationsInputSchema,
+  spawnNotificationWakePayloadSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { chatPromptPartSchema } from "@shared/types/chat-prompt";
 
@@ -44,6 +47,45 @@ describe("createSessionInputSchema", () => {
       fylloSessionId: "session-probe",
       sessionMode: "fyllocode",
     });
+  });
+});
+
+describe("spawn notification IPC schemas", () => {
+  it("只接受 Workspace scope 与 opaque notificationId", () => {
+    expect(listSpawnNotificationsInputSchema.parse({ workspaceId: "workspace-1" })).toEqual({
+      workspaceId: "workspace-1",
+    });
+    expect(
+      dispatchSpawnNotificationInputSchema.parse({
+        workspaceId: "workspace-1",
+        notificationId: "notification-1",
+      })
+    ).toEqual({ workspaceId: "workspace-1", notificationId: "notification-1" });
+  });
+
+  it.each(["parentSessionId", "responseId", "reminder", "responsePath"])(
+    "拒绝 Renderer 覆盖字段 %s",
+    (field) => {
+      expect(
+        dispatchSpawnNotificationInputSchema.safeParse({
+          workspaceId: "workspace-1",
+          notificationId: "notification-1",
+          [field]: "malicious",
+        }).success
+      ).toBe(false);
+    }
+  );
+
+  it("wake payload 不携带通知内容", () => {
+    expect(
+      spawnNotificationWakePayloadSchema.safeParse({ workspaceId: "workspace-1" }).success
+    ).toBe(true);
+    expect(
+      spawnNotificationWakePayloadSchema.safeParse({
+        workspaceId: "workspace-1",
+        notificationId: "notification-1",
+      }).success
+    ).toBe(false);
   });
 });
 

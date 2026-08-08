@@ -1204,6 +1204,84 @@ describe("AcpSession", () => {
       expect(mocks.connection.prompt).toHaveBeenCalledOnce();
     });
 
+    it("在prompt提交后以newSession config结算dispatch hook", async () => {
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: sampleOptions,
+      });
+      const promptDeferred = deferred<{ usage: { outputTokens: number } }>();
+      mocks.connection.prompt.mockReturnValueOnce(promptDeferred.promise);
+      const onPromptDispatched = vi.fn();
+      const session = await createSession({ owner: "spawn", onPromptDispatched });
+
+      const running = session.start([{ type: "text", text: "delegate" }]);
+      await vi.waitFor(() => expect(onPromptDispatched).toHaveBeenCalledOnce());
+
+      expect(mocks.connection.prompt.mock.invocationCallOrder[0]).toBeLessThan(
+        onPromptDispatched.mock.invocationCallOrder[0]
+      );
+      expect(onPromptDispatched).toHaveBeenCalledWith({
+        acpSessionId: "acp-new",
+        configOptions: sampleOptions,
+      });
+      promptDeferred.resolve({ usage: { outputTokens: 1 } });
+      await running;
+    });
+
+    it("在warm direct prompt前应用config override并把最终snapshot交给hook", async () => {
+      const configurable = [
+        {
+          ...sampleOptions[0],
+          options: [
+            { value: "sonnet", name: "Sonnet" },
+            { value: "opus", name: "Opus" },
+          ],
+        },
+      ];
+      const applied = [{ ...configurable[0], currentValue: "opus" }];
+      mocks.sessionStore.loadRecoveryState.mockResolvedValue({
+        acpSessionId: "acp-existing",
+        configOptions: configurable,
+      });
+      mocks.connection.setSessionConfigOption.mockResolvedValueOnce({ configOptions: applied });
+      const onPromptDispatched = vi.fn();
+
+      const session = await createSession({
+        owner: "spawn",
+        configOverrides: { model: "opus" },
+        onPromptDispatched,
+      });
+      await session.start([{ type: "text", text: "continue" }]);
+
+      expect(mocks.connection.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: "acp-existing",
+        configId: "model",
+        value: "opus",
+      });
+      expect(mocks.connection.setSessionConfigOption.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.connection.prompt.mock.invocationCallOrder[0]
+      );
+      expect(onPromptDispatched).toHaveBeenCalledWith({
+        acpSessionId: "acp-existing",
+        configOptions: applied,
+      });
+    });
+
+    it("dispatch hook持久化失败时取消ACP Session且不伪报完成", async () => {
+      const onPromptDispatched = vi.fn().mockRejectedValue(new Error("accepted write failed"));
+      const session = await createSession({ owner: "spawn", onPromptDispatched });
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => seen.push(event));
+
+      await session.start([{ type: "text", text: "delegate" }]);
+
+      expect(mocks.connection.cancel).toHaveBeenCalledWith({ sessionId: "acp-new" });
+      expect(seen).toContainEqual(
+        expect.objectContaining({ kind: "error", message: "accepted write failed" })
+      );
+      expect(seen).not.toContainEqual(expect.objectContaining({ kind: "done" }));
+    });
+
     it("emits empty config_options_update when newSession returns null configOptions", async () => {
       mocks.connection.newSession.mockResolvedValueOnce({
         sessionId: "acp-new",

@@ -22,3 +22,9 @@ export const SessionChatProbeChannels = {
   setConfigOption: "session:chat:probe:setConfigOption",
   update: "session:chat:probe:update",
 } as const;
+
+export const SessionChatNotificationChannels = {
+  list: "session:chat:spawn-notifications:list",
+  dispatch: "session:chat:spawn-notifications:dispatch",
+  wake: "session:chat:spawn-notifications:wake",
+} as const;

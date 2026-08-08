@@ -11,6 +11,9 @@ const chatBridge = {
   streamMessage: vi.fn(),
   saveAttachment: vi.fn(),
   readAttachmentDataUrl: vi.fn(),
+  listSpawnNotifications: vi.fn(),
+  dispatchSpawnNotification: vi.fn(),
+  onSpawnNotificationsWake: vi.fn(),
 };
 
 describe("chatApi", () => {
@@ -57,5 +60,27 @@ describe("chatApi", () => {
       { isPinned: true },
       "project-1"
     );
+  });
+
+  it("forwards owner-safe spawn notification operations", async () => {
+    chatBridge.listSpawnNotifications.mockResolvedValue({ ok: true, data: [] });
+    chatBridge.dispatchSpawnNotification.mockResolvedValue({
+      ok: true,
+      data: { status: "not_pending" },
+    });
+    const handler = vi.fn();
+    const cleanup = vi.fn();
+    chatBridge.onSpawnNotificationsWake.mockReturnValue(cleanup);
+
+    await chatApi.listSpawnNotifications("workspace-1");
+    await chatApi.dispatchSpawnNotification("workspace-1", "notification-1");
+    expect(chatApi.onSpawnNotificationsWake(handler)).toBe(cleanup);
+
+    expect(chatBridge.listSpawnNotifications).toHaveBeenCalledWith("workspace-1");
+    expect(chatBridge.dispatchSpawnNotification).toHaveBeenCalledWith(
+      "workspace-1",
+      "notification-1"
+    );
+    expect(chatBridge.onSpawnNotificationsWake).toHaveBeenCalledWith(handler);
   });
 });
