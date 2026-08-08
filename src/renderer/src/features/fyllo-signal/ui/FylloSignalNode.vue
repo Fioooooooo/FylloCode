@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, inject } from "vue";
 import { parseFylloSignalNode } from "@shared/fyllo-signal/parser";
 import type { FylloSignalMarkdownNode } from "@shared/fyllo-signal/protocol";
 import { getRendererSignalComponent } from "./renderer-registry";
 import FylloSignalShell from "./FylloSignalShell.vue";
+import { fylloSignalHostContextKey } from "./fyllo-signal-context";
 
 const props = defineProps<{
   node: FylloSignalMarkdownNode;
@@ -13,6 +14,10 @@ const props = defineProps<{
 }>();
 
 const parseResult = computed(() => parseFylloSignalNode(props.node));
+const hostContext = inject(
+  fylloSignalHostContextKey,
+  computed(() => undefined)
+);
 const signalComponent = computed(() =>
   parseResult.value.status === "ready" ? getRendererSignalComponent(parseResult.value.type) : null
 );
@@ -29,6 +34,8 @@ const signalComponent = computed(() =>
       :is="signalComponent"
       v-if="signalComponent && parseResult.status === 'ready'"
       :payload="parseResult.payload"
+      :host-context="hostContext"
+      :is-dark="props.isDark"
     />
     <span
       v-else-if="parseResult.status === 'invalid'"

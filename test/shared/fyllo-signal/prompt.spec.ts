@@ -47,4 +47,12 @@ describe("renderFylloSignalPromptContract", () => {
       expect(contract?.payloadSchema.safeParse(JSON.parse(example[2])).success).toBe(true);
     }
   });
+
+  it("renders spawn.session after show.time with standalone new-Session guidance", () => {
+    const prompt = renderFylloSignalPromptContract();
+    expect(prompt.indexOf("show.time")).toBeLessThan(prompt.indexOf("spawn.session"));
+    expect(prompt).toContain("omitted sessionId");
+    expect(prompt).toContain("synchronous and background");
+    expect(prompt).toContain("Do not emit for continuation calls");
+  });
 });

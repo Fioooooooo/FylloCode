@@ -192,6 +192,10 @@ export class MessageAssembler {
     }
   }
 
+  snapshot(): UIMessage<MessageMeta> | null {
+    return this.currentMessage ? structuredClone(this.currentMessage) : null;
+  }
+
   flush(): UIMessage<MessageMeta> | null {
     if (!this.currentMessage) {
       return null;

@@ -722,6 +722,54 @@ describe("SpawnedSessionManager", () => {
     await manager.dispose();
   });
 
+  it("exposes an isolated live snapshot and coalesces view wakes", async () => {
+    let settleStart!: () => void;
+    let runningSession!: EventEmitter;
+    mocks.start.mockImplementation(
+      (session: EventEmitter) =>
+        new Promise<void>((resolve) => {
+          runningSession = session;
+          settleStart = resolve;
+        })
+    );
+    const manager = new SpawnedSessionManager();
+    const wakes = vi.fn();
+    manager.setViewWakeHandler(wakes);
+    const accepted = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "inspect",
+      background: true,
+    });
+    if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+    runningSession.emit("event", { kind: "reasoning_delta", text: "thinking" });
+    runningSession.emit("event", { kind: "text_delta", text: "answer" });
+    const snapshot = manager.getInspectionSnapshot({ ...caller, sessionId: accepted.sessionId });
+    expect(snapshot).toMatchObject({
+      turnId: accepted.turnId,
+      mode: "background",
+      liveAssistantMessage: {
+        parts: [
+          { type: "reasoning", text: "thinking" },
+          { type: "text", text: "answer" },
+        ],
+      },
+    });
+    if (snapshot?.liveAssistantMessage) snapshot.liveAssistantMessage.parts.length = 0;
+    expect(
+      manager.getInspectionSnapshot({ ...caller, sessionId: accepted.sessionId })
+        ?.liveAssistantMessage?.parts
+    ).toHaveLength(2);
+    await vi.waitFor(() => expect(wakes).toHaveBeenCalledTimes(1));
+
+    runningSession.emit("event", { kind: "done", totalTokens: 1 });
+    settleStart();
+    await vi.waitFor(() =>
+      expect(manager.getInspectionSnapshot({ ...caller, sessionId: accepted.sessionId })).toBeNull()
+    );
+    await manager.dispose();
+  });
+
   it("background accepted 后仍计入父级 active 4 容量，terminal 后释放", async () => {
     const pending: Array<{ session: EventEmitter; resolve: () => void }> = [];
     mocks.start.mockImplementation(

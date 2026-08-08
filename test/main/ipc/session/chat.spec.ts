@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => {
     cancel: vi.fn(),
     sessionCancel: vi.fn(),
     assemblerApply: vi.fn(),
+    assemblerSnapshot: vi.fn(() => null),
     assemblerFlush: vi.fn(),
     get eventHandler() {
       return eventHandler;
@@ -192,6 +193,7 @@ vi.mock("@main/services/session/chat/message-assembler", () => ({
   MessageAssembler: vi.fn(function () {
     return {
       apply: mocks.assemblerApply,
+      snapshot: mocks.assemblerSnapshot,
       flush: mocks.assemblerFlush,
     };
   }),

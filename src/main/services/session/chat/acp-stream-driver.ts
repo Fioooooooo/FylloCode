@@ -59,7 +59,7 @@ export type AcpTurnCompletion =
   | { status: "cancelled"; partialMessage: Message | null };
 
 export interface AcpTurnHooks {
-  onContentEvent?(event: SessionEvent): void;
+  onContentEvent?(event: SessionEvent, snapshot: Message | null): void;
   onControlEvent?(event: SessionEvent): void;
   onDone?(event: { totalTokens: number; message: Message | null }): void | Promise<void>;
   onError?(event: {
@@ -127,7 +127,7 @@ export function driveAcpTurn(args: {
     if (terminal) return;
     if (CONTENT_KINDS.has(event.kind)) {
       assembler.apply(event);
-      hooks.onContentEvent?.(event);
+      hooks.onContentEvent?.(event, assembler.snapshot());
       return;
     }
 

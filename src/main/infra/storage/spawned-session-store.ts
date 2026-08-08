@@ -87,6 +87,12 @@ export interface SpawnedStoreOwner {
   sessionId: string;
 }
 
+export interface SpawnedSessionStoredView {
+  meta: SpawnedSessionMeta;
+  turns: SpawnedTurnRecord[];
+  messages: Array<UIMessage<MessageMeta>>;
+}
+
 export const spawnedTurnPhaseSchema = z.enum([
   "starting",
   "running",
@@ -562,6 +568,46 @@ export async function loadLatestSpawnedTurnRecord(
 ): Promise<SpawnedTurnRecord | null> {
   const records = await readTurnRecordsFromOwner(owner);
   return records.at(-1) ?? null;
+}
+
+export async function listSpawnedSessionsForParent(input: {
+  workspaceId: string;
+  parentSessionId: string;
+}): Promise<SpawnedSessionStoredView[]> {
+  let entries;
+  try {
+    entries = await fs.readdir(spawnedSessionsDir(input.workspaceId, input.parentSessionId), {
+      withFileTypes: true,
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+
+  const sessions: SpawnedSessionStoredView[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const owner = { ...input, sessionId: entry.name };
+    try {
+      const meta = await loadSpawnedSessionMeta(owner);
+      if (
+        !meta ||
+        meta.workspaceId !== input.workspaceId ||
+        meta.parentSessionId !== input.parentSessionId ||
+        meta.sessionId !== entry.name
+      ) {
+        continue;
+      }
+      const [turns, messages] = await Promise.all([
+        listSpawnedTurnRecords(owner),
+        loadSpawnedSessionMessages(owner),
+      ]);
+      sessions.push({ meta, turns, messages });
+    } catch {
+      // 单个损坏Session不得阻断同一父Session下的其余查询结果。
+    }
+  }
+  return sessions;
 }
 
 export async function listSpawnedTurnRecordsForWorkspace(

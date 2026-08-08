@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import { useChatAttachment } from "@renderer/composables/useChatAttachment";
 import { useChatPrompt } from "@renderer/composables/useChatPrompt";
 import { SessionModeTabs } from "@renderer/features/chat-session-mode";
+import { SpawnedSessionBackgroundEntry } from "@renderer/features/spawned-session-inspector";
 import { useAcpAgentsStore, useChatStore, useSessionStore } from "@renderer/stores";
 import AttachmentList from "./AttachmentList.vue";
 import ConfigOptionsBar from "./ConfigOptionsBar.vue";
@@ -111,6 +112,11 @@ const submitDisabled = computed(() => promptBusy.value || input.value.trim().len
                 @select="handleCommandSelect"
               />
               <ConfigOptionsBar />
+              <SpawnedSessionBackgroundEntry
+                v-if="activeSession"
+                :workspace-id="activeSession.workspaceId"
+                :parent-session-id="activeSession.id"
+              />
             </div>
 
             <div class="inline-flex min-w-0 items-center gap-2">

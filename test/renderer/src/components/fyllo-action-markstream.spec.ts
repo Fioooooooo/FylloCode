@@ -331,9 +331,10 @@ describe("AssistantMessage Fyllo action enablement", () => {
               enableActions: Boolean,
               enableSignals: Boolean,
               actionContext: Object,
+              signalContext: Object,
             },
             template:
-              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-project-id="actionContext?.workspaceId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')"></div>',
+              '<div data-test="markstream" :data-content="content" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-project-id="actionContext?.workspaceId ?? \'\'" :data-session-id="actionContext?.sessionId ?? \'\'" :data-message-index="String(actionContext?.messageIndex ?? \'\')" :data-part-index="String(actionContext?.partIndex ?? \'\')" :data-signal-workspace-id="signalContext?.workspaceId ?? \'\'" :data-signal-parent-id="signalContext?.parentSessionId ?? \'\'"></div>',
           },
           UChatReasoning: true,
           UChatTool: {
@@ -354,6 +355,8 @@ describe("AssistantMessage Fyllo action enablement", () => {
     expect(textPart?.attributes("data-session-id")).toBe("session-1");
     expect(textPart?.attributes("data-message-index")).toBe("0");
     expect(textPart?.attributes("data-part-index")).toBe("1");
+    expect(textPart?.attributes("data-signal-workspace-id")).toBe("project-1");
+    expect(textPart?.attributes("data-signal-parent-id")).toBe("session-1");
   });
 
   it("enables Signals for text even when no Action context can be built", () => {
@@ -368,7 +371,7 @@ describe("AssistantMessage Fyllo action enablement", () => {
         plugins: [createPinia()],
         stubs: {
           MarkStream: {
-            props: ["enableActions", "enableSignals"],
+            props: ["enableActions", "enableSignals", "signalContext"],
             template:
               '<div data-test="markstream" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" />',
           },

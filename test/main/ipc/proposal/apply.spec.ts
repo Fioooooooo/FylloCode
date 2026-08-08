@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => {
     updateRunMetaIfCurrent: vi.fn(),
     getCompletedApplyStageIndex: vi.fn(),
     assemblerApply: vi.fn(),
+    assemblerSnapshot: vi.fn(() => null),
     assemblerFlush: vi.fn(),
     register: vi.fn(),
     unregister: vi.fn(),
@@ -141,6 +142,7 @@ vi.mock("@main/services/session/chat/message-assembler", () => ({
   MessageAssembler: vi.fn(function () {
     return {
       apply: mocks.assemblerApply,
+      snapshot: mocks.assemblerSnapshot,
       flush: mocks.assemblerFlush,
     };
   }),

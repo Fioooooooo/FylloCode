@@ -261,4 +261,38 @@ describe("driveAcpStream", () => {
     expect(messages).toHaveLength(1);
     expect(sessionRegistry.get("spawn", "workspace-1:parent-1:spawn-1")).toBeUndefined();
   });
+
+  it("passes ordered snapshots after applying each content event and finalizes once", async () => {
+    const session = createFakeSession();
+    const snapshots: unknown[] = [];
+    const onDone = vi.fn();
+    const runner = driveAcpTurn({
+      session,
+      owner: "spawn",
+      registryKey: "snapshot-turn",
+      messageSessionId: "spawn-1",
+      logTag: "snapshot-test",
+      start: async () => {},
+      hooks: {
+        onContentEvent: (_event, snapshot) => snapshots.push(snapshot),
+        onDone,
+      },
+    });
+
+    session.emit("event", { kind: "text_delta", text: "one" } satisfies SessionEvent);
+    session.emit("event", { kind: "reasoning_delta", text: "two" } satisfies SessionEvent);
+    session.emit("event", { kind: "done", totalTokens: 2 } satisfies SessionEvent);
+    session.emit("event", { kind: "done", totalTokens: 3 } satisfies SessionEvent);
+
+    await runner.completion;
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[0]).toMatchObject({ parts: [{ type: "text", text: "one" }] });
+    expect(snapshots[1]).toMatchObject({
+      parts: [
+        { type: "text", text: "one" },
+        { type: "reasoning", text: "two" },
+      ],
+    });
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
 });

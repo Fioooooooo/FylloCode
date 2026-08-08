@@ -48,6 +48,8 @@ keywords: [renderer, vue, routing, stores, bootstrap, ipc]
 - MUST 让 bootstrap task 注册保持幂等；新增任务注册应通过 `registerBootstrapTasks()` 接入，该函数会防止重复注册。证据：`src/renderer/src/bootstrap/register.ts`。
 - MUST 在 Workspace critical bootstrap 结算后以 background task 注册 spawned notification listener并执行首次 pull；listener 重建时必须销毁旧订阅，旧 Workspace wake 不得触发当前 scope 的 drain。证据：`src/renderer/src/bootstrap/tasks/spawn-notifications.ts`、`test/renderer/src/bootstrap/spawn-notifications.spec.ts`。
 
+- MUST 让 spawned Session inspection 使用 `useSpawnedSessionStore()` 保存 owner-scoped 查询状态：list key 为完整 `workspaceId + parentSessionId`，detail key 还必须包含 `sessionId`，同 key 请求合并并以 generation 拒绝 Workspace/父 Session 切换后的迟到结果。独立 bootstrap view wake listener 只触发重新查询，不直接写 status/content，也不得触发 completion notification drain。历史 `spawn.session` 使用消息所属父 Session host context；composer 入口只聚合当前 Workspace、当前父 Chat Session 的 active background turns，draft、sync、terminal 与其他父 Session 均不得出现。证据：`src/renderer/src/stores/session/spawned-session.ts`、`src/renderer/src/bootstrap/tasks/spawned-sessions.ts`、`src/renderer/src/features/fyllo-signal/**`、`src/renderer/src/features/spawned-session-inspector/**`、`src/renderer/src/components/chat/prompt/ChatPromptPanel.vue`。
+
 ## 验证
 
 ```bash

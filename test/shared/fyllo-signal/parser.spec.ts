@@ -67,4 +67,23 @@ describe("parseFylloSignalNode", () => {
       payload: { label: "2026-07-24 10:30" },
     });
   });
+
+  it("parses spawn.session and rejects extra display fields", () => {
+    expect(
+      parseFylloSignalNode({
+        attrs: { type: "spawn.session" },
+        content: '{"sessionId":"spawn-1"}',
+      })
+    ).toEqual({
+      status: "ready",
+      type: "spawn.session",
+      payload: { sessionId: "spawn-1" },
+    });
+    expect(
+      parseFylloSignalNode({
+        attrs: { type: "spawn.session" },
+        content: '{"sessionId":"spawn-1","status":"running"}',
+      })
+    ).toMatchObject({ status: "invalid", error: { code: "invalid_payload" } });
+  });
 });

@@ -20,6 +20,8 @@ import {
   createFylloSignalNodeTransformer,
   fylloSignalMarkstreamCustomHtmlTags,
   prepareFylloSignalMarkdown,
+  fylloSignalHostContextKey,
+  type FylloSignalHostContextInput,
 } from "@renderer/features/fyllo-signal/integration";
 import {
   createFylloActionRegistrationController,
@@ -40,7 +42,13 @@ const props = defineProps<{
   enableActions?: boolean;
   enableSignals?: boolean;
   actionContext?: FylloActionHostContextInput;
+  signalContext?: FylloSignalHostContextInput;
 }>();
+
+provide(
+  fylloSignalHostContextKey,
+  computed(() => props.signalContext)
+);
 
 const { openLocalFilePreview } = useLocalFilePreview({
   sessionId: props.actionContext?.sessionId,

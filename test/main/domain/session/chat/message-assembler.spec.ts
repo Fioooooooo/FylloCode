@@ -400,6 +400,22 @@ describe("MessageAssembler", () => {
     expect(part.toolMetadata).toEqual({ toolKind: "read", parentToolCallId: "parent" });
   });
 
+  it("returns an isolated snapshot without ending mixed-part assembly", () => {
+    const a = new MessageAssembler("s");
+    a.apply({ kind: "text_delta", text: "before" });
+    a.apply({ kind: "reasoning_delta", text: "reason" });
+    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+
+    const snapshot = a.snapshot()!;
+    expect(snapshot.parts.map((part) => part.type)).toEqual(["text", "reasoning", "dynamic-tool"]);
+    (snapshot.parts[0] as { text: string }).text = "mutated";
+    a.apply({ kind: "text_delta", text: "after" });
+
+    const final = a.flush()!;
+    expect((final.parts[0] as { text: string }).text).toBe("before");
+    expect((final.parts.at(-1) as { text: string }).text).toBe("after");
+  });
+
   it("persists an empty subagent marker and failed terminal status", () => {
     const a = new MessageAssembler("s");
     a.apply({

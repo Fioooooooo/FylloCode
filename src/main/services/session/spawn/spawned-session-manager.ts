@@ -113,7 +113,25 @@ interface ActiveTurn {
   acceptedReject: (error: unknown) => void;
   acceptedPromise: Promise<PromptToAgentResult>;
   notificationId?: string;
+  liveAssistantMessage?: UIMessage<MessageMeta>;
 }
+
+export interface SpawnedSessionInspectionSnapshot {
+  turnId: string;
+  mode: SpawnTurnMode;
+  startedAt: string;
+  lastActivityAt: string;
+  recentActivity: Array<{ kind: string; at: string; message?: string }>;
+  liveAssistantMessage?: UIMessage<MessageMeta>;
+}
+
+export interface SpawnedSessionViewWake {
+  workspaceId: string;
+  parentSessionId: string;
+  sessionId: string;
+}
+
+type ViewWakeHandler = (payload: SpawnedSessionViewWake) => void;
 
 interface SpawnTurnHandle {
   accepted: Promise<PromptToAgentResult>;
@@ -189,6 +207,8 @@ export class SpawnedSessionManager {
   private readonly deletingParents = new Set<string>();
   private shuttingDown = false;
   private disposeProcessInvalidation: (() => void) | null = null;
+  private viewWakeHandler: ViewWakeHandler | null = null;
+  private readonly viewWakeTimers = new Map<string, Timer>();
 
   constructor(private readonly runtime: SpawnManagerRuntime = defaultRuntime) {}
 
@@ -196,6 +216,23 @@ export class SpawnedSessionManager {
     if (this.disposeProcessInvalidation || this.shuttingDown) return;
     this.disposeProcessInvalidation = onAgentProcessInvalidated(({ agentId, reason }) => {
       this.invalidateAgent(agentId, reason);
+    });
+  }
+
+  setViewWakeHandler(handler: ViewWakeHandler | null): void {
+    this.viewWakeHandler = handler;
+  }
+
+  getInspectionSnapshot(owner: SpawnOwner): SpawnedSessionInspectionSnapshot | null {
+    const active = this.activeTurns.get(ownerKey(owner));
+    if (!active) return null;
+    return structuredClone({
+      turnId: active.turnId,
+      mode: active.mode,
+      startedAt: active.startedAt,
+      lastActivityAt: active.lastActivityAt,
+      recentActivity: active.recentActivity,
+      ...(active.liveAssistantMessage ? { liveAssistantMessage: active.liveAssistantMessage } : {}),
     });
   }
 
@@ -361,6 +398,7 @@ export class SpawnedSessionManager {
       };
       await createSpawnedTurnRecord(turnRecord);
       hasPersistedTurn = true;
+      this.scheduleViewWake(owner);
 
       const result = await this.runTurn({
         owner,
@@ -400,6 +438,7 @@ export class SpawnedSessionManager {
           },
           updatedAt: this.nowIso(),
         }).catch(() => undefined);
+        this.scheduleViewWake(owner);
       }
       if (candidate.code === "SPAWN_INVALID_REQUEST") {
         throw new SpawnServiceError("SPAWN_INVALID_REQUEST", message);
@@ -524,8 +563,13 @@ export class SpawnedSessionManager {
     await spawnNotificationService.suppressParent(workspaceId, parentSessionId);
     fenceSpawnedSessionParent(workspaceId, parentSessionId);
     for (const [key] of this.liveEntries) {
-      if (key.startsWith(prefix)) this.liveEntries.delete(key);
+      if (key.startsWith(prefix)) {
+        const sessionId = key.slice(prefix.length);
+        this.liveEntries.delete(key);
+        this.scheduleViewWake({ workspaceId, parentSessionId, sessionId });
+      }
     }
+    for (const [, active] of running) this.scheduleViewWake(active.owner);
     await deleteSpawnedSessionParent(workspaceId, parentSessionId);
   }
 
@@ -533,6 +577,7 @@ export class SpawnedSessionManager {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
     spawnNotificationService.beginShutdown();
+    this.clearViewWakeTimers();
     for (const active of this.activeTurns.values()) {
       this.clearInactivityTimer(active);
       active.forceError = {
@@ -553,6 +598,7 @@ export class SpawnedSessionManager {
     this.deletingParents.clear();
     this.disposeProcessInvalidation?.();
     this.disposeProcessInvalidation = null;
+    this.viewWakeHandler = null;
   }
 
   forceDispose(): void {
@@ -564,6 +610,7 @@ export class SpawnedSessionManager {
     this.deletingParents.clear();
     this.disposeProcessInvalidation?.();
     this.disposeProcessInvalidation = null;
+    this.viewWakeHandler = null;
   }
 
   private reserve(owner: SpawnOwner, mode: SpawnTurnMode): PromptToAgentResult | null {
@@ -697,6 +744,7 @@ export class SpawnedSessionManager {
         updatedAt,
       });
       spawnNotificationService.terminalPersisted(next);
+      this.scheduleViewWake(input.owner);
     };
     const sessionOpts: AcpSessionOpts = {
       fylloSessionId: input.owner.sessionId,
@@ -737,6 +785,7 @@ export class SpawnedSessionManager {
           recentActivity: [...input.active.recentActivity],
           updatedAt,
         });
+        this.scheduleViewWake(input.owner);
         const accepted: PromptToAgentAcceptedResult = {
           status: "accepted",
           sessionId: input.owner.sessionId,
@@ -767,7 +816,10 @@ export class SpawnedSessionManager {
       runtimeScope: "app",
       start: () => session.start([{ type: "text", text: input.prompt }]),
       hooks: {
-        onContentEvent: (event) => this.touch(input.active, event),
+        onContentEvent: (event, snapshot) => {
+          input.active.liveAssistantMessage = snapshot ?? undefined;
+          this.touch(input.active, event);
+        },
         onControlEvent: (event) => {
           this.touch(input.active, event);
           if (event.kind === "config_options_update") configOptions = event.options;
@@ -987,6 +1039,28 @@ export class SpawnedSessionManager {
     active.recentActivity.push({ kind: event.kind, at: now, ...(message ? { message } : {}) });
     active.recentActivity.splice(0, Math.max(0, active.recentActivity.length - 3));
     this.armInactivityTimer(active);
+    this.scheduleViewWake(active.owner);
+  }
+
+  private scheduleViewWake(owner: SpawnOwner): void {
+    if (!this.viewWakeHandler || this.shuttingDown) return;
+    const key = ownerKey(owner);
+    if (this.viewWakeTimers.has(key)) return;
+    const timer = this.runtime.setTimeout(() => {
+      this.viewWakeTimers.delete(key);
+      this.viewWakeHandler?.({
+        workspaceId: owner.workspaceId,
+        parentSessionId: owner.parentSessionId,
+        sessionId: owner.sessionId,
+      });
+    }, 40);
+    timer.unref();
+    this.viewWakeTimers.set(key, timer);
+  }
+
+  private clearViewWakeTimers(): void {
+    for (const timer of this.viewWakeTimers.values()) this.runtime.clearTimeout(timer);
+    this.viewWakeTimers.clear();
   }
 
   private armInactivityTimer(active: ActiveTurn): void {

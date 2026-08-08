@@ -112,6 +112,11 @@ function buildActionContext(partIndex: number) {
       :enable-actions="Boolean(buildActionContext(item.partIndex))"
       :enable-signals="props.enableSignals"
       :action-context="buildActionContext(item.partIndex)"
+      :signal-context="
+        props.workspaceId && props.sessionId
+          ? { workspaceId: props.workspaceId, parentSessionId: props.sessionId }
+          : undefined
+      "
     />
   </template>
 

@@ -5,6 +5,7 @@ import { registerAllHandlers } from "@main/ipc";
 import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
 import { setupProbeBroadcast, setupSpawnNotificationBroadcast } from "@main/ipc/session/chat";
+import { setupSpawnedSessionViewBroadcast } from "@main/ipc/session/spawned-session";
 import {
   beginBundledMcpHostShutdown,
   forceStopBundledMcpHost,
@@ -267,6 +268,7 @@ export async function startApplicationRuntime(
   registerAllHandlers();
   setupProbeBroadcast(workspaceWindowManager);
   setupSpawnNotificationBroadcast(workspaceWindowManager);
+  setupSpawnedSessionViewBroadcast(workspaceWindowManager);
   setupAgentEventBroadcast(workspaceWindowManager);
   setupProposalStatusBroadcast(workspaceWindowManager);
   builtInWorkflowAbortController = new AbortController();

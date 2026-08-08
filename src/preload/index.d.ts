@@ -9,6 +9,7 @@ import type { windowApi } from "./api/workspace/window";
 import type { documentApi } from "./api/workspace/document";
 import type { chatApi } from "./api/session/chat";
 import type { sessionActionApi } from "./api/session/action";
+import type { spawnedSessionApi } from "./api/session/spawned-session";
 import type { proposalArchiveApi } from "./api/proposal/archive";
 import type { proposalApplyApi } from "./api/proposal/apply";
 import type { proposalBrowserApi } from "./api/proposal/browser";
@@ -38,6 +39,7 @@ export interface AppApi {
   session: {
     chat: typeof chatApi;
     action: typeof sessionActionApi;
+    spawnedSession: typeof spawnedSessionApi;
   };
   proposal: {
     browser: typeof proposalBrowserApi;

@@ -11,6 +11,7 @@ import { windowApi } from "./api/workspace/window";
 import { documentApi } from "./api/workspace/document";
 import { chatApi } from "./api/session/chat";
 import { sessionActionApi } from "./api/session/action";
+import { spawnedSessionApi } from "./api/session/spawned-session";
 import { proposalArchiveApi } from "./api/proposal/archive";
 import { proposalApplyApi } from "./api/proposal/apply";
 import { proposalBrowserApi } from "./api/proposal/browser";
@@ -40,6 +41,7 @@ const api = {
   session: {
     chat: chatApi,
     action: sessionActionApi,
+    spawnedSession: spawnedSessionApi,
   },
   proposal: {
     browser: proposalBrowserApi,

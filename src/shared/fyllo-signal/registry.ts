@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { showTimeSignalPayloadSchema } from "./schemas";
+import { showTimeSignalPayloadSchema, spawnSessionSignalPayloadSchema } from "./schemas";
 import type { FylloSignalPayloadByType, FylloSignalType } from "./protocol";
 export type { FylloSignalType } from "./protocol";
 
@@ -43,6 +43,31 @@ const contracts = {
       ],
       example: {
         label: "2026-07-23 14:30",
+      },
+    },
+  },
+  "spawn.session": {
+    type: "spawn.session",
+    payloadSchema: spawnSessionSignalPayloadSchema,
+    prompt: {
+      purpose:
+        "Display a read-only entry for a newly created spawned Session. The payload is only an opaque query key; Main remains authoritative for ownership, Agent, status, content, and access.",
+      payloadFields: [
+        {
+          name: "sessionId",
+          type: "string",
+          required: true,
+          description: "The opaque spawned Session identity returned by prompt_to_agent.",
+        },
+      ],
+      constraints: [
+        "Emit only after a prompt_to_agent call that omitted sessionId returns a new sessionId; this applies to both synchronous and background creation.",
+        "Emit exactly once for that newly created Session in the assistant response.",
+        "Do not emit for continuation calls, capacity results, or errors without a Session identity.",
+        "The Signal is a read-only display pointer. It does not create, restart, continue, cancel, persist, or authorize a spawned Session, and it does not enter the EventRail or Action state machine.",
+      ],
+      example: {
+        sessionId: "spawn_01HZY8K6F5Q2A3B4C7D8E9F0GH",
       },
     },
   },

@@ -116,6 +116,7 @@ vi.mock("@main/services/session/spawn/spawn-parent-lifecycle", () => ({
 vi.mock("@main/services/session/spawn/spawned-session-manager", () => ({
   spawnedSessionManager: {
     start: mocks.startSpawnSessions,
+    setViewWakeHandler: vi.fn(),
     beginShutdown: mocks.beginSpawnShutdown,
     dispose: mocks.disposeSpawnSessions,
     forceDispose: mocks.forceDisposeSpawnSessions,

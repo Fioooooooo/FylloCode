@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { ShowTimeSignalPayload } from "@shared/fyllo-signal/protocol";
+import type { FylloSignalHostContextInput } from "../fyllo-signal-context";
 
 defineProps<{
   payload: ShowTimeSignalPayload;
+  hostContext?: FylloSignalHostContextInput;
+  isDark?: boolean;
 }>();
 </script>
 

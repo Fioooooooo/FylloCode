@@ -5,14 +5,19 @@ import type {
   FylloTagMarkdownOccurrence,
 } from "@shared/fyllo-markdown/tag-analysis";
 
-export type FylloSignalType = "show.time";
+export type FylloSignalType = "show.time" | "spawn.session";
 
 export interface ShowTimeSignalPayload {
   label: string;
 }
 
+export interface SpawnSessionSignalPayload {
+  sessionId: string;
+}
+
 export interface FylloSignalPayloadByType {
   "show.time": ShowTimeSignalPayload;
+  "spawn.session": SpawnSessionSignalPayload;
 }
 
 export type FylloSignalPayload<T extends FylloSignalType = FylloSignalType> =

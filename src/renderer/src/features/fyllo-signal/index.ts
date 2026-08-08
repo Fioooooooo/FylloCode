@@ -5,3 +5,4 @@ export {
   rendererSignalComponents,
   type RendererSignalComponentMap,
 } from "./ui/renderer-registry";
+export type { FylloSignalHostContextInput } from "./ui/fyllo-signal-context";

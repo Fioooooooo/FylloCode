@@ -22,6 +22,7 @@ import {
   loadSpawnedSessionMeta,
   loadSpawnedTurnRecord,
   listPendingSpawnNotifications,
+  listSpawnedSessionsForParent,
   listSpawnedTurnRecords,
   patchSpawnedTurnRecord,
   readSpawnedSessionResponseChunk,
@@ -216,6 +217,45 @@ describe("spawned-session-store", () => {
     await expect(loadSpawnedSessionMeta(owner)).resolves.toMatchObject({ version: 1 });
     await expect(listSpawnedTurnRecords(owner)).resolves.toEqual([
       expect.objectContaining({ turnId: "turn-1" }),
+    ]);
+  });
+
+  it("enumerates only owner-matched Sessions with ordered messages", async () => {
+    await writeSpawnedSessionMeta(meta());
+    await appendSpawnedSessionMessage(owner, message("user", "first"));
+    await appendSpawnedSessionMessage(owner, message("assistant", "second"));
+    await createSpawnedTurnRecord(turn());
+
+    const foreign = {
+      ...owner,
+      parentSessionId: "parent-2",
+      sessionId: "spawn-2",
+    };
+    await writeSpawnedSessionMeta({
+      ...meta(),
+      ...foreign,
+    });
+
+    const sessions = await listSpawnedSessionsForParent({
+      workspaceId: owner.workspaceId,
+      parentSessionId: owner.parentSessionId,
+    });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.meta.sessionId).toBe("spawn-1");
+    expect(sessions[0]?.messages.map((entry) => entry.role)).toEqual(["user", "assistant"]);
+    expect(sessions[0]).not.toHaveProperty("responsePath");
+  });
+
+  it("skips a corrupt Session without hiding healthy legacy meta-only siblings", async () => {
+    await writeSpawnedSessionMeta(meta());
+    const brokenDir = join(spawnedSessionsDir("workspace-1", "parent-1"), "broken");
+    await mkdir(brokenDir, { recursive: true });
+    await writeFile(join(brokenDir, "meta.json"), "{broken", "utf8");
+
+    await expect(
+      listSpawnedSessionsForParent({ workspaceId: "workspace-1", parentSessionId: "parent-1" })
+    ).resolves.toEqual([
+      expect.objectContaining({ meta: expect.objectContaining({ version: 1 }) }),
     ]);
   });
 
