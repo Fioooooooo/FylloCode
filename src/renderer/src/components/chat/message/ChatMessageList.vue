@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { UIMessage } from "ai";
 import { useDark } from "@vueuse/core";
-import { ref, onMounted, watch } from "vue";
+import { computed, ref, onMounted, watch } from "vue";
 import ChatMessageActions from "../actions/ChatMessageActions.vue";
 import AssistantMessage from "./AssistantMessage.vue";
 import UserMessage from "./UserMessage.vue";
 import type { ChatStatus, MessageMeta } from "@shared/types/chat";
 import { useSessionStore, type AssistantStreamIndicatorState } from "@renderer/stores";
+import { projectChatMessages } from "@renderer/utils/chat-message-projection";
 
 const props = defineProps<{
   messages: UIMessage<MessageMeta>[];
@@ -15,6 +16,18 @@ const props = defineProps<{
   streamIndicator?: AssistantStreamIndicatorState | null;
 }>();
 const sessionStore = useSessionStore();
+const messageProjections = computed(() =>
+  projectChatMessages(props.messages, { host: props.type })
+);
+const projectedMessages = computed(() =>
+  messageProjections.value.map((projection) => projection.message)
+);
+const sourceIndexByMessageId = computed(
+  () =>
+    new Map(
+      messageProjections.value.map((projection) => [projection.message.id, projection.sourceIndex])
+    )
+);
 
 // 在外层调用一次 useDark，作为响应式 prop 透传给所有 MarkStream 实例，避免 355 个实例
 // 各自在 setup 里调用 useDark 导致累积 7+ 秒的响应式订阅开销（火焰图实测占比 30%）。
@@ -30,7 +43,7 @@ onMounted(() => {
 });
 
 function getMessageIndex(message: UIMessage<MessageMeta>): number {
-  return props.messages.findIndex((item) => item.id === message.id);
+  return sourceIndexByMessageId.value.get(message.id) ?? -1;
 }
 
 function getMessageSessionId(message: UIMessage<MessageMeta>): string | null {
@@ -77,7 +90,7 @@ function getStreamStartedAt(message: UIMessage<MessageMeta>): number | null {
       should-auto-scroll
       should-scroll-to-bottom
       :auto-scroll="false"
-      :messages="props.messages"
+      :messages="projectedMessages"
       :status="props.status"
       :user="{
         side: 'right',

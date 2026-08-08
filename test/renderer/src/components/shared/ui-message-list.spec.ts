@@ -311,7 +311,7 @@ function mountList(
             "actionContext",
           ],
           template:
-            '<div data-test="markdown" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-action-part-index="actionContext?.partIndex">{{ content }}</div>',
+            '<div data-test="markdown" :data-enable-actions="String(enableActions)" :data-enable-signals="String(enableSignals)" :data-action-message-index="actionContext?.messageIndex" :data-action-part-index="actionContext?.partIndex">{{ content }}</div>',
         },
         UChatMessages: chatMessagesStub,
         ChatMessages: chatMessagesStub,
@@ -939,13 +939,30 @@ describe("UIMessageList", () => {
     expect(textParts[1].classes()).toContain("max-h-40");
   });
 
-  it("does not crash when a user message only contains a reminder", () => {
+  it("fully removes user messages that only contain a reminder", () => {
     const wrapper = mountList([
       userMessage([{ type: "text", text: "<system-reminder>\nbody\n</system-reminder>" }]),
     ]);
 
     expect(wrapper.text()).not.toContain("system-reminder");
     expect(wrapper.text()).not.toContain("body");
+    expect(wrapper.find('[data-chat-user-message-id="user-message-1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="message-copy-action"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="message-created-at"]').exists()).toBe(false);
+  });
+
+  it("keeps original assistant source indexes after hiding internal user messages", () => {
+    const wrapper = mountList([
+      userMessage([{ type: "text", text: "visible prompt" }]),
+      {
+        ...userMessage([{ type: "text", text: "<system-reminder>hidden</system-reminder>" }]),
+        id: "notification-message",
+      },
+      assistantMessage([{ type: "text", text: "assistant output" }]),
+    ]);
+
+    expect(wrapper.get('[data-test="markdown"]').attributes("data-action-message-index")).toBe("2");
+    expect(wrapper.text()).not.toContain("hidden");
   });
 
   it("does not filter assistant text that only looks like a reminder", () => {

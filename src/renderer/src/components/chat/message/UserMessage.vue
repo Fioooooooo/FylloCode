@@ -5,7 +5,6 @@ import type { ComponentPublicInstance } from "vue";
 import { nextTick, onMounted, reactive, watch } from "vue";
 import { useUserImagePart } from "@renderer/composables/useUserImagePart";
 import { isUserFilePart, isUserImagePart } from "@renderer/utils/chat-message-parts";
-import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 
 const props = defineProps<{
   message: UIMessage;
@@ -112,10 +111,7 @@ function getFilePartExtension(part: UIMessage["parts"][number]): string {
 <template>
   <div class="flex max-w-full flex-col items-end gap-2">
     <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.type}-${index}`">
-      <div
-        v-if="isTextUIPart(part) && !isSystemReminderPart(part)"
-        class="flex max-w-full flex-col items-end"
-      >
+      <div v-if="isTextUIPart(part)" class="flex max-w-full flex-col items-end">
         <p
           :ref="(element) => setTextPartElement(getTextPartKey(part, index), element)"
           data-test="user-message-text"

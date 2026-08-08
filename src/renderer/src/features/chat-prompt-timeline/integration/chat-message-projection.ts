@@ -1,6 +1,6 @@
 import { isTextUIPart, type UIMessage } from "ai";
 import { isUserFilePart, isUserImagePart } from "@renderer/utils/chat-message-parts";
-import { isSystemReminderPart } from "@renderer/utils/system-reminder";
+import { projectVisibleUserMessageParts } from "@renderer/utils/chat-message-projection";
 import type { MessageMeta } from "@shared/types/chat";
 import {
   collectChatPromptTimelineItems,
@@ -31,8 +31,8 @@ function getAttachmentSummaries(parts: UIMessage["parts"]): string[] {
 }
 
 function getVisibleTextParts(parts: UIMessage["parts"]): string[] {
-  return parts.flatMap((part) => {
-    if (!isTextUIPart(part) || isSystemReminderPart(part)) {
+  return projectVisibleUserMessageParts(parts).flatMap((part) => {
+    if (!isTextUIPart(part)) {
       return [];
     }
 
