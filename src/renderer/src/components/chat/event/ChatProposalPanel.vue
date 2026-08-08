@@ -4,7 +4,9 @@ import { useProposalDetailSlideover } from "@renderer/composables/useProposalDet
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import { timeAgo } from "@renderer/utils/time";
 import {
-  useWorkflowStore,
+  useChatStore,
+  // Proposal 运行入口待重构，方案确定后恢复或删除。
+  // useWorkflowStore,
   useWorkspaceStore,
   useProposalRunStore,
   useProposalStore,
@@ -25,20 +27,23 @@ const collapsed = ref(false);
 const { openProposalDetail } = useProposalDetailSlideover();
 const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
-const workflowStore = useWorkflowStore();
+const chatStore = useChatStore();
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// const workflowStore = useWorkflowStore();
 const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
 
 const workspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
 
-function buildWorkflowMenuItems(proposal: ProposalMeta) {
-  return [
-    workflowStore.customTemplates.map((template) => ({
-      label: template.name,
-      onSelect: () => startApply(proposal, template.id),
-    })),
-  ];
-}
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// function buildWorkflowMenuItems(proposal: ProposalMeta) {
+//   return [
+//     workflowStore.customTemplates.map((template) => ({
+//       label: template.name,
+//       onSelect: () => startApply(proposal, template.id),
+//     })),
+//   ];
+// }
 
 function findLatestProposal(proposalRef: ProposalRef): ProposalMeta | null {
   const key = proposalRefKey(proposalRef);
@@ -47,24 +52,34 @@ function findLatestProposal(proposalRef: ProposalRef): ProposalMeta | null {
   );
 }
 
-async function ensureWorkflowsLoaded(): Promise<void> {
-  if (workflowStore.customTemplates.length > 0 || workflowStore.isLoading) {
-    return;
-  }
-  await workflowStore.fetchTemplates();
-}
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// async function ensureWorkflowsLoaded(): Promise<void> {
+//   if (workflowStore.customTemplates.length > 0 || workflowStore.isLoading) {
+//     return;
+//   }
+//   await workflowStore.fetchTemplates();
+// }
+//
+// async function startApply(proposal: ProposalMeta, workflowId: string): Promise<void> {
+//   if (!workspaceId.value) {
+//     return;
+//   }
+//   await proposalRunStore.startRun(workspaceId.value, proposal.proposalRef, workflowId);
+//   // Optimistically update the rail status so the UI reflects "applying"
+//   // immediately, even if the watcher was not active before the apply started.
+//   const sessionId = sessionStore.activeSession?.id;
+//   if (sessionId) {
+//     sessionStore.upsertSessionProposal(sessionId, { ...proposal, status: "applying" });
+//   }
+// }
 
-async function startApply(proposal: ProposalMeta, workflowId: string): Promise<void> {
-  if (!workspaceId.value) {
-    return;
-  }
-  await proposalRunStore.startRun(workspaceId.value, proposal.proposalRef, workflowId);
-  // Optimistically update the rail status so the UI reflects "applying"
-  // immediately, even if the watcher was not active before the apply started.
-  const sessionId = sessionStore.activeSession?.id;
-  if (sessionId) {
-    sessionStore.upsertSessionProposal(sessionId, { ...proposal, status: "applying" });
-  }
+async function startApply(proposal: ProposalMeta): Promise<void> {
+  await chatStore.sendMessage([
+    {
+      type: "text",
+      text: `Start applying proposal: ${proposal.proposalRef.changeId} (folderId: ${proposal.proposalRef.folderId})`,
+    },
+  ]);
 }
 
 async function startArchive(proposal: ProposalMeta): Promise<void> {
@@ -241,6 +256,7 @@ function taskProgressLabel(proposal: ProposalMeta): string {
             查看详情
           </UButton>
 
+          <!-- Proposal 运行入口待重构，方案确定后恢复或删除。
           <UDropdownMenu
             v-if="proposal.status === 'draft'"
             :items="buildWorkflowMenuItems(proposal)"
@@ -257,6 +273,17 @@ function taskProgressLabel(proposal: ProposalMeta): string {
               开始实现
             </UButton>
           </UDropdownMenu>
+          -->
+
+          <UButton
+            v-if="proposal.status === 'draft'"
+            size="xs"
+            color="primary"
+            data-test="start-apply-button"
+            @click="startApply(proposal)"
+          >
+            开始实现
+          </UButton>
 
           <UButton
             v-if="

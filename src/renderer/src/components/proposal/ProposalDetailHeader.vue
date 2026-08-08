@@ -1,11 +1,12 @@
 <script lang="ts">
-export interface DropdownMenuItem {
-  label?: string;
-  icon?: string;
-  color?: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
-  onSelect?: () => void;
-  type?: "separator";
-}
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// export interface DropdownMenuItem {
+//   label?: string;
+//   icon?: string;
+//   color?: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
+//   onSelect?: () => void;
+//   type?: "separator";
+// }
 </script>
 
 <script setup lang="ts">
@@ -19,26 +20,29 @@ import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
 const props = defineProps<{
   proposal: ProposalMeta | null;
   changeId: string;
-  workflowMenuItems: DropdownMenuItem[][];
-  workflowStoreLoading: boolean;
+  // Proposal 运行入口待重构，方案确定后恢复或删除。
+  // workflowMenuItems: DropdownMenuItem[][];
+  // workflowStoreLoading: boolean;
   runMeta: ApplyRunMeta | null;
   isArchiving: boolean;
-  isStreaming: boolean;
-  canArchive: boolean;
+  // isStreaming: boolean;
+  // canArchive: boolean;
   refreshingMeta: boolean;
 }>();
 
 defineEmits<{
   close: [];
   "open-side-panel": [];
-  "view-run-history": [];
-  archive: [];
+  // Proposal 运行入口待重构，方案确定后恢复或删除。
+  // "view-run-history": [];
+  // archive: [];
 }>();
 
 const isApplying = computed(() => props.proposal?.status === "applying" && Boolean(props.runMeta));
-const canViewRunHistory = computed(
-  () => props.proposal?.status === "archived" || props.proposal?.status === "applying"
-);
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// const canViewRunHistory = computed(
+//   () => props.proposal?.status === "archived" || props.proposal?.status === "applying"
+// );
 const displayStatus = computed(() =>
   getProposalDisplayStatus(props.proposal, props.runMeta, props.isArchiving)
 );
@@ -69,6 +73,7 @@ function getStageCount(): number {
           >
             {{ proposalDisplayStatusConfig[displayStatus].label }}
           </UBadge>
+          <!-- Proposal 运行入口待重构，方案确定后恢复或删除。
           <div :class="isStreaming ? 'pointer-events-none opacity-60' : ''">
             <UDropdownMenu
               v-if="proposal.status === 'draft'"
@@ -104,6 +109,7 @@ function getStageCount(): number {
               查看运行历史
             </UButton>
           </div>
+          -->
           <UTooltip text="关闭详情">
             <UButton
               variant="ghost"

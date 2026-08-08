@@ -6,6 +6,7 @@ import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
   openProposalDetail: vi.fn(),
+  sendMessage: vi.fn(),
   startRun: vi.fn(),
   startArchive: vi.fn(),
   fetchTemplates: vi.fn(),
@@ -62,6 +63,9 @@ vi.mock("@renderer/stores/proposal", () => ({
 }));
 
 vi.mock("@renderer/stores/session", () => ({
+  useChatStore: () => ({
+    sendMessage: mocks.sendMessage,
+  }),
   useSessionStore: () => ({
     activeSession: { id: "session-1" },
     upsertSessionProposal: mocks.upsertSessionProposal,
@@ -107,17 +111,38 @@ describe("ChatProposalPanel", () => {
     proposalStoreProposalsValue = [];
     customTemplatesValue = [{ id: "wf-1", name: "Standard Workflow" }];
     isLoadingValue = false;
+    mocks.sendMessage.mockResolvedValue(true);
   });
 
-  it("shows start apply and view detail buttons for draft proposals", () => {
+  it("shows direct start apply and view detail buttons for draft proposals", () => {
     const wrapper = mount(ChatProposalPanel, {
       props: { proposals: [makeProposal("draft")] },
     });
 
-    expect(wrapper.find('[data-test="start-apply-button"]').exists()).toBe(true);
+    const startApplyButton = wrapper.get('[data-test="start-apply-button"]');
+    expect(startApplyButton.attributes("data-icon")).toBeUndefined();
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="dropdown-item-Standard Workflow"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("开始实现");
     expect(wrapper.text()).toContain("查看详情");
+  });
+
+  it("sends an owner-qualified user message when start apply is clicked", async () => {
+    const wrapper = mount(ChatProposalPanel, {
+      props: { proposals: [makeProposal("draft")] },
+    });
+
+    await wrapper.get('[data-test="start-apply-button"]').trigger("click");
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith([
+      {
+        type: "text",
+        text: "Start applying proposal: change-1 (folderId: folder-b)",
+      },
+    ]);
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.fetchTemplates).not.toHaveBeenCalled();
   });
 
   it("does not show archive button while applying is not done", () => {

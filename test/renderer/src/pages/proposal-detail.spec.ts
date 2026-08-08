@@ -327,7 +327,7 @@ describe("ProposalDetailSlideover", () => {
     expect(wrapper.text()).toContain("specs failed");
   });
 
-  it("keeps the ProposalRef fixed after archive and reloads detail files", async () => {
+  it("does not expose an archive entry from proposal detail", async () => {
     proposalsValue.value = [
       buildProposal({
         status: "applying",
@@ -345,33 +345,12 @@ describe("ProposalDetailSlideover", () => {
       startedAt: "2026-06-12T00:00:00.000Z",
       updatedAt: "2026-06-12T00:00:00.000Z",
     };
-    mocks.startArchive.mockImplementation(async () => {
-      proposalsValue.value = [buildProposal({ status: "archived" })];
-    });
-
     const wrapper = mountSlideover();
     await flushPromises();
 
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text().includes("归档"))
-      ?.trigger("click");
-    await flushPromises();
-
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
-      folderId: "folder-b",
-      changeId: "change-1",
-    });
-    expect(mocks.loadProposals).toHaveBeenCalled();
-    expect(proposalBrowserApi.readFile).toHaveBeenCalledWith(
-      "project-1",
-      { folderId: "folder-b", changeId: "change-1" },
-      "proposal.md"
-    );
-    expect(proposalBrowserApi.getSpecDeltas).toHaveBeenCalledWith("project-1", {
-      folderId: "folder-b",
-      changeId: "change-1",
-    });
+    expect(wrapper.text()).toContain("可归档");
+    expect(wrapper.findAll("button").some((button) => button.text() === "归档")).toBe(false);
+    expect(mocks.startArchive).not.toHaveBeenCalled();
   });
 
   it("does not show archive button when the done run belongs to another proposal", async () => {

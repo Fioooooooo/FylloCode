@@ -38,17 +38,13 @@ function buildRunMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
 
 const defaultProps = {
   changeId: "proposal-1",
-  workflowMenuItems: [],
-  workflowStoreLoading: false,
   runMeta: null,
   isArchiving: false,
-  isStreaming: false,
-  canArchive: false,
   refreshingMeta: false,
 } satisfies Omit<InstanceType<typeof ProposalDetailHeader>["$props"], "proposal">;
 
 describe("ProposalDetailHeader", () => {
-  it("shows a run-history button for archived proposals", () => {
+  it("does not show a run-history button for archived proposals", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("archived"),
@@ -58,10 +54,7 @@ describe("ProposalDetailHeader", () => {
     });
 
     const button = wrapper.findAll("button").find((node) => node.text().includes("查看运行历史"));
-    expect(button).toBeDefined();
-
-    button?.trigger("click");
-    expect(wrapper.emitted("view-run-history")?.length).toBeGreaterThan(0);
+    expect(button).toBeUndefined();
   });
 
   it("shows archive-ready badge when the done run matches the proposal", () => {
@@ -70,11 +63,11 @@ describe("ProposalDetailHeader", () => {
         proposal: buildProposal("applying"),
         ...defaultProps,
         runMeta: buildRunMeta(),
-        canArchive: true,
       },
     });
 
     expect(wrapper.text()).toContain("可归档");
+    expect(wrapper.findAll("button").some((button) => button.text() === "归档")).toBe(false);
   });
 
   it("shows archiving badge while archive is running for the matching proposal", () => {
@@ -106,15 +99,31 @@ describe("ProposalDetailHeader", () => {
     expect(wrapper.text()).not.toContain("可归档");
   });
 
-  it("renders the workflow menu inside the detail slideover overlay", () => {
+  it("does not render the workflow menu for draft proposals", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("draft"),
         ...defaultProps,
-        workflowMenuItems: [[{ label: "Workflow 1", onSelect: () => undefined }]],
       },
     });
 
-    expect(wrapper.get('div[portal="false"]').text()).toContain("开始实现");
+    expect(wrapper.text()).not.toContain("开始实现");
+    expect(wrapper.find('[data-test="dropdown-item-Workflow 1"]').exists()).toBe(false);
+  });
+
+  it("keeps the applying run status strip", () => {
+    const wrapper = mount(ProposalDetailHeader, {
+      props: {
+        proposal: buildProposal("applying"),
+        ...defaultProps,
+        runMeta: buildRunMeta({
+          status: "running",
+          stages: [{ id: "stage-1", name: "实现", type: "proposal-apply" }],
+        }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("workflow-1");
+    expect(wrapper.text()).toContain("阶段 1/1：实现");
   });
 });
