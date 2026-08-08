@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   invalidations: [] as Array<(event: { agentId: string; reason: string }) => void>,
   deleteSpawnedSessionParent: vi.fn(),
   suppressParent: vi.fn(),
+  reconcileWorkspace: vi.fn(),
   beginNotificationShutdown: vi.fn(),
   fenceParent: vi.fn(),
   beginStoreShutdown: vi.fn(),
@@ -173,6 +174,7 @@ vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
     }),
     terminalPersisted: vi.fn(),
     suppressParent: mocks.suppressParent,
+    reconcileWorkspace: mocks.reconcileWorkspace,
     beginShutdown: mocks.beginNotificationShutdown,
   },
 }));
@@ -186,6 +188,16 @@ import {
 } from "@main/services/session/spawn/spawned-session-manager";
 
 const caller = { workspaceId: "workspace-1", parentSessionId: "parent-1" };
+const appRestartedMessage =
+  "FylloCode restarted while the spawned turn was still running. The turn was interrupted and cannot be resumed. If the task is still needed, call prompt_to_agent again without sessionId and restate the task.";
+const appShutdownMessage =
+  "FylloCode shut down while the spawned turn was still running. The turn was interrupted and cannot be resumed. If the task is still needed, call prompt_to_agent again without sessionId and restate the task.";
+const activeProcessInvalidatedMessage =
+  "The Agent process became unavailable while the spawned turn was running. The turn cannot continue, and this spawned Session cannot be reused. If the task is still needed, call prompt_to_agent again without sessionId and restate the task.";
+const completedProcessInvalidatedMessage =
+  "This spawned Session can no longer accept new turns because its Agent process is unavailable. The completed result remains readable if you already have its responseId. Call prompt_to_agent again without sessionId for further work.";
+const processInvalidatedFallbackMessage =
+  "This spawned Session can no longer be reused because its Agent process is unavailable. Do not retry with this sessionId; call prompt_to_agent again without sessionId if further work is needed.";
 const snapshot = {
   workspaceId: "workspace-1",
   workspaceKind: "folder" as const,
@@ -255,6 +267,7 @@ describe("SpawnedSessionManager", () => {
     });
     mocks.deleteSpawnedSessionParent.mockResolvedValue(undefined);
     mocks.suppressParent.mockResolvedValue(undefined);
+    mocks.reconcileWorkspace.mockResolvedValue(undefined);
     mocks.start.mockImplementation(async (session: EventEmitter) => {
       session.emit("event", { kind: "text_delta", text: "done" });
       session.emit("event", { kind: "done", totalTokens: 2 });
@@ -471,6 +484,108 @@ describe("SpawnedSessionManager", () => {
     await manager.dispose();
   });
 
+  it("重启后查询遗留 running turn 会先收敛为 APP_RESTARTED", async () => {
+    const owner = { ...caller, sessionId: "spawn-1" };
+    mocks.metas.set(key(owner), meta("spawn-1", { status: "running" }));
+    mocks.turns.set(turnKey(owner, "turn-1"), {
+      version: 1,
+      ...owner,
+      turnId: "turn-1",
+      agentId: "agent-1",
+      mode: "background",
+      phase: "running",
+      startedAt: "2026-08-08T00:00:00.000Z",
+      lastActivityAt: "2026-08-08T00:00:01.000Z",
+      recentActivity: [],
+      config: [],
+      warnings: [],
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:01.000Z",
+    });
+    mocks.reconcileWorkspace.mockImplementationOnce(async (_workspaceId, isLive) => {
+      const turn = mocks.turns.get(turnKey(owner, "turn-1"));
+      expect(isLive(turn)).toBe(false);
+      const error = {
+        code: "APP_RESTARTED",
+        message: appRestartedMessage,
+      };
+      mocks.turns.set(turnKey(owner, "turn-1"), {
+        ...turn!,
+        phase: "interrupted",
+        error,
+      });
+      mocks.metas.set(key(owner), {
+        ...mocks.metas.get(key(owner))!,
+        status: "error",
+        error,
+      });
+    });
+    const manager = new SpawnedSessionManager();
+
+    await expect(manager.checkSessionStatus(caller, "spawn-1")).resolves.toEqual({
+      status: "interrupted",
+      code: "APP_RESTARTED",
+      message: appRestartedMessage,
+    });
+    expect(mocks.reconcileWorkspace).toHaveBeenCalledWith("workspace-1", expect.any(Function));
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    await manager.dispose();
+  });
+
+  it("重启后查询已完成但 process 不再可用的 Session 会返回稳定 expired 原因", async () => {
+    const owner = { ...caller, sessionId: "spawn-1" };
+    mocks.metas.set(
+      key(owner),
+      meta("spawn-1", { status: "idle", latestResponseId: "response-1" })
+    );
+    mocks.turns.set(turnKey(owner, "turn-1"), {
+      version: 1,
+      ...owner,
+      turnId: "turn-1",
+      agentId: "agent-1",
+      mode: "background",
+      phase: "completed",
+      startedAt: "2026-08-08T00:00:00.000Z",
+      lastActivityAt: "2026-08-08T00:00:01.000Z",
+      recentActivity: [],
+      config: [],
+      warnings: [],
+      responseId: "response-1",
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:01.000Z",
+    });
+    mocks.getReadyProcess.mockReturnValue(undefined);
+    const manager = new SpawnedSessionManager();
+
+    await expect(manager.checkSessionStatus(caller, "spawn-1")).resolves.toEqual({
+      status: "expired",
+      code: "AGENT_PROCESS_INVALIDATED",
+      message: completedProcessInvalidatedMessage,
+    });
+    expect(mocks.reconcileWorkspace).not.toHaveBeenCalled();
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    await manager.dispose();
+  });
+
+  it("失效记录不足以判断阶段时返回保守的不可复用建议", async () => {
+    const owner = { ...caller, sessionId: "spawn-1" };
+    mocks.metas.set(
+      key(owner),
+      meta("spawn-1", {
+        status: "expired",
+        error: { code: "AGENT_PROCESS_INVALIDATED", message: "legacy reason" },
+      })
+    );
+    const manager = new SpawnedSessionManager();
+
+    await expect(manager.checkSessionStatus(caller, "spawn-1")).resolves.toEqual({
+      status: "expired",
+      code: "AGENT_PROCESS_INVALIDATED",
+      message: processInvalidatedFallbackMessage,
+    });
+    await manager.dispose();
+  });
+
   it("Agent process 失效会立即取消运行 turn，并把已完成 Session 标记 expired", async () => {
     mocks.metas.set(key({ ...caller, sessionId: "running" }), meta("running"));
     mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
@@ -488,7 +603,7 @@ describe("SpawnedSessionManager", () => {
       status: "expired",
       sessionId: "running",
       code: "AGENT_PROCESS_INVALIDATED",
-      message: "process exited",
+      message: activeProcessInvalidatedMessage,
     });
     expect(mocks.cancel).toHaveBeenCalledOnce();
 
@@ -505,6 +620,10 @@ describe("SpawnedSessionManager", () => {
     await vi.waitFor(() =>
       expect(mocks.metas.get(key({ ...caller, sessionId: completedSessionId }))).toMatchObject({
         status: "expired",
+        error: {
+          code: "AGENT_PROCESS_INVALIDATED",
+          message: completedProcessInvalidatedMessage,
+        },
       })
     );
     await manager.dispose();
@@ -528,13 +647,17 @@ describe("SpawnedSessionManager", () => {
         mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
       ).toMatchObject({
         phase: "expired",
-        error: { code: "AGENT_PROCESS_INVALIDATED" },
+        error: {
+          code: "AGENT_PROCESS_INVALIDATED",
+          message: activeProcessInvalidatedMessage,
+        },
         notification: { state: "pending" },
       })
     );
     await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
       status: "expired",
       code: "AGENT_PROCESS_INVALIDATED",
+      message: activeProcessInvalidatedMessage,
     });
     await manager.dispose();
   });
@@ -585,8 +708,13 @@ describe("SpawnedSessionManager", () => {
       mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
     ).toMatchObject({
       phase: "interrupted",
-      error: { code: "APP_SHUTDOWN" },
+      error: { code: "APP_SHUTDOWN", message: appShutdownMessage },
       notification: { state: "pending" },
+    });
+    await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toEqual({
+      status: "interrupted",
+      code: "APP_SHUTDOWN",
+      message: appShutdownMessage,
     });
     const interruptedPatchOrder = vi
       .mocked(await import("@main/infra/storage/spawned-session-store"))

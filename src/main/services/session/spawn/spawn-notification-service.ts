@@ -11,6 +11,7 @@ import {
 } from "@main/infra/storage/spawned-session-store";
 import { loadSessionMeta } from "@main/infra/storage/session-store";
 import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
+import { SPAWN_APP_RESTARTED_MESSAGE } from "./spawn-status-messages";
 
 type WakeHandler = (workspaceId: string) => void;
 
@@ -146,7 +147,7 @@ export class SpawnNotificationService {
         phase: "interrupted",
         error: {
           code: "APP_RESTARTED",
-          message: "FylloCode restarted before the spawned turn reached a terminal state",
+          message: SPAWN_APP_RESTARTED_MESSAGE,
         },
         ...(notification ? { notification } : {}),
         updatedAt,
@@ -155,7 +156,7 @@ export class SpawnNotificationService {
         status: "error",
         error: {
           code: "APP_RESTARTED",
-          message: "FylloCode restarted before the spawned turn reached a terminal state",
+          message: SPAWN_APP_RESTARTED_MESSAGE,
         },
         updatedAt,
       });

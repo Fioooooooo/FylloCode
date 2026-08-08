@@ -54,6 +54,13 @@ import {
   spawnSessionRegistryKey,
 } from "@main/services/session/chat/session-registry";
 import { spawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
+import {
+  SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE,
+  SPAWN_APP_RESTARTED_MESSAGE,
+  SPAWN_APP_SHUTDOWN_MESSAGE,
+  SPAWN_COMPLETED_PROCESS_INVALIDATED_MESSAGE,
+  SPAWN_PROCESS_INVALIDATED_FALLBACK_MESSAGE,
+} from "@main/services/session/spawn/spawn-status-messages";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
 
 export const MAX_ACTIVE_SPAWN_TURNS_PER_PARENT = 4;
@@ -160,6 +167,18 @@ function storeOwner(owner: SpawnOwner) {
   };
 }
 
+function expiredStatus(message: string): CheckSessionStatusResult {
+  return {
+    status: "expired",
+    code: "AGENT_PROCESS_INVALIDATED",
+    message,
+  };
+}
+
+function isInterruptedCode(code: string): code is "APP_RESTARTED" | "APP_SHUTDOWN" {
+  return code === "APP_RESTARTED" || code === "APP_SHUTDOWN";
+}
+
 function summarizeConfig(options: AcpSessionConfigOption[]): SpawnConfigOptionSummary[] {
   return options.map((option) => ({
     id: option.id,
@@ -204,6 +223,7 @@ export class SpawnedSessionManager {
   private readonly activeTurns = new Map<string, ActiveTurn>();
   private readonly activeByParent = new Map<string, number>();
   private readonly liveEntries = new Map<string, LiveEntry>();
+  private readonly restartReconciliations = new Map<string, Promise<void>>();
   private readonly deletingParents = new Set<string>();
   private shuttingDown = false;
   private disposeProcessInvalidation: (() => void) | null = null;
@@ -214,8 +234,8 @@ export class SpawnedSessionManager {
 
   start(): void {
     if (this.disposeProcessInvalidation || this.shuttingDown) return;
-    this.disposeProcessInvalidation = onAgentProcessInvalidated(({ agentId, reason }) => {
-      this.invalidateAgent(agentId, reason);
+    this.disposeProcessInvalidation = onAgentProcessInvalidated(({ agentId }) => {
+      this.invalidateAgent(agentId);
     });
   }
 
@@ -476,19 +496,31 @@ export class SpawnedSessionManager {
         recentActivity: [...active.recentActivity],
       };
     }
-    const meta = await loadSpawnedSessionMeta(storeOwner(owner));
+    let meta = await loadSpawnedSessionMeta(storeOwner(owner));
     if (!meta) return { status: "not_found" };
-    const latestTurn = await loadLatestSpawnedTurnRecord(storeOwner(owner));
+    let latestTurn = await loadLatestSpawnedTurnRecord(storeOwner(owner));
+    if (latestTurn && ["starting", "running", "cancelling"].includes(latestTurn.phase)) {
+      await this.reconcileRestartState(caller.workspaceId);
+      meta = await loadSpawnedSessionMeta(storeOwner(owner));
+      if (!meta) return { status: "not_found" };
+      latestTurn = await loadLatestSpawnedTurnRecord(storeOwner(owner));
+    }
     if (latestTurn?.phase === "interrupted" && latestTurn.error) {
-      return { status: "interrupted", ...latestTurn.error } as CheckSessionStatusResult;
+      if (!isInterruptedCode(latestTurn.error.code)) {
+        return { status: "error", ...latestTurn.error };
+      }
+      const message =
+        latestTurn.error.code === "APP_RESTARTED"
+          ? SPAWN_APP_RESTARTED_MESSAGE
+          : SPAWN_APP_SHUTDOWN_MESSAGE;
+      return {
+        status: "interrupted",
+        code: latestTurn.error.code,
+        message,
+      };
     }
     if (latestTurn?.phase === "expired") {
-      return {
-        status: "expired",
-        ...(latestTurn.error
-          ? { code: "AGENT_PROCESS_INVALIDATED" as const, message: latestTurn.error.message }
-          : {}),
-      };
+      return expiredStatus(SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE);
     }
     if (latestTurn?.phase === "error" && latestTurn.error) {
       return { status: "error", ...latestTurn.error };
@@ -496,13 +528,23 @@ export class SpawnedSessionManager {
     if (meta.status === "error" && meta.error) {
       return { status: "error", ...meta.error };
     }
-    if (meta.status === "expired") return { status: "expired" };
+    if (meta.status === "expired") {
+      return expiredStatus(
+        latestTurn?.phase === "completed"
+          ? SPAWN_COMPLETED_PROCESS_INVALIDATED_MESSAGE
+          : SPAWN_PROCESS_INVALIDATED_FALLBACK_MESSAGE
+      );
+    }
     if (
       !meta.acpSessionId ||
       meta.processGeneration === undefined ||
       !this.isMetaProcessActive(meta)
     ) {
-      return { status: "expired" };
+      return expiredStatus(
+        latestTurn?.phase === "completed"
+          ? SPAWN_COMPLETED_PROCESS_INVALIDATED_MESSAGE
+          : SPAWN_PROCESS_INVALIDATED_FALLBACK_MESSAGE
+      );
     }
     return {
       status: "idle",
@@ -582,7 +624,7 @@ export class SpawnedSessionManager {
       this.clearInactivityTimer(active);
       active.forceError = {
         code: "APP_SHUTDOWN",
-        message: "FylloCode shut down before the spawned turn reached a terminal state",
+        message: SPAWN_APP_SHUTDOWN_MESSAGE,
       };
       active.runner?.cancel();
     }
@@ -1109,18 +1151,39 @@ export class SpawnedSessionManager {
     );
   }
 
-  private invalidateAgent(agentId: string, reason: string): void {
+  private reconcileRestartState(workspaceId: string): Promise<void> {
+    const existing = this.restartReconciliations.get(workspaceId);
+    if (existing) return existing;
+    const pending = spawnNotificationService
+      .reconcileWorkspace(workspaceId, (record) => this.isTurnLive(record))
+      .finally(() => {
+        this.restartReconciliations.delete(workspaceId);
+      });
+    this.restartReconciliations.set(workspaceId, pending);
+    return pending;
+  }
+
+  private invalidateAgent(agentId: string): void {
     for (const active of this.activeTurns.values()) {
       if (active.agentId !== agentId) continue;
-      active.forceError = { code: "AGENT_PROCESS_INVALIDATED", message: reason };
+      active.forceError = {
+        code: "AGENT_PROCESS_INVALIDATED",
+        message: SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE,
+      };
       active.runner?.cancel();
     }
     for (const entry of this.liveEntries.values()) {
       if (entry.meta.agentId !== agentId) continue;
+      const message =
+        entry.meta.status === "idle"
+          ? SPAWN_COMPLETED_PROCESS_INVALIDATED_MESSAGE
+          : entry.meta.status === "running"
+            ? SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE
+            : SPAWN_PROCESS_INVALIDATED_FALLBACK_MESSAGE;
       entry.meta = {
         ...entry.meta,
         status: "expired",
-        error: { code: "AGENT_PROCESS_INVALIDATED", message: reason },
+        error: { code: "AGENT_PROCESS_INVALIDATED", message },
         updatedAt: this.nowIso(),
       };
       void patchSpawnedSessionMeta(

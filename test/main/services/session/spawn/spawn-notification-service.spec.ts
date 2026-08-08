@@ -40,6 +40,9 @@ vi.mock("@main/infra/storage/spawned-session-store", async () => {
 import { SpawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
 import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
 
+const appRestartedMessage =
+  "FylloCode restarted while the spawned turn was still running. The turn was interrupted and cannot be resumed. If the task is still needed, call prompt_to_agent again without sessionId and restate the task.";
+
 function record(overrides: Partial<SpawnedTurnRecord> = {}): SpawnedTurnRecord {
   return {
     version: 1,
@@ -184,7 +187,7 @@ describe("SpawnNotificationService", () => {
 
     expect(mocks.records.find((item) => item.turnId === "running-turn")).toMatchObject({
       phase: "interrupted",
-      error: { code: "APP_RESTARTED" },
+      error: { code: "APP_RESTARTED", message: appRestartedMessage },
       notification: { state: "pending" },
     });
     expect(mocks.records.find((item) => item.turnId === "dispatched-turn")).toMatchObject({
