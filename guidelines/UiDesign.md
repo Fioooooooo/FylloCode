@@ -39,8 +39,9 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 
 ### 启动反馈
 
-- MUST 让静态 `startup.html` 与 Vue `StartupLoading.vue` 共享轻量品牌语言：主题匹配的纯色/轻磨砂背景、FylloCode Logo 和一圈非确定性 teal 进度环；不得展示虚假的百分比、阶段文案或重型组件库。静态页面不得加载 renderer JavaScript，确保主 bundle 未准备好时仍可显示。
-- MUST 让 startup shell 与 Vue overlay 在浅色/深色主题下都避免白闪，并在 `prefers-reduced-motion: reduce` 时禁用环形波动和 Logo pulse；正常动效只使用低频 opacity/rotation，不使用 bounce、强发光或大面积渐变。证据：`src/renderer/startup.html`、`src/renderer/src/assets/startup.css`、`src/renderer/src/components/shared/StartupLoading.vue`。
+- MUST 让静态 `startup.html` 与 Vue `StartupLoading.vue` 通过 `src/renderer/src/assets/startup.css` 共享轻量品牌语言：主题匹配的纯色背景、由生成图标裁切的点阵 Logo、FylloCode 字标和“正在启动…”状态文案；不得展示环形进度、Logo pulse、虚假的百分比、阶段文案或重型组件库。静态页面不得加载 renderer JavaScript，确保主 bundle 未准备好时仍可显示。
+- MUST 让静态 startup shell 的状态文案延迟 `0.8s` 出现，让正式 renderer `index.html` 在 Vue `#app` 内预置使用共享 stylesheet 的等价桥接 shell，并让 Vue overlay 的状态文案立即可见；文档切换时 MAY 重启点阵扫光相位，但背景、Logo 基底、字标和状态位置必须保持稳定，不得产生白闪、空容器、旧样式回退或布局跳动。
+- MUST 让 startup shell 与 Vue overlay 在浅色/深色主题下使用一致的视觉变量，并在 `prefers-reduced-motion: reduce` 时禁用点阵扫光和状态显现动画；正常动效只使用低频 opacity 变化，不使用 bounce、强发光、大面积渐变、旋转圆环或脉冲缩放。证据：`src/renderer/startup.html`、`src/renderer/src/assets/startup.css`、`src/renderer/src/components/shared/StartupLoading.vue`。
 
 ### 布局层级
 

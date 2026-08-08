@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
-@import "./startup.css";
 
 @import "markstream-vue/index.css" layer(components);
 @import "katex/dist/katex.min.css";

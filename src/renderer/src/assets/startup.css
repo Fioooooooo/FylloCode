@@ -1,20 +1,16 @@
 :root {
   --fyllo-startup-surface: #f8fafc;
-  --fyllo-startup-track: rgb(100 116 139 / 18%);
   --fyllo-startup-accent: oklch(70.4% 0.14 182.503);
-  --fyllo-startup-tail: color-mix(in oklab, var(--fyllo-startup-accent) 58%, transparent);
-  --fyllo-startup-tail-soft: color-mix(in oklab, var(--fyllo-startup-accent) 8%, transparent);
-  --fyllo-startup-glow: color-mix(in oklab, var(--fyllo-startup-accent) 28%, transparent);
-  --fyllo-startup-ring-size: 104px;
-  --fyllo-startup-logo-size: 64px;
+  --fyllo-startup-wordmark: #0f172a;
+  --fyllo-startup-status: #64748b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --fyllo-startup-surface: #0f172a;
-    --fyllo-startup-track: rgb(148 163 184 / 18%);
     --fyllo-startup-accent: oklch(77.7% 0.152 181.912);
-    --fyllo-startup-glow: color-mix(in oklab, var(--fyllo-startup-accent) 32%, transparent);
+    --fyllo-startup-wordmark: #e2e8f0;
+    --fyllo-startup-status: #94a3b8;
   }
 }
 
@@ -45,50 +41,113 @@
   place-items: center;
 }
 
+.fyllo-startup-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
 .fyllo-startup-ring {
   position: relative;
   display: grid;
-  width: var(--fyllo-startup-ring-size);
-  height: var(--fyllo-startup-ring-size);
+  width: 144px;
+  height: 126px;
   place-items: center;
-  border: 2px solid var(--fyllo-startup-track);
-  border-radius: 9999px;
-}
-
-.fyllo-startup-ring::before,
-.fyllo-startup-ring::after {
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  content: "";
-  animation: fyllo-startup-orbit 1.6s linear infinite;
-}
-
-.fyllo-startup-ring::before {
-  background: conic-gradient(
-    transparent 0deg 250deg,
-    var(--fyllo-startup-tail-soft) 286deg,
-    var(--fyllo-startup-tail) 334deg,
-    var(--fyllo-startup-accent) 357deg,
-    transparent 360deg
-  );
-  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 3px));
-}
-
-.fyllo-startup-ring::after {
-  background: radial-gradient(
-    circle at 50% 1px,
-    var(--fyllo-startup-accent) 0 3px,
-    transparent 4px
-  );
-  filter: drop-shadow(0 0 4px var(--fyllo-startup-glow));
 }
 
 .fyllo-startup-logo {
-  width: var(--fyllo-startup-logo-size);
-  height: var(--fyllo-startup-logo-size);
-  margin-top: 10px;
-  animation: fyllo-startup-pulse 2.4s ease-in-out infinite;
+  display: none;
+  width: 144px;
+  height: 126px;
+  object-fit: contain;
+}
+
+.fyllo-startup-dot-logo,
+.fyllo-startup-dot-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.fyllo-startup-dot-logo {
+  overflow: hidden;
+  color: var(--fyllo-startup-accent);
+  -webkit-mask: url("/icon.svg") center / contain no-repeat;
+  mask: url("/icon.svg") center / contain no-repeat;
+}
+
+.fyllo-startup-dot-layer {
+  background-image: radial-gradient(circle, currentColor 0 1.8px, transparent 2px);
+  background-position: center;
+  background-size: 8px 8px;
+}
+
+.fyllo-startup-dot-base {
+  opacity: 0.32;
+}
+
+.fyllo-startup-dot-band {
+  clip-path: inset(var(--dot-top) 0 var(--dot-bottom) 0);
+  opacity: 0.06;
+  animation: fyllo-startup-dot-wave 2.2s infinite;
+  animation-delay: var(--dot-delay);
+  animation-timing-function: linear(0, 1, 0.22, 0, 0, 0, 0, 0);
+}
+
+@keyframes fyllo-startup-dot-wave {
+  from {
+    opacity: 0.06;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.fyllo-startup-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.fyllo-startup-wordmark {
+  color: var(--fyllo-startup-wordmark);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  line-height: 1.25;
+}
+
+.fyllo-startup-status {
+  color: var(--fyllo-startup-status);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  opacity: 1;
+}
+
+.fyllo-startup-page .fyllo-startup-status {
+  opacity: 0;
+  animation: fyllo-startup-status-reveal 0.35s ease-out 0.8s forwards;
+}
+
+@keyframes fyllo-startup-status-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .fyllo-startup-sr-only {
@@ -103,26 +162,24 @@
   border: 0;
 }
 
-@keyframes fyllo-startup-orbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes fyllo-startup-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.82;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .fyllo-startup-ring::before,
-  .fyllo-startup-ring::after,
-  .fyllo-startup-logo {
+  .fyllo-startup-dot-band {
+    opacity: 0.72;
     animation: none;
+  }
+
+  .fyllo-startup-page .fyllo-startup-status {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+@supports not ((-webkit-mask: url("/icon.svg")) or (mask: url("/icon.svg"))) {
+  .fyllo-startup-dot-logo {
+    display: none;
+  }
+
+  .fyllo-startup-logo {
+    display: block;
   }
 }
