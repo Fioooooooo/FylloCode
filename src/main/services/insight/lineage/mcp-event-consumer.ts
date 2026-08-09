@@ -97,6 +97,11 @@ async function consumeEventFile(
   }
 
   try {
+    let proposalWatchContext: {
+      ownerMainPath: string;
+      targetPath: string;
+      worktreeMode: "main" | "linked";
+    } | null = null;
     if (event.tool === "create-proposal") {
       const workspace = await getRequiredWorkspaceInfo(workspaceId);
       const folderId = event.proposalRef.folderId;
@@ -119,6 +124,11 @@ async function consumeEventFile(
         );
         return;
       }
+      proposalWatchContext = {
+        ownerMainPath: owner.folderPath,
+        targetPath: target.worktreePath,
+        worktreeMode: event.worktreeMode,
+      };
     }
     let subject =
       event.tool === "create-proposal"
@@ -163,12 +173,14 @@ async function consumeEventFile(
           existing: relationResult.existing,
         });
       }
-      proposalStatusService.watchProposal(
-        workspaceId,
-        event.proposalRef,
-        event.worktreePath,
-        event.sessionId
-      );
+      if (proposalWatchContext) {
+        proposalStatusService.watchProposal(
+          workspaceId,
+          event.proposalRef,
+          proposalWatchContext,
+          event.sessionId
+        );
+      }
     }
 
     await fs.unlink(filePath);

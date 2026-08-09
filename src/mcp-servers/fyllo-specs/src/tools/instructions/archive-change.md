@@ -80,8 +80,8 @@ Archive a completed change using the provided `state`.
    - If `state.archive.ok === true`, `state.finalization.ok === false`, and
      `state.finalization.recovery.required === "agent"`, do not rerun OpenSpec archive and do not move
      archive files manually. Report the recovery kind, completed steps, remaining steps, and
-     instructions from `state.finalization.recovery`; the agent may continue only the bounded git
-     finalization work described there.
+     instructions from `state.finalization.recovery`; the agent may continue only the bounded
+     metadata repair and git finalization work described there.
 
    Show archive completion summary(with user language) including:
    - Change name

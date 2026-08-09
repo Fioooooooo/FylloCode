@@ -12,7 +12,7 @@ import {
   getProposalSpecDeltas,
   listProposals,
   readProposalFile,
-  resolveProposalMeta,
+  watchProposalStatus,
 } from "@main/services/proposal/browser/proposal-service";
 import { proposalStatusService } from "@main/services/proposal/browser/proposal-status-service";
 import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
@@ -69,13 +69,7 @@ export function registerProposalHandlers(): void {
         input
       );
       const proposalRef = { folderId, changeId };
-      const proposal = await resolveProposalMeta(workspaceId, proposalRef);
-      proposalStatusService.watchProposal(
-        workspaceId,
-        proposalRef,
-        proposal.worktreePath,
-        sessionId
-      );
+      await watchProposalStatus(workspaceId, proposalRef, sessionId);
     })
   );
 }

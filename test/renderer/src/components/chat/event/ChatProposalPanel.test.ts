@@ -121,6 +121,7 @@ describe("ChatProposalPanel", () => {
 
     const startApplyButton = wrapper.get('[data-test="start-apply-button"]');
     expect(startApplyButton.attributes("data-icon")).toBeUndefined();
+    expect(startApplyButton.text()).toBe("开始实现");
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="dropdown-item-Standard Workflow"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("开始实现");
@@ -145,7 +146,7 @@ describe("ChatProposalPanel", () => {
     expect(mocks.fetchTemplates).not.toHaveBeenCalled();
   });
 
-  it("does not show archive button while applying is not done", () => {
+  it("does not show archive button when an applying proposal has no tasks", () => {
     const wrapper = mount(ChatProposalPanel, {
       props: { proposals: [makeProposal("applying")] },
     });
@@ -154,7 +155,22 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
   });
 
-  it("shows archive-ready badge plus archive and detail buttons when applying run is done", () => {
+  it("shows archive-ready actions when every task is done without run metadata", () => {
+    const wrapper = mount(ChatProposalPanel, {
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
+      },
+    });
+
+    const archiveButton = wrapper.get('[data-test="archive-button"]');
+    expect(archiveButton.attributes("data-icon")).toBeUndefined();
+    expect(archiveButton.text()).toBe("归档");
+    expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("可归档");
+    expect(wrapper.text()).toContain("归档");
+  });
+
+  it("keeps applying state while tasks remain even when run metadata is done", () => {
     runMetaValue = {
       runId: "run-1",
       proposalRef: { folderId: "folder-b", changeId: "change-1" },
@@ -169,31 +185,9 @@ describe("ChatProposalPanel", () => {
     };
 
     const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
-    });
-
-    expect(wrapper.find('[data-test="archive-button"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("可归档");
-    expect(wrapper.text()).toContain("归档");
-  });
-
-  it("does not show archive-ready state when the done run belongs to another proposal", () => {
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "other-change" },
-      worktreePath: "/repo-b",
-      workflowId: "wf-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
-    const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 1 })],
+      },
     });
 
     expect(wrapper.text()).toContain("实现中");
@@ -216,7 +210,9 @@ describe("ChatProposalPanel", () => {
     };
 
     const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
+      },
     });
     const actionButtons = wrapper.findAll("button").map((button) => button.text());
 
@@ -239,7 +235,9 @@ describe("ChatProposalPanel", () => {
     };
 
     const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
+      },
     });
 
     expect(wrapper.text()).toContain("归档中");
@@ -247,7 +245,7 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
   });
 
-  it("calls startArchive when archive button is clicked", async () => {
+  it("sends an owner-qualified user message when archive is clicked", async () => {
     runMetaValue = {
       runId: "run-1",
       proposalRef: { folderId: "folder-b", changeId: "change-1" },
@@ -262,16 +260,21 @@ describe("ChatProposalPanel", () => {
     };
 
     const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
+      },
     });
 
     await wrapper.get('[data-test="archive-button"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
-      folderId: "folder-b",
-      changeId: "change-1",
-    });
+    expect(mocks.sendMessage).toHaveBeenCalledWith([
+      {
+        type: "text",
+        text: "Start archiving proposal: change-1 (folderId: folder-b)",
+      },
+    ]);
+    expect(mocks.startArchive).not.toHaveBeenCalled();
   });
 
   it("does not show actions for creating proposals", () => {
@@ -415,9 +418,7 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.find('[data-test="proposal-worktree-badge"]').exists()).toBe(false);
   });
 
-  it("refreshes proposals and replaces the old applying item after archive succeeds", async () => {
-    const archivedProposal = makeProposal("archived", { id: "2026-06-22-change-1" });
-    proposalStoreProposalsValue = [archivedProposal];
+  it("does not eagerly synchronize proposal state after sending archive intent", async () => {
     runMetaValue = {
       runId: "run-1",
       proposalRef: { folderId: "folder-b", changeId: "change-1" },
@@ -432,18 +433,17 @@ describe("ChatProposalPanel", () => {
     };
 
     const wrapper = mount(ChatProposalPanel, {
-      props: { proposals: [makeProposal("applying")] },
+      props: {
+        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
+      },
     });
 
     await wrapper.get('[data-test="archive-button"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).toHaveBeenCalledWith("project-1", {
-      folderId: "folder-b",
-      changeId: "change-1",
-    });
-    expect(mocks.loadProposals).toHaveBeenCalledOnce();
+    expect(mocks.startArchive).not.toHaveBeenCalled();
+    expect(mocks.loadProposals).not.toHaveBeenCalled();
     expect(mocks.removeSessionProposal).not.toHaveBeenCalled();
-    expect(mocks.upsertSessionProposal).toHaveBeenCalledWith("session-1", archivedProposal);
+    expect(mocks.upsertSessionProposal).not.toHaveBeenCalled();
   });
 });

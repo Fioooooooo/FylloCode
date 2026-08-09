@@ -331,20 +331,10 @@ describe("ProposalDetailSlideover", () => {
     proposalsValue.value = [
       buildProposal({
         status: "applying",
+        doneTasks: 2,
+        totalTasks: 2,
       }),
     ];
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b/.worktrees/change-1",
-      workflowId: "workflow-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-12T00:00:00.000Z",
-      updatedAt: "2026-06-12T00:00:00.000Z",
-    };
     const wrapper = mountSlideover();
     await flushPromises();
 
@@ -353,24 +343,12 @@ describe("ProposalDetailSlideover", () => {
     expect(mocks.startArchive).not.toHaveBeenCalled();
   });
 
-  it("does not show archive button when the done run belongs to another proposal", async () => {
+  it("does not show archive status when tasks are incomplete", async () => {
     proposalsValue.value = [
       buildProposal({
         status: "applying",
       }),
     ];
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "other-change" },
-      worktreePath: "/repo-b",
-      workflowId: "workflow-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-12T00:00:00.000Z",
-      updatedAt: "2026-06-12T00:00:00.000Z",
-    };
 
     const wrapper = mountSlideover();
     await flushPromises();

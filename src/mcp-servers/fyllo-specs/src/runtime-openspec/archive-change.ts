@@ -1,10 +1,11 @@
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { changeDir } from "./paths";
+import { readYamlFile, writeYamlFile } from "./fs";
 import { parseArchiveOutcome } from "./parse-archive-outcome";
 import { resolveOpenspecCli } from "./resolve-cli";
 import { spawnOpenspec } from "./spawner";
-import { OpenspecArchiveNotConfirmedError } from "./types";
+import { OpenspecArchiveMetadataUpdateError, OpenspecArchiveNotConfirmedError } from "./types";
 import type { ArchiveResult } from "./types";
 
 // 归档目录以日期为前缀，保证多次归档同一 changeId 也不会冲突，
@@ -23,6 +24,17 @@ function deltaSummary(changePath: string): { files: string[] } {
   return {
     files: readdirSync(changePath).sort(),
   };
+}
+
+function persistArchivedStatus(archiveTarget: string): void {
+  const metadataPath = join(archiveTarget, ".openspec.yaml");
+  const metadata = readYamlFile<Record<string, unknown>>(metadataPath);
+  if (!metadata) {
+    throw new Error(`Archive metadata not found: ${metadataPath}`);
+  }
+  if (metadata.status === "archived") return;
+  metadata.status = "archived";
+  writeYamlFile(metadataPath, metadata);
 }
 
 export async function archiveChange(
@@ -75,11 +87,18 @@ export async function archiveChange(
     throw new OpenspecArchiveNotConfirmedError(signal, archiveRawOutput.slice(0, 800), name);
   }
 
-  return {
+  const result: ArchiveResult = {
     changeName: name,
     archiveTarget: target,
     conflicts: [],
     deltaSpecSummary: null,
     archiveRawOutput,
   };
+  try {
+    persistArchivedStatus(target);
+  } catch (error: unknown) {
+    const causeMessage = error instanceof Error ? error.message : String(error);
+    throw new OpenspecArchiveMetadataUpdateError(result, causeMessage);
+  }
+  return result;
 }

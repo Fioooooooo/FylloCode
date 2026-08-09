@@ -57,12 +57,11 @@ describe("ProposalDetailHeader", () => {
     expect(button).toBeUndefined();
   });
 
-  it("shows archive-ready badge when the done run matches the proposal", () => {
+  it("shows archive-ready badge when every task is done without run metadata", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
-        proposal: buildProposal("applying"),
+        proposal: { ...buildProposal("applying"), doneTasks: 2 },
         ...defaultProps,
-        runMeta: buildRunMeta(),
       },
     });
 
@@ -84,14 +83,24 @@ describe("ProposalDetailHeader", () => {
     expect(wrapper.text()).not.toContain("可归档");
   });
 
-  it("keeps applying badge when the done run belongs to another proposal", () => {
+  it("keeps applying badge while tasks remain even when run metadata is done", () => {
     const wrapper = mount(ProposalDetailHeader, {
       props: {
         proposal: buildProposal("applying"),
         ...defaultProps,
-        runMeta: buildRunMeta({
-          proposalRef: { folderId: "folder-a", changeId: "other-proposal" },
-        }),
+        runMeta: buildRunMeta(),
+      },
+    });
+
+    expect(wrapper.text()).toContain("实现中");
+    expect(wrapper.text()).not.toContain("可归档");
+  });
+
+  it("keeps applying badge when an applying proposal has no tasks", () => {
+    const wrapper = mount(ProposalDetailHeader, {
+      props: {
+        proposal: { ...buildProposal("applying"), totalTasks: 0, doneTasks: 0 },
+        ...defaultProps,
       },
     });
 

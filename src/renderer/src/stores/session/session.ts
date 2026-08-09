@@ -437,6 +437,17 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
 
       const proposalStore = useProposalStore();
       const payloadKey = proposalRefKey(payload.proposalRef);
+      if (payload.changeKind === "tasks" || payload.status === "archived") {
+        await proposalStore.loadProposals();
+        const refreshedProposal = proposalStore.proposals.find(
+          (item) => proposalRefKey(item.proposalRef) === payloadKey
+        );
+        if (refreshedProposal) {
+          upsertSessionProposal(payload.sessionId, refreshedProposal);
+        }
+        return;
+      }
+
       const existsInStore = proposalStore.proposals.some(
         (item) => proposalRefKey(item.proposalRef) === payloadKey
       );

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -242,6 +250,97 @@ describe("openspec-runtime", () => {
     expect(existsSync(join(fixtureRoot, "openspec", "changes", "sample-change")) || true).toBe(
       true
     );
+  });
+
+  it("writes archived status after confirmed archive while preserving metadata", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-archive-status-"));
+    const changeName = "metadata-change";
+    const activeDir = join(root, "openspec", "changes", changeName);
+    const archiveDir = join(
+      root,
+      "openspec",
+      "changes",
+      "archive",
+      `${new Date().toISOString().slice(0, 10)}-${changeName}`
+    );
+    mkdirSync(activeDir, { recursive: true });
+    writeFileSync(
+      join(activeDir, ".openspec.yaml"),
+      "schema: spec-driven\ncreated: 2026-08-09T00:00:00.000Z\nstatus: applying\ncontext: keep\n"
+    );
+    const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
+      mkdirSync(join(archiveDir, ".."), { recursive: true });
+      renameSync(activeDir, archiveDir);
+      return `Change '${changeName}' archived as '${new Date().toISOString().slice(0, 10)}-${changeName}'.`;
+    });
+
+    try {
+      const result = await archiveChange(root, changeName, { confirm: true });
+      const metadata = readFileSync(join(archiveDir, ".openspec.yaml"), "utf8");
+
+      expect(result.archiveTarget).toBe(archiveDir);
+      expect(metadata).toContain("status: archived");
+      expect(metadata).toContain("created: 2026-08-09T00:00:00.000Z");
+      expect(metadata).toContain("context: keep");
+    } finally {
+      spy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps preview and unconfirmed archive metadata unchanged", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-archive-unconfirmed-"));
+    const changeName = "unconfirmed-change";
+    const activeDir = join(root, "openspec", "changes", changeName);
+    const metadataPath = join(activeDir, ".openspec.yaml");
+    mkdirSync(activeDir, { recursive: true });
+    writeFileSync(metadataPath, "schema: spec-driven\nstatus: applying\n");
+
+    await archiveChange(root, changeName, { confirm: false });
+    expect(readFileSync(metadataPath, "utf8")).toContain("status: applying");
+
+    const spy = vi
+      .spyOn(spawner, "spawnOpenspec")
+      .mockResolvedValue("Validation failed. Please fix the errors before archiving.");
+    try {
+      await expect(archiveChange(root, changeName, { confirm: true })).rejects.toMatchObject({
+        name: "OpenspecArchiveNotConfirmed",
+      });
+      expect(readFileSync(metadataPath, "utf8")).toContain("status: applying");
+    } finally {
+      spy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an already archived metadata status idempotent", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fyllo-specs-archive-idempotent-"));
+    const changeName = "already-archived";
+    const activeDir = join(root, "openspec", "changes", changeName);
+    const archiveDir = join(
+      root,
+      "openspec",
+      "changes",
+      "archive",
+      `${new Date().toISOString().slice(0, 10)}-${changeName}`
+    );
+    mkdirSync(activeDir, { recursive: true });
+    writeFileSync(join(activeDir, ".openspec.yaml"), "schema: spec-driven\nstatus: archived\n");
+    const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
+      mkdirSync(join(archiveDir, ".."), { recursive: true });
+      renameSync(activeDir, archiveDir);
+      return `Change '${changeName}' archived as '${new Date().toISOString().slice(0, 10)}-${changeName}'.`;
+    });
+
+    try {
+      await archiveChange(root, changeName, { confirm: true });
+      expect(readFileSync(join(archiveDir, ".openspec.yaml"), "utf8")).toBe(
+        "schema: spec-driven\nstatus: archived\n"
+      );
+    } finally {
+      spy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("overwrites created and sets status to creating when generated yaml already has created", async () => {

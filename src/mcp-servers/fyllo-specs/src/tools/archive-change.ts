@@ -2,7 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { resolveFolder } from "../../../shared/workspace-resolver";
 import { runTool } from "../utils/state";
-import { archiveChange, changeDir, OpenspecArchiveNotConfirmedError } from "../runtime-openspec";
+import {
+  archiveChange,
+  changeDir,
+  OpenspecArchiveMetadataUpdateError,
+  OpenspecArchiveNotConfirmedError,
+} from "../runtime-openspec";
 import { finalizeArchiveWorkspace, resolveProposalTarget } from "../runtime-workspace";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -157,6 +162,56 @@ export async function archiveChangeTool(
         confirm,
       });
     } catch (error) {
+      if (error instanceof OpenspecArchiveMetadataUpdateError) {
+        const archived = error.archiveResult;
+        const recovery: ArchiveWorkspaceRecovery = {
+          required: "agent",
+          kind: "archive-metadata-update",
+          mainPath: owner.folderPath,
+          workspacePath: projectRoot,
+          mainBranch: null,
+          proposalBranch: `proposal/${input.changeName}`,
+          completedSteps: ["openspec-archive", "spec-sync"],
+          remainingSteps: [
+            "repair-archive-metadata",
+            "commit",
+            ...(target.worktreeMode === "linked"
+              ? ["merge-to-main", "worktree-remove", "branch-delete"]
+              : []),
+          ],
+          instructions: [
+            "OpenSpec archive already succeeded; do not rerun archive-change or move archive files.",
+            `Repair ${join(archived.archiveTarget, ".openspec.yaml")} so status is archived while preserving the other metadata fields.`,
+            "After repairing metadata, continue with commit and the remaining workspace finalization steps listed here.",
+          ],
+        };
+        const metadataError = {
+          code: "archive-metadata-update-failed",
+          message: error.message,
+          retryHint:
+            "Repair the archived .openspec.yaml, then continue commit and workspace finalization without rerunning OpenSpec archive.",
+        };
+        return {
+          target,
+          changeName: archived.changeName,
+          status: "failed",
+          archive: {
+            ok: true,
+            archiveTarget: archived.archiveTarget,
+            archiveRawOutput: archived.archiveRawOutput,
+            conflicts: archived.conflicts,
+            incompleteTasks,
+            error: metadataError,
+          },
+          finalization: {
+            ok: false,
+            gitOps: [],
+            failedStep: null,
+            error: metadataError,
+            recovery,
+          },
+        };
+      }
       const message = error instanceof Error ? error.message : String(error);
       const notConfirmed =
         error instanceof OpenspecArchiveNotConfirmedError ||

@@ -32,16 +32,11 @@ export const proposalDisplayStatusConfig: Record<ProposalDisplayStatus, Proposal
   archived: { label: "已归档", color: "neutral", variant: "outline" },
 };
 
-export function canArchiveProposal(
-  proposal: ProposalMeta | null | undefined,
-  runMeta: ApplyRunMeta | null | undefined,
-  isArchiving: boolean
-): boolean {
+export function canArchiveProposal(proposal: ProposalMeta | null | undefined): boolean {
   return (
     proposal?.status === "applying" &&
-    runMeta?.status === "done" &&
-    runMatchesProposal(runMeta, proposal) &&
-    !isArchiving
+    proposal.totalTasks > 0 &&
+    proposal.doneTasks === proposal.totalTasks
   );
 }
 
@@ -81,5 +76,5 @@ export function getProposalDisplayStatus(
     return "archiving";
   }
 
-  return canArchiveProposal(proposal, runMeta, isArchiving) ? "archiveReady" : proposal.status;
+  return canArchiveProposal(proposal) ? "archiveReady" : proposal.status;
 }

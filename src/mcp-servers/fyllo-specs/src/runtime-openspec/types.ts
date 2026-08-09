@@ -80,3 +80,13 @@ export class OpenspecArchiveNotConfirmedError extends Error {
     this.name = "OpenspecArchiveNotConfirmed";
   }
 }
+
+export class OpenspecArchiveMetadataUpdateError extends Error {
+  constructor(
+    public readonly archiveResult: ArchiveResult,
+    public readonly causeMessage: string
+  ) {
+    super(`OpenSpec archive metadata update failed: ${causeMessage}`);
+    this.name = "OpenspecArchiveMetadataUpdateError";
+  }
+}

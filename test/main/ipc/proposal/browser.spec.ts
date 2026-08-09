@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   listProposals: vi.fn(),
   readProposalFile: vi.fn(),
   getProposalSpecDeltas: vi.fn(),
-  resolveProposalMeta: vi.fn(),
+  watchProposalStatus: vi.fn(),
   watchProposal: vi.fn(),
   statusChangedListener: null as ((payload: unknown) => void) | null,
 }));
@@ -27,7 +27,7 @@ vi.mock("@main/services/proposal/browser/proposal-service", () => ({
   listProposals: mocks.listProposals,
   readProposalFile: mocks.readProposalFile,
   getProposalSpecDeltas: mocks.getProposalSpecDeltas,
-  resolveProposalMeta: mocks.resolveProposalMeta,
+  watchProposalStatus: mocks.watchProposalStatus,
 }));
 
 import { registerProposalHandlers, setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
@@ -48,7 +48,7 @@ describe("proposal browser IPC", () => {
 
   it("watches a proposal by Workspace and ProposalRef", async () => {
     registerProposalHandlers();
-    mocks.resolveProposalMeta.mockResolvedValue({ worktreePath: "/repo-b/.worktrees/change-1" });
+    mocks.watchProposalStatus.mockResolvedValue(undefined);
     const input = {
       workspaceId: "workspace-1",
       folderId: "folder-b",
@@ -58,10 +58,9 @@ describe("proposal browser IPC", () => {
 
     const result = await handler(ProposalChannels.watch)({}, input);
 
-    expect(mocks.watchProposal).toHaveBeenCalledWith(
+    expect(mocks.watchProposalStatus).toHaveBeenCalledWith(
       "workspace-1",
       { folderId: "folder-b", changeId: "change-1" },
-      "/repo-b/.worktrees/change-1",
       "session-1"
     );
     expect(result).toEqual({ ok: true, data: undefined });

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   assertSessionWorkspaceSnapshotCurrent: vi.fn(),
   deleteSession: vi.fn(),
   deleteSpawnedSessionsForParent: vi.fn(),
+  unwatchSession: vi.fn(),
 }));
 
 vi.mock("@main/infra/storage/project-store", () => ({
@@ -44,6 +45,10 @@ vi.mock("@main/services/session/chat/session-workspace-service", () => ({
 
 vi.mock("@main/services/session/spawn/spawn-parent-lifecycle", () => ({
   deleteSpawnedSessionsForParent: mocks.deleteSpawnedSessionsForParent,
+}));
+
+vi.mock("@main/services/proposal/_public", () => ({
+  proposalStatusService: { unwatchSession: mocks.unwatchSession },
 }));
 
 import {
@@ -120,14 +125,28 @@ describe("chat-service", () => {
     mocks.assertSessionWorkspaceSnapshotCurrent.mockImplementation(async (value) => value);
   });
 
-  it("删除父 Session 时先清理 spawned Sessions，再删除父级持久化", async () => {
+  it("删除父 Session 后释放其 Proposal watcher 引用", async () => {
     await removeSession({ workspaceId: "workspace-1", id: "session-1" });
 
     expect(mocks.deleteSpawnedSessionsForParent).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.deleteSession).toHaveBeenCalledWith("workspace-1", "session-1");
+    expect(mocks.unwatchSession).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.deleteSpawnedSessionsForParent.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.deleteSession.mock.invocationCallOrder[0] ?? 0
     );
+    expect(mocks.deleteSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.unwatchSession.mock.invocationCallOrder[0] ?? 0
+    );
+  });
+
+  it("父 Session 持久化删除失败时保留 Proposal watcher 引用", async () => {
+    mocks.deleteSession.mockRejectedValueOnce(new Error("delete failed"));
+
+    await expect(removeSession({ workspaceId: "workspace-1", id: "session-1" })).rejects.toThrow(
+      "delete failed"
+    );
+
+    expect(mocks.unwatchSession).not.toHaveBeenCalled();
   });
 
   it("rejects a Session comparison context outside the scoped Workspace store", async () => {

@@ -94,6 +94,7 @@ export type ProposalStatusChangedPayload = {
   proposalRef: ProposalRef;
   sessionId: string;
   status: ProposalStatus;
+  changeKind: "status" | "tasks";
   updatedAt: string;
   removed?: boolean;
 };

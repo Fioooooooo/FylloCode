@@ -47,7 +47,13 @@ export interface PrepareProposalWorkspaceResult {
 
 export interface ArchiveWorkspaceRecovery {
   required: "none" | "agent";
-  kind: "none" | "rebase-conflict" | "dirty-workspace" | "missing-branch" | "unknown-git-error";
+  kind:
+    | "none"
+    | "rebase-conflict"
+    | "dirty-workspace"
+    | "missing-branch"
+    | "unknown-git-error"
+    | "archive-metadata-update";
   mainPath: string;
   workspacePath: string;
   mainBranch: string | null;

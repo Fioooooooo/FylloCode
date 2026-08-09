@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import {
+  // Proposal 运行入口待重构，方案确定后恢复或删除。
+  // computed,
+  ref,
+} from "vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import { timeAgo } from "@renderer/utils/time";
@@ -7,7 +11,7 @@ import {
   useChatStore,
   // Proposal 运行入口待重构，方案确定后恢复或删除。
   // useWorkflowStore,
-  useWorkspaceStore,
+  // useWorkspaceStore,
   useProposalRunStore,
   useProposalStore,
   useSessionStore,
@@ -25,7 +29,8 @@ defineProps<{
 const collapsed = ref(false);
 
 const { openProposalDetail } = useProposalDetailSlideover();
-const workspaceStore = useWorkspaceStore();
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
 const chatStore = useChatStore();
 // Proposal 运行入口待重构，方案确定后恢复或删除。
@@ -33,7 +38,8 @@ const chatStore = useChatStore();
 const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
 
-const workspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// const workspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
 
 // Proposal 运行入口待重构，方案确定后恢复或删除。
 // function buildWorkflowMenuItems(proposal: ProposalMeta) {
@@ -82,21 +88,31 @@ async function startApply(proposal: ProposalMeta): Promise<void> {
   ]);
 }
 
+// Proposal 运行入口待重构，方案确定后恢复或删除。
+// async function startArchive(proposal: ProposalMeta): Promise<void> {
+//   if (!workspaceId.value) {
+//     return;
+//   }
+//   const proposalRef = proposal.proposalRef;
+//   await proposalRunStore.startArchive(workspaceId.value, proposalRef);
+//   await proposalStore.loadProposals();
+//
+//   const sessionId = sessionStore.activeSession?.id;
+//   const nextProposal = findLatestProposal(proposalRef);
+//   if (!sessionId || !nextProposal) {
+//     return;
+//   }
+//
+//   sessionStore.upsertSessionProposal(sessionId, nextProposal);
+// }
+
 async function startArchive(proposal: ProposalMeta): Promise<void> {
-  if (!workspaceId.value) {
-    return;
-  }
-  const proposalRef = proposal.proposalRef;
-  await proposalRunStore.startArchive(workspaceId.value, proposalRef);
-  await proposalStore.loadProposals();
-
-  const sessionId = sessionStore.activeSession?.id;
-  const nextProposal = findLatestProposal(proposalRef);
-  if (!sessionId || !nextProposal) {
-    return;
-  }
-
-  sessionStore.upsertSessionProposal(sessionId, nextProposal);
+  await chatStore.sendMessage([
+    {
+      type: "text",
+      text: `Start archiving proposal: ${proposal.proposalRef.changeId} (folderId: ${proposal.proposalRef.folderId})`,
+    },
+  ]);
 }
 
 function syncSessionProposalFromStore(proposalRef: ProposalRef): void {
@@ -295,7 +311,6 @@ function taskProgressLabel(proposal: ProposalMeta): string {
             "
             size="xs"
             color="neutral"
-            icon="i-lucide-archive"
             data-test="archive-button"
             @click="startArchive(proposal)"
           >

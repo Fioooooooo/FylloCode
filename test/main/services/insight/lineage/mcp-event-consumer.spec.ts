@@ -202,7 +202,11 @@ describe("lineage mcp event consumer", () => {
     expect(mocks.watchProposal).toHaveBeenCalledWith(
       projectPath,
       { folderId: "folder-1", changeId: "change-1" },
-      projectPath,
+      {
+        ownerMainPath: projectPath,
+        targetPath: projectPath,
+        worktreeMode: "main",
+      },
       "session-1"
     );
   });

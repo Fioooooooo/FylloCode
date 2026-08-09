@@ -1227,6 +1227,7 @@ describe("useSessionStore", () => {
       sessionId: "session-1",
       proposalRef: { folderId: "project-1", changeId: "change-1" },
       status: "creating",
+      changeKind: "status",
       updatedAt: new Date().toISOString(),
     });
     await flushPromises();
@@ -1262,12 +1263,159 @@ describe("useSessionStore", () => {
       sessionId: "session-1",
       proposalRef: { folderId: "project-1", changeId: "change-1" },
       status: "creating",
+      changeKind: "status",
       updatedAt: new Date().toISOString(),
     });
     await flushPromises();
 
     expect(proposalMocks.list).not.toHaveBeenCalled();
     expect(store.getSessionProposals("session-1")[0]?.title).toBe("Cached Title");
+  });
+
+  it("reloads and owner-qualifies session proposal metadata when tasks change", async () => {
+    const folderA = proposalMeta({
+      status: "applying",
+      totalTasks: 2,
+      doneTasks: 0,
+      title: "Folder A",
+    });
+    const folderB = proposalMeta({
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      folderName: "Folder B",
+      status: "applying",
+      totalTasks: 2,
+      doneTasks: 1,
+      title: "Folder B",
+      worktreePath: "/tmp/folder-b",
+    });
+    const refreshedFolderB = { ...folderB, doneTasks: 2 };
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [folderA, folderB];
+    proposalMocks.list.mockResolvedValue({
+      ok: true,
+      data: {
+        folders: [],
+        items: [folderA, refreshedFolderB],
+        completeness: "complete",
+        excludedFolderIds: [],
+      },
+    });
+
+    const store = useSessionStore();
+    store.upsertSessionProposal("session-1", folderA);
+    store.upsertSessionProposal("session-1", folderB);
+
+    proposalMocks.statusHandler?.({
+      workspaceId: "project-1",
+      sessionId: "session-1",
+      proposalRef: folderB.proposalRef,
+      status: "applying",
+      changeKind: "tasks",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(proposalMocks.list).toHaveBeenCalledTimes(1);
+    expect(store.getSessionProposals("session-1")).toEqual([folderA, refreshedFolderB]);
+  });
+
+  it("preserves session proposal metadata when a tasks refresh fails", async () => {
+    const applying = proposalMeta({ status: "applying", totalTasks: 2, doneTasks: 1 });
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [applying];
+    proposalMocks.list.mockResolvedValue({
+      ok: false,
+      error: { code: "PROPOSAL_LIST_FAILED", message: "failed" },
+    });
+
+    const store = useSessionStore();
+    store.upsertSessionProposal("session-1", applying);
+
+    proposalMocks.statusHandler?.({
+      workspaceId: "project-1",
+      sessionId: "session-1",
+      proposalRef: applying.proposalRef,
+      status: "applying",
+      changeKind: "tasks",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(store.getSessionProposals("session-1")).toEqual([applying]);
+  });
+
+  it("reloads archived metadata and updates only the matching owner after worktree migration", async () => {
+    const folderA = proposalMeta({ title: "Folder A" });
+    const linkedFolderB = proposalMeta({
+      proposalRef: { folderId: "folder-b", changeId: "change-1" },
+      folderName: "Folder B",
+      title: "Folder B",
+      status: "applying",
+      worktreeMode: "linked",
+      worktreePath: "/tmp/project/.worktrees/change-1",
+    });
+    const archivedFolderB = {
+      ...linkedFolderB,
+      status: "archived" as const,
+      worktreeMode: "main" as const,
+      worktreePath: "/tmp/project",
+    };
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [folderA, linkedFolderB];
+    proposalMocks.list.mockResolvedValue({
+      ok: true,
+      data: {
+        folders: [],
+        items: [folderA, archivedFolderB],
+        completeness: "complete",
+        excludedFolderIds: [],
+      },
+    });
+    const store = useSessionStore();
+    store.upsertSessionProposal("session-1", folderA);
+    store.upsertSessionProposal("session-1", linkedFolderB);
+
+    proposalMocks.statusHandler?.({
+      workspaceId: "project-1",
+      sessionId: "session-1",
+      proposalRef: linkedFolderB.proposalRef,
+      status: "archived",
+      changeKind: "status",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(proposalMocks.list).toHaveBeenCalledTimes(1);
+    expect(proposalStore.proposals).toEqual([folderA, archivedFolderB]);
+    expect(store.getSessionProposals("session-1")).toEqual([folderA, archivedFolderB]);
+  });
+
+  it("preserves linked session metadata when the archived aggregate refresh fails", async () => {
+    const linked = proposalMeta({
+      status: "applying",
+      worktreeMode: "linked",
+      worktreePath: "/tmp/project/.worktrees/change-1",
+    });
+    const proposalStore = useProposalStore();
+    proposalStore.proposals = [linked];
+    proposalMocks.list.mockResolvedValue({
+      ok: false,
+      error: { code: "PROPOSAL_LIST_FAILED", message: "failed" },
+    });
+    const store = useSessionStore();
+    store.upsertSessionProposal("session-1", linked);
+
+    proposalMocks.statusHandler?.({
+      workspaceId: "project-1",
+      sessionId: "session-1",
+      proposalRef: linked.proposalRef,
+      status: "archived",
+      changeKind: "status",
+      updatedAt: new Date().toISOString(),
+    });
+    await flushPromises();
+
+    expect(store.getSessionProposals("session-1")).toEqual([linked]);
   });
 
   it("updates and removes only the matching owner when change names collide", async () => {
@@ -1289,6 +1437,7 @@ describe("useSessionStore", () => {
       sessionId: "session-1",
       proposalRef: folderB.proposalRef,
       status: "draft",
+      changeKind: "status",
       updatedAt: new Date().toISOString(),
       removed: true,
     });
