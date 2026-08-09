@@ -26,9 +26,17 @@ Implement tasks from an OpenSpec change using the provided `state`.
 3. **Show current progress**
 
    Display(with user language):
-   - Schema being used
+   - Change name
+   - A clickable Markdown link to the change's `tasks.md` from `state.contextFiles`
    - Progress: "N/M tasks complete"
    - Remaining tasks overview
+
+   Keep the section titles and compact field labels shown in the examples below in English. Explain
+   task details, issues, checks, and next actions in the user's language. Use user-facing terms such as
+   "Tasks" and "task checklist"; do not expose internal names such as `ProposalRef`, `worktreeMode`,
+   `state.target`, or raw Folder IDs. Link to the concrete `tasks.md` file that FylloCode can preview;
+   do not link to a directory. Use an absolute Markdown link target, not inline code or plain unlinked
+   text.
 
 4. **Implement tasks (loop until done or blocked)**
 
@@ -36,7 +44,9 @@ Implement tasks from an OpenSpec change using the provided `state`.
    - Show which task is being worked on
    - Make the code changes required
    - Keep changes minimal and focused
-   - Mark task complete in the tasks file: `- [ ]` → `- [x]`
+   - As soon as that task is complete, immediately mark it complete in the tasks file:
+     `- [ ]` → `- [x]`
+   - Do not start another pending task until the completed task's checkbox has been updated
    - Continue to next task
 
    **Pause if:**
@@ -56,15 +66,18 @@ Implement tasks from an OpenSpec change using the provided `state`.
 **Output During Implementation**
 
 ```
-## Implementing: <change-name> (schema: <schema-name>)
+## Implementing: <change-name>
+
+**Tasks:** [View task checklist](<absolute-tasks-file-path>)
+**Progress:** 2/7 tasks complete
 
 Working on task 3/7: <task description>
 [...implementation happening...]
-✓ Task complete
+✓ Task complete; checklist updated
 
 Working on task 4/7: <task description>
 [...implementation happening...]
-✓ Task complete
+✓ Task complete; checklist updated
 ```
 
 **Output On Completion**
@@ -73,8 +86,10 @@ Working on task 4/7: <task description>
 ## Implementation Complete
 
 **Change:** <change-name>
-**Schema:** <schema-name>
+**Tasks:** [View task checklist](<absolute-tasks-file-path>)
 **Progress:** 7/7 tasks complete ✓
+**Checks:** <verification summary>
+**Next step:** Ready to archive
 
 ### Completed This Session
 - [x] Task 1
@@ -90,18 +105,14 @@ All tasks complete! Ready to archive this change.
 ## Implementation Paused
 
 **Change:** <change-name>
-**Schema:** <schema-name>
+**Tasks:** [View task checklist](<absolute-tasks-file-path>)
 **Progress:** 4/7 tasks complete
+**Blocked task:** <task description>
 
 ### Issue Encountered
 <description of the issue>
 
-**Options:**
-1. <option 1>
-2. <option 2>
-3. Other approach
-
-What would you like to do?
+**What is needed:** <next action or decision>
 ```
 
 **Guardrails**
@@ -113,5 +124,7 @@ What would you like to do?
 - If a task is ambiguous, pause and ask before implementing
 - If implementation reveals issues, pause and suggest artifact updates
 - Keep code changes minimal and scoped to each task
-- Update task checkbox immediately after completing each task
+- Update each task checkbox immediately after completing that task and before starting the next one
+- Never defer checkbox updates or batch-mark multiple tasks after the implementation work is finished
+- Keep output headings in English, use user-facing labels, and link to the previewable `tasks.md` file instead of a working-copy directory
 - Pause on errors, blockers, or unclear requirements — don't guess

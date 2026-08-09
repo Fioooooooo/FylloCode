@@ -1,6 +1,6 @@
 {
   "name": "FylloCode",
-  "version": "0.15.2-beta.6",
+  "version": "0.15.2-beta.7",
   "description": "A project workspace for local Coding Agents, keeping tasks, guidelines, decisions, and knowledge with the project.",
   "main": "./out/main/index.js",
   "author": "Fio<fuyitao2018@gmail.com>",

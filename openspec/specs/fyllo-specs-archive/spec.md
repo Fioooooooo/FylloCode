@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义 `fyllo-specs` Archive 阶段的提交信息与工具指引，使归档生成的 commit subject 描述 proposal 的实际交付内容，并将 spec sync/archive 事实保留为归档报告或提交正文的辅助信息。
+定义 `fyllo-specs` Archive 阶段的提交信息与工具指引，使归档生成的 commit subject 描述 proposal 的实际交付内容，将 spec sync/archive 事实保留为归档报告或提交正文的辅助信息，并确保归档后的 Purpose 修复折叠进同一个交付 commit。
 
 ## Requirements
 
@@ -100,6 +100,48 @@
 - **WHEN** `archive-change` tool 执行归档
 - **THEN** runtime SHALL 保持现有输入字段、返回 state 结构、OpenSpec archive、spec sync、git finalization 和 commit message 格式校验不变
 - **AND** runtime SHALL NOT 新增自动生成 Purpose、自动拒绝 skeleton Purpose 或自动修改 unrelated specs 的行为
+
+### Requirement: Archive guidance keeps Purpose repair in one commit
+
+`fyllo-specs` 的 `archive-change` tool instruction SHALL 要求 agent 将归档后产生的 Purpose 占位修复折叠进 archive tool 已生成的同一个交付 commit，最终不得保留独立的 Purpose 修复 commit。
+
+#### Scenario: Archive commit remains current HEAD
+
+- **WHEN** archive tool 完成 Git finalization 后，agent 修改本次新增 main spec 的 skeleton Purpose
+- **AND** archive tool 生成的交付 commit 仍是 finalized repository 的当前 HEAD
+- **THEN** instruction SHALL 要求 agent 只暂存本次 Purpose 修复文件
+- **AND** SHALL 通过 amend 保留原提交信息并将修复折叠进该 archive commit
+- **AND** SHALL 要求 agent 验证最终只存在一个 archive delivery commit
+
+#### Scenario: Archive commit is no longer current HEAD
+
+- **WHEN** agent 准备折叠 Purpose 修复时发现 finalized repository 的 HEAD 已变化
+- **THEN** instruction SHALL 禁止盲目 amend 当前 HEAD
+- **AND** 仅当 agent 能证明中间提交会被原样保留时，MAY 使用定向 fixup/autosquash 或等价 rebase 折叠修复
+- **AND** 无法安全证明时 SHALL 停止并报告 blocker，不得重写无关历史
+
+#### Scenario: Purpose repair commit remains separate
+
+- **WHEN** Purpose 修复尚未折叠进 archive delivery commit
+- **THEN** agent SHALL NOT 声称 Archive 完成
+- **AND** 最终归档汇报 SHALL 包含 single-commit 检查结果
+
+### Requirement: Archive guidance treats spec sync as automatic
+
+`fyllo-specs` 的 `archive-change` tool instruction SHALL 将 delta spec sync 描述为 confirmed archive 的自动步骤，由 OpenSpec runtime 判断是否需要同步；instruction SHALL NOT 要求用户在同步后归档与不同步直接归档之间选择。
+
+#### Scenario: Delta specs exist during archive preview
+
+- **WHEN** archive preview 显示当前 change 包含 delta specs
+- **THEN** instruction MAY 向用户展示待同步摘要
+- **AND** SHALL 说明摘要仅用于了解影响
+- **AND** SHALL NOT 提供 archive-without-syncing 选项
+
+#### Scenario: Confirmed archive reports sync result
+
+- **WHEN** agent 使用 `confirm: true` 执行 archive
+- **THEN** OpenSpec runtime SHALL 自动判断并执行适用的 spec sync
+- **AND** agent SHALL 使用 `state.archive.archiveRawOutput` 汇报实际同步结果
 
 ### Requirement: Confirmed Archive persists archived status metadata
 

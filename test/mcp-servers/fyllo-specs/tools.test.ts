@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { archiveChangeTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/archive-change";
 import { exploreTool } from "../../../src/mcp-servers/fyllo-specs/src/tools/explore";
 import { registerTools } from "../../../src/mcp-servers/fyllo-specs/src/tools";
+import { loadPrompt } from "../../../src/mcp-servers/fyllo-specs/src/utils/load-prompt";
 
 vi.mock("../../../src/mcp-servers/shared/workspace-context", () => ({
   getWorkspaceContext: () => {
@@ -121,8 +122,40 @@ describe("fyllo-specs tools", () => {
       const text = await archiveChangeTool({ folderId: "folder-test", changeName });
       expect(text).toContain("Check generated spec Purpose");
       expect(text).toContain("TBD - created by archiving change");
+      expect(text).toContain("leave a separate follow-up commit for the Purpose repair");
+      expect(text).toContain("git commit --amend --no-edit");
+      expect(text).toContain("single-commit check result");
+      expect(text).not.toContain('Offer options: "Sync now (recommended)"');
+      expect(text).not.toContain('"Archive without syncing"');
+      expect(text).not.toContain("Sync skipped");
+      expect(text).toContain("## Archive Complete");
+      expect(text).toContain("## Archive Partially Complete");
+      expect(text).toContain(
+        "**Archived proposal:** [View proposal](<final-archive-proposal-file-path>)"
+      );
+      expect(text).toContain("[View specification](<final-spec-file-path>)");
+      expect(text).toContain("**Repository update:** Complete");
+      expect(text).toContain("Do not link to an archive directory");
+      expect(text).toContain("do not use the stale `state.archive.archiveTarget`");
     } finally {
       restoreEnv("FYLLO_PROJECT_PATH", previous);
     }
+  });
+
+  it("requires apply task checkboxes to be updated one task at a time", () => {
+    const instruction = loadPrompt("apply-change");
+
+    expect(instruction).toContain(
+      "Do not start another pending task until the completed task's checkbox has been updated"
+    );
+    expect(instruction).toContain(
+      "Never defer checkbox updates or batch-mark multiple tasks after the implementation work is finished"
+    );
+    expect(instruction).toContain("## Implementing: <change-name>");
+    expect(instruction).toContain("**Tasks:** [View task checklist](<absolute-tasks-file-path>)");
+    expect(instruction).toContain("✓ Task complete; checklist updated");
+    expect(instruction).toContain("**Checks:** <verification summary>");
+    expect(instruction).toContain("do not link to a directory");
+    expect(instruction).not.toContain("## Implementing: <change-name> (schema: <schema-name>)");
   });
 });

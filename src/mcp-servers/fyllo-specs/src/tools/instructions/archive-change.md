@@ -20,15 +20,14 @@ Archive a completed change using the provided `state`.
    - Ask the user to confirm they want to proceed
    - Proceed if user confirms
 
-3. **Assess delta spec sync state**
+3. **Understand automatic delta spec sync**
 
-   The OpenSpec archive runtime handles spec sync. Use `state.archive.archiveRawOutput` after
-   confirmation as the source for what was synced.
+   The OpenSpec archive runtime decides whether delta specs need to be synced and performs that sync
+   automatically as part of confirmed archive execution. Do not ask the user to choose between
+   syncing and archiving without syncing, and do not offer an archive-without-syncing path.
 
-   **If delta specs exist:**
-   - Show the summary of what would be synced
-   - Offer options: "Sync now (recommended)" or "Archive without syncing"
-   - If user chooses sync, handle spec sync before archiving
+   If delta specs exist, show their preview summary for awareness only. After confirmation, use
+   `state.archive.archiveRawOutput` as the source of truth for what OpenSpec actually synced.
 
 4. **Confirm archive**
 
@@ -67,6 +66,22 @@ Archive a completed change using the provided `state`.
    If any main spec created by this archive still contains the skeleton Purpose, do not claim the
    archive is complete. Report the remaining file path(s) and the required Purpose update instead.
 
+   The confirmed archive tool has already created the archive commit before this Purpose check. If
+   any Purpose replacement changes files, fold those changes into that same archive commit; never
+   leave a separate follow-up commit for the Purpose repair:
+
+   - Immediately after successful finalization and before editing, capture the finalized repository's
+     current `HEAD` as the archive commit. In linked-worktree mode, use the finalized main repository,
+     not the removed linked worktree.
+   - After editing, stage only the Purpose files changed by this checkpoint, verify that `HEAD` still
+     points to the captured archive commit, then amend it without changing its message (for example,
+     `git commit --amend --no-edit`).
+   - If the archive commit is no longer `HEAD`, use a targeted fixup/autosquash or equivalent rebase
+     only when you can prove the intervening commits will be preserved unchanged. Otherwise stop and
+     report the blocker instead of rewriting unrelated history.
+   - Verify the final history contains one archive delivery commit and no standalone Purpose-repair
+     commit before reporting completion.
+
 6. **Display summary**
 
    If `state.archive.archiveRawOutput` is non-null, read it and use it as the primary source for what
@@ -83,14 +98,33 @@ Archive a completed change using the provided `state`.
      instructions from `state.finalization.recovery`; the agent may continue only the bounded
      metadata repair and git finalization work described there.
 
-   Show archive completion summary(with user language) including:
+   Resolve the archive that actually exists after finalization and link to its concrete `proposal.md`
+   file so FylloCode can preview it. Do not link to an archive directory. For a successfully finalized
+   linked working copy, use the corresponding archive under the main repository from
+   `state.finalization.recovery.mainPath`; do not use the stale `state.archive.archiveTarget` inside a
+   linked working copy that has been removed. If finalization is incomplete, link to the archived
+   `proposal.md` file that currently exists. Verify the file exists before including it.
+
+   If specs were synced, include clickable links to the concrete final `spec.md` files that were
+   updated or created. Use the paths verified after finalization; never link to a directory or to a
+   spec file inside a removed linked working copy.
+
+   Keep the section titles and compact field labels shown in the examples below in English. Explain
+   details and recovery actions in the user's language. Translate internal Git steps into user-facing
+   operations such as "creating the commit", "updating the main working copy", and "removing the
+   temporary working copy". Do not expose internal names such as `ProposalRef`, `worktreeMode`,
+   `gitOps`, `recovery.kind`, or raw Folder IDs in the user-facing summary.
+
+   Show archive completion summary including:
    - Change name
-   - Archive location (`state.archive.archiveTarget`)
+   - A clickable link to the final archived `proposal.md` file that currently exists
    - Whether specs were synced
+   - Clickable links to final synced `spec.md` files when applicable
    - Purpose placeholder check result for any main specs created by this archive
+   - Whether any Purpose repair was folded into the archive commit, and the single-commit check result
    - Any important messages, warnings, or sync details surfaced in `state.archive.archiveRawOutput`
-   - ProposalRef, resolved worktree mode/path, and git finalization status
-   - Failed workspace step, recovery kind, and remaining recovery steps when recovery is required
+   - A user-facing summary of repository update and temporary-working-copy cleanup
+   - The failed operation and remaining recovery actions in user-facing language when recovery is required
    - Commit message used
    - Note about any warnings (incomplete artifacts/tasks)
 
@@ -100,10 +134,28 @@ Archive a completed change using the provided `state`.
 ## Archive Complete
 
 **Change:** <change-name>
-**Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
-**Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync skipped")
+**Archived proposal:** [View proposal](<final-archive-proposal-file-path>)
+**Specification updates:** Synced automatically / No updates needed
+**Updated specifications:**
+- [View specification](<final-spec-file-path>)
+**Specification descriptions:** No placeholders / Updated and included in the archive commit
+**Commit:** <commit message>
+**Repository update:** Complete
+**Temporary working copy:** Removed / Not used
 
 All artifacts complete. All tasks complete.
+```
+
+**Output On Partial Completion**
+
+```
+## Archive Partially Complete
+
+**Change:** <change-name>
+**Archived proposal:** [View proposal](<existing-archive-proposal-file-path>)
+**Repository update:** Needs attention
+**Stopped while:** <user-readable operation>
+**What remains:** <user-readable recovery steps>
 ```
 
 **Guardrails**
@@ -122,4 +174,6 @@ All artifacts complete. All tasks complete.
 - Don't block archive on warnings — just inform and confirm
 - If `state.archive.conflicts` is non-empty, do NOT proceed with `confirm: true` — report the conflict instead
 - If `state.archive.archiveRawOutput` is available, prefer it over inference when describing the actual archive result
+- Never leave a separate commit for generated Purpose repair; fold it into the archive commit and verify the final single-commit result
+- Keep output headings in English, use user-facing terms instead of internal state names, and link only to previewable files that exist after the reported operations
 - Show a clear summary of what happened
