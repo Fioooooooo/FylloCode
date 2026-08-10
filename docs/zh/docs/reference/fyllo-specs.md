@@ -75,6 +75,12 @@ plan 文档以 `<workspaceDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.
 
 HTTP 后端端口只对主进程可见，后端重启不会改变已提供给 Agent 的 proxy URL。proxy 会剥离调用方自带的 `Authorization` 与 `X-Fyllo-*` 头，避免 Agent 伪造 Workspace 或 Project 上下文。Agent 不支持 HTTP、目标后端未就绪或 HTTP host 不可用时，FylloCode 会为该 server 回退到 stdio transport。两种 transport 都不回退到 cwd 或旧 Project 路径上下文；设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会同时禁用 HTTP host 和 stdio spec 注入。
 
+## Archive metadata 与恢复
+
+`archive-change` 只有在 OpenSpec 明确确认 Archive 成功后，才会把归档目录内 `.openspec.yaml` 的 `status` 写为 `archived`。写回发生在 Git commit、linked worktree merge 和 cleanup 之前，因此后续提交会带上可持久化的归档状态。Preview、冲突、CLI 失败或没有成功标记时不会写入。
+
+如果 OpenSpec 已经移动 change 并完成 spec sync，但 metadata 写入失败，tool 会保留 `archive.ok: true` 的部分成功事实，停止 Git finalization，并返回 `archive-metadata-update` recovery。此时不能重新执行 OpenSpec Archive；应先修复归档 metadata，再从 commit、merge 与 cleanup 继续。历史 archive 不会批量改写，FylloCode 仍按 archive 目录位置兼容旧的 `status: applying` metadata。
+
 ## 使用边界
 
 `fyllo-specs` 面向 Agent 工作流，不是通用项目管理 API。它的价值在于把项目规范、变更产物和执行阶段组织成 Agent 可遵守的流程。

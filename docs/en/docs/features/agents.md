@@ -74,6 +74,12 @@ After successful initialization, FylloCode caches complete authentication, promp
 
 A Workspace can contain up to 16 Projects. When an Agent advertises support for additional directories, FylloCode passes the primary Project and authorized additional Project directories when creating the ACP Session. The Session keeps the Workspace snapshot from creation; later member additions, removals, or relocations do not silently change a running Session's context. The Chat header scope popover distinguishes members in the current snapshot, members only in the latest Workspace, and stale members. See [Multi-root Workspace](/en/docs/features/multi-root-workspace) for the full product model and cross-Project boundaries.
 
+## Cross-Agent Delegation
+
+In `FylloCode` Session mode, an Agent with HTTP MCP support can use [`fyllo-spawn`](/en/docs/reference/fyllo-spawn) to list installed Agents and send focused work synchronously or in the background to another ACP Agent. The spawned Session reuses the target Agent's existing process pool and the parent Chat Session's fixed Workspace scope. It does not create a second authority model or expand to Projects added later.
+
+Delegation is not started manually from the ACP Agents settings page. The current Chat Agent invokes it when the task boundary supports delegation. Chat can inspect trusted spawned Session state and output, but the current inspection surface is read-only.
+
 ## Session Configuration Recovery
 
 FylloCode saves the Agent-confirmed model, mode, thought level, and other session `configOptions` with session metadata. After an app restart or Agent reconnection, it restores values that are still supported by the current Agent schema before sending the first resumed prompt. Removed options, changed types, and invalid values fall back to the Agent's current valid value while other compatible options continue to recover.

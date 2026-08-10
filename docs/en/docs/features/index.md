@@ -16,8 +16,8 @@ FylloCode organizes its features around the governance path of an Agent coding t
 | [Project Overview](/en/docs/features/overview) | The default Workspace entry point, aggregating governance status, active changes, recent lineage, and specification evolution by Project. |
 | [Multi-root Workspace](/en/docs/features/multi-root-workspace) | Organize multiple Projects in one window so an Agent can read multiple project directories within the authorized scope. |
 | [Task Board](/en/docs/features/task) | A central task entry point for local tasks and tasks from connected engineering systems. |
-| [Chat and Execution](/en/docs/features/chat) | Align with Agents inside a fixed Workspace Session scope, create plans, and move execution forward. |
-| [Proposal Review](/en/docs/features/proposal) | Review proposal, design, and tasks, then run Apply & Archive. |
+| [Chat and Execution](/en/docs/features/chat) | Choose FylloCode or Native mode inside a fixed Workspace Session scope, align with Agents, delegate work, and move execution forward. |
+| [Proposal Review](/en/docs/features/proposal) | Review proposal, design, and tasks, then move Apply & Archive forward from the Chat session event rail. |
 | [Workflow Orchestration](/en/docs/features/workflow) | Use YAML to codify your approved execution stages and Agent assignments. |
 | [Knowledge](/en/docs/features/knowledge) | Browse Workspace-level knowledge the Agent flags and captures after user confirmation. |
 | [Guidelines](/en/docs/features/guidelines) | Browse the engineering conventions maintained by each Project repository. |
@@ -29,7 +29,7 @@ FylloCode organizes its features around the governance path of an Agent coding t
 
 ## How to Read It
 
-Start from a Task and decide in Chat whether this change should take the [direct, Plan, or Proposal](/en/docs/guide/change-paths) path. Then follow Apply & Archive through the same main path. Knowledge, Guidelines, Specs, and Work Lineage provide background: `fyllo-cortex` helps the Agent maintain the first two at explicit checkpoints, Specs is the formal contract left after a Proposal archives, and Work Lineage lets you browse the [lineage](/en/docs/guide/lineage) that connects the path. ACP Agents, engineering integrations, and Settings support this workflow.
+Start from a Task and decide in Chat whether this change should take the [direct, Plan, or Proposal](/en/docs/guide/change-paths) path. Then follow Apply & Archive through the same main path. When independent work can be split safely, an Agent in FylloCode mode can delegate it to another installed ACP Agent through [`fyllo-spawn`](/en/docs/reference/fyllo-spawn). Knowledge, Guidelines, Specs, and Work Lineage provide background: `fyllo-cortex` helps the Agent maintain the first two at explicit checkpoints, Specs is the formal contract left after a Proposal archives, and Work Lineage lets you browse the [lineage](/en/docs/guide/lineage) that connects the path. ACP Agents, engineering integrations, and Settings support this workflow.
 
 <figure class="fc-doc-image">
   <img src="/assets/screenshots/proposal-detail.png" alt="Proposal detail screenshot" />

@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.2] - 2026-08-10
+
+This release lets each Chat session choose between FylloCode collaboration and the Agent's native behavior, and adds cross-Agent delegation with background execution and read-only inspection. Proposal Apply and Archive entry points now return to Chat: the user message expresses intent, while actual task and archive state drive the interface.
+
+### Added
+
+- New Chat sessions can select `FylloCode` or `Native` before the first message. FylloCode mode continues to inject project specs, guidelines, knowledge, and built-in MCP servers; Native mode keeps the fixed Workspace scope and Agent Session configuration without FylloCode reminders or bundled MCP. Historical sessions default to FylloCode mode
+- Added the `fyllo-spawn` MCP server. An Agent in FylloCode mode can delegate focused work synchronously or in the background to another installed ACP Agent, then query status, continue the owner-scoped Session, and read long responses in bounded chunks
+- Chat can inspect spawned Sessions. A new delegation can render a clickable `spawn.session` Signal, and the detail Slideover shows trusted status, the original prompt, Activity, Transcript, and response IDs. The composer also summarizes background tasks running for the current parent Session
+- Added a **Session Actions** menu to the Chat header for copying the current FylloCode Session ID, with success and failure feedback from the clipboard operation
+
+### Changed
+
+- The Proposal detail Slideover is now for review and status inspection; it no longer starts Apply, Archive, or run history directly. **Start Applying** and **Archive** in the Chat Event Rail send owner-qualified user messages so the current Chat drives the next stage
+- Proposal archive readiness now comes from the actual completion state in `tasks.md`. Main watches task and status changes and keeps tracking the same linked Proposal as it moves into archive, merges into the main worktree, and loses its linked worktree
+- Draft attachments remain local previews until the first message is submitted instead of creating a Session early. First submission persists attachments and the message under one Session, and a failure removes the uncommitted Session while preserving the draft for retry
+- Context usage now moves through yellow, orange, and red guidance at 75%, 90%, and 95%. The tooltip focuses on current Context use and recommends starting a new session or summarizing the conversation when risk increases
+- The static startup page, the first renderer frame, and the Vue startup overlay now share the dot-matrix logo, wordmark, and startup status, reducing white flashes and visual jumps while preserving light, dark, and reduced-motion behavior
+- Production dependency classification now avoids copying renderer-bundled libraries into `app.asar/node_modules`; the verified macOS arm64 package size dropped from 364 MiB to 284 MiB
+
+### Fixed
+
+- Fixed draft attachment selection creating multiple empty Sessions, leaving a `New Session` title, and later causing cross-Session attachment rejection
+- Fixed races that could access an already-destroyed Renderer or clean Chat probes twice during startup cleanup, Workspace cleanup, or shutdown
+- Fixed internal FylloCode system reminders appearing as ordinary messages in Chat history
+- Fixed completed Proposal tasks still displaying **Applying**, and linked Proposal archive relocation being misreported as removal after the worktree moved back to main
+
+### Notes
+
+- The application version is now `0.15.2`.
+- The `fyllo-spawn` MCP server makes its first stable-app release at `0.1.1`. It exposes four HTTP-only tools; Agents without HTTP MCP support and Native-mode Sessions do not receive this server.
+- The `fyllo-specs` MCP server is now `0.11.0`, adding archive-metadata persistence and a partial-success recovery state. Tool names and inputs remain compatible, while callers that inspect failed results must accept the new `archive-metadata-update` recovery kind.
+- The `fyllo-cortex` MCP server remains at `0.7.0`; that server did not change in this release range.
+- **Compatibility**: Every Chat user message must now contain text that remains non-empty after trimming; attachments cannot be sent alone. Historical Session, message, and attachment formats require no migration.
+- Background spawned turns do not continue across application processes. A normal exit records `APP_SHUTDOWN`, while leftover work after an unexpected restart records `APP_RESTARTED`. A long task with continuing ACP activity has no absolute time limit, but ten minutes without activity triggers cancellation.
+
 ## [0.15.1] - 2026-08-05
 
 This release improves Session configuration and long-conversation navigation in Chat, and fixes Plan creation in multi-root Workspaces. The configuration entry stays compact as Agents expose more options, while the prompt timeline keeps the complete history accessible at a fixed visual density.

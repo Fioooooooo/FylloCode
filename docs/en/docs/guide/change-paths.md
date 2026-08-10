@@ -83,6 +83,8 @@ For the Proposal path, the Apply stage executes `tasks.md`. The Agent should:
 - Add necessary tests and verification results
 - Avoid mixing unreviewed new plans into implementation
 
+In the Chat Session that created the Proposal, selecting **Start Applying** in the session event rail sends an owner-qualified Apply intent to the Agent as a user message. The same card exposes **Archive** only after every Proposal task is complete, and Archive also starts through a Chat message. Proposal details remain a review and status surface rather than a lifecycle launcher.
+
 After the change lands, the complete record is archived. The archive includes:
 
 - Code change scope

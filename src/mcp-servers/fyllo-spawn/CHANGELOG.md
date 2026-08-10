@@ -6,6 +6,8 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-10
+
 ### Changed
 
 - Aligned the bundled MCP source structure with `fyllo-specs` and `fyllo-cortex`: each tool now has its own module, the registry only composes tools, and shared caller/result handling remains centralized.
@@ -13,7 +15,7 @@ The format is based on Keep a Changelog.
 
 ### Compatibility
 
-- Tool names, inputs, outputs, HTTP-only transport, trusted caller derivation, child-to-Main RPC behavior, and server version remain compatible with `0.1.0`.
+- Tool names, inputs, outputs, HTTP-only transport, trusted caller derivation, and child-to-Main RPC behavior remain compatible with `0.1.0`; the server version advances only by a patch.
 
 ## [0.1.0] - 2026-08-08
 

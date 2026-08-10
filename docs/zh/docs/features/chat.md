@@ -14,10 +14,13 @@ sidebar:
 - 将重要会话置顶到独立分组，重启后仍保持置顶状态
 - 独立折叠“置顶会话”和“最近会话”分组，并在多个展开分组之间平分可用高度
 - 选择已安装的 ACP Agent
+- 在首条消息前选择 `FylloCode` 或 `原生` 会话模式
 - 通过单一菜单查看和修改 Agent 提供的 Session 配置
 - 在 Chat header 查看固定的 Session scope，区分当前 Workspace、快照外成员和 stale 成员
+- 从 Chat header 复制当前 FylloCode Session ID
 - 发送文本和附件上下文
 - 展示 Agent 的思考、工具调用、子 Agent 调用和流式输出状态
+- 把聚焦任务委派给其他已安装的 ACP Agent，并查看同步或后台 spawned Session
 - 支持 Mermaid、Markdown 等结构化内容展示
 - 在所有 Markdown 阅读区域内安全预览 Agent 提供的绝对本地文件链接
 - 在任务上下文中推进 proposal 创建和后续阶段
@@ -35,6 +38,25 @@ Agent 提供 Session 配置时，输入框下方只显示一个配置按钮。�
 
 打开菜单后，select 配置通过子菜单展示选项，boolean 配置通过一级 checkbox 直接切换。菜单保持 Agent 提供的配置顺序；修改配置后，FylloCode 使用 Agent 返回的完整配置快照刷新摘要、当前值和可用选项，因此 model 变化带来的 thought level 调整会同步显示。
 
+## 选择会话模式
+
+新会话在输入框上方提供 `FylloCode` 与 `原生` 两种模式，默认选择 `FylloCode`。发送首条消息后，模式会固定在 Session metadata 中，Chat header 以 badge 显示当前模式；既有 Session 不能中途切换模式，历史 Session 缺少该字段时按 `FylloCode` 读取。
+
+- `FylloCode`：使用创建 Session 时固定的 Workspace scope，向 Agent 提供内置 MCP，并注入 specs、guidelines、knowledge、Task 与 Fyllo Action / Signal 等协作上下文。
+- `原生`：仍使用同一份固定 Workspace scope 和 Agent 提供的 Session 配置，但不提供 FylloCode bundled MCP，也不注入 FylloCode system reminder 或恢复历史 reminder。
+
+原生模式适合只需要 Agent CLI 桌面界面的会话。它不会影响 Proposal Apply、Archive 等由 FylloCode 内部启动的流程。
+
+## 发送文本与附件
+
+每条用户消息都必须包含 trim 后非空的文本，附件不能单独发送。新会话中选择的图片或文件会先保留为本地草稿和预览，不会因此创建或激活 Session；发送首条消息时，FylloCode 才创建唯一 Session，再按顺序持久化附件和消息。
+
+如果 Session 创建、附件保存或首条消息写入失败，未提交 Session 及其附件副本会被清理，输入文字和本地附件草稿会保留以便重试。已有 Session 中的附件继续在选择后保存到当前 Session，不改变其归属。
+
+## 复制 Session ID
+
+打开已有 Session 后，Chat header 右侧的“会话操作”菜单提供“复制会话 ID”。它复制当前 FylloCode Session ID，不是底层 ACP session ID；写入剪贴板成功或失败时都会显示明确反馈。草稿态没有可复制的 Session，因此不显示该入口。
+
 ## 定位历史消息
 
 本次会话存在至少两条 user prompt 时，对话区左上角会出现悬浮时间线。2–10 条 prompt 各对应一个导览刻度；更多 prompt 固定使用 10 个刻度，但整条时间线仍连续映射到完整历史。独立的 teal thumb 跟随当前阅读位置，时间线不会因对话变长而持续增高或占用消息列宽度。
@@ -48,6 +70,18 @@ Agent 提供 Session 配置时，输入框下方只显示一个配置按钮。�
 连续的 Thinking 和普通工具调用会收拢为一个可折叠的 Activity group。展开 group 后，可以分别查看每个 Thinking、Tool 的完整 Input 和 Output；长内容会在详情区域内滚动，不会为了布局截断底层内容。
 
 当 Claude Code 通过 Agent 工具启动子 Agent 时，父调用会渲染为独立卡片。打开详情后，可以查看 prompt、状态、模型、token、耗时、工具统计、子工具活动和最终回复。详情只连接同一条 assistant 消息内可安全确认的父子工具关系；无法关联的工具仍按普通工具展示。
+
+## 委派到其他 ACP Agent
+
+`FylloCode` 模式会在当前 Agent 支持 HTTP MCP 且后端可用时提供 [`fyllo-spawn`](/docs/reference/fyllo-spawn)。父 Agent 可以选择另一个已安装的 ACP Agent，把一个边界清楚的任务同步执行，或作为后台 turn 运行。多个 spawned Agent 共享父 Session 固定的 Workspace 目录，因此并行委派应使用互不重叠的文件范围。
+
+新建 spawned Session 后，assistant 正文可以显示可点击的 `spawn.session` Signal。详情 Slideover 从 Main 的持久化记录和当前运行态读取可信状态、Agent、原始委派 Prompt、Activity、Transcript 与 response ID；它是只读入口，不能继续、取消或重试任务。当前父 Session 有后台任务运行时，输入区会显示“正在运行 N 个后台任务”，切换到其他 Session 后只显示新父 Session 的任务。
+
+关闭 Workspace 窗口不会把详情视为任务事实来源；重新打开后会重新查询 Main。后台 turn 不跨应用进程继续运行，重启后未完成的记录会显示为已中断。完整 tool、并发、超时和响应读取契约见 [`fyllo-spawn` MCP](/docs/reference/fyllo-spawn)。
+
+## 查看 Context 用量
+
+已有 Session 收到 token usage 后，输入区会显示 Context 使用率。低于 75% 使用正常色，75% 起为黄色，90% 起为橙色，95% 起为红色。Tooltip 始终显示当前 Context 用量；进入风险区间后还会提示留意后续用量、总结当前对话或新建会话。Cost 与 Remaining 不在这个 Tooltip 中显示，但底层 usage 数据仍保留。
 
 ## Session scope
 
@@ -63,7 +97,7 @@ Agent 输出的 Markdown 链接如果指向 POSIX、Windows drive 或 UNC 绝对
 
 ## Fyllo Signal
 
-Fyllo Signal 是 Agent 在 assistant 正文中输出的被动展示标记。当前 `show.time` 类型会把时间标签显示为非交互 pill；它不需要确认，不创建 Action 状态，不进入会话事件栏，也不改变待处理数量。历史 Signal 只从已保存的 assistant 文本重新渲染，详细协议见 [Fyllo Signal 参考](/docs/reference/fyllo-signal)。
+Fyllo Signal 是 Agent 在 assistant 正文中输出的被动展示标记。`show.time` 会把时间标签显示为非交互 pill；`spawn.session` 会按消息所属父 Session 查询并打开只读的 spawned Session 详情。Signal 不需要确认，不创建 Action 状态，不进入会话事件栏，也不改变待处理数量。历史 Signal 只从已保存的 assistant 文本重新渲染，详细协议见 [Fyllo Signal 参考](/docs/reference/fyllo-signal)。
 
 ## 会话事件栏
 
@@ -85,6 +119,6 @@ Fyllo Signal 是 Agent 在 assistant 正文中输出的被动展示标记。当�
 
 ## 工作方式
 
-普通 Agent 会话通常只有当前代码和本次 prompt。FylloCode 会把项目规范、历史决策、任务上下文和 guidelines 组织成 Agent 可读取的背景，让 Agent 在更明确的边界内工作。
+`FylloCode` 模式会把项目规范、历史决策、任务上下文和 guidelines 组织成 Agent 可读取的背景，让 Agent 在更明确的边界内工作。`原生` 模式保留 Agent 默认工作方式，不注入这些 FylloCode 协作能力。
 
 对话页面负责把聊天结果送入可治理流程：当问题收敛、决策确定后，应该生成 Proposal；Proposal 通过后进入 Apply & Archive，把实现与变更记录沉淀下来。

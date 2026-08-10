@@ -17,13 +17,28 @@ Fyllo Signal shares the top-level standalone Markdown-block boundary used by [fy
 
 ## Enabled Types
 
-The initial release enables only `show.time`:
+Two Signal types are enabled:
+
+| Type | Purpose |
+| --- | --- |
+| `show.time` | Display a date or time label that has already been resolved. |
+| `spawn.session` | Open read-only details for a spawned Session created through [`fyllo-spawn`](/en/docs/reference/fyllo-spawn). |
+
+The `show.time` payload is:
 
 | Field | Constraint |
 | --- | --- |
 | `label` | Required string, 1–200 characters, with no CR or LF |
 
 It is used for current date or time queries and renders `label` as a non-interactive pill with a clock icon. A response may emit at most one `show.time`.
+
+The `spawn.session` payload accepts one opaque lookup key:
+
+| Field | Constraint |
+| --- | --- |
+| `sessionId` | Required string, 1–256 characters, with no `/`, `\`, or NUL. |
+
+The Agent should emit one `spawn.session` only when `prompt_to_agent` omitted `sessionId` and successfully created a new spawned Session. This applies to synchronous and background creation; continuation does not emit it again. The payload cannot carry Workspace, parent Session, Agent, status, content, response ID, or local-path facts. Main queries and validates those values.
 
 ## Tag Format
 
@@ -39,6 +54,16 @@ A real Signal may use only the `type` attribute, and its body must be a strict J
 
 The fenced block above is a protocol example, so it remains literal code. To emit a real Signal, the Agent starts the opening tag at the beginning of a line and gives it a standalone top-level Markdown block. If prose appears before or after it, a blank line must separate the prose from the tag. Literal `<` and `>` characters inside payload strings must be encoded as `\u003c` and `\u003e`.
 
+`spawn.session` uses the same format, with only `sessionId` in its body:
+
+```html
+<fyllo-signal type="spawn.session">
+{
+  "sessionId": "spawned-session-id"
+}
+</fyllo-signal>
+```
+
 ## Parsing and Display Boundaries
 
 Fyllo Signal is enabled only for assistant text parts in Chat. Specs, Guidelines, Knowledge, Proposal, user messages, reasoning, and tool content do not register the Signal tag, so identical text stays ordinary Markdown there.
@@ -46,3 +71,5 @@ Fyllo Signal is enabled only for assistant text parts in Chat. Specs, Guidelines
 FylloCode waits for the closing tag and a complete standalone-block boundary before rendering. An unclosed tag remains ordinary Markdown. A closed tag with an invalid type, JSON body, or payload shows the generic invalid-Signal fallback and does not invoke a type-specific component.
 
 Historical Signals are rendered only by parsing saved assistant text again. Mounting or remounting a Signal never calls Action IPC, writes session `actionStates`, creates a separate storage record, or affects session attention.
+
+`spawn.session` uses the Workspace and parent Session that own its assistant message as query context; it never falls back to another currently open Session. Main validates the window, parent Session, and spawned Session owner again. Unknown, deleted, or cross-owner targets all appear unavailable. Opening details does not create, continue, cancel, or retry a spawned turn, and does not claim or dispatch its background completion notification.

@@ -46,6 +46,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 ┌──────────────────────────────┐
 │         FylloCode            │  ← governance layer
 │  fyllo-specs · fyllo-cortex  │
+│          fyllo-spawn         │
 └──────────────────────────────┘
         ↓ constraints & context injection
    Coding Agent (any)
@@ -58,6 +59,7 @@ Dev Systems (GitHub / Yunxiao / Jira ...)
 | **Unified standards**          | The `fyllo-specs` MCP server exposes Project-owned specs to all Agents, persisting across Workspace sessions and Agent instances                                   |
 | **Decision archiving**         | Every proposal's rationale and rejected alternatives are persisted as structured data, not lost in chat history                                                    |
 | **Full traceability**          | Task → Chat → Proposal → Apply & Archive: every step is recorded as one lineage, from intent to execution                                                          |
+| **Cross-Agent delegation**     | The current Chat Agent can use `fyllo-spawn` to send focused work to another installed ACP Agent and inspect synchronous or background spawned Sessions            |
 | **Project overview**           | Each Workspace opens to an overview page aggregating governance status, active changes, recent lineage threads, and spec/guideline evolution by Project            |
 | **Self-evolving rules**        | `fyllo-cortex` maintains Project guidelines and Workspace knowledge, injects their context into sessions, and prompts Agents to maintain conventions at key stages |
 | **Writes back to dev systems** | Task results sync back to your existing project management tools without creating another silo                                                                     |
@@ -221,6 +223,7 @@ Task results can be written back to existing dev systems to maintain toolchain c
 | Agent protocol | Agent Client Protocol (ACP)                            |
 | Spec server    | `fyllo-specs` (MCP Server enhanced on top of OpenSpec) |
 | Cortex server  | `fyllo-cortex` MCP Server                              |
+| Spawn server   | `fyllo-spawn` HTTP-only MCP Server                     |
 
 ---
 

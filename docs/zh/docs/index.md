@@ -41,3 +41,4 @@ FylloCode 是面向持续使用 Coding Agent 的桌面应用。它不直接替�
 | [fyllo-action](/docs/reference/fyllo-action) | ACP Agent 与 FylloCode 交互的结构化通道，用于任务创建、plan 审阅、knowledge 标记与复核 |
 | fyllo-specs | 内置 MCP server，围绕 OpenSpec 暴露按 Project 归属的规范、Plan 与 Proposal 工作流 |
 | fyllo-cortex | 内置 MCP server，提供 guidelines、knowledge 与 lineage 工具，用于沉淀项目工程知识并追溯设计决策 |
+| [fyllo-spawn](/docs/reference/fyllo-spawn) | HTTP-only 内置 MCP server，让当前 Chat Agent 把聚焦任务委派给其他已安装的 ACP Agent，并查询后台状态与结果 |

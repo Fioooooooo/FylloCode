@@ -42,6 +42,7 @@ FylloCode 在你已有的代码库和研发工具链之上工作，不替代 IDE
 ┌──────────────────────────────┐
 │         FylloCode            │  ← 治理层
 │  fyllo-specs · fyllo-cortex  │
+│          fyllo-spawn         │
 └──────────────────────────────┘
         ↓ 约束 & 注入上下文
    Coding Agent（任意）
@@ -49,14 +50,15 @@ FylloCode 在你已有的代码库和研发工具链之上工作，不替代 IDE
       代码库
 ```
 
-| 能力             | 说明                                                                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **统一规范**     | `fyllo-specs` MCP 服务器向所有 Agent 暴露按 Project 归属的规范，在 Workspace 内跨会话、跨 Agent 持续生效                      |
-| **决策留档**     | 每个方案的依据和弃置理由以结构化数据持久化，不消失在会话记录里                                                                |
-| **全程可追溯**   | Task → Chat → Proposal → Apply & Archive，每一步串成一条 lineage，变更从意图到执行都有记录                                    |
-| **项目概览**     | 进入 Workspace 的默认首屏，按 Project 聚合治理状态、进行中变更、最近 lineage 脉络与规范演化趋势                               |
-| **规则自进化**   | `fyllo-cortex` 维护各 Project 的 `guidelines` 和 Workspace knowledge，会话注入索引并在关键阶段提示 Agent 评估、修复或新增约定 |
-| **回写研发系统** | 任务结果同步回已有的项目管理工具，不在工具链里形成孤岛                                                                        |
+| 能力              | 说明                                                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **统一规范**      | `fyllo-specs` MCP 服务器向所有 Agent 暴露按 Project 归属的规范，在 Workspace 内跨会话、跨 Agent 持续生效                      |
+| **决策留档**      | 每个方案的依据和弃置理由以结构化数据持久化，不消失在会话记录里                                                                |
+| **全程可追溯**    | Task → Chat → Proposal → Apply & Archive，每一步串成一条 lineage，变更从意图到执行都有记录                                    |
+| **跨 Agent 委派** | 当前 Chat Agent 可通过 `fyllo-spawn` 把聚焦任务交给其他已安装的 ACP Agent，并查看同步或后台 spawned Session                   |
+| **项目概览**      | 进入 Workspace 的默认首屏，按 Project 聚合治理状态、进行中变更、最近 lineage 脉络与规范演化趋势                               |
+| **规则自进化**    | `fyllo-cortex` 维护各 Project 的 `guidelines` 和 Workspace knowledge，会话注入索引并在关键阶段提示 Agent 评估、修复或新增约定 |
+| **回写研发系统**  | 任务结果同步回已有的项目管理工具，不在工具链里形成孤岛                                                                        |
 
 ---
 
@@ -189,6 +191,7 @@ FylloCode 的任务结果可以回写到已有的研发系统，保持工具链�
 | Agent 协议 | Agent Client Protocol (ACP)                      |
 | 规范服务   | `fyllo-specs`（基于 OpenSpec 增强的 MCP Server） |
 | 大脑服务   | `fyllo-cortex` MCP Server                        |
+| 委派服务   | `fyllo-spawn` HTTP-only MCP Server               |
 
 ---
 

@@ -75,7 +75,7 @@ The shared schemas and versioned envelope live in `src/shared/types/fyllo-spawn-
 
 ## Versioning And Changes
 
-The server version is defined in `src/version.ts`. Notable changes are recorded in `CHANGELOG.md`; structural refactors that preserve the tool contract do not require a version bump.
+The server version is defined in `src/version.ts`. Notable changes are recorded in `CHANGELOG.md`; contract-preserving structural refactors use a patch release under the repository's bundled-server versioning rules.
 
 ## Verification
 

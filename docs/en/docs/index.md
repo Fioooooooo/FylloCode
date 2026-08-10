@@ -41,3 +41,4 @@ To contribute to the project, continue with the [Contributing Guide](/en/docs/co
 | [fyllo-action](/en/docs/reference/fyllo-action) | The structured channel an ACP Agent uses to interact with FylloCode, for task creation, plan review, and knowledge flag/review. |
 | fyllo-specs | The built-in MCP server that exposes Project-owned OpenSpec specifications, Plan, and Proposal workflows. |
 | fyllo-cortex | The built-in MCP server that provides guidelines, knowledge, and lineage tools for accumulating project engineering knowledge and tracing design decisions. |
+| [fyllo-spawn](/en/docs/reference/fyllo-spawn) | An HTTP-only built-in MCP server that lets the current Chat Agent delegate focused work to other installed ACP Agents and query background status and results. |

@@ -74,6 +74,12 @@ Agent 成功初始化后，FylloCode 会缓存认证方式以及 prompt、MCP、
 
 Workspace 最多可以包含 16 个 Project。Agent 如果声明支持额外目录，FylloCode 会在创建 ACP Session 时把主 Project 与授权的其他 Project 目录一起传入；Session 使用创建时固定的 Workspace 快照，之后增删或移动 Workspace 成员不会静默改变已运行 Session 的上下文。Chat header 的 scope popover 会区分当前快照中的成员、只存在于最新 Workspace 的成员和已经失效的成员。完整的产品定位和跨 Project 使用边界见[多根 Workspace](/docs/features/multi-root-workspace)。
 
+## 跨 Agent 委派
+
+在 `FylloCode` 会话模式中，如果当前 Agent 支持 HTTP MCP，Agent 可以通过 [`fyllo-spawn`](/docs/reference/fyllo-spawn) 查询已安装 Agent，并把聚焦任务同步或后台委派给另一个 ACP Agent。Spawned Session 复用目标 Agent 的现有进程池与父 Chat Session 固定的 Workspace scope，不会创建第二套授权或自动扩大到后来加入的 Project。
+
+委派不是从 ACP Agents 设置页手动启动的功能；由当前 Chat Agent 根据任务边界调用。用户可以在 Chat 中查看 spawned Session 的可信状态与输出，但当前检查界面只读。
+
 ## Session 配置恢复
 
 FylloCode 会把 Agent 最后确认的 model、mode、thought level 和其他 session `configOptions` 随会话元数据保存。应用重启或 Agent 连接重建后，续聊首个 prompt 发送前会先恢复仍受当前 Agent schema 支持的选值；已经删除、type 变化或 value 失效的选项会保留 Agent 当前合法值，同时继续恢复其他兼容项。

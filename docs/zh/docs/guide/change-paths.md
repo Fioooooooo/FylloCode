@@ -83,6 +83,8 @@ Proposal 路径的 Apply 阶段执行 `tasks.md`；Agent 应该：
 - 补充必要的测试和验证结果
 - 避免把未评审的新方案混入实现阶段
 
+在创建 Proposal 的 Chat Session 中，从会话事件栏点击“开始实现”会把包含完整 Project owner 的 Apply 意图作为用户消息交给 Agent。任务全部完成后，同一张卡片才显示“归档”；点击后 Archive 也通过 Chat 消息启动。Proposal 详情本身只用于浏览产物和状态，不直接启动生命周期操作。
+
 变更落地后，完整记录自动归档，归档内容包括：
 
 - 本次代码变更范围

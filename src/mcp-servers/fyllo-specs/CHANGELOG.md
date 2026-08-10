@@ -6,6 +6,17 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-10
+
+### Changed
+
+- `archive-change` now writes `status: archived` to the archived change metadata after OpenSpec confirms the archive and before Git finalization begins.
+- Archive metadata write failures now return an `archive-metadata-update` recovery step while preserving the confirmed archive result and preventing an unsafe second archive attempt.
+
+### Compatibility
+
+- Tool names and inputs remain compatible with `0.10.1`. Callers that inspect failed archive results must accept the new recovery kind and the partial-success state in which OpenSpec archive succeeded but Git finalization did not start.
+
 ## [0.10.1] - 2026-08-05
 
 ### Fixed

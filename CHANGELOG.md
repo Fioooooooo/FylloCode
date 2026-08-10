@@ -4,6 +4,42 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.2] - 2026-08-10
+
+这个版本让 Chat 可以在 FylloCode 协作与 Agent 原生行为之间选择，并新增跨 ACP Agent 的任务委派、后台执行和只读检查能力。Proposal 的 Apply 与 Archive 入口也统一回到 Chat，由用户消息表达意图，再以实际任务和归档状态更新界面。
+
+### 新增
+
+- 新 Chat 会话可在首条消息前选择 `FylloCode` 或 `原生` 模式；前者继续注入项目 specs、guidelines、knowledge 与内置 MCP，后者保留固定 Workspace scope 和 Agent Session 配置，但不注入 FylloCode reminder 或 bundled MCP。历史会话默认按 `FylloCode` 模式读取
+- 新增 `fyllo-spawn` MCP server，FylloCode 模式中的 Agent 可以把聚焦任务同步或后台委派给其他已安装的 ACP Agent，并按可信父 Session 作用域查询状态、续聊和分段读取长响应
+- Chat 支持查看 spawned Session：新建委派可显示可点击的 `spawn.session` Signal，详情 Slideover 展示可信状态、原始 Prompt、Activity、Transcript 与 response ID；输入区会汇总当前父 Session 中正在运行的后台任务
+- Chat Header 新增“会话操作”菜单，可复制当前 FylloCode Session ID，并在剪贴板写入成功或失败时给出反馈
+
+### 调整
+
+- Proposal 详情 Slideover 改为浏览与状态查看入口，不再直接提供 Apply、Archive 或运行历史按钮；Chat Event Rail 的“开始实现”和“归档”会发送包含完整 Project owner 的用户消息，由当前 Chat 推进后续阶段
+- Proposal 的“可归档”状态改为依据 `tasks.md` 的真实完成度派生；Main 同时监听任务与状态变化，并能在 linked Proposal 归档、合并到主工作区和删除 worktree 后继续定位同一 Proposal
+- 草稿附件在首条消息提交前只保留本地预览，不再提前创建 Session；首次提交会在唯一 Session 中依次持久化附件与消息，任一步失败都会清理未提交 Session 并保留草稿以便重试
+- Context 使用率从 75%、90% 和 95% 三个阈值逐级显示黄色、橙色和红色提示；Tooltip 聚焦当前 Context 用量，并在风险区间给出新建会话或总结对话的建议
+- 静态启动页、正式 renderer 首帧和 Vue 启动覆盖层统一使用点阵 Logo、字标与“正在启动…”状态，减少同一窗口交接时的白闪和视觉跳变，并保留浅色、深色与 reduced-motion 支持
+- 调整生产依赖分类，macOS arm64 包验证体积从 364 MiB 降至 284 MiB；renderer 已打包依赖不再重复进入 `app.asar/node_modules`
+
+### 修复
+
+- 修复草稿态多次或批量选择附件可能创建多个空 Session、保留 `New Session` 标题，并在发送时触发跨 Session attachment 拒绝的问题
+- 修复窗口在启动清理、Workspace cleanup 或 shutdown 期间已经销毁时仍继续访问 Renderer 或重复清理 Chat probe 的竞态
+- 修复 FylloCode 内部 system reminder 可能作为普通消息出现在 Chat 历史中的问题
+- 修复 Proposal 任务全部完成后仍显示“实现中”，以及 linked Proposal 归档迁移到主工作区后 watcher 可能误报移除的问题
+
+### 备注
+
+- 应用版本升级到 `0.15.2`。
+- `fyllo-spawn` MCP server 首次随稳定版发布为 `0.1.1`。它提供四个 HTTP-only tool；不支持 HTTP MCP 的 Agent 和原生模式 Session 不会获得该 server。
+- `fyllo-specs` MCP server 升级到 `0.11.0`，新增归档 metadata 写回和部分成功恢复状态；tool 名称与输入保持兼容，读取失败结果的调用方需要接受新的 `archive-metadata-update` recovery kind。
+- `fyllo-cortex` MCP server 保持 `0.7.0`；本次发布范围没有修改该 server。
+- **兼容性**：Chat 用户消息现在必须包含 trim 后非空的 text；附件不能单独发送。历史 Session、消息和附件格式不需要迁移。
+- 后台 spawned turn 不会跨应用进程继续运行；正常退出记录为 `APP_SHUTDOWN`，异常重启后的遗留任务记录为 `APP_RESTARTED`。持续有 ACP activity 的长任务没有绝对时长限制，但连续 10 分钟无活动会触发取消。
+
 ## [0.15.1] - 2026-08-05
 
 这个版本改善 Chat 中的 Session 配置与长对话导航，并修复 multi-root Workspace 无法创建 Plan 的问题。配置入口在选项增多时保持紧凑，prompt timeline 也能以固定视觉密度浏览完整历史。

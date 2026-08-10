@@ -75,6 +75,12 @@ Inside the FylloCode application, `fyllo-specs` is hosted by an application-leve
 
 The real HTTP backend port remains private to the main process, so a backend restart does not change the proxy URL already supplied to an Agent. The proxy strips caller-supplied `Authorization` and `X-Fyllo-*` headers so an Agent cannot forge Workspace or Project context. When an Agent lacks HTTP support, the target backend is not ready, or the HTTP host is unavailable, FylloCode falls back to stdio. Neither transport falls back to cwd or legacy Project-path context. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables both the HTTP host and stdio spec injection.
 
+## Archive Metadata and Recovery
+
+`archive-change` writes `status: archived` to `.openspec.yaml` inside the archive directory only after OpenSpec explicitly confirms success. The write happens before the Git commit, linked-worktree merge, and cleanup, so the durable archive status is included in later finalization. Preview, conflict, CLI failure, and output without a success marker do not update metadata.
+
+If OpenSpec has already moved the change and synced specs but the metadata write fails, the tool preserves the partial-success fact as `archive.ok: true`, stops Git finalization, and returns `archive-metadata-update` recovery. Do not run OpenSpec Archive again in this state. Repair the archived metadata, then continue with commit, merge, and cleanup. Historical archives are not rewritten in bulk; FylloCode still treats their archive-directory location as authoritative when old metadata says `status: applying`.
+
 ## Usage Boundary
 
 `fyllo-specs` is for Agent workflows, not a general project management API. Its value is organizing project rules, change artifacts, and execution stages into a process Agents can follow.
