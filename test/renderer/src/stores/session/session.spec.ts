@@ -269,6 +269,27 @@ describe("useSessionStore", () => {
     expect(store.sessions[0]?.isPinned).toBe(false);
   });
 
+  it("preserves the running status when renaming a session during a reply", async () => {
+    const store = useSessionStore();
+    store.sessions = [session({ status: "running" })];
+    mocks.updateSession.mockResolvedValue({
+      ok: true,
+      data: session({ title: "Renamed session", status: "ended" }),
+    });
+
+    await store.renameSession("session-1", "Renamed session");
+
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      "session-1",
+      { title: "Renamed session" },
+      "project-1"
+    );
+    expect(store.sessions[0]).toMatchObject({
+      title: "Renamed session",
+      status: "running",
+    });
+  });
+
   it("exposes selected session availableCommands through activeSession", async () => {
     const store = useSessionStore();
     store.sessions = [

@@ -599,9 +599,8 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftAgentId.value = agentId;
   }
 
-  // Update the local session copy's mutable metadata without replacing messages,
-  // so optimistic UI state (scroll position, partial message streaming) survives
-  // a server round-trip.
+  // 只合并持久化元数据，不覆盖 renderer 运行时态，避免服务端往返导致
+  // partial messages 或回复中的 running indicator 消失。
   function mergeSessionMeta(nextSession: Session): Session | null {
     const session = sessions.value.find((item) => item.id === nextSession.id);
     if (!session) {
@@ -613,7 +612,6 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     session.sessionMode = nextSession.sessionMode ?? DEFAULT_CHAT_SESSION_MODE;
     session.title = nextSession.title;
     session.isPinned = nextSession.isPinned;
-    session.status = nextSession.status;
     session.turnCount = nextSession.turnCount;
     session.tokenUsage = normalizeTokenUsage(nextSession.tokenUsage);
     session.createdAt = nextSession.createdAt;

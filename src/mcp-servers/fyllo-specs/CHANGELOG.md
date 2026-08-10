@@ -6,6 +6,10 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Fixed
+
+- `create-proposal` instructions now require agents to read and preserve the complete `.openspec.yaml` content when changing only its top-level status to `draft`, and explicitly forbid truncating the metadata file to a one-line document.
+
 ## [0.11.0] - 2026-08-10
 
 ### Changed

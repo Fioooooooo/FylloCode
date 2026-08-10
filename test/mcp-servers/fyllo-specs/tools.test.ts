@@ -158,4 +158,18 @@ describe("fyllo-specs tools", () => {
     expect(instruction).toContain("do not link to a directory");
     expect(instruction).not.toContain("## Implementing: <change-name> (schema: <schema-name>)");
   });
+
+  it("requires create-proposal metadata updates to preserve the existing yaml", () => {
+    const instruction = loadPrompt("create-proposal");
+    const normalizedInstruction = instruction.replace(/\s+/g, " ");
+
+    expect(normalizedInstruction).toContain("read the entire existing");
+    expect(normalizedInstruction).toContain(
+      "replace only the value of its unique top-level `status` field"
+    );
+    expect(normalizedInstruction).toContain("Preserve every other field and value");
+    expect(normalizedInstruction).toContain("Never truncate or replace the file");
+    expect(normalizedInstruction).toContain('do not use `echo "status: draft" > .openspec.yaml`');
+    expect(normalizedInstruction).toContain("stop and report the problem instead of rewriting it");
+  });
 });

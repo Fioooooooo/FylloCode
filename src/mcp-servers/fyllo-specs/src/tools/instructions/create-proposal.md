@@ -35,7 +35,8 @@ prepares the actual Git target and returns it in `state.target`.
    - Create the artifact file using `state.template` as the structure
    - Apply `state.instruction` as guidance — but do NOT copy instruction/context/rules blocks into the file
    - Show brief progress: "Created <artifact-id>"
-   - After all required artifacts are complete, write `<state.target.worktreePath>/openspec/changes/<changeName>/.openspec.yaml` back with `status: draft` before ending the workflow.
+   - After all required artifacts are complete, read the entire existing
+     `<state.target.worktreePath>/openspec/changes/<changeName>/.openspec.yaml`, replace only the value of its unique top-level `status` field with `draft`, and write the complete modified content back before ending the workflow. Preserve every other field and value. If the file cannot be read or its unique top-level `status` field cannot be identified, stop and report the problem instead of rewriting it.
 
    If an artifact requires user input (unclear context), ask before proceeding.
 
