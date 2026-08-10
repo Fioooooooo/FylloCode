@@ -1,4 +1,12 @@
 {
-  "extends": "../../../tsconfig.node.json",
-  "include": ["src/**/*.ts"]
+  "extends": "../../../node_modules/@electron-toolkit/tsconfig/tsconfig.node.json",
+  "compilerOptions": {
+    "rootDir": "../../../",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../../shared/*"]
+    }
+  },
+  "include": ["src/**/*", "../../../test/mcp-servers/fyllo-spawn/**/*"]
 }

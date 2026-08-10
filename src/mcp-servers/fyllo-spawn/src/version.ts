@@ -1,0 +1,1 @@
+export const FYLLO_SPAWN_SERVER_VERSION = "0.1.0";

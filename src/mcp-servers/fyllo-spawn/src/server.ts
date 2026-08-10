@@ -2,8 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { startHttpServer } from "../../shared/http-server";
 import { SpawnRpcClient } from "./rpc-client";
 import { registerTools } from "./tools";
-
-export const FYLLO_SPAWN_SERVER_VERSION = "0.1.0";
+import { FYLLO_SPAWN_SERVER_VERSION } from "./version";
 
 export function createMcpServer(rpc: SpawnRpcClient): McpServer {
   const server = new McpServer({ name: "fyllo-spawn", version: FYLLO_SPAWN_SERVER_VERSION });

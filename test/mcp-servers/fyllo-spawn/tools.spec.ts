@@ -3,8 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { parseMcpWorkspaceDescriptor } from "@shared/types/mcp-workspace";
 import { runWithRequestContext } from "../../../src/mcp-servers/shared/request-context";
-import { callerFromContext, registerTools } from "../../../src/mcp-servers/fyllo-spawn/src/tools";
+import { registerTools } from "../../../src/mcp-servers/fyllo-spawn/src/tools";
+import { callerFromContext } from "../../../src/mcp-servers/fyllo-spawn/src/tools/shared";
 import type { SpawnRpcClient } from "../../../src/mcp-servers/fyllo-spawn/src/rpc-client";
+
+interface ToolRegistration {
+  name: string;
+  config: { description?: string };
+  handler: (input: Record<string, unknown>, extra: { signal: AbortSignal }) => Promise<unknown>;
+}
 
 function context(sessionId?: string) {
   return parseMcpWorkspaceDescriptor({
@@ -53,5 +60,55 @@ describe("fyllo-spawn trusted caller", () => {
     expect(description).not.toContain("responsePath");
     expect(description).not.toContain("app-data");
     expect(description).not.toContain('{"sessionId"');
+  });
+
+  it("registers exactly four tools and routes each one through its matching RPC method", async () => {
+    const registerTool = vi.fn();
+    const rpcCall = vi.fn(
+      async ({ method }: { method: string; caller: { parentSessionId: string } }) => ({ method })
+    );
+    registerTools(
+      { registerTool } as unknown as McpServer,
+      { call: rpcCall } as unknown as SpawnRpcClient
+    );
+
+    const registrations = registerTool.mock.calls.map(([name, config, handler]) => ({
+      name,
+      config,
+      handler,
+    })) as ToolRegistration[];
+
+    expect(registrations.map(({ name }) => name)).toEqual([
+      "available_agents",
+      "prompt_to_agent",
+      "check_session_status",
+      "read_response",
+    ]);
+
+    const inputs: Record<string, Record<string, unknown>> = {
+      available_agents: {},
+      prompt_to_agent: { agentId: "codex", prompt: "Inspect one focused area" },
+      check_session_status: { sessionId: "spawn-1" },
+      read_response: { sessionId: "spawn-1", responseId: "response-1" },
+    };
+    const controller = new AbortController();
+
+    await runWithRequestContext(context("parent-1"), async () => {
+      for (const registration of registrations) {
+        await registration.handler(inputs[registration.name] ?? {}, {
+          signal: controller.signal,
+        });
+      }
+    });
+
+    expect(rpcCall.mock.calls.map(([request]) => request.method)).toEqual([
+      "available_agents",
+      "prompt_to_agent",
+      "check_session_status",
+      "read_response",
+    ]);
+    expect(
+      rpcCall.mock.calls.every(([request]) => request.caller.parentSessionId === "parent-1")
+    ).toBe(true);
   });
 });
