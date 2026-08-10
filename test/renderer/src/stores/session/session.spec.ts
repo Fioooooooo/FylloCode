@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useProposalStore } from "@renderer/stores/proposal/browser";
 import { useSessionStore } from "@renderer/stores/session/session";
 import { workspaceInfo } from "../../fixtures/workspace";
+import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { Session } from "@shared/types/chat";
 import type { ProposalMeta, ProposalStatusChangedPayload } from "@shared/types/proposal";
 
@@ -1013,6 +1014,64 @@ describe("useSessionStore", () => {
       agentId: "claude-code",
       workspaceId: "project-1",
       sessionMode: "fyllocode",
+    });
+  });
+
+  it("keeps an in-flight probe current when re-entering the same draft", async () => {
+    vi.useFakeTimers();
+    const acpAgentsStore = useAcpAgentsStore();
+    acpAgentsStore.statuses = {
+      "claude-code": { id: "claude-code", installed: true },
+    } as never;
+    const pendingProbe = deferred<{
+      ok: true;
+      data: {
+        agentId: string;
+        sessionMode: "fyllocode";
+        status: "ready";
+        fylloSessionId: string;
+        acpSessionId: string;
+        configOptions: AcpSessionConfigOption[];
+        availableCommands: [];
+      };
+    }>();
+    mocks.probeEnsure.mockReturnValueOnce(pendingProbe.promise);
+    const store = useSessionStore();
+
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mocks.probeEnsure).toHaveBeenCalledTimes(1);
+    expect(store.draftProbeByAgent.get("claude-code")?.status).toBe("starting");
+
+    store.beginDraftSession();
+    pendingProbe.resolve({
+      ok: true,
+      data: {
+        agentId: "claude-code",
+        sessionMode: "fyllocode",
+        status: "ready",
+        fylloSessionId: "session-probe",
+        acpSessionId: "acp-1",
+        configOptions: [
+          {
+            type: "select",
+            id: "model",
+            name: "Model",
+            currentValue: "sonnet",
+            options: [{ value: "sonnet", name: "Sonnet" }],
+          },
+        ],
+        availableCommands: [],
+      },
+    });
+    await flushPromises();
+
+    expect(mocks.probeClose).not.toHaveBeenCalled();
+    expect(store.draftProbeByAgent.get("claude-code")).toMatchObject({
+      status: "ready",
+      fylloSessionId: "session-probe",
+      acpSessionId: "acp-1",
+      configOptions: [expect.objectContaining({ id: "model", currentValue: "sonnet" })],
     });
   });
 

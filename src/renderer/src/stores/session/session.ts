@@ -318,25 +318,35 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     draftAgentId.value = acpAgentsStore.resolveInstalledAgent(preferredAgentId);
   }
 
-  // Schedule a debounced draft probe for the given agent. Shared by the agent
-  // switch watcher and beginDraftSession so entering the draft state always
-  // ensures a probe even when effectiveAgentId itself does not change.
-  function scheduleDraftProbe(agentId: string | null, workspaceId: string | null): void {
-    const generation = ++draftProbeGeneration;
+  function clearScheduledDraftProbe(): void {
     if (ensureDraftProbeTimer) {
       clearTimeout(ensureDraftProbeTimer);
       ensureDraftProbeTimer = null;
     }
+  }
 
+  // Schedule a debounced draft probe for the given agent. Shared by the agent
+  // switch watcher and beginDraftSession so entering the draft state always
+  // ensures a probe even when effectiveAgentId itself does not change.
+  function scheduleDraftProbe(agentId: string | null, workspaceId: string | null): void {
     if (activeSessionId.value !== null || !agentId || !workspaceId) {
-      return;
-    }
-
-    if (draftProbeByAgent.value.has(agentId)) {
+      draftProbeGeneration += 1;
+      clearScheduledDraftProbe();
       return;
     }
 
     const sessionMode = draftSessionMode.value;
+    const existing = draftProbeByAgent.value.get(agentId);
+    if (
+      existing?.sessionMode === sessionMode &&
+      (existing.status === "starting" || existing.status === "ready")
+    ) {
+      clearScheduledDraftProbe();
+      return;
+    }
+
+    const generation = ++draftProbeGeneration;
+    clearScheduledDraftProbe();
     ensureDraftProbeTimer = setTimeout(() => {
       ensureDraftProbeTimer = null;
       if (

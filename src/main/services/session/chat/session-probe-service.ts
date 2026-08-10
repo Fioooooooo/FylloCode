@@ -264,6 +264,9 @@ export async function ensureProbe(
     startedAt: Date.now(),
   };
   sessionProbeRegistry.set(workspaceId, agentId, startingEntry);
+  logger.info(
+    `[chat-probe] starting workspace=${workspaceId} agent=${agentId} mode=${sessionMode} fyllo=${startingEntry.fylloSessionId}`
+  );
 
   const inflightEnsure = (async (): Promise<ProbeEntry> => {
     const probeHandler = createProbeHandler(workspaceId, agentId, sessionMode);
@@ -340,6 +343,9 @@ export async function ensureProbe(
         startedAt: startingEntry.startedAt,
       };
       sessionProbeRegistry.set(workspaceId, agentId, readyEntry);
+      logger.info(
+        `[chat-probe] ready workspace=${workspaceId} agent=${agentId} mode=${sessionMode} fyllo=${readyEntry.fylloSessionId} acp=${readyEntry.acpSessionId} configOptions=${readyEntry.configOptions.length} durationMs=${Date.now() - readyEntry.startedAt}`
+      );
       emitUpdate(workspaceId, agentId, sessionMode, toProbeSnapshot(readyEntry));
       return readyEntry;
     } catch (error: unknown) {

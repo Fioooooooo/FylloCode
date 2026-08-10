@@ -271,6 +271,18 @@ describe("session-probe-service", () => {
     expect(mocks.mcpActivationBySessionId.get("acp-1")).toBe(
       `activation-${snapshot.fylloSessionId}`
     );
+    expect(mocks.logger.info).toHaveBeenNthCalledWith(
+      1,
+      `[chat-probe] starting workspace=workspace-1 agent=claude-code mode=fyllocode fyllo=${snapshot.fylloSessionId}`
+    );
+    expect(mocks.logger.info).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(
+        new RegExp(
+          `^\\[chat-probe\\] ready workspace=workspace-1 agent=claude-code mode=fyllocode fyllo=${snapshot.fylloSessionId} acp=acp-1 configOptions=1 durationMs=\\d+$`
+        )
+      )
+    );
     expect(updates).toEqual([
       expect.objectContaining({
         workspaceId: "workspace-1",
