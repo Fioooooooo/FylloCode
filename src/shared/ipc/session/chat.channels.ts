@@ -1,5 +1,6 @@
 export const SessionChatChannels = {
   listSessions: "session:chat:listSessions",
+  searchSessions: "session:chat:searchSessions",
   createSession: "session:chat:createSession",
   updateSession: "session:chat:updateSession",
   removeSession: "session:chat:removeSession",

@@ -49,6 +49,11 @@ function mountSidebar() {
   return mount(ChatSidebar, {
     global: {
       stubs: {
+        SessionSearchModal: {
+          props: ["open"],
+          emits: ["update:open"],
+          template: '<div v-if="open" data-test="session-search-modal-stub" />',
+        },
         SessionItem: {
           props: ["session"],
           template: '<div :data-test="`sidebar-session-${session.id}`">{{ session.title }}</div>',
@@ -110,6 +115,17 @@ describe("ChatSidebar", () => {
       "recent-new",
       "recent-old",
     ]);
+  });
+
+  it("opens Session search without starting a draft", async () => {
+    sessionsRef.value = [makeSession("recent")];
+    const wrapper = mountSidebar();
+
+    await wrapper.get('[data-test="open-session-search"]').trigger("click");
+
+    expect(wrapper.find('[data-test="session-search-modal-stub"]').exists()).toBe(true);
+    expect(beginDraftSession).not.toHaveBeenCalled();
+    expect(resetChatState).not.toHaveBeenCalled();
   });
 
   it("gives every open group an equal flex share and independent scrolling", () => {

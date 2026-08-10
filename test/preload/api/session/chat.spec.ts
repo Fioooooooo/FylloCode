@@ -65,6 +65,37 @@ function emitStreamPort(port: PortStub, streamId = streamInvokePayload().streamI
   streamPortListener()({ ports: [port] }, { streamId });
 }
 
+describe("preload chatApi.searchSessions", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("passes the scoped query through the search channel", async () => {
+    const response = {
+      ok: true as const,
+      data: [
+        {
+          sessionId: "session-1",
+          title: "Session share",
+          updatedAt: new Date("2026-08-10T00:00:00Z"),
+          matchKind: "title" as const,
+        },
+      ],
+    };
+    mocks.ipcRenderer.invoke.mockResolvedValue(response);
+    const { chatApi } = await import("@preload/api/session/chat");
+
+    await expect(
+      chatApi.searchSessions({ workspaceId: "workspace-1", query: "session share" })
+    ).resolves.toEqual(response);
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatChannels.searchSessions, {
+      workspaceId: "workspace-1",
+      query: "session share",
+    });
+  });
+});
+
 describe("preload chatApi.streamMessage", () => {
   beforeEach(() => {
     vi.resetModules();

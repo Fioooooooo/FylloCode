@@ -66,6 +66,13 @@ export const listSessionsInputSchema = z.object({
   limit: z.number().int().positive().optional(),
 });
 
+export const searchSessionsInputSchema = z
+  .object({
+    workspaceId: z.string().min(1),
+    query: z.string().trim().min(1).max(200),
+  })
+  .strict();
+
 export const createSessionInputSchema = z.object({
   workspaceId: z.string().min(1),
   title: z.string().min(1),

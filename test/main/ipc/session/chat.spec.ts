@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     saveAttachment: vi.fn(),
     createSession: vi.fn(),
     listSessions: vi.fn(),
+    searchSessions: vi.fn(),
     updateSession: vi.fn(),
     persistSessionMessage: vi.fn(),
     assertSessionBelongsToWorkspace: vi.fn(),
@@ -92,6 +93,10 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
   removeSession: vi.fn(),
   ensureSessionWorkspaceSnapshot: mocks.ensureSessionWorkspaceSnapshot,
   updateSession: mocks.updateSession,
+}));
+
+vi.mock("@main/services/session/chat/session-search-service", () => ({
+  searchSessions: mocks.searchSessions,
 }));
 
 vi.mock("@main/ipc/_kit/workspace-scope", () => ({
@@ -232,6 +237,7 @@ describe("registerChatHandlers", () => {
     mocks.getByTask.mockResolvedValue(null);
     mocks.linkTaskSession.mockResolvedValue(null);
     mocks.listSessions.mockResolvedValue([]);
+    mocks.searchSessions.mockResolvedValue([]);
     mocks.listSpawnNotifications.mockResolvedValue([]);
     mocks.reconcileSpawnNotifications.mockResolvedValue(undefined);
     mocks.loadSessionMeta.mockResolvedValue({
@@ -453,6 +459,30 @@ describe("registerChatHandlers", () => {
     expect(mocks.resolveWorkspace).toHaveBeenCalledWith("workspace-1");
     expect(mocks.ensureLineageEventConsumer).toHaveBeenCalledWith("workspace-1");
     expect(mocks.listSessions).toHaveBeenCalledWith("workspace-1");
+  });
+
+  it("validates the sender Workspace before searching sessions", async () => {
+    const sender = {};
+    mocks.searchSessions.mockResolvedValue([
+      {
+        sessionId: "session-1",
+        title: "Session share",
+        updatedAt: new Date("2026-08-10T00:00:00Z"),
+        matchKind: "title",
+      },
+    ]);
+
+    const result = await handler(ChatChannels.searchSessions)(
+      { sender },
+      { workspaceId: "workspace-1", query: "  session share  " }
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: [expect.objectContaining({ sessionId: "session-1", matchKind: "title" })],
+    });
+    expect(mocks.requireWorkspaceSender).toHaveBeenCalledWith(sender, "workspace-1");
+    expect(mocks.searchSessions).toHaveBeenCalledWith("workspace-1", "session share");
   });
 
   it("routes a pin patch through the existing updateSession handler", async () => {

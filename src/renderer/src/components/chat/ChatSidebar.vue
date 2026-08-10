@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useChatStore, useSessionStore } from "@renderer/stores";
 import type { Session } from "@shared/types/chat";
 import SessionItem from "./SessionItem.vue";
+import SessionSearchModal from "./SessionSearchModal.vue";
 
 type SessionGroupId = "pinned" | "recent";
 
@@ -15,6 +16,7 @@ interface SessionGroup {
 
 const sessionStore = useSessionStore();
 const chatStore = useChatStore();
+const searchModalOpen = ref(false);
 
 const sessions = computed(() => sessionStore.sessions);
 const pinnedSessions = computed(() =>
@@ -73,22 +75,39 @@ function handleCreateSession(): void {
   sessionStore.beginDraftSession();
   chatStore.resetChatState();
 }
+
+function openSearchModal(): void {
+  searchModalOpen.value = true;
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full">
     <!-- Session Actions -->
-    <div class="p-3 border-b border-default flex items-center">
+    <div class="flex items-center gap-2 border-b border-default p-3">
       <UButton
         color="primary"
         variant="outline"
         icon="i-lucide-plus"
-        class="w-full justify-center"
+        class="flex-1 justify-center"
         @click="handleCreateSession"
       >
         新建会话
       </UButton>
+      <UTooltip text="搜索会话" :delay-duration="200">
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-search"
+          class="shrink-0 justify-center"
+          aria-label="搜索会话"
+          data-test="open-session-search"
+          @click="openSearchModal"
+        />
+      </UTooltip>
     </div>
+
+    <SessionSearchModal v-model:open="searchModalOpen" />
 
     <!-- Empty State -->
     <div

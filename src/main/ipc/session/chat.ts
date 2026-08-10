@@ -18,6 +18,7 @@ import {
   readAttachmentDataUrlInputSchema,
   removeSessionInputSchema,
   saveAttachmentInputSchema,
+  searchSessionsInputSchema,
   setConfigOptionInputSchema,
   streamCancelInputSchema,
   streamMessageInputSchema,
@@ -42,6 +43,7 @@ import {
   removeSession,
   updateSession,
 } from "@main/services/session/chat/chat-service";
+import { searchSessions } from "@main/services/session/chat/session-search-service";
 import { ensureLineageEventConsumer, linkTaskSession } from "@main/services/insight/_public";
 import { setConfigOption } from "@main/services/session/chat/config-option-service";
 import {
@@ -119,6 +121,14 @@ export function registerChatHandlers(): void {
       await resolveWorkspace(query.workspaceId);
       ensureLineageEventConsumer(query.workspaceId);
       return listSessions(query.workspaceId);
+    })
+  );
+
+  ipcMain.handle(SessionChatChannels.searchSessions, (event, input: unknown) =>
+    wrapHandler(async () => {
+      const query = validate(searchSessionsInputSchema, input);
+      requireWorkspaceSender(event.sender, query.workspaceId);
+      return searchSessions(query.workspaceId, query.query);
     })
   );
 

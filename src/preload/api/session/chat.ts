@@ -7,7 +7,13 @@ import {
   SessionChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
-import type { AcpAvailableCommand, ChatSessionMode, Session, Message } from "@shared/types/chat";
+import type {
+  AcpAvailableCommand,
+  ChatSessionMode,
+  Message,
+  Session,
+  SessionSearchResult,
+} from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
@@ -135,6 +141,13 @@ export const chatApi = {
     limit?: number;
   }): Promise<IpcResponse<Session[]>> {
     return ipcRenderer.invoke(SessionChatChannels.listSessions, query);
+  },
+
+  searchSessions(input: {
+    workspaceId: string;
+    query: string;
+  }): Promise<IpcResponse<SessionSearchResult[]>> {
+    return ipcRenderer.invoke(SessionChatChannels.searchSessions, input);
   },
 
   createSession(input: {

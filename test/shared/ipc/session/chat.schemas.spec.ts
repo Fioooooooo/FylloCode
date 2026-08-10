@@ -5,12 +5,44 @@ import {
   probeCloseInputSchema,
   probeEnsureInputSchema,
   probeSetConfigOptionInputSchema,
+  searchSessionsInputSchema,
   setConfigOptionInputSchema,
   dispatchSpawnNotificationInputSchema,
   listSpawnNotificationsInputSchema,
   spawnNotificationWakePayloadSchema,
 } from "@shared/ipc/session/chat.schemas";
 import { chatPromptPartSchema } from "@shared/types/chat-prompt";
+
+describe("searchSessionsInputSchema", () => {
+  it("trims and accepts a scoped non-empty query", () => {
+    expect(
+      searchSessionsInputSchema.parse({ workspaceId: "workspace-1", query: "  session share  " })
+    ).toEqual({ workspaceId: "workspace-1", query: "session share" });
+  });
+
+  it.each(["", "   "])("rejects an empty query %#", (query) => {
+    expect(searchSessionsInputSchema.safeParse({ workspaceId: "workspace-1", query }).success).toBe(
+      false
+    );
+  });
+
+  it("rejects queries longer than 200 characters", () => {
+    expect(
+      searchSessionsInputSchema.safeParse({ workspaceId: "workspace-1", query: "x".repeat(201) })
+        .success
+    ).toBe(false);
+  });
+
+  it("rejects unknown fields", () => {
+    expect(
+      searchSessionsInputSchema.safeParse({
+        workspaceId: "workspace-1",
+        query: "session",
+        folderPath: "/tmp/project",
+      }).success
+    ).toBe(false);
+  });
+});
 
 describe("createSessionInputSchema", () => {
   const base = {

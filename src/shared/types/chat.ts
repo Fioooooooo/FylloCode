@@ -22,6 +22,16 @@ export interface MessageMeta {
 
 export type Message = UIMessage<MessageMeta>;
 
+export type SessionSearchMatchKind = "title" | "session-id" | "message";
+
+export interface SessionSearchResult {
+  sessionId: string;
+  title: string;
+  updatedAt: Date;
+  matchKind: SessionSearchMatchKind;
+  snippet?: string;
+}
+
 export interface TokenUsage {
   used: number;
   size: number;
