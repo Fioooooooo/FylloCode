@@ -1,23 +1,42 @@
 <script setup lang="ts">
+import { computed, toRef } from "vue";
 import type { ToolCallDiff, ToolCallLocation } from "@shared/types/stream-event";
 import { parseLocalFileLink, useLocalFilePreview } from "@renderer/features/local-file-preview";
+import {
+  selectToolTurnFileChanges,
+  useTurnFileChangeReview,
+  type TurnFileChange,
+  type TurnFileChangeKind,
+} from "@renderer/features/turn-file-change-review";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     input: string | null;
     output: string | null;
     error?: string | null;
     diffs?: ToolCallDiff[];
     locations?: ToolCallLocation[];
+    turnFileChanges?: readonly TurnFileChange[];
   }>(),
   {
     error: null,
     diffs: () => [],
     locations: () => [],
+    turnFileChanges: () => [],
   }
 );
 
 const { openLocalFilePreview } = useLocalFilePreview();
+const { openTurnFileChangeReview } = useTurnFileChangeReview();
+const turnFileChangesSource = toRef(props, "turnFileChanges");
+const toolFileChanges = computed(() =>
+  selectToolTurnFileChanges(props.diffs, props.turnFileChanges)
+);
+const changeKindLabels: Record<TurnFileChangeKind, string> = {
+  added: "新增",
+  modified: "修改",
+  deleted: "删除",
+};
 
 function locationTarget(location: ToolCallLocation): string | null {
   const target = parseLocalFileLink(location.path);
@@ -30,6 +49,10 @@ function locationTarget(location: ToolCallLocation): string | null {
 function openLocation(location: ToolCallLocation): void {
   const target = locationTarget(location);
   if (target) void openLocalFilePreview(target);
+}
+
+function openFileChange(path: string): void {
+  void openTurnFileChangeReview(turnFileChangesSource, path);
 }
 </script>
 
@@ -47,36 +70,23 @@ function openLocation(location: ToolCallLocation): void {
       <p class="text-xs font-medium text-error">Error</p>
       <pre class="whitespace-pre-wrap wrap-anywhere text-xs text-error">{{ error }}</pre>
     </div>
-    <div v-if="diffs.length > 0" class="space-y-2" data-test="chat-tool-changes">
+    <div v-if="toolFileChanges.length > 0" class="space-y-2" data-test="chat-tool-changes">
       <p class="text-xs font-medium text-muted">Changes</p>
-      <article
-        v-for="(diff, index) in diffs"
-        :key="`${diff.path}:${index}`"
-        class="space-y-2 rounded-md ring ring-default"
-        data-test="chat-tool-diff"
+      <button
+        v-for="change in toolFileChanges"
+        :key="change.path"
+        type="button"
+        class="flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left ring ring-default transition-colors duration-150 hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        data-test="chat-tool-change"
+        @click.stop="openFileChange(change.path)"
       >
-        <p class="px-2 pt-2 text-xs font-medium wrap-anywhere text-default">{{ diff.path }}</p>
-        <div v-if="diff.oldText !== undefined" class="space-y-2 px-2 pb-2">
-          <div class="space-y-1">
-            <p class="text-xs text-muted">修改前</p>
-            <pre class="max-h-40 overflow-auto whitespace-pre text-xs text-default">{{
-              diff.oldText
-            }}</pre>
-          </div>
-          <div class="space-y-1">
-            <p class="text-xs text-muted">修改后</p>
-            <pre class="max-h-40 overflow-auto whitespace-pre text-xs text-default">{{
-              diff.newText
-            }}</pre>
-          </div>
-        </div>
-        <div v-else class="space-y-1 px-2 pb-2">
-          <p class="text-xs text-muted">新增内容</p>
-          <pre class="max-h-40 overflow-auto whitespace-pre text-xs text-default">{{
-            diff.newText
-          }}</pre>
-        </div>
-      </article>
+        <span class="wrap-anywhere min-w-0 font-mono text-xs leading-5 text-default">{{
+          change.path
+        }}</span>
+        <span class="shrink-0 text-xs font-medium text-muted">
+          {{ changeKindLabels[change.kind] }}
+        </span>
+      </button>
     </div>
     <div v-if="locations.length > 0" class="space-y-1" data-test="chat-tool-locations">
       <p class="text-xs font-medium text-muted">Locations</p>

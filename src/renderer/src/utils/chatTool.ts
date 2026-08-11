@@ -4,6 +4,11 @@ import type { ToolCallDiff, ToolCallLocation, ToolCallStatus } from "@shared/typ
 export type ChatToolPart = DynamicToolUIPart | ToolUIPart<UITools>;
 type ToolInput = Record<string, unknown>;
 export type ToolKind = "read" | "write" | "edit" | "search" | "execute" | "other";
+export interface ToolStatusPresentation {
+  text: string;
+  visible: boolean;
+  leadingIconClass?: string;
+}
 
 const TOOL_KINDS = new Set<ToolKind>(["read", "write", "edit", "search", "execute", "other"]);
 const TOOL_STATUSES = new Set<ToolCallStatus>(["pending", "in_progress", "completed", "failed"]);
@@ -53,6 +58,15 @@ export function getToolStatus(part: ChatToolPart): ToolCallStatus {
 
 export function getToolStatusText(part: ChatToolPart): string {
   return TOOL_STATUS_TEXT[getToolStatus(part)];
+}
+
+export function getToolStatusPresentation(part: ChatToolPart): ToolStatusPresentation {
+  const status = getToolStatus(part);
+  return {
+    text: TOOL_STATUS_TEXT[status],
+    visible: status === "failed",
+    ...(status === "failed" ? { leadingIconClass: "text-error" } : {}),
+  };
 }
 
 export function getToolError(part: ChatToolPart): string | null {

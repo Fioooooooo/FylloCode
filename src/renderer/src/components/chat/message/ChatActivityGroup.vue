@@ -8,10 +8,17 @@ import {
   summarizeActivityGroup,
   type AssistantActivityEntry,
 } from "@renderer/utils/chatAssistant";
+import type { TurnFileChange } from "@renderer/features/turn-file-change-review";
 
-const props = defineProps<{
-  activities: AssistantActivityEntry[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    activities: AssistantActivityEntry[];
+    turnFileChanges?: readonly TurnFileChange[];
+  }>(),
+  {
+    turnFileChanges: () => [],
+  }
+);
 
 const expanded = ref(false);
 
@@ -33,7 +40,7 @@ const icon = computed(() => getActivityGroupIcon(props.activities, isActivityStr
     :text="summary"
   >
     <div
-      class="space-y-2 p-2 rounded-md ring ring-default max-h-48 overflow-auto"
+      class="space-y-2 p-2 rounded-md ring ring-default max-h-64 overflow-auto"
       data-test="chat-activity-group-items"
     >
       <template v-for="activity in props.activities" :key="activity.partIndex">
@@ -45,7 +52,7 @@ const icon = computed(() => getActivityGroupIcon(props.activities, isActivityStr
           :duration="isPartStreaming(activity.part) ? 0 : undefined"
           icon="i-lucide-brain"
         />
-        <ChatToolItem v-else :part="activity.part" />
+        <ChatToolItem v-else :part="activity.part" :turn-file-changes="props.turnFileChanges" />
       </template>
     </div>
   </UChatTool>

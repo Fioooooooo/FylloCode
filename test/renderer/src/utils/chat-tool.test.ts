@@ -9,6 +9,7 @@ import {
   getToolLocations,
   getToolOutput,
   getToolStatus,
+  getToolStatusPresentation,
   getToolStatusText,
   getToolText,
   type ChatToolPart,
@@ -134,6 +135,11 @@ describe("chatTool", () => {
       } satisfies DynamicToolUIPart;
       expect(getToolStatus(part)).toBe(status);
       expect(getToolStatusText(part)).toBe(text);
+      expect(getToolStatusPresentation(part)).toEqual({
+        text,
+        visible: status === "failed",
+        ...(status === "failed" ? { leadingIconClass: "text-error" } : {}),
+      });
     }
 
     expect(getToolStatus(tool())).toBe("in_progress");

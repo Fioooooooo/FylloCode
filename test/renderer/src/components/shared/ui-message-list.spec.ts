@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import { computed, ref, type PropType } from "vue";
+import { computed, ref, unref, type PropType } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import ChatMessageList from "@renderer/components/chat/message/ChatMessageList.vue";
 import { chatApi } from "@renderer/api/session/chat";
@@ -9,6 +9,7 @@ import type { ChatStatus, MessageMeta, Session } from "@shared/types/chat";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 
 const localPreviewMocks = vi.hoisted(() => ({ open: vi.fn() }));
+const turnFileChangeReviewMocks = vi.hoisted(() => ({ open: vi.fn() }));
 
 vi.mock("@renderer/features/local-file-preview", () => ({
   parseLocalFileLink: (path: string) =>
@@ -16,6 +17,13 @@ vi.mock("@renderer/features/local-file-preview", () => ({
       ? { requestedPath: path }
       : null,
   useLocalFilePreview: () => ({ openLocalFilePreview: localPreviewMocks.open }),
+}));
+
+vi.mock("@renderer/features/turn-file-change-review", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@renderer/features/turn-file-change-review")>()),
+  useTurnFileChangeReview: () => ({
+    openTurnFileChangeReview: turnFileChangeReviewMocks.open,
+  }),
 }));
 
 vi.mock("@renderer/api/session/chat", () => ({
@@ -273,7 +281,7 @@ function mountList(
       icon: String,
       open: { type: Boolean, default: undefined },
       variant: String,
-      ui: Object as PropType<{ content?: string }>,
+      ui: Object as PropType<{ content?: string; suffix?: string; leadingIcon?: string }>,
     },
     emits: ["update:open"],
     setup(
@@ -289,7 +297,7 @@ function mountList(
       return { isOpen, toggle };
     },
     template:
-      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" :data-ui-content="ui?.content ?? \'\'" :data-has-suffix="String(suffix !== undefined)" :aria-expanded="String(isOpen)" @click.stop="toggle"><span data-test="tool-text">{{ text }}</span><span v-if="suffix !== undefined" data-test="tool-suffix">{{ suffix }}</span><slot v-if="isOpen" /></div>',
+      '<div data-test="tool" :data-streaming="String(streaming)" :data-icon="icon" :data-variant="variant" :data-ui-content="ui?.content ?? \'\'" :data-ui-suffix="ui?.suffix ?? \'\'" :data-ui-leading-icon="ui?.leadingIcon ?? \'\'" :data-has-suffix="String(suffix !== undefined)" :aria-expanded="String(isOpen)" @click.stop="toggle"><span data-test="tool-text">{{ text }}</span><span v-if="suffix !== undefined" data-test="tool-suffix" :class="ui?.suffix">{{ suffix }}</span><slot v-if="isOpen" /></div>',
   };
   const chatReasoningStub = {
     props: {
@@ -364,6 +372,7 @@ function mountList(
 describe("UIMessageList", () => {
   beforeEach(() => {
     localPreviewMocks.open.mockReset();
+    turnFileChangeReviewMocks.open.mockReset();
     setActivePinia(createPinia());
     vi.clearAllMocks();
     writeTextMock.mockResolvedValue(undefined);
@@ -510,7 +519,7 @@ describe("UIMessageList", () => {
     expect(assistantAction.attributes("data-icon")).toBe("i-lucide-copy");
   });
 
-  it("renders direct tools with independently collapsible Input and Output and no suffix", async () => {
+  it("renders direct tools with independently collapsible Input and Output and no visible suffix", async () => {
     const wrapper = mountList([
       assistantMessage([
         dynamicTool("tool-1", "Bash", "command output", "execute", { command: "pnpm test" }),
@@ -519,7 +528,9 @@ describe("UIMessageList", () => {
 
     const tool = wrapper.get('[data-test="chat-tool-item"]');
     expect(tool.attributes("data-icon")).toBe("i-lucide-square-terminal");
-    expect(tool.attributes("data-has-suffix")).toBe("false");
+    expect(tool.attributes("data-has-suffix")).toBe("true");
+    expect(tool.attributes("data-ui-suffix")).toBe("sr-only");
+    expect(tool.get('[data-test="tool-suffix"]').text()).toBe("已完成");
     expect(tool.attributes("aria-expanded")).toBe("false");
     expect(wrapper.find('[data-test="chat-tool-details"]').exists()).toBe(false);
 
@@ -529,33 +540,50 @@ describe("UIMessageList", () => {
     expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain('"command": "pnpm test"');
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("Output");
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("command output");
-    expect(wrapper.find('[data-test="tool-suffix"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="tool-suffix"]').classes()).toContain("sr-only");
   });
 
-  it("renders all four status labels for direct tools and activity-group children", async () => {
+  it("hides non-failure status suffixes visually and keeps failure visible for direct tools", () => {
     const labels = ["等待执行", "正在执行", "已完成", "失败"];
     const statuses = ["pending", "in_progress", "completed", "failed"] as const;
     for (const [index, status] of statuses.entries()) {
       const direct = mountList([assistantMessage([auditedTool(`direct-${index}`, status)])]);
-      expect(direct.get('[data-test="chat-tool-item"] [data-test="tool-text"]').text()).toContain(
-        labels[index]
+      const tool = direct.get('[data-test="chat-tool-item"]');
+      expect(tool.get('[data-test="tool-text"]').text()).toBe(`Tool direct-${index}`);
+      expect(tool.get('[data-test="tool-suffix"]').text()).toBe(labels[index]);
+      expect(tool.attributes("data-streaming")).toBe(
+        String(status === "pending" || status === "in_progress")
       );
+      expect(tool.attributes("data-ui-suffix")).toBe(status === "failed" ? "" : "sr-only");
+      expect(tool.attributes("data-ui-leading-icon")).toBe(status === "failed" ? "text-error" : "");
     }
+  });
 
+  it("uses the same status treatment for activity-group children without changing the header", async () => {
+    const labels = ["等待执行", "正在执行", "已完成", "失败"];
+    const statuses = ["pending", "in_progress", "completed", "failed"] as const;
     const grouped = mountList([
       assistantMessage(statuses.map((status, index) => auditedTool(`group-${index}`, status))),
     ]);
     const group = grouped.get('[data-test="chat-activity-group"]');
     expect(group.get('[data-test="tool-text"]').text()).toBe("Run 4 tools");
+    expect(group.attributes("data-has-suffix")).toBe("false");
     await group.trigger("click");
-    expect(
-      grouped
-        .findAll('[data-test="chat-tool-item"] [data-test="tool-text"]')
-        .map((node) => node.text())
-    ).toEqual(labels.map((label, index) => `Tool group-${index} · ${label}`));
+    const tools = grouped.findAll('[data-test="chat-tool-item"]');
+    expect(tools.map((tool) => tool.get('[data-test="tool-text"]').text())).toEqual(
+      statuses.map((_, index) => `Tool group-${index}`)
+    );
+    expect(tools.map((tool) => tool.get('[data-test="tool-suffix"]').text())).toEqual(labels);
+    expect(tools.map((tool) => tool.attributes("data-ui-suffix"))).toEqual([
+      "sr-only",
+      "sr-only",
+      "sr-only",
+      "",
+    ]);
+    expect(tools[3]!.attributes("data-ui-leading-icon")).toBe("text-error");
   });
 
-  it("shows error, ordered full diffs and safe previewable locations", async () => {
+  it("shows error, compact file-change entries and safe previewable locations", async () => {
     const part: DynamicToolUIPart = {
       type: "dynamic-tool",
       toolCallId: "edit-failed",
@@ -582,16 +610,24 @@ describe("UIMessageList", () => {
     await wrapper.get('[data-test="chat-tool-item"]').trigger("click");
 
     expect(wrapper.get('[data-test="chat-tool-error"]').text()).toContain("permission denied");
-    const diffs = wrapper.findAll('[data-test="chat-tool-diff"]');
-    expect(diffs).toHaveLength(2);
-    expect(diffs[0].text()).toContain("/a.ts");
-    expect(diffs[0].text()).toContain("修改前");
-    expect(diffs[0].text()).toContain("old full value");
-    expect(diffs[0].text()).toContain("修改后");
-    expect(diffs[0].text()).toContain("new full value");
-    expect(diffs[1].text()).toContain("/new.ts");
-    expect(diffs[1].text()).toContain("新增内容");
-    expect(diffs[1].text()).toContain("created full value");
+    const changes = wrapper.findAll('[data-test="chat-tool-change"]');
+    expect(changes).toHaveLength(2);
+    expect(changes[0]!.text()).toContain("/a.ts");
+    expect(changes[0]!.text()).toContain("修改");
+    expect(changes[1]!.text()).toContain("/new.ts");
+    expect(changes[1]!.text()).toContain("新增");
+    expect(wrapper.text()).not.toContain("old full value");
+    expect(wrapper.text()).not.toContain("new full value");
+    expect(wrapper.text()).not.toContain("created full value");
+    expect(wrapper.text()).not.toContain("修改前");
+    expect(wrapper.text()).not.toContain("修改后");
+    expect(wrapper.text()).not.toContain("新增内容");
+
+    await changes[1]!.trigger("click");
+    const [source, initialPath] = turnFileChangeReviewMocks.open.mock.calls[0]!;
+    const projected = unref(source) as Array<{ path: string }>;
+    expect(projected.map((change) => change.path)).toEqual(["/a.ts", "/new.ts"]);
+    expect(initialPath).toBe("/new.ts");
 
     const links = wrapper.findAll('[data-test="chat-tool-location-link"]');
     expect(links).toHaveLength(2);
@@ -601,8 +637,48 @@ describe("UIMessageList", () => {
     expect(localPreviewMocks.open.mock.calls).toEqual([["/a.ts:4"], ["/new.ts"]]);
   });
 
-  it("renders real-time and reloaded tool metadata identically without audit fields", () => {
+  it("aggregates visible ordinary tool changes and excludes subagent roots and descendants", async () => {
+    const ordinaryBefore = dynamicTool("ordinary-before", "Edit", "done", "edit");
+    ordinaryBefore.toolMetadata = {
+      toolKind: "edit",
+      diff: [{ path: "/a.ts", oldText: "a0", newText: "a1" }],
+    };
+    const parent = subagentTool("parent", { description: "Delegate work" });
+    parent.toolMetadata = {
+      ...parent.toolMetadata,
+      diff: [{ path: "/parent.ts", oldText: "p0", newText: "p1" }],
+    };
+    const descendant = subagentTool("child", { parentToolCallId: "parent", output: "done" });
+    descendant.toolMetadata = {
+      ...descendant.toolMetadata,
+      diff: [{ path: "/hidden.ts", oldText: "h0", newText: "h1" }],
+    };
+    const ordinaryAfter = dynamicTool("ordinary-after", "Write", "done", "write");
+    ordinaryAfter.toolMetadata = {
+      toolKind: "write",
+      diff: [{ path: "/new.ts", newText: "created" }],
+    };
+    const wrapper = mountList([
+      assistantMessage([ordinaryBefore, parent, descendant, ordinaryAfter]),
+    ]);
+
+    const ordinaryTools = wrapper.findAll('[data-test="chat-tool-item"]');
+    expect(ordinaryTools).toHaveLength(2);
+    await ordinaryTools[0]!.trigger("click");
+    await wrapper.get('[data-test="chat-tool-change"]').trigger("click");
+
+    const [source, initialPath] = turnFileChangeReviewMocks.open.mock.calls[0]!;
+    const projected = unref(source) as Array<{ path: string }>;
+    expect(projected.map((change) => change.path)).toEqual(["/a.ts", "/new.ts"]);
+    expect(initialPath).toBe("/a.ts");
+  });
+
+  it("renders real-time and reloaded new-file snapshots identically without audit fields", async () => {
     const part = auditedTool("same", "completed");
+    part.toolMetadata = {
+      ...part.toolMetadata,
+      diff: [{ path: "/new.ts", newText: "created full value" }],
+    };
     const live = assistantMessage([part]);
     live.metadata = {
       sessionId: "session-1",
@@ -616,9 +692,16 @@ describe("UIMessageList", () => {
 
     const liveWrapper = mountList([live]);
     const historyWrapper = mountList([historical]);
+    await liveWrapper.get('[data-test="chat-tool-item"]').trigger("click");
+    await historyWrapper.get('[data-test="chat-tool-item"]').trigger("click");
     expect(liveWrapper.get('[data-test="chat-tool-item"]').text()).toBe(
       historyWrapper.get('[data-test="chat-tool-item"]').text()
     );
+    expect(liveWrapper.get('[data-test="chat-tool-change"]').text()).toBe(
+      historyWrapper.get('[data-test="chat-tool-change"]').text()
+    );
+    expect(liveWrapper.get('[data-test="chat-tool-change"]').text()).toContain("新增");
+    expect(liveWrapper.text()).not.toContain("created full value");
     expect(liveWrapper.text()).not.toContain("model-that-must-not-render");
     expect(liveWrapper.text()).not.toContain("effort-that-must-not-render");
   });
@@ -721,7 +804,8 @@ describe("UIMessageList", () => {
     await items.get('[data-test="chat-tool-item"]').trigger("click");
     expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain("README.md");
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("read output");
-    expect(items.get('[data-test="chat-tool-item"]').attributes("data-has-suffix")).toBe("false");
+    expect(items.get('[data-test="chat-tool-item"]').attributes("data-has-suffix")).toBe("true");
+    expect(items.get('[data-test="chat-tool-item"]').attributes("data-ui-suffix")).toBe("sr-only");
   });
 
   it("keeps an opened activity group expanded when streaming appends activity", async () => {

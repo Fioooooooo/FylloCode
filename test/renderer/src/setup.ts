@@ -144,11 +144,14 @@ vi.mock("@nuxt/ui/composables", () => ({
 }));
 
 vi.mock("stream-monaco", () => ({
+  detectLanguage: vi.fn(() => "plaintext"),
   useMonaco: vi.fn(() => ({
     createEditor: vi.fn(),
+    createDiffEditor: vi.fn(),
     cleanupEditor: vi.fn(),
     getCode: vi.fn(() => ""),
     updateCode: vi.fn(),
+    updateDiff: vi.fn(),
     setTheme: vi.fn(),
   })),
 }));

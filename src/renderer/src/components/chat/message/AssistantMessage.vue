@@ -18,6 +18,11 @@ import type {
   TransitionFylloActionsInput,
 } from "@shared/fyllo-action/protocol";
 import { projectSubagentCalls } from "@renderer/utils/chatSubagent";
+import { getToolDiffs, type ChatToolPart } from "@renderer/utils/chatTool";
+import {
+  projectTurnFileChanges,
+  type TurnFileChange,
+} from "@renderer/features/turn-file-change-review";
 
 const props = defineProps<{
   message: UIMessage;
@@ -36,6 +41,16 @@ const subagentProjection = computed(() => projectSubagentCalls(props.message.par
 const renderItems = computed(() =>
   projectAssistantRenderItems(props.message.id, props.message.parts, subagentProjection.value)
 );
+const turnFileChanges = computed<TurnFileChange[]>(() => {
+  const projection = subagentProjection.value;
+  const visibleToolDiffs = props.message.parts.flatMap((part, partIndex) => {
+    if (!isToolUIPart(part)) return [];
+    if (projection.hiddenPartIndexes.has(partIndex)) return [];
+    if (projection.rootByPartIndex.has(partIndex)) return [];
+    return [getToolDiffs(part as ChatToolPart)];
+  });
+  return projectTurnFileChanges(visibleToolDiffs);
+});
 
 function buildActionContext(partIndex: number) {
   if (
@@ -83,7 +98,11 @@ function buildActionContext(partIndex: number) {
 
 <template>
   <template v-for="item in renderItems" :key="item.key">
-    <ChatActivityGroup v-if="item.kind === 'activity-group'" :activities="item.activities" />
+    <ChatActivityGroup
+      v-if="item.kind === 'activity-group'"
+      :activities="item.activities"
+      :turn-file-changes="turnFileChanges"
+    />
 
     <SubagentCallCard
       v-else-if="item.kind === 'subagent-call'"
@@ -101,7 +120,11 @@ function buildActionContext(partIndex: number) {
     >
     </UChatReasoning>
 
-    <ChatToolItem v-else-if="isToolUIPart(item.part)" :part="item.part" />
+    <ChatToolItem
+      v-else-if="isToolUIPart(item.part)"
+      :part="item.part"
+      :turn-file-changes="turnFileChanges"
+    />
 
     <MarkStream
       v-else-if="isTextUIPart(item.part)"

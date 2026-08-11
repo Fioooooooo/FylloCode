@@ -9,13 +9,18 @@ import {
   getToolInput,
   getToolLocations,
   getToolOutput,
-  getToolStatusText,
+  getToolStatusPresentation,
   getToolText,
   type ChatToolPart,
 } from "@renderer/utils/chatTool";
+import {
+  selectToolTurnFileChanges,
+  type TurnFileChange,
+} from "@renderer/features/turn-file-change-review";
 
 const props = defineProps<{
   part: ChatToolPart;
+  turnFileChanges: readonly TurnFileChange[];
 }>();
 
 const input = computed(() => getToolInput(props.part));
@@ -23,13 +28,22 @@ const output = computed(() => getToolOutput(props.part));
 const error = computed(() => getToolError(props.part));
 const diffs = computed(() => getToolDiffs(props.part));
 const locations = computed(() => getToolLocations(props.part));
-const displayText = computed(() => `${getToolText(props.part)} · ${getToolStatusText(props.part)}`);
+const toolFileChanges = computed(() =>
+  selectToolTurnFileChanges(diffs.value, props.turnFileChanges)
+);
+const displayText = computed(() => getToolText(props.part));
+const statusPresentation = computed(() => getToolStatusPresentation(props.part));
+const toolUi = computed(() =>
+  statusPresentation.value.visible
+    ? { leadingIcon: statusPresentation.value.leadingIconClass }
+    : { suffix: "sr-only" }
+);
 const hasDetails = computed(
   () =>
     input.value !== null ||
     output.value !== null ||
     error.value !== null ||
-    diffs.value.length > 0 ||
+    toolFileChanges.value.length > 0 ||
     locations.value.length > 0
 );
 </script>
@@ -41,6 +55,8 @@ const hasDetails = computed(
     :icon="getToolIcon(props.part)"
     :streaming="isToolStreaming(props.part)"
     :text="displayText"
+    :suffix="statusPresentation.text"
+    :ui="toolUi"
   >
     <ChatToolDetails
       :input="input"
@@ -48,6 +64,7 @@ const hasDetails = computed(
       :error="error"
       :diffs="diffs"
       :locations="locations"
+      :turn-file-changes="props.turnFileChanges"
     />
   </UChatTool>
   <UChatTool
@@ -56,5 +73,7 @@ const hasDetails = computed(
     :icon="getToolIcon(props.part)"
     :streaming="isToolStreaming(props.part)"
     :text="displayText"
+    :suffix="statusPresentation.text"
+    :ui="toolUi"
   />
 </template>
