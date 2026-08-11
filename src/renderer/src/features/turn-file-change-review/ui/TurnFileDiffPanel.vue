@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onUnmounted, ref, watch } from "vue";
 import { useColorMode } from "@vueuse/core";
-import { detectLanguage, useMonaco } from "stream-monaco";
+import { detectLanguage, useMonaco, type MonacoDiffEditorInstance } from "stream-monaco";
 import type { TurnFileChange } from "../model/turn-file-changes";
 
 const props = defineProps<{
   change: TurnFileChange;
+  open: boolean;
 }>();
 
 const colorMode = useColorMode();
@@ -23,6 +24,9 @@ const { createDiffEditor, updateDiff, cleanupEditor, setTheme } = useMonaco({
 });
 let editorGeneration = 0;
 let editorCreated = false;
+let currentEditor: MonacoDiffEditorInstance | null = null;
+let heightSyncFrame: number | null = null;
+let heightSyncDisposables: { dispose(): void }[] = [];
 
 function changeLanguage(change: TurnFileChange): string {
   return detectLanguage(change.modified || change.original);
@@ -34,6 +38,59 @@ function isSupersededEditorCreation(error: unknown): boolean {
     error.name === "AbortError" ||
     (error as Error & { code?: string }).code === "STREAM_MONACO_CREATE_SUPERSEDED"
   );
+}
+
+function disposeVisibleHeightSync(): void {
+  if (heightSyncFrame !== null) {
+    window.cancelAnimationFrame(heightSyncFrame);
+    heightSyncFrame = null;
+  }
+  for (const disposable of heightSyncDisposables) disposable.dispose();
+  heightSyncDisposables = [];
+  currentEditor = null;
+}
+
+function scheduleVisibleHeightSync(): void {
+  if (!props.open || !currentEditor || !editorContainer.value) return;
+  if (heightSyncFrame !== null) window.cancelAnimationFrame(heightSyncFrame);
+
+  heightSyncFrame = window.requestAnimationFrame(() => {
+    heightSyncFrame = null;
+    const editor = currentEditor;
+    const container = editorContainer.value;
+    if (!props.open || !editor || !container) return;
+
+    // stream-monaco 按完整 model 行数计算高度；这里改用折叠后的可见 content 高度。
+    const height = Math.ceil(
+      Math.max(
+        120,
+        editor.getOriginalEditor().getContentHeight(),
+        editor.getModifiedEditor().getContentHeight()
+      )
+    );
+    const currentHeight = Number.parseFloat(container.style.height || "0");
+    if (Math.abs(currentHeight - height) <= 1) return;
+
+    container.style.height = `${height}px`;
+    const width = container.clientWidth || container.getBoundingClientRect().width;
+    if (width > 0) editor.layout({ width, height });
+    else editor.layout();
+  });
+}
+
+function connectVisibleHeightSync(editor: MonacoDiffEditorInstance): void {
+  disposeVisibleHeightSync();
+  currentEditor = editor;
+  const originalEditor = editor.getOriginalEditor();
+  const modifiedEditor = editor.getModifiedEditor();
+  heightSyncDisposables = [
+    editor.onDidUpdateDiff(scheduleVisibleHeightSync),
+    originalEditor.onDidContentSizeChange(scheduleVisibleHeightSync),
+    modifiedEditor.onDidContentSizeChange(scheduleVisibleHeightSync),
+    originalEditor.onDidChangeHiddenAreas(scheduleVisibleHeightSync),
+    modifiedEditor.onDidChangeHiddenAreas(scheduleVisibleHeightSync),
+  ];
+  scheduleVisibleHeightSync();
 }
 
 async function syncChange(change: TurnFileChange): Promise<void> {
@@ -66,6 +123,7 @@ async function syncChange(change: TurnFileChange): Promise<void> {
   }
 
   editorCreated = true;
+  connectVisibleHeightSync(editor);
 }
 
 watch(
@@ -74,6 +132,15 @@ watch(
     void syncChange(change);
   },
   { immediate: true }
+);
+
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return;
+    await nextTick();
+    scheduleVisibleHeightSync();
+  }
 );
 
 watch(
@@ -87,6 +154,7 @@ watch(
 onUnmounted(() => {
   editorGeneration += 1;
   editorCreated = false;
+  disposeVisibleHeightSync();
   cleanupEditor();
 });
 </script>

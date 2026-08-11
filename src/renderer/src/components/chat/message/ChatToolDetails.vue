@@ -46,6 +46,10 @@ function locationTarget(location: ToolCallLocation): string | null {
     : `${target.requestedPath}:${location.line}`;
 }
 
+function locationLabel(location: ToolCallLocation): string {
+  return location.line === undefined ? location.path : `${location.path}:${location.line}`;
+}
+
 function openLocation(location: ToolCallLocation): void {
   const target = locationTarget(location);
   if (target) void openLocalFilePreview(target);
@@ -71,26 +75,28 @@ function openFileChange(path: string): void {
       <pre class="whitespace-pre-wrap wrap-anywhere text-xs text-error">{{ error }}</pre>
     </div>
     <div v-if="toolFileChanges.length > 0" class="space-y-2" data-test="chat-tool-changes">
-      <p class="text-xs font-medium text-muted">Changes</p>
-      <button
-        v-for="change in toolFileChanges"
-        :key="change.path"
-        type="button"
-        class="flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left ring ring-default transition-colors duration-150 hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        data-test="chat-tool-change"
-        @click.stop="openFileChange(change.path)"
-      >
-        <span class="wrap-anywhere min-w-0 font-mono text-xs leading-5 text-default">{{
-          change.path
-        }}</span>
-        <span class="shrink-0 text-xs font-medium text-muted">
-          {{ changeKindLabels[change.kind] }}
-        </span>
-      </button>
+      <p class="text-xs font-medium text-muted ml-1">Changes</p>
+      <div class="px-1 pb-1 space-y-1">
+        <button
+          v-for="change in toolFileChanges"
+          :key="change.path"
+          type="button"
+          class="flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left ring ring-default transition-colors duration-150 hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          data-test="chat-tool-change"
+          @click.stop="openFileChange(change.path)"
+        >
+          <span class="wrap-anywhere min-w-0 font-mono text-xs leading-5 text-default">
+            {{ change.path }}
+          </span>
+          <span class="shrink-0 text-xs font-medium text-muted">
+            {{ changeKindLabels[change.kind] }}
+          </span>
+        </button>
+      </div>
     </div>
     <div v-if="locations.length > 0" class="space-y-1" data-test="chat-tool-locations">
-      <p class="text-xs font-medium text-muted">Locations</p>
-      <ul class="space-y-1">
+      <p class="text-xs font-medium text-muted ml-1">Locations</p>
+      <ul class="px-1 pb-1 space-y-1">
         <li
           v-for="(location, index) in locations"
           :key="`${location.path}:${location.line}:${index}`"
@@ -104,16 +110,14 @@ function openFileChange(path: string): void {
             @keydown.enter.prevent="openLocation(location)"
             @keydown.space.prevent="openLocation(location)"
           >
-            {{ location.path
-            }}<template v-if="location.line !== undefined">:{{ location.line }}</template>
+            {{ locationLabel(location) }}
           </button>
           <span
             v-else
             class="text-xs wrap-anywhere text-default"
             data-test="chat-tool-location-text"
           >
-            {{ location.path
-            }}<template v-if="location.line !== undefined">:{{ location.line }}</template>
+            {{ locationLabel(location) }}
           </span>
         </li>
       </ul>

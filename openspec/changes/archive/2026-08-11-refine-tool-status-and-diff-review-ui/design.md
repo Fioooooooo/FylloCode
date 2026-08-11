@@ -58,18 +58,20 @@
 
 Slideover 使用 Nuxt UI `UAccordion` 作为文件列表，宽度与现有本地文件预览一致（最大 `960px`），桌面与窄窗口采用同一全宽结构，不再提供左侧文件栏或顶部选择器。每个触发项显示完整路径和“新增 / 修改 / 删除”语义；初次打开时所有文件项默认折叠，之后用户可任意展开或收起多个文件，不限制同时展开数量。流式新增的路径同样默认折叠，用户已展开且仍存在的路径保持展开。
 
-每个文件项通过独立 Diff Panel 调用 `useMonaco({ readOnly: true, minimap: { enabled: false }, automaticLayout: true, ... })` 管理自己的 editor。Accordion 显式设置 `unmount-on-hide="false"`，因此收起只隐藏 content，不卸载 Diff Panel：
+每个文件项通过独立 Diff Panel 调用 `useMonaco({ readOnly: true, minimap: { enabled: false }, automaticLayout: true, ... })` 管理自己的 editor。Accordion 显式设置 `unmount-on-hide="false"`；文件第一次展开时才挂载 Diff Panel，之后收起只隐藏 content，不卸载已经创建的 editor：
 
-- 文件项展开并挂载时调用 `createDiffEditor(container, original, modified, language)`。
+- 文件项第一次展开并挂载时调用 `createDiffEditor(container, original, modified, language)`，避免默认折叠状态下创建 editor 或测量不可见容器。
 - 同一展开文件收到流式内容更新时调用自身的 `updateDiff(original, modified, language)`，不影响其他文件项。
 - 文件项收起时保留自身 editor 和 model；再次展开直接显示原 content，不重新创建或复用已清理的 model。
-- Diff Panel 不设置固定高度或用户可见的最大高度；`stream-monaco` 使用不截断内容的高度上限值计算自然内容高度，由 Slideover body 承担整组文件的纵向滚动。
+- Diff Panel 不设置固定高度或用户可见的最大高度。`stream-monaco` 默认按完整 model 行数计算高度，即使 unchanged ranges 已折叠也会留下空白；因此 Diff Panel 在 `onDidUpdateDiff`、`onDidContentSizeChange` 与 `onDidChangeHiddenAreas` 后读取两侧 editor 的 `getContentHeight()`，在下一帧覆盖容器高度并调用 `layout()`，由 Slideover body 承担整组文件的纵向滚动。
 - Diff Panel 设置 `renderOverviewRuler: false`，关闭 Monaco 由两个 15px lane 组成的 `diffOverview`；外层已经负责滚动，不保留容易被误认为宽滚动条的概览尺。
 - language 使用 `stream-monaco` 的 `detectLanguage(modified || original)`，避免复制 Main 的路径语言表或直接导入 `monaco-editor`。
 - 每个 Diff Panel 的主题跟随 `useColorMode()`，使用现有 `vitesse-light` / `vitesse-dark`。
 - overlay 关闭、组件卸载或创建被替代时必须清理所有文件项的 editor，并取消 watcher/controller。
 
 每个文件项在 Slideover 生命周期内保留 Monaco model/editor 会增加内存占用，但这是避免折叠重开时 content 被销毁、并支持自由对比所需的明确取舍；资源统一在 Slideover 关闭时释放。
+
+可见高度同步集中在 `TurnFileDiffPanel.vue` 内，不修改 `stream-monaco` 或共享组件。实施前基线 commit 为 `23b9ab69`；若人工验证出现高度抖动、内容裁切或 layout 循环，可直接回退该 commit 之后的高度同步改动，不影响已确认的工具状态、文件聚合、Accordion 与 diff review 能力。
 
 ### 5. 可见状态文案只保留失败，其他状态用 sr-only suffix
 
@@ -87,6 +89,7 @@ Slideover 使用 Nuxt UI `UAccordion` 作为文件列表，宽度与现有本地
 - [streaming 期间文件集合变化会覆盖用户展开选择] → 保留仍存在路径的用户展开状态，新出现路径保持默认折叠；消失路径从展开集合移除，避免陈旧内容。
 - [shimmer 对部分用户不够明确] → pending/in-progress/completed 均保留 sr-only 状态文字；failed 继续显示可见文字与 error icon，不把失败只交给颜色。
 - [不限制 Accordion content 高度时长文件会显著拉长列表] → 接受由 Slideover 外层统一滚动的审查体验，避免每个文件形成嵌套滚动区；文件触发项保持可访问，并人工验证长文件、窄窗口和折叠定位。
+- [自定义可见高度与 `stream-monaco` 内部高度管理发生竞争] → 只在 Monaco 完成自身事件处理后的下一帧写入高度，值未变化时不重复 layout；所有监听与 RAF 随 Diff Panel 清理，并以基线 commit 支持整组回退。
 
 ## Migration Plan
 

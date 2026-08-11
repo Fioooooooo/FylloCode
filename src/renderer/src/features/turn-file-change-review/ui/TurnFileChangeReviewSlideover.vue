@@ -14,6 +14,7 @@ const emit = defineEmits<{
 
 const changes = computed(() => props.controller.changes.value);
 const expandedPaths = ref<string[]>([]);
+const mountedPaths = ref<string[]>([]);
 const changeKindLabels: Record<TurnFileChangeKind, string> = {
   added: "新增",
   modified: "修改",
@@ -49,9 +50,18 @@ watch(
   (nextChanges) => {
     const nextPaths = new Set(nextChanges.map((change) => change.path));
     expandedPaths.value = expandedPaths.value.filter((path) => nextPaths.has(path));
+    mountedPaths.value = mountedPaths.value.filter((path) => nextPaths.has(path));
   },
   { immediate: true }
 );
+
+watch(expandedPaths, (nextExpandedPaths) => {
+  const nextMountedPaths = new Set(mountedPaths.value);
+  for (const path of nextExpandedPaths) nextMountedPaths.add(path);
+  mountedPaths.value = changes.value
+    .map((change) => change.path)
+    .filter((path) => nextMountedPaths.has(path));
+});
 
 onUnmounted(() => {
   props.controller.dispose();
@@ -116,8 +126,12 @@ onUnmounted(() => {
               </span>
             </template>
 
-            <template #body="{ item }">
-              <TurnFileDiffPanel :change="item" />
+            <template #body="{ item, open }">
+              <TurnFileDiffPanel
+                v-if="mountedPaths.includes(item.path)"
+                :change="item"
+                :open="open"
+              />
             </template>
           </UAccordion>
         </div>

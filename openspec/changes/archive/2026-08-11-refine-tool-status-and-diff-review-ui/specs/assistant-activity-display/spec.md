@@ -150,8 +150,16 @@ Renderer SHALL 将一条 assistant message 视为一个 turn，从该消息的�
 
 - **WHEN** 文件 diff 包含任意数量的行
 - **THEN** 文件项 content SHALL NOT 使用固定高度或最大高度截断 Diff Editor
-- **AND** Diff Editor SHALL 按内容自然撑开，整组文件的纵向滚动 SHALL 由 Slideover body 承担
+- **AND** Diff Editor SHALL 在 diff 与 unchanged ranges 更新后按 original、modified 两侧较大的可见 content height 自然撑开，而非按完整 model 行数保留已折叠行的空白
+- **AND** 整组文件的纵向滚动 SHALL 由 Slideover body 承担
 - **AND** SHALL NOT 为每个文件项创建嵌套的固定高度滚动区
+
+#### Scenario: 默认折叠文件延迟创建 Diff Editor
+
+- **WHEN** Slideover 初次显示默认折叠的文件列表
+- **THEN** Renderer SHALL NOT 在不可见 content 中创建或测量对应 Diff Editor
+- **AND** 文件第一次展开时 SHALL 创建并测量 Diff Editor
+- **AND** 之后收起再展开 SHALL 继续复用已创建 editor，不得清空内容
 
 #### Scenario: Diff Editor 不显示差异概览尺
 
@@ -183,5 +191,5 @@ Renderer SHALL 将一条 assistant message 视为一个 turn，从该消息的�
 #### Scenario: 关闭审查释放资源
 
 - **WHEN** Slideover 被关闭、替换或宿主卸载
-- **THEN** Renderer SHALL 清理所有文件项的 Monaco editor、响应式 watcher 和 feature controller
+- **THEN** Renderer SHALL 清理所有已创建文件项的 Monaco editor、可见高度 listener、待执行 RAF、响应式 watcher 和 feature controller
 - **AND** 再次打开 SHALL 创建独立且无陈旧选择的审查生命周期

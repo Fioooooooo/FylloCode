@@ -6,10 +6,10 @@
 
 ## 2. stream-monaco Diff Slideover
 
-- [x] 2.1 新建 `ui/TurnFileDiffPanel.vue` 并收敛 `TurnFileChangeReviewSlideover.vue` 的编辑器职责：每个文件项通过独立 `useMonaco()` 实例调用 `createDiffEditor()`、`updateDiff()`、`cleanupEditor()`、`setTheme()` 与 `detectLanguage()`；设置 `renderOverviewRuler=false` 关闭 Monaco `diffOverview`；新增/修改/删除分别映射为空 original、双侧内容、空 modified，主题使用 `vitesse-light` / `vitesse-dark`，Diff Panel 不设置固定高度或最大高度、由内容自然撑开，折叠期间保留 editor，Slideover 关闭、替代创建和卸载时清理资源，不得直接导入 `monaco-editor` 或读取本地文件 API。
-- [x] 2.2 在 Slideover 中使用 Nuxt UI `UAccordion` 实现桌面与窄窗口一致的全宽文件列表，并将最大宽度调整为与本地文件预览一致的 `960px`：按首次顺序显示完整 path 和“新增 / 修改 / 删除”，默认全部折叠且允许任意多项同时展开，设置 `unmount-on-hide=false` 使折叠只隐藏 content，Accordion content 不设置最大高度并由 Slideover body 统一滚动；保留仍存在路径的用户展开状态，新出现路径默认折叠、消失路径从集合移除；触发项与关闭操作保留键盘和 focus-visible，标题明确为“本轮文件变更”。
+- [x] 2.1 增强 `ui/TurnFileDiffPanel.vue`：保存 Diff Editor 实例，在 `onDidUpdateDiff`、两侧 `onDidContentSizeChange` 与 `onDidChangeHiddenAreas` 后通过 RAF 读取较大的 `getContentHeight()`、更新容器高度并调用 `layout()`；值未变化时不重复 layout，折叠时暂停测量、重新展开时恢复，卸载时清理 listener 与 RAF；继续保持 `renderOverviewRuler=false`、无固定/最大高度、主题同步和既有 create/update/cleanup 语义，不修改 `stream-monaco` 源码。
+- [x] 2.2 调整 `TurnFileChangeReviewSlideover.vue` 的多项 Accordion：默认全部折叠，文件第一次展开时才挂载 `TurnFileDiffPanel`，之后依靠 `unmount-on-hide=false` 保留已创建 editor；流式更新时保留仍有效的 expanded/mounted path，移除消失 path，新路径保持未挂载与折叠；现有 960px 宽度、外层滚动、完整 path/kind 与键盘交互保持不变。
 - [x] 2.3 新建 `integration/use-turn-file-change-review.ts` 并从根 `index.ts` 导出稳定打开用例：使用 Nuxt UI `useOverlay()`、`destroyOnClose` 和 controller 装配 window-level Slideover，窗口内新打开替换旧实例；接收调用方的响应式 turn changes 与 initialPath，overlay 存活期间同步流式变化，finally 中停止 watcher 并 dispose controller。
-- [x] 2.4 更新 `test/renderer/src/setup.ts` 的 `stream-monaco` 默认 mock，并维护 `test/renderer/src/features/turn-file-change-review/ui/turn-file-change-review-slideover.spec.ts` 与 `integration/use-turn-file-change-review.spec.ts`：断言 `renderOverviewRuler=false`、create/update 参数、Accordion 默认全折叠与任意多项展开、`unmount-on-hide=false`、content 无固定/最大高度、折叠 content/editor 保留、重复重开不重建、流式更新、主题、展开集合流式同步、空结果、overlay 替换和 cleanup；测试只验证本 feature 行为，不依赖 Nuxt UI 内部 DOM 实现。
+- [x] 2.4 扩展 `turn-file-change-review-slideover.spec.ts` 与 integration 测试：断言默认折叠不创建 editor、首次展开延迟创建、多项展开、折叠保留与重开不重建；模拟 diff/content/hidden-area 事件，断言高度取两侧较大 `getContentHeight()`、相同高度不重复 layout、隐藏时不测量、重开恢复、streaming 更新以及 listener/RAF cleanup；保留 `renderOverviewRuler=false`、主题、overlay 替换和空结果覆盖。
 
 ## 3. Chat 工具入口与状态视觉
 
@@ -25,4 +25,4 @@
 ## 5. 回归验证
 
 - [x] 5.1 在当前 worktree 先运行 `sh scripts/prepare-worktree-env.sh`，再运行 turn-file-change-review model/controller/UI/integration、`chat-tool.test.ts`、`ui-message-list.spec.ts` 与现有 local-file-preview Slideover 聚焦 Vitest；修复失败并确认未新增依赖、未触及 ACP mapper、assembler、JSONL、location preview 或 Session 级聚合。
-- [x] 5.2 运行 `pnpm typecheck`、`pnpm lint` 与 `git diff --check`；人工检查浅色/深色、桌面/窄窗口、单文件/多文件、Accordion 默认全折叠与任意多项展开、右侧无 `diffOverview`、新增/修改/删除、无 content 高度上限的长文件外层滚动、streaming 更新、键盘焦点及重复折叠重开内容保留，确认每个文件项的 Monaco Diff Editor 独立、折叠时不销毁且关闭时清理，工具消息中不再内联完整 diff。
+- [x] 5.2 运行 `pnpm typecheck`、`pnpm lint` 与 `git diff --check`；人工检查浅色/深色、桌面/窄窗口、短/长 diff、折叠 unchanged ranges、默认全折叠与首次展开、多项展开、流式更新、重复折叠重开、无 `diffOverview`、键盘焦点和 Slideover 外层滚动，确认可见高度无大片空白、裁切、抖动或 layout 循环；若结果不理想，使用基线 commit `23b9ab69` 回退本轮高度同步改动。
