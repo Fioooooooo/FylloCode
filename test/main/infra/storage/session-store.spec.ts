@@ -2,6 +2,8 @@ import { mkdirSync, promises as fsPromises, readFileSync, rmSync, writeFileSync 
 import { dirname } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionMeta } from "@main/infra/storage/session-store";
+import type { UIMessage } from "ai";
+import type { MessageMeta } from "@shared/types/chat";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -16,10 +18,13 @@ vi.mock("@main/infra/paths", () => ({
 }));
 
 import {
+  appendMessage,
   createSessionMeta,
   listSessionMetas,
   loadSessionMeta,
   patchSessionMeta,
+  patchMessageMetadata,
+  loadMessages,
   saveSessionMeta,
   sessionMessagesPath,
   updateSessionOriginTaskRef,
@@ -27,6 +32,16 @@ import {
 import { sessionsDir } from "@main/infra/storage/workspace-paths";
 
 const workspaceId = "workspace-1";
+
+function message(id: string): UIMessage<MessageMeta> {
+  const createdAt = new Date("2026-08-10T10:00:00.000Z");
+  return {
+    id,
+    role: "user",
+    parts: [{ type: "text", text: id }],
+    metadata: { sessionId: "session-1", createdAt, updatedAt: createdAt },
+  };
+}
 
 function meta(overrides: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -58,6 +73,36 @@ afterEach(() => {
 });
 
 describe("session-store", () => {
+  it("serializes message append and exact metadata patch on the same file", async () => {
+    const user = message("user-1");
+    await Promise.all([
+      appendMessage(workspaceId, "session-1", user),
+      patchMessageMetadata(workspaceId, "session-1", user.id, {
+        updatedAt: new Date("2026-08-10T10:01:00.000Z"),
+        model: "gpt-5.6",
+        effort: "high",
+      }),
+    ]);
+
+    await expect(loadMessages(workspaceId, "session-1")).resolves.toEqual([
+      expect.objectContaining({
+        id: "user-1",
+        metadata: expect.objectContaining({ model: "gpt-5.6", effort: "high" }),
+      }),
+    ]);
+  });
+
+  it("does not overwrite malformed JSONL while reporting its source line", async () => {
+    const filePath = sessionMessagesPath(workspaceId, "session-1");
+    mkdirSync(dirname(filePath), { recursive: true });
+    const original = `${JSON.stringify(message("user-1"))}\n{broken\n`;
+    writeFileSync(filePath, original, "utf8");
+
+    await expect(
+      patchMessageMetadata(workspaceId, "session-1", "user-1", { model: "gpt-5.6" })
+    ).rejects.toThrow("Malformed message at line 2");
+    expect(readFileSync(filePath, "utf8")).toBe(original);
+  });
   it("keeps session meta and messages under workspaces/<workspaceId>/sessions", () => {
     expect(sessionMetaPath()).toBe(`${tempRoot}/workspaces/workspace-1/sessions/session-1.json`);
     expect(sessionMessagesPath(workspaceId, "session-1")).toBe(

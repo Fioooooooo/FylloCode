@@ -7,11 +7,12 @@ export function buildProposalRunUserMessage(
   sessionId: string,
   text: string
 ): UIMessage<MessageMeta> {
+  const createdAt = new Date();
   return {
     id: generateId(),
     role: "user",
     parts: [{ type: "text", text }],
-    metadata: { sessionId, createdAt: new Date() },
+    metadata: { sessionId, createdAt, updatedAt: createdAt },
   };
 }
 

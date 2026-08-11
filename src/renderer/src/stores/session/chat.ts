@@ -17,6 +17,7 @@ const DEFAULT_SESSION_TITLE = "New Session";
 const FALLBACK_SESSION_TITLE_MAX_LENGTH = 30;
 
 function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
+  const createdAt = new Date();
   return {
     id: generateId(),
     role: "user",
@@ -48,7 +49,7 @@ function buildUserMessage(sessionId: string, parts: ChatPromptPart[]): Message {
         filename: part.filename,
       };
     }) as Message["parts"],
-    metadata: { sessionId, createdAt: new Date() },
+    metadata: { sessionId, createdAt, updatedAt: createdAt },
   };
 }
 
@@ -331,7 +332,7 @@ export const useChatStore = defineStore("chat", () => {
     parts: ChatPromptPart[],
     sessionStore: ReturnType<typeof useSessionStore>,
     streamRunId: number,
-    options: { acpSessionId?: string }
+    options: { acpSessionId?: string; userMessageId: string }
   ): void {
     const assembler = useUIMessageAssembler(ref(activeSession.messages), {
       sessionId: activeSession.id,
@@ -372,6 +373,9 @@ export const useChatStore = defineStore("chat", () => {
               return;
             case "agenda_update":
               sessionStore.setSessionAgentAgenda(activeSession.id, data.entries);
+              return;
+            case "turn_metadata":
+              assembler.applyChunk(data);
               return;
             case "user_message":
             case "status":
@@ -572,7 +576,10 @@ export const useChatStore = defineStore("chat", () => {
           replyStartedAt: null,
         });
         clearDraftRunIfCurrent(streamRunId);
-        const streamOptions = carryProbe ? { acpSessionId: carryProbe.acpSessionId } : {};
+        const streamOptions = {
+          userMessageId: userMessage.id,
+          ...(carryProbe ? { acpSessionId: carryProbe.acpSessionId } : {}),
+        };
         if (carryProbe) {
           sessionStore.applyProbeUpdate(draftAgentIdSnapshot, null, draftSessionModeSnapshot);
         }
@@ -657,7 +664,7 @@ export const useChatStore = defineStore("chat", () => {
       promptParts,
       sessionStore,
       streamRunId,
-      {}
+      { userMessageId: userMessage.id }
     );
     return { messageId: userMessage.id };
   }

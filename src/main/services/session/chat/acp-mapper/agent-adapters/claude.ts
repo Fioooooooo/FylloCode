@@ -130,7 +130,11 @@ export const claudeAcpAgentEventAdapter: AcpAgentEventAdapter = {
     const normalizedTitle = rawTitle === undefined ? undefined : normalizeClaudeMcpTool(rawTitle);
     const mcpName =
       rawTitle !== undefined && normalizedTitle !== rawTitle ? normalizedTitle : undefined;
-    const subagent = extractClaudeSubagentSummary(update._meta, update.rawInput, event.status);
+    const subagent = extractClaudeSubagentSummary(
+      update._meta,
+      update.rawInput,
+      event.status === "completed" || event.status === "failed" ? event.status : "in_progress"
+    );
     const agentContentBlocks =
       event.status === "completed" && claudeCode?.toolName === "Agent"
         ? extractTextContentBlocks(update.content)

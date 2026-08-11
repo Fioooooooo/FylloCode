@@ -17,6 +17,7 @@ import {
 } from "@main/infra/storage/workspace-paths";
 import type { AcpSessionConfigOption } from "@shared/types/acp-config";
 import type { MessageMeta, TokenUsage } from "@shared/types/chat";
+import { appendMessageJsonl, patchMessageJsonlMetadata } from "./message-jsonl-store";
 import {
   DEFAULT_RESPONSE_CHUNK_BYTES,
   MAX_INLINE_RESPONSE_BYTES,
@@ -299,9 +300,23 @@ export async function appendSpawnedSessionMessage(
       owner.parentSessionId,
       owner.sessionId
     );
-    await fs.mkdir(dirname(path), { recursive: true });
     assertWritable(owner);
-    await fs.appendFile(path, `${JSON.stringify(message)}\n`, "utf8");
+    await appendMessageJsonl(path, message);
+  });
+}
+
+export async function patchSpawnedSessionMessageMetadata(
+  owner: SpawnedStoreOwner,
+  messageId: string,
+  patch: Partial<MessageMeta>
+): Promise<boolean> {
+  return withWriteQueue(owner, async () => {
+    assertWritable(owner);
+    return patchMessageJsonlMetadata(
+      spawnedSessionMessagesPath(owner.workspaceId, owner.parentSessionId, owner.sessionId),
+      messageId,
+      patch
+    );
   });
 }
 

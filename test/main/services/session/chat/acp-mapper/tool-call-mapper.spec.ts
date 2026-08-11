@@ -13,6 +13,7 @@ describe("ACP tool-call baseline mapping", () => {
       toolCallId: "call_1",
       title: "Edit file",
       kind: "edit",
+      status: "in_progress",
       rawInput,
       content: [{ type: "diff", path: "/a.txt", oldText: null, newText: "new" }],
       locations: [{ path: "/a.txt", line: 4 }],
@@ -27,6 +28,7 @@ describe("ACP tool-call baseline mapping", () => {
       toolName: "Edit file",
       title: "Edit file",
       toolKind: "edit",
+      status: "in_progress",
       input: { file_path: "/a.txt", nested: { value: 1 } },
       diff: [{ path: "/a.txt", oldText: undefined, newText: "new" }],
       locations: [{ path: "/a.txt", line: 4 }],
@@ -104,7 +106,7 @@ describe("ACP tool-call baseline mapping", () => {
     });
   });
 
-  it("repairs completed plus rawOutput.error and rejects unsupported status", () => {
+  it("repairs completed plus rawOutput.error and preserves pending", () => {
     const failed = {
       sessionUpdate: "tool_call_update",
       toolCallId: "grep_1",
@@ -117,10 +119,39 @@ describe("ACP tool-call baseline mapping", () => {
     });
 
     expect(
-      mapToolCallUpdate({ ...failed, status: "pending" } as unknown as Extract<
-        SessionUpdate,
-        { sessionUpdate: "tool_call_update" }
-      >)
-    ).toBeNull();
+      mapToolCallUpdate({
+        ...failed,
+        status: "pending",
+        rawOutput: undefined,
+      } as unknown as Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>)
+    ).toMatchObject({ status: "pending" });
+  });
+
+  it("does not invent an update status when ACP omits it", () => {
+    const event = mapToolCallUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call_without_status",
+      title: "Still running",
+    } as unknown as Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>);
+
+    expect(event).not.toHaveProperty("status", "in_progress");
+    expect(event?.status).toBeUndefined();
+  });
+
+  it("distinguishes omitted collections from explicit empty replacements", () => {
+    const omitted = mapToolCallUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call_omitted",
+    } as unknown as Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>);
+    const cleared = mapToolCallUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call_cleared",
+      content: [],
+      locations: [],
+    } as unknown as Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>);
+
+    expect(omitted).not.toHaveProperty("diff");
+    expect(omitted).not.toHaveProperty("locations");
+    expect(cleared).toMatchObject({ diff: [], locations: [] });
   });
 });

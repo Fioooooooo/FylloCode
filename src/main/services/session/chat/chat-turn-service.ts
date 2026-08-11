@@ -20,6 +20,7 @@ import {
   appendMessage,
   loadMessages,
   loadSessionMeta,
+  patchMessageMetadata,
   patchSessionMeta,
   sessionMessagesPath,
 } from "@main/infra/storage/session-store";
@@ -34,6 +35,7 @@ interface RendererChatTurnInput {
   sessionId: string;
   agentId?: string;
   prompt: ChatPromptPart[];
+  userMessageId?: string;
   acpSessionId?: string;
 }
 
@@ -104,6 +106,7 @@ async function prepareChatTurn(input: RendererChatTurnInput): Promise<PreparedCh
     sessionMode,
     owner: "chat",
     sessionStore: new ChatAcpSessionStore(input.workspaceId, input.sessionId, agentId),
+    userMessageId: input.userMessageId,
     reminderContext: { taskRef: meta.originTaskRef, taskTitle },
     onReminderInjected: async (reminderPart) => {
       await prependReminderToLastUserMessage(
@@ -218,6 +221,13 @@ export async function createRendererChatTurn(
       start: () => prepared.session.start(input.prompt),
       hooks: {
         persistMessage: (message) => appendMessage(input.workspaceId, input.sessionId, message),
+        onTurnMetadata: async (event) => {
+          await patchMessageMetadata(input.workspaceId, input.sessionId, event.userMessageId, {
+            updatedAt: new Date(event.dispatchedAt),
+            ...(event.model === undefined ? {} : { model: event.model }),
+            ...(event.effort === undefined ? {} : { effort: event.effort }),
+          });
+        },
         onControlEvent: (event, sink) => prepared.enqueueControlEvent(event, sink),
         onDone: ({ totalTokens }) => prepared.settleMeta(totalTokens),
       },
@@ -230,11 +240,12 @@ export async function createRendererChatTurn(
 }
 
 function notificationMessage(record: SpawnedTurnRecord, reminder: string): UIMessage<MessageMeta> {
+  const createdAt = new Date();
   return {
     id: generateId(),
     role: "user",
     parts: [{ type: "text", text: reminder }],
-    metadata: { sessionId: record.parentSessionId, createdAt: new Date() },
+    metadata: { sessionId: record.parentSessionId, createdAt, updatedAt: createdAt },
   };
 }
 
@@ -251,6 +262,7 @@ async function executeNotificationTurn(
       workspaceId: record.workspaceId,
       sessionId: record.parentSessionId,
       prompt: [{ type: "text", text: reminder }],
+      userMessageId: message.id,
     };
     const prepared = await prepareChatTurn(input);
     const runner = driveAcpTurn({
@@ -262,6 +274,18 @@ async function executeNotificationTurn(
       runtimeScope: "app",
       start: () => prepared.session.start(input.prompt),
       hooks: {
+        onTurnMetadata: async (event) => {
+          await patchMessageMetadata(
+            record.workspaceId,
+            record.parentSessionId,
+            event.userMessageId,
+            {
+              updatedAt: new Date(event.dispatchedAt),
+              ...(event.model === undefined ? {} : { model: event.model }),
+              ...(event.effort === undefined ? {} : { effort: event.effort }),
+            }
+          );
+        },
         onControlEvent: (event) => prepared.enqueueControlEvent(event),
         onDone: async ({ totalTokens, message: assistant }) => {
           if (assistant) await appendMessage(record.workspaceId, record.parentSessionId, assistant);

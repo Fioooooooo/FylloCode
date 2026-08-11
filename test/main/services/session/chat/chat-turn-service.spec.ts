@@ -11,9 +11,11 @@ const mocks = vi.hoisted(() => ({
   markDeliveryUnknown: vi.fn(),
   loadSessionMeta: vi.fn(),
   patchSessionMeta: vi.fn(),
+  patchMessageMetadata: vi.fn(),
   appendMessage: vi.fn(),
   sessions: [] as Array<EventEmitter & { opts: Record<string, unknown> }>,
   startError: null as Error | null,
+  emitTurnMetadata: false,
 }));
 
 vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
@@ -58,6 +60,7 @@ vi.mock("@main/infra/storage/session-store", () => ({
   loadMessages: vi.fn(async () => []),
   sessionMessagesPath: vi.fn(() => "/messages"),
   patchSessionMeta: mocks.patchSessionMeta,
+  patchMessageMetadata: mocks.patchMessageMetadata,
   appendMessage: mocks.appendMessage,
 }));
 
@@ -71,6 +74,16 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
 
     async start(): Promise<void> {
       if (mocks.startError) throw mocks.startError;
+      const userMessageId = this.opts.userMessageId;
+      if (mocks.emitTurnMetadata && typeof userMessageId === "string") {
+        this.emit("event", {
+          kind: "turn_metadata",
+          userMessageId,
+          dispatchedAt: "2026-08-10T12:00:00.000Z",
+          model: "gpt-5.6",
+          effort: "high",
+        });
+      }
       this.emit("event", { kind: "text_delta", text: "parent acknowledged" });
       this.emit("event", { kind: "done", totalTokens: 2 });
     }
@@ -122,6 +135,8 @@ describe("chat-turn-service", () => {
     mocks.messages.length = 0;
     mocks.sessions.length = 0;
     mocks.startError = null;
+    mocks.emitTurnMetadata = false;
+    mocks.patchMessageMetadata.mockResolvedValue(true);
     mocks.list.mockResolvedValue([
       {
         notificationId: "notification-1",
@@ -212,6 +227,35 @@ describe("chat-turn-service", () => {
     await runner.completion;
     await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
       status: "dispatched",
+    });
+  });
+
+  it("patches the exact user and persists the same audit snapshot on assistant", async () => {
+    mocks.emitTurnMetadata = true;
+    const output = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const runner = await createRendererChatTurn(
+      {
+        workspaceId: "workspace-1",
+        sessionId: "parent-1",
+        agentId: "agent-1",
+        userMessageId: "user-current",
+        prompt: [{ type: "text", text: "user prompt" }],
+      },
+      output
+    );
+
+    await runner.start();
+    await runner.completion;
+
+    expect(mocks.patchMessageMetadata).toHaveBeenCalledWith(
+      "workspace-1",
+      "parent-1",
+      "user-current",
+      expect.objectContaining({ model: "gpt-5.6", effort: "high" })
+    );
+    expect(mocks.messages.at(-1)?.message).toMatchObject({
+      role: "assistant",
+      metadata: { model: "gpt-5.6", effort: "high" },
     });
   });
 });

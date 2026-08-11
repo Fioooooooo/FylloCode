@@ -34,6 +34,7 @@ function readLines(filePath: string): UIMessage<MessageMeta>[] {
         metadata: {
           sessionId: string;
           createdAt: string;
+          updatedAt?: string;
         };
       };
       return {
@@ -41,6 +42,9 @@ function readLines(filePath: string): UIMessage<MessageMeta>[] {
         metadata: {
           ...message.metadata,
           createdAt: new Date(message.metadata.createdAt),
+          ...(message.metadata.updatedAt
+            ? { updatedAt: new Date(message.metadata.updatedAt) }
+            : {}),
         },
       } as UIMessage<MessageMeta>;
     });
@@ -97,6 +101,10 @@ describe("prependReminderToLastUserMessage", () => {
     expect(lines[0]).toEqual(userMessage("u1", "first"));
     expect(lines[1]).toEqual(assistantMessage("a1", "assistant"));
     expect(lines[2].parts).toEqual([reminder, { type: "text", text: "second" }]);
+    expect(lines[2].metadata?.updatedAt).toBeInstanceOf(Date);
+    expect(lines[2].metadata?.updatedAt?.getTime()).toBeGreaterThan(
+      lines[2].metadata!.createdAt.getTime()
+    );
   });
 
   it("keeps append compatibility and reminder order", async () => {

@@ -14,6 +14,7 @@ import {
   archiveMessagesPath,
   loadArchiveMessages,
   loadArchiveRunMeta,
+  patchArchiveMessageMetadata,
   loadApplyRunMeta,
   saveArchiveRunMeta,
 } from "@main/infra/storage/apply-run-store";
@@ -169,6 +170,7 @@ export function registerProposalArchiveHandlers(): void {
           mcpWorkspaceDescriptor,
           owner: "archive",
           sessionStore,
+          userMessageId: userMessage.id,
           reminderContext: {
             changeId: form.changeId,
             runId: archiveRunId,
@@ -199,6 +201,18 @@ export function registerProposalArchiveHandlers(): void {
           hooks: {
             persistMessage: (message) =>
               appendArchiveMessage(form.workspaceId, proposalRef, message),
+            onTurnMetadata: async (event) => {
+              await patchArchiveMessageMetadata(
+                form.workspaceId,
+                proposalRef,
+                event.userMessageId,
+                {
+                  updatedAt: new Date(event.dispatchedAt),
+                  ...(event.model === undefined ? {} : { model: event.model }),
+                  ...(event.effort === undefined ? {} : { effort: event.effort }),
+                }
+              );
+            },
             // archive forwards no control events (parity with apply).
             doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
             onDone: async () => {

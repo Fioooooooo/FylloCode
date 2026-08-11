@@ -5,7 +5,7 @@ import type {
   AcpSessionConfigOptionValueItem,
 } from "@shared/types/acp-config";
 import type { AcpAvailableCommand, AgendaEntry } from "@shared/types/chat";
-import type { ToolCallDiff, ToolCallLocation } from "@shared/types/stream-event";
+import type { ToolCallDiff, ToolCallLocation, ToolCallStatus } from "@shared/types/stream-event";
 
 /** 深拷贝 rawInput 为普通对象（适配跨 MessagePort 序列化）；非对象返回 undefined。 */
 export function extractToolInput(rawInput: unknown): Record<string, unknown> | undefined {
@@ -86,9 +86,9 @@ export function extractLocations(locations: unknown): ToolCallLocation[] | undef
  * 该修正只依赖 ACP 字段之间的矛盾，不依赖 Agent 身份，因此保留在协议基线层。
  */
 export function resolveStatus(
-  status: "in_progress" | "completed" | "failed",
+  status: ToolCallStatus,
   rawOutput: unknown
-): { status: "in_progress" | "completed" | "failed"; errorText?: string } {
+): { status: ToolCallStatus; errorText?: string } {
   if (status === "completed" && rawOutput != null && typeof rawOutput === "object") {
     const error = (rawOutput as { error?: unknown }).error;
     if (typeof error === "string" && error.length > 0) {
@@ -96,6 +96,17 @@ export function resolveStatus(
     }
   }
   return { status };
+}
+
+const TOOL_CALL_STATUSES: ReadonlySet<ToolCallStatus> = new Set([
+  "pending",
+  "in_progress",
+  "completed",
+  "failed",
+]);
+
+export function normalizeToolCallStatus(status: unknown): ToolCallStatus | undefined {
+  return TOOL_CALL_STATUSES.has(status as ToolCallStatus) ? (status as ToolCallStatus) : undefined;
 }
 
 /**

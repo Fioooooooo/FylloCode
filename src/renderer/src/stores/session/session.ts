@@ -7,6 +7,7 @@ import {
   type AcpAvailableCommand,
   type ChatSessionMode,
   Message,
+  type MessageMeta,
   AgendaEntry,
   Session,
   TokenUsage,
@@ -32,9 +33,9 @@ import { useProposalStore } from "../proposal/browser";
 type SerializableDate = Date | string;
 
 type SerializedMessage = Omit<Message, "metadata"> & {
-  metadata?: {
-    sessionId: string;
+  metadata?: Omit<MessageMeta, "createdAt" | "updatedAt"> & {
     createdAt: SerializableDate;
+    updatedAt?: SerializableDate;
   };
 };
 
@@ -172,11 +173,14 @@ function normalizeMessage(message: SerializedMessage): Message {
     return message as Message;
   }
 
+  const createdAt = toDate(message.metadata.createdAt);
   return {
     ...message,
     metadata: {
       ...message.metadata,
-      createdAt: toDate(message.metadata.createdAt),
+      createdAt,
+      updatedAt:
+        message.metadata.updatedAt === undefined ? createdAt : toDate(message.metadata.updatedAt),
     },
   } as Message;
 }

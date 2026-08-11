@@ -314,6 +314,51 @@ describe("useSessionStore", () => {
     expect(store.activeSession?.availableCommands).toEqual([]);
   });
 
+  it("normalizes message audit dates and falls back legacy updatedAt to createdAt", async () => {
+    const store = useSessionStore();
+    store.sessions = [session({ id: "session-a" })];
+    mocks.loadMessages.mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: "legacy-message",
+          role: "user",
+          parts: [{ type: "text", text: "legacy" }],
+          metadata: {
+            sessionId: "session-a",
+            createdAt: "2026-08-10T10:00:00.000Z",
+          },
+        },
+        {
+          id: "audited-message",
+          role: "assistant",
+          parts: [{ type: "text", text: "audited" }],
+          metadata: {
+            sessionId: "session-a",
+            createdAt: "2026-08-10T10:01:00.000Z",
+            updatedAt: "2026-08-10T10:02:00.000Z",
+            model: "gpt-5.6",
+            effort: "high",
+          },
+        },
+      ],
+    });
+
+    await store.selectSession("session-a");
+
+    expect(store.activeSession?.messages[0]?.metadata).toMatchObject({
+      createdAt: new Date("2026-08-10T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-10T10:00:00.000Z"),
+    });
+    expect(store.activeSession?.messages[0]?.metadata).not.toHaveProperty("model");
+    expect(store.activeSession?.messages[1]?.metadata).toMatchObject({
+      createdAt: new Date("2026-08-10T10:01:00.000Z"),
+      updatedAt: new Date("2026-08-10T10:02:00.000Z"),
+      model: "gpt-5.6",
+      effort: "high",
+    });
+  });
+
   it("derives current Workspace differences without rewriting the frozen Session scope", () => {
     const workspaceStore = useWorkspaceStore();
     const current = workspaceInfo({ id: "project-1", kind: "collection" });

@@ -354,7 +354,7 @@ describe("useChatStore", () => {
       "claude-code",
       [{ type: "text", text: "hello world" }],
       expect.any(Object),
-      {}
+      expect.objectContaining({ userMessageId: expect.any(String) })
     );
     expect(chatStore.streamError).toBeNull();
     expect(chatStore.chatStatus).toBe("submitted");
@@ -416,7 +416,10 @@ describe("useChatStore", () => {
       "claude-code",
       [{ type: "text", text: "use native probe" }],
       expect.any(Object),
-      { acpSessionId: "native-acp" }
+      expect.objectContaining({
+        acpSessionId: "native-acp",
+        userMessageId: expect.any(String),
+      })
     );
     expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(false);
   });
@@ -552,7 +555,10 @@ describe("useChatStore", () => {
         expect.objectContaining({ attachmentId: "22222222-2222-4222-8222-222222222222" }),
       ]),
       expect.any(Object),
-      { acpSessionId: "acp-probe" }
+      expect.objectContaining({
+        acpSessionId: "acp-probe",
+        userMessageId: expect.any(String),
+      })
     );
   });
 
@@ -873,7 +879,10 @@ describe("useChatStore", () => {
       "claude-code",
       [{ type: "text", text: "hello world" }],
       expect.any(Object),
-      { acpSessionId: "acp-probe" }
+      expect.objectContaining({
+        acpSessionId: "acp-probe",
+        userMessageId: expect.any(String),
+      })
     );
   });
 
@@ -900,7 +909,7 @@ describe("useChatStore", () => {
       "claude-code",
       [{ type: "text", text: "hello world" }],
       expect.any(Object),
-      {}
+      expect.objectContaining({ userMessageId: expect.any(String) })
     );
     expect(applyProbeUpdateSpy).not.toHaveBeenCalledWith("claude-code", null);
   });
@@ -951,7 +960,7 @@ describe("useChatStore", () => {
       "claude-code",
       [{ type: "text", text: "hello again" }],
       expect.any(Object),
-      {}
+      expect.objectContaining({ userMessageId: expect.any(String) })
     );
     expect(sessionStore.draftProbeByAgent.has("claude-code")).toBe(true);
   });

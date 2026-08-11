@@ -160,6 +160,7 @@ export const streamMessageInputSchema = z.object({
   sessionId: z.string().min(1),
   workspaceId: z.string().min(1),
   agentId: z.string(),
+  userMessageId: z.string().min(1).optional(),
   prompt: z
     .array(
       z.discriminatedUnion("type", [

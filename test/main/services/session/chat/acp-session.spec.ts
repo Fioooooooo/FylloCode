@@ -1228,6 +1228,69 @@ describe("AcpSession", () => {
       await running;
     });
 
+    it("在 dispatch hook 成功后发送本轮 model/effort metadata", async () => {
+      const dispatchOptions = [
+        {
+          type: "select" as const,
+          id: "model",
+          name: "Model",
+          category: "model",
+          currentValue: "gpt-5.6",
+          options: [{ value: "gpt-5.6", name: "GPT-5.6" }],
+        },
+        {
+          type: "select" as const,
+          id: "effort",
+          name: "Effort",
+          category: "thought_level",
+          currentValue: "high",
+          options: [{ value: "high", name: "High" }],
+        },
+        {
+          type: "boolean" as const,
+          id: "unrelated-model",
+          name: "Not a model snapshot",
+          category: "model",
+          currentValue: true,
+        },
+      ];
+      mocks.connection.newSession.mockResolvedValueOnce({
+        sessionId: "acp-new",
+        configOptions: dispatchOptions,
+      });
+      const order: string[] = [];
+      const onPromptDispatched = vi.fn(() => {
+        order.push("callback");
+      });
+      const session = await createSession({
+        owner: "spawn",
+        userMessageId: "user-1",
+        onPromptDispatched,
+      });
+      const seen: SessionEvent[] = [];
+      session.on("event", (event) => {
+        seen.push(event);
+        if (event.kind === "turn_metadata") order.push("metadata");
+      });
+
+      await session.start([{ type: "text", text: "delegate" }]);
+
+      const metadata = seen.find((event) => event.kind === "turn_metadata");
+      expect(metadata).toMatchObject({
+        kind: "turn_metadata",
+        userMessageId: "user-1",
+        model: "gpt-5.6",
+        effort: "high",
+      });
+      expect(metadata && "dispatchedAt" in metadata ? metadata.dispatchedAt : "").toMatch(
+        /^\d{4}-\d{2}-\d{2}T/
+      );
+      expect(order).toEqual(["callback", "metadata"]);
+      expect(mocks.connection.prompt.mock.invocationCallOrder[0]).toBeLessThan(
+        onPromptDispatched.mock.invocationCallOrder[0]
+      );
+    });
+
     it("在warm direct prompt前应用config override并把最终snapshot交给hook", async () => {
       const configurable = [
         {
@@ -1269,7 +1332,11 @@ describe("AcpSession", () => {
 
     it("dispatch hook持久化失败时取消ACP Session且不伪报完成", async () => {
       const onPromptDispatched = vi.fn().mockRejectedValue(new Error("accepted write failed"));
-      const session = await createSession({ owner: "spawn", onPromptDispatched });
+      const session = await createSession({
+        owner: "spawn",
+        userMessageId: "user-failed",
+        onPromptDispatched,
+      });
       const seen: SessionEvent[] = [];
       session.on("event", (event) => seen.push(event));
 
@@ -1280,6 +1347,7 @@ describe("AcpSession", () => {
         expect.objectContaining({ kind: "error", message: "accepted write failed" })
       );
       expect(seen).not.toContainEqual(expect.objectContaining({ kind: "done" }));
+      expect(seen).not.toContainEqual(expect.objectContaining({ kind: "turn_metadata" }));
     });
 
     it("emits empty config_options_update when newSession returns null configOptions", async () => {

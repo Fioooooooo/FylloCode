@@ -1,4 +1,5 @@
 import type { Message } from "@shared/types/chat";
+import type { TurnMetadataEvent } from "@shared/types/ipc";
 import type { StreamContentEvent } from "@shared/types/stream-event";
 
 /**
@@ -10,6 +11,7 @@ import type { StreamContentEvent } from "@shared/types/stream-event";
  */
 export type SessionEvent =
   | StreamContentEvent
+  | TurnMetadataEvent
   | { kind: "done"; totalTokens: number }
   | { kind: "error"; code: string; message: string }
   | { kind: "session_id_resolved"; acpSessionId: string };

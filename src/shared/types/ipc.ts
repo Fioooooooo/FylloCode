@@ -22,8 +22,17 @@ export interface StreamChunkData {
   tokenCount: number;
 }
 
+export interface TurnMetadataEvent {
+  kind: "turn_metadata";
+  userMessageId: string;
+  dispatchedAt: string;
+  model?: string;
+  effort?: string;
+}
+
 export type MessageChunkData =
   | StreamContentEvent
+  | TurnMetadataEvent
   | { kind: "user_message"; message: UIMessage<MessageMeta> }
   | { kind: "status"; agentStatus: ChatStatus };
 

@@ -1,6 +1,8 @@
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplyRunMeta, ArchiveRunMeta, ProposalRef } from "@shared/types/proposal";
+import type { UIMessage } from "ai";
+import type { MessageMeta } from "@shared/types/chat";
 
 const { tempRoot, loggerWarn } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -19,9 +21,16 @@ vi.mock("@main/infra/logger", () => ({
 }));
 
 import {
+  appendApplyRunMessage,
+  appendArchiveMessage,
   applyRunDir,
+  archiveMessagesPath,
+  loadApplyRunMessages,
+  loadArchiveMessages,
   loadApplyRunMeta,
   loadArchiveRunMeta,
+  patchApplyRunMessageMetadata,
+  patchArchiveMessageMetadata,
   saveApplyRunMeta,
   saveArchiveRunMeta,
   updateApplyRunStageAcpSessionId,
@@ -29,6 +38,16 @@ import {
 } from "@main/infra/storage/apply-run-store";
 
 const proposalRef: ProposalRef = { folderId: "folder-b", changeId: "change-1" };
+
+function message(id: string): UIMessage<MessageMeta> {
+  const createdAt = new Date("2026-08-10T10:00:00.000Z");
+  return {
+    id,
+    role: "user",
+    parts: [{ type: "text", text: id }],
+    metadata: { sessionId: "run-session", createdAt, updatedAt: createdAt },
+  };
+}
 
 function runMeta(overrides: Partial<ApplyRunMeta> = {}): ApplyRunMeta {
   return {
@@ -59,6 +78,41 @@ afterEach(() => {
 });
 
 describe("apply-run-store", () => {
+  it("serializes stage/archive appends with exact metadata patches", async () => {
+    const stageMessage = message("stage-user");
+    const archiveMessage = message("archive-user");
+    await Promise.all([
+      appendApplyRunMessage("workspace-1", proposalRef, 0, stageMessage),
+      patchApplyRunMessageMetadata("workspace-1", proposalRef, 0, stageMessage.id, {
+        model: "gpt-5.6",
+      }),
+      appendArchiveMessage("workspace-1", proposalRef, archiveMessage),
+      patchArchiveMessageMetadata("workspace-1", proposalRef, archiveMessage.id, {
+        effort: "high",
+      }),
+    ]);
+
+    await expect(loadApplyRunMessages("workspace-1", proposalRef, 0)).resolves.toEqual([
+      expect.objectContaining({ metadata: expect.objectContaining({ model: "gpt-5.6" }) }),
+    ]);
+    await expect(loadArchiveMessages("workspace-1", proposalRef)).resolves.toEqual([
+      expect.objectContaining({ metadata: expect.objectContaining({ effort: "high" }) }),
+    ]);
+  });
+
+  it("preserves a malformed archive message file when patching", async () => {
+    const filePath = archiveMessagesPath("workspace-1", proposalRef);
+    mkdirSync(applyRunDir("workspace-1", proposalRef), { recursive: true });
+    const original = `${JSON.stringify(message("archive-user"))}\nnot-json\n`;
+    writeFileSync(filePath, original, "utf8");
+
+    await expect(
+      patchArchiveMessageMetadata("workspace-1", proposalRef, "archive-user", {
+        model: "gpt-5.6",
+      })
+    ).rejects.toThrow("Malformed message at line 2");
+    expect(readFileSync(filePath, "utf8")).toBe(original);
+  });
   it("uses ProposalRef to isolate same-named runs", async () => {
     const otherRef = { folderId: "folder-c", changeId: "change-1" };
     expect(applyRunDir("workspace-1", proposalRef)).toBe(

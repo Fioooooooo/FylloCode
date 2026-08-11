@@ -27,6 +27,8 @@ export interface ToolCallLocation {
   line?: number;
 }
 
+export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed";
+
 export type SubagentRunStatus = "in_progress" | "completed" | "failed";
 
 /** 子 Agent 运行期间由上游提供的工具分类统计。 */
@@ -62,6 +64,8 @@ export type StreamContentEvent =
       /** ACP 提供的人类可读描述。 */
       title: string;
       toolKind: string;
+      /** ACP 工具状态；start 缺失时 mapper 归一为 pending。 */
+      status: ToolCallStatus;
       /** 预留：start 时已有 rawInput（codex/qodercli）。 */
       input?: Record<string, unknown>;
       /** 预留：start 时已有 diff（codex edit）。 */
@@ -76,7 +80,8 @@ export type StreamContentEvent =
   | {
       kind: "tool_call_update";
       toolCallId: string;
-      status: "in_progress" | "completed" | "failed";
+      /** 缺失表示本次 patch 不改变已有状态。 */
+      status?: ToolCallStatus;
       /** 更新稳定工具身份；主要用于缺失 start 的工具调用。 */
       toolName?: string;
       input?: Record<string, unknown>;

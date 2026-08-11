@@ -67,6 +67,68 @@ describe("driveAcpStream", () => {
     expect(output.chunks).toEqual([{ kind: "text_delta", text: "hi" }]);
   });
 
+  it("forwards turn metadata in order without creating an assistant message by itself", async () => {
+    const session = createFakeSession();
+    const output = createOutput();
+    const persisted: unknown[] = [];
+    driveAcpStream({
+      session,
+      owner: "chat",
+      registryKey: "metadata-turn",
+      messageSessionId: "s1",
+      output,
+      logTag: "test",
+      start: async () => {},
+      hooks: {
+        persistMessage: async (message) => {
+          persisted.push(message);
+        },
+      },
+    });
+
+    const before = {
+      kind: "turn_metadata",
+      userMessageId: "user-1",
+      dispatchedAt: "2026-08-10T12:00:00.000Z",
+      model: "gpt-5.6",
+    } satisfies SessionEvent;
+    const after = {
+      ...before,
+      dispatchedAt: "2026-08-10T12:00:01.000Z",
+      effort: "high",
+    } satisfies SessionEvent;
+    session.emit("event", before);
+    session.emit("event", { kind: "text_delta", text: "hi" } satisfies SessionEvent);
+    session.emit("event", after);
+    session.emit("event", { kind: "done", totalTokens: 1 } satisfies SessionEvent);
+    await flush();
+
+    expect(output.chunks).toEqual([before, { kind: "text_delta", text: "hi" }, after]);
+    expect(persisted).toHaveLength(1);
+
+    const metadataOnlySession = createFakeSession();
+    const metadataOnlyOutput = createOutput();
+    const metadataOnlyPersisted: unknown[] = [];
+    driveAcpStream({
+      session: metadataOnlySession,
+      owner: "chat",
+      registryKey: "metadata-only-turn",
+      messageSessionId: "s2",
+      output: metadataOnlyOutput,
+      logTag: "test",
+      start: async () => {},
+      hooks: {
+        persistMessage: async (message) => {
+          metadataOnlyPersisted.push(message);
+        },
+      },
+    });
+    metadataOnlySession.emit("event", before);
+    metadataOnlySession.emit("event", { kind: "done", totalTokens: 0 } satisfies SessionEvent);
+    await flush();
+    expect(metadataOnlyPersisted).toEqual([]);
+  });
+
   it("persists assistant messages with the message session id instead of the registry key", async () => {
     const session = createFakeSession();
     const output = createOutput();

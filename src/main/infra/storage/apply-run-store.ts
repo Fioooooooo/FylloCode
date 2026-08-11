@@ -6,6 +6,7 @@ import { parseJsonlLines } from "@main/infra/storage/jsonl";
 import type { ApplyRunMeta, ArchiveRunMeta, ProposalRef } from "@shared/types/proposal";
 import type { MessageMeta } from "@shared/types/chat";
 import type { UIMessage } from "ai";
+import { appendMessageJsonl, patchMessageJsonlMetadata } from "./message-jsonl-store";
 
 export function applyRunDir(workspaceId: string, proposalRef: ProposalRef): string {
   return join(applyRunsDir(workspaceId), proposalRef.folderId, proposalRef.changeId);
@@ -109,11 +110,20 @@ export async function appendApplyRunMessage(
   stageIndex: number,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, proposalRef));
-  await fs.appendFile(
+  await appendMessageJsonl(stageMessagesPath(workspaceId, proposalRef, stageIndex), message);
+}
+
+export async function patchApplyRunMessageMetadata(
+  workspaceId: string,
+  proposalRef: ProposalRef,
+  stageIndex: number,
+  messageId: string,
+  patch: Partial<MessageMeta>
+): Promise<boolean> {
+  return patchMessageJsonlMetadata(
     stageMessagesPath(workspaceId, proposalRef, stageIndex),
-    `${JSON.stringify(message)}\n`,
-    "utf8"
+    messageId,
+    patch
   );
 }
 
@@ -191,12 +201,16 @@ export async function appendArchiveMessage(
   proposalRef: ProposalRef,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(applyRunDir(workspaceId, proposalRef));
-  await fs.appendFile(
-    archiveMessagesPath(workspaceId, proposalRef),
-    `${JSON.stringify(message)}\n`,
-    "utf8"
-  );
+  await appendMessageJsonl(archiveMessagesPath(workspaceId, proposalRef), message);
+}
+
+export async function patchArchiveMessageMetadata(
+  workspaceId: string,
+  proposalRef: ProposalRef,
+  messageId: string,
+  patch: Partial<MessageMeta>
+): Promise<boolean> {
+  return patchMessageJsonlMetadata(archiveMessagesPath(workspaceId, proposalRef), messageId, patch);
 }
 
 export async function loadArchiveMessages(

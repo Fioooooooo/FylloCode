@@ -22,6 +22,7 @@ import {
   loadSpawnedSessionMeta,
   patchSpawnedTurnRecord,
   patchSpawnedSessionMeta,
+  patchSpawnedSessionMessageMetadata,
   readSpawnedSessionResponseChunk,
   spawnedMessageToResponseMarkdown,
   writeSpawnedSessionMeta,
@@ -193,7 +194,7 @@ function userMessage(sessionId: string, prompt: string, createdAt: Date): UIMess
     id: generateId(),
     role: "user",
     parts: [{ type: "text", text: prompt }],
-    metadata: { sessionId, createdAt },
+    metadata: { sessionId, createdAt, updatedAt: createdAt },
   };
 }
 
@@ -397,10 +398,8 @@ export class SpawnedSessionManager {
         error: undefined,
         updatedAt: this.nowIso(),
       });
-      await appendSpawnedSessionMessage(
-        storeOwner(owner),
-        userMessage(owner.sessionId, params.prompt, this.runtime.now())
-      );
+      const turnUserMessage = userMessage(owner.sessionId, params.prompt, this.runtime.now());
+      await appendSpawnedSessionMessage(storeOwner(owner), turnUserMessage);
       const turnRecord: SpawnedTurnRecord = {
         version: 1,
         ...owner,
@@ -426,6 +425,7 @@ export class SpawnedSessionManager {
         snapshot,
         processGeneration: processEntry.generation,
         prompt: params.prompt,
+        userMessageId: turnUserMessage.id,
         config: params.config,
         active,
         signal,
@@ -754,6 +754,7 @@ export class SpawnedSessionManager {
     snapshot: SessionWorkspaceSnapshot;
     processGeneration: number;
     prompt: string;
+    userMessageId: string;
     config?: Record<string, string | boolean>;
     active: ActiveTurn;
     signal?: AbortSignal;
@@ -798,6 +799,7 @@ export class SpawnedSessionManager {
       workspaceSnapshot: input.snapshot,
       owner: "spawn",
       sessionStore,
+      userMessageId: input.userMessageId,
       configOverrides: input.config,
       onConfigWarnings: (next) => {
         for (const warning of next) {
@@ -858,6 +860,13 @@ export class SpawnedSessionManager {
       runtimeScope: "app",
       start: () => session.start([{ type: "text", text: input.prompt }]),
       hooks: {
+        onTurnMetadata: async (event) => {
+          await patchSpawnedSessionMessageMetadata(storeOwner(input.owner), event.userMessageId, {
+            updatedAt: new Date(event.dispatchedAt),
+            ...(event.model === undefined ? {} : { model: event.model }),
+            ...(event.effort === undefined ? {} : { effort: event.effort }),
+          });
+        },
         onContentEvent: (event, snapshot) => {
           input.active.liveAssistantMessage = snapshot ?? undefined;
           this.touch(input.active, event);

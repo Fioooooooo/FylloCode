@@ -19,6 +19,7 @@ import {
   type SessionWorkspaceSnapshot,
 } from "@shared/types/workspace";
 import type { UIMessage } from "ai";
+import { appendMessageJsonl, patchMessageJsonlMetadata } from "./message-jsonl-store";
 
 export interface SessionMeta {
   sessionId: string;
@@ -476,9 +477,16 @@ export async function appendMessage(
   sessionId: string,
   message: UIMessage<MessageMeta>
 ): Promise<void> {
-  await ensureDir(sessionsDir(workspaceId));
-  const line = JSON.stringify(message) + "\n";
-  await fs.appendFile(sessionMessagesPath(workspaceId, sessionId), line, "utf8");
+  await appendMessageJsonl(sessionMessagesPath(workspaceId, sessionId), message);
+}
+
+export async function patchMessageMetadata(
+  workspaceId: string,
+  sessionId: string,
+  messageId: string,
+  patch: Partial<MessageMeta>
+): Promise<boolean> {
+  return patchMessageJsonlMetadata(sessionMessagesPath(workspaceId, sessionId), messageId, patch);
 }
 
 export async function loadMessages(

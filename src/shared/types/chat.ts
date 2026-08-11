@@ -18,6 +18,9 @@ export function isChatSessionMode(value: unknown): value is ChatSessionMode {
 export interface MessageMeta {
   sessionId: string;
   createdAt: Date;
+  updatedAt?: Date;
+  model?: string;
+  effort?: string;
 }
 
 export type Message = UIMessage<MessageMeta>;

@@ -13,6 +13,7 @@ import {
   appendApplyRunMessage,
   loadApplyRunMessages,
   loadApplyRunMeta,
+  patchApplyRunMessageMetadata,
   stageMessagesPath,
 } from "@main/infra/storage/apply-run-store";
 import { buildStagePrompt } from "@main/services/proposal/runtime/stage-prompts";
@@ -139,6 +140,7 @@ export function registerProposalApplyHandlers(): void {
           mcpWorkspaceDescriptor,
           owner: "apply",
           sessionStore,
+          userMessageId: userMessage.id,
           reminderContext: {
             changeId: form.changeId,
             stageIndex: form.stageIndex,
@@ -185,6 +187,19 @@ export function registerProposalApplyHandlers(): void {
           hooks: {
             persistMessage: (message) =>
               appendApplyRunMessage(form.workspaceId, proposalRef, form.stageIndex, message),
+            onTurnMetadata: async (event) => {
+              await patchApplyRunMessageMetadata(
+                form.workspaceId,
+                proposalRef,
+                form.stageIndex,
+                event.userMessageId,
+                {
+                  updatedAt: new Date(event.dispatchedAt),
+                  ...(event.model === undefined ? {} : { model: event.model }),
+                  ...(event.effort === undefined ? {} : { effort: event.effort }),
+                }
+              );
+            },
             // apply forwards no control events.
             doneFailureCode: IpcErrorCodes.APPLY_RUN_PERSIST_FAILED,
             onDone: async () => {

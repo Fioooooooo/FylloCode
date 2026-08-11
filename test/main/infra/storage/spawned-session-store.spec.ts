@@ -25,6 +25,7 @@ import {
   listSpawnedSessionsForParent,
   listSpawnedTurnRecords,
   patchSpawnedTurnRecord,
+  patchSpawnedSessionMessageMetadata,
   readSpawnedSessionResponseChunk,
   resetSpawnedSessionStoreForTests,
   spawnedMessageToResponseMarkdown,
@@ -34,6 +35,7 @@ import {
   type SpawnedTurnRecord,
 } from "@main/infra/storage/spawned-session-store";
 import {
+  spawnedSessionMessagesPath,
   spawnedSessionTurnPath,
   spawnedSessionTurnsDir,
   spawnedSessionsDir,
@@ -104,6 +106,39 @@ afterEach(async () => {
 });
 
 describe("spawned-session-store", () => {
+  it("serializes message append with exact metadata patch", async () => {
+    const user = message("user", "prompt");
+    await Promise.all([
+      appendSpawnedSessionMessage(owner, user),
+      patchSpawnedSessionMessageMetadata(owner, user.id, {
+        model: "gpt-5.6",
+        effort: "high",
+      }),
+    ]);
+
+    await expect(loadSpawnedSessionMessages(owner)).resolves.toEqual([
+      expect.objectContaining({
+        id: user.id,
+        metadata: expect.objectContaining({ model: "gpt-5.6", effort: "high" }),
+      }),
+    ]);
+  });
+
+  it("does not overwrite malformed spawned message JSONL", async () => {
+    const filePath = spawnedSessionMessagesPath(
+      owner.workspaceId,
+      owner.parentSessionId,
+      owner.sessionId
+    );
+    await mkdir(join(filePath, ".."), { recursive: true });
+    const original = `${JSON.stringify(message("user", "prompt"))}\n{broken\n`;
+    await writeFile(filePath, original, "utf8");
+
+    await expect(
+      patchSpawnedSessionMessageMetadata(owner, "user-prompt", { model: "gpt-5.6" })
+    ).rejects.toThrow("Malformed message at line 2");
+    expect(await readFile(filePath, "utf8")).toBe(original);
+  });
   it("atomically persists meta and preserves JSONL message ordering", async () => {
     await writeSpawnedSessionMeta(meta());
     await appendSpawnedSessionMessage(owner, message("user", "prompt"));

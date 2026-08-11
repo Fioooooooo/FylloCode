@@ -139,6 +139,7 @@ export function shouldSuppressDuringReplay(event: SessionEvent): boolean {
     case "session_info_update":
     case "config_options_update":
     case "agenda_update":
+    case "turn_metadata":
       return false;
     case "text_delta":
     case "reasoning_delta":

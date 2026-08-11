@@ -6,6 +6,7 @@ import {
   extractTextContent,
   extractToolInput,
   normalizeMcpTool,
+  normalizeToolCallStatus,
   resolveStatus,
 } from "./update-normalizers";
 
@@ -27,6 +28,7 @@ export function mapToolCallStart(update: AcpToolCallStartUpdate): ToolCallStartE
     toolName,
     title: toolName,
     toolKind: update.kind ?? "other",
+    status: normalizeToolCallStatus(update.status) ?? "pending",
     input: extractToolInput(update.rawInput),
     diff: extractDiffs(update.content),
     locations: extractLocations(update.locations),
@@ -38,20 +40,22 @@ export function mapToolCallStart(update: AcpToolCallStartUpdate): ToolCallStartE
  * mapper 保持无状态，缺少 start 的更新由 MessageAssembler 惰性建卡。
  */
 export function mapToolCallUpdate(update: AcpToolCallUpdate): ToolCallUpdateEvent | null {
-  const rawStatus = update.status ?? "in_progress";
-  if (rawStatus !== "in_progress" && rawStatus !== "completed" && rawStatus !== "failed") {
+  const rawStatus = normalizeToolCallStatus(update.status);
+  if (update.status != null && rawStatus == null) {
     return null;
   }
 
-  const { status, errorText } = resolveStatus(rawStatus, update.rawOutput);
+  const normalized = rawStatus == null ? undefined : resolveStatus(rawStatus, update.rawOutput);
   return {
     kind: "tool_call_update",
     toolCallId: update.toolCallId,
-    status,
+    status: normalized?.status,
     input: extractToolInput(update.rawInput),
-    content: errorText ?? extractTextContent(update.content),
-    diff: extractDiffs(update.content),
-    locations: extractLocations(update.locations),
+    content: normalized?.errorText ?? extractTextContent(update.content),
+    ...(update.content !== undefined ? { diff: extractDiffs(update.content) ?? [] } : {}),
+    ...(update.locations !== undefined
+      ? { locations: extractLocations(update.locations) ?? [] }
+      : {}),
     // Gemini 等 Agent 可能跳过 start；保留这些字段供 assembler 惰性建卡。
     title: typeof update.title === "string" ? update.title : undefined,
     toolKind: typeof update.kind === "string" ? update.kind : undefined,

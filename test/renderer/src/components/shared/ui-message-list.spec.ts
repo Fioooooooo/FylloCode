@@ -8,6 +8,16 @@ import { useSessionStore } from "@renderer/stores";
 import type { ChatStatus, MessageMeta, Session } from "@shared/types/chat";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 
+const localPreviewMocks = vi.hoisted(() => ({ open: vi.fn() }));
+
+vi.mock("@renderer/features/local-file-preview", () => ({
+  parseLocalFileLink: (path: string) =>
+    path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\")
+      ? { requestedPath: path }
+      : null,
+  useLocalFilePreview: () => ({ openLocalFilePreview: localPreviewMocks.open }),
+}));
+
 vi.mock("@renderer/api/session/chat", () => ({
   chatApi: {
     readAttachmentDataUrl: vi.fn(),
@@ -86,6 +96,26 @@ function streamingTool(toolCallId: string, toolName: string, toolKind?: string):
     input: {},
     ...(toolKind === undefined ? {} : { toolMetadata: { toolKind } }),
   };
+}
+
+function auditedTool(
+  toolCallId: string,
+  status: "pending" | "in_progress" | "completed" | "failed"
+): DynamicToolUIPart {
+  const common = {
+    type: "dynamic-tool" as const,
+    toolCallId,
+    toolName: "Tool",
+    title: `Tool ${toolCallId}`,
+    input: {},
+    toolMetadata: { toolKind: "other", acpStatus: status },
+  };
+  if (status === "pending") return { ...common, state: "input-streaming" };
+  if (status === "in_progress") return { ...common, state: "input-available" };
+  if (status === "completed") {
+    return { ...common, state: "output-available", output: "done" };
+  }
+  return { ...common, state: "output-error", errorText: "failed" };
 }
 
 function reasoning(
@@ -333,6 +363,7 @@ function mountList(
 
 describe("UIMessageList", () => {
   beforeEach(() => {
+    localPreviewMocks.open.mockReset();
     setActivePinia(createPinia());
     vi.clearAllMocks();
     writeTextMock.mockResolvedValue(undefined);
@@ -499,6 +530,97 @@ describe("UIMessageList", () => {
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("Output");
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("command output");
     expect(wrapper.find('[data-test="tool-suffix"]').exists()).toBe(false);
+  });
+
+  it("renders all four status labels for direct tools and activity-group children", async () => {
+    const labels = ["等待执行", "正在执行", "已完成", "失败"];
+    const statuses = ["pending", "in_progress", "completed", "failed"] as const;
+    for (const [index, status] of statuses.entries()) {
+      const direct = mountList([assistantMessage([auditedTool(`direct-${index}`, status)])]);
+      expect(direct.get('[data-test="chat-tool-item"] [data-test="tool-text"]').text()).toContain(
+        labels[index]
+      );
+    }
+
+    const grouped = mountList([
+      assistantMessage(statuses.map((status, index) => auditedTool(`group-${index}`, status))),
+    ]);
+    const group = grouped.get('[data-test="chat-activity-group"]');
+    expect(group.get('[data-test="tool-text"]').text()).toBe("Run 4 tools");
+    await group.trigger("click");
+    expect(
+      grouped
+        .findAll('[data-test="chat-tool-item"] [data-test="tool-text"]')
+        .map((node) => node.text())
+    ).toEqual(labels.map((label, index) => `Tool group-${index} · ${label}`));
+  });
+
+  it("shows error, ordered full diffs and safe previewable locations", async () => {
+    const part: DynamicToolUIPart = {
+      type: "dynamic-tool",
+      toolCallId: "edit-failed",
+      toolName: "Edit",
+      title: "Edit files",
+      state: "output-error",
+      input: { path: "/a.ts" },
+      errorText: "permission denied",
+      toolMetadata: {
+        toolKind: "edit",
+        acpStatus: "failed",
+        diff: [
+          { path: "/a.ts", oldText: "old full value", newText: "new full value" },
+          { path: "/new.ts", newText: "created full value" },
+        ],
+        locations: [
+          { path: "/a.ts", line: 4 },
+          { path: "/new.ts" },
+          { path: "relative.ts", line: 8 },
+        ],
+      },
+    };
+    const wrapper = mountList([assistantMessage([part])]);
+    await wrapper.get('[data-test="chat-tool-item"]').trigger("click");
+
+    expect(wrapper.get('[data-test="chat-tool-error"]').text()).toContain("permission denied");
+    const diffs = wrapper.findAll('[data-test="chat-tool-diff"]');
+    expect(diffs).toHaveLength(2);
+    expect(diffs[0].text()).toContain("/a.ts");
+    expect(diffs[0].text()).toContain("修改前");
+    expect(diffs[0].text()).toContain("old full value");
+    expect(diffs[0].text()).toContain("修改后");
+    expect(diffs[0].text()).toContain("new full value");
+    expect(diffs[1].text()).toContain("/new.ts");
+    expect(diffs[1].text()).toContain("新增内容");
+    expect(diffs[1].text()).toContain("created full value");
+
+    const links = wrapper.findAll('[data-test="chat-tool-location-link"]');
+    expect(links).toHaveLength(2);
+    expect(wrapper.get('[data-test="chat-tool-location-text"]').text()).toBe("relative.ts:8");
+    await links[0].trigger("click");
+    await links[1].trigger("keydown", { key: "Enter" });
+    expect(localPreviewMocks.open.mock.calls).toEqual([["/a.ts:4"], ["/new.ts"]]);
+  });
+
+  it("renders real-time and reloaded tool metadata identically without audit fields", () => {
+    const part = auditedTool("same", "completed");
+    const live = assistantMessage([part]);
+    live.metadata = {
+      sessionId: "session-1",
+      createdAt: new Date("2026-05-08T00:00:00.000Z"),
+      updatedAt: new Date("2026-05-08T00:01:00.000Z"),
+      model: "model-that-must-not-render",
+      effort: "effort-that-must-not-render",
+    };
+    const historical = structuredClone(live);
+    historical.id = "history-message";
+
+    const liveWrapper = mountList([live]);
+    const historyWrapper = mountList([historical]);
+    expect(liveWrapper.get('[data-test="chat-tool-item"]').text()).toBe(
+      historyWrapper.get('[data-test="chat-tool-item"]').text()
+    );
+    expect(liveWrapper.text()).not.toContain("model-that-must-not-render");
+    expect(liveWrapper.text()).not.toContain("effort-that-must-not-render");
   });
 
   it("collapses consecutive mixed activities into one activity group summary", () => {

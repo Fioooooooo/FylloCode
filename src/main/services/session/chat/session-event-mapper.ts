@@ -5,7 +5,7 @@ import { IpcErrorCodes, type IpcErrorCode } from "@shared/constants/error-codes"
 /**
  * Map an ACP session event to the renderer-facing stream chunk representation.
  *
- * `SessionEvent` 与 `MessageChunkData` 共享 `StreamContentEvent` 子集，因此同构成员
+ * `SessionEvent` 与 `MessageChunkData` 共享内容事件和内部 turn metadata，因此同构成员
  * 直接结构化透传（深拷贝一次以适配跨 MessagePort 序列化）；仅主进程独有的控制流事件
  * （`done`/`error`/`session_id_resolved`）返回 `null`，不进入 chunk 通路。
  */

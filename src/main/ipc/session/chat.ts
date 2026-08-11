@@ -298,6 +298,7 @@ export function registerChatHandlers(): void {
       streamId,
       workspaceId,
       agentId: inputAgentId,
+      userMessageId,
       prompt,
       acpSessionId,
     } = validate(streamMessageInputSchema, input);
@@ -313,6 +314,7 @@ export function registerChatHandlers(): void {
             sessionId,
             workspaceId,
             agentId: inputAgentId,
+            ...(userMessageId ? { userMessageId } : {}),
             prompt,
             ...(acpSessionId ? { acpSessionId } : {}),
           },

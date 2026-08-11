@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => {
   return {
     appendApplyRunMessage: vi.fn(),
     appendArchiveMessage: vi.fn(),
+    patchApplyRunMessageMetadata: vi.fn(),
+    patchArchiveMessageMetadata: vi.fn(),
     prependReminderToLastUserMessage: vi.fn(),
     loadApplyRunMeta: vi.fn(),
     loadApplyRunMessages: vi.fn(),
@@ -67,6 +69,8 @@ const mocks = vi.hoisted(() => {
 vi.mock("@main/infra/storage/apply-run-store", () => ({
   appendApplyRunMessage: mocks.appendApplyRunMessage,
   appendArchiveMessage: mocks.appendArchiveMessage,
+  patchApplyRunMessageMetadata: mocks.patchApplyRunMessageMetadata,
+  patchArchiveMessageMetadata: mocks.patchArchiveMessageMetadata,
   archiveMessagesPath: vi.fn(
     (projectPath: string, proposalRef: { changeId: string }) =>
       `${projectPath}/${proposalRef.changeId}/archive.messages.jsonl`
@@ -224,6 +228,8 @@ describe("registerProposalApplyHandlers", () => {
     mocks.loadArchiveRunMeta.mockResolvedValue(null);
     mocks.updateApplyRunStageAcpSessionId.mockResolvedValue(undefined);
     mocks.updateArchiveRunAcpSessionId.mockResolvedValue(undefined);
+    mocks.patchApplyRunMessageMetadata.mockResolvedValue(true);
+    mocks.patchArchiveMessageMetadata.mockResolvedValue(true);
     mocks.getCompletedApplyStageIndex.mockReturnValue(0);
     mocks.updateRunMetaIfCurrent.mockResolvedValue(undefined);
     mocks.assemblerFlush.mockReturnValue(null);
@@ -318,6 +324,76 @@ describe("registerProposalApplyHandlers", () => {
     });
     expect(mocks.appendApplyRunMessage.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.register.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("patches the exact apply user message from turn metadata", async () => {
+    handler(ProposalChannels.stageStream)(
+      { sender: { postMessage: vi.fn() } },
+      {
+        runId: "run-1",
+        stageIndex: 0,
+        workspaceId: "workspace-1",
+        folderId: "folder-secondary",
+        changeId: "change-1",
+      }
+    );
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+    const userMessage = mocks.appendApplyRunMessage.mock.calls[0]?.[3] as { id: string };
+    const opts = vi.mocked((await import("@main/services/session/chat/acp-session")).AcpSession)
+      .mock.calls[0]?.[0] as AcpSessionOpts;
+    expect(opts.userMessageId).toBe(userMessage.id);
+
+    mocks.eventHandler!({
+      kind: "turn_metadata",
+      userMessageId: userMessage.id,
+      dispatchedAt: "2026-08-10T12:00:00.000Z",
+      model: "gpt-5.6",
+      effort: "high",
+    });
+    mocks.eventHandler!({ kind: "done", totalTokens: 0 });
+
+    await vi.waitFor(() =>
+      expect(mocks.patchApplyRunMessageMetadata).toHaveBeenCalledWith(
+        "workspace-1",
+        { folderId: "folder-secondary", changeId: "change-1" },
+        0,
+        userMessage.id,
+        expect.objectContaining({ model: "gpt-5.6", effort: "high" })
+      )
+    );
+  });
+
+  it("patches the exact archive user message from turn metadata", async () => {
+    mocks.loadApplyRunMeta.mockResolvedValueOnce({ ...runMeta, status: "done" });
+    handler(ProposalChannels.archive)(
+      { sender: { postMessage: vi.fn() } },
+      { workspaceId: "workspace-1", folderId: "folder-secondary", changeId: "change-1" }
+    );
+    const sink = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    await mocks.onReady!(sink);
+    const userMessage = mocks.appendArchiveMessage.mock.calls[0]?.[2] as { id: string };
+    const calls = vi.mocked((await import("@main/services/session/chat/acp-session")).AcpSession)
+      .mock.calls;
+    const opts = calls.at(-1)?.[0] as AcpSessionOpts;
+    expect(opts.userMessageId).toBe(userMessage.id);
+
+    mocks.eventHandler!({
+      kind: "turn_metadata",
+      userMessageId: userMessage.id,
+      dispatchedAt: "2026-08-10T12:00:00.000Z",
+      model: "gpt-5.6",
+    });
+    mocks.eventHandler!({ kind: "done", totalTokens: 0 });
+
+    await vi.waitFor(() =>
+      expect(mocks.patchArchiveMessageMetadata).toHaveBeenCalledWith(
+        "workspace-1",
+        { folderId: "folder-secondary", changeId: "change-1" },
+        userMessage.id,
+        expect.objectContaining({ model: "gpt-5.6" })
+      )
     );
   });
 

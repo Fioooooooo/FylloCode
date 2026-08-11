@@ -99,7 +99,7 @@ export const chatApi = {
     agentId: string,
     parts: ChatPromptPart[],
     callbacks: StreamCallbacks,
-    options?: { acpSessionId?: string }
+    options?: { acpSessionId?: string; userMessageId?: string }
   ): () => void {
     return window.api.session.chat.streamMessage(
       sessionId,

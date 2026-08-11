@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { DynamicToolUIPart } from "ai";
 import {
   getToolIcon,
+  getToolDiffs,
+  getToolError,
   getToolInput,
   getToolKind,
+  getToolLocations,
   getToolOutput,
+  getToolStatus,
+  getToolStatusText,
   getToolText,
   type ChatToolPart,
 } from "@renderer/utils/chatTool";
@@ -114,5 +119,66 @@ describe("chatTool", () => {
 
     expect(getToolOutput(livePart)).toBe("checking...\n");
     expect(getToolOutput(finalPart)).toBe("complete\n");
+  });
+
+  it("reads all ACP statuses and falls back from legacy AI states", () => {
+    for (const [status, text] of [
+      ["pending", "等待执行"],
+      ["in_progress", "正在执行"],
+      ["completed", "已完成"],
+      ["failed", "失败"],
+    ] as const) {
+      const part = {
+        ...tool("other"),
+        toolMetadata: { acpStatus: status },
+      } satisfies DynamicToolUIPart;
+      expect(getToolStatus(part)).toBe(status);
+      expect(getToolStatusText(part)).toBe(text);
+    }
+
+    expect(getToolStatus(tool())).toBe("in_progress");
+    expect(getToolStatus(outputTool("done"))).toBe("completed");
+    expect(
+      getToolStatus({
+        type: "dynamic-tool",
+        toolCallId: "failed",
+        toolName: "Tool",
+        state: "output-error",
+        input: {},
+        errorText: "failed",
+      })
+    ).toBe("failed");
+  });
+
+  it("safely reads errors, diff and locations while filtering malformed metadata", () => {
+    const part = {
+      type: "dynamic-tool",
+      toolCallId: "edit",
+      toolName: "Edit",
+      state: "output-error",
+      input: {},
+      errorText: "permission denied",
+      toolMetadata: {
+        diff: [
+          { path: "/a.ts", oldText: "old", newText: "new" },
+          { path: "/new.ts", newText: "created" },
+          { path: 42, newText: "invalid" },
+        ],
+        locations: [
+          { path: "/a.ts", line: 4 },
+          { path: "/new.ts" },
+          { path: "relative.ts", line: "bad" },
+        ],
+      },
+    } as DynamicToolUIPart;
+
+    expect(getToolError(part)).toBe("permission denied");
+    expect(getToolDiffs(part)).toEqual([
+      { path: "/a.ts", oldText: "old", newText: "new" },
+      { path: "/new.ts", newText: "created" },
+    ]);
+    expect(getToolLocations(part)).toEqual([{ path: "/a.ts", line: 4 }, { path: "/new.ts" }]);
+    expect(getToolDiffs({ ...tool(), toolMetadata: { diff: "invalid" } })).toEqual([]);
+    expect(getToolLocations({ ...tool(), toolMetadata: { locations: null } })).toEqual([]);
   });
 });

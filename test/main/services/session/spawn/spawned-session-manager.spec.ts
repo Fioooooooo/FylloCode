@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   beginNotificationShutdown: vi.fn(),
   fenceParent: vi.fn(),
   beginStoreShutdown: vi.fn(),
+  patchSpawnedSessionMessageMetadata: vi.fn(),
 }));
 
 function key(owner: { workspaceId: string; parentSessionId: string; sessionId: string }): string {
@@ -101,6 +102,7 @@ vi.mock("@main/infra/storage/spawned-session-store", async () => {
       if (role === mocks.failMessageRole) throw new Error(`${role} message failed`);
       mocks.messages.push({ owner, message });
     }),
+    patchSpawnedSessionMessageMetadata: mocks.patchSpawnedSessionMessageMetadata,
     createSpawnedTurnRecord: vi.fn(async (record: SpawnedTurnRecord) => {
       mocks.turns.set(turnKey(record, record.turnId), structuredClone(record));
     }),
@@ -268,6 +270,7 @@ describe("SpawnedSessionManager", () => {
     mocks.deleteSpawnedSessionParent.mockResolvedValue(undefined);
     mocks.suppressParent.mockResolvedValue(undefined);
     mocks.reconcileWorkspace.mockResolvedValue(undefined);
+    mocks.patchSpawnedSessionMessageMetadata.mockResolvedValue(true);
     mocks.start.mockImplementation(async (session: EventEmitter) => {
       session.emit("event", { kind: "text_delta", text: "done" });
       session.emit("event", { kind: "done", totalTokens: 2 });
@@ -444,6 +447,44 @@ describe("SpawnedSessionManager", () => {
     });
     const stored = [...mocks.metas.values()][0];
     expect(stored).toMatchObject({ status: "error", error: { code: "TURN_PERSIST_FAILED" } });
+    await manager.dispose();
+  });
+
+  it("patches the spawned user and persists the same audit snapshot on assistant", async () => {
+    mocks.start.mockImplementation(
+      async (session: EventEmitter & { opts: Record<string, unknown> }) => {
+        const userMessageId = session.opts.userMessageId as string;
+        session.emit("event", {
+          kind: "turn_metadata",
+          userMessageId,
+          dispatchedAt: "2026-08-10T12:00:00.000Z",
+          model: "gpt-5.6",
+          effort: "high",
+        });
+        session.emit("event", { kind: "text_delta", text: "done" });
+        session.emit("event", { kind: "done", totalTokens: 2 });
+      }
+    );
+    const manager = new SpawnedSessionManager();
+
+    await expect(
+      manager.promptToAgent(caller, { agentId: "agent-1", prompt: "audited" })
+    ).resolves.toMatchObject({ status: "completed" });
+
+    const persistedUser = mocks.messages.find(
+      ({ message }) => (message as { role?: string }).role === "user"
+    )?.message as { id: string };
+    expect(mocks.patchSpawnedSessionMessageMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: "workspace-1" }),
+      persistedUser.id,
+      expect.objectContaining({ model: "gpt-5.6", effort: "high" })
+    );
+    const persistedAssistant = mocks.messages.find(
+      ({ message }) => (message as { role?: string }).role === "assistant"
+    )?.message;
+    expect(persistedAssistant).toMatchObject({
+      metadata: { model: "gpt-5.6", effort: "high" },
+    });
     await manager.dispose();
   });
 

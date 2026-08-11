@@ -33,6 +33,7 @@ export interface StreamOutput {
 export interface AcpStreamHooks {
   /** Persist a fully-assembled message. Append target differs per handler. */
   persistMessage(message: Message): Promise<void>;
+  onTurnMetadata?(event: Extract<SessionEvent, { kind: "turn_metadata" }>): void | Promise<void>;
   /**
    * Handle a non-content control event (usage/available_commands/config_options/
    * agenda/session_info). The driver does NOTHING with these by itself — it never
@@ -60,6 +61,7 @@ export type AcpTurnCompletion =
 
 export interface AcpTurnHooks {
   onContentEvent?(event: SessionEvent, snapshot: Message | null): void;
+  onTurnMetadata?(event: Extract<SessionEvent, { kind: "turn_metadata" }>): void | Promise<void>;
   onControlEvent?(event: SessionEvent): void;
   onDone?(event: { totalTokens: number; message: Message | null }): void | Promise<void>;
   onError?(event: {
@@ -84,6 +86,7 @@ const CONTENT_KINDS = new Set([
   "reasoning_delta",
   "tool_call_start",
   "tool_call_update",
+  "turn_metadata",
 ]);
 
 export function driveAcpTurn(args: {
@@ -98,6 +101,7 @@ export function driveAcpTurn(args: {
 }): AcpTurnRunner {
   const { session, owner, registryKey, messageSessionId, hooks, logTag } = args;
   const assembler = new MessageAssembler(messageSessionId);
+  let turnMetadataHookQueue: Promise<void> | null = null;
   let terminal = false;
   let resolveCompletion!: (completion: AcpTurnCompletion) => void;
   const completion = new Promise<AcpTurnCompletion>((resolve) => {
@@ -111,8 +115,10 @@ export function driveAcpTurn(args: {
     if (terminal) return;
     terminal = true;
     sessionRegistry.unregister(owner, registryKey);
-    void Promise.resolve()
-      .then(() => hook?.())
+    const finalization = turnMetadataHookQueue
+      ? turnMetadataHookQueue.then(() => hook?.())
+      : Promise.resolve().then(() => hook?.());
+    void finalization
       .catch((error: unknown) => {
         logger.error(`[${logTag}] failed to finalise ACP turn`, error);
         hooks.onFinalizationError?.(error);
@@ -127,6 +133,12 @@ export function driveAcpTurn(args: {
     if (terminal) return;
     if (CONTENT_KINDS.has(event.kind)) {
       assembler.apply(event);
+      if (event.kind === "turn_metadata" && hooks.onTurnMetadata) {
+        const previous = turnMetadataHookQueue ?? Promise.resolve();
+        turnMetadataHookQueue = previous.then(async () => {
+          await hooks.onTurnMetadata?.(event);
+        });
+      }
       hooks.onContentEvent?.(event, assembler.snapshot());
       return;
     }
@@ -217,6 +229,7 @@ export function driveAcpStream(args: {
         const chunk = toMessageChunk(event);
         if (chunk) output.sendChunk(chunk);
       },
+      onTurnMetadata: hooks.onTurnMetadata,
       onControlEvent: (event) => hooks.onControlEvent?.(event, output),
       onDone: async ({ totalTokens, message }) => {
         if (message) await hooks.persistMessage(message);

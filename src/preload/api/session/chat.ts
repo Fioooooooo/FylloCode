@@ -198,7 +198,7 @@ export const chatApi = {
     agentId: string,
     parts: ChatPromptPart[],
     callbacks: StreamCallbacks,
-    options?: { acpSessionId?: string }
+    options?: { acpSessionId?: string; userMessageId?: string }
   ): () => void {
     ensureStreamPortListener();
 
@@ -219,6 +219,7 @@ export const chatApi = {
         workspaceId,
         agentId,
         prompt: parts,
+        ...(options?.userMessageId ? { userMessageId: options.userMessageId } : {}),
         ...(options?.acpSessionId ? { acpSessionId: options.acpSessionId } : {}),
       })
       .catch((error: unknown) => {

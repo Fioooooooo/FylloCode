@@ -16,18 +16,31 @@ describe("toMessageChunk", () => {
     expect(toMessageChunk(ev)).toEqual({ kind: "reasoning_delta", text: "thinking" });
   });
 
+  it("maps internal turn metadata", () => {
+    const ev: SessionEvent = {
+      kind: "turn_metadata",
+      userMessageId: "user-1",
+      dispatchedAt: "2026-08-10T12:00:00.000Z",
+      model: "gpt-5.6",
+      effort: "high",
+    };
+    expect(toMessageChunk(ev)).toEqual(ev);
+  });
+
   it("maps tool_call_start preserving kind", () => {
     const ev: SessionEvent = {
       kind: "tool_call_start",
       toolCallId: "t1",
       title: "Read",
       toolKind: "read",
+      status: "pending",
     };
     expect(toMessageChunk(ev)).toEqual({
       kind: "tool_call_start",
       toolCallId: "t1",
       title: "Read",
       toolKind: "read",
+      status: "pending",
     });
   });
 

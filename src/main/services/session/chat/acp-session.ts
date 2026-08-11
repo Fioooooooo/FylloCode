@@ -107,6 +107,7 @@ export interface AcpSessionOpts {
   presetAcpSessionId?: string;
   configOverrides?: Record<string, string | boolean>;
   onConfigWarnings?: (warnings: ConfigOverrideWarning[]) => void;
+  userMessageId?: string;
   onPromptDispatched?: (event: {
     acpSessionId: string;
     configOptions: AcpSessionConfigOption[];
@@ -837,6 +838,17 @@ export class AcpSession extends EventEmitter {
           configOptions: structuredClone(args.configOptions),
         });
         this.promptDispatched = true;
+        if (this.opts.userMessageId) {
+          const model = this.findDispatchConfigValue(args.configOptions, "model");
+          const effort = this.findDispatchConfigValue(args.configOptions, "thought_level");
+          this.emit("event", {
+            kind: "turn_metadata",
+            userMessageId: this.opts.userMessageId,
+            dispatchedAt: new Date().toISOString(),
+            ...(model === undefined ? {} : { model }),
+            ...(effort === undefined ? {} : { effort }),
+          } satisfies SessionEvent);
+        }
       }
     } catch (error: unknown) {
       this.cancelResolvedAcpSession(args.sessionId);
@@ -844,6 +856,16 @@ export class AcpSession extends EventEmitter {
       throw error;
     }
     return promptPromise;
+  }
+
+  private findDispatchConfigValue(
+    options: AcpSessionConfigOption[],
+    category: "model" | "thought_level"
+  ): string | undefined {
+    const option = options.find(
+      (candidate) => candidate.category === category && candidate.type === "select"
+    );
+    return option?.type === "select" ? option.currentValue : undefined;
   }
 
   private async applyTurnConfigOverrides(input: {

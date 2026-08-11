@@ -1,9 +1,92 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { DynamicToolUIPart } from "ai";
 import { MessageAssembler } from "@main/domain/session/chat/message-assembler";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
+import {
+  TOOL_CALL_EVENT_EXPECTED_PARTS,
+  TOOL_CALL_EVENT_FIXTURE,
+} from "../../../../shared/chat/tool-call-event-fixture";
 
 describe("MessageAssembler", () => {
+  it("matches the shared persistent tool fixture", () => {
+    const assembler = new MessageAssembler("fixture-session");
+    for (const event of TOOL_CALL_EVENT_FIXTURE) assembler.apply(event);
+
+    expect(assembler.flush()?.parts).toEqual(TOOL_CALL_EVENT_EXPECTED_PARTS);
+  });
+
+  it("caches turn metadata without creating a message and patches it after content", () => {
+    const assembler = new MessageAssembler("metadata-session");
+    assembler.apply({
+      kind: "turn_metadata",
+      userMessageId: "user-1",
+      dispatchedAt: "2026-08-10T12:00:00.000Z",
+      model: "gpt-5.6",
+    });
+    expect(assembler.snapshot()).toBeNull();
+
+    assembler.apply({ kind: "text_delta", text: "hello" });
+    expect(assembler.snapshot()?.metadata).toMatchObject({ model: "gpt-5.6" });
+    assembler.apply({
+      kind: "turn_metadata",
+      userMessageId: "user-1",
+      dispatchedAt: "2026-08-10T12:00:01.000Z",
+      effort: "high",
+    });
+    expect(assembler.flush()?.metadata).toMatchObject({ model: "gpt-5.6", effort: "high" });
+  });
+
+  it("does not advance updatedAt for a duplicate tool update", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-08-10T12:00:00.000Z"));
+      const assembler = new MessageAssembler("updated-session");
+      assembler.apply({
+        kind: "tool_call_start",
+        toolCallId: "tool-1",
+        title: "Read",
+        toolKind: "read",
+        status: "in_progress",
+      });
+      const initial = assembler.snapshot()?.metadata?.updatedAt;
+      vi.setSystemTime(new Date("2026-08-10T12:01:00.000Z"));
+      assembler.apply({ kind: "tool_call_update", toolCallId: "tool-1" });
+      expect(assembler.snapshot()?.metadata?.updatedAt).toEqual(initial);
+      assembler.apply({
+        kind: "tool_call_update",
+        toolCallId: "tool-1",
+        locations: [{ path: "/a.ts" }],
+      });
+      expect(assembler.snapshot()?.metadata?.updatedAt).toEqual(
+        new Date("2026-08-10T12:01:00.000Z")
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("flushes an in-progress turn as a persistable cancellation partial", () => {
+    const assembler = new MessageAssembler("cancelled-session");
+    assembler.apply({ kind: "text_delta", text: "partial answer" });
+    assembler.apply({
+      kind: "tool_call_start",
+      toolCallId: "tool-1",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
+
+    expect(assembler.flush()?.parts).toMatchObject([
+      { type: "text", text: "partial answer" },
+      {
+        type: "dynamic-tool",
+        toolCallId: "tool-1",
+        state: "input-streaming",
+        toolMetadata: { acpStatus: "pending" },
+      },
+    ]);
+    expect(assembler.flush()).toBeNull();
+  });
   it("accumulates text_delta events into a single text part", () => {
     const a = new MessageAssembler("session-1");
     a.apply({ kind: "text_delta", text: "Hel" });
@@ -26,6 +109,7 @@ describe("MessageAssembler", () => {
       toolCallId: "t1",
       title: "Read",
       toolKind: "read",
+      status: "pending",
     });
     a.apply({ kind: "text_delta", text: "after" });
 
@@ -37,15 +121,21 @@ describe("MessageAssembler", () => {
 
   it("writes toolKind metadata when tool_call_start creates a dynamic tool part", () => {
     const a = new MessageAssembler("s");
-    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
 
     const msg = a.flush()!;
     const part = msg.parts[0] as DynamicToolUIPart;
     expect(part.type).toBe("dynamic-tool");
     expect(part.toolCallId).toBe("t1");
     expect(part.toolName).toBe("Read");
-    expect(part.state).toBe("input-available");
-    expect(part.toolMetadata).toEqual({ toolKind: "read" });
+    expect(part.state).toBe("input-streaming");
+    expect(part.toolMetadata).toEqual({ toolKind: "read", acpStatus: "pending" });
   });
 
   it("carries parentToolCallId into toolMetadata and preserves it across updates", () => {
@@ -55,6 +145,7 @@ describe("MessageAssembler", () => {
       toolCallId: "child",
       title: "Read",
       toolKind: "read",
+      status: "pending",
       parentToolCallId: "parent",
     });
     a.apply({
@@ -66,7 +157,11 @@ describe("MessageAssembler", () => {
 
     const msg = a.flush()!;
     const part = msg.parts[0] as DynamicToolUIPart;
-    expect(part.toolMetadata).toEqual({ toolKind: "read", parentToolCallId: "parent" });
+    expect(part.toolMetadata).toEqual({
+      toolKind: "read",
+      parentToolCallId: "parent",
+      acpStatus: "completed",
+    });
   });
 
   it("keeps a stable toolName separate from the human-readable title", () => {
@@ -77,6 +172,7 @@ describe("MessageAssembler", () => {
       toolName: "Bash",
       title: "Run pnpm typecheck",
       toolKind: "execute",
+      status: "pending",
       input: { command: "pnpm typecheck" },
     });
 
@@ -119,6 +215,7 @@ describe("MessageAssembler", () => {
       toolCallId: "t1",
       title: "Read",
       toolKind: "read",
+      status: "pending",
     });
     a.apply({ kind: "reasoning_delta", text: "after" });
 
@@ -139,7 +236,13 @@ describe("MessageAssembler", () => {
 
   it("tool_call_update with completed status marks the part output-available", () => {
     const a = new MessageAssembler("s");
-    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
     a.apply({
       kind: "tool_call_update",
       toolCallId: "t1",
@@ -152,7 +255,7 @@ describe("MessageAssembler", () => {
     expect(part.type).toBe("dynamic-tool");
     expect(part.state).toBe("output-available");
     expect((part as { output: unknown }).output).toBe("file contents");
-    expect(part.toolMetadata).toEqual({ toolKind: "read" });
+    expect(part.toolMetadata).toEqual({ toolKind: "read", acpStatus: "completed" });
   });
 
   it("accumulates tool output deltas without replacing the title", () => {
@@ -163,6 +266,7 @@ describe("MessageAssembler", () => {
       toolName: "Bash",
       title: "Run tests",
       toolKind: "execute",
+      status: "pending",
     });
     a.apply({
       kind: "tool_call_update",
@@ -193,6 +297,7 @@ describe("MessageAssembler", () => {
       toolName: "Bash",
       title: "Run tests",
       toolKind: "execute",
+      status: "pending",
     });
     a.apply({
       kind: "tool_call_update",
@@ -210,9 +315,15 @@ describe("MessageAssembler", () => {
     expect((a.flush()!.parts[0] as DynamicToolUIPart).output).toBe("complete output");
   });
 
-  it("tool_call_update with failed status still transitions to output-available", () => {
+  it("tool_call_update with failed status transitions to output-error", () => {
     const a = new MessageAssembler("s");
-    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
     a.apply({
       kind: "tool_call_update",
       toolCallId: "t1",
@@ -221,8 +332,8 @@ describe("MessageAssembler", () => {
     } as SessionEvent);
 
     const msg = a.flush()!;
-    expect((msg.parts[0] as DynamicToolUIPart).state).toBe("output-available");
-    expect((msg.parts[0] as { output: unknown }).output).toBe("permission denied");
+    expect((msg.parts[0] as DynamicToolUIPart).state).toBe("output-error");
+    expect((msg.parts[0] as { errorText: string }).errorText).toBe("permission denied");
   });
 
   it("lazily creates a card for tool_call_update before a matching tool_call_start", () => {
@@ -285,7 +396,7 @@ describe("MessageAssembler", () => {
     expect(part.toolName).toBe("tool-call-trace");
     expect(part.state).toBe("output-available");
     expect((part as { output?: unknown }).output).toBe("Found 2 files");
-    expect(part.toolMetadata).toEqual({ toolKind: "search" });
+    expect(part.toolMetadata).toEqual({ toolKind: "search", acpStatus: "completed" });
   });
 
   it("孤儿 update 无 currentMessage 时也先创建 assistant 消息", () => {
@@ -301,12 +412,18 @@ describe("MessageAssembler", () => {
     expect(msg!.role).toBe("assistant");
     const part = msg!.parts[0] as DynamicToolUIPart;
     expect(part.toolCallId).toBe("replace__1");
-    expect(part.toolMetadata).toBeUndefined();
+    expect(part.toolMetadata).toEqual({ acpStatus: "completed" });
   });
 
   it("claude toolResponse-only 中间 update（仅带 toolName，无 title/content/input）不清空既有友好 title", () => {
     const a = new MessageAssembler("s");
-    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Edit", toolKind: "edit" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Edit",
+      toolKind: "edit",
+      status: "pending",
+    });
     // 第一次 in_progress：mapper 已把 title 归一为具体路径。
     a.apply({
       kind: "tool_call_update",
@@ -340,6 +457,7 @@ describe("MessageAssembler", () => {
       toolName: "Task",
       title: "Inspect ACP mapping",
       toolKind: "think",
+      status: "pending",
       input: { prompt: "Find the mapping files" },
       subagent: {},
     });
@@ -388,7 +506,13 @@ describe("MessageAssembler", () => {
 
   it("applies a delayed parent relationship even when the update has no display fields", () => {
     const a = new MessageAssembler("s");
-    a.apply({ kind: "tool_call_start", toolCallId: "child", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "child",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
     a.apply({
       kind: "tool_call_update",
       toolCallId: "child",
@@ -397,14 +521,24 @@ describe("MessageAssembler", () => {
     });
 
     const part = a.flush()!.parts[0] as DynamicToolUIPart;
-    expect(part.toolMetadata).toEqual({ toolKind: "read", parentToolCallId: "parent" });
+    expect(part.toolMetadata).toEqual({
+      toolKind: "read",
+      parentToolCallId: "parent",
+      acpStatus: "in_progress",
+    });
   });
 
   it("returns an isolated snapshot without ending mixed-part assembly", () => {
     const a = new MessageAssembler("s");
     a.apply({ kind: "text_delta", text: "before" });
     a.apply({ kind: "reasoning_delta", text: "reason" });
-    a.apply({ kind: "tool_call_start", toolCallId: "t1", title: "Read", toolKind: "read" });
+    a.apply({
+      kind: "tool_call_start",
+      toolCallId: "t1",
+      title: "Read",
+      toolKind: "read",
+      status: "pending",
+    });
 
     const snapshot = a.snapshot()!;
     expect(snapshot.parts.map((part) => part.type)).toEqual(["text", "reasoning", "dynamic-tool"]);
@@ -423,6 +557,7 @@ describe("MessageAssembler", () => {
       toolCallId: "parent",
       title: "Task",
       toolKind: "think",
+      status: "pending",
       subagent: {},
     });
     expect((a.flush()!.parts[0] as DynamicToolUIPart).toolMetadata?.subagent).toEqual({});
@@ -435,7 +570,7 @@ describe("MessageAssembler", () => {
       subagent: { status: "failed" },
     });
     const failed = a.flush()!.parts[0] as DynamicToolUIPart;
-    expect(failed.state).toBe("output-available");
+    expect(failed.state).toBe("output-error");
     expect(failed.toolMetadata?.subagent).toEqual({ status: "failed" });
   });
 });
