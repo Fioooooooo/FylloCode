@@ -528,9 +528,8 @@ describe("UIMessageList", () => {
 
     const tool = wrapper.get('[data-test="chat-tool-item"]');
     expect(tool.attributes("data-icon")).toBe("i-lucide-square-terminal");
-    expect(tool.attributes("data-has-suffix")).toBe("true");
-    expect(tool.attributes("data-ui-suffix")).toBe("sr-only");
-    expect(tool.get('[data-test="tool-suffix"]').text()).toBe("已完成");
+    expect(tool.attributes("data-has-suffix")).toBe("false");
+    expect(wrapper.find('[data-test="tool-suffix"]').exists()).toBe(false);
     expect(tool.attributes("aria-expanded")).toBe("false");
     expect(wrapper.find('[data-test="chat-tool-details"]').exists()).toBe(false);
 
@@ -540,27 +539,25 @@ describe("UIMessageList", () => {
     expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain('"command": "pnpm test"');
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("Output");
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("command output");
-    expect(wrapper.get('[data-test="tool-suffix"]').classes()).toContain("sr-only");
+    expect(wrapper.find('[data-test="tool-suffix"]').exists()).toBe(false);
   });
 
-  it("hides non-failure status suffixes visually and keeps failure visible for direct tools", () => {
-    const labels = ["等待执行", "正在执行", "已完成", "失败"];
+  it("omits status suffixes and keeps only the failed icon treatment for direct tools", () => {
     const statuses = ["pending", "in_progress", "completed", "failed"] as const;
     for (const [index, status] of statuses.entries()) {
       const direct = mountList([assistantMessage([auditedTool(`direct-${index}`, status)])]);
       const tool = direct.get('[data-test="chat-tool-item"]');
       expect(tool.get('[data-test="tool-text"]').text()).toBe(`Tool direct-${index}`);
-      expect(tool.get('[data-test="tool-suffix"]').text()).toBe(labels[index]);
+      expect(tool.attributes("data-has-suffix")).toBe("false");
+      expect(tool.find('[data-test="tool-suffix"]').exists()).toBe(false);
       expect(tool.attributes("data-streaming")).toBe(
         String(status === "pending" || status === "in_progress")
       );
-      expect(tool.attributes("data-ui-suffix")).toBe(status === "failed" ? "" : "sr-only");
       expect(tool.attributes("data-ui-leading-icon")).toBe(status === "failed" ? "text-error" : "");
     }
   });
 
   it("uses the same status treatment for activity-group children without changing the header", async () => {
-    const labels = ["等待执行", "正在执行", "已完成", "失败"];
     const statuses = ["pending", "in_progress", "completed", "failed"] as const;
     const grouped = mountList([
       assistantMessage(statuses.map((status, index) => auditedTool(`group-${index}`, status))),
@@ -573,14 +570,14 @@ describe("UIMessageList", () => {
     expect(tools.map((tool) => tool.get('[data-test="tool-text"]').text())).toEqual(
       statuses.map((_, index) => `Tool group-${index}`)
     );
-    expect(tools.map((tool) => tool.get('[data-test="tool-suffix"]').text())).toEqual(labels);
-    expect(tools.map((tool) => tool.attributes("data-ui-suffix"))).toEqual([
-      "sr-only",
-      "sr-only",
-      "sr-only",
-      "",
-    ]);
+    expect(tools.map((tool) => tool.attributes("data-has-suffix"))).toEqual(
+      statuses.map(() => "false")
+    );
+    expect(grouped.find('[data-test="tool-suffix"]').exists()).toBe(false);
     expect(tools[3]!.attributes("data-ui-leading-icon")).toBe("text-error");
+
+    await tools[3]!.trigger("click");
+    expect(grouped.get('[data-test="chat-tool-error"]').text()).toContain("failed");
   });
 
   it("shows error, compact file-change entries and safe previewable locations", async () => {
@@ -804,8 +801,8 @@ describe("UIMessageList", () => {
     await items.get('[data-test="chat-tool-item"]').trigger("click");
     expect(wrapper.get('[data-test="chat-tool-input"]').text()).toContain("README.md");
     expect(wrapper.get('[data-test="chat-tool-output"]').text()).toContain("read output");
-    expect(items.get('[data-test="chat-tool-item"]').attributes("data-has-suffix")).toBe("true");
-    expect(items.get('[data-test="chat-tool-item"]').attributes("data-ui-suffix")).toBe("sr-only");
+    expect(items.get('[data-test="chat-tool-item"]').attributes("data-has-suffix")).toBe("false");
+    expect(items.find('[data-test="tool-suffix"]').exists()).toBe(false);
   });
 
   it("keeps an opened activity group expanded when streaming appends activity", async () => {

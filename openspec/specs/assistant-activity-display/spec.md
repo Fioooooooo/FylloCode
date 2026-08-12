@@ -173,42 +173,40 @@ Renderer SHALL 在单条 assistant message 内按原始 part 顺序识别连续�
 
 ### Requirement: 普通工具展示明确执行状态与失败信息
 
-Renderer SHALL 为每个可见普通工具提供可理解的 ACP 执行状态，但 SHALL NOT 在 pending、in_progress 或 completed 工具名称后追加可见状态文案。pending 与 in_progress SHALL 使用现有 Nuxt UI shimmer 表达非终态，completed SHALL 使用无 shimmer 的稳定工具名称；三者仍 SHALL 提供屏幕阅读器可识别的状态文字。失败工具 SHALL 同时显示可见“失败”文字、error 语义色的具体工具 icon，并在可折叠详情中使用独立 `Error` 分区展示可用 errorText。Activity group 顶层 SHALL 保持既有类别统计、代表图标和 streaming 规则，不增加整组状态前缀。
+Renderer SHALL NOT 为 pending、in_progress、completed 或 failed 普通工具渲染状态 suffix，也 SHALL NOT 为这些状态提供屏幕阅读器专用状态文字。pending 与 in_progress SHALL 使用现有 Nuxt UI shimmer 表达非终态，completed SHALL 使用无 shimmer 的稳定工具名称。失败工具 SHALL 仅让具体工具 icon 使用 error 语义色，并在可折叠详情中使用独立 `Error` 分区展示可用 errorText。Activity group 顶层 SHALL 保持既有类别统计、代表图标和 streaming 规则，不增加整组状态前缀。
 
 #### Scenario: pending 工具
 
 - **WHEN** 普通工具的 acpStatus 为 pending
-- **THEN** 该具体工具 SHALL 只以工具名称作为可见标题并显示 shimmer
-- **AND** SHALL NOT 追加可见“等待执行”或“已完成”文字
-- **AND** 屏幕阅读器 SHALL 能识别“等待执行”状态
+- **THEN** 该具体工具 SHALL 只以工具名称作为标题并显示 shimmer
+- **AND** SHALL NOT 渲染“等待执行”状态 suffix 或屏幕阅读器专用状态文字
 
 #### Scenario: in-progress 工具
 
 - **WHEN** 普通工具的 acpStatus 为 in_progress
-- **THEN** 该具体工具 SHALL 只以工具名称作为可见标题并显示 shimmer
-- **AND** SHALL NOT 追加可见“正在执行”文字
-- **AND** 屏幕阅读器 SHALL 能识别“正在执行”状态
+- **THEN** 该具体工具 SHALL 只以工具名称作为标题并显示 shimmer
+- **AND** SHALL NOT 渲染“正在执行”状态 suffix 或屏幕阅读器专用状态文字
 
 #### Scenario: completed 工具
 
 - **WHEN** 普通工具的 acpStatus 为 completed
 - **THEN** 该具体工具 SHALL 只显示无 shimmer 的稳定工具名称
-- **AND** SHALL NOT 追加可见“已完成”文字
-- **AND** 屏幕阅读器 SHALL 能识别“已完成”状态
+- **AND** SHALL NOT 渲染“已完成”状态 suffix 或屏幕阅读器专用状态文字
 - **AND** 可用 output SHALL 继续显示在 Output 分区
 
 #### Scenario: failed 工具
 
 - **WHEN** 普通工具进入 failed / output-error 终态
-- **THEN** 该具体工具 SHALL 显示可见“失败”文字
+- **THEN** 该具体工具 SHALL NOT 渲染“失败”状态 suffix 或屏幕阅读器专用状态文字
 - **AND** 该具体工具的 leading icon SHALL 使用 error 语义色
 - **AND** 用户展开工具后 SHALL 在 Error 分区看到可用错误文本
-- **AND** 失败 SHALL NOT 被呈现为成功 Output 或只依赖颜色表达
+- **AND** 失败 SHALL NOT 被呈现为成功 Output
 
 #### Scenario: Activity group 子工具
 
 - **WHEN** 用户展开 Activity group 并查看其中一个具体工具
-- **THEN** 该子工具 SHALL 使用与直接工具相同的可见标题、shimmer、可访问状态、失败文字和失败 icon 规则
+- **THEN** 该子工具 SHALL 使用与直接工具相同的无 suffix 标题、shimmer 和失败 icon 规则
+- **AND** 展开多个子工具 SHALL NOT 通过隐藏状态节点扩大消息列的横向滚动范围
 - **AND** Activity group header SHALL 继续使用既有类别摘要、代表图标和 streaming 视觉
 
 ### Requirement: 普通工具详情展示 diff 与 locations

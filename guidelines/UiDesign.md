@@ -80,7 +80,7 @@ keywords: [frontend, ui, design, tailwind, nuxt-ui, accessibility]
 - MUST 以对象语义和 UI sink 审查未来文案，而不是维护完整句子的允许清单。确属 Agent-facing、协议或诊断的 renderer 字符串可保留内部术语，但必须通过带理由的显式 lint 声明标记非用户语境，不得按文件关闭术语门禁。
 - MUST 让 toast 只说明具体发生的变化，避免泛化“成功”文案；进行中状态中文使用“正在 + 动作 + …”，英文使用 present participle + `…`；省略号使用 `…`，不要使用 `...`。
 - MUST 保留技术名词、命令、路径、agent 名称和 proposal ID，不翻译或美化；必要时使用代码样式。
-- MUST 保持状态不只靠颜色表达。普通工具的 `pending` / `in_progress` 可使用 Nuxt UI shimmer 代替可见状态文字，`completed` 可使用无 shimmer 的稳定工具标题，但三者必须提供屏幕阅读器可识别的状态文字；错误和警告仍必须显示可见文字，颜色或 icon 只能强化语义。除此以外，badge、成功、进行中状态仍必须有可见文字，必要时再配合 icon。
+- MUST 保持状态不只靠颜色表达，badge、错误、警告、成功和进行中状态必须有文字，必要时再配合 icon；普通工具状态除外：运行中使用 shimmer、完成态使用稳定标题、失败态使用 error icon，四态均无 suffix，错误文本保留在 `Error` 详情中。
 - MUST 保留可见焦点。Nuxt UI 交互组件优先使用默认 `focus-visible`；自定义 focusable 元素必须提供可见焦点，例如 `focus-visible:outline-2 focus-visible:outline-primary` 或 `focus-visible:ring-2 focus-visible:ring-primary/30`。
 - SHOULD 依赖 Nuxt UI 语义 token 的默认对比度；手写 palette 或透明度组合时，普通正文对比度应满足 WCAG AA `4.5:1`，大号文字、图标和关键边界至少满足 `3:1`。
 
@@ -101,7 +101,7 @@ pnpm exec vitest run --project renderer
 pnpm typecheck:web
 ```
 
-视觉类改动还应人工检查浅色/深色主题、窄窗口和桌面窗口，重点看 overlay、focus-visible、空状态、ActivityBar、AppHeader、设置页侧栏和列表页 header；普通工具状态还应同时检查 shimmer、屏幕阅读器文字以及失败状态的可见文字和 error icon。
+视觉类改动还应人工检查浅色/深色主题、窄窗口和桌面窗口，重点看 overlay、focus-visible、空状态、ActivityBar、AppHeader、设置页侧栏和列表页 header；普通工具状态还应同时检查 pending/in_progress shimmer、completed 稳定标题、四种状态均无 suffix，以及 failed 的 error icon 与可展开 `Error` 详情。
 
 ## 失效信号
 

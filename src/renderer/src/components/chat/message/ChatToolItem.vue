@@ -36,7 +36,7 @@ const statusPresentation = computed(() => getToolStatusPresentation(props.part))
 const toolUi = computed(() =>
   statusPresentation.value.visible
     ? { leadingIcon: statusPresentation.value.leadingIconClass }
-    : { suffix: "sr-only" }
+    : undefined
 );
 const hasDetails = computed(
   () =>
@@ -55,7 +55,6 @@ const hasDetails = computed(
     :icon="getToolIcon(props.part)"
     :streaming="isToolStreaming(props.part)"
     :text="displayText"
-    :suffix="statusPresentation.text"
     :ui="toolUi"
   >
     <ChatToolDetails
@@ -73,7 +72,6 @@ const hasDetails = computed(
     :icon="getToolIcon(props.part)"
     :streaming="isToolStreaming(props.part)"
     :text="displayText"
-    :suffix="statusPresentation.text"
     :ui="toolUi"
   />
 </template>
