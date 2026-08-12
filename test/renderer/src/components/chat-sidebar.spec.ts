@@ -111,6 +111,9 @@ describe("ChatSidebar", () => {
     expect(wrapper.get('[data-test="recent-session-group"]').text()).toContain("最近会话");
     expect(wrapper.get('[data-test="recent-session-count"]').text()).toBe("2");
     expect(wrapper.get('[data-test="recent-session-group"]').attributes("data-state")).toBe("open");
+    expect(wrapper.get('[data-test="recent-session-group"]').classes()).toEqual(
+      expect.arrayContaining(["basis-8", "grow"])
+    );
     expect(wrapper.findAll('[data-test^="sidebar-session-"]').map((item) => item.text())).toEqual([
       "recent-new",
       "recent-old",
@@ -128,7 +131,7 @@ describe("ChatSidebar", () => {
     expect(resetChatState).not.toHaveBeenCalled();
   });
 
-  it("gives every open group an equal flex share and independent scrolling", () => {
+  it("caps the natural-height pinned group and lets the recent group fill the remainder", () => {
     sessionsRef.value = [makeSession("pinned", { isPinned: true }), makeSession("recent")];
 
     const wrapper = mountSidebar();
@@ -137,8 +140,15 @@ describe("ChatSidebar", () => {
       expect.arrayContaining(["flex-1", "min-h-0"])
     );
     expect(wrapper.get('[data-test="pinned-session-group"]').classes()).toEqual(
-      expect.arrayContaining(["basis-8", "grow", "min-h-0", "transition-[flex-grow]"])
+      expect.arrayContaining([
+        "basis-auto",
+        "max-h-1/2",
+        "grow-0",
+        "min-h-0",
+        "transition-[flex-grow]",
+      ])
     );
+    expect(wrapper.get('[data-test="pinned-session-group"]').classes()).not.toContain("grow");
     expect(wrapper.get('[data-test="recent-session-group"]').classes()).toEqual(
       expect.arrayContaining(["basis-8", "grow", "min-h-0", "transition-[flex-grow]"])
     );
@@ -164,6 +174,23 @@ describe("ChatSidebar", () => {
     expect(wrapper.find('[data-test="recent-session-scroll"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="pinned-session-group"]').attributes("data-state")).toBe("open");
     expect(wrapper.get('[data-test="pinned-session-group"]').classes()).toContain("grow");
+  });
+
+  it("lets the recent group fill the remainder when the pinned group is collapsed", async () => {
+    sessionsRef.value = [makeSession("pinned", { isPinned: true }), makeSession("recent")];
+
+    const wrapper = mountSidebar();
+    await wrapper.get('[data-test="pinned-session-trigger"]').trigger("click");
+
+    expect(wrapper.get('[data-test="pinned-session-group"]').attributes("data-state")).toBe(
+      "closed"
+    );
+    expect(wrapper.get('[data-test="pinned-session-group"]').classes()).toContain("grow-0");
+    expect(wrapper.get('[data-test="pinned-session-group"]').classes()).not.toContain("grow");
+    expect(wrapper.get('[data-test="recent-session-group"]').attributes("data-state")).toBe("open");
+    expect(wrapper.get('[data-test="recent-session-group"]').classes()).toEqual(
+      expect.arrayContaining(["basis-8", "grow"])
+    );
   });
 
   it("opens only the group that gains the active session", async () => {

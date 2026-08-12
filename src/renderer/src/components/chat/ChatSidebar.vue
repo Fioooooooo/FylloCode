@@ -52,6 +52,9 @@ const sessionGroups = computed<SessionGroup[]>(() => {
 
   return groups;
 });
+const bothSessionGroupsOpen = computed(
+  () => sessionGroups.value.length === 2 && groupOpenById.pinned && groupOpenById.recent
+);
 const activeGroupId = computed<SessionGroupId | null>(() => {
   const activeSession = sessionStore.activeSession;
   if (!activeSession) {
@@ -69,6 +72,18 @@ watch(activeGroupId, (groupId, previousGroupId) => {
 
 function sortByUpdatedAt<T extends { updatedAt: Date }>(items: T[]): T[] {
   return [...items].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+}
+
+function sessionGroupLayoutClass(groupId: SessionGroupId): string {
+  if (!groupOpenById[groupId]) {
+    return "basis-8 grow-0";
+  }
+
+  if (groupId === "pinned" && bothSessionGroupsOpen.value) {
+    return "basis-auto max-h-1/2 grow-0";
+  }
+
+  return "basis-8 grow";
 }
 
 function handleCreateSession(): void {
@@ -133,8 +148,8 @@ function openSearchModal(): void {
         v-model:open="groupOpenById[group.id]"
         as="section"
         :unmount-on-hide="false"
-        class="flex min-h-0 basis-8 shrink-0 flex-col overflow-hidden transition-[flex-grow] duration-200 ease-out motion-reduce:transition-none"
-        :class="groupOpenById[group.id] ? 'grow' : 'grow-0'"
+        class="flex min-h-0 shrink-0 flex-col overflow-hidden transition-[flex-grow] duration-200 ease-out motion-reduce:transition-none"
+        :class="sessionGroupLayoutClass(group.id)"
         :aria-label="group.label"
         :data-test="`${group.id}-session-group`"
         :ui="{
