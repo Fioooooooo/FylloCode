@@ -172,4 +172,19 @@ describe("fyllo-specs tools", () => {
     expect(normalizedInstruction).toContain('do not use `echo "status: draft" > .openspec.yaml`');
     expect(normalizedInstruction).toContain("stop and report the problem instead of rewriting it");
   });
+
+  it("requires one repository owner per create-proposal invocation", () => {
+    const instruction = loadPrompt("create-proposal");
+    const normalizedInstruction = instruction.replace(/\s+/g, " ");
+
+    expect(normalizedInstruction).toContain(
+      "One invocation creates or inspects exactly one repository owner's Proposal and returns exactly one `state.target`"
+    );
+    expect(normalizedInstruction).toContain("invoke this tool separately for each owner");
+    expect(normalizedInstruction).toContain("pass that Folder's explicit `folderId` every time");
+    expect(normalizedInstruction).toContain(
+      "Do not combine multiple repository owners into one invocation or select the Workspace primary as an umbrella owner"
+    );
+    expect(normalizedInstruction).not.toContain("Direct / Plan / Proposal");
+  });
 });

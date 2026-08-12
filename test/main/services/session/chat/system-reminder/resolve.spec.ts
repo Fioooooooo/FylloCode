@@ -35,6 +35,26 @@ const CHAT_WORKSPACE_SNAPSHOT = {
   additionalDirectories: [],
 };
 
+const CHAT_MULTI_ROOT_WORKSPACE_SNAPSHOT = {
+  workspaceId: "workspace-collection",
+  workspaceKind: "collection" as const,
+  primaryFolderId: "folder-primary",
+  folders: [
+    {
+      folderId: "folder-primary",
+      folderName: "Primary Repository",
+      folderPath: "/tmp/primary-repository",
+    },
+    {
+      folderId: "folder-secondary",
+      folderName: "Secondary Repository",
+      folderPath: "/tmp/secondary-repository",
+    },
+  ],
+  cwd: "/tmp/primary-repository",
+  additionalDirectories: ["/tmp/secondary-repository"],
+};
+
 function getSection(text: string, tag: string): string | null {
   const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(text);
   return match?.[1]?.trim() ?? null;
@@ -160,6 +180,40 @@ describe("resolveSystemReminder", () => {
     expect(reminder?.text.trim().endsWith("</system-reminder>")).toBe(true);
     expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS);
     expect(getSection(reminder?.text ?? "", "task-context")).toBeNull();
+  });
+
+  it("injects repository-local Proposal policy for a multi-root Workspace", async () => {
+    const { resolveSystemReminder } = await import("@main/services/session/chat/system-reminder");
+
+    const reminder = await resolveSystemReminder({
+      owner: "chat",
+      workspaceId: "workspace-collection",
+      projectPath: "/tmp/primary-repository",
+      cwd: "/tmp/primary-repository",
+      fylloSessionId: "session-multi-root",
+      agentId: "claude-acp",
+      workspaceSnapshot: CHAT_MULTI_ROOT_WORKSPACE_SNAPSHOT,
+    });
+
+    expectNonEmptyOrderedSections(reminder?.text ?? "", CHAT_SECTION_TAGS);
+    expect(reminder?.text).toContain('"primaryFolderId":"folder-primary"');
+    expect(reminder?.text).toContain('"folderId":"folder-secondary"');
+    expect(reminder?.text).toContain(
+      "decompose a cross-repository goal into the repository-local changes"
+    );
+    expect(reminder?.text).toContain("Folder that owns the authoritative contract or spec");
+    expect(reminder?.text).toContain("dependent consumer's adaptation in the consumer Folder");
+    expect(reminder?.text).toContain(
+      "MUST scope multi-root Proposal consent to an explicit owner set"
+    );
+    expect(reminder?.text).toContain("list each owner Folder by name");
+    expect(reminder?.text).toContain(
+      "concrete behavior-contract change that makes it qualify for Proposal"
+    );
+    expect(reminder?.text).toContain("known cross-repository dependency or ordering");
+    expect(reminder?.text).toContain("state.target.proposalRef");
+    expect(reminder?.text).toContain("state.target.worktreePath");
+    expect(reminder?.text).not.toContain("state.workspace.path");
   });
 
   it("injects task context and task title into chat reminders when taskRef is present", async () => {

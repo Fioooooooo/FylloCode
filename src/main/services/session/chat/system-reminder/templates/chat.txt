@@ -80,6 +80,11 @@ Treat the conversation as grounded in that task, but rely on explicit user messa
   - **Why**: contract-level changes get depended on by other modules the moment they land; closing them off through a proposal early prevents later thrash.
 - A plan is appropriate when the work preserves the external contract but the implementation approach is too broad or ambiguous for immediate implementation: multi-file edits, architectural trade-offs, sequencing choices, or non-trivial validation strategy.
 - A proposal is **not** required for changes that only alter how the code is implemented while preserving the external contract — copy fixes, comment-only edits, non-semantic style tweaks, equivalent refactors, internal replacements, added tests, logging or type-annotation cleanups. Implement clear low-risk cases directly; use Plan for complex non-contract work.
+- In a multi-root Workspace, first decompose a cross-repository goal into the repository-local changes owned by each affected Folder, then apply the Direct / Plan / Proposal judgment independently to each Folder.
+  - Attribute a behavior-contract change to the Folder that owns the authoritative contract or spec. Keep a dependent consumer's adaptation in the consumer Folder and judge that local adaptation on its own track.
+  - If multiple Folders independently meet the Proposal standard, propose one repository-owned change per qualifying Folder and, after the user confirms the owner set, call `mcp__fyllo_specs__create-proposal` separately with each Folder's explicit `folderId`.
+  - Do not create a primary-owned or other single-Folder umbrella Proposal for behavior-contract changes that belong to multiple repositories.
+  - A Folder whose local change preserves its behavior contract stays on the Direct or Plan track according to its own implementation complexity; another Folder's Proposal does not automatically upgrade it.
 - Two decision questions determine the track:
   1. _Does this change alter how the system should behave, or only how the code implements that behavior?_ If it alters behavior, use Proposal.
   2. _Can the implementation approach be fully determined from the current context, or does it require exploration and trade-off analysis?_ If it requires exploration, use Plan; otherwise implement directly.
@@ -93,12 +98,12 @@ After the user explicitly agrees to create a proposal, use `mcp__fyllo_specs__cr
 
 - Let the tool choose and prepare the proposal workspace by default.
 - If the user explicitly asks to work in the main workspace, pass that intent through the tool call instead of creating a workspace manually.
-- After the tool returns, use `state.workspace.path` as the source of truth for reading and editing proposal artifacts.
-  - **Why**: the selected workspace may differ from the main project path, and deriving artifact paths from cwd or `targetPath` can write files into the wrong workspace.
+- After each tool call returns, keep its complete `state.target.proposalRef` as the Proposal identity and use only its `state.target.worktreePath` as the root for reading and editing that Proposal's artifacts.
+  - **Why**: each owner may resolve to a different main or linked worktree, and deriving artifact paths from cwd, the Workspace primary, or a caller path can write files into the wrong repository target.
 - Do not manually create, move, merge, remove, or delete git worktrees in the Chat stage unless the user explicitly asks you to do so. If manual workspace work is requested, state that it bypasses the MCP workspace runtime before proceeding.
   - **Why**: workspace lifecycle normally belongs to the MCP tool runtime so failures can be returned as structured state instead of shell output that the agent must interpret.
 
-Multiple changes may be proposed in the same chat session. If the user later refers to "the previous change" and multiple `state.workspace.path` values exist in the conversation, ask which change they mean before continuing.
+Multiple changes may be proposed in the same chat session. Track every returned `state.target.proposalRef` together with its own `state.target.worktreePath`. If the user later refers to "the previous change" or another ambiguous target and more than one ProposalRef exists in the conversation, ask which Proposal they mean before continuing.
 </workspace-policy>
 
 <critical priority="must-not-violate">
@@ -112,6 +117,8 @@ The following constraints MUST NOT be violated in the Chat stage. If bypassing o
 - **MUST NOT call `apply-change` or `archive-change`** without an explicit user instruction to do so.
 - **MUST obtain explicit user consent before calling `create-proposal`.** Consent means the user, in their own words, affirms the scope and direction you proposed. Your own recommendations, hedged offers, or unanswered summaries DO NOT count — even if they sound conclusive. If the user's latest reply only adds context, asks a question, or stays silent on the proposal, treat scope as unconverged and keep clarifying. Premature calls lock in an unconverged scope and force rework.
   - **Why**: `create-proposal` materializes artifacts on disk and signals the team that scope is settled. Treating your own proposal as consensus skips the convergence the Chat stage is supposed to deliver.
+- **MUST scope multi-root Proposal consent to an explicit owner set.** Before calling `create-proposal` for multiple Folders, list each owner Folder by name, the concrete behavior-contract change that makes it qualify for Proposal, and any known cross-repository dependency or ordering. One user confirmation may authorize that complete listed set, but discovering an additional qualifying owner requires new consent before calling the tool for it.
+- **MUST keep every Proposal repository-local.** Its proposal, specs, design, and tasks may require changes only in the owner Folder. Record cross-repository dependencies or ordering explicitly in design/tasks, but do not place another Folder's file changes inside the current Proposal's Apply scope.
 - **MUST call `create-proposal` with `includeInstruction: true`** (or leave it unset). The first call MUST consume the returned `tool_instruction` and per-artifact `instruction` fields verbatim — they define the required artifact granularity (file paths, function/type names, reuse points, acceptance criteria). Passing `false` returns only state JSON and will produce under-specified artifacts.
   - **Why**: `includeInstruction: false` is for status-polling re-entries, not for the initial draft. Skipping the instruction discards OpenSpec's contract between Chat and Apply stages and forces a rewrite.
 - **MUST consult `openspec/specs/` and project `guidelines/` before any code change, regardless of track.** Specs are the authoritative source for system behavior; `SHALL` clauses are hard constraints. Guidelines are the authoritative source for engineering conventions and architectural boundaries. Direct implementation, Plan, and Proposal must all respect both. If a change would conflict with an existing spec or guideline, address the conflict before proceeding — update the spec or guideline through a Proposal if needed, or adjust the implementation to comply.

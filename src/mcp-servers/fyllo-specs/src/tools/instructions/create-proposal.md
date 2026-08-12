@@ -4,6 +4,9 @@ Create or inspect an OpenSpec change using the provided `state`.
 prepares the actual Git target and returns it in `state.target`.
 
 - Omit `folderId` only when exactly one Folder is authorized for the activation.
+- One invocation creates or inspects exactly one repository owner's Proposal and returns exactly one
+  `state.target`. When the Chat decision has identified multiple qualifying Folder owners, invoke this
+  tool separately for each owner and pass that Folder's explicit `folderId` every time.
 - Omit `worktreeMode` by default; the tool will use linked worktree mode.
 - Pass `worktreeMode: "main"` only when the user explicitly asks to work directly in the owner main
   worktree.
@@ -37,6 +40,8 @@ prepares the actual Git target and returns it in `state.target`.
    - Show brief progress: "Created <artifact-id>"
    - After all required artifacts are complete, read the entire existing
      `<state.target.worktreePath>/openspec/changes/<changeName>/.openspec.yaml`, replace only the value of its unique top-level `status` field with `draft`, and write the complete modified content back before ending the workflow. Preserve every other field and value. If the file cannot be read or its unique top-level `status` field cannot be identified, stop and report the problem instead of rewriting it.
+     Never truncate or replace the file with a status-only document; in particular, do not use
+     `echo "status: draft" > .openspec.yaml` or an equivalent whole-file rewrite.
 
    If an artifact requires user input (unclear context), ask before proceeding.
 
@@ -75,6 +80,7 @@ The agents that later implement this proposal will start fresh — they will NOT
 **Guardrails**
 
 - Do not invoke the OpenSpec CLI directly. Change creation, status lookup, and artifact instruction lookup are handled by this MCP server.
+- Do not combine multiple repository owners into one invocation or select the Workspace primary as an umbrella owner. Each invocation must stay within the single owner selected by `folderId`.
 - Do not create or manage git worktrees manually. Workspace setup is handled by this MCP server.
 - Create ALL artifacts needed for implementation (as defined by `state.applyRequires`)
 - Always read dependency artifacts before creating a new one

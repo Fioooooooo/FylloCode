@@ -123,6 +123,26 @@ describe("system-reminder templates", () => {
     expect(chatTemplate).toContain("Do not use standalone quoted strings as node or state IDs");
   });
 
+  it("requires repository-local Proposal decisions in multi-root Workspaces", () => {
+    expect(chatTemplate).toContain(
+      "decompose a cross-repository goal into the repository-local changes"
+    );
+    expect(chatTemplate).toContain(
+      "call `mcp__fyllo_specs__create-proposal` separately with each Folder's explicit `folderId`"
+    );
+    expect(chatTemplate).toContain("Folder that owns the authoritative contract or spec");
+    expect(chatTemplate).toContain("dependent consumer's adaptation in the consumer Folder");
+    expect(chatTemplate).toContain("primary-owned or other single-Folder umbrella Proposal");
+    expect(chatTemplate).toContain("list each owner Folder by name");
+    expect(chatTemplate).toContain(
+      "concrete behavior-contract change that makes it qualify for Proposal"
+    );
+    expect(chatTemplate).toContain("known cross-repository dependency or ordering");
+    expect(chatTemplate).toContain("state.target.proposalRef");
+    expect(chatTemplate).toContain("state.target.worktreePath");
+    expect(chatTemplate).not.toContain("state.workspace.path");
+  });
+
   it("allows apply.txt to be wrapped without nested wrapper tags", () => {
     expect(() => wrapAsSystemReminder(applyTemplate)).not.toThrow();
   });
