@@ -16,6 +16,8 @@ The Proposal page is one of FylloCode's core workspaces. It brings together a ch
 
 The list page shows the complete Proposal set across the current Workspace's Projects. You can filter by Project, and every item displays its repository-owned identity. The page does not use status tabs to hide draft, applying, or archived Proposals. The same change name in two Projects still represents two separate Proposals.
 
+A cross-Project goal is not merged into a primary-Project umbrella Proposal. The Agent chooses Direct, Plan, or Proposal independently for each Project. If several Projects need Proposals, it lists the owners, specific contract changes, and cross-repository dependencies for confirmation, then calls `create-proposal` once per Project. Each Proposal contains only its owning Project's contracts and tasks; cross-Project prerequisites are recorded as dependencies.
+
 ## Proposal Detail
 
 The detail page usually includes:
@@ -48,5 +50,6 @@ When reviewing a Proposal, focus on:
 - Whether tasks are executable and verifiable
 - Whether the impact scope matches project rules
 - Whether the Proposal belongs to the correct Project and its `folderId` matches the repository location
+- Whether cross-Project dependencies are explicit and tasks avoid modifying files owned by another Project
 
 After approval, return to the Chat Session that created the Proposal and enter Apply & Archive from its event rail. This reduces the cost of discovering plan mistakes during implementation.

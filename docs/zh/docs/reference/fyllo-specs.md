@@ -57,6 +57,10 @@ plan 文档以 `<workspaceDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.
 
 单 Project activation 可以省略 `folderId`；多根 Workspace 必须显式提供它。`apply-change` 和 `archive-change` 要求提供 ProposalRef 中的 `folderId`，并由 server 解析固定目标，不接受调用方的 `targetPath` 或 `worktreePath`。
 
+一个跨 Project 目标可能产生多个 Proposal。Agent 必须先按 Project 独立判断路径，并在用户确认明确的 owner 集合后，为每个需要 Proposal 的 Project 分别调用一次 `create-proposal`。每次调用只处理一个 repository owner、显式传入对应 `folderId`，并返回一个 `state.target`；不能把多个 Project 合并为主 Project 拥有的 umbrella Proposal。
+
+创建 artifacts 时，Agent 只在当前 `state.target.worktreePath` 下写入所属 Project 的 proposal、design、specs 和 tasks。完成后如果需要把 `.openspec.yaml` 的顶层 `status` 改为 `draft`，instruction 要求先读取完整文件，只替换唯一顶层 status 的值，并保留其余字段和值。文件无法读取或 status 无法唯一识别时必须停止，不能用单行内容覆盖 metadata。
+
 如果所属 Project 不是 git 仓库，`linked` 模式会回退到 `main` 工作区，并在 state warnings 中说明原因。
 
 ## OpenSpec 初始化
@@ -75,7 +79,9 @@ plan 文档以 `<workspaceDataDir>/sessions/<sessionId>/plans/<yyyy-MM-dd-slug>.
 
 HTTP 后端端口只对主进程可见，后端重启不会改变已提供给 Agent 的 proxy URL。proxy 会剥离调用方自带的 `Authorization` 与 `X-Fyllo-*` 头，避免 Agent 伪造 Workspace 或 Project 上下文。Agent 不支持 HTTP、目标后端未就绪或 HTTP host 不可用时，FylloCode 会为该 server 回退到 stdio transport。两种 transport 都不回退到 cwd 或旧 Project 路径上下文；设置 `FYLLO_DISABLE_BUNDLED_MCP=1` 会同时禁用 HTTP host 和 stdio spec 注入。
 
-## Archive metadata 与恢复
+## OpenSpec metadata 写回与恢复
+
+`fyllo-specs` 在 Create、MCP Apply 与 Archive 阶段使用同一套 `.openspec.yaml` 序列化规则。状态写回会保留其他 metadata 字段和值，并让 `created` 等 ISO 时间字符串保持为无引号 YAML plain scalar。已有 active change 和历史 archive 不会因此批量改写；只有后续经过这些 lifecycle 写入的文件采用统一表示。
 
 `archive-change` 只有在 OpenSpec 明确确认 Archive 成功后，才会把归档目录内 `.openspec.yaml` 的 `status` 写为 `archived`。写回发生在 Git commit、linked worktree merge 和 cleanup 之前，因此后续提交会带上可持久化的归档状态。Preview、冲突、CLI 失败或没有成功标记时不会写入。
 

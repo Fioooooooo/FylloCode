@@ -57,6 +57,10 @@ If the investigation reveals that the change affects requirements, a public API,
 
 A single-Project activation may omit `folderId`; a multi-root Workspace must provide it explicitly. `apply-change` and `archive-change` require the `folderId` from the ProposalRef and resolve a fixed target inside the server; callers cannot provide `targetPath` or `worktreePath`.
 
+One cross-Project goal can produce several Proposals. The Agent chooses a path independently for each Project and, after you confirm an explicit owner set, calls `create-proposal` once for every Project that needs a Proposal. Each invocation handles one repository owner, supplies its `folderId`, and returns one `state.target`; it cannot combine several Projects into a primary-owned umbrella Proposal.
+
+While creating artifacts, the Agent writes only the owning Project's proposal, design, specs, and tasks under the current `state.target.worktreePath`. When the workflow needs to change the top-level `.openspec.yaml` `status` to `draft`, the instruction requires reading the complete file, replacing only the unique top-level status value, and preserving every other field and value. If the file cannot be read or the status field is ambiguous, the Agent must stop instead of replacing metadata with a one-line document.
+
 If the owning Project is not a git repository, `linked` mode falls back to the main worktree and explains the reason in state warnings.
 
 ## OpenSpec Initialization
@@ -75,7 +79,9 @@ Inside the FylloCode application, `fyllo-specs` is hosted by an application-leve
 
 The real HTTP backend port remains private to the main process, so a backend restart does not change the proxy URL already supplied to an Agent. The proxy strips caller-supplied `Authorization` and `X-Fyllo-*` headers so an Agent cannot forge Workspace or Project context. When an Agent lacks HTTP support, the target backend is not ready, or the HTTP host is unavailable, FylloCode falls back to stdio. Neither transport falls back to cwd or legacy Project-path context. Setting `FYLLO_DISABLE_BUNDLED_MCP=1` disables both the HTTP host and stdio spec injection.
 
-## Archive Metadata and Recovery
+## OpenSpec Metadata Writes and Recovery
+
+`fyllo-specs` uses the same `.openspec.yaml` serialization rules for Create, MCP Apply, and Archive. A status write preserves the other metadata fields and values, while ISO timestamps such as `created` remain unquoted YAML plain scalars. Existing active changes and historical archives are not rewritten in bulk; the unified representation applies when a later lifecycle operation writes the file.
 
 `archive-change` writes `status: archived` to `.openspec.yaml` inside the archive directory only after OpenSpec explicitly confirms success. The write happens before the Git commit, linked-worktree merge, and cleanup, so the durable archive status is included in later finalization. Preview, conflict, CLI failure, and output without a success marker do not update metadata.
 

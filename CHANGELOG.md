@@ -4,6 +4,37 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.3] - 2026-08-12
+
+本次发布让历史 Chat 更容易找回，并把 Agent 在单轮执行中的文件变化集中到只读 Diff 视图。ACP 工具事件、消息审计 metadata 与 JSONL 写回链路现在使用一致语义；多根 Workspace 也会按 Project 独立判断和创建 Proposal。侧栏、时间线和工具详情的布局调整减少了长会话中的空间浪费与横向溢出。
+
+### 新增
+
+- Chat 侧栏新增当前 Workspace 会话搜索。可按标题、FylloCode Session ID 或 User / Assistant 可见正文查找历史会话；搜索排除 reasoning、Tool 输入输出和 system reminder，结果按命中类型与更新时间排序，最多返回 50 条，并直接沿用既有会话打开流程
+- 工具详情新增本轮文件变更审查。`Changes` 会把当前 assistant message 中可见普通工具的 ACP diff 聚合为新增、修改和删除文件，并在默认折叠、可多项展开的只读 Diff Slideover 中展示；`Locations` 可复用现有本地文件预览打开绝对路径和行号
+
+### 调整
+
+- ACP tool call 的 `pending`、`in_progress`、`completed`、`failed` 四态、diff、locations、失败文本与 replacement 语义现在贯穿实时消息、Main 持久化和历史重载。新消息还记录 `updatedAt` 以及实际 Prompt dispatch 使用的可选 model / effort，并通过按文件串行和原子写回保护 JSONL 历史
+- Multi-root Chat 现在先按 Project 拆分目标并独立判断 Direct、Plan 或 Proposal。多个 Project 都改变行为契约时，Agent 会先列出 owner、具体契约变化和跨仓库依赖供确认，再为每个 owner 分别创建 repository-owned Proposal；未达到标准的 Project 仍可使用 Direct 或 Plan
+- Chat 侧栏中少量置顶会话按内容高度收缩，最多占可用高度的 50%，最近会话使用剩余空间。Prompt 时间线收窄并改为左侧垂直居中的透明悬浮层，hover 不再改变底板
+- 更新 ACP、MCP、Vue、Nuxt UI、Pinia、MarkStream、Monaco 和开发工具依赖；`stream-monaco` 升级到 `0.0.49`，并带有用于保持 Diff Editor 代码行对齐的本地兼容补丁
+
+### 修复
+
+- 修复在 Assistant 回复期间重命名会话会用服务端 metadata 覆盖 Renderer `running` 状态，导致运行指示提前消失的问题
+- 修复重新进入同一个新会话草稿时取消正在进行的 probe，进而丢失首次加载的 Agent Session 配置选项的问题
+- 移除普通工具四种状态的 suffix DOM；进行中继续使用 shimmer，失败保留错误色 icon 和 `Error` 详情，展开 Activity group 不再因隐藏 suffix 扩大消息列宽度
+- `fyllo-specs` 在创建 Proposal 草稿时要求保留完整 `.openspec.yaml`，并让 Create、MCP Apply、Archive 使用同一 metadata 序列化规则，避免状态写回截断其他字段或无意义地给 ISO 时间加引号
+
+### 说明
+
+- 应用版本为 `0.15.3`。
+- `fyllo-specs` MCP server 升级到 `0.11.1`。这是保持 tool 名称、输入、输出、transport 和存储位置兼容的 patch 更新，包含多 Project 单 owner 调用指引与 metadata 安全写回修复。
+- `fyllo-cortex` MCP server 保持 `0.7.0`，`fyllo-spawn` MCP server 保持 `0.1.1`；本次发布范围没有修改这两个 server。
+- 新消息 JSONL 会增加可选 `updatedAt`、`model`、`effort` 与工具 metadata。历史消息无需迁移；缺少 `updatedAt` 时在内存中回退到 `createdAt`，缺少其他字段时保持缺失。
+- 会话搜索直接按需读取现有 Session metadata 与消息 JSONL，不创建索引、缓存或新的持久化格式。较大的 Workspace 可能需要更长查询时间，Renderer 会 debounce 输入、串行扫描并丢弃过期结果。
+
 ## [0.15.2] - 2026-08-10
 
 这个版本让 Chat 可以在 FylloCode 协作与 Agent 原生行为之间选择，并新增跨 ACP Agent 的任务委派、后台执行和只读检查能力。Proposal 的 Apply 与 Archive 入口也统一回到 Chat，由用户消息表达意图，再以实际任务和归档状态更新界面。

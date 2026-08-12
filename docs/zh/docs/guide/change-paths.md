@@ -71,6 +71,12 @@ Proposal 面向会改变对外契约的变更，围绕 OpenSpec 生成四类产�
 
 默认情况下，`create-proposal` 会在 `.worktrees/<changeName>` 下创建 linked worktree，让改动发生在独立工作区，主分支在评审通过前保持干净；用户明确要求时才会直接在主工作区创建。
 
+### 多根 Workspace 中的路径判断
+
+一个目标影响多个 Project 时，Agent 会先按 Project 拆分 repository-local 改动，再分别判断 Direct、Plan 或 Proposal。行为契约变化归拥有权威 contract 或 spec 的 Project；依赖方适配留在依赖方，并根据自身影响单独选择路径。
+
+多个 Project 都需要 Proposal 时，Agent 会先列出 Project 名称、具体契约变化和已知依赖或执行顺序。确认这个 owner 集合后，Agent 为每个 Project 分别调用 `create-proposal` 并传入对应 `folderId`。每份 Proposal 只包含所属 Project 的产物和文件任务；后续发现新的 Proposal owner 时，需要再次确认扩展后的集合。
+
 ## Apply & Archive
 
 无论走的是直接实现、Plan 还是 Proposal，落地后都可以进入 Archive：把变更范围、决策上下文、spec 更新（如果有）和 guidelines 演进沉淀下来，作为下一次任务的背景知识。

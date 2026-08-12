@@ -6,9 +6,20 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-08-12
+
+### Changed
+
+- Multi-root Proposal instructions now require one `create-proposal` invocation per repository owner, with an explicit `folderId` for each Project that independently meets the Proposal threshold.
+
 ### Fixed
 
 - `create-proposal` instructions now require agents to read and preserve the complete `.openspec.yaml` content when changing only its top-level status to `draft`, and explicitly forbid truncating the metadata file to a one-line document.
+- Create, MCP Apply, and Archive now use one OpenSpec metadata serializer, preserving existing fields and keeping ISO timestamps as unquoted YAML plain scalars when status changes are written.
+
+### Compatibility
+
+- Tool names, inputs, outputs, transports, and Proposal storage locations remain compatible with `0.11.0`. Existing active changes and historical archives are not rewritten in bulk.
 
 ## [0.11.0] - 2026-08-10
 

@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.3] - 2026-08-12
+
+This release makes past Chat sessions easier to recover and collects an Agent's file changes from one turn into a read-only Diff view. ACP tool events, message audit metadata, and JSONL writes now follow consistent semantics, while multi-root Workspaces choose and create Proposals independently for each Project. Sidebar, timeline, and tool-detail layout changes reduce wasted space and horizontal overflow in long conversations.
+
+### Added
+
+- Added current-Workspace session search to the Chat sidebar. It finds past sessions by title, FylloCode Session ID, or visible User and Assistant text; excludes reasoning, Tool input and output, and system reminders; orders results by match type and update time; returns at most 50 entries; and opens a result through the existing session flow
+- Added turn-level file-change review to tool details. `Changes` aggregates ACP diffs from visible normal tools in the current assistant message into added, modified, and deleted files in a read-only Diff Slideover whose items start collapsed and allow several files to remain expanded; `Locations` opens absolute paths and line numbers through the existing local-file preview
+
+### Changed
+
+- ACP tool-call `pending`, `in_progress`, `completed`, and `failed` states, diffs, locations, failure text, and replacement semantics now remain consistent across live messages, Main persistence, and history reload. New messages also record `updatedAt` and the optional model / effort used at actual Prompt dispatch, with per-file serialization and atomic rewrites protecting JSONL history
+- Multi-root Chat now separates a goal by Project and chooses Direct, Plan, or Proposal for each owner independently. When several Projects change behavior contracts, the Agent lists owners, specific contract changes, and cross-repository dependencies for confirmation, then creates one repository-owned Proposal per owner; Projects below the threshold can still use Direct or Plan
+- A short pinned-session group now shrinks to its content, up to 50% of the available sidebar height, while Recent Sessions uses the remainder. The prompt timeline is narrower and uses a vertically centered transparent overlay on the left, without changing its surface on hover
+- Updated ACP, MCP, Vue, Nuxt UI, Pinia, MarkStream, Monaco, and development dependencies. `stream-monaco` is now `0.0.49` with a local compatibility patch that keeps Diff Editor code lines aligned
+
+### Fixed
+
+- Fixed renaming a Session during an Assistant reply replacing the Renderer `running` state with server metadata and hiding the runtime indicator too early
+- Fixed re-entering the same new-session draft cancelling an in-flight probe and losing the Agent Session configuration loaded by that first probe
+- Removed status-suffix DOM for all four normal-tool states. In-progress tools keep shimmer, failed tools keep an error-colored icon and `Error` details, and expanding an Activity group no longer lets hidden suffixes widen the message column
+- Fixed `fyllo-specs` Proposal creation instructions to preserve the complete `.openspec.yaml`, and unified metadata serialization across Create, MCP Apply, and Archive so status writes neither truncate other fields nor add unrelated quotes to ISO timestamps
+
+### Notes
+
+- The application version is now `0.15.3`.
+- The `fyllo-specs` MCP server is now `0.11.1`. This patch keeps tool names, inputs, outputs, transports, and storage locations compatible while adding per-Project single-owner guidance and metadata write-safety fixes.
+- The `fyllo-cortex` MCP server remains at `0.7.0`, and `fyllo-spawn` remains at `0.1.1`; neither server changed in this release range.
+- New message JSONL records can include optional `updatedAt`, `model`, `effort`, and tool metadata. Historical messages need no migration: missing `updatedAt` falls back to `createdAt` in memory, and other absent fields remain absent.
+- Session search reads existing Session metadata and message JSONL on demand without creating an index, cache, or new persistence format. Large Workspaces can take longer to query; the Renderer debounces input, serializes scans, and discards stale results.
+
 ## [0.15.2] - 2026-08-10
 
 This release lets each Chat session choose between FylloCode collaboration and the Agent's native behavior, and adds cross-Agent delegation with background execution and read-only inspection. Proposal Apply and Archive entry points now return to Chat: the user message expresses intent, while actual task and archive state drive the interface.

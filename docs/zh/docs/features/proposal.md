@@ -16,6 +16,8 @@ Proposal 页面是 FylloCode 的核心工作区之一。它把一次变更的方
 
 列表页用于查看当前 Workspace 各 Project 中的完整 proposal 集合。页面可以按 Project 筛选，并显示 repository-owned 的归属；它不使用状态 tabs 隐藏草稿、实现中或已归档的 Proposal。同名 change 在不同 Project 中仍是彼此独立的 Proposal。
 
+跨 Project 的目标不会合并为主 Project 拥有的 umbrella Proposal。Agent 会按 Project 独立判断 Direct、Plan 或 Proposal；多个 Project 都需要 Proposal 时，先列出 owner、具体契约变化和跨仓库依赖供确认，再为每个 Project 分别调用 `create-proposal`。每份 Proposal 只包含所属 Project 的契约和任务，跨 Project 前置关系只作为依赖记录。
+
 ## Proposal 详情
 
 详情页通常包含：
@@ -48,5 +50,6 @@ Linked Proposal 归档后可能先位于 linked worktree，再随提交合并到
 - tasks 是否细到可以执行和验收
 - 影响范围是否和项目规范一致
 - Proposal 是否属于正确的 Project，`folderId` 与仓库位置是否匹配
+- 跨 Project 依赖是否明确记录，且 tasks 没有混入其他 Project 的文件修改
 
 Proposal 通过后，回到创建它的 Chat Session，从会话事件栏进入 Apply & Archive，可以减少“实现中才发现方案不对”的返工成本。

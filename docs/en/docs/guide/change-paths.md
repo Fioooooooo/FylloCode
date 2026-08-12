@@ -71,6 +71,12 @@ These artifacts support the current review and future traceability. If someone a
 
 By default, `create-proposal` creates a linked worktree under `.worktrees/<changeName>`, so the change happens in an isolated workspace while the main branch stays clean until review passes. It only creates the proposal directly in the main workspace when the user explicitly asks for that.
 
+### Choosing Paths in a Multi-root Workspace
+
+When one goal affects several Projects, the Agent separates the repository-local work by Project and chooses Direct, Plan, or Proposal for each one. A behavior-contract change belongs to the Project that owns the authoritative contract or spec. Consumer adaptation stays in the consuming Project and follows its own path.
+
+If several Projects need Proposals, the Agent first lists each Project name, the specific contract change, and known dependencies or execution order. After you confirm that owner set, it calls `create-proposal` separately for each Project with the matching `folderId`. Each Proposal contains only its owner's artifacts and file changes. Discovering another Proposal owner requires confirmation of the expanded set before another call.
+
 ## Apply & Archive
 
 Whichever path was taken — direct implementation, Plan, or Proposal — the change can move into Archive once it lands, preserving the change scope, decision context, spec updates (if any), and guideline evolution as background for the next task.

@@ -58,6 +58,14 @@ Workspace 是可以编辑的，但正在运行的 Session 不会跟随编辑实�
 - Proposal 的 Apply 与 Archive 仍然只在该 Proposal 所属 Project 或已登记 worktree 中执行，不会因为当前 Workspace 有多个成员就跨项目写入。
 - Knowledge 属于 Workspace，可以跨 Project、任务和 Session 共享；引用仓库证据时仍会保留对应的 Project 归属。
 
+## 跨 Project 目标如何进入 Proposal
+
+一个用户目标涉及多个 Project 时，Agent 会先把预期改动拆成每个 Project 的 repository-local 范围，再分别判断 Direct、Plan 或 Proposal。公开 API、schema 或 spec 的变化归拥有权威 contract 或 spec 的 Project；调用方为了适配该变化所做的修改仍属于调用方 Project，并根据自身的契约影响与复杂度单独选择路径。
+
+如果多个 Project 都达到 Proposal 标准，Agent 会在调用 `create-proposal` 前列出每个 Project、触发 Proposal 的具体契约变化，以及已知的跨仓库依赖或执行顺序。确认这个明确集合后，Agent 为每个 Project 分别创建 repository-owned Proposal，并显式使用对应 `folderId`。FylloCode 不会在主 Project 中创建覆盖所有仓库的 umbrella Proposal；没有达到 Proposal 标准的 Project 仍可走 Direct 或 Plan。
+
+每份 Proposal 的 proposal、design、specs 和 tasks 只描述所属 Project 内的契约、文件和验证。跨 Project 的前置关系会记录在相关 design 或 tasks 中，但不会把另一个 Project 的代码任务放入当前 Proposal。
+
 ## 适合使用多根 Workspace 的任务
 
 - 同时排查前端、后端和共享库之间的接口问题

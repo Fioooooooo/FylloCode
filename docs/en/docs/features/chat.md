@@ -11,18 +11,19 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 ## Main Capabilities
 
 - Manage sessions in the Workspace
+- Search current-Workspace session history by title, Session ID, or conversation text
 - Pin important sessions into a separate group, with the pinned state restored after restart
-- Collapse the **Pinned Sessions** and **Recent Sessions** groups independently, sharing available height between expanded groups
+- Collapse **Pinned Sessions** and **Recent Sessions** independently; a short pinned group shrinks to its content and Recent Sessions uses the remaining height
 - Select installed ACP Agents
 - Select `FylloCode` or `原生` (Native) mode before the first message
 - Inspect and change Agent-provided Session configuration from one menu
 - Inspect the fixed Session scope in the Chat header, including snapshot-only and stale members
 - Copy the current FylloCode Session ID from the Chat header
 - Send text and attachment context
-- Display Agent reasoning, tool calls, subagent calls, and streamed output state
+- Display Agent reasoning, tool calls, subagent calls, streamed output state, and file changes from the current turn
 - Delegate focused work to other installed ACP Agents and inspect synchronous or background spawned Sessions
 - Render structured content such as Mermaid and Markdown
-- Safely preview absolute local file links supplied by an Agent from any Markdown reading surface
+- Safely preview absolute local paths supplied through Markdown or tool Locations
 - Create proposals and continue later stages inside task context
 - Show a source task banner for task-based sessions, including after reopening the session
 - Let Agents propose task creation, submit a plan for review, and flag or request review of knowledge entries through [fyllo-action](/en/docs/reference/fyllo-action), with FylloCode taking over execution after your confirmation
@@ -30,7 +31,15 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 
 ## Managing Session Groups
 
-**Pinned Sessions** and **Recent Sessions** are each sorted by recent activity. Every non-empty group can be collapsed independently. When both groups are expanded, they share the remaining height below their headers and scroll separately. Collapsing a group does not interrupt background execution, and expanding it restores the previous scroll position. Collapse state lasts only for the current Chat-sidebar mount and is not written to session metadata.
+**Pinned Sessions** and **Recent Sessions** are each sorted by recent activity, and every non-empty group can be collapsed independently. When both are expanded, the pinned group uses its natural content height up to 50% of the available list height; Recent Sessions takes the remaining space. Overflow scrolls inside each group. If only one group exists or remains expanded, it uses all space below the group headers.
+
+Collapsing a group does not interrupt background execution, and expanding it restores the previous scroll position. Collapse state lasts only for the current Chat-sidebar mount and is not written to session metadata.
+
+## Searching Session History
+
+Select **Search Sessions** beside **New Session** to search the current Workspace by title, FylloCode Session ID, or visible User and Assistant conversation text. Search does not cross Workspaces and excludes reasoning, Tool input and output, attachments, and system reminders. Results prioritize title matches, then Session ID matches, then message matches; each category is ordered by most recent update, with at most 50 results.
+
+The input waits briefly before querying, and one search window never scans multiple histories in parallel. Results show the session title, update time, and a conversation snippet when available. Opening a result uses the normal session-opening flow without changing pin state or list order. Search reads existing session records directly and creates no index or cache file.
 
 ## Adjusting Session Configuration
 
@@ -59,7 +68,7 @@ After opening an existing Session, use **Session Actions** in the right side of 
 
 ## Locating Past Messages
 
-When the current session has at least two user prompts, a floating timeline appears in the top-left of the conversation area. Each of 2–10 prompts gets a guide; longer conversations stay at 10 guides, while the full rail still maps continuously to every prompt. A separate teal thumb follows the current reading position, so the timeline does not keep growing or reduce the message-column width.
+When the current session has at least two user prompts, a vertically centered floating timeline appears along the left side of the conversation area. Each of 2–10 prompts gets a guide; longer conversations stay at 10 guides, while the full rail still maps continuously to every prompt. A separate teal thumb follows the current reading position, so the timeline does not keep growing or reduce the message-column width.
 
 Hovering or using the arrow keys shows up to five nearby prompt summaries. Clicking the timeline or pressing Enter pins the complete prompt list, which scrolls independently and lets you locate any message by selecting its summary. Dragging or using the mouse wheel moves through prompts quickly, Home and End jump to the boundaries, and Escape closes the summary popover. The timeline is hidden when there are fewer than two prompts.
 
@@ -67,7 +76,9 @@ Hovering or using the arrow keys shows up to five nearby prompt summaries. Click
 
 The currently streaming assistant message shows a runtime indicator after the content already received, with generic status text and elapsed time in natural units. The indicator only means the reply is still being processed; it does not infer the Agent's specific action from tool calls. It is removed when the stream finishes, fails, or is cancelled, and historical messages do not retain this runtime state.
 
-Consecutive Thinking and normal tool calls are grouped into a collapsible Activity group. After expanding the group, you can inspect each Thinking and Tool item separately, including complete Input and Output sections. Long content scrolls inside the detail area instead of being truncated in the underlying data.
+Consecutive Thinking and normal tool calls are grouped into a collapsible Activity group. After expanding it, you can inspect each Thinking and Tool separately, including complete Input and Output sections. Failed tools use an error-colored icon and keep the error text in an `Error` section. Tool titles do not append execution-status suffixes; in-progress tools continue to use shimmer, so hidden status nodes cannot create horizontal overflow when several tools are expanded.
+
+When a tool returns structured ACP diffs, its `Changes` section lists the added, modified, or deleted paths associated with that tool. Opening any path shows **File Changes in This Turn**, which aggregates net changes from visible normal tools in the current assistant message into a read-only Diff list. Files start collapsed and several can be expanded together. This view uses the execution snapshot stored in the message: it does not reread the disk, aggregate the whole Session, or claim to represent current Git or worktree state. Absolute paths and line numbers in `Locations` open through the existing local-file preview.
 
 When Claude Code starts a subagent through the Agent tool, the parent call appears as a separate card. Opening the details shows the prompt, status, model, tokens, duration, tool statistics, child tool activity, and final response. The details connect only parent-child tool relationships that can be safely confirmed inside the same assistant message; tools that cannot be linked continue to appear as normal tools.
 
@@ -89,7 +100,7 @@ When a multi-root ACP Session is created, FylloCode fixes the Workspace member s
 
 ## Previewing Local Files
 
-When an Agent emits a Markdown link to a POSIX, Windows drive, or UNC absolute path, clicking it opens a read-only preview in a window-level Slideover. Files under the roots and registered worktrees of Projects in the current Session snapshot can be read directly. For files outside those trusted roots, FylloCode displays the full canonical path, size, and modification time before reading content, then requires either **Open Once** or **Open and Trust in This Window**.
+When an Agent emits a Markdown link or tool `Location` with a POSIX, Windows drive, or UNC absolute path, opening it uses a read-only window-level Slideover. Files under the roots and registered worktrees of Projects in the current Session snapshot can be read directly. For files outside those trusted roots, FylloCode displays the full canonical path, size, and modification time before reading content, then requires either **Open Once** or **Open and Trust in This Window**.
 
 Preview accepts regular UTF-8 text files up to 5 MiB. Directories, devices, binary content, and invalid UTF-8 are rejected. Add `:line[:column]` to a link to locate source; the preview supports search, selection, and copy, but never save or write-back. Window trust exists only in memory for the current Renderer Window and expires when the window closes or the app restarts.
 

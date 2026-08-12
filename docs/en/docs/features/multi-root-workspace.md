@@ -58,4 +58,19 @@ Multi-root Workspace solves the shared-context problem without erasing Project o
 - Proposal Apply and Archive still run only in the Proposal's owning Project or a registered worktree. Having multiple Workspace members does not make writes cross-project.
 - Knowledge belongs to the Workspace and can be shared across Projects, Tasks, and Sessions; repository evidence still retains its Project owner.
 
+## How a Cross-Project Goal Enters Proposal
+
+When one goal affects several Projects, the Agent first separates the expected work into repository-local scopes, then chooses Direct, Plan, or Proposal for each Project independently. A public API, schema, or spec change belongs to the Project that owns the authoritative contract or spec. Adaptation work stays in the consuming Project and follows its own path based on its contract impact and complexity.
+
+If several Projects meet the Proposal threshold, the Agent lists each Project, the specific contract change that requires a Proposal, and any known cross-repository dependency or execution order before calling `create-proposal`. After you confirm that explicit set, the Agent creates one repository-owned Proposal per Project and supplies the matching `folderId`. FylloCode does not create a primary-Project umbrella Proposal, and Projects below the Proposal threshold can still use Direct or Plan.
+
+Each Proposal's proposal, design, specs, and tasks describe only the owning Project's contracts, files, and verification. Cross-Project prerequisites belong in the related design or tasks, but another Project's code changes do not become part of the current Proposal.
+
+## Good Fits for a Multi-root Workspace
+
+- Investigating an interface problem across a frontend, backend, and shared library
+- Comparing application code with a component, script, or documentation repository
+- Understanding several related Projects before creating separate Proposals for the relevant owners
+- Reusing cross-Project background knowledge in one Workspace
+
 To get started, read [Getting Started](/en/docs/guide/getting-started) for opening a Project or Workspace. Then see [Chat and Execution](/en/docs/features/chat) for Session scope, [ACP Agents](/en/docs/features/agents) for Agent capability limits, and [Project Overview](/en/docs/features/overview) for the Workspace aggregate view.
