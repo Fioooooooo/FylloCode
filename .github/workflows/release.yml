@@ -47,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -69,6 +69,8 @@ jobs:
           NODE
 
       - name: Build application
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm build
 
       - name: Build packages and publish draft release
