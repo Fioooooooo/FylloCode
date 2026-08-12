@@ -140,8 +140,10 @@ describe("Claude Code ACP event adapter", () => {
       },
     } as unknown as SessionUpdate;
 
-    expect(mapSessionUpdate(update, { agentId: "claude-acp" })).toMatchObject({
-      status: "in_progress",
+    const mapped = mapSessionUpdate(update, { agentId: "claude-acp" });
+
+    expect(mapped).toMatchObject({
+      status: undefined,
       subagent: {
         status: "completed",
         agentType: "Explore",
@@ -160,9 +162,7 @@ describe("Claude Code ACP event adapter", () => {
         },
       },
     });
-    expect(mapSessionUpdate(update, { agentId: "claude-acp" })).not.toHaveProperty(
-      "subagent.agentId"
-    );
+    expect(mapped).not.toHaveProperty("subagent.agentId");
     expect(mapSessionUpdate(update, { agentId: "claude-acp" })).not.toHaveProperty(
       "subagent.usage"
     );

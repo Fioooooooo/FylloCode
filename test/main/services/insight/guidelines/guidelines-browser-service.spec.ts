@@ -69,7 +69,7 @@ describe("guidelines-browser-service", () => {
     await writeGuideline(
       member,
       "guidelines/Bad.md",
-      ["---", ": : :", "---", "# Bad", "", "Still readable."].join("\n")
+      ["---", "name: [unterminated", "---", "# Bad", "", "Still readable."].join("\n")
     );
 
     const result = await getGuidelinesBrowser({

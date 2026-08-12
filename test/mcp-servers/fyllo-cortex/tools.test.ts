@@ -929,7 +929,7 @@ describe("fyllo-cortex tools", () => {
           ].join("\n")
         );
         await writeFile(join(guidelinesDir, "B.md"), "# Legacy\n");
-        await writeFile(join(guidelinesDir, "Bad.md"), "---\n: : :\n---\n# Bad\n");
+        await writeFile(join(guidelinesDir, "Bad.md"), "---\nname: [unterminated\n---\n# Bad\n");
         await writeFile(
           join(frontendDir, "Routing.md"),
           [
