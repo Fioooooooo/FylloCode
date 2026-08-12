@@ -30,6 +30,8 @@ const accordionItems = computed(() =>
     ...change,
     label: change.path,
     value: change.path,
+    kindLabel: changeKindLabels[change.kind],
+    kindColor: changeKindColors[change.kind],
   }))
 );
 const accordionUi = {
@@ -115,13 +117,8 @@ onUnmounted(() => {
                 <span class="wrap-anywhere min-w-0 font-mono text-xs leading-5 text-default">
                   {{ item.path }}
                 </span>
-                <UBadge
-                  :color="changeKindColors[item.kind]"
-                  variant="soft"
-                  size="xs"
-                  class="mt-0.5 shrink-0"
-                >
-                  {{ changeKindLabels[item.kind] }}
+                <UBadge :color="item.kindColor" variant="soft" size="xs" class="mt-0.5 shrink-0">
+                  {{ item.kindLabel }}
                 </UBadge>
               </span>
             </template>
