@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
-import { CORE_SCHEMA, dump, load } from "js-yaml";
+import { readOpenSpecMetadata, writeOpenSpecMetadata } from "./metadata-yaml";
 import { resolveOpenspecCli } from "./resolve-cli";
 import { spawnOpenspec } from "./spawner";
 
@@ -50,7 +50,7 @@ export async function createChange(projectRoot: string, name: string): Promise<v
   }
   const cliPath = resolveOpenspecCli();
   await spawnOpenspec(cliPath, ["new", "change", name], projectRoot, {}, false);
-  const doc = (load(readFileSync(path, "utf8")) as Record<string, unknown>) ?? {};
+  const doc = readOpenSpecMetadata<Record<string, unknown>>(path) ?? {};
   const newDoc: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(doc)) {
     if (key !== "created" && key !== "status") {
@@ -59,5 +59,5 @@ export async function createChange(projectRoot: string, name: string): Promise<v
   }
   newDoc.created = new Date().toISOString();
   newDoc.status = "creating";
-  writeFileSync(path, dump(newDoc, { schema: CORE_SCHEMA }), "utf8");
+  writeOpenSpecMetadata(path, newDoc);
 }

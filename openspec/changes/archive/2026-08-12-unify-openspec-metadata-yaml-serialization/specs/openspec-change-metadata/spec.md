@@ -1,10 +1,4 @@
-# openspec-change-metadata Specification
-
-## Purpose
-
-定义 OpenSpec change 创建时的 metadata 写入规则，确保新建 change 具有稳定的 `created` 时间戳和 `status` 字段顺序，同时避免覆盖已经存在的 change metadata。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Created timestamp is written for new OpenSpec changes
 
@@ -31,6 +25,8 @@
 - **WHEN** `createChange(projectRoot, changeName)` 被调用且目标 change 的 `.openspec.yaml` 已存在
 - **THEN** 系统 SHALL 保持现有早退行为
 - **AND** 系统 SHALL NOT 覆盖该文件中的 `created` 或 `status`
+
+## ADDED Requirements
 
 ### Requirement: Fyllo-specs lifecycle metadata serialization remains consistent
 

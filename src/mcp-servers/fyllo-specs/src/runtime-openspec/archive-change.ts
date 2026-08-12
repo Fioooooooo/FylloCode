@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { changeDir } from "./paths";
-import { readYamlFile, writeYamlFile } from "./fs";
+import { readOpenSpecMetadata, writeOpenSpecMetadata } from "./metadata-yaml";
 import { parseArchiveOutcome } from "./parse-archive-outcome";
 import { resolveOpenspecCli } from "./resolve-cli";
 import { spawnOpenspec } from "./spawner";
@@ -28,13 +28,13 @@ function deltaSummary(changePath: string): { files: string[] } {
 
 function persistArchivedStatus(archiveTarget: string): void {
   const metadataPath = join(archiveTarget, ".openspec.yaml");
-  const metadata = readYamlFile<Record<string, unknown>>(metadataPath);
+  const metadata = readOpenSpecMetadata<Record<string, unknown>>(metadataPath);
   if (!metadata) {
     throw new Error(`Archive metadata not found: ${metadataPath}`);
   }
   if (metadata.status === "archived") return;
   metadata.status = "archived";
-  writeYamlFile(metadataPath, metadata);
+  writeOpenSpecMetadata(metadataPath, metadata);
 }
 
 export async function archiveChange(

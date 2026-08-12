@@ -137,7 +137,7 @@ describe("openspec-runtime", () => {
     writeFileSync(join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
     writeFileSync(
       join(changeRoot, ".openspec.yaml"),
-      "schema: spec-driven\nstatus: proposed\n",
+      "schema: spec-driven\ncreated: 2026-08-09T00:00:00.000Z\nstatus: proposed\ncontext: keep\n",
       "utf8"
     );
     writeFileSync(join(changeRoot, "proposal.md"), "# Proposal\n", "utf8");
@@ -147,7 +147,14 @@ describe("openspec-runtime", () => {
 
     try {
       const result = await loadApplyState(root, "test-proposal");
+      const metadata = readFileSync(join(changeRoot, ".openspec.yaml"), "utf8");
+
       expect(result.applyState).toBe("ready");
+      expect(metadata).toContain("status: applying");
+      expect(metadata).toContain("created: 2026-08-09T00:00:00.000Z");
+      expect(metadata).not.toContain("created: '2026-08-09T00:00:00.000Z'");
+      expect(metadata).not.toContain('created: "2026-08-09T00:00:00.000Z"');
+      expect(metadata).toContain("context: keep");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -281,6 +288,8 @@ describe("openspec-runtime", () => {
       expect(result.archiveTarget).toBe(archiveDir);
       expect(metadata).toContain("status: archived");
       expect(metadata).toContain("created: 2026-08-09T00:00:00.000Z");
+      expect(metadata).not.toContain("created: '2026-08-09T00:00:00.000Z'");
+      expect(metadata).not.toContain('created: "2026-08-09T00:00:00.000Z"');
       expect(metadata).toContain("context: keep");
     } finally {
       spy.mockRestore();
@@ -293,11 +302,13 @@ describe("openspec-runtime", () => {
     const changeName = "unconfirmed-change";
     const activeDir = join(root, "openspec", "changes", changeName);
     const metadataPath = join(activeDir, ".openspec.yaml");
+    const originalMetadata =
+      "schema: spec-driven\ncreated: 2026-08-09T00:00:00.000Z\nstatus: applying\ncontext: keep\n";
     mkdirSync(activeDir, { recursive: true });
-    writeFileSync(metadataPath, "schema: spec-driven\nstatus: applying\n");
+    writeFileSync(metadataPath, originalMetadata);
 
     await archiveChange(root, changeName, { confirm: false });
-    expect(readFileSync(metadataPath, "utf8")).toContain("status: applying");
+    expect(readFileSync(metadataPath, "utf8")).toBe(originalMetadata);
 
     const spy = vi
       .spyOn(spawner, "spawnOpenspec")
@@ -306,7 +317,7 @@ describe("openspec-runtime", () => {
       await expect(archiveChange(root, changeName, { confirm: true })).rejects.toMatchObject({
         name: "OpenspecArchiveNotConfirmed",
       });
-      expect(readFileSync(metadataPath, "utf8")).toContain("status: applying");
+      expect(readFileSync(metadataPath, "utf8")).toBe(originalMetadata);
     } finally {
       spy.mockRestore();
       rmSync(root, { recursive: true, force: true });
@@ -324,8 +335,10 @@ describe("openspec-runtime", () => {
       "archive",
       `${new Date().toISOString().slice(0, 10)}-${changeName}`
     );
+    const originalMetadata =
+      "schema: spec-driven\ncreated: 2026-08-09T00:00:00.000Z\nstatus: archived\ncontext: keep\n";
     mkdirSync(activeDir, { recursive: true });
-    writeFileSync(join(activeDir, ".openspec.yaml"), "schema: spec-driven\nstatus: archived\n");
+    writeFileSync(join(activeDir, ".openspec.yaml"), originalMetadata);
     const spy = vi.spyOn(spawner, "spawnOpenspec").mockImplementation(async () => {
       mkdirSync(join(archiveDir, ".."), { recursive: true });
       renameSync(activeDir, archiveDir);
@@ -334,9 +347,7 @@ describe("openspec-runtime", () => {
 
     try {
       await archiveChange(root, changeName, { confirm: true });
-      expect(readFileSync(join(archiveDir, ".openspec.yaml"), "utf8")).toBe(
-        "schema: spec-driven\nstatus: archived\n"
-      );
+      expect(readFileSync(join(archiveDir, ".openspec.yaml"), "utf8")).toBe(originalMetadata);
     } finally {
       spy.mockRestore();
       rmSync(root, { recursive: true, force: true });
@@ -366,6 +377,7 @@ describe("openspec-runtime", () => {
       const written = readFileSync(yamlFile, "utf8");
       expect(written).toContain("created: 2026-07-06T07:05:27.509Z\n");
       expect(written).not.toContain("created: '2026-07-06T07:05:27.509Z'");
+      expect(written).not.toContain('created: "2026-07-06T07:05:27.509Z"');
       expect(written).toContain("status: creating");
       expect(written.indexOf("created:")).toBeLessThan(written.indexOf("status:"));
       expect(written).toContain("context: test");
@@ -395,6 +407,7 @@ describe("openspec-runtime", () => {
       const written = readFileSync(yamlFile, "utf8");
       expect(written).toContain("created: 2026-07-06T07:05:27.509Z\n");
       expect(written).not.toContain("created: '2026-07-06T07:05:27.509Z'");
+      expect(written).not.toContain('created: "2026-07-06T07:05:27.509Z"');
       expect(written).toContain("status: creating");
       expect(written.indexOf("created:")).toBeLessThan(written.indexOf("status:"));
       expect(written).toContain("context: test");

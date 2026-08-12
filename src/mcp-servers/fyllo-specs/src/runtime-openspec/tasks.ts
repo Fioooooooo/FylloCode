@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { globSync } from "tinyglobby";
-import { readYamlFile, writeYamlFile } from "./fs";
+import { readOpenSpecMetadata, writeOpenSpecMetadata } from "./metadata-yaml";
 import { changeDir } from "./paths";
 import type { ApplyStateResult, ArtifactStatus } from "./types";
 import { computeStatus } from "./status";
@@ -85,11 +85,11 @@ export async function loadApplyState(
   const status = await computeStatus(projectRoot, changeName);
   const applyState = getApplyState(status.applyRequires, status.artifacts, tasks);
   const yamlPathValue = yamlPath(projectRoot, changeName);
-  const doc = readYamlFile<Record<string, unknown>>(yamlPathValue) ?? {};
+  const doc = readOpenSpecMetadata<Record<string, unknown>>(yamlPathValue) ?? {};
 
   if (doc.status !== "applying") {
     doc.status = "applying";
-    writeYamlFile(yamlPathValue, doc);
+    writeOpenSpecMetadata(yamlPathValue, doc);
   }
 
   const contextFiles = Object.fromEntries(
