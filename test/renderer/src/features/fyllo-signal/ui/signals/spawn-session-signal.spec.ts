@@ -8,6 +8,9 @@ describe("SpawnSessionSignal", () => {
       props: { payload: { sessionId: "spawn-1" } },
     });
     expect(wrapper.text()).toContain("Session 信息不可用");
+    expect(wrapper.get("[data-fyllo-signal-spawn-session-unavailable]").classes()).toContain(
+      "my-4"
+    );
     expect(wrapper.find("button").exists()).toBe(false);
   });
 

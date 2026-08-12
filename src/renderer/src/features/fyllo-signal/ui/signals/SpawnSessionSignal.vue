@@ -20,7 +20,7 @@ defineProps<{
   />
   <span
     v-else
-    class="my-1 inline-flex items-center gap-1.5 rounded-lg border border-default bg-elevated px-2.5 py-1.5 text-xs text-muted"
+    class="my-4 inline-flex items-center gap-1.5 rounded-lg border border-default bg-elevated px-2.5 py-1.5 text-xs text-muted"
     role="status"
     data-fyllo-signal-spawn-session-unavailable
   >

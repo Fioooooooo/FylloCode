@@ -41,7 +41,7 @@ watch(inspector.open, async (open, previous) => {
   <button
     ref="trigger"
     type="button"
-    class="my-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-default bg-elevated px-2.5 py-1.5 text-left text-xs text-highlighted transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-70"
+    class="my-4 inline-flex max-w-full items-center gap-2 rounded-lg border border-default bg-elevated px-2.5 py-1.5 text-left text-xs text-highlighted transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-70"
     :disabled="inspector.state.value.result?.status === 'not_found'"
     :aria-label="`打开${label}详情`"
     :aria-expanded="inspector.open.value"

@@ -42,6 +42,16 @@ describe("SpawnedSessionInlineEntry", () => {
     vi.clearAllMocks();
   });
 
+  it("owns the vertical spacing for the spawn session signal", () => {
+    mocks.getDetail.mockResolvedValue(ready("running"));
+    const wrapper = mount(SpawnedSessionInlineEntry, {
+      props,
+      global: { plugins: [createPinia()], stubs: { SpawnedSessionDetailSlideover: true } },
+    });
+
+    expect(wrapper.get("button").classes()).toContain("my-4");
+  });
+
   it.each([
     ["starting", "正在启动"],
     ["running", "正在运行"],

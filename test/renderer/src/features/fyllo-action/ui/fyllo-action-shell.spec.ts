@@ -74,6 +74,12 @@ function findButtonByText(
 }
 
 describe("FylloActionShell", () => {
+  it("uses the transcript block spacing", () => {
+    const wrapper = mountShell(readyResult());
+
+    expect(wrapper.classes()).toContain("my-4");
+  });
+
   it("renders fixed confirm and cancel labels with type-specific body content", () => {
     const wrapper = mountShell(readyResult());
 

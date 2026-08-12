@@ -152,7 +152,7 @@ const persistedError = computed(() => props.persistedState?.error);
 
 <template>
   <section
-    class="my-3 max-w-xl rounded-lg border border-default bg-elevated px-3 py-3 text-sm text-default"
+    class="my-4 max-w-xl rounded-lg border border-default bg-elevated px-3 py-3 text-sm text-default"
     :data-custom-id="props.customId"
     :data-index-key="props.indexKey"
     :data-theme="props.isDark ? 'dark' : 'light'"
