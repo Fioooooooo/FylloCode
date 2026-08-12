@@ -152,23 +152,26 @@ describe("ChatPromptTimelineNav", () => {
     );
   });
 
-  it("uses a transparent floating surface and only color transitions", async () => {
+  it("uses a persistent backdrop without hover surface styles", async () => {
     const { rail, wrapper } = mountTimeline({ count: 24, rect: { top: 100, height: 164 } });
     const surface = wrapper.get('[data-test="chat-prompt-timeline-surface"]');
 
     expect(surface.classes()).toEqual(
       expect.arrayContaining([
-        "w-11",
+        "w-8",
         "bg-transparent",
         "border-transparent",
         "shadow-none",
+        "backdrop-blur",
         "transition-colors",
         "duration-150",
-        "hover:bg-default/80",
+        "focus-within:border-default/50",
         "focus-within:bg-default/80",
       ])
     );
     expect(surface.classes()).not.toContain("transition-all");
+    expect(surface.classes()).not.toContain("hover:border-default/50");
+    expect(surface.classes()).not.toContain("hover:bg-default/80");
 
     await rail.trigger("pointerdown", pointer(100));
     await rail.trigger("pointermove", pointer(182));

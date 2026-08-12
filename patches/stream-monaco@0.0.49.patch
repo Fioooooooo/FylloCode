@@ -1,0 +1,30 @@
+diff --git a/dist/preloadMonacoWorkers.shared-BZuhdD5o.cjs b/dist/preloadMonacoWorkers.shared-BZuhdD5o.cjs
+index 2a12690ebf11995a6f49beecc44594a58686e7a4..768a93dabba57a3140d5f81649af7bc53d3f7a7b 100644
+--- a/dist/preloadMonacoWorkers.shared-BZuhdD5o.cjs
++++ b/dist/preloadMonacoWorkers.shared-BZuhdD5o.cjs
+@@ -2732,10 +2732,6 @@ var DiffEditorManager = class DiffEditorManager {
+   box-sizing: border-box;
+   padding-left: var(--stream-monaco-diff-code-padding) !important;
+ }
+-.stream-monaco-diff-root .monaco-diff-editor .editor.original .lines-content,
+-.stream-monaco-diff-root .monaco-diff-editor .editor.modified .lines-content {
+-  left: 0 !important;
+-}
+ .stream-monaco-diff-root .monaco-editor .line-insert:not(.line-numbers),
+ .stream-monaco-diff-root .monaco-diff-editor .line-insert:not(.line-numbers),
+ .stream-monaco-diff-root .monaco-editor .line-delete:not(.line-numbers),
+diff --git a/dist/preloadMonacoWorkers.shared-C4yqmuza.js b/dist/preloadMonacoWorkers.shared-C4yqmuza.js
+index f84b3578c28923c5238d5b33b9da99cf623d0a59..4f9a710154ff9945735294ec9eee39d6dbed7839 100644
+--- a/dist/preloadMonacoWorkers.shared-C4yqmuza.js
++++ b/dist/preloadMonacoWorkers.shared-C4yqmuza.js
+@@ -2727,10 +2727,6 @@ var DiffEditorManager = class DiffEditorManager {
+   box-sizing: border-box;
+   padding-left: var(--stream-monaco-diff-code-padding) !important;
+ }
+-.stream-monaco-diff-root .monaco-diff-editor .editor.original .lines-content,
+-.stream-monaco-diff-root .monaco-diff-editor .editor.modified .lines-content {
+-  left: 0 !important;
+-}
+ .stream-monaco-diff-root .monaco-editor .line-insert:not(.line-numbers),
+ .stream-monaco-diff-root .monaco-diff-editor .line-insert:not(.line-numbers),
+ .stream-monaco-diff-root .monaco-editor .line-delete:not(.line-numbers),

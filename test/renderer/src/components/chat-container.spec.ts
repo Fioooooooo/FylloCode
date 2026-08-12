@@ -553,8 +553,9 @@ describe("ChatContainer", () => {
 
     expect(timelineHost).not.toBeNull();
     expect(timelineHost?.classList.contains("absolute")).toBe(true);
-    expect(timelineHost?.classList.contains("left-2")).toBe(true);
-    expect(timelineHost?.classList.contains("top-4")).toBe(true);
+    expect(timelineHost?.classList.contains("left-0")).toBe(true);
+    expect(timelineHost?.classList.contains("top-1/2")).toBe(true);
+    expect(timelineHost?.classList.contains("-translate-y-1/2")).toBe(true);
     expect(timelineHost?.classList.contains("bottom-4")).toBe(false);
     expect(timelineHost?.classList.contains("max-h-[calc(100%-2rem)]")).toBe(true);
     expect(messageScrollContainer.classes().some((name) => name.startsWith("w-"))).toBe(false);

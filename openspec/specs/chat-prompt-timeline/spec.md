@@ -230,7 +230,7 @@ Renderer SHALL 让 timeline rail 作为一个具有 `slider` 语义的 Tab 停�
 
 ### Requirement: Timeline 以透明常态的悬浮层承载交互
 
-Renderer SHALL 将 timeline 绝对定位并覆盖在 Chat 消息滚动区左侧，使 timeline 不参与消息列、消息内容最大宽度或 composer 的横向布局计算。Timeline 的常态 surface SHALL 使用透明背景与透明边界；仅在 hover、focus-within 或 dragging 时 SHALL 使用轻量半透明语义背景和语义边界增强命中区辨识度。交互 surface SHALL NOT 通过 shadow、scale、translate 或其他几何变化表达 hover。
+Renderer SHALL 将 timeline 绝对定位并覆盖在 Chat 消息滚动区左侧，使 timeline 不参与消息列、消息内容最大宽度或 composer 的横向布局计算。Timeline surface SHALL 保持透明背景与透明边界并常驻轻量 backdrop blur；hover SHALL NOT 改变 surface 的背景或边界，仅在 focus-within 或 dragging 时 SHALL 使用轻量半透明语义背景和语义边界增强命中区辨识度。交互 surface SHALL NOT 通过 shadow、scale、translate 或其他几何变化表达 hover。
 
 #### Scenario: Timeline 不占用消息区宽度
 
@@ -239,15 +239,22 @@ Renderer SHALL 将 timeline 绝对定位并覆盖在 Chat 消息滚动区左侧�
 - **AND** 消息滚动容器、消息内容最大宽度与 composer SHALL 保持未显示 timeline 时的横向布局宽度
 - **AND** Renderer SHALL NOT 创建固定 timeline column 或侧栏占位
 
-#### Scenario: Timeline 常态保持透明
+#### Scenario: Timeline 常态保持透明并使用 backdrop blur
 
-- **WHEN** timeline 未被 hover、focus 或拖动
+- **WHEN** timeline 未被 focus 或拖动
 - **THEN** timeline surface SHALL 使用透明背景和透明边界
+- **AND** timeline surface SHALL 使用常驻的轻量 backdrop blur
 - **AND** 可见导览刻度与 active thumb SHALL 保持可识别
 
-#### Scenario: 交互时显示轻量底板
+#### Scenario: Hover 不改变 surface 外观
 
-- **WHEN** timeline 被 hover、focus-within 或处于 dragging 状态
+- **WHEN** timeline 被 hover 且未被 focus 或拖动
+- **THEN** timeline surface SHALL 保持透明背景、透明边界和既有 backdrop blur
+- **AND** surface SHALL NOT 新增或改变 shadow、scale、translate 或 rotate
+
+#### Scenario: 键盘聚焦或拖动时显示轻量底板
+
+- **WHEN** timeline 被 focus-within 或处于 dragging 状态
 - **THEN** timeline surface SHALL 使用项目语义 token 显示轻量半透明背景与边界
 - **AND** surface 的尺寸和位置 SHALL 保持不变
 - **AND** surface SHALL NOT 新增或改变 shadow、scale、translate 或 rotate

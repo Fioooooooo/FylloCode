@@ -89,7 +89,7 @@ function handleCreateSession(): void {
 
       <section class="relative flex-1 min-h-0 isolate">
         <ChatPromptTimeline
-          class="absolute left-2 top-4 z-10 h-fit max-h-[calc(100%-2rem)]"
+          class="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-fit max-h-[calc(100%-2rem)]"
           :message-content="messageContentRef"
           :scroll-container="messageScrollContainerRef"
         />

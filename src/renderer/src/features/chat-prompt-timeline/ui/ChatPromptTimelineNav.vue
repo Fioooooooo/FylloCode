@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="inline-flex h-fit min-h-0 w-11 flex-col items-start rounded-md border border-transparent bg-transparent p-1 shadow-none transition-colors duration-150 hover:border-default/50 hover:bg-default/80 focus-within:border-default/50 focus-within:bg-default/80 motion-reduce:transition-none"
+    class="inline-flex h-fit min-h-0 w-8 flex-col items-start rounded-md border border-transparent bg-transparent p-1 shadow-none backdrop-blur transition-colors duration-150 focus-within:border-default/50 focus-within:bg-default/80 motion-reduce:transition-none"
     :class="dragging ? 'border-default/50 bg-default/80' : ''"
     data-test="chat-prompt-timeline-surface"
   >
@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
         <div
           ref="railRef"
           role="slider"
-          class="relative w-9 shrink-0 touch-none rounded-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          class="relative w-6 shrink-0 touch-none rounded-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           aria-label="用户 prompt 时间线"
           aria-orientation="vertical"
           aria-valuemin="1"
@@ -391,7 +391,7 @@ onBeforeUnmount(() => {
             v-for="(offset, index) in guideOffsets"
             :key="index"
             aria-hidden="true"
-            class="pointer-events-none absolute left-1.5 h-0.5 w-[18px] rounded-full bg-accented"
+            class="pointer-events-none absolute left-[2px] h-0.5 w-[18px] rounded-full bg-accented"
             :style="{ top: `${offset}px` }"
             :data-offset="offset"
             data-test="chat-prompt-timeline-guide"
@@ -399,7 +399,7 @@ onBeforeUnmount(() => {
 
           <span
             aria-hidden="true"
-            class="pointer-events-none absolute left-1 h-0.5 w-[22px] rounded-full bg-primary"
+            class="pointer-events-none absolute left-[2px] h-0.5 w-[18px] rounded-full bg-primary"
             :style="{ top: `${activeThumbOffset}px` }"
             :data-active-ratio="activeThumbRatio"
             data-test="chat-prompt-timeline-thumb"
