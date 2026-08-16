@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOpenChatSession } from "@renderer/composables/useOpenChatSession";
 
-const { nextTickMock, routeState } = vi.hoisted(() => ({
-  nextTickMock: vi.fn(async () => undefined),
-  routeState: { path: "/task" },
+const { routeState } = vi.hoisted(() => ({
+  routeState: { sessionId: null as string | null },
 }));
 
 const pushMock = vi.fn();
@@ -15,8 +14,8 @@ vi.mock("vue-router", () => ({
     push: pushMock,
   }),
   useRoute: () => ({
-    get path() {
-      return routeState.path;
+    get params() {
+      return { sessionId: routeState.sessionId };
     },
   }),
 }));
@@ -33,46 +32,33 @@ vi.mock("@renderer/stores/session/session", () => ({
   }),
 }));
 
-vi.mock("vue", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("vue")>();
-  return {
-    ...actual,
-    nextTick: nextTickMock,
-  };
-});
-
 describe("useOpenChatSession", () => {
   beforeEach(() => {
     pushMock.mockReset();
     resetChatStateMock.mockReset();
     selectSessionMock.mockReset();
-    nextTickMock.mockReset();
-    nextTickMock.mockResolvedValue(undefined);
-    routeState.path = "/task";
+    routeState.sessionId = null;
   });
 
-  it("navigates to /chat before selecting the session when not already on /chat", async () => {
+  it("navigates directly to the target session subroute", async () => {
     const { openChatSession } = useOpenChatSession();
 
     await openChatSession("session-1");
 
     expect(resetChatStateMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/chat");
-    expect(nextTickMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenCalledWith("/chat/session-1");
     expect(selectSessionMock).toHaveBeenCalledWith("session-1");
-    expect(pushMock).toHaveBeenCalledBefore(nextTickMock);
-    expect(nextTickMock).toHaveBeenCalledBefore(selectSessionMock);
+    expect(pushMock).toHaveBeenCalledBefore(selectSessionMock);
   });
 
-  it("skips navigation when already on /chat", async () => {
-    routeState.path = "/chat";
+  it("skips navigation when the target session is already open", async () => {
+    routeState.sessionId = "session-2";
     const { openChatSession } = useOpenChatSession();
 
     await openChatSession("session-2");
 
     expect(resetChatStateMock).toHaveBeenCalledTimes(1);
     expect(pushMock).not.toHaveBeenCalled();
-    expect(nextTickMock).toHaveBeenCalledTimes(1);
     expect(selectSessionMock).toHaveBeenCalledWith("session-2");
   });
 });

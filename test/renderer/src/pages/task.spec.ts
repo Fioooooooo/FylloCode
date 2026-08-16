@@ -86,7 +86,10 @@ function buildTaskPromptStub(task: TaskItem): string {
   return sections.join("\n");
 }
 
-async function startDiscussionFromTaskStub(task: TaskItem): Promise<void> {
+async function startDiscussionFromTaskStub(
+  task: TaskItem,
+  options?: { beforeSubmit?: () => Promise<unknown> }
+): Promise<void> {
   const workspaceId = workspaceStore.currentWorkspace?.id;
   if (!workspaceId) {
     return;
@@ -102,6 +105,7 @@ async function startDiscussionFromTaskStub(task: TaskItem): Promise<void> {
     throw new Error(result.error.message || result.error.code);
   }
 
+  await options?.beforeSubmit?.();
   beginDraftSessionMock();
   await sendMessageMock([{ type: "text", text: buildTaskPromptStub(task) }], { taskRef });
 }

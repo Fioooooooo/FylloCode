@@ -388,7 +388,10 @@ export const useTaskStore = defineStore("task", () => {
     return useLineageStore().getByTask(workspaceId, ref);
   }
 
-  async function startDiscussionFromTask(task: TaskItem): Promise<void> {
+  async function startDiscussionFromTask(
+    task: TaskItem,
+    options?: { beforeSubmit?: () => Promise<unknown> }
+  ): Promise<void> {
     const workspaceId = getCurrentWorkspaceId();
     if (!workspaceId) {
       return;
@@ -406,6 +409,11 @@ export const useTaskStore = defineStore("task", () => {
       throw new Error(result.error.message || result.error.code);
     }
 
+    if (useWorkspaceStore().currentWorkspace?.id !== workspaceId) {
+      return;
+    }
+
+    await options?.beforeSubmit?.();
     if (useWorkspaceStore().currentWorkspace?.id !== workspaceId) {
       return;
     }

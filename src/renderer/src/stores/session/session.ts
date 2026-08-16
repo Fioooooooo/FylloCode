@@ -1154,13 +1154,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
       return;
     }
 
-    const nextSessionId = sessions.value[0]?.id ?? null;
     activeSessionId.value = null;
-    if (nextSessionId) {
-      await selectSession(nextSessionId);
-      return;
-    }
-
     syncDraftAgentId();
   }
 

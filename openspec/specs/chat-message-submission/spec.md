@@ -58,7 +58,7 @@ Renderer SHALL 仅允许提交至少包含一个 trim 后非空、且不是 syst
 
 ### Requirement: 首次提交按唯一 Session 顺序物化附件
 
-草稿 prompt 首次提交时，Renderer SHALL 先从非空用户 text 生成标题并创建唯一真实 Session，再把该 prompt 的所有附件持久化到创建结果返回的同一 `workspaceId/sessionId`。全部附件成功后，Renderer SHALL 先持久化首条 user message，再把 Session 加入列表并设为 active，最后启动 ACP prompt。首次提交 SHALL NOT 使用 renderer 的可变 active Session 状态重新决定附件 owner。
+草稿 prompt 首次提交时，Renderer SHALL 先从非空用户 text 生成标题并创建唯一真实 Session，再把该 prompt 的所有附件持久化到创建结果返回的同一 `workspaceId/sessionId`。全部附件成功后，Renderer SHALL 先持久化首条 user message，再把 Session 加入列表并设为 active，最后启动 ACP prompt。首次提交 SHALL NOT 使用 renderer 的可变 active Session 状态重新决定附件 owner。首条消息 durable append 成功后，Renderer SHALL 将当前 URL 切换到新建会话的 `/chat/:sessionId` 子路由。
 
 Session fallback title SHALL 优先提取用户 text 中的 `**标题**:` 行；不存在结构化标题时 SHALL trim text、把连续空白归一化为单个空格，并截取前 30 个 Unicode code point。
 
@@ -93,6 +93,13 @@ Session fallback title SHALL 优先提取用户 text 中的 `**标题**:` 行；
 - **WHEN** Main 已返回新 Session，但一个或多个附件保存或首条 Message durable append 尚未完成
 - **THEN** Renderer SHALL NOT 把该 Session 加入左侧列表或设为 active
 - **AND** SHALL 禁止同一 prompt 重复提交
+
+#### Scenario: 首发成功后更新会话路由
+
+- **WHEN** 草稿态首条消息创建的新 Session 已完成首条 user message durable append
+- **THEN** Renderer SHALL 使用 replace 方式将当前 URL 切换到该 Session 的 `/chat/:sessionId`
+- **AND** 浏览器历史栈 SHALL NOT 保留已消费的草稿态 `/chat` 入口
+- **AND** 后续 streaming 与消息加载 SHALL 继续围绕该 Session 执行
 
 ### Requirement: 已有 Session 的附件保持当前归属
 

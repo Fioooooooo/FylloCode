@@ -188,56 +188,59 @@ const dropdownUi = {
     leave-from-class="opacity-100 translate-y-0"
     leave-to-class="opacity-0 translate-y-1"
   >
-    <UDropdownMenu
-      v-if="menuItems.length > 0"
-      :items="menuItems"
-      size="md"
-      :content="{ align: 'start', side: 'top', sideOffset: 8 }"
-      :ui="dropdownUi"
-    >
-      <template #item-label="{ item }">
-        <UTooltip
-          v-if="getTooltipDescription(item)"
-          :delay-duration="200"
-          :content="{ side: 'right', sideOffset: 18 }"
-          :ui="tooltipUi"
-        >
-          <template #content>
-            {{ getTooltipDescription(item) }}
-          </template>
-          <span class="block w-full truncate">{{ item.label }}</span>
-        </UTooltip>
-        <span v-else class="block w-full truncate">{{ item.label }}</span>
-      </template>
-
-      <template #config-value-description="{ item }">
-        <UTooltip
-          :delay-duration="200"
-          :content="{ side: 'right', sideOffset: 18 }"
-          :ui="tooltipUi"
-        >
-          <template #content>
-            <span class="block whitespace-normal break-words">{{ getItemDescription(item) }}</span>
-          </template>
-          <span class="block truncate">{{ getItemDescription(item) }}</span>
-        </UTooltip>
-      </template>
-
-      <UTooltip :delay-duration="200" :ignore-non-keyboard-focus="true" :ui="tooltipUi">
-        <template #content>
-          {{ triggerSummary }}
+    <div v-if="menuItems.length > 0" class="inline-flex">
+      <UDropdownMenu
+        :items="menuItems"
+        size="md"
+        :content="{ align: 'start', side: 'top', sideOffset: 8 }"
+        :ui="dropdownUi"
+      >
+        <template #item-label="{ item }">
+          <UTooltip
+            v-if="getTooltipDescription(item)"
+            :delay-duration="200"
+            :content="{ side: 'right', sideOffset: 18 }"
+            :ui="tooltipUi"
+          >
+            <template #content>
+              {{ getTooltipDescription(item) }}
+            </template>
+            <span class="block w-full truncate">{{ item.label }}</span>
+          </UTooltip>
+          <span v-else class="block w-full truncate">{{ item.label }}</span>
         </template>
-        <UButton
-          icon="i-lucide-sliders-horizontal"
-          variant="ghost"
-          color="neutral"
-          size="sm"
-          :aria-label="`Config: ${triggerSummary}`"
-          data-test="config-options-trigger"
-        >
-          <span class="text-xs">{{ triggerSummary }}</span>
-        </UButton>
-      </UTooltip>
-    </UDropdownMenu>
+
+        <template #config-value-description="{ item }">
+          <UTooltip
+            :delay-duration="200"
+            :content="{ side: 'right', sideOffset: 18 }"
+            :ui="tooltipUi"
+          >
+            <template #content>
+              <span class="block whitespace-normal break-words">{{
+                getItemDescription(item)
+              }}</span>
+            </template>
+            <span class="block truncate">{{ getItemDescription(item) }}</span>
+          </UTooltip>
+        </template>
+
+        <UTooltip :delay-duration="200" :ignore-non-keyboard-focus="true" :ui="tooltipUi">
+          <template #content>
+            {{ triggerSummary }}
+          </template>
+          <UButton
+            icon="i-lucide-sliders-horizontal"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            :aria-label="`Config: ${triggerSummary}`"
+            data-test="config-options-trigger"
+          >
+            <span class="text-xs">{{ triggerSummary }}</span>
+          </UButton>
+        </UTooltip>
+      </UDropdownMenu>
+    </div>
   </Transition>
 </template>

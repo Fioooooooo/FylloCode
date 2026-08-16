@@ -1,4 +1,3 @@
-import { nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useChatStore, useSessionStore } from "@renderer/stores";
 
@@ -12,14 +11,19 @@ export function useOpenChatSession(): UseOpenChatSessionReturn {
   const chatStore = useChatStore();
   const sessionStore = useSessionStore();
 
+  function getRouteSessionId(): string | undefined {
+    return "sessionId" in route.params ? route.params.sessionId : undefined;
+  }
+
   async function openChatSession(sessionId: string): Promise<void> {
     chatStore.resetChatState();
 
-    if (route.path !== "/chat") {
-      await router.push("/chat");
+    if (getRouteSessionId() === sessionId) {
+      await sessionStore.selectSession(sessionId);
+      return;
     }
 
-    await nextTick();
+    await router.push(`/chat/${sessionId}`);
     await sessionStore.selectSession(sessionId);
   }
 

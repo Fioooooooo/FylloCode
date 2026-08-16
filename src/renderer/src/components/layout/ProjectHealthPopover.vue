@@ -49,6 +49,7 @@ async function startHealthCheck(): Promise<void> {
   }
 
   try {
+    await router.push("/chat");
     sessionStore.beginDraftSession();
     await chatStore.sendMessage([
       { type: "text", text: buildHealthCheckReminder(workspace) },
@@ -57,7 +58,6 @@ async function startHealthCheck(): Promise<void> {
         text: `帮我根据当前 ${subjectLabel.value} 的技术栈检查：静态约束、测试约束、流程约束的配置情况并完善`,
       },
     ]);
-    await router.push("/chat");
   } catch (error: unknown) {
     toast.add({
       title: "健康检查启动失败",

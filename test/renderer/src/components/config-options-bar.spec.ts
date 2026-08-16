@@ -155,6 +155,9 @@ describe("ConfigOptionsBar", () => {
 
     expect(wrapper.findAll('[data-test="config-options-trigger"]')).toHaveLength(1);
     expect(wrapper.findAllComponents(DropdownMenuStub)).toHaveLength(1);
+    expect(wrapper.findComponent(DropdownMenuStub).element.parentElement?.classList).toContain(
+      "inline-flex"
+    );
     expect(getMenuItems(wrapper).map((item) => item.label)).toEqual([
       "Model model",
       "Thought thought",

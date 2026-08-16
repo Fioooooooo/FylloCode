@@ -43,6 +43,13 @@ declare module 'vue-router/auto-routes' {
       '/chat',
       Record<never, never>,
       Record<never, never>,
+      | '/chat/[sessionId]'
+    >,
+    '/chat/[sessionId]': RouteRecordInfo<
+      '/chat/[sessionId]',
+      '/chat/:sessionId',
+      { sessionId: ParamValue<true> },
+      { sessionId: ParamValue<false> },
       | never
     >,
     '/cron': RouteRecordInfo<
@@ -177,10 +184,19 @@ declare module 'vue-router/auto-routes' {
     'src/pages/chat.vue': {
       routes:
         | '/chat'
+        | '/chat/[sessionId]'
+      views:
+        | 'default'
+      pathParamNames:
+        | never
+    }
+    'src/pages/chat/[sessionId].vue': {
+      routes:
+        | '/chat/[sessionId]'
       views:
         | never
       pathParamNames:
-        | never
+        | 'sessionId'
     }
     'src/pages/cron.vue': {
       routes:

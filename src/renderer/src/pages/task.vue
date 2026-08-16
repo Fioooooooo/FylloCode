@@ -134,8 +134,9 @@ function handleDetailOpenChange(open: boolean): void {
 
 async function startChatFromTask(task: TaskItem): Promise<void> {
   try {
-    await taskStore.startDiscussionFromTask(task);
-    await router.push("/chat");
+    await taskStore.startDiscussionFromTask(task, {
+      beforeSubmit: () => router.push("/chat"),
+    });
   } catch (error: unknown) {
     toast.add({
       title: "发起讨论失败",
