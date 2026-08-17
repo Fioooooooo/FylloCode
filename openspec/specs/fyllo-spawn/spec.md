@@ -6,7 +6,7 @@
 
 ## Requirements
 
-### Requirement: fyllo-spawn 只向具备 HTTP MCP 能力的 fyllocode Chat 提供四个 tools
+### Requirement: fyllo-spawn 只向具备 HTTP MCP 能力的 fyllocode Chat 提供五个 tools
 
 系统 SHALL 将 `fyllo-spawn` 注册为 HTTP-only bundled MCP server，并 SHALL 提供 `available_agents`、`prompt_to_agent`、`check_session_status`、`read_response` 与 `cancel_session` 五个 tools。`native` Chat、缺少 HTTP MCP 能力的 Agent或 fyllo-spawn backend 不可用的 activation SHALL 不获得该 server。
 
@@ -15,6 +15,12 @@
 - **WHEN** fyllocode Chat 创建 ACP activation，Agent 声明 HTTP MCP capability且 fyllo-spawn backend ready
 - **THEN** activation SHALL 获得 fyllo-spawn HTTP spec和五个 tools（包含新增的 cancel_session）
 - **AND** SHALL NOT 为该 activation 创建 fyllo-spawn stdio child
+
+#### Scenario: Agent 不支持 HTTP
+
+- **WHEN** fyllocode Chat 的 Agent 不声明 HTTP MCP capability
+- **THEN** activation SHALL 省略 fyllo-spawn
+- **AND** 其他允许 stdio fallback 的 bundled MCP server SHALL 继续按各自 policy工作
 
 ### Requirement: available_agents 只读取已安装 Agent目录
 
@@ -392,7 +398,7 @@ notification list、claim与dispatch SHALL校验Workspace sender及record owner�
 
 `prompt_to_agent`的Agent-facing description SHALL说明：当本次调用省略`sessionId`且结果包含新建Session identity时，父Agent应按照已注入的`spawn.session` Signal contract输出一次创建入口；当调用继续已有sessionId时不再输出。Tool description SHALL引用shared Signal contract而不复制payload schema、JSON example或Markdown格式规则。
 
-该指导 SHALL同时适用于同步和`background=true`的新建调用，并 SHALL保持`prompt_to_agent`现有输入、accepted/completed/error结果、四个HTTP-only tools和`responseId + read_response`契约不变。
+该指导 SHALL同时适用于同步和`background=true`的新建调用，并 SHALL保持`prompt_to_agent`现有输入、accepted/completed/error结果、五个HTTP-only tools和`responseId + read_response`契约不变。
 
 #### Scenario: Tool description提示新建Signal
 
