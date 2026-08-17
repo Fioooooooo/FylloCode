@@ -6,6 +6,17 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-17
+
+### Added
+
+- Added `cancel_session`, which lets the parent Agent request cancellation of a running spawned Session it owns. `{ cancelled: true }` means the request was triggered, not confirmed; the turn settles as `error` with code `TURN_CANCELLED_BY_PARENT`, and the final state is confirmed through `check_session_status`.
+
+### Changed
+
+- **BREAKING**: `prompt_to_agent`'s `background` parameter now defaults to `true`. Calls that omit `background` return `accepted` instead of blocking for the terminal result. Callers that need the previous synchronous behavior must pass `background: false` explicitly.
+- Rewrote the `prompt_to_agent` tool description to recommend the default background mode, show the polling flow, and document the sync mode's Signal delay limitation.
+
 ## [0.1.1] - 2026-08-10
 
 ### Changed

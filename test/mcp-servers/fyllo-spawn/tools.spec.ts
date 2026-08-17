@@ -62,7 +62,7 @@ describe("fyllo-spawn trusted caller", () => {
     expect(description).not.toContain('{"sessionId"');
   });
 
-  it("registers exactly four tools and routes each one through its matching RPC method", async () => {
+  it("registers exactly five tools and routes each one through its matching RPC method", async () => {
     const registerTool = vi.fn();
     const rpcCall = vi.fn(
       async ({ method }: { method: string; caller: { parentSessionId: string } }) => ({ method })
@@ -83,6 +83,7 @@ describe("fyllo-spawn trusted caller", () => {
       "prompt_to_agent",
       "check_session_status",
       "read_response",
+      "cancel_session",
     ]);
 
     const inputs: Record<string, Record<string, unknown>> = {
@@ -90,6 +91,7 @@ describe("fyllo-spawn trusted caller", () => {
       prompt_to_agent: { agentId: "codex", prompt: "Inspect one focused area" },
       check_session_status: { sessionId: "spawn-1" },
       read_response: { sessionId: "spawn-1", responseId: "response-1" },
+      cancel_session: { sessionId: "spawn-1" },
     };
     const controller = new AbortController();
 
@@ -106,6 +108,7 @@ describe("fyllo-spawn trusted caller", () => {
       "prompt_to_agent",
       "check_session_status",
       "read_response",
+      "cancel_session",
     ]);
     expect(
       rpcCall.mock.calls.every(([request]) => request.caller.parentSessionId === "parent-1")

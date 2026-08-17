@@ -30,6 +30,7 @@ export const spawnMethodSchema = z.enum([
   "prompt_to_agent",
   "check_session_status",
   "read_response",
+  "cancel_session",
 ]);
 
 export const availableAgentsParamsSchema = z.object({}).strict();
@@ -39,7 +40,7 @@ export const promptToAgentParamsSchema = z
     prompt: z.string().min(1),
     sessionId: identitySchema.optional(),
     config: spawnConfigOverrideSchema.optional(),
-    background: z.boolean().default(false),
+    background: z.boolean().default(true),
   })
   .strict();
 export const checkSessionStatusParamsSchema = z.object({ sessionId: identitySchema }).strict();
@@ -50,6 +51,10 @@ export const readResponseParamsSchema = z
     cursor: z.string().min(1).max(256).optional(),
     maxBytes: z.number().int().min(4).max(MAX_RESPONSE_CHUNK_BYTES).optional(),
   })
+  .strict();
+export const cancelSessionParamsSchema = z.object({ sessionId: identitySchema }).strict();
+export const cancelSessionResultSchema = z
+  .object({ cancelled: z.boolean(), reason: z.string().optional() })
   .strict();
 
 const requestBaseSchema = z.object({
@@ -76,6 +81,10 @@ export const fylloSpawnRpcRequestSchema = z.discriminatedUnion("method", [
   requestBaseSchema.extend({
     method: z.literal("read_response"),
     params: readResponseParamsSchema,
+  }),
+  requestBaseSchema.extend({
+    method: z.literal("cancel_session"),
+    params: cancelSessionParamsSchema,
   }),
 ]);
 
@@ -181,6 +190,7 @@ const spawnTerminalErrorCodeSchema = z.enum([
   "AGENT_PROCESS_INVALIDATED",
   "APP_SHUTDOWN",
   "APP_RESTARTED",
+  "TURN_CANCELLED_BY_PARENT",
 ]);
 
 export const promptToAgentResultSchema = z.discriminatedUnion("status", [
@@ -299,6 +309,8 @@ export type AvailableAgentsParams = z.infer<typeof availableAgentsParamsSchema>;
 export type PromptToAgentParams = z.input<typeof promptToAgentParamsSchema>;
 export type CheckSessionStatusParams = z.infer<typeof checkSessionStatusParamsSchema>;
 export type ReadResponseParams = z.infer<typeof readResponseParamsSchema>;
+export type CancelSessionParams = z.infer<typeof cancelSessionParamsSchema>;
+export type CancelSessionResult = z.infer<typeof cancelSessionResultSchema>;
 export type SpawnRpcErrorCode = z.infer<typeof spawnRpcErrorCodeSchema>;
 export type SpawnRpcError = z.infer<typeof spawnRpcErrorSchema>;
 export type FylloSpawnRpcRequest = z.input<typeof fylloSpawnRpcRequestSchema>;

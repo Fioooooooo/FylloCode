@@ -51,7 +51,7 @@ const contracts = {
     payloadSchema: spawnSessionSignalPayloadSchema,
     prompt: {
       purpose:
-        "Display a read-only entry for a newly created spawned Session. The payload is only an opaque query key; Main remains authoritative for ownership, Agent, status, content, and access.",
+        "Display a read-only entry for a newly created spawned Session. The payload is only an opaque query key; Main remains authoritative for ownership, Agent, status, content, and access. Sync mode (background: false) blocks until the task completes, so this Signal appears only after task completion; use the default background mode for better observability.",
       payloadFields: [
         {
           name: "sessionId",
@@ -62,9 +62,12 @@ const contracts = {
       ],
       constraints: [
         "Emit only after a prompt_to_agent call that omitted sessionId returns a new sessionId; this applies to both synchronous and background creation.",
+        "Emit immediately after receiving an accepted result from background new session creation. For sync mode (background: false), emit after the tool completes.",
+        "Recommended background flow: start with prompt_to_agent (default background mode), emit this Signal right after the accepted result, poll check_session_status, then read the result with read_response.",
         "Emit exactly once for that newly created Session in the assistant response.",
         "Do not emit for continuation calls, capacity results, or errors without a Session identity.",
         "The Signal is a read-only display pointer. It does not create, restart, continue, cancel, persist, or authorize a spawned Session, and it does not enter the EventRail or Action state machine.",
+        "The executable output example below shows the recommended background-mode emission right after the accepted result.",
       ],
       example: {
         sessionId: "spawn_01HZY8K6F5Q2A3B4C7D8E9F0GH",

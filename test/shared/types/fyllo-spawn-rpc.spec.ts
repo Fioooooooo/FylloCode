@@ -3,6 +3,7 @@ import {
   FYLLO_SPAWN_RPC_PROTOCOL,
   FYLLO_SPAWN_RPC_VERSION,
   MAX_RESPONSE_CHUNK_BYTES,
+  cancelSessionResultSchema,
   checkSessionStatusResultSchema,
   fylloSpawnRpcMessageSchema,
   fylloSpawnRpcRequestSchema,
@@ -25,15 +26,17 @@ describe("fyllo-spawn RPC contract", () => {
   it("parses a method-specific request", () => {
     expect(fylloSpawnRpcRequestSchema.parse(request)).toEqual({
       ...request,
-      params: { ...request.params, background: false },
+      params: { ...request.params, background: true },
     });
   });
 
-  it("defaults prompt_to_agent to synchronous mode", () => {
-    expect(promptToAgentParamsSchema.parse(request.params)).toMatchObject({ background: false });
-    expect(promptToAgentParamsSchema.parse({ ...request.params, background: true })).toMatchObject({
-      background: true,
-    });
+  it("defaults prompt_to_agent to background mode", () => {
+    expect(promptToAgentParamsSchema.parse(request.params)).toMatchObject({ background: true });
+    expect(promptToAgentParamsSchema.parse({ ...request.params, background: false })).toMatchObject(
+      {
+        background: false,
+      }
+    );
   });
 
   it("accepts a strict background accepted snapshot without a response payload", () => {
@@ -73,6 +76,19 @@ describe("fyllo-spawn RPC contract", () => {
         params: { ...request.params, workspaceId: "forged-workspace" },
       }).success
     ).toBe(false);
+  });
+
+  it("parses a cancel_session request and result", () => {
+    expect(
+      fylloSpawnRpcRequestSchema.safeParse({
+        ...request,
+        method: "cancel_session",
+        params: { sessionId: "spawn-1" },
+      }).success
+    ).toBe(true);
+    expect(
+      cancelSessionResultSchema.safeParse({ cancelled: false, reason: "Session not found" }).success
+    ).toBe(true);
   });
 
   it("enforces opaque cursor and response chunk limits", () => {

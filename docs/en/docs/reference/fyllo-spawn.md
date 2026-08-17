@@ -26,10 +26,13 @@ Native mode, an Agent without HTTP MCP support, or an unavailable backend causes
 | `prompt_to_agent` | `agentId`, `prompt`; optional `sessionId`, `config`, `background` | Create a spawned Session or continue an owner-matched Session that remains reusable. |
 | `check_session_status` | `sessionId` | Read the current status snapshot without waiting for an active turn. |
 | `read_response` | `sessionId`, `responseId`; optional `cursor`, `maxBytes` | Read a completed response in bounded chunks using an opaque cursor. |
+| `cancel_session` | `sessionId` | Request cancellation of a running spawned Session owned by the current parent Session. |
 
 Omitting `sessionId` from `prompt_to_agent` creates a Session; providing it continues an existing one. Values in `config` can be strings or booleans. Main validates them against the Agent-provided configuration schema and sets them before the prompt. A rejected option does not block the prompt, but appears in `warnings`.
 
-`background` defaults to `false`. A synchronous call waits for the terminal result and returns up to a 24 KiB UTF-8-safe response prefix. A background call returns `accepted` after Main has persisted the turn, applied configuration, and dispatched the ACP prompt. Accepted means Main owns the work; retrieve the final result through `check_session_status` and `read_response`.
+`background` defaults to `true`. A background call returns `accepted` after Main has persisted the turn, applied configuration, and dispatched the ACP prompt. Accepted means Main owns the work; the parent Agent can keep working or report progress, then retrieve the final result through `check_session_status` and `read_response`. Pass `background: false` only for simple, fast tasks where the parent Agent intentionally blocks: a synchronous call waits for the terminal result and returns up to a 24 KiB UTF-8-safe response prefix, but the Agent cannot emit anything while blocked, so the `spawn.session` Signal appears only after the task completes.
+
+`cancel_session` asks Main to cancel a running spawned Session. It returns `{ cancelled: true }` once the cancellation request has been triggered; this does not mean the ACP turn has confirmed cancellation. The turn may run for a few more seconds, then settles as `error` with code `TURN_CANCELLED_BY_PARENT`, and the Session cannot be reused. Confirm the final state with `check_session_status`. If the target is not running — unknown, already finished, or owned by another parent — the call returns `{ cancelled: false, reason: "Session not found" }` without distinguishing those cases.
 
 ## Status and Responses
 

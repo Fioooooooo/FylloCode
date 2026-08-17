@@ -1044,6 +1044,243 @@ describe("SpawnedSessionManager", () => {
     expect(turn?.responseId).toBeUndefined();
     await manager.dispose();
   });
+
+  describe("cancelSession", () => {
+    it("取消运行中的 sync turn：触发 runner.cancel，prompt 以 TURN_CANCELLED_BY_PARENT 终态返回", async () => {
+      mocks.metas.set(key({ ...caller, sessionId: "spawn-1" }), meta("spawn-1"));
+      mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+      const manager = new SpawnedSessionManager();
+      const request = manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "run",
+        sessionId: "spawn-1",
+      });
+      await waitForSessions(1);
+
+      await expect(manager.cancelSession(caller, "spawn-1")).resolves.toEqual({ cancelled: true });
+      expect(mocks.cancel).toHaveBeenCalledOnce();
+
+      await expect(request).resolves.toEqual({
+        status: "error",
+        sessionId: "spawn-1",
+        code: "TURN_CANCELLED_BY_PARENT",
+        message: "Parent Agent cancelled this spawned session",
+      });
+      await manager.dispose();
+    });
+
+    it("被取消 session 的 turn 与 meta 记录 TURN_CANCELLED_BY_PARENT，状态查询返回 error 而非 expired", async () => {
+      mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+      const manager = new SpawnedSessionManager();
+      const accepted = await manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "background",
+        background: true,
+      });
+      if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+      await expect(manager.cancelSession(caller, accepted.sessionId)).resolves.toEqual({
+        cancelled: true,
+      });
+
+      const owner = callerWithSession(accepted.sessionId);
+      expect(mocks.turns.get(turnKey(owner, accepted.turnId))).toMatchObject({
+        phase: "expired",
+        error: {
+          code: "TURN_CANCELLED_BY_PARENT",
+          message: "Parent Agent cancelled this spawned session",
+        },
+      });
+      expect(mocks.metas.get(key(owner))).toMatchObject({
+        status: "error",
+        error: {
+          code: "TURN_CANCELLED_BY_PARENT",
+          message: "Parent Agent cancelled this spawned session",
+        },
+      });
+      await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toEqual({
+        status: "error",
+        code: "TURN_CANCELLED_BY_PARENT",
+        message: "Parent Agent cancelled this spawned session",
+      });
+      await manager.dispose();
+    });
+
+    it("session 不存在或未在运行时返回 cancelled: false", async () => {
+      const manager = new SpawnedSessionManager();
+      await expect(manager.cancelSession(caller, "missing")).resolves.toEqual({
+        cancelled: false,
+        reason: "Session not found",
+      });
+
+      mocks.metas.set(key({ ...caller, sessionId: "idle-1" }), meta("idle-1"));
+      await expect(manager.cancelSession(caller, "idle-1")).resolves.toEqual({
+        cancelled: false,
+        reason: "Session not found",
+      });
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      await manager.dispose();
+    });
+
+    it("跨 owner 取消他人的 session 返回 cancelled: false 且不触发 cancel", async () => {
+      mocks.metas.set(key({ ...caller, sessionId: "spawn-1" }), meta("spawn-1"));
+      mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+      const manager = new SpawnedSessionManager();
+      const request = manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "run",
+        sessionId: "spawn-1",
+      });
+      await waitForSessions(1);
+
+      const otherParent = { workspaceId: "workspace-1", parentSessionId: "parent-2" };
+      const otherWorkspace = { workspaceId: "workspace-2", parentSessionId: "parent-1" };
+      await expect(manager.cancelSession(otherParent, "spawn-1")).resolves.toEqual({
+        cancelled: false,
+        reason: "Session not found",
+      });
+      await expect(manager.cancelSession(otherWorkspace, "spawn-1")).resolves.toEqual({
+        cancelled: false,
+        reason: "Session not found",
+      });
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      await expect(manager.checkSessionStatus(caller, "spawn-1")).resolves.toMatchObject({
+        status: "running",
+      });
+
+      await expect(manager.cancelSession(caller, "spawn-1")).resolves.toEqual({ cancelled: true });
+      await expect(request).resolves.toMatchObject({
+        status: "error",
+        code: "TURN_CANCELLED_BY_PARENT",
+      });
+      await manager.dispose();
+    });
+
+    it("父 Session 不存在时取消直接抛 SPAWN_PARENT_SESSION_NOT_FOUND", async () => {
+      mocks.loadSessionMeta.mockResolvedValueOnce(null);
+      const manager = new SpawnedSessionManager();
+      await expect(manager.cancelSession(caller, "spawn-1")).rejects.toMatchObject({
+        code: "SPAWN_PARENT_SESSION_NOT_FOUND",
+      });
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      await manager.dispose();
+    });
+
+    it("grace period 内 settled：cancelSession 等 turn 结束后返回 cancelled: true 并释放 active turn", async () => {
+      mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+      const manager = new SpawnedSessionManager();
+      const accepted = await manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "background",
+        background: true,
+      });
+      if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+      // turn 在 5 秒 grace 内 settle：cancelSession 等到 settled 后才返回
+      await expect(manager.cancelSession(caller, accepted.sessionId)).resolves.toEqual({
+        cancelled: true,
+      });
+
+      // active turn 已释放：状态查询不再是 running，同 session 再次 prompt 不会 busy
+      await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toEqual({
+        status: "error",
+        code: "TURN_CANCELLED_BY_PARENT",
+        message: "Parent Agent cancelled this spawned session",
+      });
+      await expect(
+        manager.promptToAgent(caller, {
+          agentId: "agent-1",
+          prompt: "again",
+          sessionId: accepted.sessionId,
+        })
+      ).resolves.toEqual({ status: "expired", sessionId: accepted.sessionId });
+      await manager.dispose();
+    });
+
+    it("grace period 超时：cancelSession 按时返回且保留 active turn，turn 自然 settle 后终码不变", async () => {
+      vi.useFakeTimers();
+      mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+      const manager = new SpawnedSessionManager();
+      const accepted = await manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "background",
+        background: true,
+      });
+      if (accepted.status !== "accepted") throw new Error("expected accepted");
+
+      // 挂起取消后的 terminal meta 写入，模拟 turn 在 grace period 内不 settle
+      const store = vi.mocked(await import("@main/infra/storage/spawned-session-store"));
+      let releaseTerminalWrite!: () => void;
+      store.patchSpawnedSessionMeta.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseTerminalWrite = () => resolve(null);
+          })
+      );
+
+      const cancellation = manager.cancelSession(caller, accepted.sessionId);
+      await vi.advanceTimersByTimeAsync(SPAWN_TURN_CANCEL_GRACE_MS);
+      await expect(cancellation).resolves.toEqual({ cancelled: true });
+      expect(mocks.cancel).toHaveBeenCalledOnce();
+
+      // active turn 保留：状态仍为 running，同 session 再次 prompt 返回 busy
+      await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
+        status: "running",
+        turnId: accepted.turnId,
+      });
+      await expect(
+        manager.promptToAgent(caller, {
+          agentId: "agent-1",
+          prompt: "duplicate",
+          sessionId: accepted.sessionId,
+        })
+      ).resolves.toMatchObject({ status: "busy" });
+
+      releaseTerminalWrite();
+      vi.useRealTimers();
+      await vi.waitFor(() =>
+        expect(
+          mocks.turns.get(turnKey(callerWithSession(accepted.sessionId), accepted.turnId))
+        ).toMatchObject({
+          phase: "expired",
+          error: { code: "TURN_CANCELLED_BY_PARENT" },
+        })
+      );
+      await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toEqual({
+        status: "error",
+        code: "TURN_CANCELLED_BY_PARENT",
+        message: "Parent Agent cancelled this spawned session",
+      });
+      await manager.dispose();
+    });
+  });
+
+  it("background: true 不等待 turn 完成，直接返回 accepted", async () => {
+    mocks.start.mockImplementation(() => new Promise<void>(() => undefined));
+    const manager = new SpawnedSessionManager();
+    const accepted = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "background",
+      background: true,
+    });
+
+    expect(accepted.status).toBe("accepted");
+    if (accepted.status !== "accepted") throw new Error("expected accepted");
+    await expect(manager.checkSessionStatus(caller, accepted.sessionId)).resolves.toMatchObject({
+      status: "running",
+      mode: "background",
+    });
+    await manager.cancelSession(caller, accepted.sessionId);
+    await manager.dispose();
+  });
+
+  it("显式 background: false 保持同步行为，等待完成后返回 completed", async () => {
+    const manager = new SpawnedSessionManager();
+    await expect(
+      manager.promptToAgent(caller, { agentId: "agent-1", prompt: "sync", background: false })
+    ).resolves.toMatchObject({ status: "completed", content: "done" });
+    await manager.dispose();
+  });
 });
 
 function callerWithSession(sessionId: string) {

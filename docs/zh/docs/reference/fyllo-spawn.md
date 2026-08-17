@@ -26,10 +26,13 @@ sidebar:
 | `prompt_to_agent` | `agentId`、`prompt`，可选 `sessionId`、`config`、`background` | 新建 spawned Session，或继续同一 owner 下仍可复用的 Session |
 | `check_session_status` | `sessionId` | 不等待运行中 turn，直接读取当前状态快照 |
 | `read_response` | `sessionId`、`responseId`，可选 `cursor`、`maxBytes` | 用不透明 cursor 分段读取已完成响应 |
+| `cancel_session` | `sessionId` | 请求取消当前父 Session 名下正在运行的 spawned Session |
 
 `prompt_to_agent` 省略 `sessionId` 时创建新 Session；提供 `sessionId` 时继续已有 Session。`config` 的值可以是 string 或 boolean，Main 会按 Agent 返回的 config schema 校验并在 prompt 前逐项设置。某项设置失败不会阻断 prompt，但会出现在 `warnings` 中。
 
-`background` 默认为 `false`。同步调用等待 terminal result，并直接返回最多 24 KiB 的 UTF-8 安全响应前缀。后台调用在 Main 已持久化 turn、应用配置并提交 ACP prompt 后返回 `accepted`；这只表示 Main 已接管，最终结果需要通过 `check_session_status` 和 `read_response` 获取。
+`background` 默认为 `true`。后台调用在 Main 已持久化 turn、应用配置并提交 ACP prompt 后返回 `accepted`；这只表示 Main 已接管，父 Agent 可以继续工作或汇报进度，最终结果通过 `check_session_status` 和 `read_response` 获取。只有简单、快速且父 Agent 需要主动阻塞等待的任务才显式传 `background: false`：同步调用等待 terminal result，并直接返回最多 24 KiB 的 UTF-8 安全响应前缀，但阻塞期间 Agent 无法输出任何内容，`spawn.session` Signal 只能在任务完成后才显示。
+
+`cancel_session` 请求 Main 取消正在运行的 spawned Session。返回 `{ cancelled: true }` 只表示取消请求已触发，不代表 ACP turn 已确认取消；turn 可能再运行几秒，随后以 `error` 状态（错误码 `TURN_CANCELLED_BY_PARENT`）结束，且该 Session 不可再复用。最终状态需要通过 `check_session_status` 确认。目标不在运行状态时（不存在、已结束或属于其他父 Session），统一返回 `{ cancelled: false, reason: "Session not found" }`，不区分具体情况。
 
 ## 状态与响应
 

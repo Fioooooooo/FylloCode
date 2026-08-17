@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   promptToAgent: vi.fn(),
   checkSessionStatus: vi.fn(),
   readResponse: vi.fn(),
+  cancelSession: vi.fn(),
   handler: undefined as
     ((request: FylloSpawnRpcRequest, signal: AbortSignal) => Promise<unknown>) | undefined,
 }));
@@ -26,6 +27,7 @@ vi.mock("@main/services/session/spawn/spawned-session-manager", () => ({
     promptToAgent: mocks.promptToAgent,
     checkSessionStatus: mocks.checkSessionStatus,
     readResponse: mocks.readResponse,
+    cancelSession: mocks.cancelSession,
   },
 }));
 
@@ -117,6 +119,30 @@ describe("spawn-rpc-bridge", () => {
       { agentId: "agent-1", prompt: "work", background: true },
       controller.signal
     );
+  });
+
+  it("cancel_session 路由到 manager.cancelSession 并按 schema 校验返回值", async () => {
+    mocks.cancelSession.mockResolvedValue({ cancelled: true });
+    registerSpawnRpcBridge();
+    const controller = new AbortController();
+
+    await expect(
+      mocks.handler?.(request("cancel_session", { sessionId: "spawn-1" }), controller.signal)
+    ).resolves.toEqual({ cancelled: true });
+    expect(mocks.cancelSession).toHaveBeenCalledWith(
+      { workspaceId: "workspace-1", parentSessionId: "parent-1" },
+      "spawn-1"
+    );
+
+    mocks.cancelSession.mockResolvedValue({ cancelled: false, reason: "Session not found" });
+    await expect(
+      mocks.handler?.(request("cancel_session", { sessionId: "missing" }), controller.signal)
+    ).resolves.toEqual({ cancelled: false, reason: "Session not found" });
+
+    mocks.cancelSession.mockResolvedValue({ cancelled: "yes" });
+    await expect(
+      mocks.handler?.(request("cancel_session", { sessionId: "spawn-1" }), controller.signal)
+    ).rejects.toThrow();
   });
 
   it("注销 bridge 后调用 transport disposer", () => {

@@ -1,6 +1,7 @@
 import { registerBundledMcpRpcHandler } from "@main/infra/mcp/bundled-mcp-host";
 import {
   availableAgentsResultSchema,
+  cancelSessionResultSchema,
   checkSessionStatusResultSchema,
   promptToAgentResultSchema,
   readResponseResultSchema,
@@ -30,6 +31,10 @@ async function handleSpawnRpc(
     case "read_response":
       return readResponseResultSchema.parse(
         await spawnedSessionManager.readResponse(request.caller, request.params)
+      );
+    case "cancel_session":
+      return cancelSessionResultSchema.parse(
+        await spawnedSessionManager.cancelSession(request.caller, request.params.sessionId)
       );
   }
 }

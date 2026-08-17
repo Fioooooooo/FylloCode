@@ -1,11 +1,12 @@
 # fyllo-spawn MCP server
 
-`fyllo-spawn` is the built-in HTTP-only MCP server that delegates focused work from a trusted parent FylloCode Chat Session to spawned ACP Sessions. It exposes four tools:
+`fyllo-spawn` is the built-in HTTP-only MCP server that delegates focused work from a trusted parent FylloCode Chat Session to spawned ACP Sessions. It exposes five tools:
 
 - `available_agents`
 - `prompt_to_agent`
 - `check_session_status`
 - `read_response`
+- `cancel_session`
 
 The server is intentionally a thin adapter. Tool handlers validate MCP inputs through the shared RPC schemas, derive the caller from the trusted request context, and forward typed requests to Electron Main. Agent discovery, ACP process/session ownership, persistence, concurrency, cancellation, notifications, and shutdown remain Main-process responsibilities.
 
@@ -20,6 +21,7 @@ The server is intentionally a thin adapter. Tool handlers validate MCP inputs th
 - `src/tools/prompt-to-agent.ts`: `prompt_to_agent` definition
 - `src/tools/check-session-status.ts`: `check_session_status` definition
 - `src/tools/read-response.ts`: `read_response` definition
+- `src/tools/cancel-session.ts`: `cancel_session` definition
 - `src/tools/shared.ts`: trusted caller and common MCP result formatting
 - `tsconfig.json`: standalone source and mirrored-test TypeScript configuration
 - `../../../test/mcp-servers/fyllo-spawn/`: Vitest tests
@@ -50,7 +52,7 @@ Returns installed registry and valid custom ACP Agents without starting a proces
 
 ### `prompt_to_agent`
 
-Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides. New Session results direct the parent Agent to use the injected `spawn.session` Signal contract once; continuation calls do not repeat that signal.
+Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides; `background` defaults to `true`, so a call that omits it returns `accepted` once Main has durably dispatched the turn. New Session results direct the parent Agent to use the injected `spawn.session` Signal contract once; continuation calls do not repeat that signal.
 
 ### `check_session_status`
 
@@ -59,6 +61,10 @@ Returns an owner-scoped status snapshot without waiting for an active turn to fi
 ### `read_response`
 
 Reads a bounded response chunk using an opaque `responseId` and cursor. Tools never accept or expose an app-data file path.
+
+### `cancel_session`
+
+Requests cancellation of a running spawned Session owned by the caller. `{ cancelled: true }` means the request was triggered, not that the ACP turn has confirmed; the turn settles as `error` with code `TURN_CANCELLED_BY_PARENT` and the final state is confirmed through `check_session_status`. Missing, finished, or cross-owner targets all return `{ cancelled: false, reason: "Session not found" }` indistinguishably.
 
 ## Trusted Context And RPC Contract
 

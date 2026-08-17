@@ -519,6 +519,9 @@ export class SpawnedSessionManager {
         message,
       };
     }
+    if (latestTurn?.phase === "expired" && latestTurn.error?.code === "TURN_CANCELLED_BY_PARENT") {
+      return { status: "error", ...latestTurn.error };
+    }
     if (latestTurn?.phase === "expired") {
       return expiredStatus(SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE);
     }
@@ -584,6 +587,29 @@ export class SpawnedSessionManager {
       }
       throw error;
     }
+  }
+
+  async cancelSession(
+    caller: SpawnCaller,
+    sessionId: string
+  ): Promise<{ cancelled: boolean; reason?: string }> {
+    await this.requireParentSnapshot(caller);
+    const owner = { ...caller, sessionId };
+    const active = this.activeTurns.get(ownerKey(owner));
+    // Deliberately indistinguishable for missing, terminated, or cross-owner
+    // sessions to avoid leaking information.
+    if (!active) {
+      return { cancelled: false, reason: "Session not found" };
+    }
+    active.forceError = {
+      code: "TURN_CANCELLED_BY_PARENT",
+      message: "Parent Agent cancelled this spawned session",
+    };
+    active.runner?.cancel();
+    // Wait only: on grace-period timeout the turn keeps running until it
+    // settles naturally; forceError still drives the terminal error code.
+    await Promise.race([active.settledPromise, this.delay(SPAWN_TURN_CANCEL_GRACE_MS)]);
+    return { cancelled: true };
   }
 
   async deleteParent(workspaceId: string, parentSessionId: string): Promise<void> {
@@ -997,12 +1023,13 @@ export class SpawnedSessionManager {
 
       if (input.active.forceError) {
         const interrupted = input.active.forceError.code === "APP_SHUTDOWN";
+        const cancelledByParent = input.active.forceError.code === "TURN_CANCELLED_BY_PARENT";
         await patchTerminalTurn({
           phase: interrupted ? "interrupted" : "expired",
           error: input.active.forceError,
         });
         await patchSpawnedSessionMeta(storeOwner(input.owner), {
-          status: interrupted ? "error" : "expired",
+          status: interrupted || cancelledByParent ? "error" : "expired",
           error: input.active.forceError,
           updatedAt: this.nowIso(),
         });
@@ -1011,6 +1038,14 @@ export class SpawnedSessionManager {
             status: "error",
             sessionId: input.owner.sessionId,
             code: "APP_SHUTDOWN",
+            message: input.active.forceError.message,
+          };
+        }
+        if (cancelledByParent) {
+          return {
+            status: "error",
+            sessionId: input.owner.sessionId,
+            code: "TURN_CANCELLED_BY_PARENT",
             message: input.active.forceError.message,
           };
         }
