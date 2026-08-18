@@ -242,6 +242,9 @@ describe("useChatStore", () => {
 
     notifyCallbacks.onAccepted();
     await drain;
+    expect(sessionStore.sessions.find((session) => session.id === "parent-1")?.status).toBe(
+      "running"
+    );
     notifyCallbacks.onChunk({ kind: "text_delta", text: "ack" });
     notifyCallbacks.onDone({ totalTokens: 2 });
 
@@ -250,6 +253,9 @@ describe("useChatStore", () => {
       expect(chatApi.loadMessages).toHaveBeenCalledWith("parent-1", "project-1")
     );
     expect(sessionStore.activeSessionId).toBe("active-1");
+    expect(sessionStore.sessions.find((session) => session.id === "parent-1")?.status).toBe(
+      "ended"
+    );
   });
 
   it("目标 Session 有用户 turn 时保持 pending，用户 terminal 后再 drain", async () => {
@@ -347,6 +353,7 @@ describe("useChatStore", () => {
     notifyCallbacks.onAccepted();
     await drain;
     expect(chatStore.chatStatus).toBe("submitted");
+    expect(sessionStore.sessions[0]?.status).toBe("running");
 
     notifyCallbacks.onChunk({ kind: "text_delta", text: "ack" });
     expect(chatStore.chatStatus).toBe("streaming");

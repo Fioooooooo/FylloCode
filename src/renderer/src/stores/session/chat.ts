@@ -215,6 +215,7 @@ export const useChatStore = defineStore("chat", () => {
             return;
           }
           const streamRunId = beginSessionStreamRun(sessionId);
+          markSessionRunning(session, sessionStore);
           // 未加载历史的会话不接内容流（保持懒加载），chunk 只驱动 stream state。
           const canAssemble =
             sessionStore.activeSessionId === sessionId ||
@@ -383,6 +384,15 @@ export const useChatStore = defineStore("chat", () => {
     });
   }
 
+  function markSessionRunning(
+    session: Session,
+    sessionStore: ReturnType<typeof useSessionStore>
+  ): void {
+    session.status = "running";
+    session.updatedAt = new Date();
+    sessionStore.sortSessions();
+  }
+
   function queueUserMessage(
     session: Session,
     parts: ChatPromptPart[],
@@ -391,9 +401,7 @@ export const useChatStore = defineStore("chat", () => {
     const userMessage = buildUserMessage(session.id, parts);
     session.messages.push(userMessage);
     session.turnCount++;
-    session.updatedAt = new Date();
-    session.status = "running";
-    sessionStore.sortSessions();
+    markSessionRunning(session, sessionStore);
     return userMessage;
   }
 
