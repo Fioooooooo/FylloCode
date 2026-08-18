@@ -168,7 +168,7 @@ describe("ProjectHealthPopover", () => {
     );
   });
 
-  it("toasts when sendMessage rejects", async () => {
+  it("toasts when sendMessage rejects after navigating to the chat draft", async () => {
     const wrapper = mountPopover(makeProject());
     const chatStore = useChatStore();
     vi.spyOn(chatStore, "sendMessage").mockRejectedValue(new Error("network down"));
@@ -184,6 +184,6 @@ describe("ProjectHealthPopover", () => {
         color: "error",
       })
     );
-    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerPush).toHaveBeenCalledWith("/chat");
   });
 });
