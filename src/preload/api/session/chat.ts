@@ -43,12 +43,21 @@ export interface StreamCallbacks {
   onError: (error: { code: string; message: string }) => void;
 }
 
+export interface SpawnNotificationStreamCallbacks extends StreamCallbacks {
+  /** dispatch 前置校验未通过（不会建立 port）。 */
+  onRejected: (status: "not_pending" | "busy") => void;
+  /** 已 claim、通道已建立；在 ready 握手发出前同步调用，供 renderer 先建立 stream state。 */
+  onAccepted: () => void;
+}
+
 interface PendingChatStream {
   sessionId: string;
   workspaceId: string;
   callbacks: StreamCallbacks;
   port: MessagePort | null;
   cancelled: boolean;
+  /** dispatch 流专用：invoke 确认 accepted 前不向 main 发送 ready 握手。 */
+  deferReady?: boolean;
 }
 
 const pendingChatStreams = new Map<string, PendingChatStream>();
@@ -109,7 +118,11 @@ function bindStreamPort(streamId: string, port: MessagePort): void {
     }
   };
   port.start();
-  port.postMessage({ type: "ready" });
+  // dispatch 流在 accepted 确认前推迟 ready：保证 renderer 先建立 stream state，
+  // main 侧的 turn 只在接受后才可能启动。
+  if (!pending.deferReady) {
+    port.postMessage({ type: "ready" });
+  }
 }
 
 function ensureStreamPortListener(): void {
@@ -326,12 +339,83 @@ export const chatApi = {
 
   dispatchSpawnNotification(
     workspaceId: string,
-    notificationId: string
-  ): Promise<IpcResponse<SpawnNotificationDispatchResult>> {
-    return ipcRenderer.invoke(SessionChatNotificationChannels.dispatch, {
+    notificationId: string,
+    parentSessionId: string,
+    callbacks: SpawnNotificationStreamCallbacks
+  ): () => void {
+    ensureStreamPortListener();
+
+    const streamId = createStreamId();
+    pendingChatStreams.set(streamId, {
+      sessionId: parentSessionId,
       workspaceId,
-      notificationId,
+      callbacks,
+      port: null,
+      cancelled: false,
+      deferReady: true,
     });
+
+    void ipcRenderer
+      .invoke(SessionChatNotificationChannels.dispatch, { workspaceId, notificationId, streamId })
+      .then((response: IpcResponse<SpawnNotificationDispatchResult>) => {
+        const pending = pendingChatStreams.get(streamId);
+        if (!pending) return;
+        if (!response.ok) {
+          pendingChatStreams.delete(streamId);
+          closePort(pending.port);
+          if (!pending.cancelled) {
+            pending.callbacks.onError({
+              code: response.error.code,
+              message: response.error.message,
+            });
+          }
+          return;
+        }
+        if (response.data.status !== "accepted") {
+          // busy / not_pending：main 未创建 port，直接清理并通知 renderer。
+          pendingChatStreams.delete(streamId);
+          closePort(pending.port);
+          if (!pending.cancelled) {
+            (pending.callbacks as SpawnNotificationStreamCallbacks).onRejected(
+              response.data.status
+            );
+          }
+          return;
+        }
+        // accepted：先让 renderer 建立 stream state，再补发被 defer 的 ready 握手。
+        pending.deferReady = false;
+        (pending.callbacks as SpawnNotificationStreamCallbacks).onAccepted();
+        pending.port?.postMessage({ type: "ready" });
+      })
+      .catch((error: unknown) => {
+        const pending = pendingChatStreams.get(streamId);
+        pendingChatStreams.delete(streamId);
+        closePort(pending?.port ?? null);
+        if (pending?.cancelled) {
+          return;
+        }
+
+        pending?.callbacks.onError({
+          code: "STREAM_INIT_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    // Cancel handler: notify main to stop streaming and close the MessagePort.
+    return () => {
+      const pending = pendingChatStreams.get(streamId);
+      if (!pending || pending.cancelled) {
+        return;
+      }
+
+      pending.cancelled = true;
+      void ipcRenderer.invoke(SessionChatStreamChannels.streamCancel, {
+        workspaceId,
+        sessionId: parentSessionId,
+      });
+      closePort(pending.port);
+      pendingChatStreams.delete(streamId);
+    };
   },
 
   onSpawnNotificationsWake(handler: (payload: { workspaceId: string }) => void): () => void {

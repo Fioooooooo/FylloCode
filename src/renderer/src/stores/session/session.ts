@@ -126,6 +126,7 @@ export interface SessionStore {
   beginDraftSession: () => void;
   selectSession: (sessionId: string) => Promise<void>;
   refreshSessionMessages: (sessionId: string) => Promise<void>;
+  isSessionMessagesLoaded: (sessionId: string) => boolean;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   setSessionPinned: (sessionId: string, isPinned: boolean) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -1092,6 +1093,13 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     sortSessions();
   }
 
+  // 与 selectSession 的懒加载判断（L1049）保持同一口径：messages 非空或已标记加载。
+  function isSessionMessagesLoaded(sessionId: string): boolean {
+    const session = sessions.value.find((item) => item.id === sessionId);
+    if (!session) return false;
+    return session.messages.length > 0 || loadedSessionIds.has(sessionId);
+  }
+
   async function renameSession(sessionId: string, title: string): Promise<void> {
     const workspaceStore = useWorkspaceStore();
     const workspaceId = workspaceStore.currentWorkspace?.id;
@@ -1255,6 +1263,7 @@ export const useSessionStore = defineStore("session", (): SessionStore => {
     beginDraftSession,
     selectSession,
     refreshSessionMessages,
+    isSessionMessagesLoaded,
     renameSession,
     setSessionPinned,
     deleteSession,

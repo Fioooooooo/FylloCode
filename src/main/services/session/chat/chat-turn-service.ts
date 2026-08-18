@@ -2,14 +2,13 @@ import { generateId, type UIMessage } from "ai";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { DEFAULT_CHAT_SESSION_MODE, type MessageMeta } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
-import type { SpawnNotificationDispatchResult } from "@shared/ipc/session/chat.schemas";
 import { assertAgentWorkspaceCompatibility } from "@main/services/session/chat/agent-workspace-compatibility";
 import { ensureSessionWorkspaceSnapshot } from "@main/services/session/chat/chat-service";
 import { chatTurnGate, type ChatTurnLease } from "@main/services/session/chat/chat-turn-gate";
 import { AcpSession } from "@main/services/session/chat/acp-session";
 import {
   driveAcpStream,
-  driveAcpTurn,
+  type AcpTurnCompletion,
   type AcpTurnRunner,
   type StreamOutput,
 } from "@main/services/session/chat/acp-stream-driver";
@@ -251,9 +250,12 @@ function notificationMessage(record: SpawnedTurnRecord, reminder: string): UIMes
 
 async function executeNotificationTurn(
   record: SpawnedTurnRecord,
-  lease: ChatTurnLease
-): Promise<void> {
-  let finalizationError: unknown;
+  lease: ChatTurnLease,
+  output: StreamOutput
+): Promise<AcpTurnRunner> {
+  // finalization 失败时 driver 的 completion 仍按原 status resolve（见 acp-stream-driver finish），
+  // 因此用本地标记捕获我们自己 persist/settle 的失败，作为 delivered 结算的否决条件。
+  let finalizationFailed = false;
   try {
     const reminder = spawnNotificationService.buildReminder(record);
     const message = notificationMessage(record, reminder);
@@ -265,15 +267,24 @@ async function executeNotificationTurn(
       userMessageId: message.id,
     };
     const prepared = await prepareChatTurn(input);
-    const runner = driveAcpTurn({
+    const runner = driveAcpStream({
       session: prepared.session,
       owner: "chat",
       registryKey: `${record.workspaceId}:${record.parentSessionId}`,
       messageSessionId: record.parentSessionId,
+      output,
       logTag: "spawn-notification",
       runtimeScope: "app",
       start: () => prepared.session.start(input.prompt),
       hooks: {
+        persistMessage: async (assembled) => {
+          try {
+            await appendMessage(record.workspaceId, record.parentSessionId, assembled);
+          } catch (error) {
+            finalizationFailed = true;
+            throw error;
+          }
+        },
         onTurnMetadata: async (event) => {
           await patchMessageMetadata(
             record.workspaceId,
@@ -286,44 +297,54 @@ async function executeNotificationTurn(
             }
           );
         },
-        onControlEvent: (event) => prepared.enqueueControlEvent(event),
-        onDone: async ({ totalTokens, message: assistant }) => {
-          if (assistant) await appendMessage(record.workspaceId, record.parentSessionId, assistant);
-          await prepared.settleMeta(totalTokens);
-        },
-        onError: async ({ partialMessage }) => {
-          if (partialMessage) {
-            await appendMessage(record.workspaceId, record.parentSessionId, partialMessage);
+        onControlEvent: (event, sink) => prepared.enqueueControlEvent(event, sink),
+        onDone: async ({ totalTokens }) => {
+          try {
+            await prepared.settleMeta(totalTokens);
+          } catch (error) {
+            finalizationFailed = true;
+            throw error;
           }
-        },
-        onCancel: async ({ partialMessage }) => {
-          if (partialMessage) {
-            await appendMessage(record.workspaceId, record.parentSessionId, partialMessage);
-          }
-        },
-        onFinalizationError: (error) => {
-          finalizationError = error;
         },
       },
     });
     const supervised = holdLease(runner, lease);
-    const [, completion] = await Promise.all([supervised.start(), supervised.completion]);
-    if (completion.status === "done" && !finalizationError) {
-      await spawnNotificationService.markDelivered(record);
-    } else {
-      await spawnNotificationService.markDeliveryUnknown(record);
-    }
+    // 投递结算跟随 turn 终态：completion 在 finalization settle 后才 resolve。
+    // start() 由 stream channel 在 renderer ready 握手后触发，这里只挂结算。
+    void supervised.completion.then(async (completion: AcpTurnCompletion) => {
+      try {
+        if (completion.status === "done" && !finalizationFailed) {
+          await spawnNotificationService.markDelivered(record);
+        } else {
+          await spawnNotificationService.markDeliveryUnknown(record);
+        }
+      } catch (error) {
+        logger.error("[spawn-notification] failed to settle notification delivery state", error);
+      }
+    });
+    return supervised;
   } catch (error) {
     lease.release();
     await spawnNotificationService.markDeliveryUnknown(record).catch(() => undefined);
     logger.error("[spawn-notification] automatic parent Chat turn failed", error);
+    throw error;
   }
 }
 
-export async function dispatchSpawnNotification(
+export type SpawnNotificationTurnClaim =
+  | { status: "not_pending" | "busy" }
+  | {
+      status: "accepted";
+      /** 由 stream channel 的 onReady 调用；返回的 runner 交给 channel 启动与取消。 */
+      start: (output: StreamOutput) => Promise<AcpTurnRunner>;
+      /** claim 已完成但通道建立失败时调用：释放 lease 并按投递语义记 delivery_unknown。 */
+      abort: () => Promise<void>;
+    };
+
+export async function claimSpawnNotificationTurn(
   workspaceId: string,
   notificationId: string
-): Promise<SpawnNotificationDispatchResult> {
+): Promise<SpawnNotificationTurnClaim> {
   const summary = (await spawnNotificationService.list(workspaceId)).find(
     (item) => item.notificationId === notificationId
   );
@@ -335,6 +356,12 @@ export async function dispatchSpawnNotification(
     lease.release();
     return { status: "not_pending" };
   }
-  await executeNotificationTurn(record, lease);
-  return { status: "dispatched" };
+  return {
+    status: "accepted",
+    start: (output) => executeNotificationTurn(record, lease, output),
+    abort: async () => {
+      lease.release();
+      await spawnNotificationService.markDeliveryUnknown(record).catch(() => undefined);
+    },
+  };
 }

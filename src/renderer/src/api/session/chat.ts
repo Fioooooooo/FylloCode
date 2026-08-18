@@ -10,10 +10,7 @@ import type {
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
-import type {
-  SpawnNotificationDispatchResult,
-  SpawnNotificationSummary,
-} from "@shared/ipc/session/chat.schemas";
+import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
 
 // Renderer-side wrapper for session:chat IPC. Keeps components/composables free of direct
 // window.api usage and provides a typed, normalized surface.
@@ -28,6 +25,13 @@ export interface StreamCallbacks {
   onChunk: (data: MessageChunkData) => void;
   onDone: (data: { totalTokens: number }) => void;
   onError: (error: StreamError) => void;
+}
+
+export interface SpawnNotificationStreamCallbacks extends StreamCallbacks {
+  /** dispatch 前置校验未通过（不会建立 port）。 */
+  onRejected: (status: "not_pending" | "busy") => void;
+  /** 已 claim、通道已建立；在首个 chunk 到达前同步调用。 */
+  onAccepted: () => void;
 }
 
 type ProbeConfigOptionInput = {
@@ -188,9 +192,16 @@ export const chatApi = {
 
   dispatchSpawnNotification(
     workspaceId: string,
-    notificationId: string
-  ): Promise<IpcResponse<SpawnNotificationDispatchResult>> {
-    return window.api.session.chat.dispatchSpawnNotification(workspaceId, notificationId);
+    notificationId: string,
+    parentSessionId: string,
+    callbacks: SpawnNotificationStreamCallbacks
+  ): () => void {
+    return window.api.session.chat.dispatchSpawnNotification(
+      workspaceId,
+      notificationId,
+      parentSessionId,
+      callbacks
+    );
   },
 
   onSpawnNotificationsWake(handler: (payload: { workspaceId: string }) => void): () => void {

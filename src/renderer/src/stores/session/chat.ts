@@ -7,7 +7,7 @@ import type { MessageChunkData } from "@shared/types/ipc";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
-import { chatApi, type StreamError } from "@renderer/api/session/chat";
+import { chatApi, type StreamCallbacks, type StreamError } from "@renderer/api/session/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 import { useWorkspaceStore } from "../workspace/workspace";
@@ -175,21 +175,93 @@ export const useChatStore = defineStore("chat", () => {
     if (localTurnIntents.get(sessionId) === kind) localTurnIntents.delete(sessionId);
   }
 
+  const NOTIFICATION_BUSY_RETRY_DELAY_MS = 300;
+
+  // busy 时 record 保持 durable pending：主接力来自进行中 turn 终态回调的 drain，
+  // 这里安排一次短延迟兜底，吸收 gate lease 释放与 done 到达的跨进程时序差。
+  function scheduleNotificationDrainRetry(workspaceId: string): void {
+    setTimeout(() => {
+      void requestSpawnNotificationDrain(workspaceId);
+    }, NOTIFICATION_BUSY_RETRY_DELAY_MS);
+  }
+
   async function dispatchPendingNotification(
     workspaceId: string,
     notification: SpawnNotificationSummary
   ): Promise<void> {
-    if (!tryAcquireLocalTurn(notification.parentSessionId, "notification")) return;
-    try {
-      const result = await chatApi.dispatchSpawnNotification(
-        workspaceId,
-        notification.notificationId
-      );
-      if (!result.ok || result.data.status !== "dispatched") return;
-      await useSessionStore().refreshSessionMessages(notification.parentSessionId);
-    } finally {
-      releaseLocalTurn(notification.parentSessionId, "notification");
-    }
+    const sessionId = notification.parentSessionId;
+    if (!tryAcquireLocalTurn(sessionId, "notification")) return;
+
+    const sessionStore = useSessionStore();
+    const session = sessionStore.sessions.find((item) => item.id === sessionId);
+
+    // chunk 消费处理器在 onAccepted 中建立（需要 streamRunId 与目标 session）；
+    // main 侧的 ready 握手推迟到 accepted 之后，chunk 不会先于状态建立到达。
+    let chunkHandlers: StreamCallbacks | null = null;
+    let markDecided!: () => void;
+    const decided = new Promise<void>((resolve) => {
+      markDecided = resolve;
+    });
+
+    const cancel = chatApi.dispatchSpawnNotification(
+      workspaceId,
+      notification.notificationId,
+      sessionId,
+      {
+        onAccepted() {
+          releaseLocalTurn(sessionId, "notification");
+          if (!session) {
+            markDecided();
+            return;
+          }
+          const streamRunId = beginSessionStreamRun(sessionId);
+          // 未加载历史的会话不接内容流（保持懒加载），chunk 只驱动 stream state。
+          const canAssemble =
+            sessionStore.activeSessionId === sessionId ||
+            sessionStore.isSessionMessagesLoaded(sessionId);
+          const assembler = canAssemble
+            ? useUIMessageAssembler(ref(session.messages), { sessionId })
+            : null;
+          chunkHandlers = createStreamRunCallbacks({
+            session,
+            workspaceId,
+            sessionStore,
+            streamRunId,
+            assembler,
+            refreshOnTerminal: canAssemble,
+          });
+          updateSessionStreamState(sessionId, (state) =>
+            state.runId === streamRunId ? { ...state, cancel } : state
+          );
+          markDecided();
+        },
+        onRejected(status) {
+          releaseLocalTurn(sessionId, "notification");
+          if (status === "busy") {
+            scheduleNotificationDrainRetry(workspaceId);
+          }
+          markDecided();
+        },
+        onChunk(data) {
+          chunkHandlers?.onChunk(data);
+        },
+        onDone(data) {
+          chunkHandlers?.onDone(data);
+        },
+        onError(error) {
+          if (!chunkHandlers) {
+            // accepted 之前失败（init 失败等）：只释放本地锁，不建立状态。
+            releaseLocalTurn(sessionId, "notification");
+            console.error("Spawn notification dispatch failed:", error.code, error.message);
+            markDecided();
+            return;
+          }
+          chunkHandlers.onError(error);
+        },
+      }
+    );
+
+    await decided;
   }
 
   async function drainSpawnNotifications(workspaceId: string): Promise<void> {
@@ -201,8 +273,22 @@ export const useChatStore = defineStore("chat", () => {
         if (useWorkspaceStore().currentWorkspace?.id !== workspaceId) return;
         const result = await chatApi.listSpawnNotifications(workspaceId);
         if (!result.ok) throw new Error(result.error.message);
+        // 同一父会话的通知按序串行发起，不同会话并行；同会话后续通知若撞上
+        // 进行中的 turn 会保持 pending，由该 turn 终态回调的 drain 接力。
+        const bySession = new Map<string, SpawnNotificationSummary[]>();
+        for (const notification of result.data) {
+          const list = bySession.get(notification.parentSessionId) ?? [];
+          list.push(notification);
+          bySession.set(notification.parentSessionId, list);
+        }
         await Promise.all(
-          result.data.map((notification) => dispatchPendingNotification(workspaceId, notification))
+          [...bySession.values()].map((notifications) =>
+            notifications.reduce(
+              (chain, notification) =>
+                chain.then(() => dispatchPendingNotification(workspaceId, notification)),
+              Promise.resolve()
+            )
+          )
         );
       }
     })().finally(() => notificationDrainByWorkspace.delete(workspaceId));
@@ -326,6 +412,133 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
+  interface StreamRunCallbacksOptions {
+    session: Session;
+    workspaceId: string;
+    sessionStore: ReturnType<typeof useSessionStore>;
+    streamRunId: number;
+    assembler: ReturnType<typeof useUIMessageAssembler> | null;
+    /** 终态后重新拉取 canonical 消息（通知 turn：同步 Main 持久化的 reminder 与 assistant）。 */
+    refreshOnTerminal?: boolean;
+  }
+
+  // 按 chunk 类型分发：内容类交给 assembler 渲染；控制类直接更新 session 元数据。
+  // 若当前 run 已被新 run 取代或取消，则忽略后续 chunk，避免旧流污染新消息。
+  // 正常用户消息与 spawn 通知 turn 共用这套 chunk 消费与流状态迁移逻辑。
+  function createStreamRunCallbacks(options: StreamRunCallbacksOptions): StreamCallbacks {
+    const { session, workspaceId, sessionStore, streamRunId, assembler, refreshOnTerminal } =
+      options;
+    const sessionId = session.id;
+
+    const refreshTerminalMessages = (): void => {
+      if (!refreshOnTerminal) return;
+      void sessionStore.refreshSessionMessages(sessionId).catch((error: unknown) => {
+        console.error("Failed to refresh messages after terminal stream event:", error);
+      });
+    };
+
+    return {
+      onChunk(data) {
+        if (!isCurrentSessionRun(sessionId, streamRunId)) {
+          return;
+        }
+
+        switch (data.kind) {
+          case "session_info_update":
+            session.title = data.title;
+            session.updatedAt = new Date();
+            sessionStore.sortSessions();
+            return;
+          case "usage_update":
+            session.tokenUsage = {
+              used: data.used,
+              size: data.size,
+              cost: data.cost,
+            };
+            return;
+          case "available_commands_update":
+            sessionStore.setSessionAvailableCommands(sessionId, data.commands);
+            return;
+          case "config_options_update":
+            sessionStore.setSessionConfigOptions(sessionId, data.options);
+            return;
+          case "agenda_update":
+            sessionStore.setSessionAgentAgenda(sessionId, data.entries);
+            return;
+          case "turn_metadata":
+            assembler?.applyChunk(data);
+            return;
+          case "user_message":
+          case "status":
+            return;
+          case "text_delta":
+          case "reasoning_delta":
+          case "tool_call_start":
+          case "tool_call_update": {
+            const chunkReceivedAt = Date.now();
+
+            assembler?.applyChunk(data);
+            const assistantMessageId = assembler?.getActiveAssistantMessageId() ?? null;
+            updateSessionStreamState(sessionId, (state) =>
+              state.runId !== streamRunId ||
+              (state.status !== "submitted" && state.status !== "streaming")
+                ? state
+                : {
+                    ...state,
+                    status: "streaming",
+                    assistantMessageId: state.assistantMessageId ?? assistantMessageId,
+                    replyStartedAt: state.replyStartedAt ?? chunkReceivedAt,
+                  }
+            );
+            return;
+          }
+          default: {
+            void data;
+            throw new Error(`unhandled stream chunk: ${(data as MessageChunkData).kind}`);
+          }
+        }
+      },
+      onDone(done) {
+        if (!isCurrentSessionRun(sessionId, streamRunId)) {
+          return;
+        }
+
+        assembler?.resetActive();
+        setSessionStreamState(sessionId, null);
+        session.tokenUsage = {
+          ...session.tokenUsage,
+          used: session.tokenUsage.used + done.totalTokens,
+        };
+        session.updatedAt = new Date();
+        session.status = "ended";
+        sessionStore.sortSessions();
+        refreshTerminalMessages();
+        void requestSpawnNotificationDrain(workspaceId);
+      },
+      onError(err) {
+        if (!isCurrentSessionRun(sessionId, streamRunId)) {
+          return;
+        }
+
+        assembler?.resetActive();
+        setSessionStreamState(sessionId, {
+          runId: streamRunId,
+          status: "error",
+          cancel: null,
+          error: err,
+          assistantMessageId: null,
+          replyStartedAt: null,
+        });
+        session.status = "ended";
+        session.updatedAt = new Date();
+        sessionStore.sortSessions();
+        console.error("Stream error:", err.code, err.message);
+        refreshTerminalMessages();
+        void requestSpawnNotificationDrain(workspaceId);
+      },
+    };
+  }
+
   function streamSessionMessage(
     activeSession: Session,
     workspaceId: string,
@@ -337,113 +550,19 @@ export const useChatStore = defineStore("chat", () => {
     const assembler = useUIMessageAssembler(ref(activeSession.messages), {
       sessionId: activeSession.id,
     });
-
-    // 按 chunk 类型分发：内容类交给 assembler 渲染；控制类直接更新 session 元数据。
-    // 若当前 run 已被新 run 取代或取消，则忽略后续 chunk，避免旧流污染新消息。
     const sessionId = activeSession.id;
     const cancel = chatApi.streamMessage(
-      activeSession.id,
+      sessionId,
       workspaceId,
       activeSession.agentId,
       parts,
-      {
-        onChunk(data) {
-          if (!isCurrentSessionRun(sessionId, streamRunId)) {
-            return;
-          }
-
-          switch (data.kind) {
-            case "session_info_update":
-              activeSession.title = data.title;
-              activeSession.updatedAt = new Date();
-              sessionStore.sortSessions();
-              return;
-            case "usage_update":
-              activeSession.tokenUsage = {
-                used: data.used,
-                size: data.size,
-                cost: data.cost,
-              };
-              return;
-            case "available_commands_update":
-              sessionStore.setSessionAvailableCommands(activeSession.id, data.commands);
-              return;
-            case "config_options_update":
-              sessionStore.setSessionConfigOptions(activeSession.id, data.options);
-              return;
-            case "agenda_update":
-              sessionStore.setSessionAgentAgenda(activeSession.id, data.entries);
-              return;
-            case "turn_metadata":
-              assembler.applyChunk(data);
-              return;
-            case "user_message":
-            case "status":
-              return;
-            case "text_delta":
-            case "reasoning_delta":
-            case "tool_call_start":
-            case "tool_call_update": {
-              const chunkReceivedAt = Date.now();
-
-              assembler.applyChunk(data);
-              const assistantMessageId = assembler.getActiveAssistantMessageId();
-              updateSessionStreamState(sessionId, (state) =>
-                state.runId !== streamRunId ||
-                (state.status !== "submitted" && state.status !== "streaming")
-                  ? state
-                  : {
-                      ...state,
-                      status: "streaming",
-                      assistantMessageId: state.assistantMessageId ?? assistantMessageId,
-                      replyStartedAt: state.replyStartedAt ?? chunkReceivedAt,
-                    }
-              );
-              return;
-            }
-            default: {
-              void data;
-              throw new Error(`unhandled stream chunk: ${(data as MessageChunkData).kind}`);
-            }
-          }
-        },
-        onDone(done) {
-          if (!isCurrentSessionRun(sessionId, streamRunId)) {
-            return;
-          }
-
-          assembler.resetActive();
-          setSessionStreamState(sessionId, null);
-          activeSession.tokenUsage = {
-            ...activeSession.tokenUsage,
-            used: activeSession.tokenUsage.used + done.totalTokens,
-          };
-          activeSession.updatedAt = new Date();
-          activeSession.status = "ended";
-          sessionStore.sortSessions();
-          void requestSpawnNotificationDrain(workspaceId);
-        },
-        onError(err) {
-          if (!isCurrentSessionRun(sessionId, streamRunId)) {
-            return;
-          }
-
-          assembler.resetActive();
-          setSessionStreamState(sessionId, {
-            runId: streamRunId,
-            status: "error",
-            cancel: null,
-            error: err,
-            assistantMessageId: null,
-            replyStartedAt: null,
-          });
-          activeSession.status = "ended";
-          activeSession.updatedAt = new Date();
-          sessionStore.sortSessions();
-          console.error("Stream error:", err.code, err.message);
-          void requestSpawnNotificationDrain(workspaceId);
-        },
-      },
+      createStreamRunCallbacks({
+        session: activeSession,
+        workspaceId,
+        sessionStore,
+        streamRunId,
+        assembler,
+      }),
       options
     );
     updateSessionStreamState(sessionId, (state) =>

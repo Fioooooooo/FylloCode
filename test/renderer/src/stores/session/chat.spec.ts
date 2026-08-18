@@ -5,11 +5,16 @@ import { useAcpAgentsStore } from "@renderer/stores/platform/acp-agents";
 import { useChatStore } from "@renderer/stores/session/chat";
 import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useSessionStore } from "@renderer/stores/session/session";
-import { chatApi, type StreamCallbacks } from "@renderer/api/session/chat";
+import {
+  chatApi,
+  type SpawnNotificationStreamCallbacks,
+  type StreamCallbacks,
+} from "@renderer/api/session/chat";
 import { workspaceApi } from "@renderer/api/workspace/workspace";
 import { workspaceInfo } from "../../fixtures/workspace";
 import type { AcpRegistry, AcpAgentStatus } from "@shared/types/acp-agent";
 import type { Session } from "@shared/types/chat";
+import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
 
 vi.mock("@renderer/api/session/chat", () => ({
   chatApi: {
@@ -118,6 +123,20 @@ function makeSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
+function makeSpawnNotification(
+  overrides: Partial<SpawnNotificationSummary> = {}
+): SpawnNotificationSummary {
+  return {
+    notificationId: "notification-1",
+    parentSessionId: "parent-1",
+    spawnedSessionId: "spawn-1",
+    turnId: "turn-1",
+    status: "completed",
+    responseId: "response-1",
+    ...overrides,
+  };
+}
+
 function prepareDraftConversation(): void {
   const acpAgentsStore = useAcpAgentsStore();
   acpAgentsStore.registry = mockRegistry;
@@ -175,58 +194,62 @@ describe("useChatStore", () => {
     vi.mocked(chatApi.streamMessage).mockReturnValue(() => {});
     vi.mocked(chatApi.onProbeUpdate).mockReturnValue(vi.fn());
     vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({ ok: true, data: [] });
-    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
-      ok: true,
-      data: { status: "not_pending" },
-    });
+    vi.mocked(chatApi.dispatchSpawnNotification).mockReturnValue(vi.fn());
     vi.mocked(chatApi.onSpawnNotificationsWake).mockReturnValue(vi.fn());
     vi.mocked(chatApi.loadMessages).mockResolvedValue({ ok: true, data: [] });
   });
 
-  it("按 parent sessionId 派发通知并刷新非 active Session，不切换当前会话", async () => {
+  it("按 parent sessionId 流式派发通知并在终态刷新非 active Session，不切换当前会话", async () => {
     const workspaceStore = useWorkspaceStore();
     workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
     const sessionStore = useSessionStore();
-    const parent = makeSession({ id: "parent-1", title: "Parent" });
-    const active = makeSession({ id: "active-1", title: "Active" });
-    sessionStore.sessions = [parent, active];
-    sessionStore.activeSessionId = "active-1";
-    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({
-      ok: true,
-      data: [
+    const parent = makeSession({
+      id: "parent-1",
+      title: "Parent",
+      messages: [
         {
-          notificationId: "notification-1",
-          parentSessionId: "parent-1",
-          spawnedSessionId: "spawn-1",
-          turnId: "turn-1",
-          status: "completed",
-          responseId: "response-1",
-        },
-      ],
-    });
-    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
-      ok: true,
-      data: { status: "dispatched" },
-    });
-    vi.mocked(chatApi.loadMessages).mockResolvedValue({
-      ok: true,
-      data: [
-        {
-          id: "assistant-1",
-          role: "assistant",
-          parts: [{ type: "text", text: "ack" }],
+          id: "message-1",
+          role: "user",
+          parts: [{ type: "text", text: "hello" }],
           metadata: { sessionId: "parent-1", createdAt: new Date() },
         },
       ],
     });
+    const active = makeSession({ id: "active-1", title: "Active" });
+    sessionStore.sessions = [parent, active];
+    sessionStore.activeSessionId = "active-1";
+    // 终态回调会接力 drain，首次之后的 list 必须返回空，避免重复 dispatch。
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValueOnce({
+      ok: true,
+      data: [makeSpawnNotification()],
+    });
+    let notifyCallbacks!: SpawnNotificationStreamCallbacks;
+    vi.mocked(chatApi.dispatchSpawnNotification).mockImplementation(
+      (_workspaceId, _notificationId, _parentSessionId, callbacks) => {
+        notifyCallbacks = callbacks;
+        return vi.fn();
+      }
+    );
 
-    await useChatStore().requestSpawnNotificationDrain("project-1");
+    const drain = useChatStore().requestSpawnNotificationDrain("project-1");
+    await vi.waitFor(() => expect(chatApi.dispatchSpawnNotification).toHaveBeenCalled());
+    expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith(
+      "project-1",
+      "notification-1",
+      "parent-1",
+      expect.any(Object)
+    );
 
-    expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith("project-1", "notification-1");
-    expect(chatApi.loadMessages).toHaveBeenCalledWith("parent-1", "project-1");
+    notifyCallbacks.onAccepted();
+    await drain;
+    notifyCallbacks.onChunk({ kind: "text_delta", text: "ack" });
+    notifyCallbacks.onDone({ totalTokens: 2 });
+
+    // 已加载的非 active Session 在终态后 refresh canonical 消息。
+    await vi.waitFor(() =>
+      expect(chatApi.loadMessages).toHaveBeenCalledWith("parent-1", "project-1")
+    );
     expect(sessionStore.activeSessionId).toBe("active-1");
-    expect(parent.messages).toHaveLength(1);
-    expect(active.messages).toHaveLength(0);
   });
 
   it("目标 Session 有用户 turn 时保持 pending，用户 terminal 后再 drain", async () => {
@@ -256,18 +279,18 @@ describe("useChatStore", () => {
         },
       ],
     });
-    vi.mocked(chatApi.dispatchSpawnNotification).mockResolvedValue({
-      ok: true,
-      data: { status: "dispatched" },
-    });
-
     await useChatStore().sendMessage(textParts("user first"));
     await useChatStore().requestSpawnNotificationDrain("project-1");
     expect(chatApi.dispatchSpawnNotification).not.toHaveBeenCalled();
 
     callbacks.onDone({ totalTokens: 1 });
     await vi.waitFor(() =>
-      expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith("project-1", "notification-1")
+      expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledWith(
+        "project-1",
+        "notification-1",
+        "parent-1",
+        expect.any(Object)
+      )
     );
   });
 
@@ -279,30 +302,145 @@ describe("useChatStore", () => {
     sessionStore.activeSessionId = "parent-1";
     vi.mocked(chatApi.listSpawnNotifications).mockResolvedValue({
       ok: true,
-      data: [
-        {
-          notificationId: "notification-1",
-          parentSessionId: "parent-1",
-          spawnedSessionId: "spawn-1",
-          turnId: "turn-1",
-          status: "completed",
-          responseId: "response-1",
-        },
-      ],
+      data: [makeSpawnNotification()],
     });
-    const dispatch = deferred<{
-      ok: true;
-      data: { status: "dispatched" };
-    }>();
-    vi.mocked(chatApi.dispatchSpawnNotification).mockReturnValue(dispatch.promise);
+    // 不调用 onAccepted/onRejected：本地 intent 持有期间用户 prompt 必须被拒绝。
+    let notifyCallbacks!: SpawnNotificationStreamCallbacks;
+    vi.mocked(chatApi.dispatchSpawnNotification).mockImplementation(
+      (_workspaceId, _notificationId, _parentSessionId, callbacks) => {
+        notifyCallbacks = callbacks;
+        return vi.fn();
+      }
+    );
 
     const drain = useChatStore().requestSpawnNotificationDrain("project-1");
     await vi.waitFor(() => expect(chatApi.dispatchSpawnNotification).toHaveBeenCalled());
     await expect(useChatStore().sendMessage(textParts("racing user"))).resolves.toBe(false);
     expect(chatApi.persistMessage).not.toHaveBeenCalled();
     expect(chatApi.streamMessage).not.toHaveBeenCalled();
-    dispatch.resolve({ ok: true, data: { status: "dispatched" } });
+    notifyCallbacks.onRejected("not_pending");
     await drain;
+  });
+
+  it("active 会话的 notification turn 复用 chatStatus 状态机：submitted → streaming → ready", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValueOnce({
+      ok: true,
+      data: [makeSpawnNotification()],
+    });
+    let notifyCallbacks!: SpawnNotificationStreamCallbacks;
+    vi.mocked(chatApi.dispatchSpawnNotification).mockImplementation(
+      (_workspaceId, _notificationId, _parentSessionId, callbacks) => {
+        notifyCallbacks = callbacks;
+        return vi.fn();
+      }
+    );
+
+    const chatStore = useChatStore();
+    const drain = chatStore.requestSpawnNotificationDrain("project-1");
+    await vi.waitFor(() => expect(chatApi.dispatchSpawnNotification).toHaveBeenCalled());
+
+    notifyCallbacks.onAccepted();
+    await drain;
+    expect(chatStore.chatStatus).toBe("submitted");
+
+    notifyCallbacks.onChunk({ kind: "text_delta", text: "ack" });
+    expect(chatStore.chatStatus).toBe("streaming");
+
+    notifyCallbacks.onDone({ totalTokens: 2 });
+    expect(chatStore.chatStatus).toBe("ready");
+  });
+
+  it("busy 拒绝释放本地锁并延迟重试 drain", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    vi.mocked(chatApi.listSpawnNotifications).mockResolvedValueOnce({
+      ok: true,
+      data: [makeSpawnNotification()],
+    });
+    let notifyCallbacks!: SpawnNotificationStreamCallbacks;
+    vi.mocked(chatApi.dispatchSpawnNotification).mockImplementation(
+      (_workspaceId, _notificationId, _parentSessionId, callbacks) => {
+        notifyCallbacks = callbacks;
+        return vi.fn();
+      }
+    );
+
+    const chatStore = useChatStore();
+    const drain = chatStore.requestSpawnNotificationDrain("project-1");
+    await vi.waitFor(() => expect(chatApi.dispatchSpawnNotification).toHaveBeenCalledTimes(1));
+
+    // fake timers 必须在 onRejected 之前启用，才能捕获 busy 重试的 setTimeout。
+    vi.useFakeTimers();
+    notifyCallbacks.onRejected("busy");
+    await drain;
+
+    // 本地锁已随 onRejected 释放：用户消息可以立即发出。
+    await expect(chatStore.sendMessage(textParts("user next"))).resolves.toBe(true);
+    expect(chatApi.persistMessage).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(chatApi.listSpawnNotifications).toHaveBeenCalledTimes(2);
+  });
+
+  it("同一父会话的多条通知串行：前一条终态后才 dispatch 下一条", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    const second = makeSpawnNotification({
+      notificationId: "notification-2",
+      spawnedSessionId: "spawn-2",
+      turnId: "turn-2",
+      responseId: "response-2",
+    });
+    // 第一次 drain 返回两条；第一条终态后的接力 drain 才返回第二条。
+    vi.mocked(chatApi.listSpawnNotifications)
+      .mockResolvedValueOnce({ ok: true, data: [makeSpawnNotification(), second] })
+      .mockResolvedValueOnce({ ok: true, data: [second] });
+    const callbacksById = new Map<string, SpawnNotificationStreamCallbacks>();
+    vi.mocked(chatApi.dispatchSpawnNotification).mockImplementation(
+      (_workspaceId, notificationId, _parentSessionId, callbacks) => {
+        callbacksById.set(notificationId, callbacks);
+        return vi.fn();
+      }
+    );
+
+    const chatStore = useChatStore();
+    const drain = chatStore.requestSpawnNotificationDrain("project-1");
+    await vi.waitFor(() => expect(callbacksById.has("notification-1")).toBe(true));
+    expect(callbacksById.has("notification-2")).toBe(false);
+
+    callbacksById.get("notification-1")!.onAccepted();
+    // 第一条持有 stream state 期间，第二条保持 pending、不会被 dispatch。
+    await drain;
+    expect(callbacksById.has("notification-2")).toBe(false);
+
+    callbacksById.get("notification-1")!.onChunk({ kind: "text_delta", text: "ack" });
+    callbacksById.get("notification-1")!.onDone({ totalTokens: 1 });
+
+    // 第一条终态后的接力 drain 重新拉起第二条。
+    await vi.waitFor(() => expect(callbacksById.has("notification-2")).toBe(true));
+    callbacksById.get("notification-2")!.onAccepted();
+    callbacksById.get("notification-2")!.onDone({ totalTokens: 1 });
+  });
+
+  it("非当前 Workspace 的 drain 请求不读取也不派发通知", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-2" });
+
+    await useChatStore().requestSpawnNotificationDrain("project-1");
+
+    expect(chatApi.listSpawnNotifications).not.toHaveBeenCalled();
+    expect(chatApi.dispatchSpawnNotification).not.toHaveBeenCalled();
   });
 
   it("creates a real session lazily when sending the first draft message", async () => {

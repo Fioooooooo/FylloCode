@@ -63,8 +63,9 @@ import logger from "@main/infra/logger";
 import type { WorkspaceWindowManager } from "@main/bootstrap/workspace-window-manager";
 import {
   createRendererChatTurn,
-  dispatchSpawnNotification,
+  claimSpawnNotificationTurn,
 } from "@main/services/session/chat/chat-turn-service";
+import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
 import { spawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
 import { spawnedSessionManager } from "@main/services/session/spawn/spawned-session-manager";
 
@@ -100,8 +101,14 @@ export function registerChatHandlers(): void {
     wrapHandler(async () => {
       const { workspaceId } = validate(listSpawnNotificationsInputSchema, input);
       requireWorkspaceSender(event.sender, workspaceId);
-      await spawnNotificationService.reconcileWorkspace(workspaceId, (record) =>
-        spawnedSessionManager.isTurnLive(record)
+      await spawnNotificationService.reconcileWorkspace(
+        workspaceId,
+        (record) =>
+          spawnedSessionManager.isTurnLive(record) ||
+          // 通知 turn 运行期间持有父 Session 的 gate lease；此时 dispatched record 不得被
+          // 翻转 delivery_unknown，否则后续 markDelivered 会被终态保护吞掉。gate 被同会话
+          // 用户 turn 占用时翻转推迟到下次 list，只延迟不丢失。
+          chatTurnGate.isActive(record.workspaceId, record.parentSessionId)
       );
       return spawnNotificationService.list(workspaceId);
     })
@@ -109,9 +116,30 @@ export function registerChatHandlers(): void {
 
   ipcMain.handle(SessionChatNotificationChannels.dispatch, (event, input: unknown) =>
     wrapHandler(async () => {
-      const { workspaceId, notificationId } = validate(dispatchSpawnNotificationInputSchema, input);
+      const { workspaceId, notificationId, streamId } = validate(
+        dispatchSpawnNotificationInputSchema,
+        input
+      );
       requireWorkspaceSender(event.sender, workspaceId);
-      return dispatchSpawnNotification(workspaceId, notificationId);
+      // 两阶段契约：前置校验（not_pending/busy）失败时不创建 port，直接返回状态。
+      const claim = await claimSpawnNotificationTurn(workspaceId, notificationId);
+      if (claim.status !== "accepted") {
+        return { status: claim.status };
+      }
+      // 通知 turn 保持 app-owned：端口断开只中断实时投影，不取消 runner。
+      const channel = makeStreamChannel({
+        event,
+        portChannel: SessionChatStreamChannels.streamPort,
+        portPayload: { streamId },
+        logTag: "spawn-notification",
+        cancelOnPortClose: false,
+        onReady: (sink) => claim.start(sink),
+      });
+      if (!channel.ok) {
+        await claim.abort();
+        throw ipcError(channel.error.code, channel.error.message);
+      }
+      return { status: claim.status };
     })
   );
 

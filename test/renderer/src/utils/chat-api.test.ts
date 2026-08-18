@@ -64,22 +64,31 @@ describe("chatApi", () => {
 
   it("forwards owner-safe spawn notification operations", async () => {
     chatBridge.listSpawnNotifications.mockResolvedValue({ ok: true, data: [] });
-    chatBridge.dispatchSpawnNotification.mockResolvedValue({
-      ok: true,
-      data: { status: "not_pending" },
-    });
+    const cancel = vi.fn();
+    chatBridge.dispatchSpawnNotification.mockReturnValue(cancel);
     const handler = vi.fn();
     const cleanup = vi.fn();
     chatBridge.onSpawnNotificationsWake.mockReturnValue(cleanup);
 
     await chatApi.listSpawnNotifications("workspace-1");
-    await chatApi.dispatchSpawnNotification("workspace-1", "notification-1");
+    const callbacks = {
+      onChunk: vi.fn(),
+      onDone: vi.fn(),
+      onError: vi.fn(),
+      onRejected: vi.fn(),
+      onAccepted: vi.fn(),
+    };
+    expect(
+      chatApi.dispatchSpawnNotification("workspace-1", "notification-1", "parent-1", callbacks)
+    ).toBe(cancel);
     expect(chatApi.onSpawnNotificationsWake(handler)).toBe(cleanup);
 
     expect(chatBridge.listSpawnNotifications).toHaveBeenCalledWith("workspace-1");
     expect(chatBridge.dispatchSpawnNotification).toHaveBeenCalledWith(
       "workspace-1",
-      "notification-1"
+      "notification-1",
+      "parent-1",
+      callbacks
     );
     expect(chatBridge.onSpawnNotificationsWake).toHaveBeenCalledWith(handler);
   });

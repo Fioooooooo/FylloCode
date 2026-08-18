@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpawnedTurnRecord } from "@main/infra/storage/spawned-session-store";
+import type { StreamOutput } from "@main/services/session/chat/acp-stream-driver";
 
 const mocks = vi.hoisted(() => ({
   messages: [] as Array<{ workspaceId: string; sessionId: string; message: unknown }>,
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   sessions: [] as Array<EventEmitter & { opts: Record<string, unknown> }>,
   startError: null as Error | null,
   emitTurnMetadata: false,
+  failAssistantPersist: false,
 }));
 
 vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
@@ -97,7 +99,7 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
 
 import {
   createRendererChatTurn,
-  dispatchSpawnNotification,
+  claimSpawnNotificationTurn,
 } from "@main/services/session/chat/chat-turn-service";
 import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
 import { resetSessionRegistryForTests } from "@main/services/session/chat/session-registry";
@@ -128,6 +130,14 @@ function record(): SpawnedTurnRecord {
   };
 }
 
+function createOutput() {
+  return {
+    sendChunk: vi.fn<StreamOutput["sendChunk"]>(),
+    sendDone: vi.fn<StreamOutput["sendDone"]>(),
+    sendError: vi.fn<StreamOutput["sendError"]>(),
+  };
+}
+
 describe("chat-turn-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -136,6 +146,7 @@ describe("chat-turn-service", () => {
     mocks.sessions.length = 0;
     mocks.startError = null;
     mocks.emitTurnMetadata = false;
+    mocks.failAssistantPersist = false;
     mocks.patchMessageMetadata.mockResolvedValue(true);
     mocks.list.mockResolvedValue([
       {
@@ -168,16 +179,30 @@ describe("chat-turn-service", () => {
       return { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
     });
     mocks.appendMessage.mockImplementation(async (workspaceId, sessionId, message) => {
+      if (mocks.failAssistantPersist && (message as { role: string }).role === "assistant") {
+        throw new Error("persist failed");
+      }
       mocks.messages.push({ workspaceId, sessionId, message });
     });
   });
 
-  it("claim 后由 Main 生成独立 user reminder，并在 assistant durable 后 delivered", async () => {
-    await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
-      status: "dispatched",
-    });
+  async function startAcceptedNotificationTurn(output: StreamOutput = createOutput()) {
+    const claim = await claimSpawnNotificationTurn("workspace-1", "notification-1");
+    if (claim.status !== "accepted") {
+      throw new Error(`unexpected claim status: ${claim.status}`);
+    }
+    const runner = await claim.start(output);
+    return { runner, output };
+  }
+
+  it("claim 后由 Main 生成独立 user reminder，chunk 实时转发，并在 assistant durable 后 delivered", async () => {
+    const { runner, output } = await startAcceptedNotificationTurn();
+    await runner.start();
+    await runner.completion;
     await vi.waitFor(() => expect(mocks.markDelivered).toHaveBeenCalledOnce());
 
+    expect(output.sendChunk).toHaveBeenCalledWith(expect.objectContaining({ kind: "text_delta" }));
+    expect(output.sendDone).toHaveBeenCalledWith(2);
     expect(mocks.messages.map(({ message }) => (message as { role: string }).role)).toEqual([
       "user",
       "assistant",
@@ -191,26 +216,57 @@ describe("chat-turn-service", () => {
 
   it("父 Chat gate 忙时保持 pending，不执行 claim", async () => {
     const lease = chatTurnGate.tryAcquire("workspace-1", "parent-1", "user");
-    await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
+    await expect(claimSpawnNotificationTurn("workspace-1", "notification-1")).resolves.toEqual({
       status: "busy",
     });
     expect(mocks.claim).not.toHaveBeenCalled();
     lease?.release();
   });
 
-  it("ACP start 在 terminal 前失败会 delivery_unknown 并释放 gate", async () => {
-    mocks.startError = new Error("prepare failed");
-
-    await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
-      status: "dispatched",
+  it("notification 不再 pending 时不占用 gate", async () => {
+    mocks.list.mockResolvedValue([]);
+    await expect(claimSpawnNotificationTurn("workspace-1", "notification-1")).resolves.toEqual({
+      status: "not_pending",
     });
-
-    expect(mocks.markDeliveryUnknown).toHaveBeenCalledOnce();
     expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
   });
 
+  it("ACP start 在 terminal 前失败会 delivery_unknown 并释放 gate", async () => {
+    mocks.startError = new Error("prepare failed");
+
+    const { runner } = await startAcceptedNotificationTurn();
+    await expect(runner.start()).rejects.toThrow("prepare failed");
+    await runner.completion;
+
+    await vi.waitFor(() => expect(mocks.markDeliveryUnknown).toHaveBeenCalledOnce());
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
+    expect(mocks.markDelivered).not.toHaveBeenCalled();
+  });
+
+  it("assistant 持久化失败（finalization 失败）记 delivery_unknown 且通知 renderer 错误", async () => {
+    mocks.failAssistantPersist = true;
+
+    const { runner, output } = await startAcceptedNotificationTurn();
+    await runner.start();
+    await runner.completion;
+
+    await vi.waitFor(() => expect(mocks.markDeliveryUnknown).toHaveBeenCalledOnce());
+    expect(mocks.markDelivered).not.toHaveBeenCalled();
+    expect(output.sendError).toHaveBeenCalledOnce();
+  });
+
+  it("turn 被取消时记 delivery_unknown 并释放 gate", async () => {
+    const { runner } = await startAcceptedNotificationTurn();
+    runner.cancel();
+    await runner.completion;
+
+    await vi.waitFor(() => expect(mocks.markDeliveryUnknown).toHaveBeenCalledOnce());
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
+    expect(mocks.markDelivered).not.toHaveBeenCalled();
+  });
+
   it("普通用户与通知使用同一 gate，不允许 registry 覆盖", async () => {
-    const output = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const output = createOutput();
     const runner = await createRendererChatTurn(
       {
         workspaceId: "workspace-1",
@@ -220,19 +276,23 @@ describe("chat-turn-service", () => {
       },
       output
     );
-    await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
+    await expect(claimSpawnNotificationTurn("workspace-1", "notification-1")).resolves.toEqual({
       status: "busy",
     });
     await runner.start();
     await runner.completion;
-    await expect(dispatchSpawnNotification("workspace-1", "notification-1")).resolves.toEqual({
-      status: "dispatched",
-    });
+    await vi.waitFor(() => expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false));
+
+    // gate 释放后通知可以被接受并正常跑完，避免 lease 泄漏到后续用例。
+    const accepted = await startAcceptedNotificationTurn();
+    await accepted.runner.start();
+    await accepted.runner.completion;
+    await vi.waitFor(() => expect(mocks.markDelivered).toHaveBeenCalledOnce());
   });
 
   it("patches the exact user and persists the same audit snapshot on assistant", async () => {
     mocks.emitTurnMetadata = true;
-    const output = { sendChunk: vi.fn(), sendDone: vi.fn(), sendError: vi.fn() };
+    const output = createOutput();
     const runner = await createRendererChatTurn(
       {
         workspaceId: "workspace-1",

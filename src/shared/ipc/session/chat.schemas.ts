@@ -245,6 +245,7 @@ export const dispatchSpawnNotificationInputSchema = z
   .object({
     workspaceId: z.string().min(1),
     notificationId: z.string().min(1).max(256),
+    streamId: z.string().min(1),
   })
   .strict();
 
@@ -266,5 +267,5 @@ export const spawnNotificationSummarySchema = z
 
 export type SpawnNotificationSummary = z.infer<typeof spawnNotificationSummarySchema>;
 export type SpawnNotificationDispatchResult = {
-  status: "dispatched" | "not_pending" | "busy";
+  status: "accepted" | "not_pending" | "busy";
 };

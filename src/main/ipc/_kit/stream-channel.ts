@@ -39,6 +39,14 @@ export interface MakeStreamChannelOptions {
    * If this throws, the stream is finalised with the thrown error.
    */
   onReady(sink: StreamSink): Promise<StreamRunner> | StreamRunner;
+  /**
+   * When false, a renderer port close after the ready handshake only stops
+   * forwarding (chunks/terminal signals become no-ops) without cancelling the
+   * runner. Defaults to true. Transport-level switch for app-owned turns that
+   * must outlive the window. A close before the ready handshake still cancels:
+   * the turn never started, so there is nothing to keep alive.
+   */
+  cancelOnPortClose?: boolean;
 }
 
 /**
@@ -54,7 +62,14 @@ export interface MakeStreamChannelOptions {
  *   renderer (optional): close port to cancel
  */
 export function makeStreamChannel(options: MakeStreamChannelOptions): IpcResponse<null> {
-  const { event, portChannel, portPayload = null, logTag, onReady } = options;
+  const {
+    event,
+    portChannel,
+    portPayload = null,
+    logTag,
+    onReady,
+    cancelOnPortClose = true,
+  } = options;
 
   if (isShuttingDown()) {
     return {
@@ -107,7 +122,7 @@ export function makeStreamChannel(options: MakeStreamChannelOptions): IpcRespons
       });
 
     port1.on("close", () => {
-      const shouldCancel = !state.finalised;
+      const shouldCancel = !state.finalised && (cancelOnPortClose || !state.started);
       state.markClosed();
       if (!shouldCancel) return;
 

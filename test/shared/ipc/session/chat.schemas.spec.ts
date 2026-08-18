@@ -91,8 +91,13 @@ describe("spawn notification IPC schemas", () => {
       dispatchSpawnNotificationInputSchema.parse({
         workspaceId: "workspace-1",
         notificationId: "notification-1",
+        streamId: "stream-1",
       })
-    ).toEqual({ workspaceId: "workspace-1", notificationId: "notification-1" });
+    ).toEqual({
+      workspaceId: "workspace-1",
+      notificationId: "notification-1",
+      streamId: "stream-1",
+    });
   });
 
   it.each(["parentSessionId", "responseId", "reminder", "responsePath"])(
@@ -102,6 +107,7 @@ describe("spawn notification IPC schemas", () => {
         dispatchSpawnNotificationInputSchema.safeParse({
           workspaceId: "workspace-1",
           notificationId: "notification-1",
+          streamId: "stream-1",
           [field]: "malicious",
         }).success
       ).toBe(false);

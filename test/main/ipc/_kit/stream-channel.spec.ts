@@ -142,6 +142,60 @@ describe("makeStreamChannel", () => {
     expect(runner.cancel).toHaveBeenCalledOnce();
   });
 
+  it("keeps the runner alive on port close when cancelOnPortClose is false", async () => {
+    const { makeStreamChannel } = await import("@main/ipc/_kit/stream-channel");
+    let startResolve!: () => void;
+    const runner = {
+      start: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            startResolve = resolve;
+          })
+      ),
+      cancel: vi.fn(),
+    };
+
+    makeStreamChannel({
+      event: { sender: { postMessage: vi.fn() } } as never,
+      portChannel: "session:chat:stream:port",
+      logTag: "test",
+      cancelOnPortClose: false,
+      onReady: () => runner,
+    });
+    await Promise.resolve();
+
+    const messageListener = mocks.port1Listeners.get("message");
+    if (!messageListener) throw new Error("Missing port1 listener for message");
+    messageListener({ data: { type: "ready" } });
+    // launch() 通过 setImmediate 轮询等待 runner 就绪。
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(runner.start).toHaveBeenCalledOnce();
+
+    emitPort1("close");
+
+    expect(runner.cancel).not.toHaveBeenCalled();
+    startResolve();
+  });
+
+  it("still cancels on port close before the ready handshake when cancelOnPortClose is false", async () => {
+    const { makeStreamChannel } = await import("@main/ipc/_kit/stream-channel");
+    const runner = { start: vi.fn(), cancel: vi.fn() };
+
+    makeStreamChannel({
+      event: { sender: { postMessage: vi.fn() } } as never,
+      portChannel: "session:chat:stream:port",
+      logTag: "test",
+      cancelOnPortClose: false,
+      onReady: () => runner,
+    });
+    await Promise.resolve();
+
+    // ready 握手前 turn 尚未启动，关闭端口必须取消 runner，避免 lease 永久泄漏。
+    emitPort1("close");
+
+    expect(runner.cancel).toHaveBeenCalledOnce();
+  });
+
   it("honors an early renderer cancellation after the runner becomes available", async () => {
     const { makeStreamChannel } = await import("@main/ipc/_kit/stream-channel");
     const runner = { start: vi.fn(), cancel: vi.fn() };

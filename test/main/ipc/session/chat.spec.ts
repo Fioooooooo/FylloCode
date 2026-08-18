@@ -54,6 +54,8 @@ const mocks = vi.hoisted(() => {
     takeProbeFor: vi.fn(),
     getProbeWorkspaceSnapshotForPromotion: vi.fn(),
     listSpawnNotifications: vi.fn(),
+    claimSpawnNotification: vi.fn(),
+    markNotificationDeliveryUnknown: vi.fn(),
     reconcileSpawnNotifications: vi.fn(),
     setSpawnNotificationWakeHandler: vi.fn(),
     register: vi.fn(),
@@ -145,8 +147,10 @@ vi.mock("@main/services/session/chat/session-probe-bus", () => ({
 vi.mock("@main/services/session/spawn/spawn-notification-service", () => ({
   spawnNotificationService: {
     list: mocks.listSpawnNotifications,
+    claim: mocks.claimSpawnNotification,
     reconcileWorkspace: mocks.reconcileSpawnNotifications,
     setWakeHandler: mocks.setSpawnNotificationWakeHandler,
+    markDeliveryUnknown: mocks.markNotificationDeliveryUnknown,
   },
 }));
 
@@ -318,7 +322,7 @@ describe("registerChatHandlers", () => {
     );
     const dispatch = await handler(ChatNotificationChannels.dispatch)(
       { sender },
-      { workspaceId: "workspace-1", notificationId: "missing" }
+      { workspaceId: "workspace-1", notificationId: "missing", streamId: "stream-missing" }
     );
 
     expect(mocks.requireWorkspaceSender).toHaveBeenCalledWith(sender, "workspace-1");
@@ -344,6 +348,101 @@ describe("registerChatHandlers", () => {
       ok: false,
       error: expect.objectContaining({ code: IpcErrorCodes.VALIDATION_ERROR }),
     });
+  });
+
+  it("dispatch 前置校验 busy 时不创建 stream port、不 claim", async () => {
+    mocks.listSpawnNotifications.mockResolvedValue([
+      {
+        notificationId: "notification-1",
+        parentSessionId: "parent-1",
+        spawnedSessionId: "spawn-1",
+        turnId: "turn-1",
+        status: "completed",
+        responseId: "response-1",
+      },
+    ]);
+    const lease = chatTurnGate.tryAcquire("workspace-1", "parent-1", "user");
+
+    const result = await handler(ChatNotificationChannels.dispatch)(
+      { sender: {} },
+      { workspaceId: "workspace-1", notificationId: "notification-1", streamId: "stream-n1" }
+    );
+
+    expect(result).toEqual({ ok: true, data: { status: "busy" } });
+    expect(mocks.claimSpawnNotification).not.toHaveBeenCalled();
+    expect(mocks.streamChannelOptions).toBeNull();
+    lease?.release();
+  });
+
+  it("dispatch accepted 时建立 cancelOnPortClose=false 的流通道", async () => {
+    mocks.listSpawnNotifications.mockResolvedValue([
+      {
+        notificationId: "notification-1",
+        parentSessionId: "parent-1",
+        spawnedSessionId: "spawn-1",
+        turnId: "turn-1",
+        status: "completed",
+        responseId: "response-1",
+      },
+    ]);
+    mocks.claimSpawnNotification.mockResolvedValue({
+      notification: { notificationId: "notification-1", state: "dispatched" },
+    });
+
+    const result = await handler(ChatNotificationChannels.dispatch)(
+      { sender: {} },
+      { workspaceId: "workspace-1", notificationId: "notification-1", streamId: "stream-n1" }
+    );
+
+    expect(result).toEqual({ ok: true, data: { status: "accepted" } });
+    expect(mocks.streamChannelOptions).toMatchObject({
+      portPayload: { streamId: "stream-n1" },
+      cancelOnPortClose: false,
+    });
+  });
+
+  it("claim 后通道建立失败时 abort：释放 gate 并记 delivery_unknown", async () => {
+    mocks.listSpawnNotifications.mockResolvedValue([
+      {
+        notificationId: "notification-1",
+        parentSessionId: "parent-1",
+        spawnedSessionId: "spawn-1",
+        turnId: "turn-1",
+        status: "completed",
+        responseId: "response-1",
+      },
+    ]);
+    mocks.claimSpawnNotification.mockResolvedValue({
+      notification: { notificationId: "notification-1", state: "dispatched" },
+    });
+    const { makeStreamChannel } = await import("@main/ipc/_kit/stream-channel");
+    vi.mocked(makeStreamChannel).mockReturnValueOnce({
+      ok: false,
+      error: { code: IpcErrorCodes.UNKNOWN_ERROR, message: "boom" },
+    } as never);
+
+    const result = (await handler(ChatNotificationChannels.dispatch)(
+      { sender: {} },
+      { workspaceId: "workspace-1", notificationId: "notification-1", streamId: "stream-n1" }
+    )) as { ok: boolean };
+
+    expect(result.ok).toBe(false);
+    expect(mocks.markNotificationDeliveryUnknown).toHaveBeenCalledOnce();
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
+  });
+
+  it("list 的 reconcile 把 gate 占用视为 live，不翻转进行中的通知 turn", async () => {
+    const lease = chatTurnGate.tryAcquire("workspace-1", "parent-1", "notification");
+
+    await handler(ChatNotificationChannels.list)({ sender: {} }, { workspaceId: "workspace-1" });
+    const isLive = mocks.reconcileSpawnNotifications.mock.calls.at(-1)?.[1] as (record: {
+      workspaceId: string;
+      parentSessionId: string;
+    }) => boolean;
+
+    expect(isLive({ workspaceId: "workspace-1", parentSessionId: "parent-1" })).toBe(true);
+    expect(isLive({ workspaceId: "workspace-1", parentSessionId: "parent-2" })).toBe(false);
+    lease?.release();
   });
 
   it("spawn notification wake 只向对应 Workspace 发送 level-triggered 事件", async () => {

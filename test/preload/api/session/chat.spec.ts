@@ -362,18 +362,13 @@ describe("preload chatApi.streamMessage", () => {
     expect(mocks.ipcRenderer.off).toHaveBeenCalledWith(ChatProbeChannels.update, listener);
   });
 
-  it("只用 Workspace 与 opaque id 查询和派发 spawn 通知", async () => {
+  it("只用 Workspace 查询 spawn 通知", async () => {
     const { chatApi } = await import("@preload/api/session/chat");
 
     await chatApi.listSpawnNotifications("workspace-1");
-    await chatApi.dispatchSpawnNotification("workspace-1", "notification-1");
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatNotificationChannels.list, {
       workspaceId: "workspace-1",
-    });
-    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatNotificationChannels.dispatch, {
-      workspaceId: "workspace-1",
-      notificationId: "notification-1",
     });
   });
 
@@ -393,5 +388,131 @@ describe("preload chatApi.streamMessage", () => {
     expect(handler).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
     expect(mocks.ipcRenderer.off).toHaveBeenCalledWith(ChatNotificationChannels.wake, listener);
     expect(mocks.ipcRenderer.off).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("preload chatApi.dispatchSpawnNotification", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  function dispatchCallbacks() {
+    return {
+      onChunk: vi.fn(),
+      onDone: vi.fn(),
+      onError: vi.fn(),
+      onRejected: vi.fn(),
+      onAccepted: vi.fn(),
+    };
+  }
+
+  function dispatchInvokePayload(): { streamId: string } {
+    const payload = mocks.ipcRenderer.invoke.mock.calls.filter(
+      ([channel]) => channel === ChatNotificationChannels.dispatch
+    )[0]?.[1] as { streamId?: string } | undefined;
+    expect(payload?.streamId).toBeTypeOf("string");
+    return payload as { streamId: string };
+  }
+
+  async function flushMicrotasks(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it("accepted 后才发出 ready 握手并分发 chunk", async () => {
+    let resolveInvoke!: (value: unknown) => void;
+    mocks.ipcRenderer.invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveInvoke = resolve;
+        })
+    );
+    const { chatApi } = await import("@preload/api/session/chat");
+    const callbacks = dispatchCallbacks();
+    const port = createPort();
+
+    chatApi.dispatchSpawnNotification("workspace-1", "notification-1", "parent-1", callbacks);
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatNotificationChannels.dispatch, {
+      workspaceId: "workspace-1",
+      notificationId: "notification-1",
+      streamId: expect.any(String),
+    });
+
+    // port 先于 invoke 响应到达：pending 已登记可绑定，但 ready 必须等 accepted。
+    streamPortListener()({ ports: [port] }, { streamId: dispatchInvokePayload().streamId });
+    expect(port.start).toHaveBeenCalledTimes(1);
+    expect(port.postMessage).not.toHaveBeenCalled();
+
+    resolveInvoke({ ok: true, data: { status: "accepted" } });
+    await flushMicrotasks();
+
+    expect(callbacks.onAccepted).toHaveBeenCalledTimes(1);
+    expect(port.postMessage).toHaveBeenCalledWith({ type: "ready" });
+
+    port.onmessage?.({ data: { type: "chunk", data: { kind: "text_delta", text: "hi" } } });
+    expect(callbacks.onChunk).toHaveBeenCalledWith({ kind: "text_delta", text: "hi" });
+  });
+
+  it("busy / not_pending 时不发 ready、清理 pending 并回调 onRejected", async () => {
+    mocks.ipcRenderer.invoke.mockResolvedValue({ ok: true, data: { status: "busy" } });
+    const { chatApi } = await import("@preload/api/session/chat");
+    const callbacks = dispatchCallbacks();
+
+    chatApi.dispatchSpawnNotification("workspace-1", "notification-1", "parent-1", callbacks);
+    await flushMicrotasks();
+
+    expect(callbacks.onRejected).toHaveBeenCalledWith("busy");
+    expect(callbacks.onAccepted).not.toHaveBeenCalled();
+
+    // 拒绝后迟到的 port 必须被关闭（pending 已删除）。
+    const latePort = createPort();
+    streamPortListener()({ ports: [latePort] }, { streamId: dispatchInvokePayload().streamId });
+    expect(latePort.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("invoke 返回错误时回调 onError 并清理 pending", async () => {
+    mocks.ipcRenderer.invoke.mockResolvedValue({
+      ok: false,
+      error: { code: "UNKNOWN_ERROR", message: "boom" },
+    });
+    const { chatApi } = await import("@preload/api/session/chat");
+    const callbacks = dispatchCallbacks();
+
+    chatApi.dispatchSpawnNotification("workspace-1", "notification-1", "parent-1", callbacks);
+    await flushMicrotasks();
+
+    expect(callbacks.onError).toHaveBeenCalledWith({ code: "UNKNOWN_ERROR", message: "boom" });
+    expect(callbacks.onAccepted).not.toHaveBeenCalled();
+  });
+
+  it("cancel 通知 main 按 parentSessionId 取消并关闭 port，且幂等", async () => {
+    mocks.ipcRenderer.invoke.mockResolvedValue({ ok: true, data: { status: "accepted" } });
+    const { chatApi } = await import("@preload/api/session/chat");
+    const callbacks = dispatchCallbacks();
+    const port = createPort();
+
+    const cancel = chatApi.dispatchSpawnNotification(
+      "workspace-1",
+      "notification-1",
+      "parent-1",
+      callbacks
+    );
+    streamPortListener()({ ports: [port] }, { streamId: dispatchInvokePayload().streamId });
+
+    cancel();
+    cancel();
+
+    expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ChatStreamChannels.streamCancel, {
+      workspaceId: "workspace-1",
+      sessionId: "parent-1",
+    });
+    expect(port.close).toHaveBeenCalledTimes(1);
+
+    await flushMicrotasks();
+    // cancel 后到达的 accepted 响应不再触发 onAccepted / ready。
+    expect(callbacks.onAccepted).not.toHaveBeenCalled();
+    expect(port.postMessage).not.toHaveBeenCalledWith({ type: "ready" });
   });
 });
