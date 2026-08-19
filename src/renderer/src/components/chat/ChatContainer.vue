@@ -126,7 +126,7 @@ function handleCreateSession(): void {
       <footer>
         <div class="max-w-3xl mx-auto border-t border-default/50">
           <ChatBackgroundActivityBar />
-          <ChatPromptPanel class="pt-0" />
+          <ChatPromptPanel :class="activeSession ? 'pt-0' : 'pt-2'" />
         </div>
       </footer>
     </div>
