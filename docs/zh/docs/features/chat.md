@@ -11,6 +11,7 @@ sidebar:
 ## 主要能力
 
 - 管理 Workspace 内的会话列表
+- 通过 `/chat/<session-id>` 独立 URL 直达、刷新恢复和定位每个真实会话
 - 按标题、Session ID 或对话正文搜索当前 Workspace 的历史会话
 - 将重要会话置顶到独立分组，重启后仍保持置顶状态
 - 独立折叠“置顶会话”和“最近会话”分组；少量置顶会话按内容收缩，最近会话使用剩余高度
@@ -86,7 +87,11 @@ Agent 提供 Session 配置时，输入框下方只显示一个配置按钮。�
 
 `FylloCode` 模式会在当前 Agent 支持 HTTP MCP 且后端可用时提供 [`fyllo-spawn`](/docs/reference/fyllo-spawn)。父 Agent 可以选择另一个已安装的 ACP Agent，把一个边界清楚的任务同步执行，或作为后台 turn 运行。多个 spawned Agent 共享父 Session 固定的 Workspace 目录，因此并行委派应使用互不重叠的文件范围。
 
-新建 spawned Session 后，assistant 正文可以显示可点击的 `spawn.session` Signal。详情 Slideover 从 Main 的持久化记录和当前运行态读取可信状态、Agent、原始委派 Prompt、Activity、Transcript 与 response ID；它是只读入口，不能继续、取消或重试任务。当前父 Session 有后台任务运行时，输入区会显示“正在运行 N 个后台任务”，切换到其他 Session 后只显示新父 Session 的任务。
+每个真实会话都有独立的 `/chat/<session-id>` URL，可以从任务页、会话搜索或 lineage 直接定位，刷新后也能恢复到同一会话；`/chat` 本身保留为未发送首条消息的草稿入口。会话路由无效、缺失或不属于当前 Workspace 时，会回退到 `/chat` 并给出提示。
+
+新建 spawned Session 后，Main 会自动把当前父 Session 名下的所有 spawned Session 暴露到对话区底部的活动栏；活动栏显示“子 Agent N”总数和正在运行的数量，点击后按活跃优先、最近更新优先列出每个 Session 的 Agent、同步或后台模式、状态、Prompt 预览和更新时间。打开任一 Session 会显示按 Turn 组织的只读详情 Slideover，默认选中最新 Turn，可切换历史 Turn，查看该轮的原始 Prompt、聚合 Activity、压缩 Transcript、状态和 response ID。这些入口只读，不能继续、取消或重试任务，切换到其他 Session 后只显示新父 Session 名下的子 Agent。
+
+历史 assistant 正文中的 `spawn.session` Signal 仍可作为深链打开同一详情，但它只是可选的上下文入口，不再承担 Session 发现或状态更新。后台 spawned turn 完成后，完成通知会像普通回复一样流式进入父会话，期间该会话显示运行状态并暂时禁用发送；同一会话的多条完成通知按顺序逐条处理。
 
 关闭 Workspace 窗口不会把详情视为任务事实来源；重新打开后会重新查询 Main。后台 turn 不跨应用进程继续运行，重启后未完成的记录会显示为已中断。完整 tool、并发、超时和响应读取契约见 [`fyllo-spawn` MCP](/docs/reference/fyllo-spawn)。
 

@@ -4,6 +4,33 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.4] - 2026-08-19
+
+本次发布围绕跨 Agent 委派补全了异步控制与可观测性：spawned Session 默认在后台运行、可以被主动取消，完成通知以流式回复进入父会话，父会话也可以通过常驻活动栏随时查看名下所有子 Agent。每个真实会话同时获得独立 URL，可以直接定位、刷新恢复和从其他页面跳转。
+
+### 新增
+
+- 每个真实会话使用独立的 `/chat/<session-id>` 子路由。任务页、会话搜索和 lineage 会直接打开对应会话，刷新后仍停留在同一会话；`/chat` 保留为首条消息前的草稿入口，无效或不属于当前 Workspace 的会话路由会回退到 `/chat` 并提示
+- Chat 对话区底部新增子 Agent 活动栏。当前会话存在 spawned Session 时，活动栏显示“子 Agent N”总数与正在运行的数量，列表按活跃优先、最近更新优先展示每个 Session 的 Agent、同步或后台模式、状态、Prompt 预览与更新时间；打开任一 Session 显示按 Turn 组织的只读详情，默认选中最新 Turn，可切换历史 Turn 查看原始 Prompt、聚合 Activity、压缩 Transcript、状态与 response ID
+- `fyllo-spawn` 新增 `cancel_session` tool。父 Agent 可以请求取消名下正在运行的 spawned Session；`{ cancelled: true }` 只表示取消请求已触发，turn 最终以 `error`（`TURN_CANCELLED_BY_PARENT`）结束，需通过 `check_session_status` 确认
+
+### 调整
+
+- `fyllo-spawn` 的 `prompt_to_agent` 现在默认后台执行（`background` 默认为 `true`）：调用在 Main 接管 turn 后立即返回 `accepted`，父 Agent 可以继续工作，再通过 `check_session_status` 与 `read_response` 获取结果。需要同步阻塞的调用必须显式传 `background: false`。**这是不兼容的默认值变化**，省略该参数的旧调用行为会改变
+- 后台 spawned turn 完成后，完成通知改为以流式回复进入父会话：期间会话显示运行状态并暂时禁用发送，同一父会话的多条待投递通知按顺序逐条处理。通知 turn 的生命周期仍由 Main 持有，关闭窗口只中断实时投影，不会取消或丢失回复
+- `spawn.session` Signal 从必须的发现步骤改为可选的上下文深链。Main 会自动把新建和续聊的 spawned Session 暴露到父会话活动栏，Agent 不输出 Signal 也不影响查看
+
+### 修复
+
+- 修复 spawn 通知回复期间父会话没有 loading 反馈、发送被静默拒绝的问题：dispatch 被接受后会话立即进入 `submitted` 状态，收到首个内容 chunk 后转为 `streaming`
+
+### 说明
+
+- 应用版本为 `0.15.4`。
+- `fyllo-spawn` MCP server 升级到 `0.2.0`。该版本新增 `cancel_session`，并把 `background` 默认值改为 `true`；后者是 breaking 变化，依赖同步阻塞行为的调用方需要显式传 `background: false`。
+- `fyllo-cortex` MCP server 保持 `0.7.0`，`fyllo-specs` MCP server 保持 `0.11.1`；本次发布范围没有修改这两个 server。
+- 子 Agent 活动栏与 Turn 详情全部只读，数据来自 Main 的持久化记录与当前运行态；不新增 UI 层面的继续、取消或重试入口，也不改变完成通知的投递语义。
+
 ## [0.15.3] - 2026-08-12
 
 本次发布让历史 Chat 更容易找回，并把 Agent 在单轮执行中的文件变化集中到只读 Diff 视图。ACP 工具事件、消息审计 metadata 与 JSONL 写回链路现在使用一致语义；多根 Workspace 也会按 Project 独立判断和创建 Proposal。侧栏、时间线和工具详情的布局调整减少了长会话中的空间浪费与横向溢出。

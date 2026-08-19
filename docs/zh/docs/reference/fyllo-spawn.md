@@ -62,7 +62,7 @@ sidebar:
 
 ## 用户可见检查
 
-新建 spawned Session 后，父 Agent 可以按 [Fyllo Signal](/docs/reference/fyllo-signal) 契约输出一次 `spawn.session`。点击后，FylloCode 从 Main 查询可信状态、原始 Prompt、Activity、Transcript 与 response ID；当前父 Session 的 active background turns 也会汇总在 Chat 输入区附近。
+Main 会自动把当前父 Session 名下新建和续聊的 spawned Session 暴露到 Chat 对话区底部的活动栏，无需 Agent 输出任何标记。活动栏汇总 Session 总数与活跃数量，列表按活跃优先、最近更新优先排列；打开任一 Session 显示按 Turn 组织的只读详情 Slideover，包含可信状态、原始 Prompt、聚合 Activity、压缩 Transcript 与 response ID。`spawn.session` Signal 仍可作为历史 assistant 消息中的上下文深链打开同一详情，但它不是发现或状态更新的必要条件，协议见 [Fyllo Signal](/docs/reference/fyllo-signal)。
 
 这些入口只读。打开、关闭或刷新详情不会继续、取消、重试任务，也不会消费后台完成通知。窗口重开会重新查询持久化记录；后台 turn 不跨应用进程继续，正常退出记录为 `APP_SHUTDOWN`，异常重启后的遗留非终态记录为 `APP_RESTARTED`。
 

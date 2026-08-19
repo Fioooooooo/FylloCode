@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.4] - 2026-08-19
+
+This release completes asynchronous control and observability for cross-Agent delegation: spawned Sessions now run in the background by default, can be cancelled on request, stream their completion notifications into the parent Session, and remain visible at any time through a persistent per-session activity bar. Every real session also gets its own URL for direct access, refresh recovery, and navigation from other pages.
+
+### Added
+
+- Every real session now uses its own `/chat/<session-id>` subroute. Task pages, session search, and lineage open the session directly, and a refresh stays on the same session; `/chat` remains the draft entry before the first message, and an invalid or out-of-Workspace session route falls back to `/chat` with a notice
+- Added a child-Agent activity bar at the bottom of the Chat conversation area. When the current session owns spawned Sessions, the bar shows the total as **子 Agent N** plus the running count; its list orders Sessions by active first, then by most recent update, with each entry's Agent, synchronous or background mode, status, prompt preview, and update time. Opening a Session shows read-only details organized by Turn, with the latest Turn selected by default and earlier Turns available, each showing its original prompt, aggregated Activity, compacted Transcript, status, and response IDs
+- Added the `cancel_session` tool to `fyllo-spawn`. The parent Agent can request cancellation of a running spawned Session it owns; `{ cancelled: true }` only means the request was triggered, the turn settles as `error` with code `TURN_CANCELLED_BY_PARENT`, and the final state is confirmed through `check_session_status`
+
+### Changed
+
+- `fyllo-spawn`'s `prompt_to_agent` now runs in the background by default (`background` defaults to `true`): the call returns `accepted` once Main owns the turn, so the parent Agent can keep working and later collect the result through `check_session_status` and `read_response`. Callers that need synchronous blocking must pass `background: false` explicitly. **This is an incompatible default change**; older calls that omit the parameter behave differently
+- When a background spawned turn completes, its completion notification now streams into the parent Session like a normal reply: the Session shows a running state and sending is temporarily disabled during the notification turn, and multiple pending notifications for the same parent are delivered one at a time in order. The notification turn lifecycle remains owned by Main; closing the window only interrupts the live projection and does not cancel or lose the reply
+- The `spawn.session` Signal changed from a required discovery step to an optional contextual deep link. Main automatically exposes newly created and continued spawned Sessions through the parent Session's activity bar, so omitting the Signal does not affect visibility
+
+### Fixed
+
+- Fixed the missing loading feedback and silently rejected sends in the parent Session while a spawn notification reply was running: once dispatch is accepted the Session enters `submitted`, and turns to `streaming` when the first content chunk arrives
+
+### Notes
+
+- The application version is now `0.15.4`.
+- The `fyllo-spawn` MCP server is now `0.2.0`. This version adds `cancel_session` and changes the `background` default to `true`; the latter is a breaking change, and callers that rely on synchronous blocking must pass `background: false` explicitly.
+- The `fyllo-cortex` MCP server remains at `0.7.0`, and the `fyllo-specs` MCP server remains at `0.11.1`; neither server changed in this release range.
+- The child-Agent activity bar and Turn details are read-only and read from Main's durable records and live state; no continue, cancel, or retry entry points were added to the UI, and completion-notification delivery semantics are unchanged.
+
 ## [0.15.3] - 2026-08-12
 
 This release makes past Chat sessions easier to recover and collects an Agent's file changes from one turn into a read-only Diff view. ACP tool events, message audit metadata, and JSONL writes now follow consistent semantics, while multi-root Workspaces choose and create Proposals independently for each Project. Sidebar, timeline, and tool-detail layout changes reduce wasted space and horizontal overflow in long conversations.

@@ -4,9 +4,7 @@ All notable changes to the `fyllo-spawn` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
-## [Unreleased]
-
-## [0.2.0] - 2026-08-17
+## [0.2.0] - 2026-08-19
 
 ### Added
 
@@ -16,6 +14,7 @@ The format is based on Keep a Changelog.
 
 - **BREAKING**: `prompt_to_agent`'s `background` parameter now defaults to `true`. Calls that omit `background` return `accepted` instead of blocking for the terminal result. Callers that need the previous synchronous behavior must pass `background: false` explicitly.
 - Rewrote the `prompt_to_agent` tool description to recommend the default background mode, show the polling flow, and document the sync mode's Signal delay limitation.
+- Changed the `spawn.session` Signal guidance in `prompt_to_agent` from a required discovery step to an optional contextual deep link. Main now exposes spawned Sessions through the parent Chat activity view regardless of whether the Signal is emitted, so Agents no longer need to emit it for observability.
 
 ## [0.1.1] - 2026-08-10
 

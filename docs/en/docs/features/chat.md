@@ -11,6 +11,7 @@ The Chat page carries Agent collaboration inside a project context. It is where 
 ## Main Capabilities
 
 - Manage sessions in the Workspace
+- Reach, refresh, and locate every real session through its own `/chat/<session-id>` URL
 - Search current-Workspace session history by title, Session ID, or conversation text
 - Pin important sessions into a separate group, with the pinned state restored after restart
 - Collapse **Pinned Sessions** and **Recent Sessions** independently; a short pinned group shrinks to its content and Recent Sessions uses the remaining height
@@ -86,7 +87,11 @@ When Claude Code starts a subagent through the Agent tool, the parent call appea
 
 When the current Agent supports HTTP MCP and the backend is available, FylloCode mode provides [`fyllo-spawn`](/en/docs/reference/fyllo-spawn). The parent Agent can send a well-bounded task to another installed ACP Agent synchronously or as a background turn. Spawned Agents share the fixed Workspace directories of the parent Session, so parallel delegations should use non-overlapping file scopes.
 
-After creating a spawned Session, assistant text can show a clickable `spawn.session` Signal. Its detail Slideover reads trusted status, Agent identity, original delegated prompt, Activity, Transcript, and response IDs from Main's durable and live state. This is a read-only view: it cannot continue, cancel, or retry work. While the current parent Session has background tasks, the composer shows **N background tasks running**; switching Sessions immediately switches that owner scope.
+Every real session has its own `/chat/<session-id>` URL, so task pages, session search, and lineage can open it directly and a refresh restores the same session; `/chat` itself remains the draft entry before the first message is sent. An invalid, missing, or out-of-Workspace session route falls back to `/chat` with a notice.
+
+After a spawned Session is created, Main automatically exposes every spawned Session owned by the current parent Session in an activity bar at the bottom of the conversation area. The bar shows the total as **子 Agent N** plus how many are running; opening it lists each Session — active first, then by most recent update — with its Agent, synchronous or background mode, status, prompt preview, and update time. Opening a Session shows a read-only detail Slideover organized by Turn: the latest Turn is selected by default, earlier Turns can be switched to, and each Turn shows its original prompt, aggregated Activity, compacted Transcript, status, and response IDs. These entries are read-only and cannot continue, cancel, or retry work; switching Sessions shows only the child Agents of the new parent Session.
+
+A `spawn.session` Signal in historical assistant text still opens the same details as a deep link, but it is now an optional contextual entry point and no longer carries Session discovery or status updates. When a background spawned turn completes, its completion notification streams into the parent Session like a normal reply; during that turn the Session shows a running state and sending is temporarily disabled, and multiple pending notifications for the same Session are delivered one at a time in order.
 
 Closing a Workspace window does not turn the UI into the task's source of truth; reopening the window queries Main again. Background turns do not continue across application processes, and unfinished records appear as interrupted after restart. See the [`fyllo-spawn` MCP reference](/en/docs/reference/fyllo-spawn) for tools, capacity, inactivity, and response-reading contracts.
 

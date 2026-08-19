@@ -62,7 +62,7 @@ Spawned Agents share the same Workspace directories. Parallel delegation must us
 
 ## User-visible Inspection
 
-After a new spawned Session is created, the parent Agent can emit one `spawn.session` according to the [Fyllo Signal](/en/docs/reference/fyllo-signal) contract. Selecting it queries Main for trusted status, the original prompt, Activity, Transcript, and response IDs. Active background turns for the current parent Session also appear near the Chat composer.
+Main automatically exposes newly created and continued spawned Sessions owned by the current parent Session in an activity bar at the bottom of the Chat conversation area, without requiring the Agent to emit any marker. The bar summarizes the total and active counts; its list orders Sessions by active first, then by most recent update. Opening a Session shows a read-only, Turn-organized detail Slideover with trusted status, the original prompt, aggregated Activity, compacted Transcript, and response IDs. A `spawn.session` Signal can still open the same details as a contextual deep link inside historical assistant messages, but it is not required for discovery or status updates; see the [Fyllo Signal](/en/docs/reference/fyllo-signal) contract.
 
 These views are read-only. Opening, closing, or refreshing details does not continue, cancel, or retry work and does not consume a background completion notification. Reopening a window queries durable state again. Background turns do not continue across application processes: a normal exit records `APP_SHUTDOWN`, while leftover non-terminal work after an unexpected restart records `APP_RESTARTED`.
 

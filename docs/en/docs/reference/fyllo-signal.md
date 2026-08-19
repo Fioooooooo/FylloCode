@@ -38,7 +38,7 @@ The `spawn.session` payload accepts one opaque lookup key:
 | --- | --- |
 | `sessionId` | Required string, 1–256 characters, with no `/`, `\`, or NUL. |
 
-The Agent should emit one `spawn.session` only when `prompt_to_agent` omitted `sessionId` and successfully created a new spawned Session. This applies to synchronous and background creation; continuation does not emit it again. The payload cannot carry Workspace, parent Session, Agent, status, content, response ID, or local-path facts. Main queries and validates those values.
+`spawn.session` is only an optional contextual deep link: Main automatically exposes newly created and continued spawned Sessions through the parent Chat activity view, so discovery, status updates, and detail access do not depend on the Signal. If the Agent emits it, it should do so only once, when `prompt_to_agent` omitted `sessionId` and successfully created a new spawned Session; continuing an existing Session does not emit it again. The payload cannot carry Workspace, parent Session, Agent, status, content, response ID, or local-path facts. Main queries and validates those values.
 
 ## Tag Format
 

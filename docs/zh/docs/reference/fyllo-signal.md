@@ -38,7 +38,7 @@ Fyllo Signal 与 [fyllo-action](/docs/reference/fyllo-action) 使用相同的顶
 | --- | --- |
 | `sessionId` | 必填字符串，长度 1–256，不允许 `/`、`\` 或 NUL |
 
-Agent 只应在 `prompt_to_agent` 省略 `sessionId` 并成功创建新 spawned Session 时输出一次 `spawn.session`；同步和后台创建都适用，继续已有 Session 时不重复输出。Payload 不能携带 Workspace、父 Session、Agent、状态、内容、response ID 或本地路径，这些事实都由 Main 查询并校验。
+`spawn.session` 只是一个可选的上下文深链：Main 会自动把新建和续聊的 spawned Session 暴露到父 Chat 的活动视图，发现、状态更新和详情访问都不依赖 Signal。Agent 如果输出，只应在 `prompt_to_agent` 省略 `sessionId` 并成功创建新 spawned Session 时输出一次；继续已有 Session 时不重复输出。Payload 不能携带 Workspace、父 Session、Agent、状态、内容、response ID 或本地路径，这些事实都由 Main 查询并校验。
 
 ## 标签格式
 
