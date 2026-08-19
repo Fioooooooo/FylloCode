@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adapt ACP Events"
+  short_description: "Normalize ACP Agent tool and session update events"
+  default_prompt: "Use $adapt-acp-events to analyze a target ACP Agent’s real session/update traces and implement the narrowest evidence-backed compatibility changes."

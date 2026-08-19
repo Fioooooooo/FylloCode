@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "agentId": "example-acp",
+    "agentName": "Example ACP",
+    "agentVersion": null,
+    "agentVersionSource": "unavailable",
+    "underlyingAgentVersion": "2.0.0",
+    "acpSdkVersion": "1.0.0",
+    "capturedAt": "2026-08-19T10:00:00.000Z",
+    "ignoredSecretField": "must-not-appear"
+  },
+  "scenario": "Replacement collections and delayed metadata",
+  "redactions": ["paths", "output"],
+  "updates": [
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "edit-1",
+      "title": "Edit file",
+      "kind": "edit",
+      "status": "pending",
+      "content": [
+        {
+          "type": "diff",
+          "path": "/workspace/src/example.ts",
+          "oldText": "old",
+          "newText": "draft"
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "edit-1",
+      "status": "in_progress"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "edit-1",
+      "status": "completed",
+      "content": null,
+      "locations": [],
+      "_meta": {
+        "parentToolUseId": "parent-1"
+      }
+    }
+  ],
+  "expectedEvents": []
+}

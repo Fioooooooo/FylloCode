@@ -1,0 +1,2 @@
+{"sessionUpdate":"tool_call_update","toolCallId":"write-file-1","kind":"edit","status":"completed","content":[{"type":"diff","path":"/workspace/src/example.ts","oldText":null,"newText":"export {};"}],"locations":[{"path":"/workspace/src/example.ts"}]}
+{"sessionUpdate":"future_update","value":"redacted"}

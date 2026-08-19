@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "agentId": "replace-with-agent-id",
+    "agentName": "replace-with-display-name",
+    "agentVersion": null,
+    "agentVersionSource": "unavailable",
+    "underlyingAgentVersion": null,
+    "acpSdkVersion": "replace-with-sdk-version",
+    "capturedAt": "replace-with-iso-8601-timestamp"
+  },
+  "scenario": "replace-with-one-behavior-this-fixture-proves",
+  "redactions": [
+    "Replaced absolute workspace paths with /workspace paths",
+    "Removed prompts, reasoning, credentials, environment values, and unrelated output"
+  ],
+  "updates": [],
+  "expectedEvents": []
+}

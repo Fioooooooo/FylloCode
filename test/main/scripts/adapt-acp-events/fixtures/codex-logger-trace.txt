@@ -1,0 +1,4 @@
+10:00:00.000 › [acp-mapper] ← sessionUpdate: agent_thought_chunk {"content":{"type":"text","text":"redacted reasoning"},"sessionUpdate":"agent_thought_chunk"}
+10:00:00.100 › [acp-mapper] ← sessionUpdate: tool_call {"rawInput":{"command":"printf redacted"},"status":"pending","title":"Run command","toolCallId":"call-codex-1","sessionUpdate":"tool_call"}
+10:00:00.200 › unrelated log line
+10:00:00.300 › [acp-mapper] ← sessionUpdate: tool_call_update {"content":[{"type":"content","content":{"type":"text","text":"redacted output"}}],"locations":[],"status":"completed","toolCallId":"call-codex-1","_meta":{"codex":{"subagent":{"status":"completed"}}},"sessionUpdate":"tool_call_update"}

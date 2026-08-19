@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "agentId": "replace-with-agent-id",
+    "agentName": "replace-with-display-name",
+    "agentVersion": null,
+    "agentVersionSource": "unavailable",
+    "underlyingAgentVersion": null,
+    "acpSdkVersion": "1.3.0"
+  },
+  "command": "/absolute/path/to/agent",
+  "args": ["acp"],
+  "cwd": "/absolute/path/to/temporary/workspace",
+  "env": {},
+  "clientInfo": {
+    "name": "FylloCode",
+    "version": "adapt-acp-events"
+  },
+  "mcpServers": [],
+  "timeouts": {
+    "spawnMs": 10000,
+    "initializeMs": 30000,
+    "newSessionMs": 30000,
+    "promptMs": 90000,
+    "shutdownGraceMs": 500,
+    "forceKillGraceMs": 500
+  },
+  "prompts": [
+    {
+      "scenario": "replace-with-one-safe-tool-sampling-scenario",
+      "prompt": [
+        {
+          "type": "text",
+          "text": "Replace with a safe prompt derived from the target Agent/version tool inventory."
+        }
+      ],
+      "continueOnError": true
+    }
+  ]
+}
