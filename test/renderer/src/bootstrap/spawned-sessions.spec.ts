@@ -35,10 +35,19 @@ describe("spawned Session bootstrap", () => {
     registerSpawnedSessionsTask();
     await runBootstrapTasks({ pinia, router: {} as Router });
     expect(mocks.list).not.toHaveBeenCalled();
+    const { useSpawnedSessionStore } = await import("@renderer/stores");
+    const spawnedStore = useSpawnedSessionStore(pinia);
+    const release = spawnedStore.acquireParentListInterest({
+      workspaceId: "workspace-1",
+      parentSessionId: "parent-1",
+    });
+    await vi.waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    mocks.list.mockClear();
     const wake = mocks.onWake.mock.calls.at(-1)?.[0];
     wake({ workspaceId: "workspace-1", parentSessionId: "parent-1", sessionId: "spawn-1" });
     wake({ workspaceId: "workspace-2", parentSessionId: "parent-2", sessionId: "spawn-2" });
     await vi.waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(1));
+    release();
   });
 
   it("cleans the listener and old Workspace cache on re-registration/switch", async () => {

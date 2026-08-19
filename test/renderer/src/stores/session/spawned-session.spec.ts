@@ -23,10 +23,13 @@ describe("useSpawnedSessionStore", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     mocks.list.mockResolvedValue({ ok: true, data: [] });
-    mocks.getDetail.mockResolvedValue({ ok: true, data: { status: "not_found" } });
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      data: { status: "ready", summary: summary(), turns: [] },
+    });
   });
 
-  it("filters only active background entries in the requested parent scope", async () => {
+  it("keeps list data scoped to the requested parent", async () => {
     mocks.list.mockResolvedValue({
       ok: true,
       data: [
@@ -37,10 +40,8 @@ describe("useSpawnedSessionStore", () => {
     });
     const store = useSpawnedSessionStore();
     await store.loadParentSessions(owner);
-    expect(store.activeBackgroundForParent("workspace-1", "parent-1")).toEqual([
-      expect.objectContaining({ sessionId: "spawn-1" }),
-    ]);
-    expect(store.activeBackgroundForParent("workspace-1", "parent-2")).toEqual([]);
+    expect(store.listState("workspace-1", "parent-1").items).toHaveLength(3);
+    expect(store.listState("workspace-1", "parent-2").items).toEqual([]);
   });
 
   it("merges duplicate in-flight list and detail reads", async () => {
@@ -80,11 +81,62 @@ describe("useSpawnedSessionStore", () => {
 
   it("wake refreshes list and only an already-observed detail", async () => {
     const store = useSpawnedSessionStore();
+    const releaseList = store.acquireParentListInterest(owner);
+    await store.loadParentSessions(owner);
+    mocks.list.mockClear();
     await store.handleWake({ ...owner, sessionId: "spawn-1" });
     expect(mocks.list).toHaveBeenCalledTimes(1);
     expect(mocks.getDetail).not.toHaveBeenCalled();
-    await store.loadDetail({ ...owner, sessionId: "spawn-1" });
+    const detailOwner = { ...owner, sessionId: "spawn-1" };
+    await store.loadDetail(detailOwner);
+    const releaseDetail = store.acquireDetailInterest(detailOwner);
+    await store.loadDetail(detailOwner);
+    mocks.getDetail.mockClear();
     await store.handleWake({ ...owner, sessionId: "spawn-1" });
-    expect(mocks.getDetail).toHaveBeenCalledTimes(2);
+    expect(mocks.getDetail).toHaveBeenCalledTimes(1);
+    releaseDetail();
+    releaseList();
+  });
+
+  it("queues one post-in-flight refresh so a terminal wake cannot be lost", async () => {
+    const first = Promise.withResolvers<{
+      ok: true;
+      data: ReturnType<typeof summary>[];
+    }>();
+    mocks.list.mockReturnValueOnce(first.promise).mockResolvedValueOnce({
+      ok: true,
+      data: [summary({ status: "idle" })],
+    });
+    const store = useSpawnedSessionStore();
+    const release = store.acquireParentListInterest(owner);
+    const firstRequest = store.loadParentSessions(owner);
+    await Promise.resolve();
+    expect(mocks.list).toHaveBeenCalledTimes(1);
+
+    const wake = store.handleWake({ ...owner, sessionId: "spawn-1" });
+    first.resolve({ ok: true, data: [summary({ status: "running" })] });
+    await wake;
+    await firstRequest;
+
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(store.listState(owner.workspaceId, owner.parentSessionId).items[0]?.status).toBe("idle");
+    release();
+  });
+
+  it("shares detail interest and stops detail wake refresh after the last release", async () => {
+    const store = useSpawnedSessionStore();
+    const detailOwner = { ...owner, sessionId: "spawn-1" };
+    const firstRelease = store.acquireDetailInterest(detailOwner);
+    const secondRelease = store.acquireDetailInterest(detailOwner);
+    await store.loadDetail(detailOwner);
+    mocks.getDetail.mockClear();
+
+    firstRelease();
+    await store.handleWake(detailOwner);
+    expect(mocks.getDetail).toHaveBeenCalledTimes(1);
+
+    secondRelease();
+    await store.handleWake(detailOwner);
+    expect(mocks.getDetail).toHaveBeenCalledTimes(1);
   });
 });

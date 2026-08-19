@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useToast } from "@nuxt/ui/composables";
 import WorkflowDetail from "@renderer/components/workflow/WorkflowDetail.vue";
 import WorkflowSidebar from "@renderer/components/workflow/WorkflowSidebar.vue";
+import { semanticIcons } from "@renderer/config/semantic-icons";
 import { useWorkspaceStore, useWorkflowStore } from "@renderer/stores";
 import type { WorkflowTemplate } from "@shared/types/workflow";
 
@@ -194,7 +195,7 @@ watch(
           class="flex flex-1 items-center justify-center overflow-y-auto"
         >
           <AppEmptyState
-            icon="i-lucide-workflow"
+            :icon="semanticIcons.workflow"
             title="选择或新建工作流模板"
             description="在左侧选择模板开始编辑，或创建新的工作流模板。"
             action-label="新建模板"

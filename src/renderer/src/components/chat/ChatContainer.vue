@@ -9,6 +9,7 @@ import ChatMessageSkeleton from "@renderer/components/chat/message/ChatMessageSk
 import ChatEmptyAgentPicker from "./empty/ChatEmptyAgentPicker.vue";
 import ChatStreamError from "./ChatStreamError.vue";
 import ChatPromptPanel from "./prompt/ChatPromptPanel.vue";
+import ChatBackgroundActivityBar from "./ChatBackgroundActivityBar.vue";
 import ChatSessionEventRail from "./event/ChatSessionEventRail.vue";
 import OriginTaskBanner from "./OriginTaskBanner.vue";
 import SessionScopePopover from "./SessionScopePopover.vue";
@@ -123,8 +124,9 @@ function handleCreateSession(): void {
       </section>
 
       <footer>
-        <div class="max-w-3xl mx-auto">
-          <ChatPromptPanel />
+        <div class="max-w-3xl mx-auto border-t border-default/50">
+          <ChatBackgroundActivityBar />
+          <ChatPromptPanel class="pt-0" />
         </div>
       </footer>
     </div>

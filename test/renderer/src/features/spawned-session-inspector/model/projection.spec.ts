@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  isActiveBackgroundSession,
+  isActiveSpawnedSession,
   projectSpawnedSessionContent,
+  sortSpawnedSessionSummaries,
+  spawnedSessionActivityStats,
   spawnedSessionStatusPresentation,
 } from "@renderer/features/spawned-session-inspector";
 
@@ -50,16 +52,48 @@ describe("spawned Session inspector projection", () => {
     }
   });
 
-  it("recognizes only starting/running background summaries", () => {
+  it("recognizes active status independently of sync/background mode", () => {
     const base = {
       sessionId: "spawn-1",
       agent: { agentId: "agent-1", name: "Agent" },
       updatedAt: "2026-08-08T00:00:00.000Z",
     };
-    expect(isActiveBackgroundSession({ ...base, mode: "background", status: "running" })).toBe(
-      true
-    );
-    expect(isActiveBackgroundSession({ ...base, mode: "sync", status: "running" })).toBe(false);
-    expect(isActiveBackgroundSession({ ...base, mode: "background", status: "idle" })).toBe(false);
+    expect(isActiveSpawnedSession({ ...base, mode: "background", status: "running" })).toBe(true);
+    expect(isActiveSpawnedSession({ ...base, mode: "sync", status: "running" })).toBe(true);
+    expect(isActiveSpawnedSession({ ...base, mode: "background", status: "idle" })).toBe(false);
+  });
+
+  it("sorts active first and counts all owner-matched Sessions", () => {
+    const base = {
+      agent: { agentId: "agent-1", name: "Agent" },
+    };
+    const summaries = [
+      {
+        ...base,
+        sessionId: "terminal",
+        status: "idle" as const,
+        updatedAt: "2026-08-08T00:03:00.000Z",
+      },
+      {
+        ...base,
+        sessionId: "sync",
+        status: "running" as const,
+        mode: "sync" as const,
+        updatedAt: "2026-08-08T00:01:00.000Z",
+      },
+      {
+        ...base,
+        sessionId: "background",
+        status: "starting" as const,
+        mode: "background" as const,
+        updatedAt: "2026-08-08T00:02:00.000Z",
+      },
+    ];
+    expect(sortSpawnedSessionSummaries(summaries).map((item) => item.sessionId)).toEqual([
+      "background",
+      "sync",
+      "terminal",
+    ]);
+    expect(spawnedSessionActivityStats(summaries)).toEqual({ total: 3, active: 2 });
   });
 });

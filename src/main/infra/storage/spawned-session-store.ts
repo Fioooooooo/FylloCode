@@ -38,6 +38,7 @@ import {
 } from "@shared/types/workspace";
 
 const spawnedSessionStatusSchema = z.enum(["idle", "running", "error", "expired"]);
+export const SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH = 240;
 const storedMetaSchema = z
   .object({
     version: z.literal(1),
@@ -56,6 +57,8 @@ const storedMetaSchema = z
       size: z.number().finite().nonnegative(),
       cost: z.object({ amount: z.number().finite(), currency: z.string().min(1) }).optional(),
     }),
+    initialPromptPreview: z.string().max(SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH).optional(),
+    currentPromptPreview: z.string().max(SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH).optional(),
     latestResponseId: z.string().min(1).optional(),
     error: z.object({ code: z.string().min(1), message: z.string().min(1) }).optional(),
     createdAt: z.string().datetime(),
@@ -76,6 +79,8 @@ export interface SpawnedSessionMeta {
   configOptions: AcpSessionConfigOption[];
   turnCount: number;
   tokenUsage: TokenUsage;
+  initialPromptPreview?: string;
+  currentPromptPreview?: string;
   latestResponseId?: string;
   error?: { code: string; message: string };
   createdAt: string;
@@ -92,6 +97,11 @@ export interface SpawnedSessionStoredView {
   meta: SpawnedSessionMeta;
   turns: SpawnedTurnRecord[];
   messages: Array<UIMessage<MessageMeta>>;
+}
+
+export interface SpawnedSessionStoredSummary {
+  meta: SpawnedSessionMeta;
+  latestTurn: SpawnedTurnRecord | null;
 }
 
 export const spawnedTurnPhaseSchema = z.enum([
@@ -585,6 +595,61 @@ export async function loadLatestSpawnedTurnRecord(
   return records.at(-1) ?? null;
 }
 
+export async function listSpawnedSessionSummariesForParent(input: {
+  workspaceId: string;
+  parentSessionId: string;
+}): Promise<SpawnedSessionStoredSummary[]> {
+  let entries;
+  try {
+    entries = await fs.readdir(spawnedSessionsDir(input.workspaceId, input.parentSessionId), {
+      withFileTypes: true,
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+
+  const summaries: SpawnedSessionStoredSummary[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const owner = { ...input, sessionId: entry.name };
+    try {
+      const meta = await loadSpawnedSessionMeta(owner);
+      if (
+        !meta ||
+        meta.workspaceId !== input.workspaceId ||
+        meta.parentSessionId !== input.parentSessionId ||
+        meta.sessionId !== entry.name
+      ) {
+        continue;
+      }
+      summaries.push({ meta, latestTurn: await loadLatestSpawnedTurnRecord(owner) });
+    } catch {
+      // 单个损坏 Session 不得阻断同一父 Session 下的其余轻量摘要。
+    }
+  }
+  return summaries;
+}
+
+export async function loadSpawnedSessionStoredView(
+  owner: SpawnedStoreOwner
+): Promise<SpawnedSessionStoredView | null> {
+  const meta = await loadSpawnedSessionMeta(owner);
+  if (
+    !meta ||
+    meta.workspaceId !== owner.workspaceId ||
+    meta.parentSessionId !== owner.parentSessionId ||
+    meta.sessionId !== owner.sessionId
+  ) {
+    return null;
+  }
+  const [turns, messages] = await Promise.all([
+    listSpawnedTurnRecords(owner),
+    loadSpawnedSessionMessages(owner),
+  ]);
+  return { meta, turns, messages };
+}
+
 export async function listSpawnedSessionsForParent(input: {
   workspaceId: string;
   parentSessionId: string;
@@ -604,20 +669,8 @@ export async function listSpawnedSessionsForParent(input: {
     if (!entry.isDirectory()) continue;
     const owner = { ...input, sessionId: entry.name };
     try {
-      const meta = await loadSpawnedSessionMeta(owner);
-      if (
-        !meta ||
-        meta.workspaceId !== input.workspaceId ||
-        meta.parentSessionId !== input.parentSessionId ||
-        meta.sessionId !== entry.name
-      ) {
-        continue;
-      }
-      const [turns, messages] = await Promise.all([
-        listSpawnedTurnRecords(owner),
-        loadSpawnedSessionMessages(owner),
-      ]);
-      sessions.push({ meta, turns, messages });
+      const view = await loadSpawnedSessionStoredView(owner);
+      if (view) sessions.push(view);
     } catch {
       // 单个损坏Session不得阻断同一父Session下的其余查询结果。
     }

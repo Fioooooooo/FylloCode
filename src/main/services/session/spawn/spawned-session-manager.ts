@@ -25,6 +25,7 @@ import {
   patchSpawnedSessionMessageMetadata,
   readSpawnedSessionResponseChunk,
   spawnedMessageToResponseMarkdown,
+  SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH,
   writeSpawnedSessionMeta,
   writeSpawnedSessionResponse,
   type SpawnedSessionMeta,
@@ -196,6 +197,10 @@ function userMessage(sessionId: string, prompt: string, createdAt: Date): UIMess
     parts: [{ type: "text", text: prompt }],
     metadata: { sessionId, createdAt, updatedAt: createdAt },
   };
+}
+
+function promptPreview(prompt: string): string {
+  return prompt.slice(0, SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH);
 }
 
 class SpawnedAcpSessionStore implements AcpSessionStore {
@@ -385,6 +390,8 @@ export class SpawnedSessionManager {
           configOptions: [],
           turnCount: 0,
           tokenUsage: { used: 0, size: 0 },
+          initialPromptPreview: promptPreview(params.prompt),
+          currentPromptPreview: promptPreview(params.prompt),
           createdAt: now,
           updatedAt: now,
         };
@@ -396,6 +403,7 @@ export class SpawnedSessionManager {
       await patchSpawnedSessionMeta(storeOwner(owner), {
         status: "running",
         error: undefined,
+        currentPromptPreview: promptPreview(params.prompt),
         updatedAt: this.nowIso(),
       });
       const turnUserMessage = userMessage(owner.sessionId, params.prompt, this.runtime.now());

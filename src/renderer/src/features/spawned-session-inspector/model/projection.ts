@@ -25,15 +25,32 @@ export function spawnedSessionStatusPresentation(
   return STATUS_PRESENTATION[status];
 }
 
-export function isActiveBackgroundSession(summary: SpawnedSessionSummary): boolean {
-  return (
-    summary.mode === "background" && (summary.status === "starting" || summary.status === "running")
-  );
+export function isActiveSpawnedSession(summary: SpawnedSessionSummary): boolean {
+  return summary.status === "starting" || summary.status === "running";
+}
+
+export function sortSpawnedSessionSummaries(
+  summaries: SpawnedSessionSummary[]
+): SpawnedSessionSummary[] {
+  return [...summaries].sort((left, right) => {
+    const active = Number(isActiveSpawnedSession(right)) - Number(isActiveSpawnedSession(left));
+    return active || right.updatedAt.localeCompare(left.updatedAt);
+  });
+}
+
+export function spawnedSessionActivityStats(summaries: SpawnedSessionSummary[]): {
+  total: number;
+  active: number;
+} {
+  return {
+    total: summaries.length,
+    active: summaries.filter(isActiveSpawnedSession).length,
+  };
 }
 
 type SpawnedSessionAssistantMessage = Extract<SpawnedSessionMessage, { role: "assistant" }>;
 
-export interface SpawnedSessionActivityEntry {
+export interface SpawnedSessionActivityPart {
   part: Exclude<SpawnedSessionAssistantMessage["parts"][number], { type: "text" }>;
   partIndex: number;
 }
@@ -44,14 +61,14 @@ export interface SpawnedSessionTranscriptEntry {
 }
 
 export interface SpawnedSessionContentProjection {
-  activities: SpawnedSessionActivityEntry[];
+  activities: SpawnedSessionActivityPart[];
   transcript: SpawnedSessionTranscriptEntry[];
 }
 
 export function projectSpawnedSessionContent(
   messages: SpawnedSessionMessage[]
 ): SpawnedSessionContentProjection {
-  const activities: SpawnedSessionActivityEntry[] = [];
+  const activities: SpawnedSessionActivityPart[] = [];
   const transcript: SpawnedSessionTranscriptEntry[] = [];
   let activityIndex = 0;
   for (const message of messages) {

@@ -22,7 +22,9 @@ describe("fylloSignalContracts", () => {
   it("keeps spawn.session as an opaque, side-effect-free query pointer", () => {
     const contract = fylloSignalContracts["spawn.session"];
     expect(contract.prompt.payloadFields.map((field) => field.name)).toEqual(["sessionId"]);
-    expect(contract.prompt.constraints.join(" ")).toContain("synchronous and background");
+    expect(contract.prompt.purpose).toContain("Optionally");
+    expect(contract.prompt.purpose).toContain("not required for discovery");
+    expect(contract.prompt.constraints.join(" ")).toContain("Main-owned activity view");
     expect(contract.prompt.constraints.join(" ")).toContain("continuation");
     expect(contract.prompt.constraints.join(" ")).toContain("does not create");
   });

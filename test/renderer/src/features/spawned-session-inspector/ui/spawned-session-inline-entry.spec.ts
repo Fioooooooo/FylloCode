@@ -19,20 +19,14 @@ const props = {
   sessionId: "spawn-1",
 };
 
-function ready(status: "starting" | "running" | "idle" | "error" | "expired" | "interrupted") {
+function listSummary(
+  status: "starting" | "running" | "idle" | "error" | "expired" | "interrupted"
+) {
   return {
-    ok: true as const,
-    data: {
-      status: "ready" as const,
-      summary: {
-        sessionId: "spawn-1",
-        agent: { agentId: "agent-1", name: "Agent One" },
-        status,
-        updatedAt: "2026-08-08T00:00:00.000Z",
-      },
-      turns: [],
-      messages: [],
-    },
+    sessionId: "spawn-1",
+    agent: { agentId: "agent-1", name: "Agent One" },
+    status,
+    updatedAt: "2026-08-08T00:00:00.000Z",
   };
 }
 
@@ -40,10 +34,10 @@ describe("SpawnedSessionInlineEntry", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    mocks.list.mockResolvedValue({ ok: true, data: [listSummary("running")] });
   });
 
   it("owns the vertical spacing for the spawn session signal", () => {
-    mocks.getDetail.mockResolvedValue(ready("running"));
     const wrapper = mount(SpawnedSessionInlineEntry, {
       props,
       global: { plugins: [createPinia()], stubs: { SpawnedSessionDetailSlideover: true } },
@@ -60,7 +54,7 @@ describe("SpawnedSessionInlineEntry", () => {
     ["expired", "已失效"],
     ["interrupted", "已中断"],
   ] as const)("renders authoritative %s status with text", async (status, label) => {
-    mocks.getDetail.mockResolvedValue(ready(status));
+    mocks.list.mockResolvedValue({ ok: true, data: [listSummary(status)] });
     const wrapper = mount(SpawnedSessionInlineEntry, {
       props,
       global: { plugins: [createPinia()], stubs: { SpawnedSessionDetailSlideover: true } },
@@ -71,7 +65,7 @@ describe("SpawnedSessionInlineEntry", () => {
   });
 
   it("shows query error and not_found without trusting payload display fields", async () => {
-    mocks.getDetail.mockResolvedValueOnce({
+    mocks.list.mockResolvedValueOnce({
       ok: false,
       error: { code: "IPC_ERROR", message: "offline" },
     });
@@ -82,11 +76,14 @@ describe("SpawnedSessionInlineEntry", () => {
     await flushPromises();
     expect(failed.text()).toContain("Session 查询失败");
 
+    mocks.list.mockResolvedValueOnce({ ok: true, data: [listSummary("running")] });
     mocks.getDetail.mockResolvedValueOnce({ ok: true, data: { status: "not_found" } });
     const missing = mount(SpawnedSessionInlineEntry, {
       props,
       global: { plugins: [createPinia()], stubs: { SpawnedSessionDetailSlideover: true } },
     });
+    await flushPromises();
+    await missing.get("button").trigger("click");
     await flushPromises();
     expect(missing.get("button").attributes("disabled")).toBeDefined();
     expect(missing.text()).toContain("Session 信息不可用");

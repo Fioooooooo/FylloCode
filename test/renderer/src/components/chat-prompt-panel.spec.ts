@@ -8,14 +8,6 @@ import type { ChatSessionMode } from "@shared/types/chat";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { DraftProbeState } from "@renderer/stores/session/session";
 
-vi.mock("@renderer/features/spawned-session-inspector", () => ({
-  SpawnedSessionBackgroundEntry: {
-    props: ["workspaceId", "parentSessionId"],
-    template:
-      '<div data-test="spawned-background-entry" :data-workspace-id="workspaceId" :data-parent-session-id="parentSessionId" />',
-  },
-}));
-
 const buttonStub = {
   inheritAttrs: false,
   props: ["loading", "icon", "color", "variant", "size", "disabled"],
@@ -671,17 +663,5 @@ describe("ChatPromptPanel", () => {
         filename: "notes.md",
       },
     ]);
-  });
-
-  it("scopes the background entry to the active persisted Session and hides it for drafts", async () => {
-    const draft = mountPanel();
-    expect(draft.find('[data-test="spawned-background-entry"]').exists()).toBe(false);
-    draft.unmount();
-
-    activeSessionRef.value = makeSession();
-    const active = mountPanel();
-    const entry = active.get('[data-test="spawned-background-entry"]');
-    expect(entry.attributes("data-workspace-id")).toBe("project-1");
-    expect(entry.attributes("data-parent-session-id")).toBe("session-1");
   });
 });

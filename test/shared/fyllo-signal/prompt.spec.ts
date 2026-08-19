@@ -48,11 +48,12 @@ describe("renderFylloSignalPromptContract", () => {
     }
   });
 
-  it("renders spawn.session after show.time with standalone new-Session guidance", () => {
+  it("renders spawn.session after show.time with optional deep-link guidance", () => {
     const prompt = renderFylloSignalPromptContract();
     expect(prompt.indexOf("show.time")).toBeLessThan(prompt.indexOf("spawn.session"));
-    expect(prompt).toContain("omitted sessionId");
-    expect(prompt).toContain("synchronous and background");
-    expect(prompt).toContain("Do not emit for continuation calls");
+    expect(prompt).toContain("new Session identity");
+    expect(prompt).toContain("Optionally display a read-only contextual deep link");
+    expect(prompt).toContain("not required for discovery");
+    expect(prompt).toContain("continuation turns keep the same identity");
   });
 });

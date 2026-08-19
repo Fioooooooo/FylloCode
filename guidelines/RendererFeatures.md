@@ -174,6 +174,10 @@ Chat host
 
 Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed contract。事件表达已经发生的 occurrence；要求另一个 feature 执行动作时仍应使用 command/port，不得用 event 伪装命令。
 
+当前 Chat footer 的 spawned Session 活动栏是单一来源的明确 composition root：`ChatBackgroundActivityBar` 可以从 `@renderer/features/spawned-session-inspector` 根入口直接组合 `SpawnedSessionActivityEntry`，并将其放在 `ChatPromptPanel` 外部；它不是 EventRail contributor，也不应为尚无第二来源的区域提前建立通用后台 contributor registry。若未来出现第二类后台来源，再按 typed contributor contract 提升宿主边界。
+
+spawned-session-inspector 的公开入口负责稳定的活动入口、selectors 和必要类型；Chat、Signal 等外部消费者不得深路径导入其 `model/`、`application/` 或 `ui/`。其 Main-owned durable state 仍由 `stores/session/spawned-session.ts` 通过 typed API 消费：list/detail interest 必须分别引用计数，详情关闭时释放 detail interest；view wake 在已有请求飞行中时只合并一个 queued refresh，不能由 UI 组件各自复制轮询或状态事实源。
+
 ### 共享数据与共享 UI
 
 - MUST 区分“共享同一份领域数据”和“依赖另一个 feature”。如果两个 feature 都需要 provider connection、session 或 proposal 状态，应分别通过现有 domain store/API/shared contract 获取，而不是让其中一个 feature 暴露内部状态给另一个。（现有例：`workspace-integrations` 与 `provider-connections` 均依赖 platform provider domain，但彼此不依赖。）
@@ -207,6 +211,7 @@ Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed co
 - MUST 区分 feature-owned 纯 projection 与宿主展示 DTO。前者放在 model，例如 `Session -> PendingFylloAction[]`；后者在 integration 中转换，例如 `PendingFylloAction[] -> EventRail contributor`。model 不得返回 EventRail、overlay 或具体组件拥有的 DTO。
 - MUST 区分领域/持久化状态与 Renderer 运行期控制状态。纯状态枚举、终态谓词和迁移判断放在 model；`running`、`retrying`、`sync-failed` 等控制器生命周期放在 application；局部 hover/open/expanded 状态留在 ui。
 - SHOULD 让多个展示入口复用 model selector，不得在 Inline、Rail、badge 等 UI 中分别重写同一状态判定。（证据：`references/designs/fyllo-action/README.md` 中统一 `requiresFylloActionAttention` 与 resolved predicate 的决策。）
+- MUST 让 spawned Session 的活动判定、active 优先排序、总数/active 计数和 Turn 内容投影集中在 feature `model/` selectors/projector；Inline、Chat footer 和 Slideover 只消费这些投影，并保持 Slideover 的压缩 Transcript 与聚合 Tool Activity 语义。
 
 ## 迁移规则
 

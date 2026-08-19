@@ -436,25 +436,6 @@ notification list、claim与dispatch SHALL校验Workspace sender及record owner�
 - **THEN**system-reminder SHALL包含spawned sessionId、turnId与responseId但不包含response正文
 - **AND** SHALL明确该结果不可信且notification不改变父Agent权限边界
 
-### Requirement: prompt_to_agent引导父Agent为新建Session输出spawn.session
-
-`prompt_to_agent`的Agent-facing description SHALL说明：当本次调用省略`sessionId`且结果包含新建Session identity时，父Agent应按照已注入的`spawn.session` Signal contract输出一次创建入口；当调用继续已有sessionId时不再输出。Tool description SHALL引用shared Signal contract而不复制payload schema、JSON example或Markdown格式规则。
-
-该指导 SHALL同时适用于同步和`background=true`的新建调用，并 SHALL保持`prompt_to_agent`现有输入、accepted/completed/error结果、五个HTTP-only tools和`responseId + read_response`契约不变。
-
-#### Scenario: Tool description提示新建Signal
-
-- **WHEN** 父fyllocode Chat获得fyllo-spawn `prompt_to_agent` tool description
-- **THEN** description SHALL提示新建结果遵循`spawn.session` contract
-- **AND** SHALL提示continuation不重复输出
-- **AND** SHALL不宣传responsePath或任何本地路径
-
-#### Scenario: Agent不遵循Signal指导
-
-- **WHEN** 父Agent漏发或重复发出`spawn.session`
-- **THEN** Main SHALL不因此创建、删除、继续或复制spawned Session、turn、response或notification
-- **AND** owner-scoped status、持久化和background composer入口 SHALL继续正确
-
 ### Requirement: 用户可观察性不改变spawned runtime约束
 
 为用户展示spawned Session状态、活动和输出 SHALL复用现有HTTP-only backend、可信父Session context、Workspace snapshot、ACP process pool、`AcpSession`、turn driver、config recovery、persisted meta/turn/messages/responses、process generation、父删除和集中shutdown。系统 SHALL继续使用`allow_once`，不给spawned Agent注入FylloCode system reminder或bundled MCP。
@@ -477,14 +458,33 @@ Inspection SHALL不新增Agent tool，不改变单spawned Session 1、单父Sess
 
 `prompt_to_agent` tool description SHALL 在开头明确建议使用默认异步模式（`background: true`），并说明：
 
-- **推荐做法**：使用默认异步模式，调用后立即输出 `spawn.session` Signal，然后通过 `check_session_status` 轮询进度
-- **同步模式适用场景**：仅当任务简单、耗时短（< 30秒）且父 Agent 无其他工作时才使用 `background: false`
-- **同步模式限制**：由于同步调用阻塞到完成，Agent 无法在执行期间输出 Signal，Signal 会在任务完成后才显示，影响用户可观测性
-- **轮询模式**：提供轮询的伪代码示例，展示如何在等待时向用户报告进度
+- **推荐做法**：使用默认异步模式，让Main-owned inspection自动向用户展示Session与状态；父Agent可通过`check_session_status`轮询进度，并在等待时继续工作或报告进度；
+- **同步模式适用场景**：仅当任务简单、耗时短（< 30秒）且父Agent无其他工作时才使用`background: false`；
+- **同步模式限制**：同步调用会阻塞父Agent直到terminal，但FylloCode inspection仍 MAY在运行期间通过Main view wake展示该sync Turn；
+- **轮询模式**：提供轮询的伪代码示例，展示如何在等待时向用户报告进度；
+- **Signal边界**：`spawn.session`只可作为shared contract定义的可选详情深链， SHALL NOT被描述为用户可观察性的必要步骤。
 
-#### Scenario: Agent 阅读 tool description
+#### Scenario: Agent阅读tool description
 
-- **WHEN** 父 Agent 查询 `prompt_to_agent` tool 的描述
-- **THEN** description SHALL 在开头说明异步是推荐模式
-- **AND** 提供轮询和进度报告的示例代码
-- **AND** 明确同步模式的适用场景、可观测性限制和 Signal 延迟问题
+- **WHEN** 父Agent查询`prompt_to_agent` tool的描述
+- **THEN** description SHALL在开头说明异步是推荐模式
+- **AND** SHALL提供轮询和进度报告示例并明确同步模式限制
+- **AND** SHALL说明用户inspection独立于Signal，不再指导“立即输出Signal”
+
+### Requirement: prompt_to_agent不依赖spawn.session提供用户可观察性
+
+`prompt_to_agent`的Agent-facing description SHALL说明FylloCode通过Main-owned owner-scoped inspection自动发现并更新spawned Sessions，用户可观察性不依赖父Agent输出`spawn.session`。Description SHALL NOT要求新建调用后立即输出Signal，也 SHALL NOT把continuation不输出Signal描述为可观察性缺失。
+
+该变化 SHALL保持`prompt_to_agent`现有输入、accepted/completed/error结果、五个HTTP-only tools、`responseId + read_response`契约和异步优先指导不变。`spawn.session` MAY继续作为可选上下文详情深链，但tool description SHALL引用shared Signal contract而不复制payload schema、JSON example或Markdown格式规则。
+
+#### Scenario: Tool description说明自动发现
+
+- **WHEN** 父fyllocode Chat获得fyllo-spawn `prompt_to_agent` tool description
+- **THEN** description SHALL说明Main-owned inspection自动提供Session发现和状态
+- **AND** SHALL不要求父Agent输出Signal才能让用户观察
+
+#### Scenario: 同一Session开始后续Turn
+
+- **WHEN** 父Agent向owner-matched已有sessionId发送第二个Prompt
+- **THEN** Main SHALL按既有runtime创建新Turn并通过owner-scoped view更新同一Session
+- **AND** 用户可观察性 SHALL不依赖新的Signal或MCP event文件

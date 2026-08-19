@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import type { UIMessage } from "ai";
+import { semanticIcons } from "@renderer/config/semantic-icons";
 import UiSurface from "@renderer/components/shared/UiSurface.vue";
 import {
   formatSubagentDuration,
@@ -88,7 +89,7 @@ watch(open, (isOpen, wasOpen) => {
       <div class="flex items-start gap-3">
         <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
           <UIcon
-            name="i-lucide-waypoints"
+            :name="semanticIcons.subagent"
             class="size-5 text-primary"
             data-test="subagent-call-icon"
           />

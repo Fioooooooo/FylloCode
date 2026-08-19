@@ -1,10 +1,36 @@
-# spawned-session-inspection Specification
+## ADDED Requirements
 
-## Purpose
+### Requirement: Chat底部后台活动栏展示父Session拥有的spawned Sessions
 
-定义 Chat 页面查询和展示 spawned Agent Session 的权威只读边界：Main 按 Workspace 与父 Session 校验并聚合持久化记录及匹配的实时 ACP 状态，Renderer 仅消费结构化状态、活动、Prompt、Transcript 与不透明 responseId；Signal 只提供查询入口，不承担授权、持久化或通知投递职责。
+Chat内容卡片底部 SHALL 在Prompt输入框外部提供紧凑后台活动栏，并仅在当前非draft父Chat Session的owner-scoped list至少包含一个spawned Session时显示。活动栏 SHALL显示当前父Session拥有的spawned Session总数与状态为`starting`或`running`的active数量；active判定 SHALL不以`sync`或`background` mode过滤。
 
-## Requirements
+活动栏展开后 SHALL列出当前`{workspaceId,parentSessionId}`的全部spawned Sessions，active记录排在terminal记录之前，同组内按`updatedAt`降序排列。列表项 SHALL显示可信Agent、Prompt摘要或明确缺失状态、文字状态与时间，并可打开同一Turn-aware detail Slideover。活动栏 SHALL直接来自Main list，与父Agent是否输出`spawn.session`无关；它 SHALL不进入Chat EventRail，也 SHALL不占用`UChatPrompt`内部footer。
+
+#### Scenario: 当前父Session同时包含运行和历史Session
+
+- **WHEN** 当前父Session包含一个running sync Session、一个running background Session和两个terminal Sessions
+- **THEN** 活动栏 SHALL显示4个子Agent Session且active数量为2
+- **AND** 展开列表 SHALL先显示两个active Sessions，再按更新时间显示两个terminal Sessions
+
+#### Scenario: 同一Session收到续聊Prompt
+
+- **WHEN** 一个idle spawned Session使用原`sessionId`开始第二个Turn
+- **THEN** 活动栏 SHALL保持同一个Session列表identity并将其状态更新为starting/running
+- **AND** SHALL不创建第二个列表项或等待新的`spawn.session`
+
+#### Scenario: Signal漏发或重复
+
+- **WHEN** 父Agent未输出`spawn.session`或历史消息包含重复Signal
+- **THEN** 活动栏的Session总数、active数量和状态 SHALL仍由Main list正确投影
+- **AND** SHALL不创建、复制或隐藏任何spawned Session
+
+#### Scenario: draft或空父Session
+
+- **WHEN** Chat处于draft状态或当前父Session没有spawned Sessions
+- **THEN** 底部后台活动栏 SHALL不占用额外可见行
+- **AND** SHALL不从其他父Session借用记录
+
+## MODIFIED Requirements
 
 ### Requirement: Renderer只能通过owner-scoped只读接口查询spawned Session
 
@@ -38,31 +64,6 @@ list/detail SHALL NOT接受或返回app-data绝对路径、response文件路径�
 - **THEN** strict input schema SHALL拒绝请求
 - **AND** Main SHALL不使用这些字段覆盖持久化事实
 
-### Requirement: 查询状态以durable turn为基线并叠加匹配live handle
-
-Main SHALL从spawned meta、按时间排序的versioned turn records和持久化messages建立查询基线，并仅在`{workspaceId,parentSessionId,sessionId,turnId}`全部匹配时叠加当前Main-owned active turn的last activity与live assistant message。公开状态 SHALL仅为`starting`、`running`、`idle`、`error`、`expired`或`interrupted`；内部`cancelling`phase SHALL投影为`running`，不得扩大公开状态联合。
-
-最新terminal turn SHALL优先于可能滞后的meta projection。既有version 1 meta-only Session SHALL继续可读；系统 SHALL NOT要求批量迁移或改写历史record。
-
-#### Scenario: Running turn覆盖durable基线
-
-- **WHEN** 最新turn record为running且Main存在identity完全匹配的active handle
-- **THEN** detail SHALL返回`running`、当前turnId、mode、startedAt、lastActivityAt、recent activity与live assistant snapshot
-- **AND** SHALL不创建第二个ACP session、turn driver或MessageAssembler
-
-#### Scenario: Terminal record优先于旧meta
-
-- **WHEN** completed、error、expired或interrupted turn已经durable但meta仍短暂保留running
-- **THEN** list/detail SHALL以terminal turn投影状态
-- **AND** SHALL不把状态回退为running
-
-#### Scenario: 应用重启后遗留非终态
-
-- **WHEN** 应用启动发现starting、running或cancelling record且没有对应live handle
-- **THEN** 既有lifecycle reconciliation SHALL先把它durable收敛为`interrupted / APP_RESTARTED`
-- **AND** list/detail SHALL显示interrupted而不是伪报任务仍运行
-- **AND** SHALL不启动AgentProcess、resume或load该turn
-
 ### Requirement: Detail返回Prompt、turns、结构化messages与response引用
 
 spawned Session detail SHALL包含可信Session summary和按创建时间排序的Turn details。每个Turn detail SHALL包含`turnId`、ordinal、mode、状态、started/last activity/updated时间、recent activity、可选稳定error、可选opaque`responseId`、本轮user Prompt与本轮有序structured messages。结构化message SHALL只允许spawn主干产生的user text与assistant text、reasoning、dynamic-tool parts，并 SHALL将时间序列化为ISO string。
@@ -88,25 +89,6 @@ Main SHALL使用有序turn records的时间窗口与有序messages建立Turn归�
 - **WHEN** ACP Turn失败且只持久化了部分assistant message
 - **THEN** 对应Turn SHALL返回稳定error code/message和可用partial structured parts
 - **AND** SHALL不声称存在completed response引用或把partial内容归入相邻Turn
-
-### Requirement: Running view复用现有ACP事件与MessageAssembler
-
-`AcpSession`、`driveAcpTurn`和`MessageAssembler` SHALL继续作为spawned turn的唯一协议、事件和消息组装主干。`MessageAssembler` SHALL提供不flush、不修改active indices或tool delta状态的只读snapshot；spawn manager SHALL在现有content-event分支应用事件后更新`ActiveTurn` live view。
-
-系统 SHALL NOT为了UI实现第二套ACP event switch、renderer专用turn driver、额外AgentProcess pool或并行写入同一assistant message的assembler。
-
-#### Scenario: Content event更新live snapshot
-
-- **WHEN** 现有turn driver收到text_delta、reasoning_delta、tool_call_start或tool_call_update
-- **THEN** 同一MessageAssembler SHALL先应用事件并产生只读snapshot
-- **AND** spawn active entry SHALL更新该snapshot和lastActivityAt
-- **AND** terminal持久化仍 SHALL由原有driver hooks完成一次
-
-#### Scenario: Snapshot读取不终止组装
-
-- **WHEN** query service在turn running期间取得MessageAssembler snapshot
-- **THEN** 后续delta SHALL继续追加到同一active parts
-- **AND** terminal flush SHALL仍返回完整assistant message
 
 ### Requirement: View wake只触发重新查询且与notification wake分离
 
@@ -203,30 +185,6 @@ Renderer SHALL将缓存与观察interest分离：行内`spawn.session`首次挂�
 - **THEN** 剩余入口 SHALL继续收到detail refresh
 - **AND** 只有最后一个入口关闭后 SHALL停止该detail实时刷新
 
-### Requirement: 窗口、父删除、重启与process invalidation保持既有语义
-
-关闭Workspace窗口 SHALL不取消Main-owned background spawned turn；窗口重开 SHALL通过首次query恢复。父Session删除 SHALL继续执行fence、cancel/settle、notification suppress和storage delete，之后list不再包含该Session且detail返回not_found。AgentProcess失效 SHALL显示`expired / AGENT_PROCESS_INVALIDATED`；应用正常shutdown SHALL显示durable`interrupted / APP_SHUTDOWN`，崩溃遗留 SHALL在下次启动显示`interrupted / APP_RESTARTED`。
-
-系统 SHALL NOT因打开、关闭或刷新inspection UI而改变1/4/8容量、10分钟inactivity watchdog、5秒cancel grace、ACP Session复用、process generation或父删除/shutdown顺序。
-
-#### Scenario: macOS窗口关闭后任务完成
-
-- **WHEN** Workspace窗口关闭但应用仍运行且background turn完成
-- **THEN** Main SHALL继续完成assistant/response/turn持久化和notification pending
-- **AND** 窗口重开后的query SHALL显示idle和最终Transcript
-
-#### Scenario: 父Session在Slideover打开时被删除
-
-- **WHEN** 用户正在查看spawned Session详情且其父Session被删除
-- **THEN** 后续wake/query SHALL返回not_found并停止该scope refresh
-- **AND** UI SHALL显示详情已不可用而不泄露已删除内容
-
-#### Scenario: AgentProcess generation变化
-
-- **WHEN** spawned Session对应AgentProcess退出并产生新generation
-- **THEN** detail SHALL显示expired与`AGENT_PROCESS_INVALIDATED`
-- **AND** SHALL不在新process上resume旧spawned Session
-
 ### Requirement: Inspection不参与Action、EventRail或completion notification状态机
 
 挂载、重复挂载、点击或刷新`spawn.session`、底部后台活动栏、Turn selector及其Slideover SHALL不创建Action ID，不调用Action IPC，不写session actionStates，不改变attention count，不向EventRail添加item，也不创建Signal storage record。Inspection list/detail SHALL不调用notification claim/dispatch，不返回notification state，也不改变at-most-once父Agent reminder投递边界。
@@ -243,32 +201,16 @@ Renderer SHALL将缓存与观察interest分离：行内`spawn.session`首次挂�
 - **THEN** EventRail和attention count SHALL保持不变
 - **AND** Main SHALL不新增spawned Session、turn、response或notification record
 
-### Requirement: Chat底部后台活动栏展示父Session拥有的spawned Sessions
+## REMOVED Requirements
 
-Chat内容卡片底部 SHALL 在Prompt输入框外部提供紧凑后台活动栏，并仅在当前非draft父Chat Session的owner-scoped list至少包含一个spawned Session时显示。活动栏 SHALL显示当前父Session拥有的spawned Session总数与状态为`starting`或`running`的active数量；active判定 SHALL不以`sync`或`background` mode过滤。
+### Requirement: Composer入口只聚合当前父Session的active background turns
 
-活动栏展开后 SHALL列出当前`{workspaceId,parentSessionId}`的全部spawned Sessions，active记录排在terminal记录之前，同组内按`updatedAt`降序排列。列表项 SHALL显示可信Agent、Prompt摘要或明确缺失状态、文字状态与时间，并可打开同一Turn-aware detail Slideover。活动栏 SHALL直接来自Main list，与父Agent是否输出`spawn.session`无关；它 SHALL不进入Chat EventRail，也 SHALL不占用`UChatPrompt`内部footer。
+**Reason**: 仅在composer内部显示active background turns会在terminal后移除历史入口，且排除sync Turn；该行为由父Session级底部后台活动栏替代。
 
-#### Scenario: 当前父Session同时包含运行和历史Session
+**Migration**: 移除`ChatPromptPanel.vue`中的旧入口挂载，使用`ChatContainer.vue`底部宿主组合新的spawned Session活动入口；existing Signal继续打开同一详情。
 
-- **WHEN** 当前父Session包含一个running sync Session、一个running background Session和两个terminal Sessions
-- **THEN** 活动栏 SHALL显示4个子Agent Session且active数量为2
-- **AND** 展开列表 SHALL先显示两个active Sessions，再按更新时间显示两个terminal Sessions
+#### Scenario: 旧composer入口迁移
 
-#### Scenario: 同一Session收到续聊Prompt
-
-- **WHEN** 一个idle spawned Session使用原`sessionId`开始第二个Turn
-- **THEN** 活动栏 SHALL保持同一个Session列表identity并将其状态更新为starting/running
-- **AND** SHALL不创建第二个列表项或等待新的`spawn.session`
-
-#### Scenario: Signal漏发或重复
-
-- **WHEN** 父Agent未输出`spawn.session`或历史消息包含重复Signal
-- **THEN** 活动栏的Session总数、active数量和状态 SHALL仍由Main list正确投影
-- **AND** SHALL不创建、复制或隐藏任何spawned Session
-
-#### Scenario: draft或空父Session
-
-- **WHEN** Chat处于draft状态或当前父Session没有spawned Sessions
-- **THEN** 底部后台活动栏 SHALL不占用额外可见行
-- **AND** SHALL不从其他父Session借用记录
+- **WHEN** 当前父Session包含terminal或sync spawned Sessions
+- **THEN** 系统 SHALL通过新的底部活动栏提供入口
+- **AND** SHALL不再依赖旧active-background-only composer popover

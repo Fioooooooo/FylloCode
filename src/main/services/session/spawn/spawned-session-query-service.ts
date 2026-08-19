@@ -1,7 +1,8 @@
 import type { DynamicToolUIPart, UIMessage } from "ai";
 import { getAgentById } from "@main/infra/acp/agent-catalog";
 import {
-  listSpawnedSessionsForParent,
+  listSpawnedSessionSummariesForParent,
+  loadSpawnedSessionStoredView,
   type SpawnedSessionMeta,
   type SpawnedSessionStoredView,
   type SpawnedTurnPhase,
@@ -13,7 +14,7 @@ import type {
   SpawnedSessionDisplayStatus,
   SpawnedSessionMessage,
   SpawnedSessionSummary,
-  SpawnedSessionTurnSummary,
+  SpawnedSessionTurnDetail,
 } from "@shared/ipc/session/spawned-session.schemas";
 import { spawnNotificationService } from "./spawn-notification-service";
 import {
@@ -27,6 +28,12 @@ export interface SpawnedSessionQueryOwner {
 }
 
 const ACTIVE_STATUSES = new Set<SpawnedSessionDisplayStatus>(["starting", "running"]);
+const TERMINAL_TURN_PHASES = new Set<SpawnedTurnPhase>([
+  "completed",
+  "error",
+  "expired",
+  "interrupted",
+]);
 
 function displayStatus(phase: SpawnedTurnPhase): SpawnedSessionDisplayStatus {
   if (phase === "completed") return "idle";
@@ -40,16 +47,6 @@ function iso(value: unknown, fallback: string): string {
     return new Date(value).toISOString();
   }
   return fallback;
-}
-
-function textFromMessage(message: UIMessage<MessageMeta>): string {
-  return message.parts
-    .filter(
-      (part): part is Extract<(typeof message.parts)[number], { type: "text" }> =>
-        part.type === "text"
-    )
-    .map((part) => part.text)
-    .join("\n");
 }
 
 function projectToolPart(
@@ -116,6 +113,93 @@ function summaryStatus(
   return meta.status;
 }
 
+function turnIndexForTimestamp(timestamp: string, turns: SpawnedTurnRecord[]): number | undefined {
+  const time = Date.parse(timestamp);
+  if (Number.isNaN(time)) return undefined;
+  for (let index = 0; index < turns.length; index += 1) {
+    const start = Date.parse(turns[index]!.startedAt);
+    const nextStart = turns[index + 1] ? Date.parse(turns[index + 1]!.startedAt) : Number.NaN;
+    if (Number.isNaN(start) || (index < turns.length - 1 && Number.isNaN(nextStart))) continue;
+    if (time >= start && (index === turns.length - 1 || time < nextStart)) return index;
+  }
+  return undefined;
+}
+
+interface TurnBucket {
+  turn: SpawnedTurnRecord;
+  prompt?: { text: string };
+  messages: Extract<SpawnedSessionMessage, { role: "assistant" }>[];
+}
+
+function projectTurnDetails(
+  view: SpawnedSessionStoredView,
+  matchingLive: SpawnedSessionInspectionSnapshot | null
+): SpawnedSessionTurnDetail[] {
+  const buckets: TurnBucket[] = view.turns.map((turn) => ({ turn, messages: [] }));
+  let currentTurnIndex = -1;
+
+  for (const rawMessage of view.messages) {
+    const message = projectMessage(rawMessage, true, view.meta.updatedAt);
+    if (!message) continue;
+    const windowIndex = turnIndexForTimestamp(message.createdAt, view.turns);
+    if (message.role === "user") {
+      const fallbackIndex =
+        currentTurnIndex + 1 < buckets.length
+          ? currentTurnIndex + 1
+          : currentTurnIndex >= 0
+            ? currentTurnIndex
+            : undefined;
+      const targetIndex = windowIndex ?? fallbackIndex;
+      if (targetIndex === undefined) continue;
+      currentTurnIndex = targetIndex;
+      buckets[targetIndex]!.prompt = {
+        text: message.parts.map((part) => part.text).join("\n"),
+      };
+      continue;
+    }
+
+    const targetIndex = windowIndex ?? (currentTurnIndex >= 0 ? currentTurnIndex : undefined);
+    if (targetIndex !== undefined && buckets[targetIndex]) {
+      buckets[targetIndex]!.messages.push(message);
+    }
+  }
+
+  const latest = view.turns.at(-1);
+  if (
+    matchingLive?.liveAssistantMessage &&
+    latest &&
+    !TERMINAL_TURN_PHASES.has(latest.phase) &&
+    matchingLive.turnId === latest.turnId
+  ) {
+    const liveMessage = projectMessage(
+      matchingLive.liveAssistantMessage,
+      false,
+      matchingLive.lastActivityAt
+    );
+    const latestBucket = buckets.at(-1);
+    if (liveMessage?.role === "assistant" && latestBucket) latestBucket.messages.push(liveMessage);
+  }
+
+  return buckets.map(({ turn, prompt, messages }, index) => ({
+    turnId: turn.turnId,
+    ordinal: index + 1,
+    mode: turn.mode,
+    status: displayStatus(turn.phase),
+    startedAt: turn.startedAt,
+    lastActivityAt:
+      matchingLive?.turnId === turn.turnId ? matchingLive.lastActivityAt : turn.lastActivityAt,
+    updatedAt: turn.updatedAt,
+    ...(turn.responseId ? { responseId: turn.responseId } : {}),
+    ...(turn.error ? { error: turn.error } : {}),
+    recentActivity:
+      matchingLive?.turnId === turn.turnId
+        ? matchingLive.recentActivity
+        : structuredClone(turn.recentActivity),
+    ...(prompt ? { prompt } : {}),
+    messages,
+  }));
+}
+
 export class SpawnedSessionQueryService {
   private readonly reconciliation = new Map<string, Promise<void>>();
 
@@ -132,22 +216,22 @@ export class SpawnedSessionQueryService {
     return pending;
   }
 
-  private async buildSummary(view: SpawnedSessionStoredView): Promise<SpawnedSessionSummary> {
-    const turn = latestTurn(view);
+  private async buildSummary(
+    meta: SpawnedSessionMeta,
+    turn: SpawnedTurnRecord | undefined,
+    promptPreview = meta.currentPromptPreview
+  ): Promise<SpawnedSessionSummary> {
     const live = spawnedSessionManager.getInspectionSnapshot({
-      workspaceId: view.meta.workspaceId,
-      parentSessionId: view.meta.parentSessionId,
-      sessionId: view.meta.sessionId,
+      workspaceId: meta.workspaceId,
+      parentSessionId: meta.parentSessionId,
+      sessionId: meta.sessionId,
     });
     const matchingLive = live && (!turn || live.turnId === turn.turnId) ? live : null;
-    const status = summaryStatus(view.meta, turn, matchingLive);
-    const agent = await getAgentById(view.meta.agentId);
-    const userMessages = view.messages.filter((message) => message.role === "user");
-    const currentPrompt = userMessages.at(-1) ? textFromMessage(userMessages.at(-1)!) : undefined;
-    const error = turn?.error ?? view.meta.error;
+    const status = summaryStatus(meta, turn, matchingLive);
+    const agent = await getAgentById(meta.agentId);
     return {
-      sessionId: view.meta.sessionId,
-      agent: { agentId: view.meta.agentId, name: agent?.name ?? view.meta.agentId },
+      sessionId: meta.sessionId,
+      agent: { agentId: meta.agentId, name: agent?.name ?? meta.agentId },
       status,
       ...((turn?.mode ?? matchingLive?.mode) ? { mode: turn?.mode ?? matchingLive?.mode } : {}),
       ...((turn?.turnId ?? matchingLive?.turnId)
@@ -159,20 +243,22 @@ export class SpawnedSessionQueryService {
       ...((turn?.lastActivityAt ?? matchingLive?.lastActivityAt)
         ? { lastActivityAt: matchingLive?.lastActivityAt ?? turn?.lastActivityAt }
         : {}),
-      updatedAt: turn?.updatedAt ?? view.meta.updatedAt,
-      ...(currentPrompt ? { promptPreview: currentPrompt.slice(0, 240) } : {}),
-      ...((turn?.responseId ?? view.meta.latestResponseId)
-        ? { latestResponseId: turn?.responseId ?? view.meta.latestResponseId }
+      updatedAt: turn?.updatedAt ?? meta.updatedAt,
+      ...(promptPreview !== undefined ? { promptPreview } : {}),
+      ...((turn?.responseId ?? meta.latestResponseId)
+        ? { latestResponseId: turn?.responseId ?? meta.latestResponseId }
         : {}),
-      ...(error ? { error } : {}),
+      ...((turn?.error ?? meta.error) ? { error: turn?.error ?? meta.error } : {}),
     };
   }
 
   async listSpawnedSessions(owner: SpawnedSessionQueryOwner): Promise<SpawnedSessionSummary[]> {
     await this.ensureReconciled(owner.workspaceId);
-    const views = await listSpawnedSessionsForParent(owner);
-    const summaries = await Promise.all(views.map((view) => this.buildSummary(view)));
-    return summaries.sort((left, right) => {
+    const summaries = await listSpawnedSessionSummariesForParent(owner);
+    const projected = await Promise.all(
+      summaries.map(({ meta, latestTurn: turn }) => this.buildSummary(meta, turn ?? undefined))
+    );
+    return projected.sort((left, right) => {
       const active =
         Number(ACTIVE_STATUSES.has(right.status)) - Number(ACTIVE_STATUSES.has(left.status));
       return active || right.updatedAt.localeCompare(left.updatedAt);
@@ -183,60 +269,19 @@ export class SpawnedSessionQueryService {
     owner: SpawnedSessionQueryOwner & { sessionId: string }
   ): Promise<SpawnedSessionDetailResult> {
     await this.ensureReconciled(owner.workspaceId);
-    const view = (await listSpawnedSessionsForParent(owner)).find(
-      (candidate) => candidate.meta.sessionId === owner.sessionId
-    );
+    const view = await loadSpawnedSessionStoredView(owner);
     if (!view) return { status: "not_found" };
 
-    const summary = await this.buildSummary(view);
     const live = spawnedSessionManager.getInspectionSnapshot(owner);
     const latest = latestTurn(view);
     const matchingLive = live && (!latest || live.turnId === latest.turnId) ? live : null;
-    const messages = view.messages
-      .map((message) => projectMessage(message, true, view.meta.updatedAt))
-      .filter((message): message is SpawnedSessionMessage => message !== null);
-    if (
-      matchingLive?.liveAssistantMessage &&
-      latest &&
-      !["completed", "error", "expired", "interrupted"].includes(latest.phase)
-    ) {
-      const projected = projectMessage(
-        matchingLive.liveAssistantMessage,
-        false,
-        matchingLive.lastActivityAt
-      );
-      if (projected) messages.push(projected);
-    }
-    const prompts = messages.filter(
-      (message): message is Extract<SpawnedSessionMessage, { role: "user" }> =>
-        message.role === "user"
+    const turns = projectTurnDetails(view, matchingLive);
+    const summary = await this.buildSummary(
+      view.meta,
+      latest,
+      view.meta.currentPromptPreview ?? turns.at(-1)?.prompt?.text
     );
-    const promptText = (message: Extract<SpawnedSessionMessage, { role: "user" }>): string =>
-      message.parts.map((part) => part.text).join("\n");
-    const turns: SpawnedSessionTurnSummary[] = view.turns.map((turn, index) => ({
-      turnId: turn.turnId,
-      ordinal: index + 1,
-      mode: turn.mode,
-      status: displayStatus(turn.phase),
-      startedAt: turn.startedAt,
-      lastActivityAt:
-        matchingLive?.turnId === turn.turnId ? matchingLive.lastActivityAt : turn.lastActivityAt,
-      updatedAt: turn.updatedAt,
-      ...(turn.responseId ? { responseId: turn.responseId } : {}),
-      ...(turn.error ? { error: turn.error } : {}),
-      recentActivity:
-        matchingLive?.turnId === turn.turnId
-          ? matchingLive.recentActivity
-          : structuredClone(turn.recentActivity),
-    }));
-    return {
-      status: "ready",
-      summary,
-      ...(prompts[0] ? { initialPrompt: { text: promptText(prompts[0]) } } : {}),
-      ...(prompts.at(-1) ? { currentPrompt: { text: promptText(prompts.at(-1)!) } } : {}),
-      turns,
-      messages,
-    };
+    return { status: "ready", summary, turns };
   }
 }
 

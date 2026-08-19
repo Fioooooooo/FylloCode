@@ -1,3 +1,5 @@
+import { semanticIcons } from "@renderer/config/semantic-icons";
+
 export interface ActivityBarItem {
   id: string;
   icon: string;
@@ -38,7 +40,7 @@ export const activityBarItems: readonly ActivityBarItem[] = [
   },
   {
     id: "workflow",
-    icon: "i-lucide-workflow",
+    icon: semanticIcons.workflow,
     label: "工作流",
     path: "/workflow",
     group: "top",

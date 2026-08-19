@@ -20,9 +20,11 @@ import {
   inlineSpawnedResponse,
   loadSpawnedSessionMessages,
   loadSpawnedSessionMeta,
+  loadSpawnedSessionStoredView,
   loadSpawnedTurnRecord,
   listPendingSpawnNotifications,
   listSpawnedSessionsForParent,
+  listSpawnedSessionSummariesForParent,
   listSpawnedTurnRecords,
   patchSpawnedTurnRecord,
   patchSpawnedSessionMessageMetadata,
@@ -255,6 +257,21 @@ describe("spawned-session-store", () => {
     ]);
   });
 
+  it("reads prompt preview fields when present and keeps them optional for legacy meta", async () => {
+    await writeSpawnedSessionMeta(meta());
+    await expect(loadSpawnedSessionMeta(owner)).resolves.not.toHaveProperty("currentPromptPreview");
+
+    await writeSpawnedSessionMeta({
+      ...meta(),
+      initialPromptPreview: "first prompt",
+      currentPromptPreview: "latest prompt",
+    });
+    await expect(loadSpawnedSessionMeta(owner)).resolves.toMatchObject({
+      initialPromptPreview: "first prompt",
+      currentPromptPreview: "latest prompt",
+    });
+  });
+
   it("enumerates only owner-matched Sessions with ordered messages", async () => {
     await writeSpawnedSessionMeta(meta());
     await appendSpawnedSessionMessage(owner, message("user", "first"));
@@ -279,6 +296,38 @@ describe("spawned-session-store", () => {
     expect(sessions[0]?.meta.sessionId).toBe("spawn-1");
     expect(sessions[0]?.messages.map((entry) => entry.role)).toEqual(["user", "assistant"]);
     expect(sessions[0]).not.toHaveProperty("responsePath");
+  });
+
+  it("lists lightweight summaries without reading messages and loads one detail explicitly", async () => {
+    await writeSpawnedSessionMeta({
+      ...meta(),
+      currentPromptPreview: "stored preview",
+    });
+    await createSpawnedTurnRecord(turn({ phase: "completed", responseId: "response-1" }));
+    const messagesPath = spawnedSessionMessagesPath(
+      owner.workspaceId,
+      owner.parentSessionId,
+      owner.sessionId
+    );
+    await mkdir(join(messagesPath, ".."), { recursive: true });
+    await writeFile(messagesPath, "{broken\n", "utf8");
+
+    await expect(
+      listSpawnedSessionSummariesForParent({
+        workspaceId: owner.workspaceId,
+        parentSessionId: owner.parentSessionId,
+      })
+    ).resolves.toEqual([
+      {
+        meta: expect.objectContaining({ currentPromptPreview: "stored preview" }),
+        latestTurn: expect.objectContaining({ turnId: "turn-1", phase: "completed" }),
+      },
+    ]);
+
+    await expect(loadSpawnedSessionStoredView(owner)).resolves.toMatchObject({
+      turns: [expect.objectContaining({ turnId: "turn-1" })],
+      messages: [],
+    });
   });
 
   it("skips a corrupt Session without hiding healthy legacy meta-only siblings", async () => {

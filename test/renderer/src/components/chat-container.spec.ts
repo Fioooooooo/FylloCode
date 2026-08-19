@@ -87,6 +87,7 @@ function mountContainer(props: { sidebarCollapsed?: boolean } = {}): VueWrapper 
         },
         ChatEmptyAgentPicker: { template: '<div data-test="empty-agent-picker"></div>' },
         ChatPromptPanel: { template: '<div data-test="prompt-panel"></div>' },
+        ChatBackgroundActivityBar: { template: '<div data-test="background-activity-bar"></div>' },
         SessionModeBadge: {
           props: ["sessionMode"],
           template: '<span data-test="session-mode-badge">{{ sessionMode }}</span>',
@@ -198,6 +199,7 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="message-list"]').exists()).toBe(false);
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="background-activity-bar"]').exists()).toBe(true);
 
     const session = makeSession([{ name: "review", description: "Review code" }]);
     session.messages = [makeAssistantMessage("message-1")];
@@ -208,6 +210,18 @@ describe("ChatContainer", () => {
     expect(wrapper.find('[data-test="empty-agent-picker"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="message-list"]').text()).toBe("1|ready|chat");
     expect(wrapper.find('[data-test="prompt-panel"]').exists()).toBe(true);
+  });
+
+  it("hosts background activity outside the prompt panel footer", async () => {
+    const session = makeSession();
+    activeSessionRef.value = session;
+    activeSessionIdRef.value = session.id;
+    const wrapper = mountContainer();
+    const activityBar = wrapper.get('[data-test="background-activity-bar"]');
+    const prompt = wrapper.get('[data-test="prompt-panel"]');
+
+    expect(activityBar.element.parentElement).toBe(prompt.element.parentElement);
+    expect(activityBar.element.nextElementSibling).toBe(prompt.element);
   });
 
   it("forwards the active session stream indicator projection to the message list", async () => {

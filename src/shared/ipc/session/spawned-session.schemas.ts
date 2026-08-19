@@ -118,6 +118,13 @@ export const spawnedSessionTurnSummarySchema = z
   })
   .strict();
 
+export const spawnedSessionTurnDetailSchema = spawnedSessionTurnSummarySchema
+  .extend({
+    prompt: spawnedSessionPromptSchema.optional(),
+    messages: z.array(spawnedSessionMessageSchema),
+  })
+  .strict();
+
 export const spawnedSessionSummarySchema = z
   .object({
     sessionId: sessionIdSchema,
@@ -140,10 +147,7 @@ export const spawnedSessionDetailSchema = z
   .object({
     status: z.literal("ready"),
     summary: spawnedSessionSummarySchema,
-    initialPrompt: spawnedSessionPromptSchema.optional(),
-    currentPrompt: spawnedSessionPromptSchema.optional(),
-    turns: z.array(spawnedSessionTurnSummarySchema),
-    messages: z.array(spawnedSessionMessageSchema),
+    turns: z.array(spawnedSessionTurnDetailSchema),
   })
   .strict();
 
@@ -161,6 +165,7 @@ export type SpawnedSessionError = z.infer<typeof spawnedSessionErrorSchema>;
 export type SpawnedSessionRecentActivity = z.infer<typeof spawnedSessionRecentActivitySchema>;
 export type SpawnedSessionMessage = z.infer<typeof spawnedSessionMessageSchema>;
 export type SpawnedSessionTurnSummary = z.infer<typeof spawnedSessionTurnSummarySchema>;
+export type SpawnedSessionTurnDetail = z.infer<typeof spawnedSessionTurnDetailSchema>;
 export type SpawnedSessionSummary = z.infer<typeof spawnedSessionSummarySchema>;
 export type SpawnedSessionDetail = z.infer<typeof spawnedSessionDetailSchema>;
 export type SpawnedSessionDetailResult = z.infer<typeof spawnedSessionDetailResultSchema>;

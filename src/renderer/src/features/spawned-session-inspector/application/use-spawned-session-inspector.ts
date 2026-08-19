@@ -1,4 +1,4 @@
-import { computed, onMounted, ref, watch, type MaybeRefOrGetter } from "vue";
+import { computed, onBeforeUnmount, ref, watch, type MaybeRefOrGetter } from "vue";
 import { toValue } from "vue";
 import { useSpawnedSessionStore } from "@renderer/stores";
 
@@ -22,6 +22,17 @@ export function useSpawnedSessionInspector(target: SpawnedSessionInspectorTarget
   const detail = computed(() =>
     state.value.result?.status === "ready" ? state.value.result : null
   );
+  let releaseDetailInterest: (() => void) | null = null;
+
+  function stopDetailInterest(): void {
+    releaseDetailInterest?.();
+    releaseDetailInterest = null;
+  }
+
+  function startDetailInterest(): void {
+    stopDetailInterest();
+    releaseDetailInterest = store.acquireDetailInterest(input.value);
+  }
 
   function refresh(): Promise<void> {
     return store.loadDetail(input.value);
@@ -36,8 +47,17 @@ export function useSpawnedSessionInspector(target: SpawnedSessionInspectorTarget
     open.value = false;
   }
 
-  onMounted(() => void refresh());
-  watch(input, () => void refresh());
+  watch(open, (isOpen) => {
+    if (isOpen) {
+      startDetailInterest();
+    } else {
+      stopDetailInterest();
+    }
+  });
+  watch(input, () => {
+    if (open.value) startDetailInterest();
+  });
+  onBeforeUnmount(stopDetailInterest);
 
   return { open, state, detail, refresh, openDetail, closeDetail };
 }

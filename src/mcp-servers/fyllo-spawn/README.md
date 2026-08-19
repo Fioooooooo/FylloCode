@@ -52,7 +52,7 @@ Returns installed registry and valid custom ACP Agents without starting a proces
 
 ### `prompt_to_agent`
 
-Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides; `background` defaults to `true`, so a call that omits it returns `accepted` once Main has durably dispatched the turn. New Session results direct the parent Agent to use the injected `spawn.session` Signal contract once; continuation calls do not repeat that signal.
+Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides; `background` defaults to `true`, so a call that omits it returns `accepted` once Main has durably dispatched the turn. Main automatically exposes both new and continued Sessions through the parent Chat activity view. A returned Session identity MAY be referenced once by the optional `spawn.session` contextual deep link, but the Signal is not required for discovery or status updates and continuation calls do not repeat it.
 
 ### `check_session_status`
 

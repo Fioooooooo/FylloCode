@@ -63,23 +63,35 @@ describe("spawned Session inspection schemas", () => {
       spawnedSessionDetailResultSchema.parse({
         status: "ready",
         summary,
-        turns: [],
-        messages: [
+        turns: [
           {
-            id: "assistant-1",
-            role: "assistant",
-            createdAt: "2026-08-08T00:00:01.000Z",
-            durable: false,
-            parts: [
-              { type: "reasoning", text: "Checking" },
+            turnId: "turn-1",
+            ordinal: 1,
+            mode: "background",
+            status: "running",
+            startedAt: "2026-08-08T00:00:00.000Z",
+            lastActivityAt: "2026-08-08T00:00:01.000Z",
+            updatedAt: "2026-08-08T00:00:01.000Z",
+            recentActivity: [],
+            prompt: { text: "Inspect the code" },
+            messages: [
               {
-                type: "dynamic-tool",
-                toolCallId: "tool-1",
-                toolName: "Read",
-                state: "input-available",
-                input: {},
+                id: "assistant-1",
+                role: "assistant",
+                createdAt: "2026-08-08T00:00:01.000Z",
+                durable: false,
+                parts: [
+                  { type: "reasoning", text: "Checking" },
+                  {
+                    type: "dynamic-tool",
+                    toolCallId: "tool-1",
+                    toolName: "Read",
+                    state: "input-available",
+                    input: {},
+                  },
+                  { type: "text", text: "Working" },
+                ],
               },
-              { type: "text", text: "Working" },
             ],
           },
         ],
@@ -94,14 +106,25 @@ describe("spawned Session inspection schemas", () => {
     const ready = {
       status: "ready",
       summary,
-      turns: [],
-      messages: [
+      turns: [
         {
-          id: "user-1",
-          role: "user",
-          createdAt: "2026-08-08T00:00:00.000Z",
-          durable: false,
-          parts: [{ type: "text", text: "Prompt" }],
+          turnId: "turn-1",
+          ordinal: 1,
+          mode: "background",
+          status: "running",
+          startedAt: "2026-08-08T00:00:00.000Z",
+          lastActivityAt: "2026-08-08T00:00:01.000Z",
+          updatedAt: "2026-08-08T00:00:01.000Z",
+          recentActivity: [],
+          messages: [
+            {
+              id: "user-1",
+              role: "user",
+              createdAt: "2026-08-08T00:00:00.000Z",
+              durable: false,
+              parts: [{ type: "text", text: "Prompt" }],
+            },
+          ],
         },
       ],
     };

@@ -78,5 +78,6 @@ sh scripts/prepare-worktree-env.sh
 - **Testing** - [Testing](guidelines/Testing.md)
 - **UiDesign** - [UiDesign](guidelines/UiDesign.md)
 - **CodeComments** - [Code Comments](guidelines/CodeComments.md)
+- **Icon Conventions** - [Icon Conventions](guidelines/IconConventions.md)
 
 Coding Agents must read the relevant guideline documents before changing covered areas.

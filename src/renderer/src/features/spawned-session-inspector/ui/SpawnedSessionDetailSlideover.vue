@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import type { SpawnedSessionDetailResult } from "@shared/ipc/session/spawned-session.schemas";
 import type { AssistantActivityEntry } from "@renderer/utils/chatAssistant";
 import AppEmptyState from "@renderer/components/shared/AppEmptyState.vue";
@@ -20,20 +20,63 @@ const props = defineProps<{
 
 const emit = defineEmits<{ "update:open": [value: boolean] }>();
 const detail = computed(() => (props.result?.status === "ready" ? props.result : null));
-const presentation = computed(() =>
-  detail.value ? spawnedSessionStatusPresentation(detail.value.summary.status) : null
+const selectedTurnId = ref<string>();
+const followsLatestTurn = ref(true);
+const turnIdentity = computed(
+  () => detail.value?.turns.map((turn) => turn.turnId).join("\0") ?? ""
 );
+const latestTurn = computed(() => detail.value?.turns.at(-1));
+const turnOptions = computed(
+  () =>
+    detail.value?.turns.map((turn) => ({
+      label: `第 ${turn.ordinal} 轮 / 共 ${detail.value?.turns.length ?? 0} 轮 · ${spawnedSessionStatusPresentation(turn.status).label}`,
+      value: turn.turnId,
+    })) ?? []
+);
+const selectedTurn = computed(() => {
+  if (!detail.value) return undefined;
+  return (
+    detail.value.turns.find((turn) => turn.turnId === selectedTurnId.value) ?? latestTurn.value
+  );
+});
+const presentation = computed(() => {
+  const status = selectedTurn.value?.status ?? detail.value?.summary.status;
+  return status ? spawnedSessionStatusPresentation(status) : null;
+});
 const content = computed(() =>
-  detail.value
-    ? projectSpawnedSessionContent(detail.value.messages)
+  selectedTurn.value
+    ? projectSpawnedSessionContent(selectedTurn.value.messages)
     : { activities: [], transcript: [] }
 );
 const activities = computed(() => content.value.activities as unknown as AssistantActivityEntry[]);
-const responseIds = computed(() =>
-  detail.value
-    ? [...new Set(detail.value.turns.flatMap((turn) => (turn.responseId ? [turn.responseId] : [])))]
-    : []
+const responseId = computed(() => selectedTurn.value?.responseId);
+const latestTurnHasActivity = computed(() =>
+  Boolean(
+    selectedTurn.value &&
+    latestTurn.value &&
+    selectedTurn.value.turnId !== latestTurn.value.turnId &&
+    (latestTurn.value.status === "starting" || latestTurn.value.status === "running")
+  )
 );
+
+watch(
+  [() => detail.value?.summary.sessionId, turnIdentity],
+  () => {
+    const latestId = latestTurn.value?.turnId;
+    if (
+      followsLatestTurn.value ||
+      !detail.value?.turns.some((turn) => turn.turnId === selectedTurnId.value)
+    ) {
+      selectedTurnId.value = latestId;
+      followsLatestTurn.value = true;
+    }
+  },
+  { immediate: true }
+);
+
+watch(selectedTurnId, (value) => {
+  followsLatestTurn.value = value === latestTurn.value?.turnId;
+});
 
 function formatTime(value?: string): string {
   if (!value) return "未记录";
@@ -69,8 +112,7 @@ function formatTime(value?: string): string {
                     class="mr-1 size-3.5"
                     :class="{
                       'animate-spin':
-                        detail?.summary.status === 'starting' ||
-                        detail?.summary.status === 'running',
+                        selectedTurn?.status === 'starting' || selectedTurn?.status === 'running',
                     }"
                   />
                   {{ presentation.label }}
@@ -114,45 +156,72 @@ function formatTime(value?: string): string {
             title="Session 信息不可用"
             description="该子 Agent Session 不存在、已删除或不属于当前对话。"
           />
+          <AppEmptyState
+            v-else-if="detail && detail.turns.length === 0"
+            compact
+            icon="i-lucide-history"
+            title="暂无 Turn 记录"
+            description="该子 Agent Session 尚未留下可查看的 Turn。"
+          />
 
-          <div v-else-if="detail" class="space-y-6">
-            <section aria-labelledby="spawned-session-summary-title" class="space-y-3">
-              <h3 id="spawned-session-summary-title" class="text-sm font-semibold text-highlighted">
-                运行信息
-              </h3>
+          <div v-else-if="detail && selectedTurn" class="space-y-6">
+            <section aria-labelledby="spawned-session-turn-title" class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h3 id="spawned-session-turn-title" class="text-sm font-semibold text-highlighted">
+                  当前 Turn
+                </h3>
+                <div class="flex items-center gap-2 text-xs text-muted">
+                  <span>查看</span>
+                  <USelect
+                    v-model="selectedTurnId"
+                    :items="turnOptions"
+                    value-key="value"
+                    label-key="label"
+                    size="sm"
+                    class="min-w-40"
+                    :ui="{ content: 'z-[60]' }"
+                    aria-label="选择子 Agent Turn"
+                  />
+                </div>
+              </div>
+              <p v-if="latestTurnHasActivity" class="text-xs text-primary" role="status">
+                最新一轮正在活动，当前仍保持第 {{ selectedTurn.ordinal }} 轮。
+              </p>
               <dl class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                 <div class="rounded-lg bg-elevated p-3">
+                  <dt class="text-xs text-muted">状态</dt>
+                  <dd class="mt-1 text-default">
+                    {{ presentation?.label ?? "未记录" }}
+                  </dd>
+                </div>
+                <div class="rounded-lg bg-elevated p-3">
                   <dt class="text-xs text-muted">开始时间</dt>
-                  <dd class="mt-1 text-default">{{ formatTime(detail.summary.startedAt) }}</dd>
+                  <dd class="mt-1 text-default">{{ formatTime(selectedTurn.startedAt) }}</dd>
                 </div>
                 <div class="rounded-lg bg-elevated p-3">
                   <dt class="text-xs text-muted">最近活动</dt>
-                  <dd class="mt-1 text-default">{{ formatTime(detail.summary.lastActivityAt) }}</dd>
-                </div>
-                <div class="rounded-lg bg-elevated p-3">
-                  <dt class="text-xs text-muted">更新时间</dt>
-                  <dd class="mt-1 text-default">{{ formatTime(detail.summary.updatedAt) }}</dd>
+                  <dd class="mt-1 text-default">{{ formatTime(selectedTurn.lastActivityAt) }}</dd>
                 </div>
               </dl>
               <div
-                v-if="detail.summary.error"
+                v-if="selectedTurn.error"
                 class="rounded-lg border border-error/30 bg-error/5 p-3 text-sm text-error"
                 role="alert"
               >
-                <p class="font-mono text-xs">{{ detail.summary.error.code }}</p>
-                <p class="mt-1">{{ detail.summary.error.message }}</p>
+                <p class="font-mono text-xs">{{ selectedTurn.error.code }}</p>
+                <p class="mt-1">{{ selectedTurn.error.message }}</p>
               </div>
             </section>
 
             <section aria-labelledby="spawned-session-prompt-title" class="space-y-3">
               <h3 id="spawned-session-prompt-title" class="text-sm font-semibold text-highlighted">
-                原始委派 Prompt
+                本轮 Prompt
               </h3>
               <pre
-                v-if="detail.initialPrompt"
+                v-if="selectedTurn.prompt"
                 class="whitespace-pre-wrap wrap-anywhere rounded-lg bg-elevated p-3 text-sm leading-6 text-default"
-                >{{ detail.initialPrompt.text }}</pre>
-              <p v-else class="rounded-lg bg-elevated p-3 text-sm text-muted">未记录原始 Prompt</p>
+                >{{ selectedTurn.prompt.text }}</pre>
+              <p v-else class="rounded-lg bg-elevated p-3 text-sm text-muted">未记录本轮 Prompt</p>
             </section>
 
             <section aria-labelledby="spawned-session-activity-title" class="space-y-3">
@@ -187,7 +256,7 @@ function formatTime(value?: string): string {
               </div>
               <p v-else class="rounded-lg bg-elevated p-3 text-sm text-muted">
                 {{
-                  detail.summary.status === "starting" || detail.summary.status === "running"
+                  selectedTurn.status === "starting" || selectedTurn.status === "running"
                     ? "正在等待子 Agent 输出…"
                     : "未记录文本输出"
                 }}
@@ -195,7 +264,7 @@ function formatTime(value?: string): string {
             </section>
 
             <section
-              v-if="responseIds.length > 0"
+              v-if="responseId"
               aria-labelledby="spawned-session-response-title"
               class="space-y-2"
             >
@@ -205,12 +274,9 @@ function formatTime(value?: string): string {
               >
                 Response 引用
               </h3>
-              <code
-                v-for="responseId in responseIds"
-                :key="responseId"
-                class="block wrap-anywhere rounded bg-elevated px-2 py-1 text-xs text-muted"
-                >{{ responseId }}</code
-              >
+              <code class="block wrap-anywhere rounded bg-elevated px-2 py-1 text-xs text-muted">{{
+                responseId
+              }}</code>
             </section>
           </div>
         </div>

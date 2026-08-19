@@ -902,7 +902,7 @@ describe("UIMessageList", () => {
     expect(card.element.tagName).toBe("BUTTON");
     expect(card.attributes("aria-expanded")).toBe("false");
     expect(card.get('[data-test="subagent-call-icon"]').attributes("data-icon-name")).toBe(
-      "i-lucide-waypoints"
+      "i-lucide-bot"
     );
     const agentName = card.get('[data-test="subagent-call-name"]');
     expect(agentName.text()).toBe("定位 ACP 事件映射相关代码");

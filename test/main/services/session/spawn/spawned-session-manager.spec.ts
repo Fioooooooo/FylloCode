@@ -329,6 +329,41 @@ describe("SpawnedSessionManager", () => {
       "user",
       "assistant",
     ]);
+    expect(mocks.metas.get(key({ ...caller, sessionId: "spawn-1" }))).toMatchObject({
+      currentPromptPreview: "continue",
+    });
+    expect(mocks.metas.get(key({ ...caller, sessionId: "spawn-1" }))).not.toHaveProperty(
+      "initialPromptPreview"
+    );
+    await manager.dispose();
+  });
+
+  it("为新建和续聊 Session 写入有界 prompt 摘要", async () => {
+    const manager = new SpawnedSessionManager();
+    const firstPrompt = "a".repeat(300);
+
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: firstPrompt,
+    });
+    expect(result).toMatchObject({ status: "completed" });
+    const sessionId = (result as { sessionId: string }).sessionId;
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      initialPromptPreview: firstPrompt.slice(0, 240),
+      currentPromptPreview: firstPrompt.slice(0, 240),
+    });
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "second prompt",
+        sessionId,
+      })
+    ).resolves.toMatchObject({ status: "completed" });
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      initialPromptPreview: firstPrompt.slice(0, 240),
+      currentPromptPreview: "second prompt",
+    });
     await manager.dispose();
   });
 

@@ -54,9 +54,10 @@ describe("fyllo-spawn trusted caller", () => {
     expect(description).toContain("check_session_status");
     expect(description).toContain("responseId + read_response");
     expect(description).toContain("no absolute runtime limit");
-    expect(description).toContain("injected spawn.session Signal contract");
-    expect(description).toContain("synchronous or background creation");
+    expect(description).toContain("optional spawn.session Signal");
+    expect(description).toContain("not required for discovery");
     expect(description).toContain("do not repeat it for continuation calls");
+    expect(description).toContain("Main-owned activity view remains the source of truth");
     expect(description).not.toContain("responsePath");
     expect(description).not.toContain("app-data");
     expect(description).not.toContain('{"sessionId"');
