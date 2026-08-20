@@ -122,6 +122,22 @@ describe("chatAssistant", () => {
     );
   });
 
+  it("summarizes new ACP kinds and combines tool think with reasoning", () => {
+    const activityEntries = entries([
+      tool("delete-1", "delete"),
+      tool("delete-2", "delete"),
+      tool("move", "move"),
+      tool("fetch", "fetch"),
+      tool("switch-mode", "switch_mode"),
+      tool("think-tool", "think"),
+      reasoning("reasoning"),
+    ]);
+
+    expect(summarizeActivityGroup(activityEntries)).toBe(
+      "Delete 2 files, Move 1 file, Fetch 1 resource, Switch 1 mode, Think 2 times"
+    );
+  });
+
   it("keeps the last tool icon when trailing reasoning is streaming", () => {
     const activityEntries = entries([tool("read", "read"), reasoning("thinking", "streaming")]);
 
@@ -142,6 +158,15 @@ describe("chatAssistant", () => {
       "i-lucide-file-plus"
     );
     expect(getActivityGroupIcon(activityEntries, () => false)).toBe("i-lucide-search");
+  });
+
+  it("uses a new tool kind icon as the activity representative", () => {
+    const activityEntries = entries([tool("fetch", "fetch"), tool("switch-mode", "switch_mode")]);
+
+    expect(getActivityGroupIcon(activityEntries, () => false)).toBe("i-lucide-repeat-2");
+    expect(getActivityGroupIcon(activityEntries, (entry) => entry.partIndex === 0)).toBe(
+      "i-lucide-cloud-download"
+    );
   });
 
   it("uses the brain only for pure reasoning groups and a wrench for empty groups", () => {

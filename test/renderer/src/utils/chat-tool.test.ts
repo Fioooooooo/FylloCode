@@ -49,6 +49,14 @@ function staticTool(input: unknown, output?: unknown): ChatToolPart {
 }
 
 describe("chatTool", () => {
+  it("recognizes ACP 1.3.0 kinds and preserves the legacy write kind", () => {
+    expect(
+      ["delete", "move", "think", "fetch", "switch_mode"].map((kind) => getToolKind(tool(kind)))
+    ).toEqual(["delete", "move", "think", "fetch", "switch_mode"]);
+    expect(getToolKind(tool("write"))).toBe("write");
+    expect(getToolKind(tool())).toBe("other");
+  });
+
   it("falls back to other for unknown or empty tool kinds", () => {
     expect(getToolKind(tool("unknown"))).toBe("other");
     expect(getToolKind(tool(""))).toBe("other");
@@ -58,8 +66,13 @@ describe("chatTool", () => {
     expect(getToolIcon(tool("read"))).toBe("i-lucide-file-text");
     expect(getToolIcon(tool("write"))).toBe("i-lucide-file-plus");
     expect(getToolIcon(tool("edit"))).toBe("i-lucide-pencil");
+    expect(getToolIcon(tool("delete"))).toBe("i-lucide-trash-2");
+    expect(getToolIcon(tool("move"))).toBe("i-lucide-move");
     expect(getToolIcon(tool("search"))).toBe("i-lucide-search");
     expect(getToolIcon(tool("execute"))).toBe("i-lucide-square-terminal");
+    expect(getToolIcon(tool("think"))).toBe("i-lucide-brain");
+    expect(getToolIcon(tool("fetch"))).toBe("i-lucide-cloud-download");
+    expect(getToolIcon(tool("switch_mode"))).toBe("i-lucide-repeat-2");
     expect(getToolIcon(tool("unknown"))).toBe("i-lucide-wrench");
   });
 

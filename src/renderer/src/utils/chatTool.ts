@@ -3,14 +3,37 @@ import type { ToolCallDiff, ToolCallLocation, ToolCallStatus } from "@shared/typ
 
 export type ChatToolPart = DynamicToolUIPart | ToolUIPart<UITools>;
 type ToolInput = Record<string, unknown>;
-export type ToolKind = "read" | "write" | "edit" | "search" | "execute" | "other";
+export type ToolKind =
+  | "read"
+  | "write"
+  | "edit"
+  | "delete"
+  | "move"
+  | "search"
+  | "execute"
+  | "think"
+  | "fetch"
+  | "switch_mode"
+  | "other";
 export interface ToolStatusPresentation {
   text: string;
   visible: boolean;
   leadingIconClass?: string;
 }
 
-const TOOL_KINDS = new Set<ToolKind>(["read", "write", "edit", "search", "execute", "other"]);
+const TOOL_KINDS = new Set<ToolKind>([
+  "read",
+  "write",
+  "edit",
+  "delete",
+  "move",
+  "search",
+  "execute",
+  "think",
+  "fetch",
+  "switch_mode",
+  "other",
+]);
 const TOOL_STATUSES = new Set<ToolCallStatus>(["pending", "in_progress", "completed", "failed"]);
 
 const TOOL_STATUS_TEXT: Record<ToolCallStatus, string> = {
@@ -24,8 +47,13 @@ const TOOL_KIND_ICONS: Record<ToolKind, string> = {
   read: "i-lucide-file-text",
   write: "i-lucide-file-plus",
   edit: "i-lucide-pencil",
+  delete: "i-lucide-trash-2",
+  move: "i-lucide-move",
   search: "i-lucide-search",
   execute: "i-lucide-square-terminal",
+  think: "i-lucide-brain",
+  fetch: "i-lucide-cloud-download",
+  switch_mode: "i-lucide-repeat-2",
   other: "i-lucide-wrench",
 };
 

@@ -35,6 +35,25 @@ describe("ACP tool-call baseline mapping", () => {
     });
   });
 
+  it.each(["delete", "move", "think", "fetch", "switch_mode"] as const)(
+    "preserves the ACP public kind %s without Agent-specific mapping",
+    (toolKind) => {
+      const update = {
+        sessionUpdate: "tool_call",
+        toolCallId: `call_${toolKind}`,
+        title: `${toolKind} tool`,
+        kind: toolKind,
+        status: "pending",
+      } as unknown as Extract<SessionUpdate, { sessionUpdate: "tool_call" }>;
+
+      expect(mapToolCallStart(update)).toMatchObject({
+        toolCallId: `call_${toolKind}`,
+        toolKind,
+        status: "pending",
+      });
+    }
+  );
+
   it("uses structured MCP identity when ACP rawInput provides it", () => {
     const update = {
       sessionUpdate: "tool_call",

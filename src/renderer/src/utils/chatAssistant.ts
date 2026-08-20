@@ -23,15 +23,19 @@ export type AssistantRenderItem =
   | { kind: "activity-group"; key: string; activities: AssistantActivityEntry[] }
   | { kind: "subagent-call"; key: string; call: SubagentCallProjection };
 
-type ActivityKind = "think" | ToolKind;
+type ActivityKind = ToolKind;
 
 const ACTIVITY_KIND_LABELS: Record<ActivityKind, { verb: string; noun: string }> = {
   think: { verb: "Think", noun: "time" },
   read: { verb: "Read", noun: "file" },
   write: { verb: "Write", noun: "file" },
   edit: { verb: "Edit", noun: "file" },
+  delete: { verb: "Delete", noun: "file" },
+  move: { verb: "Move", noun: "file" },
   search: { verb: "Search", noun: "page" },
   execute: { verb: "Run", noun: "command" },
+  fetch: { verb: "Fetch", noun: "resource" },
+  switch_mode: { verb: "Switch", noun: "mode" },
   other: { verb: "Run", noun: "tool" },
 };
 
