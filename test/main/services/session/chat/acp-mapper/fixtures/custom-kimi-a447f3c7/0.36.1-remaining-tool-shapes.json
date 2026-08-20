@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "agentId": "custom-kimi-a447f3c7",
+    "agentName": "Kimi Code CLI",
+    "agentVersion": "0.36.1",
+    "agentVersionSource": "ACP initialize agentInfo.version",
+    "underlyingAgentVersion": null,
+    "acpSdkVersion": "1.3.0",
+    "capturedAt": "2026-08-20T02:06:21.163Z",
+    "captureStatus": "completed_with_errors",
+    "diagnostics": [
+      "prompt:1 timed out after 180000ms",
+      "prompt:2 timed out after 180000ms",
+      "prompt:3 timed out after 180000ms"
+    ]
+  },
+  "scenario": "Kimi exposes Agent, AgentSwarm, WebSearch, FetchURL and Skill tool-call lifecycles",
+  "redactions": [
+    "Replaced the isolated temporary workspace path with /workspace",
+    "Shortened prompts and tool output while preserving field presence, types, titles and terminal statuses",
+    "Removed session identifiers, timestamps and unrelated assistant text"
+  ],
+  "updates": [
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-agent-1",
+      "title": "Agent",
+      "kind": "other",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-1",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-1",
+      "title": "Launching explore agent: 只读检查工作区顶层条目",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "prompt": "请只读检查 /workspace 顶层条目并返回摘要。",
+        "description": "只读检查工作区顶层条目",
+        "subagent_type": "explore"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"prompt\":\"请只读检查 /workspace 顶层条目并返回摘要。\",\"description\":\"只读检查工作区顶层条目\",\"subagent_type\":\"explore\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-1",
+      "status": "failed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "agent_id: agent-0\nactual_subagent_type: explore\nstatus: failed\n\nsubagent error: stopped before completion by user."
+          }
+        }
+      ],
+      "rawOutput": "agent_id: agent-0\nactual_subagent_type: explore\nstatus: failed\n\nsubagent error: stopped before completion by user."
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-agent-2",
+      "title": "Agent",
+      "kind": "other",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-2",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-2",
+      "title": "Launching explore agent: 采样读取失败终态",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "description": "采样读取失败终态",
+        "prompt": "请只读尝试读取 /workspace/missing.txt，失败后停止。",
+        "subagent_type": "explore"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"description\":\"采样读取失败终态\",\"prompt\":\"请只读尝试读取 /workspace/missing.txt，失败后停止。\",\"subagent_type\":\"explore\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-2",
+      "status": "failed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "agent_id: agent-1\nactual_subagent_type: explore\nstatus: failed\n\nsubagent error: stopped before completion by user."
+          }
+        }
+      ],
+      "rawOutput": "agent_id: agent-1\nactual_subagent_type: explore\nstatus: failed\n\nsubagent error: stopped before completion by user."
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-agent-swarm-1",
+      "title": "AgentSwarm",
+      "kind": "other",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-swarm-1",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-swarm-1",
+      "title": "Launching agent swarm: 最小只读工作区采样",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "description": "最小只读工作区采样",
+        "prompt_template": "只读任务：{{item}}。工作区路径为 /workspace。完成后仅返回一行摘要。",
+        "items": ["列出当前隔离工作区的顶层条目", "再次只读确认当前隔离工作区的顶层条目"],
+        "subagent_type": "explore"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"description\":\"最小只读工作区采样\",\"prompt_template\":\"只读任务：{{item}}。工作区路径为 /workspace。完成后仅返回一行摘要。\",\"items\":[\"列出当前隔离工作区的顶层条目\",\"再次只读确认当前隔离工作区的顶层条目\"],\"subagent_type\":\"explore\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-agent-swarm-1",
+      "status": "completed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "<agent_swarm_result>\n<summary>aborted: 2</summary>\n<subagent agent_id=\"agent-2\" state=\"started\" outcome=\"aborted\">interrupted before completion</subagent>\n<subagent agent_id=\"agent-3\" state=\"started\" outcome=\"aborted\">interrupted before completion</subagent>\n</agent_swarm_result>"
+          }
+        }
+      ],
+      "rawOutput": "<agent_swarm_result>\n<summary>aborted: 2</summary>\n<subagent agent_id=\"agent-2\" state=\"started\" outcome=\"aborted\">interrupted before completion</subagent>\n<subagent agent_id=\"agent-3\" state=\"started\" outcome=\"aborted\">interrupted before completion</subagent>\n</agent_swarm_result>"
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-web-search-1",
+      "title": "WebSearch",
+      "kind": "fetch",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-web-search-1",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-web-search-1",
+      "title": "Searching: Kimi Code ACP official documentation",
+      "kind": "fetch",
+      "status": "in_progress",
+      "rawInput": {
+        "query": "Kimi Code ACP official documentation"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"query\":\"Kimi Code ACP official documentation\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-web-search-1",
+      "status": "completed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "Title: Kimi Code ACP reference\nURL: https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html\nSnippet: ACP command reference."
+          }
+        }
+      ],
+      "rawOutput": "Title: Kimi Code ACP reference\nURL: https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html\nSnippet: ACP command reference."
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-fetch-url-1",
+      "title": "FetchURL",
+      "kind": "other",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-fetch-url-1",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-fetch-url-1",
+      "title": "Fetching: https://raw.githubusercontent.com/MoonshotAI/kimi-…",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "url": "https://raw.githubusercontent.com/MoonshotAI/kimi-cli/main/docs/en/reference/kimi-acp.md"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"url\":\"https://raw.githubusercontent.com/MoonshotAI/kimi-cli/main/docs/en/reference/kimi-acp.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-fetch-url-1",
+      "status": "completed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "The returned content is the main text extracted from the page.\n\n# kimi acp Subcommand\n\nThe command starts an ACP server."
+          }
+        }
+      ],
+      "rawOutput": "The returned content is the main text extracted from the page.\n\n# kimi acp Subcommand\n\nThe command starts an ACP server."
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-skill-1",
+      "title": "Skill",
+      "kind": "other",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-skill-1",
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-skill-1",
+      "title": "Invoke skill adapt-acp-events",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "skill": "adapt-acp-events"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"skill\":\"adapt-acp-events\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-skill-1",
+      "status": "failed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "Skill \"adapt-acp-events\" not found in the current skill listing."
+          }
+        }
+      ],
+      "rawOutput": "Skill \"adapt-acp-events\" not found in the current skill listing."
+    }
+  ]
+}

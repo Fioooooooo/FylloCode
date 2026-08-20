@@ -53,6 +53,61 @@ describe("reduceToolCallPart", () => {
     });
   });
 
+  it("does not replace an established title with non-terminal content fragments", () => {
+    const initial = start({
+      toolName: "Bash",
+      title: "Bash",
+      toolKind: "execute",
+      status: "pending",
+    });
+    const firstFragment = reduceToolCallPart({
+      previous: initial.part,
+      event: {
+        kind: "tool_call_update",
+        toolCallId: "tool-1",
+        status: "in_progress",
+        content: "{",
+      },
+    });
+    const secondFragment = reduceToolCallPart({
+      previous: firstFragment.part,
+      event: {
+        kind: "tool_call_update",
+        toolCallId: "tool-1",
+        status: "in_progress",
+        content: '{"command": "ls -la"}',
+      },
+    });
+    const refined = reduceToolCallPart({
+      previous: secondFragment.part,
+      event: {
+        kind: "tool_call_update",
+        toolCallId: "tool-1",
+        status: "in_progress",
+        title: "Running: ls -la",
+        input: { command: "ls -la" },
+      },
+    });
+
+    expect(firstFragment.part.title).toBe("Bash");
+    expect(secondFragment.part.title).toBe("Bash");
+    expect(refined.part.title).toBe("Running: ls -la");
+  });
+
+  it("keeps the existing content fallback for an orphan update without a title", () => {
+    const result = reduceToolCallPart({
+      previous: null,
+      event: {
+        kind: "tool_call_update",
+        toolCallId: "orphan",
+        status: "in_progress",
+        content: "Running",
+      },
+    });
+
+    expect(result.part.title).toBe("Running");
+  });
+
   it("falls back orphan updates without status to in-progress", () => {
     const result = reduceToolCallPart({
       previous: null,

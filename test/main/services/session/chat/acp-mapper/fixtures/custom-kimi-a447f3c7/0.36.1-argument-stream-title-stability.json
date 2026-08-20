@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "agentId": "custom-kimi-a447f3c7",
+    "agentName": "Kimi Code CLI",
+    "agentVersion": "0.36.1",
+    "agentVersionSource": "ACP initialize agentInfo.version",
+    "underlyingAgentVersion": null,
+    "acpSdkVersion": "1.3.0",
+    "capturedAt": "2026-08-20T01:45:48.911Z"
+  },
+  "scenario": "Kimi streams JSON tool arguments before publishing the structured Bash title",
+  "redactions": [
+    "Replaced the isolated temporary workspace path with /workspace",
+    "Removed prompts, session identifiers, timestamps from individual updates, and unrelated output"
+  ],
+  "updates": [
+    {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "kimi-bash-1",
+      "title": "Bash",
+      "kind": "execute",
+      "status": "pending",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": ""
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "title": null,
+      "kind": null,
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "title": null,
+      "kind": null,
+      "status": "in_progress",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"command\": \"ls -la\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "title": "Running: ls -la",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+        "command": "ls -la"
+      },
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "{\"command\":\"ls -la\"}"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "status": "completed",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "total 0\n"
+          }
+        }
+      ],
+      "rawOutput": "total 0\n"
+    }
+  ],
+  "expectedEvents": [
+    {
+      "kind": "tool_call_start",
+      "toolCallId": "kimi-bash-1",
+      "toolName": "Bash",
+      "title": "Bash",
+      "toolKind": "execute",
+      "status": "pending"
+    },
+    {
+      "kind": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "status": "in_progress",
+      "content": "{"
+    },
+    {
+      "kind": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "status": "in_progress",
+      "content": "{\"command\": \"ls -la\"}"
+    },
+    {
+      "kind": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "status": "in_progress",
+      "title": "Running: ls -la",
+      "toolKind": "execute",
+      "input": {
+        "command": "ls -la"
+      },
+      "content": "{\"command\":\"ls -la\"}"
+    },
+    {
+      "kind": "tool_call_update",
+      "toolCallId": "kimi-bash-1",
+      "status": "completed",
+      "content": "total 0\n"
+    }
+  ]
+}

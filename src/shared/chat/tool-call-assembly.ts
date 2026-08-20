@@ -127,15 +127,19 @@ function nextTitle(
 ): string | undefined {
   const description =
     typeof event.input?.description === "string" ? event.input.description : undefined;
-  return (
-    event.title ??
-    description ??
-    (event.kind === "tool_call_update" &&
+  const contentTitle =
+    (typeof previous?.title !== "string" || previous.title.length === 0) &&
+    event.kind === "tool_call_update" &&
     status !== "completed" &&
     status !== "failed" &&
     !event.outputDelta
       ? event.content
-      : undefined) ??
+      : undefined;
+  return (
+    event.title ??
+    description ??
+    // 非终态 content 可能只是流式参数片段；已有标题时不得让它覆盖工具标题。
+    contentTitle ??
     previous?.title
   );
 }
