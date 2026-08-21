@@ -1,6 +1,6 @@
 ---
 title: "fyllo-spawn: I Don't Want to Be the Go-Between for Every Agent"
-description: fyllo-spawn began with a mundane problem: let the Agent already working on a task delegate work across Agents and bring the results back.
+description: "fyllo-spawn began with a mundane problem: let the Agent already working on a task delegate work across Agents and bring the results back."
 sidebar:
   order: 11
 ---

@@ -1,6 +1,6 @@
 ---
-title: fyllo-spawn：我不想再坐在几个 Agent 中间传话
-description: fyllo-spawn 的起点不是多 Agent 编队，而是把跨 Agent 的委派和结果回收交给正在处理任务的主 Agent。
+title: "fyllo-spawn：我不想再坐在几个 Agent 中间传话"
+description: "fyllo-spawn 的起点不是多 Agent 编队，而是把跨 Agent 的委派和结果回收交给正在处理任务的主 Agent。"
 sidebar:
   order: 11
 ---
