@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { useToast } from "@nuxt/ui/composables";
 import ChatPromptPanel from "@renderer/components/chat/prompt/ChatPromptPanel.vue";
 import type { AcpAvailableCommand, Session } from "@shared/types/chat";
 import type { ChatSessionMode } from "@shared/types/chat";
@@ -98,6 +99,8 @@ const promptCapabilitiesRef = ref({
 });
 const createObjectUrl = vi.fn((file: File) => `blob:${file.name}`);
 const revokeObjectUrl = vi.fn();
+const toast = useToast();
+const toastAdd = vi.mocked(toast.add);
 
 vi.mock("@renderer/stores/session/chat", () => ({
   useChatStore: () => ({
@@ -196,6 +199,11 @@ function mountPanel(): VueWrapper {
           template: `
             <div data-test="attachments">
               <span data-test="attachment-count">{{ attachments.length }}</span>
+              <span
+                v-for="attachment in attachments"
+                :key="attachment.id"
+                data-test="attachment-name"
+              >{{ attachment.name }}</span>
               <button
                 v-if="attachments.length > 0"
                 data-test="attachment-remove"
@@ -214,20 +222,20 @@ function mountPanel(): VueWrapper {
               <button
                 data-test="prompt-action-upload-image"
                 type="button"
-                @click="$emit('select-files', [{ name: 'diagram.png', type: 'image/png', size: 24576 }])"
+                @click="$emit('select-files', { files: [{ name: 'diagram.png', type: 'image/png', size: 24576 }] })"
               />
               <button
                 data-test="prompt-action-upload-file"
                 type="button"
-                @click="$emit('select-files', [{ name: 'notes.md', type: 'text/markdown', size: 2048 }])"
+                @click="$emit('select-files', { files: [{ name: 'notes.md', type: 'text/markdown', size: 2048 }] })"
               />
               <button
                 data-test="prompt-action-upload-multiple"
                 type="button"
-                @click="$emit('select-files', [
+                @click="$emit('select-files', { files: [
                   { name: 'diagram.png', type: 'image/png', size: 24576 },
                   { name: 'notes.md', type: 'text/markdown', size: 2048 }
-                ])"
+                ] })"
               />
             </div>
           `,
@@ -236,6 +244,76 @@ function mountPanel(): VueWrapper {
       },
     },
   });
+}
+
+type ClipboardDataItemStub = {
+  kind: string;
+  getAsFile: () => File | null;
+};
+
+type DataTransferItemStub = ClipboardDataItemStub & {
+  webkitGetAsEntry?: () => { isDirectory?: boolean } | null;
+};
+
+function makeFile(name: string, type: string, size = 1024): File {
+  return { name, type, size } as File;
+}
+
+function makeClipboardEvent(items: ClipboardDataItemStub[], text = ""): Event {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    configurable: true,
+    value: {
+      items,
+      getData: (format: string) => (format === "text/plain" ? text : ""),
+    },
+  });
+  return event;
+}
+
+function dispatchPaste(
+  wrapper: VueWrapper,
+  items: ClipboardDataItemStub[],
+  text = ""
+): { event: Event; preventDefault: ReturnType<typeof vi.fn> } {
+  const textarea = wrapper.get("textarea").element as HTMLTextAreaElement;
+  const event = makeClipboardEvent(items, text);
+  const originalPreventDefault = event.preventDefault.bind(event);
+  const preventDefault = vi.fn(() => originalPreventDefault());
+  event.preventDefault = preventDefault;
+  textarea.dispatchEvent(event);
+
+  if (!event.defaultPrevented && text.length > 0) {
+    textarea.value += text;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  return { event, preventDefault };
+}
+
+function makeDataTransfer(items: DataTransferItemStub[]): DataTransfer {
+  const hasFiles = items.some((item) => item.kind === "file");
+  return {
+    types: hasFiles ? ["Files"] : ["text/plain"],
+    items,
+  } as unknown as DataTransfer;
+}
+
+function dispatchSurfaceEvent(
+  wrapper: VueWrapper,
+  eventName: string,
+  dataTransfer: DataTransfer
+): { event: Event; preventDefault: ReturnType<typeof vi.fn> } {
+  const event = new Event(eventName, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    configurable: true,
+    value: dataTransfer,
+  });
+  const originalPreventDefault = event.preventDefault.bind(event);
+  const preventDefault = vi.fn(() => originalPreventDefault());
+  event.preventDefault = preventDefault;
+  wrapper.get("textarea").element.dispatchEvent(event);
+  return { event, preventDefault };
 }
 
 describe("ChatPromptPanel", () => {
@@ -261,6 +339,7 @@ describe("ChatPromptPanel", () => {
       embeddedContext: true,
     };
     saveAttachment.mockReset();
+    toastAdd.mockClear();
     saveAttachment.mockResolvedValue({
       ok: true,
       data: {
@@ -503,6 +582,126 @@ describe("ChatPromptPanel", () => {
     expect(wrapper.find('[data-test="agent-select"]').exists()).toBe(false);
   });
 
+  it("accepts a pure image paste without preventing the paste default", async () => {
+    const wrapper = mountPanel();
+    const image = makeFile("pasted.png", "image/png", 4096);
+
+    const { event, preventDefault } = dispatchPaste(wrapper, [
+      { kind: "file", getAsFile: () => image },
+    ]);
+    await wrapper.vm.$nextTick();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("1");
+    expect(wrapper.get('[data-test="attachment-name"]').text()).toBe("pasted.png");
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("keeps text when a supported image is pasted with text", async () => {
+    const wrapper = mountPanel();
+    const image = makeFile("mixed.png", "image/png");
+
+    const { event, preventDefault } = dispatchPaste(
+      wrapper,
+      [
+        { kind: "string", getAsFile: () => null },
+        { kind: "file", getAsFile: () => image },
+      ],
+      "review this"
+    );
+    if (!event.defaultPrevented) {
+      await wrapper.get("textarea").setValue("review this");
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("review this");
+    expect(wrapper.get('[data-test="attachment-name"]').text()).toBe("mixed.png");
+  });
+
+  it("rejects an unsupported pasted image once while keeping mixed text", async () => {
+    promptCapabilitiesRef.value = {
+      image: false,
+      audio: false,
+      embeddedContext: true,
+    };
+    const wrapper = mountPanel();
+    const image = makeFile("unsupported-paste.png", "image/png");
+
+    const { event, preventDefault } = dispatchPaste(
+      wrapper,
+      [
+        { kind: "string", getAsFile: () => null },
+        { kind: "file", getAsFile: () => image },
+      ],
+      "keep this text"
+    );
+    if (!event.defaultPrevented) {
+      await wrapper.get("textarea").setValue("keep this text");
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("keep this text");
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(saveAttachment).not.toHaveBeenCalled();
+    expect(toastAdd).toHaveBeenCalledTimes(1);
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ description: expect.stringContaining("图片 1 个") })
+    );
+  });
+
+  it("keeps native behavior for text-only paste and text dragging", async () => {
+    const wrapper = mountPanel();
+    const paste = dispatchPaste(wrapper, [{ kind: "string", getAsFile: () => null }], "plain text");
+    if (!paste.event.defaultPrevented) {
+      await wrapper.get("textarea").setValue("plain text");
+    }
+    await wrapper.vm.$nextTick();
+
+    expect(paste.preventDefault).not.toHaveBeenCalled();
+    expect(paste.event.defaultPrevented).toBe(false);
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("plain text");
+
+    const textTransfer = makeDataTransfer([{ kind: "string", getAsFile: () => null }]);
+    const dragEnter = dispatchSurfaceEvent(wrapper, "dragenter", textTransfer);
+    const dragOver = dispatchSurfaceEvent(wrapper, "dragover", textTransfer);
+    const drop = dispatchSurfaceEvent(wrapper, "drop", textTransfer);
+
+    expect(dragEnter.preventDefault).not.toHaveBeenCalled();
+    expect(dragOver.preventDefault).not.toHaveBeenCalled();
+    expect(drop.preventDefault).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(toastAdd).not.toHaveBeenCalled();
+  });
+
+  it("accepts mixed image and file drops in DataTransferItem order", async () => {
+    const wrapper = mountPanel();
+    const image = makeFile("drop-image.png", "image/png");
+    const file = makeFile("drop-notes.md", "text/markdown");
+    const transfer = makeDataTransfer([
+      { kind: "string", getAsFile: () => null },
+      { kind: "file", getAsFile: () => image },
+      { kind: "file", getAsFile: () => file },
+    ]);
+
+    const dragEnter = dispatchSurfaceEvent(wrapper, "dragenter", transfer);
+    const dragOver = dispatchSurfaceEvent(wrapper, "dragover", transfer);
+    const drop = dispatchSurfaceEvent(wrapper, "drop", transfer);
+    await wrapper.vm.$nextTick();
+
+    expect(dragEnter.preventDefault).toHaveBeenCalledTimes(1);
+    expect(dragOver.preventDefault).toHaveBeenCalledTimes(1);
+    expect(drop.preventDefault).toHaveBeenCalledTimes(1);
+    expect(wrapper.findAll('[data-test="attachment-name"]').map((item) => item.text())).toEqual([
+      "drop-image.png",
+      "drop-notes.md",
+    ]);
+  });
+
   it("adds image and file attachments from separate prompt action entries", async () => {
     const wrapper = mountPanel();
 
@@ -585,7 +784,7 @@ describe("ChatPromptPanel", () => {
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
   });
 
-  it("filters unsupported image attachments and sends the supported prompt parts", async () => {
+  it("rejects unsupported image attachments before preview or save", async () => {
     promptCapabilitiesRef.value = {
       image: false,
       audio: false,
@@ -595,9 +794,13 @@ describe("ChatPromptPanel", () => {
     const wrapper = mountPanel();
 
     await wrapper.get('[data-test="prompt-action-upload-image"]').trigger("click");
-    await vi.waitFor(() => {
-      expect(saveAttachment).toHaveBeenCalled();
-    });
+    await wrapper.vm.$nextTick();
+    expect(saveAttachment).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(toastAdd).toHaveBeenCalledTimes(1);
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ description: expect.stringContaining("图片 1 个") })
+    );
     await wrapper.get("textarea").setValue("see image");
     await wrapper.get('[data-test="prompt-submit"]').trigger("click");
     await wrapper.vm.$nextTick();
@@ -608,7 +811,197 @@ describe("ChatPromptPanel", () => {
     );
     expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("");
     expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:diagram.png");
+  });
+
+  it("rejects unsupported ordinary files before preview or save", async () => {
+    promptCapabilitiesRef.value = {
+      image: true,
+      audio: false,
+      embeddedContext: false,
+    };
+    activeSessionRef.value = makeSession();
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="prompt-action-upload-file"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(saveAttachment).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="attachment-count"]').exists()).toBe(false);
+    expect(toastAdd).toHaveBeenCalledTimes(1);
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ description: expect.stringContaining("文件 1 个") })
+    );
+  });
+
+  it("accepts supported items and reports all mixed-batch rejections once", async () => {
+    promptCapabilitiesRef.value = {
+      image: true,
+      audio: false,
+      embeddedContext: false,
+    };
+    const wrapper = mountPanel();
+    const image = makeFile("accepted.png", "image/png");
+    const unsupportedFile = makeFile("rejected.md", "text/markdown");
+    const transfer = makeDataTransfer([
+      { kind: "file", getAsFile: () => unsupportedFile },
+      { kind: "file", getAsFile: () => image },
+      {
+        kind: "file",
+        getAsFile: () => makeFile("directory-placeholder", "application/octet-stream"),
+        webkitGetAsEntry: () => ({ isDirectory: true }),
+      },
+    ]);
+
+    dispatchSurfaceEvent(wrapper, "drop", transfer);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('[data-test="attachment-name"]').map((item) => item.text())).toEqual([
+      "accepted.png",
+    ]);
+    expect(toastAdd).toHaveBeenCalledTimes(1);
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        description: expect.stringContaining("文件 1 个"),
+      })
+    );
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ description: expect.stringContaining("目录 1 个") })
+    );
+  });
+
+  it("rejects directories, ignores null files, and does not recurse", async () => {
+    const wrapper = mountPanel();
+    const directoryGetAsFile = vi.fn(() => makeFile("should-not-read", "text/plain"));
+    const nullGetAsFile = vi.fn(() => null);
+    const image = makeFile("kept.png", "image/png");
+    const transfer = makeDataTransfer([
+      {
+        kind: "file",
+        getAsFile: directoryGetAsFile,
+        webkitGetAsEntry: () => ({ isDirectory: true }),
+      },
+      { kind: "file", getAsFile: () => image },
+      { kind: "file", getAsFile: nullGetAsFile },
+    ]);
+
+    dispatchSurfaceEvent(wrapper, "drop", transfer);
+    await wrapper.vm.$nextTick();
+
+    expect(directoryGetAsFile).not.toHaveBeenCalled();
+    expect(nullGetAsFile).toHaveBeenCalledTimes(1);
+    expect(wrapper.findAll('[data-test="attachment-name"]').map((item) => item.text())).toEqual([
+      "kept.png",
+    ]);
+    expect(toastAdd).toHaveBeenCalledTimes(1);
+    expect(toastAdd.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ description: expect.stringContaining("目录 1 个") })
+    );
+  });
+
+  it("clears the local drag visual state on leave, drop, cancel, and unmount", async () => {
+    const wrapper = mountPanel();
+    const transfer = makeDataTransfer([
+      { kind: "file", getAsFile: () => makeFile("drag.png", "image/png") },
+    ]);
+    const surface = () => wrapper.find('[class*="transition-colors"]');
+
+    dispatchSurfaceEvent(wrapper, "dragenter", transfer);
+    await wrapper.vm.$nextTick();
+    expect(surface().attributes("class")).toContain("border-primary/40");
+    expect(surface().attributes("class")).toContain("bg-primary/5");
+
+    dispatchSurfaceEvent(wrapper, "dragleave", transfer);
+    await wrapper.vm.$nextTick();
+    expect(surface().attributes("class")).not.toContain("border-primary/40");
+
+    dispatchSurfaceEvent(wrapper, "dragenter", transfer);
+    dispatchSurfaceEvent(wrapper, "drop", transfer);
+    await wrapper.vm.$nextTick();
+    expect(surface().attributes("class")).not.toContain("border-primary/40");
+
+    dispatchSurfaceEvent(wrapper, "dragenter", transfer);
+    dispatchSurfaceEvent(wrapper, "dragend", transfer);
+    await wrapper.vm.$nextTick();
+    expect(surface().attributes("class")).not.toContain("border-primary/40");
+    expect(wrapper.find('[class*="shadow"]').exists()).toBe(false);
+    expect(wrapper.find('[class*="transform"]').exists()).toBe(false);
+
+    wrapper.unmount();
+    const freshWrapper = mountPanel();
+    expect(freshWrapper.find('[class*="transition-colors"]').attributes("class")).not.toContain(
+      "border-primary/40"
+    );
+    freshWrapper.unmount();
+  });
+
+  it("keeps paste and drop attachments local in draft state and preserves retry data", async () => {
+    sendMessage.mockResolvedValueOnce(false);
+    const wrapper = mountPanel();
+    const image = makeFile("draft-paste.png", "image/png");
+    const file = makeFile("draft-drop.md", "text/markdown");
+
+    dispatchPaste(wrapper, [{ kind: "file", getAsFile: () => image }]);
+    dispatchSurfaceEvent(
+      wrapper,
+      "drop",
+      makeDataTransfer([{ kind: "file", getAsFile: () => file }])
+    );
+    await wrapper.vm.$nextTick();
+
+    expect(activeSessionRef.value).toBeNull();
+    expect(createSession).not.toHaveBeenCalled();
+    expect(saveAttachment).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
+
+    await wrapper.get("textarea").setValue("retry draft");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe("retry draft");
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
+  });
+
+  it("keeps paste and drop saves on the active Session target", async () => {
+    activeSessionRef.value = makeSession();
+    const wrapper = mountPanel();
+    const image = makeFile("session-paste.png", "image/png");
+    const file = makeFile("session-drop.md", "text/markdown");
+
+    dispatchPaste(wrapper, [{ kind: "file", getAsFile: () => image }]);
+    dispatchSurfaceEvent(
+      wrapper,
+      "drop",
+      makeDataTransfer([{ kind: "file", getAsFile: () => file }])
+    );
+    await vi.waitFor(() => {
+      expect(saveAttachment).toHaveBeenCalledTimes(2);
+    });
+
+    expect(saveAttachment.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      ["project-1", "session-1"],
+      ["project-1", "session-1"],
+    ]);
+    expect(activeSessionRef.value?.id).toBe("session-1");
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("does not submit when paste and drop provide attachments without text", async () => {
+    const wrapper = mountPanel();
+    dispatchPaste(wrapper, [{ kind: "file", getAsFile: () => makeFile("only.png", "image/png") }]);
+    dispatchSurfaceEvent(
+      wrapper,
+      "drop",
+      makeDataTransfer([{ kind: "file", getAsFile: () => makeFile("only.md", "text/markdown") }])
+    );
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+    await wrapper.get("textarea").setValue("   ");
+    await wrapper.get('[data-test="prompt-submit"]').trigger("click");
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(createSession).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="attachment-count"]').text()).toBe("2");
   });
 
   it("assembles text first and then attachment parts", async () => {

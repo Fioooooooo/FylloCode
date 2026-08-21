@@ -5,6 +5,7 @@ import { chatApi } from "@renderer/api/session/chat";
 import { useWorkspaceStore, useSessionStore } from "@renderer/stores";
 import {
   createChatPromptAttachment,
+  isImageAttachmentFile,
   revokeChatPromptAttachmentPreview,
   type ChatPromptAttachment,
 } from "@renderer/utils/chat-prompt-attachment";
@@ -15,6 +16,22 @@ export interface ChatAttachmentTarget {
   workspaceId: string;
   sessionId: string;
 }
+
+export type ChatAttachmentInputRejectionReason = "directory";
+
+export type ChatAttachmentInputBatch = {
+  files: File[];
+  preRejected?: Array<{
+    reason: ChatAttachmentInputRejectionReason;
+    count: number;
+  }>;
+};
+
+type AttachmentInputRejectionCounts = {
+  image: number;
+  file: number;
+  directory: number;
+};
 
 /**
  * Manage user-selected file attachments for the chat prompt.
@@ -30,7 +47,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
   hasPendingAttachments: ComputedRef<boolean>;
   attachmentParts: ComputedRef<ChatPromptPart[]>;
   materializeAttachmentParts: (target: ChatAttachmentTarget) => Promise<ChatPromptPart[]>;
-  handleAttachmentSelect: (files: File[]) => void;
+  handleAttachmentInput: (batch: ChatAttachmentInputBatch) => void;
   removeAttachment: (id: string) => void;
   clearAttachments: () => void;
 } {
@@ -52,7 +69,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
         continue;
       }
 
-      if (attachment.mediaType.startsWith("image/")) {
+      if (attachment.isImage) {
         if (!promptCapabilities.value.image) {
           continue;
         }
@@ -179,16 +196,67 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     sentAttachments.forEach(revokeChatPromptAttachmentPreview);
   }
 
-  function handleAttachmentSelect(files: File[]): void {
-    if (files.length === 0) {
+  function showInputRejectionToast(
+    counts: AttachmentInputRejectionCounts,
+    acceptedCount: number
+  ): void {
+    const rejectedItems: string[] = [];
+    if (counts.image > 0) {
+      rejectedItems.push(`图片 ${counts.image} 个（Agent 不支持图片输入）`);
+    }
+    if (counts.file > 0) {
+      rejectedItems.push(`文件 ${counts.file} 个（Agent 不支持文件输入）`);
+    }
+    if (counts.directory > 0) {
+      rejectedItems.push(`目录 ${counts.directory} 个（暂不支持目录拖入）`);
+    }
+
+    if (rejectedItems.length === 0) {
       return;
     }
 
-    const nextAttachments = files.map((file) =>
+    toast.add({
+      title: acceptedCount > 0 ? "部分附件未添加" : "附件未添加",
+      description: `${rejectedItems.join("；")}。请检查 Agent 能力或选择文件。`,
+      color: "warning",
+    });
+  }
+
+  function handleAttachmentInput(batch: ChatAttachmentInputBatch): void {
+    const counts: AttachmentInputRejectionCounts = {
+      image: 0,
+      file: 0,
+      directory: 0,
+    };
+    for (const rejected of batch.preRejected ?? []) {
+      if (rejected.reason === "directory") {
+        counts.directory += rejected.count;
+      }
+    }
+
+    const acceptedFiles: File[] = [];
+    for (const file of batch.files) {
+      const isImage = isImageAttachmentFile(file);
+      const supported = isImage
+        ? promptCapabilities.value.image
+        : promptCapabilities.value.embeddedContext;
+      if (!supported) {
+        counts[isImage ? "image" : "file"] += 1;
+        continue;
+      }
+      acceptedFiles.push(file);
+    }
+
+    showInputRejectionToast(counts, acceptedFiles.length);
+    if (acceptedFiles.length === 0) {
+      return;
+    }
+
+    const nextAttachments = acceptedFiles.map((file) =>
       createChatPromptAttachment(file, `attachment-${attachmentId++}`)
     );
     nextAttachments.forEach((attachment, index) => {
-      const file = files[index];
+      const file = acceptedFiles[index];
       if (file) {
         fileByAttachmentId.set(attachment.id, file);
       }
@@ -214,7 +282,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
 
     const target = { workspaceId, sessionId: active.id };
     nextAttachments.forEach((attachment, index) => {
-      const file = files[index];
+      const file = acceptedFiles[index];
       if (file) {
         void persistSelectedAttachment(file, attachment, target);
       }
@@ -248,7 +316,7 @@ export function useChatAttachment(promptCapabilities: Readonly<Ref<AcpPromptCapa
     hasPendingAttachments,
     attachmentParts,
     materializeAttachmentParts,
-    handleAttachmentSelect,
+    handleAttachmentInput,
     removeAttachment,
     clearAttachments,
   };

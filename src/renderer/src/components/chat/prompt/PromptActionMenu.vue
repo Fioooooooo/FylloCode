@@ -23,7 +23,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  "select-files": [files: File[]];
+  "select-files": [batch: { files: File[] }];
 }>();
 
 const { open: openImageUpload } = useFileUpload({
@@ -31,7 +31,7 @@ const { open: openImageUpload } = useFileUpload({
   multiple: true,
   reset: true,
   dropzone: false,
-  onUpdate: (files: File[]) => emit("select-files", files),
+  onUpdate: (files: File[]) => emit("select-files", { files }),
 });
 
 const { open: openFileUpload } = useFileUpload({
@@ -39,7 +39,7 @@ const { open: openFileUpload } = useFileUpload({
   multiple: true,
   reset: true,
   dropzone: false,
-  onUpdate: (files: File[]) => emit("select-files", files),
+  onUpdate: (files: File[]) => emit("select-files", { files }),
 });
 
 const items = computed<PromptActionMenuItem[]>(() => [

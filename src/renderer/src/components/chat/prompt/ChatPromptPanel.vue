@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useChatAttachment } from "@renderer/composables/useChatAttachment";
+import {
+  useChatAttachment,
+  type ChatAttachmentInputBatch,
+} from "@renderer/composables/useChatAttachment";
 import { useChatPrompt } from "@renderer/composables/useChatPrompt";
 import { SessionModeTabs } from "@renderer/features/chat-session-mode";
 import { useAcpAgentsStore, useChatStore, useSessionStore } from "@renderer/stores";
+import { isImageAttachmentFile } from "@renderer/utils/chat-prompt-attachment";
 import AttachmentList from "./AttachmentList.vue";
 import ConfigOptionsBar from "./ConfigOptionsBar.vue";
 import ContextUsageRing from "./ContextUsageRing.vue";
@@ -29,12 +33,14 @@ const availableCommands = computed(() => {
 });
 const hasAvailableCommands = computed(() => availableCommands.value.length > 0);
 const promptCapabilities = computed(() => acpAgentsStore.getPromptCapabilities(agent.value));
+const dragDepth = ref(0);
+const isFileDragActive = computed(() => dragDepth.value > 0);
 
 const {
   attachments,
   hasPendingAttachments,
   materializeAttachmentParts,
-  handleAttachmentSelect,
+  handleAttachmentInput,
   removeAttachment,
   clearAttachments,
 } = useChatAttachment(promptCapabilities);
@@ -65,6 +71,123 @@ const {
   afterSubmit: () => clearAttachments(),
 });
 const submitDisabled = computed(() => promptBusy.value || input.value.trim().length === 0);
+
+type DataTransferItemWithEntry = DataTransferItem & {
+  webkitGetAsEntry?: () => { isDirectory?: boolean } | null;
+};
+
+function hasFileTransfer(dataTransfer: DataTransfer | null): boolean {
+  if (!dataTransfer) {
+    return false;
+  }
+
+  if (Array.from(dataTransfer.types ?? []).includes("Files")) {
+    return true;
+  }
+
+  return Array.from(dataTransfer.items ?? []).some((item) => item.kind === "file");
+}
+
+function resetDragDepth(): void {
+  dragDepth.value = 0;
+}
+
+function handlePromptPaste(event: ClipboardEvent): void {
+  const imageFiles: File[] = [];
+  for (const item of Array.from(event.clipboardData?.items ?? [])) {
+    if (item.kind !== "file") {
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file && isImageAttachmentFile(file)) {
+      imageFiles.push(file);
+    }
+  }
+
+  if (imageFiles.length > 0) {
+    handleAttachmentInput({ files: imageFiles });
+  }
+}
+
+function createFileDropBatch(dataTransfer: DataTransfer): ChatAttachmentInputBatch {
+  const files: File[] = [];
+  let directoryCount = 0;
+
+  for (const item of Array.from(dataTransfer.items ?? [])) {
+    if (item.kind !== "file") {
+      continue;
+    }
+
+    const entry = (item as DataTransferItemWithEntry).webkitGetAsEntry?.();
+    if (entry?.isDirectory === true) {
+      directoryCount += 1;
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file) {
+      files.push(file);
+    }
+  }
+
+  return {
+    files,
+    preRejected: directoryCount ? [{ reason: "directory", count: directoryCount }] : [],
+  };
+}
+
+function handlePromptDragEnter(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  dragDepth.value += 1;
+}
+
+function handlePromptDragOver(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (dragDepth.value === 0) {
+    dragDepth.value = 1;
+  }
+}
+
+function handlePromptDragLeave(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  dragDepth.value = Math.max(0, dragDepth.value - 1);
+}
+
+function handlePromptDrop(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    resetDragDepth();
+    return;
+  }
+
+  event.preventDefault();
+  const dataTransfer = event.dataTransfer;
+  resetDragDepth();
+  if (dataTransfer) {
+    handleAttachmentInput(createFileDropBatch(dataTransfer));
+  }
+}
+
+function handlePromptDragEnd(event: DragEvent): void {
+  if (hasFileTransfer(event.dataTransfer)) {
+    event.preventDefault();
+  }
+  resetDragDepth();
+}
+
+onBeforeUnmount(resetDragDepth);
 </script>
 
 <template>
@@ -78,11 +201,18 @@ const submitDisabled = computed(() => promptBusy.value || input.value.trim().len
 
       <div
         :ref="setPromptShellRef"
-        class="w-full"
+        class="w-full transition-colors duration-150"
+        :class="isFileDragActive && 'border-primary/40 bg-primary/5'"
         @keydown.capture="handlePromptKeydown"
         @input.capture="handlePromptInput"
         @keyup.capture="handlePromptKeyup"
         @focusout="handlePromptFocusOut"
+        @paste.capture="handlePromptPaste"
+        @dragenter="handlePromptDragEnter"
+        @dragover="handlePromptDragOver"
+        @dragleave="handlePromptDragLeave"
+        @drop="handlePromptDrop"
+        @dragend="handlePromptDragEnd"
       >
         <UChatPrompt
           v-model="input"
@@ -101,7 +231,7 @@ const submitDisabled = computed(() => promptBusy.value || input.value.trim().len
             <div class="inline-flex min-w-0 items-center gap-0.5">
               <PromptActionMenu
                 :prompt-capabilities="promptCapabilities"
-                @select-files="handleAttachmentSelect"
+                @select-files="({ files }) => handleAttachmentInput({ files })"
               />
               <SlashCommandMenu
                 v-model:open="commandMenuOpen"
