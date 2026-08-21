@@ -29,6 +29,7 @@ export interface AcpAgentUvxDistribution {
 export interface AcpAgentBinaryDistribution {
   archive: string;
   cmd: string;
+  sha256?: string;
   args?: string[];
   env?: Record<string, string>;
 }
@@ -56,9 +57,11 @@ export interface AcpAgentEntry {
 export interface AcpRegistry {
   version?: string;
   agents: AcpAgentEntry[];
+  [key: string]: unknown;
 }
 
 export interface AcpRegistryCache {
+  source: string;
   fetchedAt: string;
   data: AcpRegistry;
 }

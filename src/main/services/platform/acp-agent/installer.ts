@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import type { FileHandle } from "fs/promises";
-import { basename, dirname, extname, join, relative, sep } from "path";
+import { createHash, randomUUID, timingSafeEqual } from "crypto";
+import { basename, dirname, extname, isAbsolute, join, relative, sep } from "path";
 import { tmpdir } from "os";
 import type { ChildProcess } from "child_process";
 import { net } from "electron";
@@ -21,6 +22,7 @@ import {
   resolveBinaryDistribution,
   writeInstalledRecords,
 } from "@main/infra/acp/detector";
+import { decompressArchive } from "@main/infra/archive/decompress";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
 import { ipcError, type IpcError } from "@shared/errors/ipc-error";
 import { isShuttingDown } from "@main/bootstrap/lifecycle";
@@ -122,6 +124,17 @@ async function finalizeInstallRecord(
   installMethod: AcpInstallMethod,
   installPath?: string
 ): Promise<AcpInstalledRecord> {
+  const record = await buildInstallRecord(agent, installMethod, installPath);
+  await upsertInstalledRecord(agent.id, record);
+  return record;
+}
+
+async function buildInstallRecord(
+  agent: AcpAgentEntry,
+  installMethod: AcpInstallMethod,
+  installPath?: string,
+  recordInstallPath = installPath
+): Promise<AcpInstalledRecord> {
   const detected = await detectAgentInstallation(agent, {
     managedBy: "fyllocode",
     installMethod,
@@ -133,12 +146,10 @@ async function finalizeInstallRecord(
   const record: AcpInstalledRecord = {
     managedBy: "fyllocode",
     installMethod,
-    installPath: detected.installPath ?? installPath,
+    installPath: recordInstallPath ?? detected.installPath ?? installPath,
     installedVersion: detected.detectedVersion ?? agent.version,
     installedAt: new Date().toISOString(),
   };
-
-  await upsertInstalledRecord(agent.id, record);
   return record;
 }
 
@@ -263,6 +274,12 @@ function getArchiveExtension(filePath: string): string {
   if (lower.endsWith(".tgz")) {
     return ".tgz";
   }
+  if (lower.endsWith(".tar.bz2")) {
+    return ".tar.bz2";
+  }
+  if (lower.endsWith(".tbz2")) {
+    return ".tbz2";
+  }
   return extname(lower);
 }
 
@@ -286,10 +303,11 @@ async function writeChunk(fileHandle: FileHandle, chunk: Uint8Array): Promise<vo
   }
 }
 
-async function downloadFile(url: string, outputPath: string): Promise<void> {
+async function downloadFile(url: string, outputPath: string): Promise<string> {
   ensureInstallerAvailable();
   const controller = new AbortController();
   activeFetchControllers.add(controller);
+  const hash = createHash("sha256");
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let fileHandle: FileHandle | undefined;
 
@@ -321,6 +339,7 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
           }
 
           refreshIdleTimeout();
+          hash.update(value);
           await writeChunk(fileHandle, value);
         }
       } finally {
@@ -336,49 +355,12 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
   } catch (error) {
     throw isIpcError(error) ? error : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
   }
+
+  return hash.digest("hex");
 }
 
 async function extractArchive(archivePath: string, targetDirectory: string): Promise<void> {
-  const extension = getArchiveExtension(archivePath);
-
-  if (extension === ".zip") {
-    const unzipPath = await findCommandPath("unzip");
-    if (!unzipPath) {
-      throw ipcError("ENV_MISSING", "当前系统缺少 unzip，无法安装二进制 Agent");
-    }
-
-    const result = await runStreamingCommand(unzipPath, ["-o", archivePath, "-d", targetDirectory]);
-    if (result.code !== 0) {
-      throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
-    }
-    return;
-  }
-
-  if (
-    extension === ".tar.gz" ||
-    extension === ".tgz" ||
-    extension === ".tar.xz" ||
-    extension === ".tar"
-  ) {
-    const tarPath = await findCommandPath("tar");
-    if (!tarPath) {
-      throw ipcError("ENV_MISSING", "当前系统缺少 tar，无法安装二进制 Agent");
-    }
-
-    const args =
-      extension === ".tar.gz" || extension === ".tgz"
-        ? ["-xzf", archivePath, "-C", targetDirectory]
-        : extension === ".tar.xz"
-          ? ["-xJf", archivePath, "-C", targetDirectory]
-          : ["-xf", archivePath, "-C", targetDirectory];
-    const result = await runStreamingCommand(tarPath, args);
-    if (result.code !== 0) {
-      throw ipcError("INSTALL_FAILED", summarizeCommandOutput(result.stdout, result.stderr));
-    }
-    return;
-  }
-
-  await fs.copyFile(archivePath, join(targetDirectory, basename(archivePath)));
+  await decompressArchive(archivePath, targetDirectory);
 }
 
 /**
@@ -457,6 +439,44 @@ async function resolveBinaryExecutablePath(
   throw ipcError("INSTALL_FAILED", "未找到已安装的可执行文件");
 }
 
+function parseExpectedSha256(value: string | undefined): Buffer | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!/^[a-fA-F0-9]{64}$/.test(value)) {
+    throw ipcError("INSTALL_FAILED", "Agent binary.sha256 必须是 64 位十六进制摘要");
+  }
+  return Buffer.from(value, "hex");
+}
+
+function assertPathInside(rootDirectory: string, targetPath: string): void {
+  const targetRelativePath = relative(rootDirectory, targetPath);
+  if (
+    !targetRelativePath ||
+    isAbsolute(targetRelativePath) ||
+    targetRelativePath === ".." ||
+    targetRelativePath.startsWith(`..${sep}`)
+  ) {
+    throw ipcError("INSTALL_FAILED", "归档可执行文件路径越界，已中止安装");
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.lstat(path);
+    return true;
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function createSiblingPath(parentDirectory: string, kind: string, agentId: string): string {
+  return join(parentDirectory, `.${kind}-${agentId}-${randomUUID()}`);
+}
+
 async function installBinary(
   agent: AcpAgentEntry,
   onProgress: InstallProgressHandler
@@ -465,37 +485,94 @@ async function installBinary(
   if (!binary) {
     throw ipcError("PLATFORM_UNSUPPORTED", "当前平台不支持此安装方式");
   }
+  if (!/^[A-Za-z0-9_-]+$/.test(agent.id)) {
+    throw ipcError("INVALID_AGENT_ID", "非法 Agent ID");
+  }
+
+  const expectedSha256 = parseExpectedSha256(binary.sha256);
 
   const tempRoot = await fs.mkdtemp(join(tmpdir(), "fyllocode-agent-"));
   const archivePath = join(tempRoot, `download${getArchiveExtension(binary.archive) || ".bin"}`);
   const extractedDirectory = join(tempRoot, "extracted");
   const finalDirectory = join(getDataSubPath("acp"), "bin", agent.id);
+  const finalParentDirectory = dirname(finalDirectory);
+  let stagingDirectory: string | undefined;
+  let backupDirectory: string | undefined;
+  let finalDirectoryCommitted = false;
+  let backupMoved = false;
+  let transactionCommitted = false;
 
   try {
     await fs.mkdir(extractedDirectory, { recursive: true });
 
     onProgress({ agentId: agent.id, status: "downloading", message: "正在下载..." });
-    await downloadFile(binary.archive, archivePath);
+    const actualSha256 = await downloadFile(binary.archive, archivePath);
+    if (expectedSha256) {
+      const actualDigest = Buffer.from(actualSha256, "hex");
+      if (
+        actualDigest.length !== expectedSha256.length ||
+        !timingSafeEqual(actualDigest, expectedSha256)
+      ) {
+        throw ipcError("INSTALL_FAILED", "Agent binary.sha256 校验不匹配");
+      }
+    }
 
     onProgress({ agentId: agent.id, status: "installing", message: "正在安装..." });
     await extractArchive(archivePath, extractedDirectory);
     await assertNoPathEscape(extractedDirectory);
 
     const executablePath = await resolveBinaryExecutablePath(extractedDirectory, binary.cmd);
+    assertPathInside(extractedDirectory, executablePath);
     const executableRelativePath = relative(extractedDirectory, executablePath);
-
-    await fs.mkdir(dirname(finalDirectory), { recursive: true });
-    await fs.rm(finalDirectory, { recursive: true, force: true });
-    await fs.rename(extractedDirectory, finalDirectory);
-
     const finalExecutablePath = join(finalDirectory, executableRelativePath);
-    await fs.chmod(finalExecutablePath, 0o755).catch(() => undefined);
+    const record = await buildInstallRecord(agent, "binary", executablePath, finalExecutablePath);
 
-    return finalizeInstallRecord(agent, "binary", finalExecutablePath);
+    await fs.mkdir(finalParentDirectory, { recursive: true });
+    stagingDirectory = createSiblingPath(finalParentDirectory, "staging", agent.id);
+    await fs.mkdir(stagingDirectory);
+    await fs.cp(extractedDirectory, stagingDirectory, { recursive: true });
+
+    if (await pathExists(finalDirectory)) {
+      backupDirectory = createSiblingPath(finalParentDirectory, "backup", agent.id);
+      await fs.rename(finalDirectory, backupDirectory);
+      backupMoved = true;
+    }
+
+    await fs.rename(stagingDirectory, finalDirectory);
+    stagingDirectory = undefined;
+    finalDirectoryCommitted = true;
+
+    await fs.chmod(finalExecutablePath, 0o755);
+    await upsertInstalledRecord(agent.id, record);
+    transactionCommitted = true;
+
+    if (backupDirectory) {
+      await fs.rm(backupDirectory, { recursive: true, force: true }).catch(() => undefined);
+      backupDirectory = undefined;
+    }
+    return record;
   } catch (error) {
-    await fs.rm(finalDirectory, { recursive: true, force: true }).catch(() => undefined);
-    throw isIpcError(error) ? error : ipcError("DOWNLOAD_FAILED", "下载失败，请重试");
+    if (!transactionCommitted) {
+      if (finalDirectoryCommitted) {
+        await fs.rm(finalDirectory, { recursive: true, force: true });
+      }
+      if (stagingDirectory) {
+        await fs.rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+      }
+      if (backupMoved && backupDirectory) {
+        await fs.rename(backupDirectory, finalDirectory);
+        backupDirectory = undefined;
+      }
+    }
+
+    if (isIpcError(error)) {
+      throw error;
+    }
+    throw ipcError("INSTALL_FAILED", error instanceof Error ? error.message : "安装失败，请重试");
   } finally {
+    if (stagingDirectory) {
+      await fs.rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+    }
     await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => undefined);
   }
 }

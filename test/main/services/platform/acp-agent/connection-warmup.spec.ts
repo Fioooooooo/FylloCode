@@ -56,6 +56,7 @@ describe("ACP agent connection warmup", () => {
     ]);
     mocks.readInstalledRecords.mockResolvedValue({
       "registry-b": { installMethod: "binary" },
+      "historical-agent": { installMethod: "binary" },
     });
 
     const { resolveInstalledAgentIds } =

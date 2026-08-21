@@ -24,6 +24,15 @@ describe("SettingsAgentsPage", () => {
 
     expect(wrapper.text()).toContain("ACP Agents");
     expect(wrapper.text()).toContain("支持 Agent Client Protocol 的 CLI Agent。");
+    expect(wrapper.get('[data-testid="curated-agents-note"]').text()).toContain("FylloCode 精选");
+    expect(wrapper.get('[data-testid="curated-agents-note"]').text()).toContain(
+      "优先收录活跃维护、使用广泛或 ACP 适配良好的 Agent。"
+    );
+    const curatedLink = wrapper.get('[data-testid="curated-agents-link"]');
+    expect(curatedLink.text()).toContain("点击查看");
+    expect(curatedLink.attributes("href")).toBe("https://curated-acp-agents.onrender.com/");
+    expect(curatedLink.attributes("target")).toBe("_blank");
+    expect(curatedLink.attributes("rel")).toBe("noreferrer");
     expect(ensureInitialized).toHaveBeenCalledTimes(1);
   });
 });

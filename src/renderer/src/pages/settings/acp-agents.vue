@@ -208,6 +208,37 @@ const exampleConfig = `{
       <UTabs v-model="activeTab" :items="tabs" size="sm" variant="link" value-key="value" />
     </div>
 
+    <UiSurface
+      v-if="!isCustomTab"
+      data-testid="curated-agents-note"
+      padding="sm"
+      class="mb-4 border border-default/50"
+    >
+      <div class="flex items-start gap-3">
+        <div
+          class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary"
+        >
+          <UIcon name="i-lucide-sparkles" class="size-4" />
+        </div>
+        <div class="min-w-0 space-y-0.5">
+          <p class="text-sm font-medium text-highlighted">FylloCode 精选</p>
+          <p class="text-sm text-muted">
+            列表由 FylloCode 精选并持续更新，优先收录活跃维护、使用广泛或 ACP 适配良好的 Agent。
+            <a
+              href="https://curated-acp-agents.onrender.com/"
+              target="_blank"
+              rel="noreferrer"
+              class="inline-flex items-center gap-1 text-muted transition-colors duration-150 hover:text-muted/80"
+              data-testid="curated-agents-link"
+            >
+              点击查看
+              <UIcon name="i-lucide-external-link" class="size-3.5" />
+            </a>
+          </p>
+        </div>
+      </div>
+    </UiSurface>
+
     <div v-if="!isCustomTab">
       <div
         v-if="store.registryLoading && !agents.length"

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, mkdirSync, existsSync } from "fs";
 import { promises as fs } from "fs";
+import { createHash } from "crypto";
 import { join } from "path";
 import { tmpdir } from "os";
 import { net } from "electron";
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   readInstalledRecords: vi.fn(async () => ({})),
   writeInstalledRecords: vi.fn(async () => undefined),
   resolveBinaryDistribution: vi.fn(),
+  decompressArchive: vi.fn(),
   spawn: vi.fn(),
 }));
 
@@ -31,6 +33,10 @@ vi.mock("@main/infra/acp/detector", () => ({
 
 vi.mock("cross-spawn", () => ({
   default: mocks.spawn,
+}));
+
+vi.mock("@main/infra/archive/decompress", () => ({
+  decompressArchive: mocks.decompressArchive,
 }));
 
 function createAgent(overrides: Partial<AcpAgentEntry> = {}): AcpAgentEntry {
@@ -85,9 +91,58 @@ function mockSpawnResult(
   });
 }
 
-describe("acp-agent installer uninstall", () => {
-  let dataRoot: string;
+let dataRoot: string;
 
+function createBinaryAgent(
+  archive: string,
+  overrides: Partial<NonNullable<AcpAgentEntry["distribution"]["binary"]>[string]> = {}
+): AcpAgentEntry {
+  return createAgent({
+    distribution: {
+      binary: {
+        darwin: { archive, cmd: "claude", ...overrides },
+      },
+    },
+  });
+}
+
+function sha256(value: Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function finalDirectoryFor(agentId = "claude-code"): string {
+  return join(dataRoot, "bin", agentId);
+}
+
+async function createExistingBinaryInstall(): Promise<{
+  finalDirectory: string;
+  installedRecord: Record<string, unknown>;
+}> {
+  const finalDirectory = finalDirectoryFor();
+  const installedRecord = {
+    managedBy: "fyllocode",
+    installMethod: "binary",
+    installPath: join(finalDirectory, "claude"),
+    installedVersion: "0.9.0",
+    installedAt: "2026-01-01T00:00:00.000Z",
+  };
+  await fs.mkdir(finalDirectory, { recursive: true });
+  await fs.writeFile(join(finalDirectory, "claude"), "old executable", "utf8");
+  await fs.writeFile(
+    join(dataRoot, "installed.json"),
+    JSON.stringify({ "claude-code": installedRecord })
+  );
+  mocks.readInstalledRecords.mockResolvedValue({ "claude-code": installedRecord });
+  return { finalDirectory, installedRecord };
+}
+
+function mockBinaryDownload(payload: Buffer): void {
+  vi.spyOn(net, "fetch").mockResolvedValue(
+    new Response(payload as unknown as BodyInit) as unknown as Response
+  );
+}
+
+describe("acp-agent installer uninstall", () => {
   beforeEach(() => {
     resetLifecycleForTests();
     vi.resetModules();
@@ -98,10 +153,17 @@ describe("acp-agent installer uninstall", () => {
       detectedVersion: record?.installedVersion,
       installPath: record?.installPath,
     }));
-    mocks.resolveBinaryDistribution.mockReturnValue({
-      archive: "https://example.com/agent.tar.gz",
-      cmd: "claude",
+    mocks.readInstalledRecords.mockResolvedValue({});
+    mocks.writeInstalledRecords.mockResolvedValue(undefined);
+    mocks.resolveBinaryDistribution.mockImplementation((distributions) => {
+      const entries = Object.values(distributions ?? {});
+      return entries[0] ?? null;
     });
+    mocks.decompressArchive.mockImplementation(
+      async (_archivePath: string, targetDirectory: string) => {
+        await fs.writeFile(join(targetDirectory, "claude"), "#!/bin/sh\necho ok", "utf8");
+      }
+    );
   });
 
   afterEach(async () => {
@@ -236,12 +298,6 @@ describe("acp-agent installer uninstall", () => {
     vi.spyOn(net, "fetch").mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]).buffer) as unknown as Response
     );
-    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
-    // Emulate extraction: write a normal executable inside the target dir.
-    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
-      const dir = args[args.indexOf("-C") + 1];
-      await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
-    });
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
     await expect(
@@ -290,11 +346,6 @@ describe("acp-agent installer uninstall", () => {
       },
     });
     vi.spyOn(net, "fetch").mockResolvedValue(new Response(body) as unknown as Response);
-    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
-    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
-      const dir = args[args.indexOf("-C") + 1];
-      await fs.writeFile(join(dir, "claude"), "#!/bin/sh\necho ok", "utf8");
-    });
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
     const installPromise = installAgent(
@@ -360,14 +411,14 @@ describe("acp-agent installer uninstall", () => {
     vi.spyOn(net, "fetch").mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]).buffer) as unknown as Response
     );
-    mocks.findCommandPath.mockResolvedValue("/usr/bin/tar");
     // Emulate a malicious archive: a symlink pointing outside the extraction dir.
     const escapeTarget = join(dataRoot, "escape-target.txt");
     await fs.writeFile(escapeTarget, "secret", "utf8");
-    mockSpawnResult(0, "", "", async (_cmd: string, args: string[]) => {
-      const dir = args[args.indexOf("-C") + 1];
-      await fs.symlink(escapeTarget, join(dir, "claude"));
-    });
+    mocks.decompressArchive.mockImplementationOnce(
+      async (_archivePath: string, targetDirectory: string) => {
+        await fs.symlink(escapeTarget, join(targetDirectory, "claude"));
+      }
+    );
 
     const { installAgent } = await import("@main/services/platform/acp-agent/installer");
     await expect(
@@ -433,5 +484,195 @@ describe("acp-agent installer uninstall", () => {
     expect(observedSignal?.aborted).toBe(true);
     await expect(installPromise).rejects.toMatchObject({ code: "DOWNLOAD_FAILED" });
     await expect(settling).resolves.toBeUndefined();
+  });
+
+  it("accepts a matching lowercase or uppercase SHA-256 digest before extraction", async () => {
+    const payload = Buffer.from("archive payload");
+    mockBinaryDownload(payload);
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(
+        createBinaryAgent("https://x/goose.zip", { sha256: sha256(payload).toUpperCase() }),
+        vi.fn()
+      )
+    ).resolves.toMatchObject({ installMethod: "binary" });
+    expect(mocks.decompressArchive).toHaveBeenCalledOnce();
+  });
+
+  it("continues without a digest when binary.sha256 is missing", async () => {
+    const payload = Buffer.from("archive payload");
+    mockBinaryDownload(payload);
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    const record = await installAgent(createBinaryAgent("https://x/goose.tgz"), vi.fn());
+
+    expect(record).not.toHaveProperty("sha256");
+    expect(mocks.decompressArchive).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an invalid digest before downloading", async () => {
+    const { finalDirectory } = await createExistingBinaryInstall();
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip", { sha256: "not-a-sha" }), vi.fn())
+    ).rejects.toMatchObject({ code: "INSTALL_FAILED" });
+
+    expect(net.fetch).not.toHaveBeenCalled();
+    expect(mocks.decompressArchive).not.toHaveBeenCalled();
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+  });
+
+  it("preserves an existing install and record when the digest does not match", async () => {
+    const { finalDirectory, installedRecord } = await createExistingBinaryInstall();
+    const payload = Buffer.from("archive payload");
+    mockBinaryDownload(payload);
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(
+        createBinaryAgent("https://x/goose.zip", { sha256: sha256(Buffer.from("different")) }),
+        vi.fn()
+      )
+    ).rejects.toMatchObject({ code: "INSTALL_FAILED" });
+
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+    expect(JSON.parse(await fs.readFile(join(dataRoot, "installed.json"), "utf8"))).toEqual({
+      "claude-code": installedRecord,
+    });
+    expect(mocks.decompressArchive).not.toHaveBeenCalled();
+    expect(mocks.writeInstalledRecords).not.toHaveBeenCalled();
+  });
+
+  it.each([".tar.bz2", ".zip", ".tgz"])(
+    "routes %s archives through the shared decompressor",
+    async (extension) => {
+      const payload = Buffer.from("archive payload");
+      mockBinaryDownload(payload);
+      const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+      await expect(
+        installAgent(createBinaryAgent(`https://x/goose${extension}`), vi.fn())
+      ).resolves.toMatchObject({ installMethod: "binary" });
+
+      expect(mocks.decompressArchive).toHaveBeenCalledWith(
+        expect.stringMatching(new RegExp(`${extension.replace(".", "\\.")}$`)),
+        expect.any(String)
+      );
+    }
+  );
+
+  it("preserves the old install when decompression rejects a corrupt archive", async () => {
+    const { finalDirectory } = await createExistingBinaryInstall();
+    mockBinaryDownload(Buffer.from("corrupt archive"));
+    mocks.decompressArchive.mockRejectedValueOnce(new Error("broken archive"));
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.tar.bz2"), vi.fn())
+    ).rejects.toMatchObject({ code: "INSTALL_FAILED" });
+
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+    expect(mocks.writeInstalledRecords).not.toHaveBeenCalled();
+  });
+
+  it("restores the old install when staging copy fails", async () => {
+    const { finalDirectory } = await createExistingBinaryInstall();
+    mockBinaryDownload(Buffer.from("archive payload"));
+    vi.spyOn(fs, "cp").mockRejectedValueOnce(new Error("staging copy failed"));
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip"), vi.fn())
+    ).rejects.toMatchObject({
+      code: "INSTALL_FAILED",
+    });
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+  });
+
+  it("restores the old install when final-directory rename fails", async () => {
+    const { finalDirectory } = await createExistingBinaryInstall();
+    mockBinaryDownload(Buffer.from("archive payload"));
+    const realRename = fs.rename.bind(fs);
+    let renameCount = 0;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      renameCount += 1;
+      if (renameCount === 2) {
+        throw new Error("final rename failed");
+      }
+      await realRename(from, to);
+    });
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip"), vi.fn())
+    ).rejects.toMatchObject({
+      code: "INSTALL_FAILED",
+    });
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+  });
+
+  it("restores the old install when permission handling fails", async () => {
+    const { finalDirectory } = await createExistingBinaryInstall();
+    mockBinaryDownload(Buffer.from("archive payload"));
+    vi.spyOn(fs, "chmod").mockRejectedValueOnce(new Error("chmod failed"));
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip"), vi.fn())
+    ).rejects.toMatchObject({
+      code: "INSTALL_FAILED",
+    });
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+  });
+
+  it("restores the old install and record when installed record writing fails", async () => {
+    const { finalDirectory, installedRecord } = await createExistingBinaryInstall();
+    mockBinaryDownload(Buffer.from("archive payload"));
+    mocks.writeInstalledRecords.mockRejectedValueOnce(new Error("record write failed"));
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip"), vi.fn())
+    ).rejects.toMatchObject({
+      code: "INSTALL_FAILED",
+    });
+    await expect(fs.readFile(join(finalDirectory, "claude"), "utf8")).resolves.toBe(
+      "old executable"
+    );
+    expect(JSON.parse(await fs.readFile(join(dataRoot, "installed.json"), "utf8"))).toEqual({
+      "claude-code": installedRecord,
+    });
+  });
+
+  it("leaves no final directory or installed record after a first-install commit failure", async () => {
+    mockBinaryDownload(Buffer.from("archive payload"));
+    mocks.writeInstalledRecords.mockRejectedValueOnce(new Error("record write failed"));
+    const { installAgent } = await import("@main/services/platform/acp-agent/installer");
+
+    await expect(
+      installAgent(createBinaryAgent("https://x/goose.zip"), vi.fn())
+    ).rejects.toMatchObject({
+      code: "INSTALL_FAILED",
+    });
+    expect(existsSync(finalDirectoryFor())).toBe(false);
+    expect(existsSync(join(dataRoot, "installed.json"))).toBe(false);
+    const remainingEntries = await fs.readdir(dataRoot);
+    expect(
+      remainingEntries.some((entry) => entry.includes(".staging-") || entry.includes(".backup-"))
+    ).toBe(false);
   });
 });

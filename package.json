@@ -53,6 +53,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "ai": "^6.0.248",
     "cross-spawn": "^7.0.6",
+    "@xhmikosr/decompress": "^11.1.4",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.3.9",
     "js-yaml": "^4.2.0",

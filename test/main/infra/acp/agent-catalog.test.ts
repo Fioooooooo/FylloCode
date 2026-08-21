@@ -132,6 +132,16 @@ describe("agent-catalog-service", () => {
       });
     });
 
+    it("does not discover an installed id that is absent from the current registry", async () => {
+      mockedGetRegistry.mockResolvedValue({
+        agents: [createRegistryAgent("current-agent", "Current Agent")],
+      });
+      mockedReadCustomAgents.mockResolvedValue({ agent_servers: {} });
+
+      await expect(getAgentById("historical-agent")).resolves.toBeUndefined();
+      expect(mockedGetRegistry).toHaveBeenCalledOnce();
+    });
+
     it("merges registry and custom agents", async () => {
       mockedGetRegistry.mockResolvedValue({
         agents: [createRegistryAgent("claude-code", "Claude Code")],

@@ -7,7 +7,7 @@ import { getDataSubPath } from "@main/infra/paths";
 import logger from "@main/infra/logger";
 import { invalidateChangedIcons } from "./acp-icon-cache";
 
-const REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
+export const CURATED_REGISTRY_URL = "https://curated-acp-agents.onrender.com/registry.json";
 const REGISTRY_TTL_MS = 24 * 60 * 60 * 1000;
 
 let refreshPromise: Promise<AcpRegistry> | null = null;
@@ -28,6 +28,14 @@ function enrichRegistry(data: AcpRegistry): AcpRegistry {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isRegistryPayload(value: unknown): value is AcpRegistry {
+  return isRecord(value) && Array.isArray(value.agents);
+}
+
 async function ensureAgentsDirectory(): Promise<void> {
   await fs.mkdir(getDataSubPath("acp"), { recursive: true });
 }
@@ -35,7 +43,15 @@ async function ensureAgentsDirectory(): Promise<void> {
 export async function readRegistryCache(): Promise<AcpRegistryCache | null> {
   try {
     const content = await fs.readFile(getRegistryCachePath(), "utf8");
-    return JSON.parse(content) as AcpRegistryCache;
+    const parsed: unknown = JSON.parse(content);
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.fetchedAt !== "string" ||
+      !isRegistryPayload(parsed.data)
+    ) {
+      return null;
+    }
+    return parsed as unknown as AcpRegistryCache;
   } catch {
     return null;
   }
@@ -49,9 +65,13 @@ async function writeRegistryCache(data: AcpRegistry): Promise<void> {
   await ensureAgentsDirectory();
 
   const previousCache = await readRegistryCache();
-  await invalidateChangedIcons(previousCache?.data ?? null, data);
+  await invalidateChangedIcons(
+    previousCache?.source === CURATED_REGISTRY_URL ? previousCache.data : null,
+    data
+  );
 
   const payload: AcpRegistryCache = {
+    source: CURATED_REGISTRY_URL,
     fetchedAt: new Date().toISOString(),
     data,
   };
@@ -60,13 +80,13 @@ async function writeRegistryCache(data: AcpRegistry): Promise<void> {
 }
 
 async function fetchRegistryFromNetwork(): Promise<AcpRegistry> {
-  const response = await net.fetch(REGISTRY_URL);
+  const response = await net.fetch(CURATED_REGISTRY_URL);
   if (!response.ok) {
     throw new Error(`获取 Agent registry 失败: ${response.status} ${response.statusText}`);
   }
 
-  const data = (await response.json()) as AcpRegistry;
-  if (!Array.isArray(data.agents)) {
+  const data: unknown = await response.json();
+  if (!isRegistryPayload(data)) {
     throw new Error("Agent registry 数据格式无效");
   }
 
@@ -101,12 +121,13 @@ export async function getRegistry(
   } = {}
 ): Promise<AcpRegistry> {
   const cache = await readRegistryCache();
+  const isCurrentSource = cache?.source === CURATED_REGISTRY_URL;
 
-  if (cache && !isRegistryCacheExpired(cache)) {
+  if (cache && isCurrentSource && !isRegistryCacheExpired(cache)) {
     return enrichRegistry(cache.data);
   }
 
-  if (cache) {
+  if (cache && isCurrentSource) {
     void refreshRegistryInternal(options.onUpdated).catch((error) => {
       logger.warn("[acp] background registry refresh failed", error);
     });

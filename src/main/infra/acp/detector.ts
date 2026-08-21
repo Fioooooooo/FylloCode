@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { randomUUID } from "crypto";
 import { join } from "path";
 import spawn from "cross-spawn";
 import {
@@ -78,7 +79,15 @@ export async function readInstalledRecords(): Promise<AcpInstalledMap> {
 
 export async function writeInstalledRecords(records: AcpInstalledMap): Promise<void> {
   await ensureAgentsDirectory();
-  await fs.writeFile(getInstalledRecordsPath(), JSON.stringify(records, null, 2), "utf8");
+  const installedPath = getInstalledRecordsPath();
+  const temporaryPath = `${installedPath}.tmp-${randomUUID()}`;
+
+  try {
+    await fs.writeFile(temporaryPath, JSON.stringify(records, null, 2), "utf8");
+    await fs.rename(temporaryPath, installedPath);
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+  }
 }
 
 export async function removeInstalledRecord(agentId: string): Promise<void> {
