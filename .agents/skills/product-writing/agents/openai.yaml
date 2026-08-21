@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Writing"
+  short_description: "Draft credible, natural product content"
+  default_prompt: "Use $product-writing to draft or edit this product content from the supplied evidence."
