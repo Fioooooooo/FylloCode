@@ -12,6 +12,7 @@ const owner = { workspaceId: "workspace-1", parentSessionId: "parent-1" };
 const summary = (overrides: Record<string, unknown> = {}) => ({
   sessionId: "spawn-1",
   agent: { agentId: "agent-1", name: "Agent One" },
+  scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
   status: "running" as const,
   mode: "background" as const,
   updatedAt: "2026-08-08T00:00:00.000Z",

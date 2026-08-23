@@ -56,6 +56,7 @@ describe("spawned Session inspector projection", () => {
     const base = {
       sessionId: "spawn-1",
       agent: { agentId: "agent-1", name: "Agent" },
+      scope: { kind: "workspace" as const, workspaceId: "workspace-1", name: "Workspace" },
       updatedAt: "2026-08-08T00:00:00.000Z",
     };
     expect(isActiveSpawnedSession({ ...base, mode: "background", status: "running" })).toBe(true);
@@ -66,6 +67,7 @@ describe("spawned Session inspector projection", () => {
   it("sorts active first and counts all owner-matched Sessions", () => {
     const base = {
       agent: { agentId: "agent-1", name: "Agent" },
+      scope: { kind: "workspace" as const, workspaceId: "workspace-1", name: "Workspace" },
     };
     const summaries = [
       {

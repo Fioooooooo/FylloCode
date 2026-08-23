@@ -4,6 +4,20 @@ All notable changes to the `fyllo-spawn` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [0.2.1] - 2026-08-23
+
+### Added
+
+- Added optional `folderId` selection for first-time `prompt_to_agent` calls. Omitting it keeps the complete parent Workspace; selecting one authorized Folder creates a fixed single-root scope for Agents without additional-directories support.
+
+### Changed
+
+- Continuations now keep their persisted Workspace or Folder scope and reject scope changes. Capability mismatch errors describe the authorized Folder IDs and names, the required new-call fields, and the Agent alternative for tasks spanning multiple Folders.
+
+### Compatibility
+
+- Existing tool names, five-tool registry, RPC envelope version 1, owner-scoped response reads, background behavior, and optional `spawn.session` Signal remain compatible.
+
 ## [0.2.0] - 2026-08-19
 
 ### Added

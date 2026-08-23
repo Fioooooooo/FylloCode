@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { UIMessage } from "ai";
 import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import { parseJsonlLines } from "@main/infra/storage/jsonl";
+import { loadWorkspace } from "@main/infra/storage/workspace-store";
 import {
   spawnedSessionMessagesPath,
   spawnedSessionMetaPath,
@@ -24,11 +25,13 @@ import {
   MAX_RESPONSE_CHUNK_BYTES,
   spawnConfigOptionSummarySchema,
   spawnRecentActivitySchema,
+  spawnedSessionScopeSchema,
   spawnTurnModeSchema,
   spawnWarningSchema,
   type ReadResponseResult,
   type SpawnConfigOptionSummary,
   type SpawnRecentActivity,
+  type SpawnedSessionScope,
   type SpawnTurnMode,
   type SpawnWarning,
 } from "@shared/types/fyllo-spawn-rpc";
@@ -49,6 +52,7 @@ const storedMetaSchema = z
     acpSessionId: z.string().min(1).optional(),
     processGeneration: z.number().int().nonnegative().optional(),
     workspaceSnapshot: sessionWorkspaceSnapshotSchema,
+    scope: spawnedSessionScopeSchema.optional(),
     status: spawnedSessionStatusSchema,
     configOptions: z.array(z.unknown()),
     turnCount: z.number().int().nonnegative(),
@@ -75,6 +79,7 @@ export interface SpawnedSessionMeta {
   acpSessionId?: string;
   processGeneration?: number;
   workspaceSnapshot: SessionWorkspaceSnapshot;
+  scope: SpawnedSessionScope;
   status: z.infer<typeof spawnedSessionStatusSchema>;
   configOptions: AcpSessionConfigOption[];
   turnCount: number;
@@ -224,8 +229,36 @@ async function withWriteQueue<T>(owner: SpawnedStoreOwner, task: () => Promise<T
   }
 }
 
+const requiredMetaSchema = storedMetaSchema.extend({ scope: spawnedSessionScopeSchema });
+
+type StoredSpawnedSessionMeta = z.infer<typeof storedMetaSchema>;
+
+function parseStoredMeta(input: unknown): StoredSpawnedSessionMeta {
+  return storedMetaSchema.parse(input);
+}
+
 function parseMeta(input: unknown): SpawnedSessionMeta {
-  return storedMetaSchema.parse(input) as SpawnedSessionMeta;
+  return requiredMetaSchema.parse(input) as SpawnedSessionMeta;
+}
+
+function normalizeMeta(input: StoredSpawnedSessionMeta, workspaceName: string): SpawnedSessionMeta {
+  return parseMeta({
+    ...input,
+    scope: input.scope ?? {
+      kind: "workspace",
+      workspaceId: input.workspaceId,
+      name: workspaceName,
+    },
+  });
+}
+
+async function legacyWorkspaceName(workspaceId: string): Promise<string> {
+  try {
+    const workspace = await loadWorkspace(workspaceId);
+    return workspace?.name ?? "Workspace";
+  } catch {
+    return "Workspace";
+  }
 }
 
 function parseTurnRecord(input: unknown): SpawnedTurnRecord {
@@ -248,7 +281,7 @@ export async function loadSpawnedSessionMeta(
   owner: SpawnedStoreOwner
 ): Promise<SpawnedSessionMeta | null> {
   try {
-    return parseMeta(
+    const parsed = parseStoredMeta(
       JSON.parse(
         await fs.readFile(
           spawnedSessionMetaPath(owner.workspaceId, owner.parentSessionId, owner.sessionId),
@@ -256,6 +289,9 @@ export async function loadSpawnedSessionMeta(
         )
       ) as unknown
     );
+    return parsed.scope
+      ? parseMeta(parsed)
+      : normalizeMeta(parsed, await legacyWorkspaceName(parsed.workspaceId));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
@@ -286,8 +322,13 @@ export async function patchSpawnedSessionMeta(
   return withWriteQueue(owner, async () => {
     const path = spawnedSessionMetaPath(owner.workspaceId, owner.parentSessionId, owner.sessionId);
     let current: SpawnedSessionMeta;
+    let persistedLegacyScope = false;
     try {
-      current = parseMeta(JSON.parse(await fs.readFile(path, "utf8")) as unknown);
+      const parsed = parseStoredMeta(JSON.parse(await fs.readFile(path, "utf8")) as unknown);
+      persistedLegacyScope = parsed.scope === undefined;
+      current = parsed.scope
+        ? parseMeta(parsed)
+        : normalizeMeta(parsed, await legacyWorkspaceName(parsed.workspaceId));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
@@ -295,7 +336,15 @@ export async function patchSpawnedSessionMeta(
     const delta = typeof patch === "function" ? patch(current) : patch;
     const next = parseMeta({ ...current, ...delta });
     assertWritable(owner);
-    writeFileAtomicSync(path, `${JSON.stringify(next, null, 2)}\n`);
+    const persisted =
+      persistedLegacyScope && delta.scope === undefined
+        ? (() => {
+            const legacy = { ...next };
+            delete (legacy as Partial<SpawnedSessionMeta>).scope;
+            return parseStoredMeta(legacy);
+          })()
+        : next;
+    writeFileAtomicSync(path, `${JSON.stringify(persisted, null, 2)}\n`);
     return next;
   });
 }

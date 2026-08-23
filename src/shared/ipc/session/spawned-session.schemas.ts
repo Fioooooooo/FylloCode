@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { spawnedSessionScopeSchema, type SpawnedSessionScope } from "@shared/types/fyllo-spawn-rpc";
 
 const sessionIdSchema = z
   .string()
@@ -129,6 +130,7 @@ export const spawnedSessionSummarySchema = z
   .object({
     sessionId: sessionIdSchema,
     agent: spawnedSessionAgentSchema,
+    scope: spawnedSessionScopeSchema,
     status: spawnedSessionDisplayStatusSchema,
     mode: z.enum(["sync", "background"]).optional(),
     currentTurnId: z.string().min(1).optional(),
@@ -161,6 +163,7 @@ export type SpawnedSessionListInput = z.infer<typeof spawnedSessionListInputSche
 export type SpawnedSessionDetailInput = z.infer<typeof spawnedSessionDetailInputSchema>;
 export type SpawnedSessionWakePayload = z.infer<typeof spawnedSessionWakePayloadSchema>;
 export type SpawnedSessionAgent = z.infer<typeof spawnedSessionAgentSchema>;
+export type { SpawnedSessionScope };
 export type SpawnedSessionError = z.infer<typeof spawnedSessionErrorSchema>;
 export type SpawnedSessionRecentActivity = z.infer<typeof spawnedSessionRecentActivitySchema>;
 export type SpawnedSessionMessage = z.infer<typeof spawnedSessionMessageSchema>;

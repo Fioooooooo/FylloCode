@@ -36,6 +36,7 @@ describe("SpawnedSessionActivityEntry", () => {
             {
               sessionId: "spawn-1",
               agent: { agentId: "agent-1", name: "Agent One" },
+              scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
               status: "running",
               mode: "background",
               startedAt: "2026-08-08T00:00:00.000Z",
@@ -74,6 +75,7 @@ describe("SpawnedSessionActivityEntry", () => {
         {
           sessionId: "terminal",
           agent: { agentId: "agent-2", name: "Terminal Agent" },
+          scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
           status: "idle",
           mode: "background",
           updatedAt: "2026-08-08T00:03:00.000Z",
@@ -81,6 +83,7 @@ describe("SpawnedSessionActivityEntry", () => {
         {
           sessionId: "sync-running",
           agent: { agentId: "agent-3", name: "Sync Agent" },
+          scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
           status: "running",
           mode: "sync",
           updatedAt: "2026-08-08T00:01:00.000Z",
@@ -88,6 +91,7 @@ describe("SpawnedSessionActivityEntry", () => {
         {
           sessionId: "background-running",
           agent: { agentId: "agent-1", name: "Background Agent" },
+          scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
           status: "starting",
           mode: "background",
           updatedAt: "2026-08-08T00:02:00.000Z",

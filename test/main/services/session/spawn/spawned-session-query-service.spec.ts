@@ -36,6 +36,7 @@ function view(overrides: Record<string, unknown> = {}) {
       ...owner,
       sessionId: "spawn-1",
       agentId: "agent-1",
+      scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
       workspaceSnapshot: {
         workspaceId: "workspace-1",
         workspaceKind: "folder",
@@ -238,6 +239,62 @@ describe("SpawnedSessionQueryService", () => {
     expect(result[0]).not.toHaveProperty("promptPreview");
     expect(mocks.loadDetail).not.toHaveBeenCalled();
   });
+
+  it("projects the same persisted Folder scope in list and detail without exposing paths", async () => {
+    const folderScope = { kind: "folder" as const, folderId: "folder-2", name: "Docs" };
+    const current = view({ meta: { ...view().meta, scope: folderScope, status: "idle" } });
+    current.turns[0].phase = "completed";
+    mocks.listSummaries.mockResolvedValue([{ meta: current.meta, latestTurn: current.turns[0] }]);
+    mocks.loadDetail.mockResolvedValue(current);
+
+    const service = new SpawnedSessionQueryService();
+    const list = await service.listSpawnedSessions(owner);
+    const detail = await service.getSpawnedSessionDetail({ ...owner, sessionId: "spawn-1" });
+
+    expect(list[0]?.scope).toEqual(folderScope);
+    expect(detail).toMatchObject({ status: "ready", summary: { scope: folderScope } });
+    expect(JSON.stringify(list)).not.toContain("/work");
+    expect(JSON.stringify(detail)).not.toContain("workspaceSnapshot");
+  });
+
+  it("uses the Workspace fallback scope when a legacy meta projection lacks scope", async () => {
+    const current = view();
+    delete (current.meta as { scope?: unknown }).scope;
+    mocks.listSummaries.mockResolvedValue([{ meta: current.meta, latestTurn: current.turns[0] }]);
+
+    const result = await new SpawnedSessionQueryService().listSpawnedSessions(owner);
+
+    expect(result[0]?.scope).toEqual({
+      kind: "workspace",
+      workspaceId: "workspace-1",
+      name: "Workspace",
+    });
+  });
+
+  it.each(["error", "expired"] as const)(
+    "keeps the persisted scope visible for %s terminal Sessions",
+    async (status) => {
+      const current = view({
+        meta: {
+          ...view().meta,
+          status,
+          error: { code: status.toUpperCase(), message: "terminal" },
+        },
+        turns: [
+          {
+            ...view().turns[0],
+            phase: status,
+            error: { code: status.toUpperCase(), message: "terminal" },
+          },
+        ],
+      });
+      mocks.listSummaries.mockResolvedValue([{ meta: current.meta, latestTurn: current.turns[0] }]);
+
+      const result = await new SpawnedSessionQueryService().listSpawnedSessions(owner);
+
+      expect(result[0]).toMatchObject({ status, scope: current.meta.scope });
+    }
+  );
 
   it("does not merge a stale live snapshot from another Turn", async () => {
     mocks.getInspectionSnapshot.mockReturnValue({

@@ -9,6 +9,7 @@ import {
   projectSpawnedSessionContent,
   spawnedSessionStatusPresentation,
 } from "../model/projection";
+import { semanticIcons } from "@renderer/config/semantic-icons";
 
 const props = defineProps<{
   open: boolean;
@@ -42,6 +43,18 @@ const selectedTurn = computed(() => {
 const presentation = computed(() => {
   const status = selectedTurn.value?.status ?? detail.value?.summary.status;
   return status ? spawnedSessionStatusPresentation(status) : null;
+});
+const scopePresentation = computed(() => {
+  const scope = detail.value?.summary.scope;
+  if (!scope) return null;
+  // OpenSpec inspection 契约要求在 Session header 中保留 scope 类型原文，避免从当前 Turn 推断。
+  // eslint-disable-next-line renderer-terminology/no-internal-user-terms -- scope 类型是持久化 inspection 契约要求的可见标签
+  const label = scope.kind === "folder" ? "Folder" : "Workspace";
+  return {
+    label,
+    name: scope.name,
+    icon: scope.kind === "folder" ? semanticIcons.folder : semanticIcons.workspace,
+  };
 });
 const content = computed(() =>
   selectedTurn.value
@@ -120,6 +133,19 @@ function formatTime(value?: string): string {
               </div>
               <p v-if="detail" class="text-xs text-muted">
                 {{ detail.summary.agent.name }} · {{ detail.summary.agent.agentId }}
+              </p>
+              <p
+                v-if="scopePresentation"
+                class="flex items-center gap-1.5 text-xs text-muted"
+                data-test="spawned-session-scope"
+              >
+                <UIcon
+                  :name="scopePresentation.icon"
+                  class="size-3.5"
+                  aria-hidden="true"
+                  data-test="spawned-session-scope-icon"
+                />
+                <span>{{ scopePresentation.label }} · {{ scopePresentation.name }}</span>
               </p>
             </div>
             <UButton

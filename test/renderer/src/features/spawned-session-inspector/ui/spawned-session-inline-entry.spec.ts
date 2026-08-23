@@ -25,6 +25,7 @@ function listSummary(
   return {
     sessionId: "spawn-1",
     agent: { agentId: "agent-1", name: "Agent One" },
+    scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
     status,
     updatedAt: "2026-08-08T00:00:00.000Z",
   };

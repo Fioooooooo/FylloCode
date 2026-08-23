@@ -51,6 +51,7 @@ function meta(): SpawnedSessionMeta {
     version: 1,
     ...owner,
     agentId: "agent-1",
+    scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
     workspaceSnapshot: {
       workspaceId: "workspace-1",
       workspaceKind: "folder",
@@ -155,6 +156,17 @@ describe("spawned-session-store", () => {
     expect(messages.map((entry) => entry.role)).toEqual(["user", "assistant"]);
   });
 
+  it("round-trips an explicit Folder scope with its creation-time name", async () => {
+    await writeSpawnedSessionMeta({
+      ...meta(),
+      scope: { kind: "folder", folderId: "folder-1", name: "Project" },
+    });
+
+    await expect(loadSpawnedSessionMeta(owner)).resolves.toMatchObject({
+      scope: { kind: "folder", folderId: "folder-1", name: "Project" },
+    });
+  });
+
   it("creates immutable response files", async () => {
     await writeSpawnedSessionResponse(owner, "response-1", "first");
     await expect(writeSpawnedSessionResponse(owner, "response-1", "second")).rejects.toMatchObject({
@@ -255,6 +267,35 @@ describe("spawned-session-store", () => {
     await expect(listSpawnedTurnRecords(owner)).resolves.toEqual([
       expect.objectContaining({ turnId: "turn-1" }),
     ]);
+  });
+
+  it("normalizes a version 1 meta without scope to the Workspace fallback without rewriting it", async () => {
+    const legacyPayload = { ...meta() };
+    delete (legacyPayload as Partial<SpawnedSessionMeta>).scope;
+    const metaPath = join(
+      spawnedSessionsDir(owner.workspaceId, owner.parentSessionId),
+      "spawn-1",
+      "meta.json"
+    );
+    await mkdir(join(metaPath, ".."), { recursive: true });
+    await writeFile(metaPath, `${JSON.stringify(legacyPayload)}\n`, "utf8");
+
+    await expect(loadSpawnedSessionMeta(owner)).resolves.toMatchObject({
+      scope: { kind: "workspace", workspaceId: "workspace-1", name: "Workspace" },
+    });
+    expect(JSON.parse(await readFile(metaPath, "utf8"))).not.toHaveProperty("scope");
+  });
+
+  it("keeps the stored meta strict and rejects path fields outside the snapshot", async () => {
+    const metaPath = join(
+      spawnedSessionsDir(owner.workspaceId, owner.parentSessionId),
+      "spawn-1",
+      "meta.json"
+    );
+    await mkdir(join(metaPath, ".."), { recursive: true });
+    await writeFile(metaPath, `${JSON.stringify({ ...meta(), cwd: "/leak" })}\n`, "utf8");
+
+    await expect(loadSpawnedSessionMeta(owner)).rejects.toThrow();
   });
 
   it("reads prompt preview fields when present and keeps them optional for legacy meta", async () => {

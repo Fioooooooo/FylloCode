@@ -2,6 +2,13 @@ import { randomUUID } from "node:crypto";
 import { generateId, type UIMessage } from "ai";
 import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
+import {
+  assertSpawnedSessionScopeSnapshot,
+  deriveSpawnedSessionWorkspaceSnapshot,
+  formatAuthorizedFolderList,
+  getSpawnedSessionFolder,
+  SpawnedSessionWorkspaceError,
+} from "@main/domain/session/spawn/spawned-session-workspace";
 import { getAgentById, listAgents } from "@main/infra/acp/agent-catalog";
 import { readInstalledRecords } from "@main/infra/acp/detector";
 import {
@@ -46,6 +53,7 @@ import {
   type SpawnRpcErrorCode,
   type SpawnWarning,
   type SpawnTurnMode,
+  type SpawnedSessionScope,
 } from "@shared/types/fyllo-spawn-rpc";
 import { AcpSession, type AcpSessionOpts } from "@main/services/session/chat/acp-session";
 import { driveAcpTurn, type AcpTurnRunner } from "@main/services/session/chat/acp-stream-driver";
@@ -56,6 +64,7 @@ import {
   spawnSessionRegistryKey,
 } from "@main/services/session/chat/session-registry";
 import { spawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
+import { resolveWorkspace } from "@main/services/workspace/_public";
 import {
   SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE,
   SPAWN_APP_RESTARTED_MESSAGE,
@@ -203,6 +212,29 @@ function promptPreview(prompt: string): string {
   return prompt.slice(0, SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH);
 }
 
+function folderSelectionErrorMessage(
+  folderId: string,
+  parentSnapshot: SessionWorkspaceSnapshot
+): string {
+  return `Folder ID "${folderId}" is not in the parent Session's fixed authorized snapshot. No spawned Session was created and no turn was started. Choose one of these authorized Folder IDs and names: ${formatAuthorizedFolderList(parentSnapshot)}. Retry by omitting sessionId and setting folderId to one of those IDs; do not submit cwd or a path. If the task spans multiple Folders, use an Agent that supports additional directories.`;
+}
+
+function capabilityMismatchRecoveryMessage(
+  agentId: string,
+  parentSnapshot: SessionWorkspaceSnapshot,
+  isContinuation: boolean
+): string {
+  const outcome = isContinuation ? "No new turn was started" : "No spawned Session was created";
+  const continuation = isContinuation
+    ? "This Session's persisted scope is fixed, so continuation must omit folderId."
+    : "To recover, omit sessionId and set folderId to one of those IDs for a new single-Folder Session. Omit folderId only when using an Agent that supports additional directories.";
+  return `Agent "${agentId}" does not support the additional directories required by the complete multi-root Workspace. ${outcome}. Authorized Folder IDs and names: ${formatAuthorizedFolderList(parentSnapshot)}. ${continuation} Do not submit cwd or a path. If the task spans multiple Folders, use an Agent that supports additional directories.`;
+}
+
+function persistedScopeErrorMessage(parentSnapshot: SessionWorkspaceSnapshot): string {
+  return `The spawned Session's persisted Workspace or Folder scope is not valid for the parent Session snapshot. No new turn was started. Retry by omitting sessionId and, for a single-Folder task, setting folderId to one of these authorized Folder IDs and names: ${formatAuthorizedFolderList(parentSnapshot)}. Do not submit cwd or a path. If the task spans multiple Folders, use an Agent that supports additional directories.`;
+}
+
 class SpawnedAcpSessionStore implements AcpSessionStore {
   constructor(
     private readonly owner: SpawnOwner,
@@ -344,15 +376,56 @@ export class SpawnedSessionManager {
       if (signal?.aborted) {
         throw new SpawnServiceError("SPAWN_RPC_CANCELLED", "Spawn request was cancelled");
       }
-      const snapshot = await this.requireParentSnapshot(caller);
-      const agent = await this.requireInstalledAgent(params.agentId);
-      await assertAgentWorkspaceCompatibility(agent.id, snapshot);
-
+      const parentSnapshot = await this.requireParentSnapshot(caller);
+      if (params.sessionId && params.folderId !== undefined) {
+        throw new SpawnServiceError(
+          "SPAWN_INVALID_REQUEST",
+          `Cannot change a spawned Session scope during continuation. No new turn was started. Retry with sessionId=${params.sessionId} and omit folderId to keep its persisted scope, or omit sessionId and provide one of the authorized Folder IDs (${formatAuthorizedFolderList(parentSnapshot)}) to create a new Session. Do not submit a path. If the task spans multiple Folders, use an Agent that supports additional directories.`
+        );
+      }
       let meta = await loadSpawnedSessionMeta(storeOwner(owner));
+      let snapshot: SessionWorkspaceSnapshot;
+      let scope: SpawnedSessionScope;
+      const agent = await this.requireInstalledAgent(params.agentId);
+      const assertEffectiveCompatibility = async (
+        effectiveSnapshot: SessionWorkspaceSnapshot
+      ): Promise<void> => {
+        try {
+          await assertAgentWorkspaceCompatibility(agent.id, effectiveSnapshot);
+        } catch (error) {
+          const candidate = error as { code?: unknown };
+          if (candidate.code === "PROMPT_CAPABILITY_MISMATCH") {
+            throw new SpawnServiceError(
+              "PROMPT_CAPABILITY_MISMATCH",
+              capabilityMismatchRecoveryMessage(
+                agent.id,
+                parentSnapshot,
+                params.sessionId !== undefined
+              )
+            );
+          }
+          throw error;
+        }
+      };
       let processEntry: Awaited<ReturnType<typeof getOrStartProcess>>;
       if (params.sessionId) {
         if (!meta) {
           return { status: "not_found", sessionId: owner.sessionId };
+        }
+        snapshot = meta.workspaceSnapshot;
+        scope =
+          meta.scope ??
+          ({ kind: "workspace", workspaceId: meta.workspaceId, name: "Workspace" } as const);
+        try {
+          assertSpawnedSessionScopeSnapshot(parentSnapshot, snapshot, scope);
+        } catch (error) {
+          if (error instanceof SpawnedSessionWorkspaceError) {
+            throw new SpawnServiceError(
+              "SPAWN_INVALID_REQUEST",
+              persistedScopeErrorMessage(parentSnapshot)
+            );
+          }
+          throw error;
         }
         if (meta.agentId !== params.agentId) {
           throw new SpawnServiceError(
@@ -363,6 +436,7 @@ export class SpawnedSessionManager {
         if (meta.status === "error" || meta.status === "expired") {
           return { status: "expired", sessionId: owner.sessionId };
         }
+        await assertEffectiveCompatibility(snapshot);
         const ready = getReadyProcess(meta.agentId);
         if (
           !ready ||
@@ -378,6 +452,30 @@ export class SpawnedSessionManager {
         }
         processEntry = ready;
       } else {
+        try {
+          if (params.folderId !== undefined) {
+            const folder = getSpawnedSessionFolder(parentSnapshot, params.folderId);
+            snapshot = deriveSpawnedSessionWorkspaceSnapshot(parentSnapshot, params.folderId);
+            scope = { kind: "folder", folderId: folder.folderId, name: folder.folderName };
+          } else {
+            const workspace = await resolveWorkspace(caller.workspaceId);
+            snapshot = parentSnapshot;
+            scope = {
+              kind: "workspace",
+              workspaceId: caller.workspaceId,
+              name: workspace.workspaceName,
+            };
+          }
+        } catch (error) {
+          if (error instanceof SpawnedSessionWorkspaceError && error.code === "UNKNOWN_FOLDER") {
+            throw new SpawnServiceError(
+              "SPAWN_INVALID_REQUEST",
+              folderSelectionErrorMessage(params.folderId ?? "", parentSnapshot)
+            );
+          }
+          throw error;
+        }
+        await assertEffectiveCompatibility(snapshot);
         processEntry = await getOrStartProcess(params.agentId);
         const now = this.nowIso();
         meta = {
@@ -386,6 +484,7 @@ export class SpawnedSessionManager {
           agentId: params.agentId,
           processGeneration: processEntry.generation,
           workspaceSnapshot: snapshot,
+          scope,
           status: "running",
           configOptions: [],
           turnCount: 0,

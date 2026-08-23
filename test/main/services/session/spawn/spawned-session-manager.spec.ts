@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   failMetaPatchStatuses: new Set<string>(),
   loadSessionMeta: vi.fn(),
   ensureSnapshot: vi.fn(),
+  resolveWorkspace: vi.fn(),
   listAgents: vi.fn(),
   getAgentById: vi.fn(),
   readInstalledRecords: vi.fn(),
@@ -70,6 +71,10 @@ vi.mock("@main/infra/storage/session-store", () => ({
 
 vi.mock("@main/services/session/chat/chat-service", () => ({
   ensureSessionWorkspaceSnapshot: mocks.ensureSnapshot,
+}));
+
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
 }));
 
 vi.mock("@main/services/session/chat/agent-workspace-compatibility", () => ({
@@ -220,6 +225,7 @@ function meta(sessionId: string, overrides: Partial<SpawnedSessionMeta> = {}): S
     agentId: "agent-1",
     acpSessionId: `acp-${sessionId}`,
     processGeneration: 0,
+    scope: { kind: "workspace", workspaceId: caller.workspaceId, name: "Workspace" },
     workspaceSnapshot: snapshot,
     status: "idle",
     configOptions: [],
@@ -251,6 +257,7 @@ describe("SpawnedSessionManager", () => {
     mocks.invalidations.length = 0;
     mocks.loadSessionMeta.mockResolvedValue({ workspaceSnapshot: snapshot });
     mocks.ensureSnapshot.mockResolvedValue(snapshot);
+    mocks.resolveWorkspace.mockResolvedValue({ workspaceName: "Workspace" });
     mocks.listAgents.mockResolvedValue([
       { id: "agent-1", name: "Agent One", source: "custom", registryEntry: { description: "A" } },
     ]);
@@ -338,6 +345,144 @@ describe("SpawnedSessionManager", () => {
     await manager.dispose();
   });
 
+  it("Folder-scoped Session 的第二轮继续复用单根 snapshot", async () => {
+    const manager = new SpawnedSessionManager();
+    const first = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "first docs task",
+      folderId: "folder-2",
+    });
+    const sessionId = (first as { sessionId: string }).sessionId;
+    mocks.sessions.length = 0;
+
+    const second = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "continue docs task",
+      sessionId,
+    });
+
+    expect(second).toMatchObject({ status: "completed", sessionId });
+    expect(mocks.sessions[0]?.opts).toMatchObject({
+      cwd: "/docs",
+      additionalDirectories: [],
+      workspaceSnapshot: {
+        primaryFolderId: "folder-2",
+        folders: [{ folderId: "folder-2", folderPath: "/docs" }],
+        additionalDirectories: [],
+      },
+    });
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      scope: { kind: "folder", folderId: "folder-2", name: "Docs" },
+    });
+    await manager.dispose();
+  });
+
+  it("旧 meta 没有 scope 时续聊仍按 workspace 归一化而非按 Folder 形状猜测", async () => {
+    const legacy = { ...meta("legacy") } as Omit<SpawnedSessionMeta, "scope"> & {
+      scope?: unknown;
+    };
+    delete legacy.scope;
+    mocks.metas.set(key({ ...caller, sessionId: "legacy" }), legacy as SpawnedSessionMeta);
+    const manager = new SpawnedSessionManager();
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "continue legacy",
+        sessionId: "legacy",
+      })
+    ).resolves.toMatchObject({ status: "completed", sessionId: "legacy" });
+    expect(mocks.sessions[0]?.opts).toMatchObject({
+      cwd: "/repo",
+      additionalDirectories: ["/docs"],
+    });
+    await manager.dispose();
+  });
+
+  it("continuation 不能切换到另一个 Folder", async () => {
+    mocks.metas.set(key({ ...caller, sessionId: "spawn-1" }), {
+      ...meta("spawn-1"),
+      scope: { kind: "folder", folderId: "folder-2", name: "Docs" },
+      workspaceSnapshot: {
+        ...snapshot,
+        primaryFolderId: "folder-2",
+        folders: [{ folderId: "folder-2", folderName: "Docs", folderPath: "/docs" }],
+        cwd: "/docs",
+        additionalDirectories: [],
+      },
+    });
+    const manager = new SpawnedSessionManager();
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "switch scope",
+        sessionId: "spawn-1",
+        folderId: "folder-1",
+      })
+    ).rejects.toMatchObject({
+      code: "SPAWN_INVALID_REQUEST",
+      message: expect.stringContaining("No new turn was started"),
+    });
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.messages).toHaveLength(0);
+    await manager.dispose();
+  });
+
+  it("未知 Folder 在写入前返回可恢复选择错误且不泄露路径", async () => {
+    const manager = new SpawnedSessionManager();
+
+    const error = await manager
+      .promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "unknown folder",
+        folderId: "missing",
+      })
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "SPAWN_INVALID_REQUEST",
+      message: expect.stringContaining("folder-1"),
+    });
+    expect((error as Error).message).toContain("folder-2 (Docs)");
+    expect((error as Error).message).not.toContain("/repo");
+    expect((error as Error).message).not.toContain("/docs");
+    /*
+     * 解析 Folder 失败发生在 process、meta、turn 和 message 写入之前。
+     */
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.messages).toHaveLength(0);
+    expect(mocks.metas).toHaveLength(0);
+    await manager.dispose();
+  });
+
+  it("默认 multi-root capability mismatch 说明 Folder 恢复方式且不创建 Session", async () => {
+    mocks.assertCompatibility.mockRejectedValueOnce(
+      Object.assign(new Error("unsupported"), { code: "PROMPT_CAPABILITY_MISMATCH" })
+    );
+    const manager = new SpawnedSessionManager();
+
+    const error = await manager
+      .promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "multi-root",
+      })
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "PROMPT_CAPABILITY_MISMATCH",
+      retryable: false,
+      message: expect.stringContaining("No spawned Session was created"),
+    });
+    expect((error as Error).message).toContain("folder-1 (Root)");
+    expect((error as Error).message).toContain("folder-2 (Docs)");
+    expect((error as Error).message).toContain("If the task spans multiple Folders");
+    expect((error as Error).message).not.toContain("/repo");
+    expect((error as Error).message).not.toContain("/docs");
+    expect(mocks.getOrStartProcess).not.toHaveBeenCalled();
+    expect(mocks.messages).toHaveLength(0);
+    expect(mocks.metas).toHaveLength(0);
+    await manager.dispose();
+  });
+
   it("为新建和续聊 Session 写入有界 prompt 摘要", async () => {
     const manager = new SpawnedSessionManager();
     const firstPrompt = "a".repeat(300);
@@ -363,6 +508,41 @@ describe("SpawnedSessionManager", () => {
     expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
       initialPromptPreview: firstPrompt.slice(0, 240),
       currentPromptPreview: "second prompt",
+    });
+    await manager.dispose();
+  });
+
+  it("新建时显式选择 Folder 只把该 Folder 传给 ACP 并持久化 folder scope", async () => {
+    mocks.assertCompatibility.mockImplementationOnce(
+      async (_agentId: string, effective: { additionalDirectories: string[] }) => {
+        if (effective.additionalDirectories.length > 0) {
+          throw Object.assign(new Error("unsupported additional directories"), {
+            code: "PROMPT_CAPABILITY_MISMATCH",
+          });
+        }
+      }
+    );
+    const manager = new SpawnedSessionManager();
+
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "work in docs",
+      folderId: "folder-2",
+    });
+
+    expect(result).toMatchObject({ status: "completed" });
+    const sessionId = (result as { sessionId: string }).sessionId;
+    expect(mocks.sessions[0]?.opts).toMatchObject({
+      cwd: "/docs",
+      additionalDirectories: [],
+      workspaceSnapshot: {
+        primaryFolderId: "folder-2",
+        folders: [{ folderId: "folder-2", folderPath: "/docs" }],
+        additionalDirectories: [],
+      },
+    });
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      scope: { kind: "folder", folderId: "folder-2", name: "Docs" },
     });
     await manager.dispose();
   });

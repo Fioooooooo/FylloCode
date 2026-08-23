@@ -8,6 +8,7 @@ const result = {
   summary: {
     sessionId: "spawn-1",
     agent: { agentId: "agent-1", name: "Agent One" },
+    scope: { kind: "workspace" as const, workspaceId: "workspace-1", name: "Workspace" },
     status: "interrupted" as const,
     mode: "background" as const,
     startedAt: "2026-08-08T00:00:00.000Z",
@@ -74,6 +75,10 @@ describe("SpawnedSessionDetailSlideover", () => {
     });
     expect(wrapper.text()).toContain("已中断");
     expect(wrapper.text()).toContain("APP_RESTARTED");
+    expect(wrapper.get('[data-test="spawned-session-scope"]').text()).toBe("Workspace · Workspace");
+    expect(
+      wrapper.get('[data-test="spawned-session-scope-icon"]').attributes("data-icon-name")
+    ).toBe("i-lucide-layout-grid");
     expect(wrapper.text()).toContain("Inspect *all* code");
     expect(wrapper.get('[data-test="activity"]').text()).toBe("reasoning,dynamic-tool");
     expect(wrapper.get('[data-test="transcript"]').text()).toBe("Final *answer*");
@@ -155,6 +160,25 @@ describe("SpawnedSessionDetailSlideover", () => {
     expect(wrapper.get('[role="combobox"]').text()).toContain("第 1 轮 / 共 3 轮");
     expect(wrapper.text()).toContain("最新一轮正在活动");
     expect(wrapper.text()).not.toContain("Third prompt");
+    expect(wrapper.get('[data-test="spawned-session-scope"]').text()).toBe("Workspace · Workspace");
+  });
+
+  it("renders a persisted Folder scope with its semantic icon", () => {
+    const folderResult = {
+      ...result,
+      summary: {
+        ...result.summary,
+        scope: { kind: "folder" as const, folderId: "folder-2", name: "Docs" },
+      },
+    };
+    const wrapper = mount(SpawnedSessionDetailSlideover, {
+      props: { open: true, loading: false, error: null, result: folderResult },
+    });
+
+    expect(wrapper.get('[data-test="spawned-session-scope"]').text()).toBe("Folder · Docs");
+    expect(
+      wrapper.get('[data-test="spawned-session-scope-icon"]').attributes("data-icon-name")
+    ).toBe("i-lucide-folder");
   });
 
   it("distinguishes loading, query error and not_found", async () => {
@@ -162,6 +186,7 @@ describe("SpawnedSessionDetailSlideover", () => {
       props: { open: true, loading: true, error: null, result: null },
     });
     expect(wrapper.text()).toContain("正在加载子 Agent Session");
+    expect(wrapper.find('[data-test="spawned-session-scope"]').exists()).toBe(false);
     await wrapper.setProps({ loading: false, error: "offline" });
     expect(wrapper.text()).toContain("offline");
     await wrapper.setProps({ error: null, result: { status: "not_found" } });

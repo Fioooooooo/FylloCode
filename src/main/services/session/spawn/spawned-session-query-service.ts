@@ -229,9 +229,13 @@ export class SpawnedSessionQueryService {
     const matchingLive = live && (!turn || live.turnId === turn.turnId) ? live : null;
     const status = summaryStatus(meta, turn, matchingLive);
     const agent = await getAgentById(meta.agentId);
+    const scope =
+      meta.scope ??
+      ({ kind: "workspace", workspaceId: meta.workspaceId, name: "Workspace" } as const);
     return {
       sessionId: meta.sessionId,
       agent: { agentId: meta.agentId, name: agent?.name ?? meta.agentId },
+      scope,
       status,
       ...((turn?.mode ?? matchingLive?.mode) ? { mode: turn?.mode ?? matchingLive?.mode } : {}),
       ...((turn?.turnId ?? matchingLive?.turnId)

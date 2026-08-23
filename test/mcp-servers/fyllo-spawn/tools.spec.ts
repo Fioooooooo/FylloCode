@@ -9,7 +9,7 @@ import type { SpawnRpcClient } from "../../../src/mcp-servers/fyllo-spawn/src/rp
 
 interface ToolRegistration {
   name: string;
-  config: { description?: string };
+  config: { description?: string; inputSchema?: unknown };
   handler: (input: Record<string, unknown>, extra: { signal: AbortSignal }) => Promise<unknown>;
 }
 
@@ -58,9 +58,23 @@ describe("fyllo-spawn trusted caller", () => {
     expect(description).toContain("not required for discovery");
     expect(description).toContain("do not repeat it for continuation calls");
     expect(description).toContain("Main-owned activity view remains the source of truth");
+    expect(description).toContain("omitting folderId inherits the complete parent Workspace");
+    expect(description).toContain("folderId only on a new call (omit sessionId)");
+    expect(description).toContain("Continuations must provide sessionId without folderId");
+    expect(description).toContain("choose an Agent that supports additional directories");
     expect(description).not.toContain("responsePath");
     expect(description).not.toContain("app-data");
     expect(description).not.toContain('{"sessionId"');
+
+    const inputShape = (
+      promptRegistration?.[1]?.inputSchema as {
+        shape?: Record<string, { description?: string }>;
+      }
+    )?.shape;
+    expect(inputShape?.folderId?.description).toContain("new Session only");
+    expect(inputShape?.folderId?.description).toContain("complete Workspace");
+    expect(inputShape?.sessionId?.description).toContain("omit folderId");
+    expect(inputShape?.sessionId?.description).toContain("scope is fixed");
   });
 
   it("registers exactly five tools and routes each one through its matching RPC method", async () => {

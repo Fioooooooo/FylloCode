@@ -52,7 +52,9 @@ Returns installed registry and valid custom ACP Agents without starting a proces
 
 ### `prompt_to_agent`
 
-Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides; `background` defaults to `true`, so a call that omits it returns `accepted` once Main has durably dispatched the turn. Main automatically exposes both new and continued Sessions through the parent Chat activity view. A returned Session identity MAY be referenced once by the optional `spawn.session` contextual deep link, but the Signal is not required for discovery or status updates and continuation calls do not repeat it.
+Creates a spawned Session when `sessionId` is omitted or continues an owner-matched Session. It supports synchronous and background turns plus config overrides; `background` defaults to `true`, so a call that omits it returns `accepted` once Main has durably dispatched the turn. A new call that omits `folderId` inherits the complete parent Workspace snapshot. To run an Agent that cannot accept additional directories, a new call may set the optional `folderId` to one Folder ID from the parent Session's fixed authorized snapshot; Main then uses that Folder as `cwd` with no additional directories. `folderId` cannot be combined with `sessionId`, and continuation calls keep the persisted Workspace or Folder scope without accepting a scope change. If a complete multi-root Workspace causes `PROMPT_CAPABILITY_MISMATCH`, no Session or turn is created; retry as a new call with an authorized Folder ID, or use an Agent that supports additional directories for work spanning multiple Folders. Absolute `cwd` or other paths are never accepted.
+
+Main automatically exposes both new and continued Sessions through the parent Chat activity view. A returned Session identity MAY be referenced once by the optional `spawn.session` contextual deep link, but the Signal is not required for discovery or status updates and continuation calls do not repeat it.
 
 ### `check_session_status`
 

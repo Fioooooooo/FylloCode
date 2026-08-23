@@ -38,11 +38,41 @@ export const promptToAgentParamsSchema = z
   .object({
     agentId: z.string().min(1),
     prompt: z.string().min(1),
-    sessionId: identitySchema.optional(),
+    sessionId: identitySchema
+      .optional()
+      .describe(
+        "Optional existing spawned Session ID for continuation. When provided, omit folderId; the persisted Workspace or Folder scope is fixed and cannot be changed. Omit sessionId to create a new Session, optionally with folderId."
+      ),
+    folderId: identitySchema
+      .optional()
+      .describe(
+        "Optional Folder ID for a new Session only. Use only when sessionId is omitted, and choose a Folder from the parent Session's fixed authorized snapshot; never submit a path. The selected Folder becomes cwd with no additional directories. Omit folderId to inherit the complete Workspace; continuation calls must omit folderId."
+      ),
     config: spawnConfigOverrideSchema.optional(),
     background: z.boolean().default(true),
   })
   .strict();
+
+const spawnedSessionWorkspaceScopeSchema = z
+  .object({
+    kind: z.literal("workspace"),
+    workspaceId: identitySchema,
+    name: z.string().min(1).max(256),
+  })
+  .strict();
+
+const spawnedSessionFolderScopeSchema = z
+  .object({
+    kind: z.literal("folder"),
+    folderId: identitySchema,
+    name: z.string().min(1).max(256),
+  })
+  .strict();
+
+export const spawnedSessionScopeSchema = z.discriminatedUnion("kind", [
+  spawnedSessionWorkspaceScopeSchema,
+  spawnedSessionFolderScopeSchema,
+]);
 export const checkSessionStatusParamsSchema = z.object({ sessionId: identitySchema }).strict();
 export const readResponseParamsSchema = z
   .object({
@@ -323,6 +353,7 @@ export type SpawnConfigOptionSummary = z.infer<typeof spawnConfigOptionSummarySc
 export type SpawnWarning = z.infer<typeof spawnWarningSchema>;
 export type SpawnTurnMode = z.infer<typeof spawnTurnModeSchema>;
 export type SpawnRecentActivity = z.infer<typeof spawnRecentActivitySchema>;
+export type SpawnedSessionScope = z.infer<typeof spawnedSessionScopeSchema>;
 export type PromptToAgentResult = z.infer<typeof promptToAgentResultSchema>;
 export type PromptToAgentAcceptedResult = Extract<PromptToAgentResult, { status: "accepted" }>;
 export type CheckSessionStatusResult = z.infer<typeof checkSessionStatusResultSchema>;
