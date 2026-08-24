@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, adapted for the current stage of the project.
 
+## [0.15.5] - 2026-08-24
+
+This release makes attachments easier to bring into Chat and adds explicit scope and model selection to cross-Agent delegation. The ACP Agents page now uses a curated catalog, while managed installation covers more cross-platform archive formats and verifies download digests when available. Tool activity also presents the additional operations defined by ACP 1.3 with accurate semantics.
+
+### Added
+
+- The Chat composer now accepts pasted clipboard images and dropped images or regular files. Mixed text-and-image paste keeps the text, dragged text retains native behavior, and directories are not traversed; supported files from the same batch can still join the draft
+- Cross-Agent delegation can select one Folder from the parent Session's authorized snapshot on the first call. Omitting the Folder still inherits the complete Workspace; the scope remains fixed after creation and appears as Workspace or Folder in spawned Session details
+- `fyllo-spawn` `prompt_to_agent` can select a semantic model and thought level without a probe task. When a value cannot be resolved uniquely, it returns the real candidates without dispatching the original prompt, and the same spawned Session can continue after a selection
+
+### Changed
+
+- The ACP Agents page now shows registry Agents only from FylloCode's curated catalog, without merging or falling back to the official Registry. Agents found only in historical installation records but absent from the curated catalog no longer participate in discovery or connection warmup; custom Agents are unaffected
+- Managed Agent installation now supports ZIP, TAR, TAR.GZ/TGZ, and TAR.BZ2/TBZ2 without system extraction commands. FylloCode verifies SHA-256 before extraction when the catalog provides a digest, and stages an update before commit so a failure preserves the existing installation and record
+- Chat tool activity now uses distinct icons and summaries for ACP 1.3 kinds such as delete, move, think, fetch, and switch mode. Unknown kinds continue to use the generic tool presentation
+
+### Fixed
+
+- Fixed streamed ACP argument fragments replacing an established tool title. A tool now keeps a stable name during execution and still accepts a later explicit title from the Agent
+
+### Notes
+
+- The application version is `0.15.5`.
+- The `fyllo-spawn` MCP server is now `0.3.0`, adding single-Folder scope, semantic model / thought-level configuration, and the recoverable `configuration_required` result. Its five tools, background default, ownership checks, and RPC protocol version 1 remain compatible.
+- The `fyllo-cortex` MCP server remains at `0.7.0`, and `fyllo-specs` remains at `0.11.1`; neither server changed in this release range.
+- Installation remains available when a registry record has no SHA-256 digest, but FylloCode does not present that installation as verified.
+
 ## [0.15.4] - 2026-08-19
 
 This release completes asynchronous control and observability for cross-Agent delegation: spawned Sessions now run in the background by default, can be cancelled on request, stream their completion notifications into the parent Session, and remain visible at any time through a persistent per-session activity bar. Every real session also gets its own URL for direct access, refresh recovery, and navigation from other pages.

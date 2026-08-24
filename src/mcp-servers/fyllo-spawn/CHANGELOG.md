@@ -4,7 +4,7 @@ All notable changes to the `fyllo-spawn` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
-## [Unreleased]
+## [0.3.0] - 2026-08-24
 
 ### Added
 

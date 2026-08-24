@@ -23,12 +23,16 @@ Native mode, an Agent without HTTP MCP support, or an unavailable backend causes
 | Tool | Input | Purpose |
 | --- | --- | --- |
 | `available_agents` | None | Return installed registry Agents and valid custom Agents without starting a process or creating a Session. |
-| `prompt_to_agent` | `agentId`, `prompt`; optional `sessionId`, `config`, `background` | Create a spawned Session or continue an owner-matched Session that remains reusable. |
+| `prompt_to_agent` | `agentId`, `prompt`; optional `folderId`, `sessionId`, `model`, `thought_level`, `config`, `background` | Create a spawned Session or continue an owner-matched Session that remains reusable. |
 | `check_session_status` | `sessionId` | Read the current status snapshot without waiting for an active turn. |
 | `read_response` | `sessionId`, `responseId`; optional `cursor`, `maxBytes` | Read a completed response in bounded chunks using an opaque cursor. |
 | `cancel_session` | `sessionId` | Request cancellation of a running spawned Session owned by the current parent Session. |
 
-Omitting `sessionId` from `prompt_to_agent` creates a Session; providing it continues an existing one. Values in `config` can be strings or booleans. Main validates them against the Agent-provided configuration schema and sets them before the prompt. A rejected option does not block the prompt, but appears in `warnings`.
+Omitting `sessionId` from `prompt_to_agent` creates a Session; providing it continues an existing one. A new call inherits the parent Session's complete Workspace scope by default, or can select one Folder from the fixed parent snapshot with `folderId`. Folder scope uses that Folder as `cwd` and passes no additional directories, which lets an Agent without additional-directory support accept the task. Continuations must omit `folderId` and keep the Workspace or Folder scope fixed when the Session was created.
+
+A first formal call can provide semantic `model` and `thought_level` values directly. Main locates the matching categories in the real ACP Session's live configuration, applies the model first, resolves thought level from the Agent's complete updated snapshot, and then dispatches the prompt. `config` remains an exact live option-ID map whose values can be strings or booleans; use it for mode, model configuration, boolean, and Agent-specific options. On a raw `config`-only call, a rejected option does not block the prompt but appears in `warnings`.
+
+If a semantic value has no candidate or several candidates, the call returns `configuration_required`, the real candidates, and `promptDispatched: false`. The parent Agent can select an exact value or ask the user, then retry with the returned `sessionId`; no formal turn or original prompt has been dispatched. A failed semantic set, incomplete snapshot, or non-converging configuration returns `SPAWN_CONFIG_FAILED` without dispatch. Semantic and raw requests for the same option are deduplicated when equal and rejected as `SPAWN_INVALID_REQUEST` when they conflict.
 
 `background` defaults to `true`. A background call returns `accepted` after Main has persisted the turn, applied configuration, and dispatched the ACP prompt. Accepted means Main owns the work; the parent Agent can keep working or report progress, then retrieve the final result through `check_session_status` and `read_response`. Pass `background: false` only for simple, fast tasks where the parent Agent intentionally blocks: a synchronous call waits for the terminal result and returns up to a 24 KiB UTF-8-safe response prefix, but the Agent cannot emit anything while blocked, so the `spawn.session` Signal appears only after the task completes.
 
@@ -55,14 +59,14 @@ An immutable `responseId` identifies each complete response. `read_response` rea
 - One parent Chat Session can run up to four spawned turns; the application can run up to eight.
 - Capacity rejection is immediate and retryable as `SPAWN_CAPACITY_EXCEEDED`; requests are not queued.
 - A turn has no absolute runtime limit. Ten minutes without ACP activity triggers cancellation, followed by a five-second confirmation window.
-- The spawned Agent inherits the `cwd` and `additionalDirectories` fixed in the parent Session snapshot. Current Workspace additions cannot expand that authority.
+- The spawned Agent uses the complete Workspace or single-Folder scope fixed when the Session was created. Current Workspace additions cannot expand that authority.
 - The spawned Agent receives no FylloCode system reminder or bundled MCP server and uses the existing ACP connection's `allow_once` permission policy.
 
 Spawned Agents share the same Workspace directories. Parallel delegation must use non-overlapping file scopes; `fyllo-spawn` provides no separate worktree, file lock, or automatic merge.
 
 ## User-visible Inspection
 
-Main automatically exposes newly created and continued spawned Sessions owned by the current parent Session in an activity bar at the bottom of the Chat conversation area, without requiring the Agent to emit any marker. The bar summarizes the total and active counts; its list orders Sessions by active first, then by most recent update. Opening a Session shows a read-only, Turn-organized detail Slideover with trusted status, the original prompt, aggregated Activity, compacted Transcript, and response IDs. A `spawn.session` Signal can still open the same details as a contextual deep link inside historical assistant messages, but it is not required for discovery or status updates; see the [Fyllo Signal](/en/docs/reference/fyllo-signal) contract.
+Main automatically exposes newly created and continued spawned Sessions owned by the current parent Session in an activity bar at the bottom of the Chat conversation area, without requiring the Agent to emit any marker. The bar summarizes the total and active counts; its list orders Sessions by active first, then by most recent update. Opening a Session shows a read-only, Turn-organized detail Slideover with trusted status, the original prompt, aggregated Activity, compacted Transcript, response IDs, and a `Workspace · name` or `Folder · name` scope. A `spawn.session` Signal can still open the same details as a contextual deep link inside historical assistant messages, but it is not required for discovery or status updates; see the [Fyllo Signal](/en/docs/reference/fyllo-signal) contract.
 
 These views are read-only. Opening, closing, or refreshing details does not continue, cancel, or retry work and does not consume a background completion notification. Reopening a window queries durable state again. Background turns do not continue across application processes: a normal exit records `APP_SHUTDOWN`, while leftover non-terminal work after an unexpected restart records `APP_RESTARTED`.
 

@@ -4,6 +4,33 @@
 
 格式参考 Keep a Changelog，并结合当前项目阶段做了简化调整。
 
+## [0.15.5] - 2026-08-24
+
+本次发布让 Chat 更自然地接收附件，并补齐跨 Agent 委派时的目录和模型选择。ACP Agents 页面改用精选目录，安装过程覆盖更多跨平台归档格式，并在可用时校验下载摘要；工具活动也能准确呈现 ACP 1.3 新增的操作类型。
+
+### 新增
+
+- Chat 输入区支持直接粘贴剪贴板图片，以及拖放图片和普通文件。文字与图片混合粘贴会保留文本，文本拖动继续使用原生行为；目录不会被递归读取，同批次中受支持的文件仍可加入草稿
+- 跨 Agent 委派可以在首次调用时显式选择父 Session 授权范围内的单个 Folder。省略 Folder 时仍继承完整 Workspace；创建后的 scope 固定不变，并在 spawned Session 详情中显示为 Workspace 或 Folder
+- `fyllo-spawn` 的 `prompt_to_agent` 支持直接指定语义化 model 与 thought level，无需先运行探测任务。无法唯一匹配时会返回真实候选并保持原 Prompt 未发送，选择后可继续使用同一 spawned Session
+
+### 调整
+
+- ACP Agents 页面只显示 FylloCode 精选目录中的 registry Agent，不再合并或回退到官方 Registry。只存在于历史安装记录但已移出精选目录的 Agent 不再参与发现和连接预热，自定义 Agent 不受影响
+- FylloCode 管理的 Agent 安装支持 ZIP、TAR、TAR.GZ/TGZ 和 TAR.BZ2/TBZ2，无需系统解压命令。目录提供 SHA-256 时会在解压前校验；升级在 staging 目录完成后再提交，失败时保留已有安装与记录
+- Chat 工具活动新增 delete、move、think、fetch 和 switch mode 等 ACP 1.3 类型的图标与摘要语义；未知类型继续使用通用工具展示
+
+### 修复
+
+- 修复 ACP 工具流式参数片段可能覆盖已有工具标题的问题；工具可以在执行期间保持稳定名称，并在 Agent 后续提供正式标题时正常更新
+
+### 说明
+
+- 应用版本为 `0.15.5`。
+- `fyllo-spawn` MCP server 升级到 `0.3.0`，新增单 Folder scope、语义化 model / thought level 配置和可恢复的 `configuration_required` 结果；五个 tool、默认后台模式、owner 校验与 RPC protocol version 1 保持兼容。
+- `fyllo-cortex` MCP server 保持 `0.7.0`，`fyllo-specs` MCP server 保持 `0.11.1`；本次发布范围没有修改这两个 server。
+- Registry 记录未提供 SHA-256 时仍允许安装，但 FylloCode 不会把该安装表述为已验证。
+
 ## [0.15.4] - 2026-08-19
 
 本次发布围绕跨 Agent 委派补全了异步控制与可观测性：spawned Session 默认在后台运行、可以被主动取消，完成通知以流式回复进入父会话，父会话也可以通过常驻活动栏随时查看名下所有子 Agent。每个真实会话同时获得独立 URL，可以直接定位、刷新恢复和从其他页面跳转。

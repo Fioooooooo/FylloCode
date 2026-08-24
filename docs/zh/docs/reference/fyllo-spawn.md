@@ -23,12 +23,16 @@ sidebar:
 | Tool | 输入 | 作用 |
 | --- | --- | --- |
 | `available_agents` | 无 | 返回已安装的 registry Agent 与有效 custom Agent；不启动进程或创建 Session |
-| `prompt_to_agent` | `agentId`、`prompt`，可选 `sessionId`、`config`、`background` | 新建 spawned Session，或继续同一 owner 下仍可复用的 Session |
+| `prompt_to_agent` | `agentId`、`prompt`，可选 `folderId`、`sessionId`、`model`、`thought_level`、`config`、`background` | 新建 spawned Session，或继续同一 owner 下仍可复用的 Session |
 | `check_session_status` | `sessionId` | 不等待运行中 turn，直接读取当前状态快照 |
 | `read_response` | `sessionId`、`responseId`，可选 `cursor`、`maxBytes` | 用不透明 cursor 分段读取已完成响应 |
 | `cancel_session` | `sessionId` | 请求取消当前父 Session 名下正在运行的 spawned Session |
 
-`prompt_to_agent` 省略 `sessionId` 时创建新 Session；提供 `sessionId` 时继续已有 Session。`config` 的值可以是 string 或 boolean，Main 会按 Agent 返回的 config schema 校验并在 prompt 前逐项设置。某项设置失败不会阻断 prompt，但会出现在 `warnings` 中。
+`prompt_to_agent` 省略 `sessionId` 时创建新 Session；提供 `sessionId` 时继续已有 Session。新建调用默认继承父 Session 的完整 Workspace scope，也可以用 `folderId` 从父 Session 固定快照中选择一个 Folder。Folder scope 只把该 Folder 作为 `cwd`，不传递其他目录，适合不支持 additional directories 的 Agent。续聊必须省略 `folderId`，并继续使用创建时固定的 Workspace 或 Folder scope；scope 不会在后续 turn 中切换。
+
+首次正式调用可以直接提供语义化 `model` 和 `thought_level`。Main 会在真实 ACP Session 的 live config 中定位对应类别，先设置 model，再用 Agent 返回的完整新快照解析 thought level，然后发送 prompt。`config` 继续使用精确的 live option ID 作为 key，值可以是 string 或 boolean；它适合 mode、model configuration、boolean 和 Agent 专属选项。仅使用 `config` 时，某项设置失败不会阻断 prompt，但会出现在 `warnings` 中。
+
+如果语义值没有候选或存在多个候选，调用返回 `configuration_required`、真实候选与 `promptDispatched: false`。父 Agent 可以选择精确 value，或询问用户后使用返回的同一 `sessionId` 重试；这期间不会创建正式 turn 或发送原 prompt。语义设置失败、配置快照不完整或无法收敛时返回 `SPAWN_CONFIG_FAILED`，同样不会发送 prompt。语义字段与 `config` 指向同一选项且值一致时会去重，冲突时返回 `SPAWN_INVALID_REQUEST`。
 
 `background` 默认为 `true`。后台调用在 Main 已持久化 turn、应用配置并提交 ACP prompt 后返回 `accepted`；这只表示 Main 已接管，父 Agent 可以继续工作或汇报进度，最终结果通过 `check_session_status` 和 `read_response` 获取。只有简单、快速且父 Agent 需要主动阻塞等待的任务才显式传 `background: false`：同步调用等待 terminal result，并直接返回最多 24 KiB 的 UTF-8 安全响应前缀，但阻塞期间 Agent 无法输出任何内容，`spawn.session` Signal 只能在任务完成后才显示。
 
@@ -55,14 +59,14 @@ sidebar:
 - 同一个父 Chat Session 最多同时运行 4 个 spawned turns，全应用最多 8 个。
 - 达到容量时立即返回可重试的 `SPAWN_CAPACITY_EXCEEDED`，不会排队。
 - turn 没有绝对运行时长限制；连续 10 分钟没有 ACP activity 时会请求取消，并等待 5 秒确认。
-- spawned Agent 复用父 Session 创建时固定的 `cwd` 与 `additionalDirectories`，不会使用当前 Workspace 的新成员扩大授权。
+- spawned Agent 使用创建 Session 时固定的完整 Workspace 或单 Folder scope，不会使用当前 Workspace 的新成员扩大授权。
 - spawned Agent 不接收 FylloCode system reminder 或任何 bundled MCP，并沿用现有 ACP connection 的 `allow_once` 权限策略。
 
 多个 spawned Agent 共享同一组 Workspace 目录。并行委派时必须拆分互不重叠的文件范围，`fyllo-spawn` 不提供独立 worktree、文件锁或自动合并。
 
 ## 用户可见检查
 
-Main 会自动把当前父 Session 名下新建和续聊的 spawned Session 暴露到 Chat 对话区底部的活动栏，无需 Agent 输出任何标记。活动栏汇总 Session 总数与活跃数量，列表按活跃优先、最近更新优先排列；打开任一 Session 显示按 Turn 组织的只读详情 Slideover，包含可信状态、原始 Prompt、聚合 Activity、压缩 Transcript 与 response ID。`spawn.session` Signal 仍可作为历史 assistant 消息中的上下文深链打开同一详情，但它不是发现或状态更新的必要条件，协议见 [Fyllo Signal](/docs/reference/fyllo-signal)。
+Main 会自动把当前父 Session 名下新建和续聊的 spawned Session 暴露到 Chat 对话区底部的活动栏，无需 Agent 输出任何标记。活动栏汇总 Session 总数与活跃数量，列表按活跃优先、最近更新优先排列；打开任一 Session 显示按 Turn 组织的只读详情 Slideover，包含可信状态、原始 Prompt、聚合 Activity、压缩 Transcript、response ID，以及 `Workspace · 名称` 或 `Folder · 名称` scope。`spawn.session` Signal 仍可作为历史 assistant 消息中的上下文深链打开同一详情，但它不是发现或状态更新的必要条件，协议见 [Fyllo Signal](/docs/reference/fyllo-signal)。
 
 这些入口只读。打开、关闭或刷新详情不会继续、取消、重试任务，也不会消费后台完成通知。窗口重开会重新查询持久化记录；后台 turn 不跨应用进程继续，正常退出记录为 `APP_SHUTDOWN`，异常重启后的遗留非终态记录为 `APP_RESTARTED`。
 

@@ -61,6 +61,10 @@ Native mode is useful when you only need a desktop interface for the Agent CLI. 
 
 Every user message must contain text that remains non-empty after trimming; attachments cannot be sent alone. Images and files selected in a new-session draft remain local previews and do not create or activate a Session. When the first message is sent, FylloCode creates one Session, then persists every attachment and the message under that identity.
 
+Besides choosing files from the attachment menu, you can paste clipboard images into the composer or drop images and regular files onto the Chat prompt. Pasting does not block the browser from inserting clipboard text, so text and images can enter the same draft. File drops are handled by FylloCode, while dragged text keeps its native behavior. The first version does not read directories: dropped directories are rejected with feedback, while supported files from the same batch can still be accepted.
+
+FylloCode checks each attachment against the current Agent's image and embedded-context capabilities. A mixed batch keeps only supported items and reports rejected images, files, or directories in one summary. Rejected items create no preview, attachment record, or Session.
+
 If Session creation, attachment storage, or the first message write fails, FylloCode removes the uncommitted Session and its attachment copies while preserving the text and local attachment draft for retry. Attachments selected in an existing Session continue to be stored under that current Session.
 
 ## Copying a Session ID
@@ -78,6 +82,8 @@ Hovering or using the arrow keys shows up to five nearby prompt summaries. Click
 The currently streaming assistant message shows a runtime indicator after the content already received, with generic status text and elapsed time in natural units. The indicator only means the reply is still being processed; it does not infer the Agent's specific action from tool calls. It is removed when the stream finishes, fails, or is cancelled, and historical messages do not retain this runtime state.
 
 Consecutive Thinking and normal tool calls are grouped into a collapsible Activity group. After expanding it, you can inspect each Thinking and Tool separately, including complete Input and Output sections. Failed tools use an error-colored icon and keep the error text in an `Error` section. Tool titles do not append execution-status suffixes; in-progress tools continue to use shimmer, so hidden status nodes cannot create horizontal overflow when several tools are expanded.
+
+FylloCode recognizes ACP 1.3 tool semantics including read, write, edit, delete, move, search, execute, think, fetch, and switch mode. Direct tools and Activity summaries use the same category and icon. Unknown or future kinds fall back to a generic tool instead of being guessed from the Agent identity.
 
 When a tool returns structured ACP diffs, its `Changes` section lists the added, modified, or deleted paths associated with that tool. Opening any path shows **File Changes in This Turn**, which aggregates net changes from visible normal tools in the current assistant message into a read-only Diff list. Files start collapsed and several can be expanded together. This view uses the execution snapshot stored in the message: it does not reread the disk, aggregate the whole Session, or claim to represent current Git or worktree state. Absolute paths and line numbers in `Locations` open through the existing local-file preview.
 

@@ -24,6 +24,12 @@ FylloCode 通过 Agent Client Protocol 接入不同 Coding Agent。[设置](/doc
 
 页面提供「全部」「已安装」「自定义」三个筛选：前两者浏览 ACP Registry 中的 Agent，「自定义」是一个独立的 JSON 编辑区域。
 
+## 精选目录与安装
+
+FylloCode 只从精选 ACP Agent 目录加载可发现和可管理的 registry Agent，不再合并或回退到官方 Registry。旧来源缓存不会继续作为精选列表显示；只存在于历史安装记录、但已经不在当前精选目录中的 Agent，也不会重新进入列表或连接预热。自定义 Agent 不受精选目录成员变化影响。
+
+FylloCode 管理的 binary Agent 可以使用 ZIP、TAR、TAR.GZ/TGZ 和 TAR.BZ2/TBZ2 归档，无需依赖系统安装的 `unzip`、`tar` 或 `bzip2`。目录提供 SHA-256 摘要时，安装会在解压前校验下载内容；未提供摘要时仍可安装，但不会被标记为已验证。升级会先在临时 staging 目录完成校验和解压，提交失败时保留原有安装与记录。
+
 ## Agent 类型
 
 FylloCode 会把 ACP Agent 标注为三类：

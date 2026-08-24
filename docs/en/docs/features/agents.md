@@ -24,6 +24,12 @@ FylloCode connects different Coding Agents through Agent Client Protocol. The AC
 
 The page offers three filters: **All**, **Installed**, and **Custom**. The first two browse Agents from the ACP Registry; **Custom** is a separate JSON editing area.
 
+## Curated Catalog and Installation
+
+FylloCode discovers and manages registry Agents only from its curated ACP Agent catalog. It no longer merges or falls back to the official Registry. A cache from another source is not shown as the curated list, and an Agent that exists only in historical installation records but is absent from the current catalog does not return to discovery or connection warmup. Custom Agents are unaffected by catalog membership changes.
+
+Managed binary Agents can use ZIP, TAR, TAR.GZ/TGZ, and TAR.BZ2/TBZ2 archives without system `unzip`, `tar`, or `bzip2` commands. When the catalog provides a SHA-256 digest, FylloCode verifies the download before extraction. An archive without a digest can still be installed, but is not presented as verified. Updates finish validation and extraction in a staging directory first, preserving the previous installation and record if the commit fails.
+
 ## Agent Kinds
 
 FylloCode labels ACP Agents with three kinds:
