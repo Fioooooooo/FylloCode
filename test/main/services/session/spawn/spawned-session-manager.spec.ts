@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => ({
   getOrStartProcess: vi.fn(),
   getReadyProcess: vi.fn(),
   hasActiveAcpSession: vi.fn(),
+  hasActiveMcpActivation: vi.fn(),
+  markAcpSessionActive: vi.fn(),
+  forgetActiveAcpSession: vi.fn(),
   onInvalidated: vi.fn(),
   assertCompatibility: vi.fn(),
   invalidations: [] as Array<(event: { agentId: string; reason: string }) => void>,
@@ -62,6 +65,9 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
   getOrStartProcess: mocks.getOrStartProcess,
   getReadyProcess: mocks.getReadyProcess,
   hasActiveAcpSession: mocks.hasActiveAcpSession,
+  hasActiveMcpActivation: mocks.hasActiveMcpActivation,
+  markAcpSessionActive: mocks.markAcpSessionActive,
+  forgetActiveAcpSession: mocks.forgetActiveAcpSession,
   onAgentProcessInvalidated: mocks.onInvalidated,
 }));
 
@@ -75,6 +81,7 @@ vi.mock("@main/services/session/chat/chat-service", () => ({
 
 vi.mock("@main/services/workspace/_public", () => ({
   resolveWorkspace: mocks.resolveWorkspace,
+  getRequiredWorkspaceInfo: vi.fn(),
 }));
 
 vi.mock("@main/services/session/chat/agent-workspace-compatibility", () => ({
@@ -157,11 +164,21 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
     async start(): Promise<void> {
       const startPromise = Promise.resolve(mocks.start(this));
       const sessionStore = this.opts.sessionStore as
-        { persistAcpSessionId(acpSessionId: string): Promise<void> } | undefined;
-      await sessionStore?.persistAcpSessionId("acp-fake");
+        | {
+            persistAcpSessionId(acpSessionId: string): Promise<void>;
+            loadRecoveryState?(): Promise<{ configOptions: unknown[] }>;
+          }
+        | undefined;
+      await sessionStore?.persistAcpSessionId(
+        (this.opts.presetAcpSessionId as string | undefined) ?? "acp-fake"
+      );
       const onPromptDispatched = this.opts.onPromptDispatched as
-        ((input: { acpSessionId: string; configOptions: [] }) => Promise<void>) | undefined;
-      await onPromptDispatched?.({ acpSessionId: "acp-fake", configOptions: [] });
+        ((input: { acpSessionId: string; configOptions: unknown[] }) => Promise<void>) | undefined;
+      const recovery = await sessionStore?.loadRecoveryState?.();
+      await onPromptDispatched?.({
+        acpSessionId: (this.opts.presetAcpSessionId as string | undefined) ?? "acp-fake",
+        configOptions: recovery?.configOptions ?? [],
+      });
       await startPromise;
     }
 
@@ -266,6 +283,12 @@ describe("SpawnedSessionManager", () => {
     mocks.getOrStartProcess.mockResolvedValue({ agentId: "agent-1", generation: 0 });
     mocks.getReadyProcess.mockReturnValue({ agentId: "agent-1", generation: 0 });
     mocks.hasActiveAcpSession.mockReturnValue(true);
+    mocks.hasActiveMcpActivation.mockReturnValue(true);
+    mocks.markAcpSessionActive.mockImplementation(
+      (entry: { activeSessionIds: Set<string> }, sessionId: string) => {
+        entry.activeSessionIds?.add(sessionId);
+      }
+    );
     mocks.assertCompatibility.mockResolvedValue(undefined);
     mocks.onInvalidated.mockImplementation((handler) => {
       mocks.invalidations.push(handler);
@@ -723,6 +746,378 @@ describe("SpawnedSessionManager", () => {
       code: "SPAWN_INVALID_REQUEST",
       message: "Unknown config option: model",
     });
+    await manager.dispose();
+  });
+
+  it("语义字段在同一次 sync 调用中先设置 model，再按动态 snapshot 设置 thought level", async () => {
+    const model = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "default",
+      options: [
+        { value: "default", name: "Default" },
+        { value: "o3", name: "O3" },
+      ],
+    };
+    const thought = {
+      id: "effort",
+      name: "Effort",
+      category: "thought_level",
+      type: "select" as const,
+      currentValue: "default",
+      options: [
+        { value: "default", name: "Default" },
+        { value: "high", name: "High" },
+      ],
+    };
+    const newSession = vi
+      .fn()
+      .mockResolvedValue({ sessionId: "acp-semantic", configOptions: [model, thought] });
+    const setConfig = vi
+      .fn()
+      .mockResolvedValueOnce({
+        configOptions: [
+          { ...model, currentValue: "o3" },
+          { ...thought, currentValue: "default" },
+        ],
+      })
+      .mockResolvedValueOnce({
+        configOptions: [
+          { ...model, currentValue: "o3" },
+          { ...thought, currentValue: "high" },
+        ],
+      });
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: { newSession, setSessionConfigOption: setConfig },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "semantic sync",
+      model: "o3",
+      thought_level: "high",
+      background: false,
+    });
+
+    expect(result).toMatchObject({ status: "completed", sessionId: expect.any(String) });
+    expect(setConfig.mock.calls).toEqual([
+      [{ sessionId: "acp-semantic", configId: "model", value: "o3" }],
+      [{ sessionId: "acp-semantic", configId: "effort", value: "high" }],
+    ]);
+    expect(mocks.messages.map(({ message }) => (message as { role: string }).role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+    const sessionId = (result as { sessionId: string }).sessionId;
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      initialPromptPreview: "semantic sync",
+      currentPromptPreview: "semantic sync",
+    });
+    await manager.dispose();
+  });
+
+  it("歧义 semantic model 返回 idle prepared Session，不创建 turn、notification 或 watchdog", async () => {
+    const options = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "openai/luna",
+      options: [
+        { value: "openai/luna", name: "Luna" },
+        { value: "router/luna", name: "Luna" },
+      ],
+    };
+    const newSession = vi
+      .fn()
+      .mockResolvedValue({ sessionId: "acp-ambiguous", configOptions: [options] });
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: { newSession, setSessionConfigOption: vi.fn() },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+
+    const result = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "needs a provider",
+      model: "luna",
+    });
+    const sessionId = (result as { sessionId: string }).sessionId;
+
+    expect(result).toMatchObject({
+      status: "configuration_required",
+      promptDispatched: false,
+      issues: [{ parameter: "model", reason: "ambiguous" }],
+    });
+    expect(mocks.messages).toHaveLength(0);
+    expect(mocks.turns).toHaveLength(0);
+    expect(mocks.sessions).toHaveLength(0);
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      status: "idle",
+      acpSessionId: "acp-ambiguous",
+      configOptions: [expect.objectContaining({ id: "model" })],
+    });
+    await expect(manager.checkSessionStatus(caller, sessionId)).resolves.toMatchObject({
+      status: "idle",
+    });
+    await manager.dispose();
+  });
+
+  it("父 Agent 选择精确 value 后复用 prepared Session 完成 background continuation", async () => {
+    const options = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "openai/luna",
+      options: [
+        { value: "openai/luna", name: "Luna" },
+        { value: "router/luna", name: "Luna" },
+      ],
+    };
+    const newSession = vi
+      .fn()
+      .mockResolvedValue({ sessionId: "acp-prepared", configOptions: [options] });
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: { newSession, setSessionConfigOption: vi.fn() },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+
+    const first = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "choose provider",
+      model: "luna",
+    });
+    const sessionId = (first as { sessionId: string }).sessionId;
+    const second = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "dispatch now",
+      sessionId,
+      model: "openai/luna",
+      background: true,
+    });
+
+    expect(second).toMatchObject({ status: "accepted", sessionId });
+    expect(newSession).toHaveBeenCalledOnce();
+    expect(mocks.messages).toHaveLength(2);
+    await manager.dispose();
+  });
+
+  it("语义 set 失败返回 SPAWN_CONFIG_FAILED 且不发送 prompt", async () => {
+    const model = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "default",
+      options: [
+        { value: "default", name: "Default" },
+        { value: "o3", name: "O3" },
+      ],
+    };
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: {
+        newSession: vi.fn().mockResolvedValue({ sessionId: "acp-failed", configOptions: [model] }),
+        setSessionConfigOption: vi.fn().mockRejectedValue(new Error("rejected")),
+      },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+
+    await expect(
+      manager.promptToAgent(caller, { agentId: "agent-1", prompt: "must not run", model: "o3" })
+    ).rejects.toMatchObject({ code: "SPAWN_CONFIG_FAILED" });
+    expect(mocks.sessions).toHaveLength(0);
+    expect(mocks.messages).toHaveLength(0);
+    expect(mocks.turns).toHaveLength(0);
+    expect([...mocks.metas.values()][0]).toMatchObject({ status: "idle" });
+    await manager.dispose();
+  });
+
+  it("语义与 raw exact-ID 同值只设置一次，冲突值返回 SPAWN_INVALID_REQUEST", async () => {
+    const model = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "default",
+      options: [
+        { value: "default", name: "Default" },
+        { value: "o3", name: "O3" },
+      ],
+    };
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: {
+        newSession: vi
+          .fn()
+          .mockResolvedValue({ sessionId: "acp-conflict", configOptions: [model] }),
+        setSessionConfigOption: vi.fn().mockResolvedValue({
+          configOptions: [{ ...model, currentValue: "o3" }],
+        }),
+      },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+
+    const completed = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "same target",
+      model: "o3",
+      config: { model: "o3" },
+      background: false,
+    });
+    expect(completed).toMatchObject({ status: "completed" });
+    expect(process.connection.setSessionConfigOption).toHaveBeenCalledOnce();
+    const sessionId = (completed as { sessionId: string }).sessionId;
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "conflict",
+        sessionId,
+        model: "o3",
+        config: { model: "default" },
+        background: false,
+      })
+    ).rejects.toMatchObject({ code: "SPAWN_INVALID_REQUEST" });
+    expect(mocks.metas.get(key({ ...caller, sessionId }))).toMatchObject({
+      status: "idle",
+      error: undefined,
+      turnCount: 1,
+    });
+    await expect(manager.checkSessionStatus(caller, sessionId)).resolves.toMatchObject({
+      status: "idle",
+    });
+    expect(mocks.messages).toHaveLength(2);
+    await manager.dispose();
+  });
+
+  it("配置准备期间进程失效时不发送 prompt 或创建正式 turn", async () => {
+    const model = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "default",
+      options: [
+        { value: "default", name: "Default" },
+        { value: "o3", name: "O3" },
+      ],
+    };
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: {
+        newSession: vi
+          .fn()
+          .mockResolvedValue({ sessionId: "acp-invalidated", configOptions: [model] }),
+        setSessionConfigOption: vi.fn().mockImplementation(async () => {
+          mocks.invalidations[0]?.({ agentId: "agent-1", reason: "process-exited" });
+          return { configOptions: [{ ...model, currentValue: "o3" }] };
+        }),
+      },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+    manager.start();
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "must not dispatch",
+        model: "o3",
+        background: false,
+      })
+    ).resolves.toMatchObject({
+      status: "expired",
+      code: "AGENT_PROCESS_INVALIDATED",
+    });
+    expect(mocks.messages).toHaveLength(0);
+    expect(mocks.turns).toHaveLength(0);
+    expect(mocks.sessions).toHaveLength(0);
+    await manager.dispose();
+  });
+
+  it("prepared Session 的 process generation 失效后返回 expired 而不静默重建", async () => {
+    const options = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select" as const,
+      currentValue: "openai/luna",
+      options: [{ value: "openai/luna", name: "Luna" }],
+    };
+    const process = {
+      agentId: "agent-1",
+      generation: 0,
+      connection: {
+        newSession: vi
+          .fn()
+          .mockResolvedValue({ sessionId: "acp-expired", configOptions: [options] }),
+      },
+      initializeResponse: {},
+      activeSessionIds: new Set<string>(),
+      mcpActivationBySessionId: new Map<string, string | null>(),
+    };
+    mocks.getOrStartProcess.mockResolvedValue(process);
+    mocks.getReadyProcess.mockReturnValue(process);
+    const manager = new SpawnedSessionManager();
+    const first = await manager.promptToAgent(caller, {
+      agentId: "agent-1",
+      prompt: "prepare",
+      model: "openai/luna",
+    });
+    const sessionId = (first as { sessionId: string }).sessionId;
+    mocks.getReadyProcess.mockReturnValue({ ...process, generation: 1 });
+
+    await expect(
+      manager.promptToAgent(caller, {
+        agentId: "agent-1",
+        prompt: "stale",
+        sessionId,
+        model: "openai/luna",
+      })
+    ).resolves.toMatchObject({ status: "expired", sessionId });
+    expect(process.connection.newSession).toHaveBeenCalledOnce();
     await manager.dispose();
   });
 

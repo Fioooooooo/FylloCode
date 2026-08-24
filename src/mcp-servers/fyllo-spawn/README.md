@@ -56,6 +56,20 @@ Creates a spawned Session when `sessionId` is omitted or continues an owner-matc
 
 Main automatically exposes both new and continued Sessions through the parent Chat activity view. A returned Session identity MAY be referenced once by the optional `spawn.session` contextual deep link, but the Signal is not required for discovery or status updates and continuation calls do not repeat it.
 
+#### Semantic model and thought-level configuration
+
+The first formal call may provide semantic `model` and `thought_level` values directly; a probe turn is not required. These fields are value/name queries, not ACP option IDs. Main activates the real ACP Session and resolves them only from that Session's live `configOptions`:
+
+- `model` targets the unique `type=select`, `category=model` option.
+- `thought_level` targets the unique `type=select`, `category=thought_level` option after the model set has returned its complete replacement snapshot.
+- Matching is conservative and ordered: exact value, normalized value, normalized name, then separator-token containment. A layer with candidates stops the search; zero or multiple candidates are never resolved by provider default, current value, list order, or similarity.
+
+For example, if a live model category contains both `openai/gpt-5.6-luna` and `openrouter/gpt-5.6-luna-0731`, requesting `model: "luna"` is provider-ambiguous. The tool returns `configuration_required` with the ordered live candidates and `promptDispatched: false`; choose an exact candidate value or ask the user, then retry the original prompt with the returned `sessionId`. The prepared Session remains idle and does not create a user message, turn, notification, watchdog, or active-turn capacity reservation.
+
+The `config` map remains the exact live option-ID escape hatch for `mode`, `model_config`, boolean, and Agent-specific options. Semantic and raw constraints are planned together in the order `mode → model → model_config → thought_level → other`; equal values targeting one option are deduplicated, while conflicting values return `SPAWN_INVALID_REQUEST` instead of using last-write-wins. Raw-only calls retain the existing warning-and-continue behavior when an option set fails. A semantic set failure, incomplete response snapshot, or non-converging configuration returns `SPAWN_CONFIG_FAILED` and never dispatches the prompt. Live model lists are Session-specific: `initialize`, `available_agents`, Agent defaults, and static capability caches are not sources of the live model list.
+
+If a prepared Session becomes expired because its Agent process is no longer active, start a new call without `sessionId`; do not assume a prepared handle survives process restart or unloading.
+
 ### `check_session_status`
 
 Returns an owner-scoped status snapshot without waiting for an active turn to finish.

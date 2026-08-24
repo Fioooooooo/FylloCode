@@ -121,6 +121,67 @@ describe("spawn-rpc-bridge", () => {
     );
   });
 
+  it("透传 semantic config 参数并保留 configuration_required 结构化结果", async () => {
+    const required = {
+      status: "configuration_required",
+      sessionId: "spawn-1",
+      promptDispatched: false,
+      config: [{ id: "model", name: "Model", type: "select", currentValue: "default" }],
+      issues: [
+        {
+          parameter: "model",
+          reason: "ambiguous",
+          requested: "luna",
+          optionId: "model",
+          category: "model",
+          candidates: [
+            { value: "openai/luna", name: "Luna", group: "OpenAI" },
+            { value: "router/luna", name: "Luna", group: "Router" },
+          ],
+        },
+      ],
+    } as const;
+    mocks.promptToAgent.mockResolvedValue(required);
+    registerSpawnRpcBridge();
+    const controller = new AbortController();
+    const params = {
+      agentId: "agent-1",
+      prompt: "work",
+      model: "luna",
+      thought_level: "high",
+      config: { mode: "background", "model.config": "fast" },
+      background: false,
+    };
+
+    await expect(
+      mocks.handler?.(request("prompt_to_agent", params), controller.signal)
+    ).resolves.toEqual(required);
+    expect(mocks.promptToAgent).toHaveBeenCalledWith(
+      { workspaceId: "workspace-1", parentSessionId: "parent-1" },
+      params,
+      controller.signal
+    );
+  });
+
+  it("通过 bridge 暴露 SPAWN_CONFIG_FAILED 以便上层 RPC 映射", async () => {
+    const error = Object.assign(new Error("live config snapshot was incomplete"), {
+      code: "SPAWN_CONFIG_FAILED",
+    });
+    mocks.promptToAgent.mockRejectedValue(error);
+    registerSpawnRpcBridge();
+
+    await expect(
+      mocks.handler?.(
+        request("prompt_to_agent", {
+          agentId: "agent-1",
+          prompt: "work",
+          model: "o3",
+        }),
+        new AbortController().signal
+      )
+    ).rejects.toMatchObject({ code: "SPAWN_CONFIG_FAILED" });
+  });
+
   it("cancel_session 路由到 manager.cancelSession 并按 schema 校验返回值", async () => {
     mocks.cancelSession.mockResolvedValue({ cancelled: true });
     registerSpawnRpcBridge();

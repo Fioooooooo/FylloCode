@@ -10,6 +10,9 @@ import {
   promptToAgentParamsSchema,
   promptToAgentResultSchema,
   readResponseParamsSchema,
+  spawnConfigResolutionCandidateSchema,
+  spawnConfigResolutionIssueSchema,
+  spawnRpcErrorSchema,
 } from "@shared/types/fyllo-spawn-rpc";
 
 const request = {
@@ -39,6 +42,27 @@ describe("fyllo-spawn RPC contract", () => {
     );
   });
 
+  it("keeps legacy raw input compatible and validates semantic fields", () => {
+    expect(
+      promptToAgentParamsSchema.parse({
+        ...request.params,
+        config: { "model.option": "o3", "feature.enabled": true },
+      })
+    ).toMatchObject({
+      config: { "model.option": "o3", "feature.enabled": true },
+      background: true,
+    });
+    expect(
+      promptToAgentParamsSchema.parse({ ...request.params, model: "o3", thought_level: "high" })
+    ).toMatchObject({ model: "o3", thought_level: "high" });
+    expect(promptToAgentParamsSchema.safeParse({ ...request.params, model: "" }).success).toBe(
+      false
+    );
+    expect(
+      promptToAgentParamsSchema.safeParse({ ...request.params, thought_level: "" }).success
+    ).toBe(false);
+  });
+
   it("accepts a strict background accepted snapshot without a response payload", () => {
     const accepted = {
       status: "accepted",
@@ -58,6 +82,49 @@ describe("fyllo-spawn RPC contract", () => {
     expect(
       promptToAgentResultSchema.safeParse({ ...accepted, responsePath: "/tmp/response" }).success
     ).toBe(false);
+  });
+
+  it("round-trips configuration_required issues and optional candidate context", () => {
+    const result = {
+      status: "configuration_required",
+      sessionId: "spawn-1",
+      promptDispatched: false,
+      config: [{ id: "model", name: "Model", type: "select", currentValue: "default" }],
+      issues: [
+        {
+          parameter: "model",
+          reason: "ambiguous",
+          requested: "luna",
+          optionId: "model",
+          category: "model",
+          candidates: [
+            { value: "openai/luna", name: "Luna", group: "OpenAI", description: "Hosted" },
+            { value: "router/luna", name: "Luna", group: "Router" },
+          ],
+        },
+      ],
+    } as const;
+    expect(promptToAgentResultSchema.parse(result)).toEqual(result);
+    expect(
+      spawnConfigResolutionCandidateSchema.safeParse({ value: "o3", name: "O3" }).success
+    ).toBe(true);
+    expect(
+      spawnConfigResolutionIssueSchema.safeParse({
+        parameter: "thought_level",
+        reason: "missing_category_option",
+        requested: "high",
+        candidates: [],
+      }).success
+    ).toBe(true);
+    expect(
+      spawnRpcErrorSchema.parse({
+        code: "SPAWN_CONFIG_FAILED",
+        message: "live config snapshot was incomplete",
+      })
+    ).toEqual({
+      code: "SPAWN_CONFIG_FAILED",
+      message: "live config snapshot was incomplete",
+    });
   });
 
   it("rejects unknown protocol versions and message kinds", () => {

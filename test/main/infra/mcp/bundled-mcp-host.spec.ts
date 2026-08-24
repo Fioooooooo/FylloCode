@@ -269,6 +269,31 @@ describe("bundled MCP host", () => {
     finish();
   });
 
+  it("preserves SPAWN_CONFIG_FAILED when mapping a handler error to child RPC", async () => {
+    rpcHandlerDisposers.push(
+      registerBundledMcpRpcHandler("fyllo-spawn", async () => {
+        throw Object.assign(new Error("live config snapshot was incomplete"), {
+          code: "SPAWN_CONFIG_FAILED",
+        });
+      })
+    );
+    await startHostAndReadySpawn();
+    const child = childFor("fyllo-spawn");
+    child.emit("message", rpcRequest("config-failed"));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(child.sent).toContainEqual(
+      expect.objectContaining({
+        requestId: "config-failed",
+        ok: false,
+        error: {
+          code: "SPAWN_CONFIG_FAILED",
+          message: "live config snapshot was incomplete",
+        },
+      })
+    );
+  });
+
   it("aborts a matching RPC request when the child sends cancel", async () => {
     let observedSignal: AbortSignal | undefined;
     rpcHandlerDisposers.push(

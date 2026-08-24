@@ -4,6 +4,24 @@ All notable changes to the `fyllo-spawn` MCP server will be documented in this f
 
 The format is based on Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+
+- `prompt_to_agent` accepts optional semantic `model` and `thought_level` values. Main resolves them from the real Session's live `configOptions`, applies `model` before resolving `thought_level`, and does not require a probe turn.
+- Ambiguous or unsupported semantic values return `configuration_required` with ordered live candidates and `promptDispatched: false`, leaving an idle prepared Session that can be continued with the same `sessionId` after an exact value is selected.
+
+### Changed
+
+- Semantic matching uses exact value, normalized value, normalized name, and conservative separator-token containment. It never guesses between providers, defaults, current values, list order, or similarity scores; for example, a query such as `luna` remains ambiguous when live options contain provider-qualified `luna` models.
+- `config` remains an exact live option-ID map for `mode`, `model_config`, boolean, and Agent-specific options. Equal semantic/raw targets are deduplicated, conflicts return `SPAWN_INVALID_REQUEST`, and raw-only calls retain warning-and-continue compatibility.
+- Semantic set failures, incomplete snapshots, and non-converging preparation return `SPAWN_CONFIG_FAILED` without dispatching the prompt. `initialize`, `available_agents`, and static capability caches do not provide the live model list for a Session.
+
+### Recovery
+
+- For `configuration_required`, select an exact candidate `value` (or ask the user), then retry the original prompt with the returned `sessionId`.
+- For `SPAWN_CONFIG_FAILED`, treat the prompt as not dispatched, verify Agent availability, and retry. If the prepared Session is expired, start a new call without `sessionId`.
+
 ## [0.2.1] - 2026-08-23
 
 ### Added

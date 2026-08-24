@@ -62,19 +62,36 @@ describe("fyllo-spawn trusted caller", () => {
     expect(description).toContain("folderId only on a new call (omit sessionId)");
     expect(description).toContain("Continuations must provide sessionId without folderId");
     expect(description).toContain("choose an Agent that supports additional directories");
+    expect(description).toContain("semantic model and thought_level values directly");
+    expect(description).toContain("no probe is needed");
+    expect(description).toContain("configuration_required");
+    expect(description).toContain("promptDispatched=false");
+    expect(description).toContain("SPAWN_CONFIG_FAILED");
+    expect(description).toContain(
+      "initialize, available_agents, and static capability caches do not provide them"
+    );
     expect(description).not.toContain("responsePath");
     expect(description).not.toContain("app-data");
     expect(description).not.toContain('{"sessionId"');
 
     const inputShape = (
       promptRegistration?.[1]?.inputSchema as {
-        shape?: Record<string, { description?: string }>;
+        shape?: Record<
+          string,
+          { description?: string; _def?: { innerType?: { description?: string } } }
+        >;
       }
     )?.shape;
     expect(inputShape?.folderId?.description).toContain("new Session only");
     expect(inputShape?.folderId?.description).toContain("complete Workspace");
     expect(inputShape?.sessionId?.description).toContain("omit folderId");
     expect(inputShape?.sessionId?.description).toContain("scope is fixed");
+    expect(inputShape?.model?.description).toContain("not an ACP option ID");
+    expect(inputShape?.model?.description).toContain("category=model");
+    expect(inputShape?.thought_level?.description).toContain("category=thought_level");
+    const configDescription =
+      inputShape?.config?.description ?? inputShape?.config?._def?.innerType?.description;
+    expect(configDescription).toContain("exact live ACP option-ID");
   });
 
   it("registers exactly five tools and routes each one through its matching RPC method", async () => {

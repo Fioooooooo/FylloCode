@@ -1,7 +1,11 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { FYLLO_SPAWN_RPC_PROTOCOL, FYLLO_SPAWN_RPC_VERSION } from "@shared/types/fyllo-spawn-rpc";
+import {
+  FYLLO_SPAWN_RPC_PROTOCOL,
+  FYLLO_SPAWN_RPC_VERSION,
+  promptToAgentResultSchema,
+} from "@shared/types/fyllo-spawn-rpc";
 import { SpawnRpcClient } from "../../../src/mcp-servers/fyllo-spawn/src/rpc-client";
 
 class FakeIpc extends EventEmitter {
@@ -79,5 +83,66 @@ describe("SpawnRpcClient", () => {
     await expect(result).rejects.toMatchObject({
       code: "SPAWN_RPC_UNAVAILABLE",
     });
+  });
+
+  it("round-trips configuration_required and maps SPAWN_CONFIG_FAILED", async () => {
+    const ipc = new FakeIpc();
+    const client = new SpawnRpcClient(ipc as unknown as NodeJS.Process);
+    const required = {
+      status: "configuration_required",
+      sessionId: "spawn-1",
+      promptDispatched: false,
+      config: [],
+      issues: [
+        {
+          parameter: "model",
+          reason: "unsupported",
+          requested: "missing-model",
+          candidates: [],
+        },
+      ],
+    } as const;
+    const result = client.call({
+      method: "prompt_to_agent",
+      caller: { workspaceId: "workspace-1", parentSessionId: "parent-1" },
+      params: { agentId: "agent-1", prompt: "work", model: "missing-model" },
+      resultSchema: promptToAgentResultSchema,
+    });
+    ipc.emit("message", {
+      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+      version: FYLLO_SPAWN_RPC_VERSION,
+      kind: "response",
+      requestId: requestId(ipc),
+      ok: true,
+      result: required,
+    });
+    await expect(result).resolves.toEqual(required);
+    client.close();
+
+    const failedIpc = new FakeIpc();
+    const failedClient = new SpawnRpcClient(failedIpc as unknown as NodeJS.Process);
+    const failed = failedClient.call({
+      method: "prompt_to_agent",
+      caller: { workspaceId: "workspace-1", parentSessionId: "parent-1" },
+      params: { agentId: "agent-1", prompt: "work", model: "o3" },
+      resultSchema: promptToAgentResultSchema,
+    });
+    failedIpc.emit("message", {
+      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+      version: FYLLO_SPAWN_RPC_VERSION,
+      kind: "response",
+      requestId: requestId(failedIpc),
+      ok: false,
+      error: {
+        code: "SPAWN_CONFIG_FAILED",
+        message: "live config snapshot was incomplete",
+      },
+    });
+    await expect(failed).rejects.toMatchObject({
+      code: "SPAWN_CONFIG_FAILED",
+      message: "live config snapshot was incomplete",
+      retryable: false,
+    });
+    failedClient.close();
   });
 });

@@ -22,7 +22,11 @@ export const spawnCallerSchema = z
   .strict();
 
 export const spawnConfigValueSchema = z.union([z.string(), z.boolean()]);
-export const spawnConfigOverrideSchema = z.record(z.string().min(1), spawnConfigValueSchema);
+export const spawnConfigOverrideSchema = z
+  .record(z.string().min(1), spawnConfigValueSchema)
+  .describe(
+    "Optional exact live ACP option-ID map. Keys must be the exact option IDs from this Session's live config snapshot; values must match the option type and candidates. Use for mode, model_config, boolean, and Agent-specific options. Same-value duplicates are deduplicated and conflicting targets are rejected."
+  );
 export const spawnTurnModeSchema = z.enum(["sync", "background"]);
 
 export const spawnMethodSchema = z.enum([
@@ -47,6 +51,20 @@ export const promptToAgentParamsSchema = z
       .optional()
       .describe(
         "Optional Folder ID for a new Session only. Use only when sessionId is omitted, and choose a Folder from the parent Session's fixed authorized snapshot; never submit a path. The selected Folder becomes cwd with no additional directories. Omit folderId to inherit the complete Workspace; continuation calls must omit folderId."
+      ),
+    model: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional semantic model query, not an ACP option ID. Main resolves it only against the unique live type=select category=model option, using exact value/name before conservative normalized token matching. Zero or multiple candidates return configuration_required with options and do not dispatch the prompt."
+      ),
+    thought_level: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional semantic thought-level query, not an ACP option ID. Main resolves it only against the unique live type=select category=thought_level option after applying model and replacing the live snapshot. Zero or multiple candidates return configuration_required with options and do not dispatch the prompt."
       ),
     config: spawnConfigOverrideSchema.optional(),
     background: z.boolean().default(true),
@@ -136,6 +154,7 @@ export const spawnRpcErrorCodeSchema = z.enum([
   "SPAWN_RPC_UNAVAILABLE",
   "SPAWN_RPC_CANCELLED",
   "SPAWN_INTERNAL_ERROR",
+  "SPAWN_CONFIG_FAILED",
   "SESSION_FOLDER_REMOVED",
   "SESSION_FOLDER_RELOCATED",
   "SESSION_FOLDER_PATH_MISSING",
@@ -211,6 +230,32 @@ export const spawnWarningSchema = z
   })
   .strict();
 
+export const spawnConfigResolutionReasonSchema = z.enum([
+  "unsupported",
+  "ambiguous",
+  "missing_category_option",
+]);
+
+export const spawnConfigResolutionCandidateSchema = z
+  .object({
+    value: z.string().min(1),
+    name: z.string().min(1),
+    group: z.string().min(1).optional(),
+    description: z.string().optional(),
+  })
+  .strict();
+
+export const spawnConfigResolutionIssueSchema = z
+  .object({
+    parameter: z.enum(["model", "thought_level"]),
+    reason: spawnConfigResolutionReasonSchema,
+    requested: z.string().min(1),
+    optionId: identitySchema.optional(),
+    category: z.string().min(1).optional(),
+    candidates: z.array(spawnConfigResolutionCandidateSchema),
+  })
+  .strict();
+
 const promptSessionBaseSchema = z.object({ sessionId: identitySchema });
 const spawnTerminalErrorCodeSchema = z.enum([
   "TURN_INACTIVITY_TIMEOUT",
@@ -231,6 +276,14 @@ export const promptToAgentResultSchema = z.discriminatedUnion("status", [
       startedAt: z.string().datetime(),
       config: z.array(spawnConfigOptionSummarySchema),
       warnings: z.array(spawnWarningSchema),
+    })
+    .strict(),
+  promptSessionBaseSchema
+    .extend({
+      status: z.literal("configuration_required"),
+      promptDispatched: z.literal(false),
+      config: z.array(spawnConfigOptionSummarySchema),
+      issues: z.array(spawnConfigResolutionIssueSchema).min(1),
     })
     .strict(),
   promptSessionBaseSchema
@@ -351,6 +404,9 @@ export type AvailableAgent = z.infer<typeof availableAgentSchema>;
 export type AvailableAgentsResult = z.infer<typeof availableAgentsResultSchema>;
 export type SpawnConfigOptionSummary = z.infer<typeof spawnConfigOptionSummarySchema>;
 export type SpawnWarning = z.infer<typeof spawnWarningSchema>;
+export type SpawnConfigResolutionReason = z.infer<typeof spawnConfigResolutionReasonSchema>;
+export type SpawnConfigResolutionCandidate = z.infer<typeof spawnConfigResolutionCandidateSchema>;
+export type SpawnConfigResolutionIssue = z.infer<typeof spawnConfigResolutionIssueSchema>;
 export type SpawnTurnMode = z.infer<typeof spawnTurnModeSchema>;
 export type SpawnRecentActivity = z.infer<typeof spawnRecentActivitySchema>;
 export type SpawnedSessionScope = z.infer<typeof spawnedSessionScopeSchema>;

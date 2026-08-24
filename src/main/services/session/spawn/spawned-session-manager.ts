@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { generateId, type UIMessage } from "ai";
-import type { AcpSessionStore } from "@main/domain/session/chat/acp-session-store";
 import type { SessionEvent } from "@main/domain/session/chat/session-events";
 import {
   assertSpawnedSessionScopeSnapshot,
@@ -64,6 +63,11 @@ import {
   spawnSessionRegistryKey,
 } from "@main/services/session/chat/session-registry";
 import { spawnNotificationService } from "@main/services/session/spawn/spawn-notification-service";
+import { SpawnedAcpSessionStore } from "@main/services/session/spawn/spawn-acp-session-store";
+import {
+  prepareSpawnConfig,
+  type SpawnConfigPreparationResult,
+} from "@main/services/session/spawn/spawn-config-preparation";
 import { resolveWorkspace } from "@main/services/workspace/_public";
 import {
   SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE,
@@ -212,6 +216,10 @@ function promptPreview(prompt: string): string {
   return prompt.slice(0, SPAWNED_SESSION_PROMPT_PREVIEW_MAX_LENGTH);
 }
 
+function hasSemanticConfig(params: PromptToAgentParams): boolean {
+  return params.model !== undefined || params.thought_level !== undefined;
+}
+
 function folderSelectionErrorMessage(
   folderId: string,
   parentSnapshot: SessionWorkspaceSnapshot
@@ -233,28 +241,6 @@ function capabilityMismatchRecoveryMessage(
 
 function persistedScopeErrorMessage(parentSnapshot: SessionWorkspaceSnapshot): string {
   return `The spawned Session's persisted Workspace or Folder scope is not valid for the parent Session snapshot. No new turn was started. Retry by omitting sessionId and, for a single-Folder task, setting folderId to one of these authorized Folder IDs and names: ${formatAuthorizedFolderList(parentSnapshot)}. Do not submit cwd or a path. If the task spans multiple Folders, use an Agent that supports additional directories.`;
-}
-
-class SpawnedAcpSessionStore implements AcpSessionStore {
-  constructor(
-    private readonly owner: SpawnOwner,
-    private readonly nowIso: () => string
-  ) {}
-
-  async loadRecoveryState() {
-    const meta = await loadSpawnedSessionMeta(storeOwner(this.owner));
-    return {
-      acpSessionId: meta?.acpSessionId ?? null,
-      configOptions: structuredClone(meta?.configOptions ?? []),
-    };
-  }
-
-  async persistAcpSessionId(acpSessionId: string): Promise<void> {
-    await patchSpawnedSessionMeta(storeOwner(this.owner), {
-      acpSessionId,
-      updatedAt: this.nowIso(),
-    });
-  }
 }
 
 export class SpawnedSessionManager {
@@ -362,6 +348,48 @@ export class SpawnedSessionManager {
     };
   }
 
+  private async settlePreDispatchForceError(
+    owner: SpawnOwner,
+    active: ActiveTurn
+  ): Promise<PromptToAgentResult | null> {
+    const forceError = active.forceError;
+    if (!forceError) return null;
+
+    const interrupted = forceError.code === "APP_SHUTDOWN";
+    const cancelledByParent = forceError.code === "TURN_CANCELLED_BY_PARENT";
+    await patchSpawnedSessionMeta(storeOwner(owner), {
+      status: interrupted || cancelledByParent ? "error" : "expired",
+      error: forceError,
+      updatedAt: this.nowIso(),
+    }).catch(() => undefined);
+    this.scheduleViewWake(owner);
+
+    if (interrupted) {
+      return {
+        status: "error",
+        sessionId: owner.sessionId,
+        code: "APP_SHUTDOWN",
+        message: forceError.message,
+      };
+    }
+    if (cancelledByParent) {
+      return {
+        status: "error",
+        sessionId: owner.sessionId,
+        code: "TURN_CANCELLED_BY_PARENT",
+        message: forceError.message,
+      };
+    }
+    return forceError.code === "AGENT_PROCESS_INVALIDATED"
+      ? {
+          status: "expired",
+          sessionId: owner.sessionId,
+          code: "AGENT_PROCESS_INVALIDATED",
+          message: forceError.message,
+        }
+      : { status: "expired", sessionId: owner.sessionId };
+  }
+
   private async executeTurn(
     caller: SpawnCaller,
     owner: SpawnOwner,
@@ -377,6 +405,7 @@ export class SpawnedSessionManager {
         throw new SpawnServiceError("SPAWN_RPC_CANCELLED", "Spawn request was cancelled");
       }
       const parentSnapshot = await this.requireParentSnapshot(caller);
+      const semanticConfig = hasSemanticConfig(params);
       if (params.sessionId && params.folderId !== undefined) {
         throw new SpawnServiceError(
           "SPAWN_INVALID_REQUEST",
@@ -485,12 +514,16 @@ export class SpawnedSessionManager {
           processGeneration: processEntry.generation,
           workspaceSnapshot: snapshot,
           scope,
-          status: "running",
+          status: semanticConfig ? "idle" : "running",
           configOptions: [],
           turnCount: 0,
           tokenUsage: { used: 0, size: 0 },
-          initialPromptPreview: promptPreview(params.prompt),
-          currentPromptPreview: promptPreview(params.prompt),
+          ...(semanticConfig
+            ? {}
+            : {
+                initialPromptPreview: promptPreview(params.prompt),
+                currentPromptPreview: promptPreview(params.prompt),
+              }),
           createdAt: now,
           updatedAt: now,
         };
@@ -499,10 +532,81 @@ export class SpawnedSessionManager {
       hasPersistedSession = true;
 
       active.agentId = meta.agentId;
+      if (signal?.aborted) {
+        throw new SpawnServiceError("SPAWN_RPC_CANCELLED", "Spawn request was cancelled");
+      }
+      const stoppedBeforePreparation = await this.settlePreDispatchForceError(owner, active);
+      if (stoppedBeforePreparation) return stoppedBeforePreparation;
+
+      let presetAcpSessionId: string | undefined;
+      let preparedConfigOptions: AcpSessionConfigOption[] | undefined;
+      if (semanticConfig) {
+        const sessionStore = new SpawnedAcpSessionStore(storeOwner(owner), () => this.nowIso());
+        const preparation: SpawnConfigPreparationResult = await prepareSpawnConfig({
+          entry: processEntry,
+          agentId: meta.agentId,
+          workspaceSnapshot: snapshot,
+          sessionStore,
+          request: {
+            ...(params.model === undefined ? {} : { model: params.model }),
+            ...(params.thought_level === undefined ? {} : { thought_level: params.thought_level }),
+            ...(params.config === undefined ? {} : { config: params.config }),
+          },
+        });
+        if (preparation.status === "configuration_required") {
+          await patchSpawnedSessionMeta(storeOwner(owner), {
+            status: "idle",
+            acpSessionId: preparation.acpSessionId,
+            processGeneration: processEntry.generation,
+            configOptions: preparation.configOptions,
+            error: undefined,
+            updatedAt: this.nowIso(),
+          });
+          const preparedMeta = await loadSpawnedSessionMeta(storeOwner(owner));
+          if (preparedMeta) this.remember(preparedMeta);
+          return {
+            status: "configuration_required",
+            sessionId: owner.sessionId,
+            promptDispatched: false,
+            config: summarizeConfig(preparation.configOptions),
+            issues: preparation.issues,
+          };
+        }
+        const readyProcess = getReadyProcess(meta.agentId);
+        if (
+          !readyProcess ||
+          readyProcess.generation !== processEntry.generation ||
+          !hasActiveAcpSession(readyProcess, preparation.acpSessionId)
+        ) {
+          await patchSpawnedSessionMeta(storeOwner(owner), {
+            status: "expired",
+            error: {
+              code: "AGENT_PROCESS_INVALIDATED",
+              message: SPAWN_ACTIVE_PROCESS_INVALIDATED_MESSAGE,
+            },
+            updatedAt: this.nowIso(),
+          });
+          return { status: "expired", sessionId: owner.sessionId };
+        }
+        presetAcpSessionId = preparation.acpSessionId;
+        preparedConfigOptions = preparation.configOptions;
+        const preparedMeta = await loadSpawnedSessionMeta(storeOwner(owner));
+        if (preparedMeta) meta = preparedMeta;
+      }
+      if (signal?.aborted) {
+        throw new SpawnServiceError("SPAWN_RPC_CANCELLED", "Spawn request was cancelled");
+      }
+      const stoppedBeforeDispatch = await this.settlePreDispatchForceError(owner, active);
+      if (stoppedBeforeDispatch) return stoppedBeforeDispatch;
+
+      const nextPromptPreview = promptPreview(params.prompt);
       await patchSpawnedSessionMeta(storeOwner(owner), {
         status: "running",
         error: undefined,
-        currentPromptPreview: promptPreview(params.prompt),
+        ...(params.sessionId === undefined && meta.initialPromptPreview === undefined
+          ? { initialPromptPreview: nextPromptPreview }
+          : {}),
+        currentPromptPreview: nextPromptPreview,
         updatedAt: this.nowIso(),
       });
       const turnUserMessage = userMessage(owner.sessionId, params.prompt, this.runtime.now());
@@ -517,7 +621,7 @@ export class SpawnedSessionManager {
         startedAt: active.startedAt,
         lastActivityAt: active.lastActivityAt,
         recentActivity: [],
-        config: [],
+        config: summarizeConfig(preparedConfigOptions ?? meta.configOptions),
         warnings: [],
         createdAt: active.startedAt,
         updatedAt: this.nowIso(),
@@ -533,7 +637,9 @@ export class SpawnedSessionManager {
         processGeneration: processEntry.generation,
         prompt: params.prompt,
         userMessageId: turnUserMessage.id,
-        config: params.config,
+        config: semanticConfig ? undefined : params.config,
+        presetAcpSessionId,
+        initialConfigOptions: preparedConfigOptions,
         active,
         signal,
       });
@@ -545,7 +651,17 @@ export class SpawnedSessionManager {
       const candidate = error as { code?: unknown; message?: unknown };
       const message =
         typeof candidate.message === "string" ? candidate.message : "Spawn request failed";
-      if (hasPersistedSession) {
+      if (
+        (candidate.code === "SPAWN_CONFIG_FAILED" || candidate.code === "SPAWN_INVALID_REQUEST") &&
+        hasPersistedSession &&
+        !hasPersistedTurn
+      ) {
+        await patchSpawnedSessionMeta(storeOwner(owner), {
+          status: "idle",
+          error: undefined,
+          updatedAt: this.nowIso(),
+        }).catch(() => undefined);
+      } else if (hasPersistedSession) {
         await patchSpawnedSessionMeta(storeOwner(owner), {
           status: "error",
           error: {
@@ -567,8 +683,8 @@ export class SpawnedSessionManager {
         }).catch(() => undefined);
         this.scheduleViewWake(owner);
       }
-      if (candidate.code === "SPAWN_INVALID_REQUEST") {
-        throw new SpawnServiceError("SPAWN_INVALID_REQUEST", message);
+      if (candidate.code === "SPAWN_INVALID_REQUEST" || candidate.code === "SPAWN_CONFIG_FAILED") {
+        throw new SpawnServiceError(candidate.code, message);
       }
       const passthroughCodes = new Set<SpawnRpcErrorCode>([
         "SESSION_FOLDER_REMOVED",
@@ -889,11 +1005,13 @@ export class SpawnedSessionManager {
     prompt: string;
     userMessageId: string;
     config?: Record<string, string | boolean>;
+    presetAcpSessionId?: string;
+    initialConfigOptions?: AcpSessionConfigOption[];
     active: ActiveTurn;
     signal?: AbortSignal;
   }): Promise<PromptToAgentResult> {
     const warnings: SpawnWarning[] = [];
-    let configOptions = input.meta.configOptions;
+    let configOptions = input.initialConfigOptions ?? input.meta.configOptions;
     let latestUsage: TokenUsage | undefined;
     let finalizationError: unknown;
     let removeAbort = (): void => undefined;
@@ -932,6 +1050,9 @@ export class SpawnedSessionManager {
       workspaceSnapshot: input.snapshot,
       owner: "spawn",
       sessionStore,
+      ...(input.presetAcpSessionId === undefined
+        ? {}
+        : { presetAcpSessionId: input.presetAcpSessionId }),
       userMessageId: input.userMessageId,
       configOverrides: input.config,
       onConfigWarnings: (next) => {

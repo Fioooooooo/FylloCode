@@ -10,6 +10,7 @@ import {
 const summary = {
   sessionId: "spawn-1",
   agent: { agentId: "codex", name: "Codex" },
+  scope: { kind: "workspace" as const, workspaceId: "workspace-1", name: "Workspace" },
   status: "running" as const,
   mode: "background" as const,
   currentTurnId: "turn-1",

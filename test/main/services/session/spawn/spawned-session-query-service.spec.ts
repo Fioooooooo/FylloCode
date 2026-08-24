@@ -240,6 +240,26 @@ describe("SpawnedSessionQueryService", () => {
     expect(mocks.loadDetail).not.toHaveBeenCalled();
   });
 
+  it("projects an idle prepared Session with no turn or undispatched prompt", async () => {
+    const prepared = view({ meta: { ...view().meta, status: "idle" }, turns: [], messages: [] });
+    mocks.listSummaries.mockResolvedValue([{ meta: prepared.meta, latestTurn: null }]);
+    mocks.loadDetail.mockResolvedValue(prepared);
+
+    const service = new SpawnedSessionQueryService();
+    const list = await service.listSpawnedSessions(owner);
+    const detail = await service.getSpawnedSessionDetail({ ...owner, sessionId: "spawn-1" });
+
+    expect(list).toMatchObject([{ sessionId: "spawn-1", status: "idle" }]);
+    expect(list[0]).not.toHaveProperty("currentTurnId");
+    expect(list[0]).not.toHaveProperty("promptPreview");
+    expect(detail).toEqual({
+      status: "ready",
+      summary: expect.objectContaining({ status: "idle" }),
+      turns: [],
+    });
+    expect(JSON.stringify(detail)).not.toContain("Inspect code");
+  });
+
   it("projects the same persisted Folder scope in list and detail without exposing paths", async () => {
     const folderScope = { kind: "folder" as const, folderId: "folder-2", name: "Docs" };
     const current = view({ meta: { ...view().meta, scope: folderScope, status: "idle" } });
