@@ -4,6 +4,7 @@ description: Create branded architecture, IT current-state, flowchart, sequence,
 license: MIT
 metadata:
   version: "2.6"
+  github: "https://github.com/cathrynlavery/diagram-design"
 ---
 
 # Diagram Design
