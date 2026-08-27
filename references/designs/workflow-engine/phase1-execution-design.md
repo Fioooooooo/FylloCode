@@ -89,7 +89,9 @@ Run 状态机不是纯同步的 `advance` 循环，`AgentStage` 的推进跨越�
 
 ### 5.1 `context: fresh`
 
-对用户**可见**——不做成黑盒。展示在 `ChatBackgroundActivityBar` 现有的"子 Agent N 个正在运行"入口里，用户能点进去看具体在干什么。理由：隐藏会让用户对"这个 stage 在做什么"产生疑惑，透明度优先，且不需要为"隐藏 session"另外发明一套展示豁免逻辑。
+对用户**可见**——不做成黑盒。但不混入 `ChatBackgroundActivityBar` 现有的"子 Agent N 个正在运行"入口（`SpawnedSessionActivityEntry`，见 [SpawnedSessionActivityEntry.vue](../../../src/renderer/src/features/spawned-session-inspector/ui/SpawnedSessionActivityEntry.vue)）——那个入口的列表数据来自 `useSpawnedSessionStore`，语义是"用户/agent 手动 spawn 的子 agent"，workflow 内部触发的 fresh session 混进去会让用户分不清"这是我自己开的子 agent"还是"这是 workflow 内部的一步"，两者生命周期和归属也不同（前者独立，后者受 run 状态机管辖，run 终止/失败时应能一并处理）。
+
+可见性通过第 6 节的 `WorkflowRunActivityEntry` 提供：该 run 处于 `AgentStage(fresh)` 期间时，其条目应能展示"当前在跑一个子 session"并可点击跳转查看该子 session 的对话内容（复用 `fyllo-spawn` 现有的 transcript 展示能力，但入口挂在 `WorkflowRunActivityEntry` 下，不挂在 `SpawnedSessionActivityEntry` 下）。理由：隐藏会让用户对"这个 stage 在做什么"产生疑惑，透明度优先；但透明度的实现方式是"从 workflow 入口能看到里面的 session"，不是"把两种不同性质的东西塞进同一个列表"。
 
 ### 5.2 `context: inherit`
 
@@ -137,7 +139,7 @@ export const WorkflowRunChannels = {
 - `ActionStage` 的 `confirm: true`：同样走 wake+pull。
 - 异常终止路径（`maxLoops` 超限、`WaitStage` 的 `onTimeout`）：统一进入某个终态并 wake 通知，不设计额外机制。
 
-UI 挂载点：`ChatBackgroundActivityBar` 新增 `WorkflowRunActivityEntry`，与"子 Agent 正在运行"并列展示"workflow 正在执行 / 等待你处理"。
+UI 挂载点：`ChatBackgroundActivityBar`（当前仅是布局容器，见 [ChatBackgroundActivityBar.vue](../../../src/renderer/src/components/chat/ChatBackgroundActivityBar.vue)）新增 `WorkflowRunActivityEntry`，作为与 `SpawnedSessionActivityEntry`（子 Agent 入口）完全独立的兄弟组件平级放置——不是同一个入口下的分支或子状态，是两个各自持有数据源（各自的 Pinia store、各自的 wake/pull 订阅）、各自控制自身 `v-if` 可见性的组件，仅在布局上相邻。`WorkflowRunActivityEntry` 展示"workflow 正在执行 / 等待你处理"；5.1 节提到的 `AgentStage(fresh)` 子 session 可见性由这个组件内部提供入口（点击 run 条目能看到并跳转到对应的 fresh session 对话），不通过 `SpawnedSessionActivityEntry` 展示。
 
 ---
 
@@ -212,7 +214,7 @@ interface WorkflowRunSnapshot {
 3. Agent 调用 `trigger_workflow` 后：若目标 workflow `confirmStart: true`，run 以 `awaiting_start_confirmation` 落盘并触发 wake，工具调用应立即返回，不阻塞等待用户确认；若 `confirmStart: false`，run 直接进入 `running` 并开始推进第一个 stage。
 4. 同一 session 已存在 `active` 状态 run 时，再次 `trigger_workflow` 应被拒绝，且拒绝原因需说明"已有 workflow 在运行"，不是通用错误。
 5. `ActionStage` 执行结果（pass/fail）应驱动状态机按 [definition-schema.md](definition-schema.md) 的 `Transition` 规则推进；`maxLoops` 超出后 run 应终止在失败态，并且快照能说明"卡在哪个 stage、循环了几次"。
-6. `AgentStage(context: fresh)` 触发时，应能在 `ChatBackgroundActivityBar` 现有的子 Agent 入口里看到这个子 session，用户可点击查看其对话内容；子 session 完成后，其最终响应文本应被正确读取为该 stage 的 artifact。
+6. `AgentStage(context: fresh)` 触发时，应能通过 `WorkflowRunActivityEntry`（而非 `ChatBackgroundActivityBar` 现有的子 Agent 入口）看到并点击进入这个子 session 查看其对话内容；该 session 不应出现在"子 Agent N 个正在运行"的计数与列表中。子 session 完成后，其最终响应文本应被正确读取为该 stage 的 artifact。
 7. `AgentStage(context: inherit)` 触发时，不应新建任何 session；应在主 chat session 里追加一轮 turn，且这轮 turn 在用户切换到其他页面/会话后仍能在后台跑完；跑完后若需要唤起主 agent 处理下一步，应注入一条用户不可见的 `<system-reminder>`（用户在消息列表中看不到这条 reminder 本身）。
 8. `gate.type: expr` 失败时该 stage 直接判定为 fail，不产生任何用户可见的等待态。
 9. `gate.type: human` 触发时，run 应进入 `awaiting_gate_decision` 并 wake 通知；用户在 UI 上给出决策后，run 应据此继续（pass 走向 `next.pass` 的 goto，fail 走向 `next.fail` 的 goto），不允许在没有用户决策的情况下自动超时通过。

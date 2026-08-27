@@ -26,11 +26,33 @@ Phase 2 新增"生成后展示 YAML 供确认"这个动作，核对后结论是�
 
 ---
 
-## 3. 生成信道：单一 MCP tool，直接传 YAML 内容
+## 3. 生成信道：`describe_workflow_schema` + `propose_workflow`，渐进披露
 
-### 3.1 `propose_workflow`
+### 3.0 为什么拆两个 tool，而不是把 schema 常驻进 system prompt
 
-`fyllo-workflow` MCP server 新增一个工具（在 Phase 1 已有的 `list_workflows`/`trigger_workflow` 之外）：
+`fyllo-specs` 已有先例：`create-proposal` 的详细写作规则（[create-proposal.md](../../../src/mcp-servers/fyllo-specs/src/tools/instructions/create-proposal.md)）不是常驻 system prompt，而是通过 tool 调用返回值按需下发（`includeInstruction` 参数，见 [create-proposal.ts:34-40](../../../src/mcp-servers/fyllo-specs/src/tools/create-proposal.ts)）。本项目里已连接的 `visualize` MCP server 是另一个更直接的参照：`read_me`/`show_widget` 两个工具通过 description 互相声明调用顺序（"Call before your first show_widget call" / "IMPORTANT: Call read_me before your first show_widget call"），schema/规则本身完全不进 system prompt，只有在 agent 明确要动手画图时才用一次 tool call 换回来。
+
+这正是 skill 的核心思想——先见 name+description 决定"要不要用"，需要时再取详情决定"怎么用"——落到 MCP tool 层面的具体形态。`fyllo-workflow` 应该采用同样的拆分，而不是延续 4.1 节曾设想的"整份 contract 常驻 system prompt"：workflow schema（[definition-schema.md](definition-schema.md) 第 1-9 节）与"这个能力存在、什么时候该碰它"是两个不同粒度的信息，前者体量大且只有真正要生成 YAML 时才用得上，后者需要常驻但应该极短。
+
+### 3.1 `describe_workflow_schema`
+
+`fyllo-workflow` MCP server 新增的信息查询工具，无副作用，返回 [definition-schema.md](definition-schema.md) 第 1-9 节的骨架：`WorkflowDefinition`/`Stage`（`AgentStage`/`ActionStage`/`WaitStage`）/`ActionOp`/`Gate`/`ArtifactSpec`/`Transition` 的字段与语义、第 9 节解析期校验清单。
+
+```ts
+describe_workflow_schema(input: {
+  withExamples?: boolean;  // 默认 false，附带第 10 节的完整 YAML 示例
+}): {
+  schema: string;  // markdown 全文
+}
+```
+
+不做成 `read_me` 那种按 `modules` 枚举划分的参数化查询：definition-schema 第 1-9 节各部分强耦合（写一个 `AgentStage` 必然牵扯 `Gate`/`Transition`/`ArtifactSpec`），不存在"只关心 Gate、完全不需要 Stage"这种典型场景，拆模块只会增加多次往返的负担，不会减少信息量。真正体量大、且个体独立性强、值得单独开关的只有第 10 节的示例部分，因此只用一个 `withExamples` 布尔量控制"要不要更多例子"，而不是模块选择。
+
+`propose_workflow` 的 description 反向声明依赖顺序（第 3.2 节），与 `describe_workflow_schema` 的 description 构成 `read_me`/`show_widget` 式的双重提醒，不依赖 system prompt 强制。
+
+### 3.2 `propose_workflow`
+
+`fyllo-workflow` MCP server 新增的生成提交工具（在 Phase 1 已有的 `list_workflows`/`trigger_workflow` 之外）：
 
 ```ts
 propose_workflow(input: {
@@ -46,28 +68,34 @@ propose_workflow(input: {
 }
 ```
 
+description 需明确写"call `describe_workflow_schema` first if you haven't already"，理由同第 3.1 节。
+
 **为什么 agent 不接触任何文件路径**：无论生成产物最终是临时用（`persist: "session"`）还是要沉淀（`persist: "workspace"`），落盘位置的拼接逻辑完全在主进程内部完成，agent 只表达"生成了什么内容"和"这次的持久化意图是什么"，不涉及"写到哪个具体路径"。这避免了 agent 因幻觉传错路径、或分两步操作（先写文件、再传路径）引入的中间态风险——参见第 7.1 节的进一步收口。
 
-### 3.2 校验失败处理
+### 3.3 校验失败处理
 
-`propose_workflow` 是同步的请求/响应：校验（[definition-schema.md](definition-schema.md) 第 9 节解析期规则 + 本文档第 5 节新增的 agent 专属规则）失败时，直接返回结构化错误列表，**不落盘、不触发 wake**。agent 在同一轮对话里根据错误自行修正后重新调用，类比 TypeScript 编译错误的反馈循环。
+`propose_workflow` 是同步的请求/响应：校验（[definition-schema.md](definition-schema.md) 第 9 节解析期规则，见第 5 节，不叠加 agent 专属规则）失败时，直接返回结构化错误列表，**不落盘、不触发 wake**。agent 在同一轮对话里根据错误自行修正后重新调用，类比 TypeScript 编译错误的反馈循环。
 
 不引入"先落为 draft 状态、再异步修复"的中间态——校验失败的 YAML 不构成任何值得让 Renderer 知道的状态变化，落盘只保留给校验通过的合法内容，磁盘上不会积累半成品草稿。这与 Phase 1"不合法 YAML 不允许静默落盘"（验收标准第 1 条）是同一条原则的延伸。
 
 ---
 
-## 4. 触发时机：静态 system-reminder 常驻注入
+## 4. 触发时机：常驻的只是"能力存在"，不是 schema 本身
 
-### 4.1 为什么常驻而非按需注入
+### 4.1 为什么需要常驻，但常驻的内容要收窄
 
 Phase 2 要支持两条触发路径，且两者最终都收敛到同一个 `propose_workflow` 调用：
 
 - **用户显式要求**："把这个流程存成 workflow"之类的直接指令。
 - **agent 主动判断提议**：agent 认为当前对话已经产生了一个值得固化的多步骤过程，主动向用户提议。
 
-如果 schema/contract 只在用户说出触发语句之后才临时注入，第二条路径永远无法触发——agent 在没看到 contract 之前根本不知道这个能力存在，无从谈"主动判断"。因此 workflow schema 与 `propose_workflow` 的调用 contract（类比 `fyllo-action` 的 `prompt.ts` 模式）需要**常驻**注入 system prompt。
+如果连"这个能力存在"都只在用户说出触发语句之后才临时注入，第二条路径永远无法触发——agent 没有任何线索知道该主动提议什么。这一点仍然需要常驻。
 
-代价是占用 system prompt token，contract 措辞需要控制长度，这是实现阶段的细节，不影响本节的架构结论。
+但第 3 节已经把 schema 本身拆到了 `describe_workflow_schema`，常驻 system prompt 的内容因此收窄为**触发判断**这一层，不需要再带 `WorkflowDefinition`/`Stage`/`Gate` 等字段细节——那些留给 agent 决定要生成时再按需查询。常驻内容大致是这个量级（措辞由实现阶段定稿，方向是"够长到讲清楚判断标准和调用入口，不需要更多"）：
+
+> 当用户明确要求把当前流程存为可复用 workflow，或你判断这段对话已经沉淀出一个值得固化的多步骤过程（不是随手改了几行代码）时，先调用 `describe_workflow_schema` 了解格式，再用 `propose_workflow` 提交生成结果供用户确认。
+
+**长度上的取舍**：不能压到一句"有个 workflow 能力"就完事——过短的常驻提示信息密度不够，agent 容易当噪音略过，等于没写。也不需要塞进字段级细节——那是 `describe_workflow_schema` 的职责，常驻只需要交代清楚"什么时候该想起这个能力"和"想起来之后第一步调用谁"，让 agent 能可靠地接上第 3 节的渐进披露链路。
 
 ### 4.2 触发标准的度：contract 措辞细节，非架构分歧
 
@@ -75,21 +103,17 @@ Phase 2 要支持两条触发路径，且两者最终都收敛到同一个 `prop
 
 ---
 
-## 5. 生成校验：`source: agent` 专属规则
+## 5. 生成校验：沿用通用规则，不叠加 agent 专属限制
 
 ### 5.1 沿用 definition-schema 第 9 节
 
 `propose_workflow` 复用 [definition-schema.md](definition-schema.md) 第 9 节的全部解析期校验规则，不区分来源。
 
-### 5.2 新增规则：`exec`/`webhook` 强制 `confirm: true`（仅 `source: agent`）
+不新增"`exec`/`webhook` 强制 `confirm: true`"这类规则：`confirm` 字段控制的是**运行时**每次 `trigger_workflow` 执行到该 stage 是否需要人工二次确认，这与"agent 这次生成的内容需不需要人审阅"是两件不同的事——后者已经由第 7/8 节的确认卡片机制解决（生成结果必须经用户在确认卡片上审阅、确认后才落盘/执行，且第 8.3 节要求完整展示 `exec`/`webhook` 原文，不允许折叠）。若在 schema 层面永久禁止 `confirm: false`，等于让"生成时审阅一次"这个一次性关卡，变成"运行时永远关不掉的二次确认"，会挡住 workflow engine 未来"无人值守执行"这个可能方向——一份已经被用户审阅、确认、沉淀为可复用资产的 workflow，理应可以在后续复用时全自动跑完，而不是被 schema 强制卡在每次都要人工点确认。
 
-`propose_workflow` 收到的 YAML 中，若 `exec` 或 `webhook` 类型的 `ActionStage` 显式将 `confirm` 设为 `false`，直接拒绝。
+`confirm` 该设为 `true` 还是 `false`，是 workflow 作者（此处是 agent，代其生成内容的用户对结果负责）对"这一步要不要在运行时也保留人工关卡"的正常判断，Phase 2 不比 Phase 1 的手写信任模型更严格地约束这个字段。
 
-**为什么不做命令内容审查**：命令字符串本身无法在不理解意图的情况下机械判断危险性（`rm -rf /tmp/foo` 安全、`rm -rf /` 危险，纯文本模式匹配拦不住变体又会误伤合法用途）。这与"prompt 指代词黑名单"是同一类脆弱机制——关键词过滤精确率低，且让用户困惑"为什么我这句话被拦"。真正可靠的防线是结构性的：强制 `confirm: true` 保证不管命令内容是什么，执行前必然有人肉眼看过原文才会放行。这正是 [definition-schema.md](definition-schema.md) 第 3.2 节 `confirm` 字段的本意——"对外可见、回滚代价高、代价评估不了的操作保持默认 true"，`exec`/`webhook` 恰恰是引擎完全无法评估回滚代价的一类，理应被约束得更强而非例外。
-
-**为什么仅限 `source: agent`**：Phase 1 明确假设"手写 YAML 内容可信"，手写者自己为 `confirm: false` 负责。这条新规则针对的是"agent 自主生成内容不可完全信任"这个 Phase 2 新增的风险面，不应追溯到已有的手写信任模型。
-
-### 5.3 不做的事：requires 上下文匹配
+### 5.2 不做的事：requires 上下文匹配
 
 `propose_workflow` 只做 schema 结构校验，**不**检查 `requires` 声明的上下文（如 `requires: [task]`）是否与当前对话匹配。这类匹配校验留给 `trigger_workflow` 启动时按 Phase 1 已有逻辑处理。`propose_workflow` 与 `trigger_workflow` 的职责边界：前者只管"这是不是一份合法 YAML"，后者才管"这份 YAML 能不能在当前上下文启动"。
 
@@ -101,10 +125,10 @@ Phase 2 要支持两条触发路径，且两者最终都收敛到同一个 `prop
 
 `propose_workflow` 生成 `AgentStage.prompt` 时，agent 处于当前对话的沉浸语境里，容易写出依赖"当前对话隐含前提"的 prompt（"按上面讨论的方案改""像刚才那样处理"）。这类 prompt 一旦被沉淀复用，在脱离原对话语境的新 session（`context: fresh`）或者被沉淀后在全新对话里触发的 `context: inherit`（此时"当前对话"已经是另一个不相关的对话，见 6.3 节）中执行，会**悄悄地按错误的上下文推理**，而非明显地报错失败——这是最隐蔽的一类风险。
 
-### 6.2 结论：contract 提示 + 现有 gate/回边容错，不引入新机制
+### 6.2 结论：`describe_workflow_schema` 提示 + 现有 gate/回边容错，不引入新机制
 
 - **不做解析期机械检测**（如扫描"上面/刚才/如上"等指代词）。这类关键词黑名单和敏感词过滤是同一类脆弱机制：正常合理的句子可能凑巧命中而被误伤，真正的悬空引用完全可以不用这些词表达（"改那个 bug"）。规则精确率低，还会让用户困惑"我这句话哪里有问题"。
-- 唯一的防线是 `propose_workflow` 的常驻 contract 里明确写清楚这个心智模型：**这份 prompt 未来会在一个不知道当前对话内容的新 session 里执行，写的时候要把当前对话里所有隐含前提转成 prompt 里的显式文字**。
+- 唯一的防线是 `describe_workflow_schema` 返回内容里明确写清楚这个心智模型：**这份 prompt 未来会在一个不知道当前对话内容的新 session 里执行，写的时候要把当前对话里所有隐含前提转成 prompt 里的显式文字**。这条提示属于"怎么写好一份 workflow"的内容，天然归入按需下发的 schema 详情，不需要常驻——常驻的判断入口只负责让 agent 想起来调用 `describe_workflow_schema`，具体怎么写是那次调用返回后才用得上的信息（呼应第 4.1 节的收窄）。
 - 执行时的偏差依赖 [definition-schema.md](definition-schema.md) 已有的容错机制兜底：`fresh` stage 产出不理想会被后续 `gate`（`expr`/`human`）拦下，走 `next.fail` 的回边重试——这是 workflow 自身状态机设计已经覆盖的风险，不需要叠加新的语言层检测。
 - 作为人工审阅的最后一道防线，见第 8.2 节：确认卡片必须完整展示 YAML 全部内容（含每个 stage 的 `prompt` 原文），不允许折叠摘要。
 
@@ -175,7 +199,9 @@ Phase 2 要支持两条触发路径，且两者最终都收敛到同一个 `prop
 
 确认卡片必须完整展示这份 workflow YAML 的**全部字段**，不只是 `prompt`，包括 stage 拓扑、每个 `ActionOp` 的具体内容（尤其 `exec`/`webhook` 的命令/URL 原文）、`confirm`/`idempotencyKey` 等所有字段，不允许折叠摘要。
 
-**为什么不做摘要或额外预告**：第 5.2 节已经确认"结构性约束（`confirm` 字段）替代不了内容审查"，那么唯一能兜底的就是让人真正看到完整内容——任何折叠、摘要、或额外生成一段"这个 workflow 会做什么"的自然语言总结，都是在原文之外制造一层可能失真的转译，反而在用户与真实内容之间引入审阅盲区。`confirm` 字段本身已经是 YAML 里的结构化信息，UI 只需要如实、完整地渲染出来——审阅态可以在视觉上高亮 `confirm: true` 的步骤（如角标"需确认"），这是纯渲染层细节，不需要额外生成解释性文案。同理，`gate.human` 的决策提示文案（`Gate.prompt` 字段）直接展示在对应 stage 下方，让用户提前知道后面会出现决策点，不是等跑到那一步才第一次看到。
+**为什么不做摘要或额外预告**：命令字符串本身无法在不理解意图的情况下机械判断危险性（`rm -rf /tmp/foo` 安全、`rm -rf /` 危险，纯文本模式匹配拦不住变体又会误伤合法用途），这与"prompt 指代词黑名单"是同一类脆弱机制，Phase 2 不引入。唯一能兜底的就是让人真正看到完整内容——任何折叠、摘要、或额外生成一段"这个 workflow 会做什么"的自然语言总结，都是在原文之外制造一层可能失真的转译，反而在用户与真实内容之间引入审阅盲区。UI 只需要如实、完整地渲染 YAML 内容。
+
+审阅态应重点高亮 `exec`/`webhook` 类型且 `confirm` 非 `true`（即显式 `false` 或未声明）的步骤（如角标"自动执行，不再确认"）——这类步骤一旦这次生成被确认、沉淀为可复用资产，未来每次执行都不会再弹出人工确认，这次审阅是它们被人看到的唯一机会，理应获得最高的注意力优先级。反之 `confirm: true` 的步骤运行时本身还会再触发一次 `awaiting_gate_decision` 式的人工确认（见 Phase 1 `ActionStage` 的 `confirm` 语义），此刻是否看漏代价较低，不需要额外的 UI 标记——两种状态都高亮等于没有高亮，用户无法一眼分辨"必须现在看清楚"和"以后还有机会看"的区别。同理，`gate.human` 的决策提示文案（`Gate.prompt` 字段）直接展示在对应 stage 下方，让用户提前知道后面会出现决策点，不是等跑到那一步才第一次看到。
 
 ### 8.4 挂载位置：待定
 
@@ -197,11 +223,11 @@ Phase 2 要支持两条触发路径，且两者最终都收敛到同一个 `prop
 
 ### 9.1 结论
 
-Agent 在生成前，通过 contract 引导先调用 Phase 1 已有的 `list_workflows`（返回 `name` + `description`），自行判断是否有可直接复用或简单改造的既有 workflow。**不引入关键词/tag/embedding 检索机制**，不扩展 `list_workflows` 的返回字段（如 `requires`、stage 数量概览）。
+Agent 在生成前，先调用 Phase 1 已有的 `list_workflows`（返回 `name` + `description`），自行判断是否有可直接复用或简单改造的既有 workflow。这一步引导写在 `describe_workflow_schema` 返回内容里（第 3.1 节），作为"生成前先做什么"的第一条指引，不需要额外常驻。**不引入关键词/tag/embedding 检索机制**，不扩展 `list_workflows` 的返回字段（如 `requires`、stage 数量概览）。
 
 ### 9.2 为什么
 
-- `list_workflows` 的 `name`/`description` 本身就是为人类和 agent 都可读的自然语言设计的，人写 description 时天然会把适用场景写进去（类比函数注释），agent 生成时在 contract 里提出同样要求即可，不需要额外的结构化元数据。
+- `list_workflows` 的 `name`/`description` 本身就是为人类和 agent 都可读的自然语言设计的，人写 description 时天然会把适用场景写进去（类比函数注释），agent 生成时在 `describe_workflow_schema` 里提出同样要求即可，不需要额外的结构化元数据。
 - workflow engine 是"深不广"的功能（参照 [[dynamic-workflow-engine-scope]]，退出摩擦的定位是先在少数高频动作上做扎实），可预见的 workflow 库数量级是几个到几十个，远没到需要检索基础设施才能解决"候选集过大"的规模。在问题真正出现之前引入这类设施，是这次讨论中反复出现的"不为不存在的问题背负担"原则的又一次应用（与 Phase 1 不引入 Temporal/XState 的论据一致）。
 - 若未来 workflow 库规模增长到确实需要更精细的检索，这属于 Phase 3（"规模化"）的范畴，不是 Phase 2 需要预先解决的。
 
@@ -218,7 +244,7 @@ Agent 在生成前，通过 contract 引导先调用 Phase 1 已有的 `list_wor
 
 ### 10.1 落盘路径由 `propose_workflow` 内部决定，agent 不接触路径
 
-延续第 3.1 节：`propose_workflow(yaml, persist)` 的 `persist` 参数只是语义标记，不是路径。工具内部按值直接写入：
+延续第 3.2 节：`propose_workflow(yaml, persist)` 的 `persist` 参数只是语义标记，不是路径。工具内部按值直接写入：
 
 - `persist: "session"` → `appData/workspaces/<workspace-id>/sessions/<session-id>/workflows/<workflow-id>.yaml`（Phase 1 第 8 节已预留此路径）
 - `persist: "workspace"` → `appData/workspaces/<workspace-id>/workflows/<workflow-id>/definition.yaml`（Phase 1 正式资产路径）
@@ -261,3 +287,8 @@ Agent 在生成前，通过 contract 引导先调用 Phase 1 已有的 `list_wor
 **Phase 1 已有信道与状态机（Phase 2 直接复用，不重新设计）**
 
 - 见 [phase1-execution-design.md](phase1-execution-design.md) 第 4/6/8 节：`fyllo-workflow` MCP server 结构、wake+pull 展示信道、`WorkflowRunSnapshot` 状态机与存储路径。
+
+**渐进披露参照（`describe_workflow_schema`/`propose_workflow` 的分层设计，见第 3 节）**
+
+- `src/mcp-servers/fyllo-specs/src/tools/create-proposal.ts:34-40`（`includeInstruction` 参数，`description` 里说明"first call 默认带 instruction，后续 follow-up 可关闭"）与 `src/mcp-servers/fyllo-specs/src/tools/instructions/create-proposal.md`（instruction 全文，作为 tool 返回值按需下发而非常驻 system prompt 的先例）
+- 本会话已连接的 `visualize` MCP server：`read_me`/`show_widget` 两个工具通过各自 `description` 互相声明调用顺序（"Call before your first show_widget call" / "IMPORTANT: Call read_me before your first show_widget call"），是"双重提醒 + 详情按需查询"这一模式在 MCP tool description 层面的直接参照。
