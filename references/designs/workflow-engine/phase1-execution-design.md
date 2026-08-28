@@ -163,6 +163,8 @@ appData/workspaces/<workspace-id>/workflows/
                 └── <fresh-session-id>.jsonl  # fresh AgentStage 产生的子 session 对话记录
 ```
 
+**`<workflow-id>` 的生成方式**：创建 workflow 时随机分配（如 nanoid），与 `name` 完全解耦——用户在 `/workflow` 页面重命名一份 workflow 只改 YAML 内的 `name` 字段，不影响 `workflow-id`、不需要重命名目录。理由：`workflow-id` 是这份 workflow 在存储路径与后续引用中的唯一标识，`name` 是随时可能被用户调整的展示名，如果两者绑定（例如从 `name` 做 slug），每次改名都要考虑"目录要不要跟着改、改了会不会影响已经持有旧路径的 run"这类连带问题；解耦后重命名是纯粹的内容编辑，不牵扯路径迁移。
+
 **Phase 2 预留**：agent 生成的 workflow 先落在 session 临时存储 `appData/workspaces/<workspace-id>/sessions/<session-id>/workflows/<workflow-id>.yaml`，用户同意持久化后再 copy 到上述正式目录。Phase 1 不实现，但目录设计已兼容。
 
 ### 8.1 Run 快照结构（提议）
@@ -196,7 +198,56 @@ interface WorkflowRunSnapshot {
 
 ---
 
-## 9. 待实现时确认的收尾细节
+## 9. `fyllo-workflow` MCP server：Phase 1 工具集
+
+Phase 1 新增的 `fyllo-workflow` MCP server，`transportPolicy: "http-only"`（第 4.2 节），提供两个工具，均通过 Node `child_process` IPC 桥接到主进程，不做本地计算。
+
+### 9.1 `list_workflows`
+
+无副作用的查询工具，列出当前 workspace 已保存的 workflow。
+
+```ts
+list_workflows(input: {}): {
+  workflows: Array<{
+    workflowId: string;
+    name: string;
+    description?: string;
+  }>;
+}
+```
+
+- 只列出 workspace 正式目录（第 8 节 `appData/workspaces/<workspace-id>/workflows/<workflow-id>/definition.yaml`）下已保存的 workflow，每次调用实时读取磁盘当前状态，不做启动时的静态快照缓存（第 11 节验收标准第 3 条）。
+- `name`/`description` 取自 workflow YAML 顶层字段（definition-schema 第 2 节），供 agent 判断是否有可复用的既有 workflow。
+
+### 9.2 `trigger_workflow`
+
+触发一次 workflow 执行。
+
+```ts
+trigger_workflow(input: {
+  workflowId: string;
+}): {
+  status: "accepted";
+  runId: string;
+  runStatus: "running" | "awaiting_start_confirmation";
+} | {
+  status: "rejected";
+  reason: string;  // 如"已有 workflow 在运行"（第 7 节并发限制）、"workflowId 不存在"
+}
+```
+
+- 若目标 workflow 所在 session 已存在 `active` 状态的 run（第 7 节并发限制），直接返回 `status: "rejected"`，`reason` 需明确说明"已有 workflow 在运行"，不是通用错误文案。
+- 若目标 workflow `confirmStart: true`（definition-schema 第 2.2 节），run 以 `awaiting_start_confirmation` 状态创建并落盘、触发 wake（第 6 节），工具调用立即返回，不阻塞等待用户确认。
+- 若 `confirmStart: false`，run 直接进入 `running` 并开始推进第一个 stage，工具调用返回时不代表 stage 已执行完，只代表 run 已成功创建并开始推进。
+- `trigger_workflow` 不接受 workflow YAML 内容本身，只接受 `workflowId`——Phase 1 里 workflow 只能来自用户在 `/workflow` 页面手写保存的 workspace 资产（第 2 节范围边界），agent 不生成 YAML 内容。
+
+### 9.3 workflow engine 内部创建 fresh 子 session 不经过 MCP
+
+第 4.2 节已定：workflow engine 创建 `AgentStage(context: fresh)` 的子 session 时，直接调用 `SpawnedSessionManager`（或其更底层能力），不经过 `fyllo-workflow` 这层 MCP 协议——因为这是主进程内部调度代码之间的调用，不是"agent 发起一次 tool call"，不属于本节工具集范围。
+
+---
+
+## 10. 待实现时确认的收尾细节
 
 以下问题不影响架构方向，可在实现阶段顺手决定：
 
@@ -205,26 +256,27 @@ interface WorkflowRunSnapshot {
 
 ---
 
-## 10. 验收标准（粗粒度）
+## 11. 验收标准（粗粒度）
 
 不追求 scenario 级别的完整性，只列 proposal 应该覆盖的验收方向，具体 scenario 由写 proposal 的 agent 展开：
 
 1. 用户能在 `/workflow` 页面创建、编辑一份合法 workflow YAML，保存后落在第 8 节的 `definition.yaml` 路径；保存不合法 YAML（未通过 [definition-schema.md](definition-schema.md) 第 9 节解析期校验）应被拒绝并提示具体错误，不允许静默落盘。
-2. Agent 通过 `fyllo-workflow` MCP server 的 `list_workflows` 能查到当前 workspace 已保存的 workflow；查询结果应反映最新保存状态（不是启动时的静态快照）。
-3. Agent 调用 `trigger_workflow` 后：若目标 workflow `confirmStart: true`，run 以 `awaiting_start_confirmation` 落盘并触发 wake，工具调用应立即返回，不阻塞等待用户确认；若 `confirmStart: false`，run 直接进入 `running` 并开始推进第一个 stage。
-4. 同一 session 已存在 `active` 状态 run 时，再次 `trigger_workflow` 应被拒绝，且拒绝原因需说明"已有 workflow 在运行"，不是通用错误。
-5. `ActionStage` 执行结果（pass/fail）应驱动状态机按 [definition-schema.md](definition-schema.md) 的 `Transition` 规则推进；`maxLoops` 超出后 run 应终止在失败态，并且快照能说明"卡在哪个 stage、循环了几次"。
-6. `AgentStage(context: fresh)` 触发时，应能通过 `WorkflowRunActivityEntry`（而非 `ChatBackgroundActivityBar` 现有的子 Agent 入口）看到并点击进入这个子 session 查看其对话内容；该 session 不应出现在"子 Agent N 个正在运行"的计数与列表中。子 session 完成后，其最终响应文本应被正确读取为该 stage 的 artifact。
-7. `AgentStage(context: inherit)` 触发时，不应新建任何 session；应在主 chat session 里追加一轮 turn，且这轮 turn 在用户切换到其他页面/会话后仍能在后台跑完；跑完后若需要唤起主 agent 处理下一步，应注入一条用户不可见的 `<system-reminder>`（用户在消息列表中看不到这条 reminder 本身）。
-8. `gate.type: expr` 失败时该 stage 直接判定为 fail，不产生任何用户可见的等待态。
-9. `gate.type: human` 触发时，run 应进入 `awaiting_gate_decision` 并 wake 通知；用户在 UI 上给出决策后，run 应据此继续（pass 走向 `next.pass` 的 goto，fail 走向 `next.fail` 的 goto），不允许在没有用户决策的情况下自动超时通过。
-10. 任意有效状态推进都应触发一次 wake（`workflow:run:wake`），且 Renderer 只有在存在活跃订阅时才应发起 `getDetail` 拉取——验证"无人观看时不做无用查询"这条设计约束确实生效。
-11. 应用重启后，处于非终态（`running`/`awaiting_*`/`waiting_signal`）的 run 应能从磁盘快照恢复，恢复后的状态与重启前一致，不丢失 `visitCounts`/`artifacts`。
-12. `produces.schema: freeform` + `gate.type: human` 的组合应端到端跑通一次完整 workflow（至少两个 stage、一次 gate 决策）作为最小验收路径；其余 `produces.schema` 与 `gate.type: expr`/`verdict` 的组合不要求在 Phase 1 验收范围内。
+2. 每次创建 workflow 都应分配一个唯一的 `workflow-id`（第 8 节，随机生成，与 `name` 解耦）；用户在 `/workflow` 页面修改一份已保存 workflow 的 `name` 字段后重新保存，`workflow-id` 与目录路径应保持不变，不应因改名产生新目录或迁移已有 `runs/` 历史。
+3. Agent 通过 `fyllo-workflow` MCP server 的 `list_workflows` 能查到当前 workspace 已保存的 workflow；查询结果应反映最新保存状态（不是启动时的静态快照）。
+4. Agent 调用 `trigger_workflow` 后：若目标 workflow `confirmStart: true`，run 以 `awaiting_start_confirmation` 落盘并触发 wake，工具调用应立即返回，不阻塞等待用户确认；若 `confirmStart: false`，run 直接进入 `running` 并开始推进第一个 stage。
+5. 同一 session 已存在 `active` 状态 run 时，再次 `trigger_workflow` 应被拒绝，且拒绝原因需说明"已有 workflow 在运行"，不是通用错误。
+6. `ActionStage` 执行结果（pass/fail）应驱动状态机按 [definition-schema.md](definition-schema.md) 的 `Transition` 规则推进；`maxLoops` 超出后 run 应终止在失败态，并且快照能说明"卡在哪个 stage、循环了几次"。
+7. `AgentStage(context: fresh)` 触发时，应能通过 `WorkflowRunActivityEntry`（而非 `ChatBackgroundActivityBar` 现有的子 Agent 入口）看到并点击进入这个子 session 查看其对话内容；该 session 不应出现在"子 Agent N 个正在运行"的计数与列表中。子 session 完成后，其最终响应文本应被正确读取为该 stage 的 artifact。
+8. `AgentStage(context: inherit)` 触发时，不应新建任何 session；应在主 chat session 里追加一轮 turn，且这轮 turn 在用户切换到其他页面/会话后仍能在后台跑完；跑完后若需要唤起主 agent 处理下一步，应注入一条用户不可见的 `<system-reminder>`（用户在消息列表中看不到这条 reminder 本身）。
+9. `gate.type: expr` 失败时该 stage 直接判定为 fail，不产生任何用户可见的等待态。
+10. `gate.type: human` 触发时，run 应进入 `awaiting_gate_decision` 并 wake 通知；用户在 UI 上给出决策后，run 应据此继续（pass 走向 `next.pass` 的 goto，fail 走向 `next.fail` 的 goto），不允许在没有用户决策的情况下自动超时通过。
+11. 任意有效状态推进都应触发一次 wake（`workflow:run:wake`），且 Renderer 只有在存在活跃订阅时才应发起 `getDetail` 拉取——验证"无人观看时不做无用查询"这条设计约束确实生效。
+12. 应用重启后，处于非终态（`running`/`awaiting_*`/`waiting_signal`）的 run 应能从磁盘快照恢复，恢复后的状态与重启前一致，不丢失 `visitCounts`/`artifacts`。
+13. `produces.schema: freeform` + `gate.type: human` 的组合应端到端跑通一次完整 workflow（至少两个 stage、一次 gate 决策）作为最小验收路径；其余 `produces.schema` 与 `gate.type: expr`/`verdict` 的组合不要求在 Phase 1 验收范围内。
 
 ---
 
-## 11. 参照代码位置
+## 12. 参照代码位置
 
 供写 proposal / 实现时对照，而非最终真实性保证——本次讨论后代码可能已变化，动手前应重新核对当前代码。
 
