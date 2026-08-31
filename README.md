@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <img src="build/icon.png" width="120" alt="FylloCode" />
 </p>
@@ -209,7 +211,7 @@ FylloCode 的任务结果可以回写到已有的研发系统，保持工具链�
 
 ## 参与贡献
 
-FylloCode 使用 MIT 许可证。欢迎提交 PR，贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+FylloCode 使用 MIT 许可证。欢迎提交 PR，贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。开发环境需要 Node.js ≥ 22 和 pnpm ≥ 10.33.0。
 
 ## 致谢
 
