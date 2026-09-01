@@ -2,13 +2,14 @@
 
 ## 修订记录
 
-| 版本                | 状态                   | 时间       | 说明                                                                                                                                                                                   |
-| ------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| draft               | 讨论结论，未评审       | 2026-08-25 | -                                                                                                                                                                                      |
-| revision-2026-08-31 | 增加阻塞问题的解决方案 | 2026-08-31 | 见[phase1-blocker-decision-log.md](phase1-blocker-decision-log.md)，明确 Phase1 执行 profile、Run 状态与恢复策略、ACP runner 边界、Action exec 契约、workflow IPC/MCP 边界和验收标准。 |
+| 版本                    | 状态                   | 时间       | 说明                                                                                                                                                                                   |
+| ----------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| draft                   | 讨论结论，未评审       | 2026-08-25 | -                                                                                                                                                                                      |
+| revision-2026-08-31     | 增加阻塞问题的解决方案 | 2026-08-31 | 见[phase1-blocker-decision-log.md](phase1-blocker-decision-log.md)，明确 Phase1 执行 profile、Run 状态与恢复策略、ACP runner 边界、Action exec 契约、workflow IPC/MCP 边界和验收标准。 |
+| cross-review-2026-09-01 | 交叉评审结论           | 2026-09-01 | N1：Run IPC 归入 `automation:workflow-run:*`，沿用 automation domain 的共享、主进程、Preload 与 Renderer 分层                                                                          |
 
 本文档记录 workflow engine Phase 1 的架构决策：手写 YAML、agent 触发、主进程调度、Fyllo Action 之外的独立展示信道。`Stage`/
-`Gate`/`Transition` 等定义态语义以 [definition-schema.md](definition-schema.md) 为准，本文档只覆盖运行态。
+`Gate`/`Transition` 等定义态语义以 [definition-schema.md](../definition-schema.md) 为准，本文档只覆盖运行态。
 
 ---
 
@@ -185,14 +186,16 @@ Phase 1 的 Action 只支持定义态已有的 `command` 和可选 `cwd` 字段�
 这个通用推送出口：
 
 ```ts
-// src/shared/ipc/workflow/workflow-run.channels.ts（提议路径）
+// src/shared/ipc/automation/workflow-run.channels.ts（提议路径）
 export const WorkflowRunChannels = {
-  list: "workflow:run:list", // invoke
-  getDetail: "workflow:run:getDetail", // invoke
-  decide: "workflow:run:decide", // invoke
-  wake: "workflow:run:wake", // Main -> Renderer push
+  list: "automation:workflow-run:list", // invoke
+  getDetail: "automation:workflow-run:getDetail", // invoke
+  decide: "automation:workflow-run:decide", // invoke
+  wake: "automation:workflow-run:wake", // Main -> Renderer push
 } as const;
 ```
+
+Run IPC 属于固定六域中的 `automation` domain，`workflow-run` 是独立 area。共享 channel 常量与 schema 放在 `src/shared/ipc/automation/workflow-run.*`，主进程 handler 放在 `src/main/ipc/automation/workflow-run.ts` 并由 automation registry 注册，Preload 暴露为 `window.api.automation.workflowRun`，Renderer 通过 `src/renderer/src/api/automation/workflow-run.ts` 调用；不得新增顶层 `workflow` domain。
 
 三个 invoke channel 的输入分别为：`list({workspaceId, parentSessionId})`、
 `getDetail({workspaceId, parentSessionId, runId})`、
@@ -432,7 +435,7 @@ fyllo-workflow MCP 子进程
 ```
 
 Workflow engine 内部创建 fresh session 不经过 MCP，也不调用 `SpawnedSessionManager.promptToAgent`。Renderer 的 Run
-查询和人工决策走独立的 `workflow:run:*` IPC，不经过 MCP 子进程。
+查询和人工决策走独立的 `automation:workflow-run:*` IPC，不经过 MCP 子进程。
 
 现有 `bundled-mcp-host.ts` 的 IPC request/response/protocol 类型目前绑定 `fyllo-spawn`，因此 Phase 1 实施时必须将 Host
 的线协议处理抽象为 server-neutral envelope，并让每个 server 注册自己的 runtime codec/handler。`fyllo-spawn` 保留现有
@@ -478,9 +481,9 @@ runtime/shutdown wiring。
 9. `gate.type: human` 触发时，run 应进入 `awaiting_gate_decision` 并 wake 通知；用户在 UI 上给出决策后，run 应据此继续（pass
    走向 `next.pass` 的 goto，fail 走向 `next.fail` 的 goto），不允许在没有用户决策的情况下自动通过。
 10. `confirmStart: true` 和 `ActionStage.confirm: true` 应分别进入 `awaiting_start_confirmation` 和
-    `awaiting_action_confirmation`，使用同一个 `workflow:run:decide` 命令通道；start/action reject 不执行对应操作并将 Run
+    `awaiting_action_confirmation`，使用同一个 `automation:workflow-run:decide` 命令通道；start/action reject 不执行对应操作并将 Run
     标记为 `cancelled`。
-11. 任意有效状态推进都应触发一次 wake（`workflow:run:wake`），且 Renderer 只有在存在活跃订阅时才应发起 `getDetail`
+11. 任意有效状态推进都应触发一次 wake（`automation:workflow-run:wake`），且 Renderer 只有在存在活跃订阅时才应发起 `getDetail`
     拉取——验证"无人观看时不做无用查询"这条设计约束确实生效。
 12. 应用重启后，处于人工等待的 Run 应从磁盘快照恢复原状态并重新进入 active index；正在执行 ACP/Action stage 的 `running`
     Run 因没有可恢复的 live handle 应标记为 `interrupted`，不得恢复或重放 ACP turn/副作用，且不得丢失已有 `visitCounts`/
@@ -514,7 +517,7 @@ runtime/shutdown wiring。
 - `src/main/ipc/session/spawned-session.ts:32`（`viewWakeHandler` 实现，调用 `manager.sendToWorkspace(...)`）、`:37`/`:46`（
   `list`/`getDetail` 的 `ipcMain.handle` 绑定）
 - `src/main/bootstrap/workspace-window-manager.ts:224`（`sendToWorkspace`，Main→Renderer 推送的通用出口）
-- `src/shared/ipc/session/spawned-session.channels.ts`（`SpawnedSessionChannels` 三个 channel 常量定义，`workflow:run:*`
+- `src/shared/ipc/session/spawned-session.channels.ts`（`SpawnedSessionChannels` 三个 channel 常量定义，`automation:workflow-run:*`
   应仿照此文件的组织方式新建）
 
 **状态机迁移与并发写保护参照（`fyllo-action`，`WorkflowRunSnapshot` 的状态迁移与落盘应参照此模式，但落盘路径不同，见下）**
