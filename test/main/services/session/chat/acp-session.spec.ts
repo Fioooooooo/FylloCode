@@ -481,6 +481,46 @@ describe("AcpSession", () => {
     expect(mocks.assertSessionWorkspaceSnapshotCurrent).not.toHaveBeenCalled();
   });
 
+  it("keeps workflow fresh activation owner-only and excludes workflow reminders", async () => {
+    const mcpWorkspaceDescriptor = {
+      version: 2 as const,
+      workspaceId: "workspace-1",
+      workspaceKind: "folder" as const,
+      primaryFolderId: "folder-1",
+      folders: [
+        {
+          folderId: "folder-1",
+          folderName: "Project",
+          folderPath: "/tmp/project",
+        },
+      ],
+      workspaceDataDir: "/tmp/workspace-data",
+      sessionId: "workflow-session-1",
+    };
+    const onReminderInjected = vi.fn().mockResolvedValue(undefined);
+    const session = await createSession({
+      owner: "workflow",
+      fylloSessionId: "workflow-session-1",
+      mcpWorkspaceDescriptor,
+      onReminderInjected,
+    });
+    await session.start([{ type: "text", text: "workflow prompt" }]);
+
+    expect(mocks.assertAgentWorkspaceCompatibility).toHaveBeenCalledWith(
+      "claude-acp",
+      expect.objectContaining({ workspaceId: "workspace-1" })
+    );
+    expect(mocks.assertSessionWorkspaceSnapshotCurrent).not.toHaveBeenCalled();
+    expect(mocks.createBundledMcpActivation).toHaveBeenCalledWith({
+      agentId: "claude-acp",
+      descriptor: mcpWorkspaceDescriptor,
+      supportsHttp: false,
+      allowedServerNames: ["fyllo-specs", "fyllo-cortex"],
+    });
+    expect(mocks.resolveSystemReminder).not.toHaveBeenCalled();
+    expect(onReminderInjected).not.toHaveBeenCalled();
+  });
+
   it("waits for bundled MCP readiness before calling newSession", async () => {
     const bundledServers = deferred<{ servers: []; activationId: null }>();
     mocks.createBundledMcpActivation.mockReturnValueOnce(bundledServers.promise);

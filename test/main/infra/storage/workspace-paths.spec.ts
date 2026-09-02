@@ -5,7 +5,6 @@ vi.mock("@main/infra/paths", () => ({
 }));
 
 import {
-  applyRunsDir,
   folderDataDir,
   knowledgeDir,
   lineageDir,
@@ -21,6 +20,13 @@ import {
   tasksPath,
   workspaceDataDir,
   workflowsDir,
+  workflowDir,
+  workflowDefinitionPath,
+  workflowRunsDir,
+  workflowRunDir,
+  workflowRunSnapshotPath,
+  workflowRunSessionTranscriptPath,
+  workflowRunActionOutputPath,
 } from "@main/infra/storage/workspace-paths";
 
 describe("Workspace storage path helpers", () => {
@@ -59,8 +65,24 @@ describe("Workspace storage path helpers", () => {
     expect(lineageDir("workspace-1")).toBe(`${root}/lineage`);
     expect(lineageSubjectsDir("workspace-1")).toBe(`${root}/lineage/subjects`);
     expect(mcpEventsDir("workspace-1")).toBe(`${root}/mcp-events`);
-    expect(applyRunsDir("workspace-1")).toBe(`${root}/apply-runs`);
     expect(workflowsDir("workspace-1")).toBe(`${root}/workflows`);
+    expect(workflowDir("workspace-1", "workflow-1")).toBe(`${root}/workflows/workflow-1`);
+    expect(workflowDefinitionPath("workspace-1", "workflow-1")).toBe(
+      `${root}/workflows/workflow-1/definition.yaml`
+    );
+    expect(workflowRunsDir("workspace-1", "workflow-1")).toBe(`${root}/workflows/workflow-1/runs`);
+    expect(workflowRunDir("workspace-1", "workflow-1", "run-1")).toBe(
+      `${root}/workflows/workflow-1/runs/run-1`
+    );
+    expect(workflowRunSnapshotPath("workspace-1", "workflow-1", "run-1")).toBe(
+      `${root}/workflows/workflow-1/runs/run-1/run-1.json`
+    );
+    expect(
+      workflowRunSessionTranscriptPath("workspace-1", "workflow-1", "run-1", "session-1")
+    ).toBe(`${root}/workflows/workflow-1/runs/run-1/sessions/session-1.jsonl`);
+    expect(workflowRunActionOutputPath("workspace-1", "workflow-1", "run-1", "stage-1")).toBe(
+      `${root}/workflows/workflow-1/runs/run-1/action-outputs/stage-1.log`
+    );
   });
 
   it("rejects identities that can escape the storage root", () => {
@@ -72,5 +94,15 @@ describe("Workspace storage path helpers", () => {
     expect(() =>
       spawnedSessionResponsePath("workspace-1", "parent-1", "spawn-1", "../secret")
     ).toThrow("Response ID is not safe");
+    expect(() => workflowDir("workspace-1", "workflow/child")).toThrow("Workflow ID is not safe");
+    expect(() => workflowRunSnapshotPath("workspace-1", "workflow-1", "../run")).toThrow(
+      "Run ID is not safe"
+    );
+    expect(() =>
+      workflowRunSessionTranscriptPath("workspace-1", "workflow-1", "run-1", "../session")
+    ).toThrow("Session ID is not safe");
+    expect(() =>
+      workflowRunActionOutputPath("workspace-1", "workflow-1", "run-1", "stage/child")
+    ).toThrow("Stage ID is not safe");
   });
 });

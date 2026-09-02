@@ -29,6 +29,10 @@ export async function inspectSessionWorkspaceFolderReferences(
       if (!meta) return [];
       return [{ kind: "chat", workspaceId, folderId, sessionId: referenceId }];
     }
+    if (entry.owner === "workflow") {
+      const [, , runId] = referenceId.split(":");
+      return [{ kind: "workflow", workspaceId, folderId, runId: runId ?? referenceId }];
+    }
     return [{ kind: entry.owner, workspaceId, folderId, runId: referenceId }];
   });
 

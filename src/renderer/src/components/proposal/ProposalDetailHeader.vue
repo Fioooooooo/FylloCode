@@ -1,63 +1,22 @@
-<script lang="ts">
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// export interface DropdownMenuItem {
-//   label?: string;
-//   icon?: string;
-//   color?: "neutral" | "primary" | "warning" | "success" | "error" | "info" | "secondary";
-//   onSelect?: () => void;
-//   type?: "separator";
-// }
-</script>
-
 <script setup lang="ts">
 import { computed } from "vue";
 import {
   getProposalDisplayStatus,
   proposalDisplayStatusConfig,
 } from "@renderer/utils/proposal-display-status";
-import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
+import type { ProposalMeta } from "@shared/types/proposal";
 
 const props = defineProps<{
   proposal: ProposalMeta | null;
   changeId: string;
-  // Proposal 运行入口待重构，方案确定后恢复或删除。
-  // workflowMenuItems: DropdownMenuItem[][];
-  // workflowStoreLoading: boolean;
-  runMeta: ApplyRunMeta | null;
-  isArchiving: boolean;
-  // isStreaming: boolean;
-  // canArchive: boolean;
   refreshingMeta: boolean;
 }>();
 
 defineEmits<{
   close: [];
-  "open-side-panel": [];
-  // Proposal 运行入口待重构，方案确定后恢复或删除。
-  // "view-run-history": [];
-  // archive: [];
 }>();
 
-const isApplying = computed(() => props.proposal?.status === "applying" && Boolean(props.runMeta));
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const canViewRunHistory = computed(
-//   () => props.proposal?.status === "archived" || props.proposal?.status === "applying"
-// );
-const displayStatus = computed(() =>
-  getProposalDisplayStatus(props.proposal, props.runMeta, props.isArchiving)
-);
-
-function getStageIndex(): number {
-  if (!props.runMeta || props.runMeta.stages.length === 0) {
-    return 0;
-  }
-
-  return Math.min(props.runMeta.currentStageIndex, props.runMeta.stages.length - 1);
-}
-
-function getStageCount(): number {
-  return props.runMeta?.stages.length ?? 0;
-}
+const displayStatus = computed(() => getProposalDisplayStatus(props.proposal));
 </script>
 
 <template>
@@ -73,43 +32,6 @@ function getStageCount(): number {
           >
             {{ proposalDisplayStatusConfig[displayStatus].label }}
           </UBadge>
-          <!-- Proposal 运行入口待重构，方案确定后恢复或删除。
-          <div :class="isStreaming ? 'pointer-events-none opacity-60' : ''">
-            <UDropdownMenu
-              v-if="proposal.status === 'draft'"
-              :items="workflowMenuItems"
-              :loading="workflowStoreLoading"
-              :portal="false"
-            >
-              <UButton
-                size="xs"
-                color="primary"
-                icon="i-lucide-play"
-                trailing-icon="i-lucide-chevron-down"
-              >
-                开始实现
-              </UButton>
-            </UDropdownMenu>
-            <UButton
-              v-else-if="canArchive"
-              size="xs"
-              color="neutral"
-              icon="i-lucide-archive"
-              @click="$emit('archive')"
-            >
-              归档
-            </UButton>
-            <UButton
-              v-else-if="canViewRunHistory"
-              size="xs"
-              color="neutral"
-              icon="i-lucide-history"
-              @click="$emit('view-run-history')"
-            >
-              查看运行历史
-            </UButton>
-          </div>
-          -->
           <UTooltip text="关闭详情">
             <UButton
               variant="ghost"
@@ -175,23 +97,5 @@ function getStageCount(): number {
         <p class="text-sm text-muted">未找到该 proposal 的元数据</p>
       </div>
     </div>
-
-    <button
-      v-if="isApplying && runMeta"
-      class="w-full border-t border-warning/20 bg-warning/8 hover:bg-warning/12 transition-colors cursor-pointer"
-      @click="$emit('open-side-panel')"
-    >
-      <div class="max-w-3xl mx-auto px-6 py-2 flex items-center gap-2 text-sm">
-        <span class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0" />
-        <span class="text-warning font-medium">{{ runMeta.workflowId }}</span>
-        <span class="text-muted mx-1">·</span>
-        <span class="text-muted">
-          阶段 {{ getStageCount() > 0 ? getStageIndex() + 1 : 0 }}/{{ getStageCount() }}：{{
-            runMeta.stages[getStageIndex()]?.name ?? "准备中"
-          }}
-        </span>
-        <UIcon name="i-lucide-panel-right-open" class="w-3.5 h-3.5 text-muted ml-auto" />
-      </div>
-    </button>
   </div>
 </template>

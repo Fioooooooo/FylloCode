@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   registerAllHandlers: vi.fn(),
   setupAgentEventBroadcast: vi.fn(),
   setupProposalStatusBroadcast: vi.fn(),
+  setupWorkflowRunBroadcast: vi.fn(),
   setupProbeBroadcast: vi.fn(),
   setupSpawnNotificationBroadcast: vi.fn(),
   startBundledMcpHost: vi.fn(),
+  waitForBundledMcpInitialReadiness: vi.fn(),
   beginBundledMcpHostShutdown: vi.fn(),
   stopBundledMcpHost: vi.fn(),
   forceStopBundledMcpHost: vi.fn(),
@@ -18,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   forceDisposeAcpProcessPool: vi.fn(),
   runAllMigrations: vi.fn(),
   validateWorkspaceCutoverState: vi.fn(),
-  initBuiltInWorkflows: vi.fn(),
   isShuttingDown: vi.fn(),
   showWorkspaceUpgradeFailure: vi.fn(),
   reserveLauncherWindow: vi.fn(),
@@ -35,11 +36,18 @@ const mocks = vi.hoisted(() => ({
   registerSpawnRpcBridge: vi.fn(),
   unregisterSpawnRpcBridge: vi.fn(),
   registerSpawnParentDeletionHandler: vi.fn(),
+  registerWorkflowRpcBridge: vi.fn(),
+  unregisterWorkflowRpcBridge: vi.fn(),
   unregisterSpawnParentDeletion: vi.fn(),
   beginSpawnShutdown: vi.fn(),
   startSpawnSessions: vi.fn(),
   disposeSpawnSessions: vi.fn(),
   forceDisposeSpawnSessions: vi.fn(),
+  attachWorkflowAgentRunner: vi.fn(),
+  attachWorkflowActionRunner: vi.fn(),
+  reconcileWorkspaces: vi.fn(),
+  listWorkspaceIds: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -48,6 +56,9 @@ vi.mock("electron", () => ({
 }));
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
 vi.mock("@main/ipc", () => ({ registerAllHandlers: mocks.registerAllHandlers }));
+vi.mock("@main/ipc/automation/workflow-run", () => ({
+  setupWorkflowRunBroadcast: mocks.setupWorkflowRunBroadcast,
+}));
 vi.mock("@main/ipc/platform/acp-agents", () => ({
   setupAgentEventBroadcast: mocks.setupAgentEventBroadcast,
 }));
@@ -60,6 +71,7 @@ vi.mock("@main/ipc/session/chat", () => ({
 }));
 vi.mock("@main/infra/mcp/bundled-mcp-host", () => ({
   startBundledMcpHost: mocks.startBundledMcpHost,
+  waitForBundledMcpInitialReadiness: mocks.waitForBundledMcpInitialReadiness,
   beginBundledMcpHostShutdown: mocks.beginBundledMcpHostShutdown,
   stopBundledMcpHost: mocks.stopBundledMcpHost,
   forceStopBundledMcpHost: mocks.forceStopBundledMcpHost,
@@ -73,6 +85,7 @@ vi.mock("@main/infra/process/acp-process-pool", () => ({
   forceDisposeAcpProcessPool: mocks.forceDisposeAcpProcessPool,
 }));
 vi.mock("@main/infra/process/auxiliary-process-registry", () => ({
+  trackAuxiliaryProcess: vi.fn(),
   beginAuxiliaryProcessShutdown: vi.fn(),
   disposeAuxiliaryProcesses: vi.fn(),
   forceDisposeAuxiliaryProcesses: vi.fn(),
@@ -81,9 +94,6 @@ vi.mock("@main/migrations", () => ({
   runAllMigrations: mocks.runAllMigrations,
   validateWorkspaceCutoverState: mocks.validateWorkspaceCutoverState,
   WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID: "settlement-id",
-}));
-vi.mock("@main/services/automation/workflow/built-in-loader", () => ({
-  initBuiltInWorkflows: mocks.initBuiltInWorkflows,
 }));
 vi.mock("@main/services/platform/acp-agent/connection-warmup", () => ({
   beginAgentConnectionWarmupShutdown: vi.fn(),
@@ -96,6 +106,24 @@ vi.mock("@main/services/platform/acp-agent/installer", () => ({
 }));
 vi.mock("@main/services/insight/lineage/mcp-event-consumer", () => ({
   disposeLineageEventConsumers: vi.fn(),
+}));
+vi.mock("@main/services/automation/_public", () => ({
+  workflowEngine: {
+    beginShutdown: vi.fn(),
+    dispose: vi.fn(async () => undefined),
+    forceDispose: vi.fn(),
+    reconcileWorkspaces: mocks.reconcileWorkspaces,
+  },
+  workflowAgentRunner: { attachToEngine: mocks.attachWorkflowAgentRunner },
+  workflowActionRunner: { attachEngine: mocks.attachWorkflowActionRunner },
+}));
+vi.mock("@main/services/automation/workflow/workflow-rpc-bridge", () => ({
+  registerWorkflowRpcBridge: mocks.registerWorkflowRpcBridge,
+  unregisterWorkflowRpcBridge: mocks.unregisterWorkflowRpcBridge,
+}));
+vi.mock("@main/services/workspace/_public", () => ({
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
+  listWorkspaceIds: mocks.listWorkspaceIds,
 }));
 vi.mock("@main/services/proposal/_public", () => ({
   proposalStatusService: { unwatchAll: vi.fn() },
@@ -185,11 +213,20 @@ describe("application runtime", () => {
     mocks.isShuttingDown.mockReturnValue(false);
     mocks.runAllMigrations.mockResolvedValue(undefined);
     mocks.validateWorkspaceCutoverState.mockResolvedValue({ ok: true, issues: [] });
-    mocks.initBuiltInWorkflows.mockResolvedValue(undefined);
     mocks.reserveLauncherWindow.mockReturnValue(7);
     mocks.focusLastActiveWindow.mockReturnValue(true);
     mocks.showMessageBox.mockResolvedValue({ response: 0 });
     mocks.registerSpawnParentDeletionHandler.mockReturnValue(mocks.unregisterSpawnParentDeletion);
+    mocks.setupWorkflowRunBroadcast.mockReturnValue(vi.fn());
+    mocks.waitForBundledMcpInitialReadiness.mockResolvedValue(undefined);
+    mocks.listWorkspaceIds.mockResolvedValue(["workspace-1"]);
+    mocks.reconcileWorkspaces.mockResolvedValue({
+      recovered: [],
+      interrupted: [],
+      incompatible: [],
+      skipped: [],
+      errors: [],
+    });
   });
 
   it("waits for gate and PATH before wiring, then activates the formal generation", async () => {
@@ -213,10 +250,39 @@ describe("application runtime", () => {
     expect(mocks.reserveLauncherWindow).toHaveBeenCalledWith(startup.window, expect.any(Object));
     expect(mocks.activateLauncherContext).toHaveBeenCalledWith(startup.window, 7);
     expect(mocks.startBundledMcpHost).toHaveBeenCalledOnce();
+    expect(mocks.setupWorkflowRunBroadcast).toHaveBeenCalledOnce();
+    expect(mocks.attachWorkflowAgentRunner).toHaveBeenCalledOnce();
+    expect(mocks.attachWorkflowActionRunner).toHaveBeenCalledOnce();
     expect(mocks.registerSpawnRpcBridge).toHaveBeenCalledOnce();
+    expect(mocks.registerWorkflowRpcBridge).toHaveBeenCalledOnce();
     expect(mocks.startSpawnSessions).toHaveBeenCalledOnce();
     expect(mocks.registerSpawnParentDeletionHandler).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.reconcileWorkspaces).toHaveBeenCalledWith(["workspace-1"]));
     expect(mocks.scheduleInitialAgentConnectionWarmup).not.toHaveBeenCalled();
+  });
+
+  it("starts workflow reconciliation only after bundled MCP readiness", async () => {
+    let resolveReady!: () => void;
+    mocks.waitForBundledMcpInitialReadiness.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveReady = resolve;
+      })
+    );
+    const startup = createStartupWindow();
+    const { startApplicationRuntime } = await import("@main/bootstrap/runtime");
+
+    const resultPromise = startApplicationRuntime({
+      getStartupWindow: () => startup as never,
+      shellPathReady: Promise.resolve(),
+    });
+
+    await resultPromise;
+    expect(mocks.reconcileWorkspaces).not.toHaveBeenCalled();
+    resolveReady();
+    await vi.waitFor(() => expect(mocks.reconcileWorkspaces).toHaveBeenCalledWith(["workspace-1"]));
+    expect(mocks.startBundledMcpHost.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.waitForBundledMcpInitialReadiness.mock.invocationCallOrder[0] ?? 0
+    );
   });
 
   it("destroys the startup shell before showing required-gate failure UI", async () => {
@@ -283,39 +349,5 @@ describe("application runtime", () => {
       expect.objectContaining({ title: "FylloCode 启动失败" })
     );
     expect(mocks.appQuit).toHaveBeenCalledOnce();
-  });
-
-  it("aborts and safely settles in-flight built-in workflow initialization", async () => {
-    let signal: AbortSignal | undefined;
-    let settleWorkflow!: () => void;
-    const workflow = new Promise<void>((resolve) => {
-      settleWorkflow = resolve;
-    });
-    mocks.initBuiltInWorkflows.mockImplementation((nextSignal: AbortSignal) => {
-      signal = nextSignal;
-      return workflow;
-    });
-    const startup = createStartupWindow();
-    const { startApplicationRuntime } = await import("@main/bootstrap/runtime");
-    await startApplicationRuntime({
-      getStartupWindow: () => startup as never,
-      shellPathReady: Promise.resolve(),
-    });
-    const resources = mocks.configureShutdownRuntimeResources.mock.calls[0]?.[0] as {
-      abortAndAwaitWorkflowInitialization(): Promise<void>;
-    };
-
-    const settling = resources.abortAndAwaitWorkflowInitialization();
-    expect(signal?.aborted).toBe(true);
-    let settled = false;
-    void settling.then(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    expect(settled).toBe(false);
-
-    settleWorkflow();
-    await settling;
-    expect(settled).toBe(true);
   });
 });

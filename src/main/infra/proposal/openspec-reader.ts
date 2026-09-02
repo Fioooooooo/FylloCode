@@ -395,17 +395,3 @@ export async function readChangeFile(
   if (!changeDir) return null;
   return readIfExists(join(changeDir, basename(filename)));
 }
-
-export async function resolveApplyRunChangeId(
-  projectPath: string,
-  changeId: string
-): Promise<string> {
-  const archiveDir = join(projectPath, "openspec", "changes", "archive", changeId);
-  const archivedYamlPath = join(archiveDir, ".openspec.yaml");
-
-  if (await readIfExists(archivedYamlPath)) {
-    return stripArchivePrefix(changeId);
-  }
-
-  return changeId;
-}

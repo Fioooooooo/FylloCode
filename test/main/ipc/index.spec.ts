@@ -6,8 +6,6 @@ import {
   SessionChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
 import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
-import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
-import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 import { PlatformSettingsChannels } from "@shared/ipc/platform/settings.channels";
 import { PlatformReleaseChannels } from "@shared/ipc/platform/release.channels";
 import { InsightOverviewChannels } from "@shared/ipc/insight/overview.channels";
@@ -77,12 +75,6 @@ describe("registerAllHandlers", () => {
       ),
       ...Object.values(ProposalBrowserChannels).filter(
         (channel) => channel !== ProposalBrowserChannels.statusChanged
-      ),
-      ...Object.values(ProposalApplyChannels).filter(
-        (channel) => channel !== ProposalApplyChannels.stageStreamPort
-      ),
-      ...Object.values(ProposalArchiveChannels).filter(
-        (channel) => channel !== ProposalArchiveChannels.archivePort
       ),
       ...Object.values(PlatformSettingsChannels),
       ...Object.values(PlatformReleaseChannels),

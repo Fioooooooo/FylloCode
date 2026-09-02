@@ -5,6 +5,7 @@ import {
   resetLifecycleForTests,
   runLifecyclePhases,
 } from "@main/bootstrap/lifecycle";
+import { SHUTDOWN_PHASES } from "@main/bootstrap/shutdown";
 
 beforeEach(() => {
   resetLifecycleForTests();
@@ -140,5 +141,26 @@ describe("lifecycle", () => {
     expect(beginShutdown()).toBe(true);
     expect(beginShutdown()).toBe(false);
     expect(isShuttingDown()).toBe(true);
+  });
+
+  it("declares workflow quiesce and settle before process termination", () => {
+    const quiesce = SHUTDOWN_PHASES.find((phase) => phase.name === "quiesce");
+    const settle = SHUTDOWN_PHASES.find((phase) => phase.name === "settle-spawned-sessions");
+    const terminateIndex = SHUTDOWN_PHASES.findIndex((phase) => phase.name === "terminate");
+
+    expect(quiesce?.tasks).toContainEqual(
+      expect.objectContaining({
+        name: "workflow-engine",
+        api: "beginWorkflowEngineShutdown",
+      })
+    );
+    expect(settle?.tasks).toContainEqual(
+      expect.objectContaining({
+        name: "workflow-engine",
+        api: "disposeWorkflowEngine",
+        forceApi: "forceDisposeWorkflowEngine",
+      })
+    );
+    expect(SHUTDOWN_PHASES.findIndex((phase) => phase === settle)).toBeLessThan(terminateIndex);
   });
 });

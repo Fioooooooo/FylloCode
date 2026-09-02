@@ -1,21 +1,6 @@
-import {
-  proposalRefKey,
-  type ApplyRunMeta,
-  type ProposalMeta,
-  type ProposalStatus,
-} from "@shared/types/proposal";
+import type { ProposalMeta, ProposalStatus } from "@shared/types/proposal";
 
-function runMatchesProposal(
-  runMeta: ApplyRunMeta | null | undefined,
-  proposal: ProposalMeta
-): boolean {
-  return Boolean(
-    runMeta?.proposalRef &&
-    proposalRefKey(runMeta.proposalRef) === proposalRefKey(proposal.proposalRef)
-  );
-}
-
-export type ProposalDisplayStatus = ProposalStatus | "archiveReady" | "archiving";
+export type ProposalDisplayStatus = ProposalStatus | "archiveReady";
 
 type ProposalStatusConfig = {
   label: string;
@@ -28,7 +13,6 @@ export const proposalDisplayStatusConfig: Record<ProposalDisplayStatus, Proposal
   draft: { label: "已创建", color: "neutral", variant: "soft" },
   applying: { label: "实现中", color: "primary", variant: "soft" },
   archiveReady: { label: "可归档", color: "warning", variant: "soft" },
-  archiving: { label: "归档中", color: "warning", variant: "soft" },
   archived: { label: "已归档", color: "neutral", variant: "outline" },
 };
 
@@ -40,40 +24,15 @@ export function canArchiveProposal(proposal: ProposalMeta | null | undefined): b
   );
 }
 
-export function isArchivingProposal(
-  proposal: ProposalMeta | null | undefined,
-  runMeta: ApplyRunMeta | null | undefined,
-  isArchiving: boolean
-): boolean {
-  return Boolean(
-    proposal?.status === "applying" &&
-    isArchiving &&
-    proposal &&
-    runMatchesProposal(runMeta, proposal)
-  );
-}
-
+export function getProposalDisplayStatus(proposal: ProposalMeta): ProposalDisplayStatus;
 export function getProposalDisplayStatus(
-  proposal: ProposalMeta,
-  runMeta: ApplyRunMeta | null | undefined,
-  isArchiving: boolean
-): ProposalDisplayStatus;
-export function getProposalDisplayStatus(
-  proposal: ProposalMeta | null | undefined,
-  runMeta: ApplyRunMeta | null | undefined,
-  isArchiving: boolean
+  proposal: ProposalMeta | null | undefined
 ): ProposalDisplayStatus | null;
 export function getProposalDisplayStatus(
-  proposal: ProposalMeta | null | undefined,
-  runMeta: ApplyRunMeta | null | undefined,
-  isArchiving: boolean
+  proposal: ProposalMeta | null | undefined
 ): ProposalDisplayStatus | null {
   if (!proposal) {
     return null;
-  }
-
-  if (isArchivingProposal(proposal, runMeta, isArchiving)) {
-    return "archiving";
   }
 
   return canArchiveProposal(proposal) ? "archiveReady" : proposal.status;

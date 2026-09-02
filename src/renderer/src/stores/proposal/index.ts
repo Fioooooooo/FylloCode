@@ -1,3 +1,2 @@
-// Proposal domain store barrel: browser store + apply-run store.
+// Proposal domain store barrel.
 export * from "./browser";
-export * from "./run";

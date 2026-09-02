@@ -14,7 +14,7 @@ const providers = {
 export async function resolveSystemReminder(
   ctx: SystemReminderContext
 ): Promise<TextUIPart | null> {
-  if (ctx.owner === "spawn") {
+  if (ctx.owner === "spawn" || ctx.owner === "workflow") {
     return null;
   }
   const provider = providers[ctx.owner];

@@ -34,6 +34,11 @@ export const SHUTDOWN_PHASES = [
         api: "beginSpawnShutdown",
       },
       {
+        name: "workflow-engine",
+        owner: "services/automation/workflow",
+        api: "beginWorkflowEngineShutdown",
+      },
+      {
         name: "session-registry",
         owner: "services/session/chat",
         api: "disposeSessions",
@@ -65,11 +70,6 @@ export const SHUTDOWN_PHASES = [
         pidOwnership: "npx/uvx/archive process groups",
       },
       {
-        name: "built-in-workflow-initialization",
-        owner: "services/automation/workflow",
-        api: "abortAndAwaitWorkflowInitialization",
-      },
-      {
         name: "bundled-mcp-host-quiesce",
         owner: "infra/mcp",
         api: "beginMcpHostShutdown",
@@ -84,6 +84,12 @@ export const SHUTDOWN_PHASES = [
   {
     name: "settle-spawned-sessions",
     tasks: [
+      {
+        name: "workflow-engine",
+        owner: "services/automation/workflow",
+        api: "disposeWorkflowEngine",
+        forceApi: "forceDisposeWorkflowEngine",
+      },
       {
         name: "spawned-sessions",
         owner: "services/session/spawn",
@@ -144,10 +150,12 @@ export interface ShutdownRuntimeResources {
   abortInstallerOperations(): void;
   awaitInstallerOperations(): Promise<void>;
   forceAbortInstallerOperations(): void;
-  abortAndAwaitWorkflowInitialization(): Promise<void>;
   beginSpawnShutdown(): void;
   disposeSpawnSessions(): Promise<void>;
   forceDisposeSpawnSessions(): void;
+  beginWorkflowEngineShutdown(): void;
+  disposeWorkflowEngine(): Promise<void>;
+  forceDisposeWorkflowEngine(): Promise<void> | void;
   beginAcpProcessPoolShutdown(): void;
   disposeAcpProcessPool(): Promise<void>;
   forceDisposeAcpProcessPool(): Promise<void> | void;
@@ -216,6 +224,10 @@ function createShutdownPhases(
         },
         { name: "agent-connection-warmup", run: () => resources?.beginWarmupShutdown() },
         { name: "spawned-sessions", run: () => resources?.beginSpawnShutdown() },
+        {
+          name: "workflow-engine",
+          run: () => resources?.beginWorkflowEngineShutdown(),
+        },
         { name: "session-registry", run: () => resources?.disposeSessions() },
         { name: "session-probes", run: () => resources?.disposeSessionProbes() },
         { name: "proposal-status-watchers", run: () => resources?.unwatchProposals() },
@@ -224,10 +236,6 @@ function createShutdownPhases(
         {
           name: "agent-install-operations",
           run: () => resources?.abortInstallerOperations(),
-        },
-        {
-          name: "built-in-workflow-initialization",
-          run: () => resources?.abortAndAwaitWorkflowInitialization(),
         },
         {
           name: "bundled-mcp-host-quiesce",
@@ -242,6 +250,11 @@ function createShutdownPhases(
     {
       name: "settle-spawned-sessions",
       tasks: [
+        {
+          name: "workflow-engine",
+          run: () => resources?.disposeWorkflowEngine(),
+          force: () => resources?.forceDisposeWorkflowEngine(),
+        },
         {
           name: "spawned-sessions",
           run: () => resources?.disposeSpawnSessions(),
@@ -326,6 +339,8 @@ function runEmergencyShutdown(): void {
   resources?.revokeMcpGrants();
   resources?.abortInstallerOperations();
   resources?.forceAbortInstallerOperations();
+  resources?.beginWorkflowEngineShutdown();
+  resources?.forceDisposeWorkflowEngine();
   resources?.beginAcpProcessPoolShutdown();
   resources?.forceDisposeSpawnSessions();
   void resources?.forceDisposeAcpProcessPool();

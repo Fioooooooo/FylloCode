@@ -1,6 +1,14 @@
 export { AcpSession } from "../chat/acp-session";
 export { driveAcpStream, driveAcpTurn } from "../chat/acp-stream-driver";
 export { sessionRegistry } from "../chat/session-registry";
+export { workflowSessionRegistryKey, type SessionRuntimeScope } from "../chat/session-registry";
 export type { AcpSessionOpts } from "../chat/acp-session";
 export type { SessionOwner } from "../chat/session-registry";
+export { WorkflowAcpSessionStore } from "../workflow/workflow-acp-session-store";
+export type { WorkflowSessionOwner } from "../workflow/workflow-acp-session-store";
+export { createWorkflowRuntimeProfile } from "../chat/session-runtime-profile";
+export type { SessionRuntimeProfile } from "../chat/session-runtime-profile";
 export { inspectSessionWorkspaceFolderReferences } from "../chat/workspace-folder-reference";
+export { createSessionMcpWorkspaceDescriptor } from "../chat/mcp-workspace-descriptor";
+export { getSessionExecutionContext } from "../chat/chat-service";
+export type { SessionExecutionContext } from "../chat/chat-service";

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { SpawnedSessionActivityEntry } from "@renderer/features/spawned-session-inspector";
+import { WorkflowRunActivityEntry } from "@renderer/features/workflow-run-inspector";
 import { useSessionStore } from "@renderer/stores";
 
 const sessionStore = useSessionStore();
@@ -11,6 +12,10 @@ const { activeSession } = storeToRefs(sessionStore);
   <div v-if="activeSession" class="px-4 py-2">
     <div class="mx-auto max-w-3xl">
       <SpawnedSessionActivityEntry
+        :workspace-id="activeSession.workspaceId"
+        :parent-session-id="activeSession.id"
+      />
+      <WorkflowRunActivityEntry
         :workspace-id="activeSession.workspaceId"
         :parent-session-id="activeSession.id"
       />

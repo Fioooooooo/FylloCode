@@ -2,24 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ChatProposalPanel from "@renderer/components/chat/event/ChatProposalPanel.vue";
-import type { ApplyRunMeta, ProposalMeta } from "@shared/types/proposal";
+import type { ProposalMeta } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
   openProposalDetail: vi.fn(),
   sendMessage: vi.fn(),
-  startRun: vi.fn(),
-  startArchive: vi.fn(),
-  fetchTemplates: vi.fn(),
   loadProposals: vi.fn(),
   upsertSessionProposal: vi.fn(),
   removeSessionProposal: vi.fn(),
 }));
 
-let runMetaValue: ApplyRunMeta | null = null;
-let isArchivingValue = false;
 let proposalStoreProposalsValue: ProposalMeta[] = [];
-let customTemplatesValue = [{ id: "wf-1", name: "Standard Workflow" }];
-let isLoadingValue = false;
 
 vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
   useProposalDetailSlideover: () => ({
@@ -27,33 +20,7 @@ vi.mock("@renderer/composables/useProposalDetailSlideover", () => ({
   }),
 }));
 
-vi.mock("@renderer/stores/workspace", () => ({
-  useWorkspaceStore: () => ({ currentWorkspace: { id: "project-1" } }),
-}));
-
-vi.mock("@renderer/stores/automation", () => ({
-  useWorkflowStore: () => ({
-    get customTemplates() {
-      return customTemplatesValue;
-    },
-    get isLoading() {
-      return isLoadingValue;
-    },
-    fetchTemplates: mocks.fetchTemplates,
-  }),
-}));
-
 vi.mock("@renderer/stores/proposal", () => ({
-  useProposalRunStore: () => ({
-    get runMeta() {
-      return runMetaValue;
-    },
-    get isArchiving() {
-      return isArchivingValue;
-    },
-    startRun: mocks.startRun,
-    startArchive: mocks.startArchive,
-  }),
   useProposalStore: () => ({
     get proposals() {
       return proposalStoreProposalsValue;
@@ -106,11 +73,7 @@ describe("ChatProposalPanel", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
-    runMetaValue = null;
-    isArchivingValue = false;
     proposalStoreProposalsValue = [];
-    customTemplatesValue = [{ id: "wf-1", name: "Standard Workflow" }];
-    isLoadingValue = false;
     mocks.sendMessage.mockResolvedValue(true);
   });
 
@@ -123,7 +86,6 @@ describe("ChatProposalPanel", () => {
     expect(startApplyButton.attributes("data-icon")).toBeUndefined();
     expect(startApplyButton.text()).toBe("开始实现");
     expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="dropdown-item-Standard Workflow"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("开始实现");
     expect(wrapper.text()).toContain("查看详情");
   });
@@ -142,8 +104,6 @@ describe("ChatProposalPanel", () => {
         text: "Start applying proposal: change-1 (folderId: folder-b)",
       },
     ]);
-    expect(mocks.startRun).not.toHaveBeenCalled();
-    expect(mocks.fetchTemplates).not.toHaveBeenCalled();
   });
 
   it("does not show archive button when an applying proposal has no tasks", () => {
@@ -170,20 +130,7 @@ describe("ChatProposalPanel", () => {
     expect(wrapper.text()).toContain("归档");
   });
 
-  it("keeps applying state while tasks remain even when run metadata is done", () => {
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b",
-      workflowId: "wf-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
+  it("keeps applying state while tasks remain", () => {
     const wrapper = mount(ChatProposalPanel, {
       props: {
         proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 1 })],
@@ -196,19 +143,6 @@ describe("ChatProposalPanel", () => {
   });
 
   it("keeps view detail before other action buttons", () => {
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b",
-      workflowId: "wf-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
     const wrapper = mount(ChatProposalPanel, {
       props: {
         proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
@@ -219,46 +153,7 @@ describe("ChatProposalPanel", () => {
     expect(actionButtons.indexOf("查看详情")).toBeLessThan(actionButtons.indexOf("归档"));
   });
 
-  it("shows archiving badge and hides archive button while archive is running", () => {
-    isArchivingValue = true;
-    runMetaValue = {
-      runId: "archive-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b",
-      workflowId: "archive",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "running",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
-    const wrapper = mount(ChatProposalPanel, {
-      props: {
-        proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
-      },
-    });
-
-    expect(wrapper.text()).toContain("归档中");
-    expect(wrapper.find('[data-test="archive-button"]').exists()).toBe(false);
-    expect(wrapper.find('[data-test="view-detail-button"]').exists()).toBe(true);
-  });
-
   it("sends an owner-qualified user message when archive is clicked", async () => {
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b",
-      workflowId: "wf-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
     const wrapper = mount(ChatProposalPanel, {
       props: {
         proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
@@ -274,7 +169,6 @@ describe("ChatProposalPanel", () => {
         text: "Start archiving proposal: change-1 (folderId: folder-b)",
       },
     ]);
-    expect(mocks.startArchive).not.toHaveBeenCalled();
   });
 
   it("does not show actions for creating proposals", () => {
@@ -419,19 +313,6 @@ describe("ChatProposalPanel", () => {
   });
 
   it("does not eagerly synchronize proposal state after sending archive intent", async () => {
-    runMetaValue = {
-      runId: "run-1",
-      proposalRef: { folderId: "folder-b", changeId: "change-1" },
-      worktreePath: "/repo-b",
-      workflowId: "wf-1",
-      stages: [],
-      currentStageIndex: 0,
-      stageAcpSessionIds: {},
-      status: "done",
-      startedAt: "2026-06-18T00:00:00.000Z",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-    };
-
     const wrapper = mount(ChatProposalPanel, {
       props: {
         proposals: [makeProposal("applying", { totalTasks: 2, doneTasks: 2 })],
@@ -441,7 +322,6 @@ describe("ChatProposalPanel", () => {
     await wrapper.get('[data-test="archive-button"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.startArchive).not.toHaveBeenCalled();
     expect(mocks.loadProposals).not.toHaveBeenCalled();
     expect(mocks.removeSessionProposal).not.toHaveBeenCalled();
     expect(mocks.upsertSessionProposal).not.toHaveBeenCalled();

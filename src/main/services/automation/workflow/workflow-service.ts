@@ -1,110 +1,84 @@
-import { promises as fs } from "fs";
-import { basename, extname, join } from "path";
 import type {
   WorkflowDeleteRequest,
+  WorkflowDefinitionRecord,
   WorkflowListResult,
   WorkflowSaveRequest,
-  WorkflowTemplate,
+  WorkflowSaveResult,
 } from "@shared/types/workflow";
 import { IpcErrorCodes } from "@shared/constants/error-codes";
-import { workflowsDir } from "@main/infra/storage/workspace-paths";
-import {
-  getUserWorkflowDirectory,
-  listBuiltInWorkflowFileNames,
-} from "@main/services/automation/workflow/built-in-loader";
+import { ipcError } from "@shared/errors/ipc-error";
 import { parseWorkflowYaml } from "@main/domain/automation/workflow/yaml-parser";
-import { ipcError } from "@main/ipc/_kit/errors";
+import { newWorkflowId } from "@main/infra/ids";
+import {
+  deleteWorkflowDefinition as deleteStoredWorkflowDefinition,
+  listWorkflowDefinitions as listStoredWorkflowDefinitions,
+  loadWorkflowDefinition as loadStoredWorkflowDefinition,
+  saveWorkflowDefinition as saveStoredWorkflowDefinition,
+} from "@main/infra/storage/workflow-definition-store";
 import logger from "@main/infra/logger";
 
-type WorkflowSource = WorkflowTemplate["source"];
-
-function isWorkflowFile(fileName: string): boolean {
-  return fileName.endsWith(".yaml") || fileName.endsWith(".yml");
-}
-
-function stripWorkflowExtension(fileName: string): string {
-  return fileName.slice(0, fileName.length - extname(fileName).length);
-}
-
-function normalizeWorkflowName(name: string): string {
-  const trimmedName = name.trim();
-  const withoutExtension = stripWorkflowExtension(trimmedName);
-  const normalizedName = withoutExtension || trimmedName;
-
-  if (!normalizedName || normalizedName !== basename(normalizedName)) {
-    throw ipcError(IpcErrorCodes.INVALID_WORKFLOW_NAME, `Invalid workflow name: ${name}`);
-  }
-  return normalizedName;
-}
-
-function toWorkflowFileName(name: string): string {
-  return `${normalizeWorkflowName(name)}.yaml`;
-}
-
-export async function resolveWorkspaceWorkflowDirectory(workspaceId: string): Promise<string> {
-  return workflowsDir(workspaceId);
-}
-
-export async function readWorkflowDirectory(
-  directory: string,
-  source: WorkflowSource
-): Promise<WorkflowTemplate[]> {
-  try {
-    const entries = await fs.readdir(directory, { withFileTypes: true });
-    const templates: WorkflowTemplate[] = [];
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !isWorkflowFile(entry.name)) continue;
-
-      const fallbackName = stripWorkflowExtension(entry.name);
-      try {
-        const yaml = await fs.readFile(join(directory, entry.name), "utf8");
-        templates.push({ ...parseWorkflowYaml(yaml, fallbackName), source });
-      } catch (error) {
-        logger.warn(`[workflow] Failed to read workflow file: ${entry.name}`, error);
-      }
-    }
-
-    return templates.sort((left, right) => left.name.localeCompare(right.name));
-  } catch {
-    return [];
-  }
-}
-
-export async function listWorkflows(workspaceId: string): Promise<WorkflowListResult> {
-  const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
-  const userTemplates = await readWorkflowDirectory(getUserWorkflowDirectory(), "custom");
-  const workspaceWorkflowDirectory = await resolveWorkspaceWorkflowDirectory(workspaceId);
-  const workspaceTemplates = await readWorkflowDirectory(workspaceWorkflowDirectory, "custom");
-
-  // Built-in templates live in the user directory (so they can be customized) but are
-  // reported with source "built-in". Custom templates take precedence in display order.
-  const builtInTemplates = userTemplates
-    .filter((template) => builtInFileNames.has(toWorkflowFileName(template.id)))
-    .map((template) => ({ ...template, source: "built-in" as const }));
+function toRecord(workflowId: string, yaml: string): WorkflowDefinitionRecord {
+  const definition = parseWorkflowYaml(yaml);
   return {
-    templates: [...workspaceTemplates, ...builtInTemplates],
+    workflowId,
+    name: definition.name,
+    ...(definition.description ? { description: definition.description } : {}),
+    yaml,
+    definition,
   };
 }
 
-export async function saveWorkflow(request: WorkflowSaveRequest): Promise<void> {
-  const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(join(directory, toWorkflowFileName(request.name)), request.yaml, "utf8");
+export async function loadWorkflowDefinition(
+  workspaceId: string,
+  workflowId: string
+): Promise<WorkflowDefinitionRecord | null> {
+  const stored = await loadStoredWorkflowDefinition(workspaceId, workflowId);
+  return stored ? toRecord(stored.workflowId, stored.yaml) : null;
 }
 
-export async function deleteWorkflow(request: WorkflowDeleteRequest): Promise<void> {
-  const builtInFileNames = new Set(await listBuiltInWorkflowFileNames());
-  const fileName = toWorkflowFileName(request.name);
-  if (builtInFileNames.has(fileName)) {
-    throw ipcError(IpcErrorCodes.BUILT_IN_WORKFLOW, "Built-in workflow cannot be deleted");
+export async function listWorkflowDefinitions(workspaceId: string): Promise<WorkflowListResult> {
+  const storedDefinitions = await listStoredWorkflowDefinitions(workspaceId);
+  const workflows: WorkflowDefinitionRecord[] = [];
+  for (const stored of storedDefinitions) {
+    try {
+      workflows.push(toRecord(stored.workflowId, stored.yaml));
+    } catch (error) {
+      // 保存后的文件理论上已经过校验；手动损坏时跳过该资产，避免污染其他 Workspace 的列表。
+      logger.warn(`[workflow] Failed to parse definition: ${stored.workflowId}`, error);
+    }
   }
-
-  const directory = await resolveWorkspaceWorkflowDirectory(request.workspaceId);
-  await fs.rm(join(directory, fileName), { force: true });
+  return { workflows };
 }
 
-export async function loadAllWorkflowTemplates(workspaceId: string): Promise<WorkflowTemplate[]> {
-  const { templates } = await listWorkflows(workspaceId);
-  return templates;
+export async function saveWorkflowDefinition(
+  request: WorkflowSaveRequest
+): Promise<WorkflowSaveResult> {
+  const definition = parseWorkflowYaml(request.yaml);
+  let workflowId = request.workflowId;
+  if (workflowId) {
+    const existing = await loadStoredWorkflowDefinition(request.workspaceId, workflowId);
+    if (!existing) {
+      throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${workflowId}`);
+    }
+  } else {
+    do {
+      workflowId = newWorkflowId();
+    } while (await loadStoredWorkflowDefinition(request.workspaceId, workflowId));
+  }
+  await saveStoredWorkflowDefinition(request.workspaceId, workflowId, request.yaml);
+  return {
+    workflowId,
+    name: definition.name,
+    ...(definition.description ? { description: definition.description } : {}),
+    yaml: request.yaml,
+    definition,
+  };
+}
+
+export async function deleteWorkflowDefinition(request: WorkflowDeleteRequest): Promise<void> {
+  const existing = await loadStoredWorkflowDefinition(request.workspaceId, request.workflowId);
+  if (!existing) {
+    throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${request.workflowId}`);
+  }
+  await deleteStoredWorkflowDefinition(request.workspaceId, request.workflowId);
 }

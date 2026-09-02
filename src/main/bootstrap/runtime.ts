@@ -2,6 +2,7 @@ import { app, dialog, type WebContents } from "electron";
 import { pathToFileURL } from "node:url";
 import { is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
+import { setupWorkflowRunBroadcast } from "@main/ipc/automation/workflow-run";
 import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
 import { setupProbeBroadcast, setupSpawnNotificationBroadcast } from "@main/ipc/session/chat";
@@ -11,6 +12,7 @@ import {
   forceStopBundledMcpHost,
   startBundledMcpHost,
   stopBundledMcpHost,
+  waitForBundledMcpInitialReadiness,
 } from "@main/infra/mcp/bundled-mcp-host";
 import { mcpAccessGrantRegistry } from "@main/infra/mcp/mcp-access-grant-registry";
 import {
@@ -29,7 +31,6 @@ import {
   validateWorkspaceCutoverState,
   WORKSPACE_CUTOVER_SETTLEMENT_MIGRATION_ID,
 } from "@main/migrations";
-import { initBuiltInWorkflows } from "@main/services/automation/workflow/built-in-loader";
 import {
   beginAgentConnectionWarmupShutdown,
   scheduleInitialAgentConnectionWarmup,
@@ -40,6 +41,11 @@ import {
   forceAbortActiveAgentOperations,
 } from "@main/services/platform/acp-agent/installer";
 import { disposeLineageEventConsumers } from "@main/services/insight/lineage/mcp-event-consumer";
+import {
+  workflowActionRunner,
+  workflowAgentRunner,
+  workflowEngine,
+} from "@main/services/automation/_public";
 import { proposalStatusService } from "@main/services/proposal/_public";
 import { disposeSessionRegistry } from "@main/services/session/chat/session-registry";
 import { disposeSessionProbes } from "@main/services/session/chat/session-probe-service";
@@ -49,6 +55,11 @@ import {
 } from "@main/services/session/spawn/spawn-rpc-bridge";
 import { spawnedSessionManager } from "@main/services/session/spawn/spawned-session-manager";
 import { registerSpawnParentDeletionHandler } from "@main/services/session/spawn/spawn-parent-lifecycle";
+import {
+  registerWorkflowRpcBridge,
+  unregisterWorkflowRpcBridge,
+} from "@main/services/automation/workflow/workflow-rpc-bridge";
+import { listWorkspaceIds } from "@main/services/workspace/_public";
 import {
   beginRendererInteractiveFallback,
   cancelRendererInteractiveFallback,
@@ -72,16 +83,11 @@ interface StartApplicationRuntimeOptions {
 }
 
 let protectedMigration: Promise<void> | null = null;
-let builtInWorkflowInitialization: Promise<void> | null = null;
-let builtInWorkflowAbortController: AbortController | null = null;
 let unregisterSpawnParentDeletion: (() => void) | null = null;
+let disposeWorkflowRunBroadcast: (() => void) | null = null;
 
 export function getProtectedMigration(): Promise<void> | null {
   return protectedMigration;
-}
-
-export function getBuiltInWorkflowInitialization(): Promise<void> | null {
-  return builtInWorkflowInitialization;
 }
 
 function formalRendererUrl(): string {
@@ -213,6 +219,19 @@ function createRuntimeController(): RuntimeController {
   };
 }
 
+function scheduleWorkflowReconcile(): void {
+  void waitForBundledMcpInitialReadiness()
+    .then(async () => {
+      if (isShuttingDown()) return;
+      const workspaceIds = await listWorkspaceIds();
+      if (isShuttingDown()) return;
+      await workflowEngine.reconcileWorkspaces(workspaceIds);
+    })
+    .catch((error: unknown) => {
+      logger.error("[bootstrap] workflow reconcile failed", error);
+    });
+}
+
 export async function startApplicationRuntime(
   options: StartApplicationRuntimeOptions
 ): Promise<RuntimeController | null> {
@@ -229,12 +248,6 @@ export async function startApplicationRuntime(
     abortInstallerOperations: abortActiveAgentOperations,
     awaitInstallerOperations: awaitActiveAgentOperations,
     forceAbortInstallerOperations: forceAbortActiveAgentOperations,
-    abortAndAwaitWorkflowInitialization: async () => {
-      builtInWorkflowAbortController?.abort();
-      if (builtInWorkflowInitialization) {
-        await builtInWorkflowInitialization;
-      }
-    },
     beginAcpProcessPoolShutdown,
     disposeAcpProcessPool,
     forceDisposeAcpProcessPool,
@@ -246,6 +259,14 @@ export async function startApplicationRuntime(
     },
     disposeSpawnSessions: () => spawnedSessionManager.dispose(),
     forceDisposeSpawnSessions: () => spawnedSessionManager.forceDispose(),
+    beginWorkflowEngineShutdown: () => {
+      workflowEngine.beginShutdown();
+      unregisterWorkflowRpcBridge();
+      disposeWorkflowRunBroadcast?.();
+      disposeWorkflowRunBroadcast = null;
+    },
+    disposeWorkflowEngine: () => workflowEngine.dispose(),
+    forceDisposeWorkflowEngine: () => workflowEngine.forceDispose(),
     beginMcpHostShutdown: beginBundledMcpHostShutdown,
     stopBundledMcpHost,
     forceStopBundledMcpHost,
@@ -271,20 +292,18 @@ export async function startApplicationRuntime(
   setupSpawnedSessionViewBroadcast(workspaceWindowManager);
   setupAgentEventBroadcast(workspaceWindowManager);
   setupProposalStatusBroadcast(workspaceWindowManager);
-  builtInWorkflowAbortController = new AbortController();
-  builtInWorkflowInitialization = initBuiltInWorkflows(
-    builtInWorkflowAbortController.signal
-  ).finally(() => {
-    builtInWorkflowInitialization = null;
-    builtInWorkflowAbortController = null;
-  });
+  disposeWorkflowRunBroadcast = setupWorkflowRunBroadcast(workspaceWindowManager, workflowEngine);
+  workflowAgentRunner.attachToEngine(workflowEngine);
+  workflowActionRunner.attachEngine(workflowEngine);
   spawnedSessionManager.start();
   registerSpawnRpcBridge();
+  registerWorkflowRpcBridge();
   unregisterSpawnParentDeletion ??= registerSpawnParentDeletionHandler(
     (workspaceId, parentSessionId) =>
       spawnedSessionManager.deleteParent(workspaceId, parentSessionId)
   );
   startBundledMcpHost();
+  scheduleWorkflowReconcile();
   markLifecycleMetric("runtime-wired");
 
   const controller = createRuntimeController();

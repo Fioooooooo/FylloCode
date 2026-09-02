@@ -37,7 +37,7 @@ function updateValue(value: string): void {
       :indent-with-tab="true"
       :tab-size="2"
       :style="{ height: '100%', fontSize: '12px' }"
-      placeholder="# YAML 格式的工作流模板配置"
+      placeholder="# Workflow v2 definition YAML"
       @update:model-value="updateValue"
     />
   </div>

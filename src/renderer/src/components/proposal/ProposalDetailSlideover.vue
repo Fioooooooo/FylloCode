@@ -2,33 +2,17 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { proposalBrowserApi } from "@renderer/api/proposal/browser";
 import ProposalDetailHeader from "@renderer/components/proposal/ProposalDetailHeader.vue";
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// import ProposalDetailHeader, {
-//   type DropdownMenuItem,
-// } from "@renderer/components/proposal/ProposalDetailHeader.vue";
 import ProposalMarkdownContent, {
   type MarkdownTab,
   type MarkdownTabValue,
 } from "@renderer/components/proposal/ProposalMarkdownContent.vue";
-import ProposalApplySidePanel from "@renderer/components/proposal/ProposalApplySidePanel.vue";
-import {
-  useWorkspaceStore,
-  useProposalRunStore,
-  useProposalStore,
-  // Proposal 运行入口待重构，方案确定后恢复或删除。
-  // useWorkflowStore,
-} from "@renderer/stores";
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// import { canArchiveProposal } from "@renderer/utils/proposal-display-status";
+import { useWorkspaceStore, useProposalStore } from "@renderer/stores";
 import {
   proposalRefKey,
   type ProposalMeta,
   type ProposalRef,
   type ProposalSpecDeltaOverview,
 } from "@shared/types/proposal";
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// import type { WorkflowTemplate } from "@shared/types/workflow";
-
 const props = defineProps<{
   proposalRef: ProposalRef;
 }>();
@@ -39,10 +23,6 @@ const emit = defineEmits<{
 
 const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const workflowStore = useWorkflowStore();
-// This remains a global run store: Chat EventRail and the detail Slideover share run state.
-const proposalRunStore = useProposalRunStore();
 
 const currentProposalRef = ref<ProposalRef>({ ...props.proposalRef });
 const activeTab = ref<MarkdownTabValue>("proposal");
@@ -52,7 +32,6 @@ const loadingFiles = ref(false);
 const loadingSpecs = ref(false);
 const fileError = ref<string | null>(null);
 const specsError = ref<string | null>(null);
-const sidePanelOpen = ref(false);
 const refreshingMeta = ref(false);
 const fallbackProposal = ref<ProposalMeta | null>(null);
 
@@ -88,15 +67,6 @@ const currentProposal = computed<ProposalMeta | null>(() => {
     : null;
 });
 
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const canArchive = computed(() => {
-//   return canArchiveProposal(
-//     currentProposal.value,
-//     proposalRunStore.runMeta,
-//     proposalRunStore.isArchiving
-//   );
-// });
-
 const specsTabAvailable = computed(
   () => Boolean(specsError.value) || (specsOverview.value?.items.length ?? 0) > 0
 );
@@ -123,22 +93,6 @@ function syncActiveTab(): void {
     activeTab.value = values[0] ?? "proposal";
   }
 }
-
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// function buildWorkflowMenuItems(workflows: WorkflowTemplate[]): DropdownMenuItem[] {
-//   return workflows.map((template) => ({
-//     label: template.name,
-//     onSelect: () => void startWithWorkflow(template),
-//   }));
-// }
-//
-// const workflowMenuItems = computed<DropdownMenuItem[][]>(() => {
-//   if (workflowStore.customTemplates.length === 0) {
-//     return [];
-//   }
-//
-//   return [buildWorkflowMenuItems(workflowStore.customTemplates)];
-// });
 
 async function refreshProposalMeta(requestId: number): Promise<void> {
   const fallback = currentProposal.value;
@@ -264,61 +218,6 @@ async function loadDetailFiles(requestId: number): Promise<void> {
   syncActiveTab();
 }
 
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// async function startWithWorkflow(workflow: WorkflowTemplate): Promise<void> {
-//   const workspaceId = workspaceStore.currentWorkspace?.id;
-//   const proposalRefSnapshot = { ...currentProposalRef.value };
-//   if (!workspaceId) {
-//     return;
-//   }
-//
-//   try {
-//     await proposalRunStore.startRun(workspaceId, proposalRefSnapshot, workflow.id);
-//     sidePanelOpen.value = true;
-//     if (currentProposal.value) {
-//       currentProposal.value.status = "applying";
-//     }
-//   } catch (error: unknown) {
-//     console.error("Failed to start proposal apply run:", error);
-//   }
-// }
-//
-// async function archiveProposal(): Promise<void> {
-//   const workspaceId = workspaceStore.currentWorkspace?.id;
-//   const proposalRefSnapshot = { ...currentProposalRef.value };
-//   if (!workspaceId) {
-//     return;
-//   }
-//
-//   try {
-//     sidePanelOpen.value = true;
-//     await proposalRunStore.startArchive(workspaceId, proposalRefSnapshot);
-//     await proposalStore.loadProposals();
-//
-//     const requestId = beginDetailRequest();
-//     await loadDetailFiles(requestId);
-//   } catch (error: unknown) {
-//     console.error("Failed to archive proposal:", error);
-//   }
-// }
-//
-// async function viewRunHistory(): Promise<void> {
-//   sidePanelOpen.value = true;
-//
-//   const workspaceId = workspaceStore.currentWorkspace?.id;
-//   const proposalRefSnapshot = { ...currentProposalRef.value };
-//   if (!workspaceId) {
-//     return;
-//   }
-//
-//   try {
-//     await proposalRunStore.resumeRun(workspaceId, proposalRefSnapshot);
-//     await proposalRunStore.resumeArchive(workspaceId, proposalRefSnapshot);
-//   } catch (error: unknown) {
-//     console.error("Failed to load proposal run history:", error);
-//   }
-// }
-
 watch(
   () => proposalRefKey(props.proposalRef),
   () => {
@@ -328,7 +227,6 @@ watch(
 
     currentProposalRef.value = { ...props.proposalRef };
     fallbackProposal.value = null;
-    sidePanelOpen.value = false;
     const requestId = beginDetailRequest();
     void refreshProposalMeta(requestId);
     void loadDetailFiles(requestId);
@@ -340,33 +238,9 @@ watch(tabs, syncActiveTab);
 onMounted(() => {
   void (async () => {
     const requestId = beginDetailRequest();
-    await Promise.all([
-      refreshProposalMeta(requestId),
-      loadDetailFiles(requestId),
-      // Proposal 运行入口待重构，方案确定后恢复或删除。
-      // workflowStore.fetchTemplates(),
-    ]);
+    await Promise.all([refreshProposalMeta(requestId), loadDetailFiles(requestId)]);
     if (!isCurrentRequest(requestId)) {
       return;
-    }
-
-    const workspaceId = workspaceStore.currentWorkspace?.id;
-    const proposal = currentProposal.value;
-    if (workspaceId && proposal?.status === "applying") {
-      await proposalRunStore.resumeRun(workspaceId, currentProposalRef.value);
-      if (proposalRunStore.runMeta) {
-        sidePanelOpen.value = true;
-      }
-    }
-
-    if (workspaceId) {
-      const hasArchive = await proposalRunStore.resumeArchive(
-        workspaceId,
-        currentProposalRef.value
-      );
-      if (hasArchive) {
-        sidePanelOpen.value = true;
-      }
     }
   })();
 });
@@ -386,20 +260,9 @@ onMounted(() => {
           <ProposalDetailHeader
             :proposal="currentProposal"
             :change-id="currentProposalRef.changeId"
-            :run-meta="proposalRunStore.runMeta"
-            :is-archiving="proposalRunStore.isArchiving"
             :refreshing-meta="refreshingMeta"
             @close="emit('close')"
-            @open-side-panel="sidePanelOpen = true"
           />
-          <!-- Proposal 运行入口待重构，方案确定后恢复或删除。
-          :workflow-menu-items="workflowMenuItems"
-          :workflow-store-loading="workflowStore.isLoading"
-          :is-streaming="proposalRunStore.isStreaming"
-          :can-archive="canArchive"
-          @view-run-history="viewRunHistory"
-          @archive="archiveProposal"
-          -->
 
           <ProposalMarkdownContent
             v-model="activeTab"
@@ -411,14 +274,6 @@ onMounted(() => {
             :specs-error="specsError"
           />
         </div>
-
-        <ProposalApplySidePanel
-          v-if="sidePanelOpen"
-          :run-meta="proposalRunStore.runMeta"
-          :messages="proposalRunStore.messages"
-          :is-streaming="proposalRunStore.isStreaming"
-          @close="sidePanelOpen = false"
-        />
       </div>
     </template>
   </USlideover>

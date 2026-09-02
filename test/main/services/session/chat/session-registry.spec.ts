@@ -3,6 +3,7 @@ import {
   disposeSessionRegistry,
   resetSessionRegistryForTests,
   sessionRegistry,
+  workflowSessionRegistryKey,
 } from "@main/services/session/chat/session-registry";
 import type { AcpSession } from "@main/services/session/chat/acp-session";
 
@@ -122,6 +123,39 @@ describe("sessionRegistry", () => {
     expect(parentASecond.cancel).toHaveBeenCalledOnce();
     expect(parentB.cancel).not.toHaveBeenCalled();
     expect(sessionRegistry.listSpawnedByParent("workspace-a", "parent-a")).toEqual([]);
+  });
+
+  it("keeps workflow fresh sessions in their own owner namespace and cancels one Run only", () => {
+    const workflowSession = fakeSession();
+    const otherWorkflowRun = fakeSession();
+    const spawnedSession = fakeSession();
+    const workflowKey = workflowSessionRegistryKey(
+      "workspace-a",
+      "workflow-1",
+      "run-1",
+      "workflow-session-1"
+    );
+    const otherRunKey = workflowSessionRegistryKey(
+      "workspace-a",
+      "workflow-1",
+      "run-2",
+      "workflow-session-2"
+    );
+    sessionRegistry.register("workflow", workflowKey, workflowSession);
+    sessionRegistry.register("workflow", otherRunKey, otherWorkflowRun);
+    sessionRegistry.register("spawn", "workspace-a:parent:spawn-1", spawnedSession);
+
+    expect(sessionRegistry.listWorkflowRun("workspace-a", "workflow-1", "run-1")).toEqual([
+      "workflow-session-1",
+    ]);
+    expect(sessionRegistry.get("spawn", "workspace-a:parent:spawn-1")).toBe(spawnedSession);
+
+    sessionRegistry.cancelWorkflowRun("workspace-a", "workflow-1", "run-1");
+
+    expect(workflowSession.cancel).toHaveBeenCalledOnce();
+    expect(otherWorkflowRun.cancel).not.toHaveBeenCalled();
+    expect(spawnedSession.cancel).not.toHaveBeenCalled();
+    expect(sessionRegistry.get("workflow", workflowKey)).toBeUndefined();
   });
 
   it("cancelAll() cancels across every owner and empties the registry", () => {

@@ -12,23 +12,27 @@ describe("preload workflowApi", () => {
     mocks.ipcRenderer.invoke.mockResolvedValue({ ok: true, data: null });
   });
 
-  it("forwards explicit workspaceId for list, save, and delete", async () => {
+  it("forwards the v2 workspaceId/workflowId contract", async () => {
     const { workflowApi } = await import("@preload/api/automation/workflow");
     await workflowApi.list({ workspaceId: "workspace-a" });
-    await workflowApi.save({ workspaceId: "workspace-a", name: "custom", yaml: "stages: []" });
-    await workflowApi.delete({ workspaceId: "workspace-a", name: "custom" });
+    await workflowApi.save({
+      workspaceId: "workspace-a",
+      workflowId: "workflow-1",
+      yaml: "name: Demo\nversion: 2",
+    });
+    await workflowApi.delete({ workspaceId: "workspace-a", workflowId: "workflow-1" });
 
     expect(mocks.ipcRenderer.invoke).toHaveBeenNthCalledWith(1, AutomationWorkflowChannels.list, {
       workspaceId: "workspace-a",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenNthCalledWith(2, AutomationWorkflowChannels.save, {
       workspaceId: "workspace-a",
-      name: "custom",
-      yaml: "stages: []",
+      workflowId: "workflow-1",
+      yaml: "name: Demo\nversion: 2",
     });
     expect(mocks.ipcRenderer.invoke).toHaveBeenNthCalledWith(3, AutomationWorkflowChannels.delete, {
       workspaceId: "workspace-a",
-      name: "custom",
+      workflowId: "workflow-1",
     });
   });
 });

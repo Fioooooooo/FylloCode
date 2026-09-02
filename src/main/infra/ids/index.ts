@@ -16,8 +16,16 @@ export function newSessionId(): string {
   return `session-${baseId()}`;
 }
 
+export function newWorkflowSessionId(): string {
+  return `workflow-session-${baseId()}`;
+}
+
 export function newRunId(): string {
   return `run-${baseId()}`;
+}
+
+export function newWorkflowId(): string {
+  return `workflow-${baseId()}`;
 }
 
 export function newArchiveRunId(): string {

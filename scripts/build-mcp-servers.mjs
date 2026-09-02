@@ -17,6 +17,10 @@ const bundledMcpServers = [
     name: "fyllo-spawn",
     external: [],
   },
+  {
+    name: "fyllo-workflow",
+    external: [],
+  },
 ];
 
 const sharedBuildOptions = {

@@ -74,8 +74,6 @@ describe("preload index API shape", () => {
         }),
         proposal: expect.objectContaining({
           browser: expect.any(Object),
-          apply: expect.any(Object),
-          archive: expect.any(Object),
         }),
         insight: expect.objectContaining({
           overview: expect.any(Object),
@@ -86,6 +84,7 @@ describe("preload index API shape", () => {
         }),
         automation: expect.objectContaining({
           workflow: expect.any(Object),
+          workflowRun: expect.any(Object),
           task: expect.any(Object),
           workspaceIntegration: expect.any(Object),
         }),

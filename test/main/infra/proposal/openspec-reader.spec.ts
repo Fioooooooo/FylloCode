@@ -7,7 +7,6 @@ import {
   parseYamlCreated,
   parseYamlStatus,
   readProposalFiles,
-  resolveApplyRunChangeId,
   resolveChangeDir,
   resolveChangeDirAnywhere,
   stripArchivePrefix,
@@ -127,33 +126,6 @@ describe("openspec-reader pure helpers", () => {
 
   it("countTasks handles empty content", () => {
     expect(countTasks("no checkboxes here")).toEqual({ totalTasks: 0, doneTasks: 0 });
-  });
-});
-
-describe("resolveApplyRunChangeId", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("maps an archived proposal id back to the original change id", async () => {
-    vi.mocked(fs.readFile).mockResolvedValueOnce("schema: spec-driven");
-
-    await expect(
-      resolveApplyRunChangeId("/tmp/project", "2026-05-07-proposal-archived-run-history")
-    ).resolves.toBe("proposal-archived-run-history");
-
-    expect(fs.readFile).toHaveBeenCalledWith(
-      "/tmp/project/openspec/changes/archive/2026-05-07-proposal-archived-run-history/.openspec.yaml",
-      "utf8"
-    );
-  });
-
-  it("keeps the current change id for non-archived proposals", async () => {
-    vi.mocked(fs.readFile).mockRejectedValueOnce(new Error("missing"));
-
-    await expect(
-      resolveApplyRunChangeId("/tmp/project", "proposal-archived-run-history")
-    ).resolves.toBe("proposal-archived-run-history");
   });
 });
 

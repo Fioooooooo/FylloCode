@@ -184,6 +184,44 @@ describe("bundled mcp servers", () => {
     );
   });
 
+  it("keeps fyllo-workflow available to normal Chat HTTP activation", async () => {
+    hostMocks.getMcpServerEndpoint.mockImplementation((name: string) =>
+      name === "fyllo-workflow" ? { url: "http://127.0.0.1:50100/mcp/fyllo-workflow" } : null
+    );
+
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
+      supportsHttp: true,
+    });
+
+    expect(activation.servers).toContainEqual(
+      expect.objectContaining({ type: "http", name: "fyllo-workflow" })
+    );
+    expect(grantMocks.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedServerNames: ["fyllo-workflow"] })
+    );
+  });
+
+  it("keeps workflow fresh activation restricted to the specs/cortex allowlist", async () => {
+    hostMocks.getMcpServerEndpoint.mockImplementation((name: string) => ({
+      url: `http://127.0.0.1:50100/mcp/${name}`,
+    }));
+
+    const activation = await createBundledMcpActivation({
+      agentId: "agent-1",
+      descriptor: descriptor(),
+      supportsHttp: true,
+      allowedServerNames: ["fyllo-specs", "fyllo-cortex"],
+    });
+
+    expect(activation.servers.map((spec) => spec.name)).toEqual(["fyllo-specs", "fyllo-cortex"]);
+    expect(activation.servers.every((spec) => spec.type === "http")).toBe(true);
+    expect(grantMocks.issue).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedServerNames: ["fyllo-specs", "fyllo-cortex"] })
+    );
+  });
+
   it("respects the complete disable flag without waiting for host", async () => {
     process.env.FYLLO_DISABLE_BUNDLED_MCP = "1";
     await expect(

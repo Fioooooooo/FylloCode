@@ -8,7 +8,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { ChildProcess } from "node:child_process";
+import type { ChildProcess, Serializable } from "node:child_process";
 import spawn from "cross-spawn";
 import logger from "@main/infra/logger";
 import {
@@ -18,7 +18,6 @@ import {
   fylloSpawnRpcRequestSchema,
   spawnRpcErrorCodeSchema,
   type FylloSpawnRpcRequest,
-  type FylloSpawnRpcResponse,
   type SpawnRpcError,
 } from "@shared/types/fyllo-spawn-rpc";
 import {
@@ -53,7 +52,6 @@ interface ManagedMcpServer {
   initialPromise: Promise<void>;
   settleInitial: () => void;
   generation: number;
-  pendingRpc: Map<string, { child: ChildProcess; generation: number; controller: AbortController }>;
 }
 
 interface BundledMcpHost {
@@ -64,14 +62,38 @@ interface BundledMcpHost {
   initialTimer: NodeJS.Timeout | null;
   shuttingDown: boolean;
   unavailable: boolean;
+  pendingRpc: Map<
+    string,
+    {
+      child: ChildProcess;
+      serverName: BundledMcpServerName;
+      generation: number;
+      controller: AbortController;
+    }
+  >;
 }
 
 export interface BundledMcpEndpoint {
   url: string;
 }
 
-export type BundledMcpRpcHandler = (
-  request: FylloSpawnRpcRequest,
+export interface BundledMcpRpcEnvelope {
+  protocol: string;
+  version: number;
+  kind: "request" | "cancel";
+  requestId: string;
+}
+
+export interface BundledMcpRpcCodec<TRequest> {
+  parseRequest(input: unknown): TRequest | null;
+  parseCancel(input: unknown): Pick<BundledMcpRpcEnvelope, "requestId"> | null;
+  success(requestId: string, result: unknown): unknown;
+  failure(requestId: string, error: unknown): unknown;
+  toError(error: unknown, signal: AbortSignal): unknown;
+}
+
+export type BundledMcpRpcHandler<TRequest = unknown> = (
+  request: TRequest,
   signal: AbortSignal
 ) => Promise<unknown>;
 
@@ -89,7 +111,71 @@ const hopByHopHeaders = new Set([
 let host: BundledMcpHost | null = null;
 let startupPromise: Promise<void> | null = null;
 let stopPromise: Promise<void> | null = null;
-const rpcHandlers = new Map<BundledMcpServerName, BundledMcpRpcHandler>();
+
+function toRpcError(error: unknown, signal: AbortSignal): SpawnRpcError {
+  if (signal.aborted) {
+    return { code: "SPAWN_RPC_CANCELLED", message: "RPC request was cancelled" };
+  }
+  if (error && typeof error === "object") {
+    const candidate = error as { code?: unknown; message?: unknown; retryable?: unknown };
+    const code = spawnRpcErrorCodeSchema.safeParse(candidate.code);
+    if (code.success) {
+      return {
+        code: code.data,
+        message:
+          typeof candidate.message === "string" && candidate.message
+            ? candidate.message
+            : "Bundled MCP RPC failed",
+        ...(typeof candidate.retryable === "boolean" ? { retryable: candidate.retryable } : {}),
+      };
+    }
+  }
+  return {
+    code: "SPAWN_INTERNAL_ERROR",
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+const fylloSpawnRpcCodec: BundledMcpRpcCodec<FylloSpawnRpcRequest> = {
+  parseRequest(input) {
+    const parsed = fylloSpawnRpcRequestSchema.safeParse(input);
+    return parsed.success ? parsed.data : null;
+  },
+  parseCancel(input) {
+    const parsed = fylloSpawnRpcCancelSchema.safeParse(input);
+    return parsed.success ? parsed.data : null;
+  },
+  success(requestId, result) {
+    return {
+      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+      version: FYLLO_SPAWN_RPC_VERSION,
+      kind: "response",
+      requestId,
+      ok: true,
+      result,
+    };
+  },
+  failure(requestId, error) {
+    return {
+      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
+      version: FYLLO_SPAWN_RPC_VERSION,
+      kind: "response",
+      requestId,
+      ok: false,
+      error,
+    };
+  },
+  toError: toRpcError,
+};
+
+interface RegisteredRpcHandler {
+  codec: BundledMcpRpcCodec<unknown>;
+  handler?: BundledMcpRpcHandler<unknown>;
+}
+
+const rpcHandlers = new Map<BundledMcpServerName, RegisteredRpcHandler>([
+  ["fyllo-spawn", { codec: fylloSpawnRpcCodec as BundledMcpRpcCodec<unknown> }],
+]);
 
 function createManagedServer(registration: BundledMcpServerRegistration): ManagedMcpServer {
   let settleInitial!: () => void;
@@ -107,21 +193,42 @@ function createManagedServer(registration: BundledMcpServerRegistration): Manage
     initialPromise,
     settleInitial,
     generation: 0,
-    pendingRpc: new Map(),
   };
 }
 
 export function registerBundledMcpRpcHandler(
+  serverName: "fyllo-spawn",
+  handler: BundledMcpRpcHandler<FylloSpawnRpcRequest>
+): () => void;
+export function registerBundledMcpRpcHandler<TRequest>(
   serverName: BundledMcpServerName,
-  handler: BundledMcpRpcHandler
+  handler: BundledMcpRpcHandler<TRequest>,
+  codec: BundledMcpRpcCodec<TRequest>
+): () => void;
+export function registerBundledMcpRpcHandler<TRequest>(
+  serverName: BundledMcpServerName,
+  handler: BundledMcpRpcHandler<TRequest>,
+  codec?: BundledMcpRpcCodec<TRequest>
 ): () => void {
-  if (rpcHandlers.has(serverName)) {
+  const current = rpcHandlers.get(serverName);
+  if (current?.handler) {
     throw new Error(`Bundled MCP RPC handler already registered: ${serverName}`);
   }
-  rpcHandlers.set(serverName, handler);
+  if (!codec && !current) {
+    throw new Error(`Bundled MCP RPC codec is not registered: ${serverName}`);
+  }
+  rpcHandlers.set(serverName, {
+    codec: (codec ?? current?.codec) as BundledMcpRpcCodec<unknown>,
+    handler: handler as BundledMcpRpcHandler<unknown>,
+  });
   return () => {
-    if (rpcHandlers.get(serverName) === handler) {
-      rpcHandlers.delete(serverName);
+    const registered = rpcHandlers.get(serverName);
+    if (registered?.handler === handler) {
+      if (serverName === "fyllo-spawn") {
+        rpcHandlers.set(serverName, { codec: fylloSpawnRpcCodec as BundledMcpRpcCodec<unknown> });
+      } else {
+        rpcHandlers.delete(serverName);
+      }
     }
   };
 }
@@ -299,93 +406,80 @@ function scheduleRestart(currentHost: BundledMcpHost, managed: ManagedMcpServer)
   managed.restartTimer = timer;
 }
 
-function sendRpcResponse(child: ChildProcess, response: FylloSpawnRpcResponse): void {
+function sendRpcResponse(child: ChildProcess, response: unknown): void {
   if (!child.connected || !child.send) return;
-  child.send(response, (error) => {
+  child.send(response as Serializable, (error) => {
     if (error) {
       logger.warn(
-        `[bundled-mcp-host] failed to send RPC response requestId=${response.requestId}`,
+        `[bundled-mcp-host] failed to send RPC response requestId=${
+          typeof response === "object" && response !== null && "requestId" in response
+            ? String(response.requestId)
+            : "unknown"
+        }`,
         error
       );
     }
   });
 }
 
-function toRpcError(error: unknown, signal: AbortSignal): SpawnRpcError {
-  if (signal.aborted) {
-    return { code: "SPAWN_RPC_CANCELLED", message: "RPC request was cancelled" };
-  }
-  if (error && typeof error === "object") {
-    const candidate = error as { code?: unknown; message?: unknown; retryable?: unknown };
-    const code = spawnRpcErrorCodeSchema.safeParse(candidate.code);
-    if (code.success) {
-      return {
-        code: code.data,
-        message:
-          typeof candidate.message === "string" && candidate.message
-            ? candidate.message
-            : "Bundled MCP RPC failed",
-        ...(typeof candidate.retryable === "boolean" ? { retryable: candidate.retryable } : {}),
-      };
-    }
-  }
-  return {
-    code: "SPAWN_INTERNAL_ERROR",
-    message: error instanceof Error ? error.message : String(error),
-  };
-}
-
 function abortPendingRpc(
-  managed: ManagedMcpServer,
+  currentHost: BundledMcpHost,
   child?: ChildProcess,
   generation?: number
 ): void {
-  for (const [requestId, pending] of managed.pendingRpc) {
+  for (const [requestId, pending] of currentHost.pendingRpc) {
     if (child && pending.child !== child) continue;
     if (generation !== undefined && pending.generation !== generation) continue;
     pending.controller.abort();
-    managed.pendingRpc.delete(requestId);
+    currentHost.pendingRpc.delete(requestId);
   }
 }
 
 function handleRpcRequest(
+  currentHost: BundledMcpHost,
   managed: ManagedMcpServer,
   child: ChildProcess,
   generation: number,
-  request: FylloSpawnRpcRequest
+  request: unknown,
+  registration: RegisteredRpcHandler
 ): void {
-  if (managed.pendingRpc.has(request.requestId)) {
-    sendRpcResponse(child, {
-      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
-      version: FYLLO_SPAWN_RPC_VERSION,
-      kind: "response",
-      requestId: request.requestId,
-      ok: false,
-      error: { code: "SPAWN_INVALID_REQUEST", message: "Duplicate RPC requestId" },
-    });
+  const requestId =
+    typeof request === "object" && request !== null && "requestId" in request
+      ? String(request.requestId)
+      : "";
+  if (!requestId) return;
+  if (currentHost.pendingRpc.has(requestId)) {
+    sendRpcResponse(
+      child,
+      registration.codec.failure(requestId, {
+        code: "SPAWN_INVALID_REQUEST",
+        message: "Duplicate RPC requestId",
+      })
+    );
     return;
   }
 
-  const handler = rpcHandlers.get(managed.registration.name);
-  if (!handler) {
-    sendRpcResponse(child, {
-      protocol: FYLLO_SPAWN_RPC_PROTOCOL,
-      version: FYLLO_SPAWN_RPC_VERSION,
-      kind: "response",
-      requestId: request.requestId,
-      ok: false,
-      error: {
+  if (!registration.handler) {
+    sendRpcResponse(
+      child,
+      registration.codec.failure(requestId, {
         code: "SPAWN_RPC_UNAVAILABLE",
         message: "RPC handler is unavailable",
         retryable: true,
-      },
-    });
+      })
+    );
     return;
   }
 
   const controller = new AbortController();
-  managed.pendingRpc.set(request.requestId, { child, generation, controller });
-  void handler(request, controller.signal)
+  currentHost.pendingRpc.set(requestId, {
+    child,
+    serverName: managed.registration.name,
+    generation,
+    controller,
+  });
+  void registration
+    .handler(request, controller.signal)
     .then((result) => {
       if (
         managed.process !== child ||
@@ -394,30 +488,19 @@ function handleRpcRequest(
       ) {
         return;
       }
-      sendRpcResponse(child, {
-        protocol: FYLLO_SPAWN_RPC_PROTOCOL,
-        version: FYLLO_SPAWN_RPC_VERSION,
-        kind: "response",
-        requestId: request.requestId,
-        ok: true,
-        result,
-      });
+      sendRpcResponse(child, registration.codec.success(requestId, result));
     })
     .catch((error: unknown) => {
       if (managed.process !== child || managed.generation !== generation) return;
-      sendRpcResponse(child, {
-        protocol: FYLLO_SPAWN_RPC_PROTOCOL,
-        version: FYLLO_SPAWN_RPC_VERSION,
-        kind: "response",
-        requestId: request.requestId,
-        ok: false,
-        error: toRpcError(error, controller.signal),
-      });
+      sendRpcResponse(
+        child,
+        registration.codec.failure(requestId, registration.codec.toError(error, controller.signal))
+      );
     })
     .finally(() => {
-      const current = managed.pendingRpc.get(request.requestId);
+      const current = currentHost.pendingRpc.get(requestId);
       if (current?.child === child && current.generation === generation) {
-        managed.pendingRpc.delete(request.requestId);
+        currentHost.pendingRpc.delete(requestId);
       }
     });
 }
@@ -461,7 +544,7 @@ function spawnBackend(currentHost: BundledMcpHost, managed: ManagedMcpServer): v
       return;
     }
     terminated = true;
-    abortPendingRpc(managed, child, generation);
+    abortPendingRpc(currentHost, child, generation);
     managed.process = null;
     managed.backendPort = null;
     if (currentHost.shuttingDown) {
@@ -499,16 +582,21 @@ function spawnBackend(currentHost: BundledMcpHost, managed: ManagedMcpServer): v
       return;
     }
 
-    const request = fylloSpawnRpcRequestSchema.safeParse(message);
-    if (request.success) {
-      handleRpcRequest(managed, child, generation, request.data);
+    const registration = rpcHandlers.get(managed.registration.name);
+    if (!registration) {
       return;
     }
-    const cancel = fylloSpawnRpcCancelSchema.safeParse(message);
-    if (cancel.success) {
-      const pending = managed.pendingRpc.get(cancel.data.requestId);
+    const request = registration.codec.parseRequest(message);
+    if (request) {
+      handleRpcRequest(currentHost, managed, child, generation, request, registration);
+      return;
+    }
+    const cancel = registration.codec.parseCancel(message);
+    if (cancel) {
+      const pending = currentHost.pendingRpc.get(cancel.requestId);
       if (pending?.child === child && pending.generation === generation) {
         pending.controller.abort();
+        currentHost.pendingRpc.delete(cancel.requestId);
       }
     }
   });
@@ -586,6 +674,7 @@ export function startBundledMcpHost(): void {
     initialTimer: null,
     shuttingDown: false,
     unavailable: false,
+    pendingRpc: new Map(),
   };
   startupPromise = startHost(host);
 }
@@ -668,8 +757,8 @@ export function beginBundledMcpHostShutdown(): void {
     clearTimeout(currentHost.initialTimer);
     currentHost.initialTimer = null;
   }
+  abortPendingRpc(currentHost);
   for (const managed of currentHost.servers.values()) {
-    abortPendingRpc(managed);
     if (managed.restartTimer) {
       clearTimeout(managed.restartTimer);
       managed.restartTimer = null;
@@ -717,11 +806,11 @@ async function stopCurrentHost(currentHost: BundledMcpHost): Promise<void> {
   );
 
   for (const managed of currentHost.servers.values()) {
-    abortPendingRpc(managed);
     managed.process = null;
     managed.backendPort = null;
     managed.state = "failed";
   }
+  currentHost.pendingRpc.clear();
   currentHost.proxyServer = null;
   currentHost.proxyPort = null;
   currentHost.token = null;

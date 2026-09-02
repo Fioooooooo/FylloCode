@@ -13,6 +13,7 @@ import {
   bundledMcpServers,
   getBundledMcpTransportPolicy,
   resolveBundlePath,
+  type BundledMcpServerName,
   type BundledMcpServerRegistration,
 } from "./bundled-mcp-registry";
 import { mcpAccessGrantRegistry } from "./mcp-access-grant-registry";
@@ -65,6 +66,7 @@ export async function createBundledMcpActivation(opts: {
   agentId: string;
   descriptor: McpWorkspaceDescriptorV2;
   supportsHttp: boolean;
+  allowedServerNames?: readonly BundledMcpServerName[];
 }): Promise<BundledMcpActivation> {
   if (process.env.FYLLO_DISABLE_BUNDLED_MCP === "1") {
     return { servers: [], activationId: null };
@@ -72,28 +74,32 @@ export async function createBundledMcpActivation(opts: {
 
   await waitForBundledMcpInitialReadiness();
 
+  const allowedServerNames = opts.allowedServerNames ? new Set(opts.allowedServerNames) : null;
+  const servers = bundledMcpServers.filter(
+    (server) => !allowedServerNames || allowedServerNames.has(server.name)
+  );
   const endpoints = new Map(
-    bundledMcpServers.map((server) => [
+    servers.map((server) => [
       server.name,
       opts.supportsHttp ? getMcpServerEndpoint(server.name) : null,
     ])
   );
-  const allowedServerNames = bundledMcpServers
+  const activatedServerNames = servers
     .filter((server) => endpoints.get(server.name) !== null)
     .map((server) => server.name);
   const issued =
-    allowedServerNames.length > 0
+    activatedServerNames.length > 0
       ? mcpAccessGrantRegistry.issue({
           agentId: opts.agentId,
           ...(opts.descriptor.sessionId ? { fylloSessionId: opts.descriptor.sessionId } : {}),
           descriptor: opts.descriptor,
-          allowedServerNames,
+          allowedServerNames: activatedServerNames,
         })
       : null;
 
   return {
     activationId: issued?.activationId ?? null,
-    servers: bundledMcpServers.flatMap<McpServerSpec>((server) => {
+    servers: servers.flatMap<McpServerSpec>((server) => {
       const endpoint = endpoints.get(server.name);
       if (endpoint && issued) {
         return [buildHttpSpec(server, endpoint, issued.token)];

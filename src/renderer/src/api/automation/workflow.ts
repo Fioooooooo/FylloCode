@@ -4,6 +4,7 @@ import type {
   WorkflowListRequest,
   WorkflowListResult,
   WorkflowSaveRequest,
+  WorkflowSaveResult,
 } from "@shared/types/workflow";
 
 export const workflowApi = {
@@ -11,7 +12,7 @@ export const workflowApi = {
     return window.api.automation.workflow.list(request);
   },
 
-  save(request: WorkflowSaveRequest): Promise<IpcResponse<void>> {
+  save(request: WorkflowSaveRequest): Promise<IpcResponse<WorkflowSaveResult>> {
     return window.api.automation.workflow.save(request);
   },
 

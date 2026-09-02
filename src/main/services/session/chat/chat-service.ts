@@ -31,6 +31,7 @@ import { newSessionId } from "@main/infra/ids";
 import { ipcError } from "@main/ipc/_kit/errors";
 import { normalizeAcpSessionConfigOptions } from "./acp-mapper";
 import { deleteSpawnedSessionsForParent } from "../spawn/spawn-parent-lifecycle";
+import { workflowEngine } from "@main/services/automation/_public";
 import { proposalStatusService } from "@main/services/proposal/_public";
 
 export async function assertSessionBelongsToWorkspace(
@@ -154,6 +155,25 @@ export async function ensureSessionWorkspaceSnapshot(
   return assertSessionWorkspaceSnapshotCurrent(snapshot);
 }
 
+export interface SessionExecutionContext {
+  agentId: string;
+  workspaceSnapshot: SessionWorkspaceSnapshot;
+}
+
+export async function getSessionExecutionContext(
+  workspaceId: string,
+  sessionId: string
+): Promise<SessionExecutionContext> {
+  const meta = await loadSessionMeta(workspaceId, sessionId);
+  if (!meta) {
+    throw ipcError(IpcErrorCodes.CHAT_SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
+  }
+  return {
+    agentId: meta.agentId,
+    workspaceSnapshot: await ensureSessionWorkspaceSnapshot(workspaceId, sessionId),
+  };
+}
+
 export async function updateSession(input: {
   id: string;
   workspaceId: string;
@@ -177,6 +197,7 @@ export async function updateSession(input: {
 }
 
 export async function removeSession(input: { id: string; workspaceId: string }): Promise<void> {
+  await workflowEngine.cancelRunsByParentSession(input.workspaceId, input.id);
   await deleteSpawnedSessionsForParent(input.workspaceId, input.id);
   await deleteSessionStore(input.workspaceId, input.id);
   proposalStatusService.unwatchSession(input.workspaceId, input.id);

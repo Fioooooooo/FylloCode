@@ -1,4 +1,3 @@
-import type { WorkflowStage } from "./workflow";
 import type { RepositoryAggregate } from "./repository-browser";
 
 export type ProposalStatus = "creating" | "draft" | "applying" | "archived";
@@ -65,29 +64,6 @@ export type ProposalSpecDeltaItem = {
 export type ProposalSpecDeltaOverview = {
   items: ProposalSpecDeltaItem[];
 };
-
-export interface ApplyRunMeta {
-  runId: string;
-  proposalRef: ProposalRef;
-  workflowId: string;
-  stages: WorkflowStage[];
-  currentStageIndex: number;
-  stageAcpSessionIds: Record<number, string>;
-  status: "running" | "done" | "error";
-  startedAt: string;
-  updatedAt: string;
-  worktreePath: string;
-}
-
-export interface ArchiveRunMeta {
-  runId: string;
-  proposalRef: ProposalRef;
-  worktreePath: string;
-  status: "running" | "done" | "error";
-  startedAt: string;
-  updatedAt: string;
-  acpSessionId?: string;
-}
 
 export type ProposalStatusChangedPayload = {
   workspaceId: string;

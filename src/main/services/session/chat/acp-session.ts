@@ -60,7 +60,11 @@ import { readAttachmentDataUrl } from "@main/infra/storage/attachment-store";
 import { resolveSessionMemberResource } from "./member-resource-resolver";
 import type { McpWorkspaceDescriptorV2 } from "@shared/types/mcp-workspace";
 import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor";
-import { createChatRuntimeProfile, createSpawnRuntimeProfile } from "./session-runtime-profile";
+import {
+  createChatRuntimeProfile,
+  createSpawnRuntimeProfile,
+  createWorkflowRuntimeProfile,
+} from "./session-runtime-profile";
 import { assertSessionWorkspaceSnapshotCurrent } from "./session-workspace-service";
 
 interface ReminderContext {
@@ -214,6 +218,15 @@ export class AcpSession extends EventEmitter {
       }
       await assertSessionWorkspaceSnapshotCurrent(this.opts.workspaceSnapshot);
       await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
+    } else if (this.opts.owner === "workflow") {
+      if (!this.opts.workspaceSnapshot || !this.opts.mcpWorkspaceDescriptor) {
+        throw ipcError(
+          IpcErrorCodes.VALIDATION_ERROR,
+          "Workflow ACP Session requires a frozen Workspace snapshot and owner-only MCP descriptor"
+        );
+      }
+      await assertAgentWorkspaceCompatibility(this.opts.agentId, this.opts.workspaceSnapshot);
+      mcpWorkspaceDescriptor = this.opts.mcpWorkspaceDescriptor;
     } else {
       if (!this.opts.mcpWorkspaceDescriptor) {
         throw ipcError(
@@ -636,6 +649,19 @@ export class AcpSession extends EventEmitter {
         if (this.opts.owner === "spawn") {
           return createSpawnRuntimeProfile();
         }
+        if (this.opts.owner === "workflow") {
+          if (!mcpWorkspaceDescriptor) {
+            throw ipcError(
+              IpcErrorCodes.VALIDATION_ERROR,
+              "Workflow ACP Session requires an owner-only MCP Workspace descriptor"
+            );
+          }
+          return createWorkflowRuntimeProfile({
+            agentId: this.opts.agentId,
+            workspaceDescriptor: mcpWorkspaceDescriptor,
+            supportsHttp,
+          });
+        }
         if (!mcpWorkspaceDescriptor) {
           throw ipcError(
             IpcErrorCodes.VALIDATION_ERROR,
@@ -700,6 +726,7 @@ export class AcpSession extends EventEmitter {
     if (
       activation.createdNewSession &&
       this.opts.owner !== "spawn" &&
+      this.opts.owner !== "workflow" &&
       !(this.opts.owner === "chat" && this.opts.sessionMode === "native")
     ) {
       const historyMessages = await this.recoveryContext.loadPersistedHistory();
@@ -729,6 +756,7 @@ export class AcpSession extends EventEmitter {
   }): Promise<TextUIPart[]> {
     if (
       this.opts.owner === "spawn" ||
+      this.opts.owner === "workflow" ||
       (this.opts.owner === "chat" && this.opts.sessionMode === "native")
     ) {
       return [];

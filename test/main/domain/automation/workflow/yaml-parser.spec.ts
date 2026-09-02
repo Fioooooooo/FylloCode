@@ -1,85 +1,200 @@
 import { describe, expect, it } from "vitest";
-import { parseWorkflowYaml } from "@main/domain/automation/workflow/yaml-parser";
+import {
+  parseWorkflowYaml,
+  validateWorkflowDefinition,
+  WorkflowDefinitionValidationError,
+} from "@main/domain/automation/workflow/yaml-parser";
+
+function validWorkflow(overrides = ""): string {
+  return [
+    "name: Demo",
+    "version: 2",
+    "stages:",
+    "  - id: prepare",
+    "    kind: agent",
+    "    prompt: Inspect the repository",
+    "    produces: { id: result, schema: freeform }",
+    "    next: [{ on: pass, goto: finish }]",
+    "  - id: finish",
+    "    kind: action",
+    '    op: { type: exec, command: "true" }',
+    "    terminal: true",
+    overrides,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function issuesOf(yaml: string) {
+  try {
+    parseWorkflowYaml(yaml);
+    throw new Error("expected parser to reject definition");
+  } catch (error) {
+    expect(error).toBeInstanceOf(WorkflowDefinitionValidationError);
+    return (error as WorkflowDefinitionValidationError).issues;
+  }
+}
 
 describe("parseWorkflowYaml", () => {
-  it("parses a minimal workflow with one stage", () => {
-    const yaml = [
-      "name: Quick Apply",
-      "description: short",
-      "version: 1",
-      "stages:",
-      "  - id: apply",
-      "    name: 实现",
-      "    type: proposal-apply",
-      "    agent: claude-acp",
-    ].join("\n");
+  it("parses and normalizes a complete v2 definition without a fallback name", () => {
+    const result = parseWorkflowYaml(validWorkflow());
 
-    const result = parseWorkflowYaml(yaml, "quick-apply");
-    expect(result.id).toBe("quick-apply");
-    expect(result.name).toBe("Quick Apply");
-    expect(result.description).toBe("short");
-    expect(result.version).toBe(1);
-    expect(result.stages).toHaveLength(1);
-    expect(result.stages[0]).toMatchObject({
-      id: "apply",
-      name: "实现",
-      type: "proposal-apply",
-      agent: "claude-acp",
+    expect(result).toMatchObject({
+      name: "Demo",
+      version: 2,
+      requires: [],
+      confirmStart: false,
     });
+    expect(result.stages).toEqual([
+      expect.objectContaining({
+        id: "prepare",
+        kind: "agent",
+        context: "fresh",
+        prompt: "Inspect the repository",
+        produces: { id: "result", schema: "freeform" },
+      }),
+      expect.objectContaining({
+        id: "finish",
+        kind: "action",
+        confirm: true,
+        terminal: true,
+      }),
+    ]);
   });
 
-  it("maps legacy `apply` and `archive` stage types to canonical forms", () => {
-    const yaml = [
-      "stages:",
-      "  - id: s1",
-      "    type: apply",
-      "  - id: s2",
-      "    type: archive",
-    ].join("\n");
-    const result = parseWorkflowYaml(yaml, "legacy");
-    expect(result.stages.map((s) => s.type)).toEqual(["proposal-apply", "proposal-archive"]);
+  it("does not coerce legacy stage aliases or malformed YAML", () => {
+    expect(issuesOf(["name: Legacy", "version: 1", "stages: []"].join("\n"))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: "version" })])
+    );
+    expect(
+      issuesOf(["name: Legacy", "version: 2", "stages:", "  - type: apply"].join("\n"))
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ field: "stages[0].kind" })]));
+    expect(issuesOf("name: [broken")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: "yaml" })])
+    );
   });
 
-  it("coerces unknown stage types to custom", () => {
-    const yaml = ["stages:", "  - id: s1", "    type: totally-made-up"].join("\n");
-    const result = parseWorkflowYaml(yaml, "legacy");
-    expect(result.stages[0].type).toBe("custom");
+  it("enforces graph shape, references, and artifact/gate relationships", () => {
+    const issues = issuesOf(
+      [
+        "name: Invalid",
+        "version: 2",
+        "stages:",
+        "  - id: first",
+        "    kind: agent",
+        "    prompt: '{{unknown.value}}'",
+        "    produces: { id: text, schema: freeform }",
+        "    gate: { type: verdict, maxSeverity: medium }",
+        "    next: [{ on: pass, goto: missing }]",
+        "  - id: unreachable",
+        "    kind: agent",
+        "    prompt: text",
+        "    produces: { id: other, schema: freeform }",
+        "    terminal: true",
+      ].join("\n")
+    );
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ feature: "template-namespace", stageId: "first" }),
+        expect.objectContaining({ refs: ["missing"] }),
+        expect.objectContaining({ feature: "verdict", stageId: "first" }),
+        expect.objectContaining({ stageId: "unreachable" }),
+      ])
+    );
   });
 
-  it("fills in defaults for missing id/name", () => {
-    const yaml = ["stages:", "  - type: proposal-apply", "  - type: proposal-archive"].join("\n");
-    const result = parseWorkflowYaml(yaml, "defaults");
-    expect(result.stages[0].id).toBe("stage-1");
-    expect(result.stages[0].name).toBe("stage-1");
-    expect(result.stages[1].id).toBe("stage-2");
+  it("requires maxLoops on cyclic transitions and rejects missing artifact references", () => {
+    const issues = issuesOf(
+      [
+        "name: Loop",
+        "version: 2",
+        "stages:",
+        "  - id: first",
+        "    kind: agent",
+        "    prompt: text",
+        "    produces: { id: text, schema: freeform }",
+        "    gate: { type: expr, expr: 'artifacts.missing.value == 1' }",
+        "    next: [{ on: pass, goto: first }]",
+      ].join("\n")
+    );
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ feature: "maxLoops", stageId: "first" }),
+        expect.objectContaining({ feature: "artifact-reference", refs: ["missing"] }),
+        expect.objectContaining({ feature: "terminal" }),
+      ])
+    );
   });
 
-  it("handles missing stages and unparsable YAML", () => {
-    expect(parseWorkflowYaml("name: Empty", "empty").stages).toEqual([]);
-    // Non-object yaml should not throw
-    expect(() => parseWorkflowYaml("just a string", "str")).not.toThrow();
+  it("keeps inherit definitions schema-valid only when chat is declared", () => {
+    const withoutChat = issuesOf(
+      [
+        "name: Inherit",
+        "version: 2",
+        "stages:",
+        "  - id: agent",
+        "    kind: agent",
+        "    context: inherit",
+        "    prompt: use chat",
+        "    produces: { id: result, schema: freeform }",
+        "    terminal: true",
+      ].join("\n")
+    );
+    expect(withoutChat).toEqual(
+      expect.arrayContaining([expect.objectContaining({ feature: "context.inherit" })])
+    );
+    expect(
+      parseWorkflowYaml(
+        [
+          "name: Inherit",
+          "version: 2",
+          "requires: [chat]",
+          "stages:",
+          "  - id: agent",
+          "    kind: agent",
+          "    context: inherit",
+          "    prompt: use {{chat.summary}}",
+          "    produces: { id: result, schema: freeform }",
+          "    terminal: true",
+        ].join("\n")
+      ).requires
+    ).toEqual(["chat"]);
   });
 
-  it("parses mcp and skills as string arrays, filtering non-strings", () => {
-    const yaml = [
-      "stages:",
-      "  - id: s1",
-      "    type: custom",
-      "    mcp:",
-      "      - server-a",
-      "      - 123",
-      "      - null",
-      "    skills:",
-      "      - fyllo-apply-change",
-    ].join("\n");
-    const result = parseWorkflowYaml(yaml, "arr");
-    expect(result.stages[0].mcp).toEqual(["server-a", "123"]);
-    expect(result.stages[0].skills).toEqual(["fyllo-apply-change"]);
+  it("requires idempotency keys for external Action ops", () => {
+    const issues = issuesOf(
+      [
+        "name: External",
+        "version: 2",
+        "stages:",
+        "  - id: pr",
+        "    kind: action",
+        "    op: { type: scm.open-pr, title: Title, base: main }",
+        "    terminal: true",
+      ].join("\n")
+    );
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "stages[0].idempotencyKey", feature: "idempotencyKey" }),
+      ])
+    );
   });
 
-  it("accepts numeric or string version values", () => {
-    expect(parseWorkflowYaml("version: 2", "a").version).toBe(2);
-    expect(parseWorkflowYaml('version: "3"', "a").version).toBe(3);
-    expect(parseWorkflowYaml("version: nope", "a").version).toBeUndefined();
+  it("accepts the normalized object contract directly", () => {
+    expect(
+      validateWorkflowDefinition({
+        name: "Direct",
+        version: 2,
+        stages: [
+          {
+            id: "done",
+            kind: "action",
+            op: { type: "exec", command: "true" },
+            terminal: true,
+          },
+        ],
+      })
+    ).toMatchObject({ name: "Direct", version: 2, stages: [{ id: "done" }] });
   });
 });

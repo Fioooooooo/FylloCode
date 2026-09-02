@@ -38,10 +38,12 @@ function createResources(
     abortInstallerOperations: vi.fn(),
     awaitInstallerOperations: vi.fn(async () => undefined),
     forceAbortInstallerOperations: vi.fn(),
-    abortAndAwaitWorkflowInitialization: vi.fn(async () => undefined),
     beginSpawnShutdown: vi.fn(),
     disposeSpawnSessions: vi.fn(async () => undefined),
     forceDisposeSpawnSessions: vi.fn(),
+    beginWorkflowEngineShutdown: vi.fn(),
+    disposeWorkflowEngine: vi.fn(async () => undefined),
+    forceDisposeWorkflowEngine: vi.fn(),
     beginAcpProcessPoolShutdown: vi.fn(),
     disposeAcpProcessPool: vi.fn(async () => undefined),
     forceDisposeAcpProcessPool: vi.fn(),
@@ -101,12 +103,17 @@ describe("application shutdown coordinator", () => {
     settleMigration();
     await vi.waitFor(() => expect(resources.disposeAcpProcessPool).toHaveBeenCalledOnce());
     expect(resources.beginSpawnShutdown).toHaveBeenCalledOnce();
+    expect(resources.beginWorkflowEngineShutdown).toHaveBeenCalledOnce();
+    expect(resources.disposeWorkflowEngine).toHaveBeenCalledOnce();
     expect(resources.disposeSpawnSessions).toHaveBeenCalledOnce();
     expect(vi.mocked(resources.disposeSpawnSessions).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(resources.disposeAcpProcessPool).mock.invocationCallOrder[0] ?? 0
     );
     expect(resources.disposeSessionProbes).toHaveBeenCalledOnce();
     expect(vi.mocked(resources.disposeSessionProbes).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(resources.beginAcpProcessPoolShutdown).mock.invocationCallOrder[0] ?? 0
+    );
+    expect(vi.mocked(resources.disposeWorkflowEngine).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(resources.beginAcpProcessPoolShutdown).mock.invocationCallOrder[0] ?? 0
     );
     expect(resources.stopBundledMcpHost).toHaveBeenCalledOnce();
@@ -164,6 +171,8 @@ describe("application shutdown coordinator", () => {
     expect(resources.revokeMcpGrants).toHaveBeenCalledOnce();
     expect(resources.forceAbortInstallerOperations).toHaveBeenCalledOnce();
     expect(resources.forceDisposeSpawnSessions).toHaveBeenCalledOnce();
+    expect(resources.beginWorkflowEngineShutdown).toHaveBeenCalledOnce();
+    expect(resources.forceDisposeWorkflowEngine).toHaveBeenCalledOnce();
     expect(resources.forceDisposeAcpProcessPool).toHaveBeenCalledOnce();
     expect(resources.forceStopBundledMcpHost).toHaveBeenCalledOnce();
   });
@@ -171,6 +180,7 @@ describe("application shutdown coordinator", () => {
   it("forces both child-process owners and exits at the absolute deadline", async () => {
     vi.useFakeTimers();
     const resources = createResources({
+      disposeWorkflowEngine: vi.fn(() => new Promise<void>(() => undefined)),
       disposeAcpProcessPool: vi.fn(() => new Promise<void>(() => undefined)),
       stopBundledMcpHost: vi.fn(() => new Promise<void>(() => undefined)),
     });
@@ -179,6 +189,7 @@ describe("application shutdown coordinator", () => {
     const result = requestApplicationShutdown({ startupWindow: null, exit });
 
     await vi.advanceTimersByTimeAsync(3_500);
+    expect(resources.forceDisposeWorkflowEngine).toHaveBeenCalledOnce();
     expect(resources.forceDisposeAcpProcessPool).toHaveBeenCalledOnce();
     expect(resources.forceStopBundledMcpHost).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(500);

@@ -12,8 +12,6 @@ type SubPath =
   | "sessions"
   | "integrations"
   | "acp"
-  | "workflows"
-  | "apply-runs"
   | "migrations";
 
 /**

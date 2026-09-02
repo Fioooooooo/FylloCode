@@ -1,53 +1,31 @@
-import { mount, flushPromises } from "@vue/test-utils";
-import { nextTick } from "vue";
+import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import WorkflowPage from "@renderer/pages/workflow.vue";
 import { useToast } from "@nuxt/ui/composables";
 
 const workflowStore = {
-  templates: [
-    {
-      id: "built-in-1",
-      name: "Built-in Workflow",
-      source: "built-in" as const,
-      yaml: "name: Built-in Workflow\nstages: []",
-      stages: [],
-    },
-    {
-      id: "custom-1",
-      name: "Custom Workflow",
-      source: "custom" as const,
-      yaml: "name: Custom Workflow\nstages: []",
-      stages: [],
-    },
-  ],
-  customTemplates: [
-    {
-      id: "custom-1",
-      name: "Custom Workflow",
-      source: "custom" as const,
-      yaml: "name: Custom Workflow\nstages: []",
-      stages: [],
-    },
-  ],
-  builtInTemplates: [
-    {
-      id: "built-in-1",
-      name: "Built-in Workflow",
-      source: "built-in" as const,
-      yaml: "name: Built-in Workflow\nstages: []",
-      stages: [],
-    },
-  ],
+  workflows: [] as Array<{ workflowId: string; name: string; yaml: string }>,
+  selectedWorkflowId: null as string | null,
+  selectedWorkflow: null as { workflowId: string; name: string; yaml: string } | null,
+  rawYaml: "",
+  isDraft: true,
   isLoading: false,
-  fetchTemplates: vi.fn().mockResolvedValue(undefined),
-  saveTemplate: vi.fn().mockResolvedValue(undefined),
-  deleteTemplate: vi.fn().mockResolvedValue(undefined),
+  isSaving: false,
+  error: null as Error | null,
+  fetchDefinitions: vi.fn().mockResolvedValue(undefined),
+  selectWorkflow: vi.fn(),
+  startNewWorkflow: vi.fn(() => {
+    workflowStore.selectedWorkflowId = null;
+    workflowStore.selectedWorkflow = null;
+    workflowStore.isDraft = true;
+    workflowStore.rawYaml = "name: New\nversion: 2";
+  }),
+  clearSelection: vi.fn(),
+  saveDefinition: vi.fn().mockResolvedValue({ name: "New" }),
+  deleteDefinition: vi.fn().mockResolvedValue(undefined),
 };
 
-const workspaceStore = {
-  currentWorkspace: null,
-};
+const workspaceStore = { currentWorkspace: { id: "workspace-a" } };
 
 vi.mock("@renderer/stores/automation/workflow", () => ({
   useWorkflowStore: vi.fn(() => workflowStore),
@@ -57,123 +35,61 @@ vi.mock("@renderer/stores/workspace/workspace", () => ({
   useWorkspaceStore: vi.fn(() => workspaceStore),
 }));
 
-const workflowSidebarStub = {
-  props: ["customTemplates", "builtInTemplates", "selectedTemplateId", "loading"],
-  emits: ["select", "create", "delete"],
-  template: `
-    <div>
-      <button data-test="sidebar-select-built-in" type="button" @click="$emit('select', 'built-in-1')">
-        select built-in
-      </button>
-      <button data-test="sidebar-select-custom" type="button" @click="$emit('select', 'custom-1')">
-        select custom
-      </button>
-      <button data-test="sidebar-delete-custom" type="button" @click="$emit('delete', 'custom-1')">
-        delete custom
-      </button>
-    </div>
-  `,
-};
-
-const workflowDetailStub = {
-  props: ["modelValue", "template", "saving"],
-  emits: ["cancel", "save", "delete"],
-  template: `
-    <div>
-      <button data-test="detail-save" type="button" @click="$emit('save', { name: template?.name, yaml: modelValue })">
-        save
-      </button>
-      <button data-test="detail-delete" type="button" @click="$emit('delete')">
-        delete
-      </button>
-    </div>
-  `,
+const yamlEditorStub = {
+  props: ["modelValue"],
+  emits: ["update:modelValue"],
+  template: '<textarea data-test="yaml-editor" :value="modelValue" />',
 };
 
 describe("workflow page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workflowStore.workflows = [];
+    workflowStore.selectedWorkflowId = null;
+    workflowStore.selectedWorkflow = null;
+    workflowStore.rawYaml = "";
+    workflowStore.isDraft = true;
+    workflowStore.isLoading = false;
+    workflowStore.isSaving = false;
+    workflowStore.error = null;
+    workflowStore.fetchDefinitions.mockResolvedValue(undefined);
+    workflowStore.saveDefinition.mockResolvedValue({ name: "New" });
+    workflowStore.deleteDefinition.mockResolvedValue(undefined);
   });
 
-  it("deletes templates from both sidebar and detail actions", async () => {
-    const toast = useToast();
+  it("mounts the definition editor and starts a v2 draft", async () => {
     const wrapper = mount(WorkflowPage, {
-      global: {
-        stubs: {
-          WorkflowSidebar: workflowSidebarStub,
-          WorkflowDetail: workflowDetailStub,
-        },
-      },
+      global: { stubs: { YamlEditor: yamlEditorStub } },
     });
-
     await flushPromises();
 
-    await wrapper.find('[data-test="sidebar-select-custom"]').trigger("click");
-    await nextTick();
-
-    await wrapper.find('[data-test="sidebar-delete-custom"]').trigger("click");
-    await flushPromises();
-
-    expect(workflowStore.deleteTemplate).toHaveBeenCalledWith("Custom Workflow");
-    expect(toast.add).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "删除成功",
-      })
-    );
-    expect(wrapper.text()).toContain("选择或新建工作流模板");
-
-    await wrapper.find('[data-test="sidebar-select-custom"]').trigger("click");
-    await nextTick();
-
-    await wrapper.find('[data-test="detail-delete"]').trigger("click");
-    await flushPromises();
-
-    expect(workflowStore.deleteTemplate).toHaveBeenCalledTimes(2);
-    expect(workflowStore.deleteTemplate).toHaveBeenLastCalledWith("Custom Workflow");
-    expect(wrapper.text()).toContain("选择或新建工作流模板");
+    expect(workflowStore.fetchDefinitions).toHaveBeenCalledTimes(1);
+    await wrapper.get('[data-test="workflow-new"]').trigger("click");
+    expect(workflowStore.startNewWorkflow).toHaveBeenCalledTimes(1);
+    expect(workflowStore.rawYaml).toContain("version: 2");
   });
 
-  it("shows distinct success toasts for copy-save and yaml-save", async () => {
-    const toast = useToast();
+  it("saves raw YAML and deletes the selected definition by workflowId", async () => {
+    const selected = { workflowId: "workflow-1", name: "Demo", yaml: "name: Demo\nversion: 2" };
+    workflowStore.workflows = [selected];
+    workflowStore.selectedWorkflowId = selected.workflowId;
+    workflowStore.selectedWorkflow = selected;
+    workflowStore.isDraft = false;
+    workflowStore.rawYaml = selected.yaml;
     const wrapper = mount(WorkflowPage, {
-      global: {
-        stubs: {
-          WorkflowSidebar: workflowSidebarStub,
-          WorkflowDetail: workflowDetailStub,
-        },
-      },
+      global: { stubs: { YamlEditor: yamlEditorStub } },
     });
-
     await flushPromises();
 
-    await wrapper.find('[data-test="sidebar-select-built-in"]').trigger("click");
-    await nextTick();
-    await wrapper.find('[data-test="detail-save"]').trigger("click");
+    await wrapper.get('[data-test="workflow-save"]').trigger("click");
     await flushPromises();
+    expect(workflowStore.saveDefinition).toHaveBeenCalledWith();
 
-    expect(workflowStore.saveTemplate).toHaveBeenCalledWith(
-      "Built-in Workflow",
-      "name: Built-in Workflow\nstages: []"
-    );
-    expect(toast.add).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "复制并保存成功",
-      })
-    );
-
-    await wrapper.find('[data-test="sidebar-select-custom"]').trigger("click");
-    await nextTick();
-    await wrapper.find('[data-test="detail-save"]').trigger("click");
+    await wrapper.get('[data-test="workflow-delete"]').trigger("click");
     await flushPromises();
-
-    expect(workflowStore.saveTemplate).toHaveBeenLastCalledWith(
-      "Custom Workflow",
-      "name: Custom Workflow\nstages: []"
-    );
-    expect(toast.add).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "保存 YAML 成功",
-      })
+    expect(workflowStore.deleteDefinition).toHaveBeenCalledWith("workflow-1");
+    expect(useToast().add).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "删除 Workflow definition 成功" })
     );
   });
 });

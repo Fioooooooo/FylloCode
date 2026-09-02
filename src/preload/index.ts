@@ -12,12 +12,11 @@ import { documentApi } from "./api/workspace/document";
 import { chatApi } from "./api/session/chat";
 import { sessionActionApi } from "./api/session/action";
 import { spawnedSessionApi } from "./api/session/spawned-session";
-import { proposalArchiveApi } from "./api/proposal/archive";
-import { proposalApplyApi } from "./api/proposal/apply";
 import { proposalBrowserApi } from "./api/proposal/browser";
 import { workspaceIntegrationApi } from "./api/automation/workspace-integration";
 import { taskApi } from "./api/automation/task";
 import { workflowApi } from "./api/automation/workflow";
+import { workflowRunApi } from "./api/automation/workflow-run";
 import { guidelinesApi } from "./api/insight/guidelines";
 import { knowledgeApi } from "./api/insight/knowledge";
 import { lineageApi } from "./api/insight/lineage";
@@ -45,8 +44,6 @@ const api = {
   },
   proposal: {
     browser: proposalBrowserApi,
-    apply: proposalApplyApi,
-    archive: proposalArchiveApi,
   },
   insight: {
     overview: overviewApi,
@@ -57,6 +54,7 @@ const api = {
   },
   automation: {
     workflow: workflowApi,
+    workflowRun: workflowRunApi,
     task: taskApi,
     workspaceIntegration: workspaceIntegrationApi,
   },

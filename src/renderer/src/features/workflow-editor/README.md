@@ -1,30 +1,23 @@
 # Workflow Editor
 
-状态：未来重组方向，仅作边界留存；当前生产代码尚未迁入本目录。
+当前页面直接编辑 Workspace-owned v2 workflow definition。它不是旧的 stage/template 编辑模型，也不维护 built-in/custom 两套来源。
 
-## 目标
+## 当前边界
 
-把工作流模板浏览、YAML 文档模型、stage 编辑命令和编辑器 UI 收敛为 `workflow-editor` 能力，避免编辑规则继续分散在页面、composable、utils 和组件中。
+- `src/renderer/src/pages/workflow.vue`：页面布局和用户操作入口。
+- `src/renderer/src/components/workflow/YamlEditor.vue`：纯文本 YAML 编辑器。
+- `src/renderer/src/stores/automation/workflow.ts`：按 `workflowId` 管理 definition 列表、选中项、原始 YAML、保存/删除和请求 generation。
+- `src/renderer/src/api/automation/workflow.ts`：definition CRUD API；请求仍属于 `automation:workflow:*` domain。
+- `src/shared/types/workflow.ts`：Main、Preload 和 Renderer 共用的 v2 definition contract。
 
-## 当前来源
+保存新 definition 时由 Main 分配随机 `workflowId`。编辑 `name` 会更新同一份 Workspace definition，不会创建新目录；所有 definition 使用相同的保存和删除规则。YAML 结构错误由 definition API 返回，Phase 1 执行能力则由 Main WorkflowEngine 在 trigger 前单独 preflight。
 
-- `src/renderer/src/pages/workflow.vue`
-- `src/renderer/src/components/workflow/**`
-- `src/renderer/src/composables/useWorkflowEditor.ts`
-- `src/renderer/src/utils/workflow.ts`
+## 与 Run Inspector 的分工
 
-## 预期边界
+Workflow Editor 只负责 definition CRUD，不读取或写入 Run snapshot，也不触发执行。Run 状态、人工决策、fresh Agent transcript 和 Action output 由 `workflow-run-inspector` 通过独立的 `workflow-run` store、wake/pull IPC 和 Chat activity entry 展示。
 
-- `model`：workflow YAML 解析/序列化、stage template、纯校验和不可变编辑操作。
-- `application`：模板选择、新建、保存、删除和 editor session 编排。
-- `ui`：WorkflowSidebar、WorkflowDetail、StageList、StageCard、YamlEditor。
-- `integration`：仅在确有 route/编辑器宿主适配时建立，不为目录完整性创建空层。
-- `pages/workflow.vue` 最终只保留页面布局和 feature 挂载。
+## 不属于这里的兼容语义
 
-## 保持在 feature 外
+应用不提供 built-in workflow 资源、只读保护、copy-on-save、全局 staging 或旧名称型 loader。旧全局文件保持 inert；feature 不应重新引入这些来源或按 name 生成路径。
 
-- `src/renderer/src/api/automation/workflow.ts`
-- `src/renderer/src/stores/automation/workflow.ts`
-- `src/shared/types/workflow.ts`
-
-迁移时必须遵守 `guidelines/RendererFeatures.md`，先建立回归测试和公共入口，不在文件重排中改变 YAML 格式或用户行为。
+新增或调整页面行为时遵守 `guidelines/RendererFeatures.md` 和 `guidelines/UiDesign.md`，先更新 feature 测试与公共入口，再修改 UI。

@@ -7,7 +7,7 @@ import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
  * so that chat `sessionId`, apply `runId`, and archive `workspaceId:changeId`
  * cannot collide.
  */
-export type SessionOwner = "chat" | "apply" | "archive" | "spawn";
+export type SessionOwner = "chat" | "apply" | "archive" | "spawn" | "workflow";
 export type SessionRuntimeScope = "window" | "app";
 
 interface OwnedSession {
@@ -32,6 +32,19 @@ export function spawnSessionRegistryKey(
   return `${workspaceId}:${parentSessionId}:${spawnedSessionId}`;
 }
 
+export function workflowSessionRegistryKey(
+  workspaceId: string,
+  workflowId: string,
+  runId: string,
+  sessionId: string
+): string {
+  return `${workspaceId}:${workflowId}:${runId}:${sessionId}`;
+}
+
+function workflowRunKeyPrefix(workspaceId: string, workflowId: string, runId: string): string {
+  return `${workspaceId}:${workflowId}:${runId}:`;
+}
+
 function spawnParentKeyPrefix(workspaceId: string, parentSessionId: string): string {
   return `${workspaceId}:${parentSessionId}:`;
 }
@@ -41,7 +54,7 @@ export const sessionRegistry = {
     owner: SessionOwner,
     key: string,
     session: AcpSession,
-    runtimeScope: SessionRuntimeScope = owner === "spawn" ? "app" : "window"
+    runtimeScope: SessionRuntimeScope = owner === "spawn" || owner === "workflow" ? "app" : "window"
   ): void {
     if (shuttingDown) {
       session.cancel();
@@ -94,6 +107,26 @@ export const sessionRegistry = {
       }
       byOwnerKey.delete(key);
     }
+  },
+
+  cancelWorkflowRun(workspaceId: string, workflowId: string, runId: string): void {
+    const keyPrefix = workflowRunKeyPrefix(workspaceId, workflowId, runId);
+    for (const [key, entry] of byOwnerKey) {
+      if (entry.owner !== "workflow" || !entry.key.startsWith(keyPrefix)) continue;
+      try {
+        entry.session.cancel();
+      } catch (error) {
+        logger.warn(`[session-registry] cancel ${key} failed`, error);
+      }
+      byOwnerKey.delete(key);
+    }
+  },
+
+  listWorkflowRun(workspaceId: string, workflowId: string, runId: string): string[] {
+    const keyPrefix = workflowRunKeyPrefix(workspaceId, workflowId, runId);
+    return [...byOwnerKey.values()]
+      .filter((entry) => entry.owner === "workflow" && entry.key.startsWith(keyPrefix))
+      .map((entry) => entry.key.slice(keyPrefix.length));
   },
 
   listSpawnedByParent(workspaceId: string, parentSessionId: string): string[] {

@@ -13,7 +13,7 @@ keywords: [renderer, features, architecture, boundaries, vue]
 - 不覆盖：跨进程协议和共享 schema；这些继续放在 `src/shared/**` 并遵守 `guidelines/Architecture.md` 与 `guidelines/MainProcess.md`。
 - 不覆盖：视觉 token、交互和可访问性规范；feature UI 仍须遵守 `guidelines/UiDesign.md`。
 
-本结构是 Renderer 进程面向复杂能力的渐进式演进方向。现有技术目录不要求一次性搬迁；新复杂能力和已批准的能力重组应优先建立 feature 边界，并按独立变更逐步迁移。首个已确认采用该结构的能力是 `references/designs/fyllo-action/README.md` 中的 Fyllo Action 整改方向。
+本结构是 Renderer 进程面向复杂能力的渐进式演进方向。现有技术目录不要求一次性搬迁；新复杂能力和已批准的能力重组应优先建立 feature 边界，并按独立变更逐步迁移。当前已落地的完整复杂 feature 包括 Fyllo Action 与 Workflow Run Inspector；Workflow Editor 作为 definition CRUD 的边界 README 记录其与 Run Inspector 的职责分离。
 
 ## Feature 准入与边界
 
@@ -174,9 +174,11 @@ Chat host
 
 Contributor/event contract MUST 使用判别联合或其他可穷尽的 typed contract。事件表达已经发生的 occurrence；要求另一个 feature 执行动作时仍应使用 command/port，不得用 event 伪装命令。
 
-当前 Chat footer 的 spawned Session 活动栏是单一来源的明确 composition root：`ChatBackgroundActivityBar` 可以从 `@renderer/features/spawned-session-inspector` 根入口直接组合 `SpawnedSessionActivityEntry`，并将其放在 `ChatPromptPanel` 外部；它不是 EventRail contributor，也不应为尚无第二来源的区域提前建立通用后台 contributor registry。若未来出现第二类后台来源，再按 typed contributor contract 提升宿主边界。
+当前 Chat footer 的后台活动栏是明确的 composition root：`ChatBackgroundActivityBar` 从各来源 feature 的根入口分别组合活动入口，并将它们放在 `ChatPromptPanel` 外部。`SpawnedSessionActivityEntry` 不是 EventRail contributor；新增后台来源应以独立的 typed feature entry 加入并保持各自状态 owner，不得先建立一个吞并所有来源的通用 contributor registry。
 
 spawned-session-inspector 的公开入口负责稳定的活动入口、selectors 和必要类型；Chat、Signal 等外部消费者不得深路径导入其 `model/`、`application/` 或 `ui/`。其 Main-owned durable state 仍由 `stores/session/spawned-session.ts` 通过 typed API 消费：list/detail interest 必须分别引用计数，详情关闭时释放 detail interest；view wake 在已有请求飞行中时只合并一个 queued refresh，不能由 UI 组件各自复制轮询或状态事实源。
+
+Workflow Run Inspector 是第二类后台来源，但它与 spawned Session 保持并列、独立的 owner 边界：`ChatBackgroundActivityBar` 直接组合 `@renderer/features/workflow-run-inspector` 的公开入口，将 `WorkflowRunActivityEntry` 与 `SpawnedSessionActivityEntry` 作为兄弟入口，不把 Workflow Run 转换成 spawned contributor。该 feature 只能消费 `stores/automation/workflow-run.ts` 的 owner-keyed list/detail/decision projection；wake 是 `{workspaceId,runId}` 失效提示，只有声明 active interest 的入口才能 pull detail，且 Workspace/parent/generation 不匹配的响应必须丢弃。fresh Agent transcript 使用 WorkflowEngine 返回的 workflow session identity 和 Run transcript，不得写入或读取 spawned store/list/count/notification。
 
 ### 共享数据与共享 UI
 
@@ -212,6 +214,7 @@ spawned-session-inspector 的公开入口负责稳定的活动入口、selectors
 - MUST 区分领域/持久化状态与 Renderer 运行期控制状态。纯状态枚举、终态谓词和迁移判断放在 model；`running`、`retrying`、`sync-failed` 等控制器生命周期放在 application；局部 hover/open/expanded 状态留在 ui。
 - SHOULD 让多个展示入口复用 model selector，不得在 Inline、Rail、badge 等 UI 中分别重写同一状态判定。（证据：`references/designs/fyllo-action/README.md` 中统一 `requiresFylloActionAttention` 与 resolved predicate 的决策。）
 - MUST 让 spawned Session 的活动判定、active 优先排序、总数/active 计数和 Turn 内容投影集中在 feature `model/` selectors/projector；Inline、Chat footer 和 Slideover 只消费这些投影，并保持 Slideover 的压缩 Transcript 与聚合 Tool Activity 语义。
+- MUST 让 Workflow Run 的状态、pending decision、current stage、Artifact/Action 摘要和 fresh transcript identity 由 `workflow-run-inspector/model/` 纯 projection 统一计算；`application/` 只编排 store interest、list/detail/decide 请求，`integration/` 只绑定 Main wake 与 Chat host，`ui/` 只渲染入口和详情。Workflow Editor 只编辑 v2 definition，不读取 Run snapshot 或承担执行副作用。证据：`src/renderer/src/features/workflow-run-inspector/{model,application,integration,ui}`、`src/renderer/src/features/workflow-editor/README.md`。
 
 ## 迁移规则
 

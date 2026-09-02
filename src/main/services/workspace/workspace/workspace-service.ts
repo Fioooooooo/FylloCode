@@ -119,6 +119,11 @@ export async function listWorkspaceInfos(): Promise<WorkspaceInfo[]> {
   );
 }
 
+export async function listWorkspaceIds(): Promise<string[]> {
+  const workspaces = await listWorkspaces();
+  return workspaces.filter((workspace) => !workspace.isDeleted).map((workspace) => workspace.id);
+}
+
 export async function listWorkspaceLauncherItems(): Promise<WorkspaceLauncherItem[]> {
   return (await listWorkspaceInfos()).map(toLauncherItem);
 }

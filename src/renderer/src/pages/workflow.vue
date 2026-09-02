@@ -1,55 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { onMounted, watch } from "vue";
 import { useToast } from "@nuxt/ui/composables";
-import WorkflowDetail from "@renderer/components/workflow/WorkflowDetail.vue";
-import WorkflowSidebar from "@renderer/components/workflow/WorkflowSidebar.vue";
-import { semanticIcons } from "@renderer/config/semantic-icons";
-import { useWorkspaceStore, useWorkflowStore } from "@renderer/stores";
-import type { WorkflowTemplate } from "@shared/types/workflow";
-
-type CurrentView = "empty" | "template-editor";
+import YamlEditor from "@renderer/components/workflow/YamlEditor.vue";
+import { useWorkflowStore, useWorkspaceStore } from "@renderer/stores";
 
 const workflowStore = useWorkflowStore();
 const workspaceStore = useWorkspaceStore();
 const toast = useToast();
 
-const currentView = ref<CurrentView>("empty");
-const selectedTemplateId = ref<string | null>(null);
-const yamlContent = ref("");
-const draftTemplate = ref<WorkflowTemplate | null>(null);
-const isSaving = ref(false);
-
-const selectedTemplate = computed(() => {
-  if (draftTemplate.value) {
-    return draftTemplate.value;
-  }
-
-  return (
-    workflowStore.templates.find((template) => template.id === selectedTemplateId.value) ?? null
-  );
-});
-
-function createDefaultYaml(): string {
-  return `name: 新工作流
-description: 描述这个工作流适用于什么执行场景
-version: 1
-stages:
-  - id: apply
-    name: 应用变更
-    type: proposal-apply
-    agent: codex
-    prompt: 按照已确认的 proposal 任务实施代码变更。
-    when: proposal 状态为“准备执行”
-    onFailure: 停止后续阶段
-    mcp:
-      - 文件系统
-    skills:
-      - openspec-apply-change`;
-}
-
-async function fetchTemplates(): Promise<void> {
+async function refresh(): Promise<void> {
   try {
-    await workflowStore.fetchTemplates();
+    await workflowStore.fetchDefinitions();
   } catch (error) {
     toast.add({
       title: "加载工作流失败",
@@ -59,160 +20,146 @@ async function fetchTemplates(): Promise<void> {
   }
 }
 
-function selectTemplate(id: string): void {
-  const template = workflowStore.templates.find((item) => item.id === id);
-  if (!template) {
-    return;
-  }
-
-  draftTemplate.value = null;
-  selectedTemplateId.value = id;
-  currentView.value = "template-editor";
-  yamlContent.value = template.yaml;
+function startNew(): void {
+  workflowStore.startNewWorkflow();
 }
 
-function createTemplate(): void {
-  const yaml = createDefaultYaml();
-  draftTemplate.value = {
-    id: "draft",
-    name: "新工作流",
-    description: "描述这个工作流适用于什么执行场景",
-    version: 1,
-    source: "custom",
-    yaml,
-    stages: [
-      {
-        id: "apply",
-        name: "应用变更",
-        type: "proposal-apply",
-        agent: "codex",
-        prompt: "按照已确认的 proposal 任务实施代码变更。",
-        when: "proposal 状态为“准备执行”",
-        onFailure: "停止后续阶段",
-        mcp: ["文件系统"],
-        skills: ["openspec-apply-change"],
-      },
-    ],
-  };
-  selectedTemplateId.value = null;
-  currentView.value = "template-editor";
-  yamlContent.value = yaml;
-}
-
-function cancelEditing(): void {
-  currentView.value = "empty";
-  selectedTemplateId.value = null;
-  draftTemplate.value = null;
-  yamlContent.value = "";
-}
-
-async function deleteTemplate(id: string): Promise<void> {
-  const template =
-    workflowStore.templates.find((item) => item.id === id) ??
-    workflowStore.templates.find((item) => item.name === id);
-
-  if (!template) {
-    return;
-  }
-
+async function save(): Promise<void> {
   try {
-    await workflowStore.deleteTemplate(template.name);
-    cancelEditing();
-    toast.add({
-      title: "删除成功",
-      description: `已删除工作流模板「${template.name}」`,
-    });
+    const definition = await workflowStore.saveDefinition();
+    toast.add({ title: "保存 Workflow definition 成功", description: definition.name });
   } catch (error) {
     toast.add({
-      title: "删除工作流失败",
+      title: "保存 Workflow definition 失败",
       description: error instanceof Error ? error.message : String(error),
       color: "error",
     });
   }
 }
 
-function handleDetailDelete(): void {
-  if (!selectedTemplate.value) {
-    return;
-  }
-
-  void deleteTemplate(selectedTemplate.value.name);
-}
-
-async function saveTemplate(payload: { name: string; yaml: string }): Promise<void> {
-  isSaving.value = true;
-  const isCopySave = selectedTemplate.value?.source === "built-in";
+async function remove(): Promise<void> {
+  const workflowId = workflowStore.selectedWorkflowId;
+  const name = workflowStore.selectedWorkflow?.name ?? workflowId;
+  if (!workflowId) return;
   try {
-    await workflowStore.saveTemplate(payload.name, payload.yaml);
-    draftTemplate.value = null;
-    yamlContent.value = payload.yaml;
-    selectedTemplateId.value = payload.name;
-    toast.add({
-      title: isCopySave ? "复制并保存成功" : "保存 YAML 成功",
-    });
+    await workflowStore.deleteDefinition(workflowId);
+    toast.add({ title: "删除 Workflow definition 成功", description: name ?? undefined });
   } catch (error) {
     toast.add({
-      title: "保存工作流失败",
+      title: "删除 Workflow definition 失败",
       description: error instanceof Error ? error.message : String(error),
       color: "error",
     });
-  } finally {
-    isSaving.value = false;
   }
 }
 
 onMounted(() => {
-  void fetchTemplates();
+  void refresh();
 });
 
 watch(
   () => workspaceStore.currentWorkspace?.id,
-  async () => {
-    cancelEditing();
-    await fetchTemplates();
+  () => {
+    workflowStore.clearSelection();
+    if (workspaceStore.currentWorkspace) void refresh();
   }
 );
 </script>
 
 <template>
-  <div class="flex flex-1 overflow-hidden bg-elevated space-x-2">
-    <div class="w-65 h-full flex flex-col bg-default shrink-0 rounded-lg">
-      <WorkflowSidebar
-        :custom-templates="workflowStore.customTemplates"
-        :built-in-templates="workflowStore.builtInTemplates"
-        :selected-template-id="selectedTemplateId"
-        :loading="workflowStore.isLoading"
-        @select="selectTemplate"
-        @create="createTemplate"
-        @delete="deleteTemplate"
-      />
-    </div>
-
-    <div class="flex-1 min-w-0 flex overflow-hidden">
-      <div class="flex-1 flex flex-col min-w-0 rounded-lg bg-default overflow-auto">
-        <div
-          v-if="currentView === 'empty'"
-          class="flex flex-1 items-center justify-center overflow-y-auto"
-        >
-          <AppEmptyState
-            :icon="semanticIcons.workflow"
-            title="选择或新建工作流模板"
-            description="在左侧选择模板开始编辑，或创建新的工作流模板。"
-            action-label="新建模板"
-            action-icon="i-lucide-plus"
-            @action="createTemplate"
-          />
+  <div class="flex flex-1 min-h-0 gap-2 overflow-hidden bg-elevated">
+    <aside class="flex w-64 shrink-0 flex-col overflow-hidden rounded-lg bg-default">
+      <div class="flex items-center justify-between border-b border-default px-3 py-2">
+        <div>
+          <p class="text-sm font-medium text-highlighted">Workflows</p>
+          <p class="text-xs text-muted">Workspace definitions</p>
         </div>
-
-        <WorkflowDetail
-          v-else
-          v-model="yamlContent"
-          :template="selectedTemplate"
-          :saving="isSaving"
-          @save="saveTemplate"
-          @delete="handleDetailDelete"
+        <UButton
+          data-test="workflow-new"
+          icon="i-lucide-plus"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          aria-label="新建 Workflow definition"
+          @click="startNew"
         />
       </div>
-    </div>
+
+      <div class="min-h-0 flex-1 overflow-y-auto p-2">
+        <p v-if="workflowStore.isLoading" class="px-2 py-3 text-xs text-muted">加载中…</p>
+        <p v-else-if="workflowStore.workflows.length === 0" class="px-2 py-3 text-xs text-muted">
+          当前 Workspace 尚无 definition
+        </p>
+        <button
+          v-for="workflow in workflowStore.workflows"
+          :key="workflow.workflowId"
+          type="button"
+          class="mb-1 w-full rounded-md px-2.5 py-2 text-left transition-colors hover:bg-elevated"
+          :class="
+            workflowStore.selectedWorkflowId === workflow.workflowId
+              ? 'bg-primary/15 text-primary'
+              : 'text-highlighted'
+          "
+          @click="workflowStore.selectWorkflow(workflow.workflowId)"
+        >
+          <span class="block truncate text-sm font-medium">{{ workflow.name }}</span>
+          <span class="mt-0.5 block truncate font-mono text-[10px] text-muted">
+            {{ workflow.workflowId }}
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-default">
+      <div
+        class="flex shrink-0 items-center justify-between gap-4 border-b border-default px-5 py-3"
+      >
+        <div class="min-w-0">
+          <h1 class="truncate text-lg font-semibold text-highlighted">
+            {{
+              workflowStore.selectedWorkflow?.name ??
+              (workflowStore.isDraft ? "新建 Workflow" : "Workflow")
+            }}
+          </h1>
+          <p class="mt-1 text-xs text-muted">
+            {{ workflowStore.selectedWorkflowId ?? "尚未保存，保存后分配 workflowId" }}
+          </p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <UButton
+            v-if="workflowStore.selectedWorkflowId"
+            data-test="workflow-delete"
+            color="error"
+            variant="ghost"
+            size="sm"
+            icon="i-lucide-trash-2"
+            label="删除"
+            @click="remove"
+          />
+          <UButton
+            data-test="workflow-save"
+            color="primary"
+            size="sm"
+            icon="i-lucide-save"
+            label="保存 YAML"
+            :loading="workflowStore.isSaving"
+            @click="save"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="workflowStore.error"
+        data-test="workflow-error"
+        class="shrink-0 border-b border-error/30 bg-error/10 px-5 py-2 text-sm text-error"
+      >
+        {{ workflowStore.error.message }}
+      </div>
+
+      <div class="min-h-0 flex-1 p-4">
+        <YamlEditor v-model="workflowStore.rawYaml" />
+      </div>
+    </main>
   </div>
 </template>

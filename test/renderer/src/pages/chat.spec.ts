@@ -5,7 +5,6 @@ import ChatSessionPage from "@renderer/pages/chat/[sessionId].vue";
 
 const stores = vi.hoisted(() => ({
   beginDraftSession: vi.fn(),
-  fetchTemplates: vi.fn(),
   selectSession: vi.fn(),
   toastAdd: vi.fn(),
   routerReplace: vi.fn(),
@@ -33,7 +32,6 @@ vi.mock("@renderer/stores", async () => {
         return activeSessionId.value;
       },
     }),
-    useWorkflowStore: () => ({ fetchTemplates: stores.fetchTemplates }),
     useWorkspaceStore: () => ({ currentWorkspace: { id: "workspace-1" } }),
   };
 });
@@ -75,7 +73,6 @@ function mountChatPage(): ReturnType<typeof mount> {
 describe("chat page", () => {
   beforeEach(() => {
     stores.beginDraftSession.mockReset();
-    stores.fetchTemplates.mockReset();
     stores.selectSession.mockReset();
     stores.selectSession.mockImplementation(async (sessionId: string) => {
       stores.setActiveSessionId(sessionId);

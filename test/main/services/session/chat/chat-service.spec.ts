@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   assertSessionWorkspaceSnapshotCurrent: vi.fn(),
   deleteSession: vi.fn(),
   deleteSpawnedSessionsForParent: vi.fn(),
+  cancelRunsByParentSession: vi.fn(),
   unwatchSession: vi.fn(),
 }));
 
@@ -49,6 +50,10 @@ vi.mock("@main/services/session/spawn/spawn-parent-lifecycle", () => ({
 
 vi.mock("@main/services/proposal/_public", () => ({
   proposalStatusService: { unwatchSession: mocks.unwatchSession },
+}));
+
+vi.mock("@main/services/automation/_public", () => ({
+  workflowEngine: { cancelRunsByParentSession: mocks.cancelRunsByParentSession },
 }));
 
 import {
@@ -129,10 +134,14 @@ describe("chat-service", () => {
     await removeSession({ workspaceId: "workspace-1", id: "session-1" });
 
     expect(mocks.deleteSpawnedSessionsForParent).toHaveBeenCalledWith("workspace-1", "session-1");
+    expect(mocks.cancelRunsByParentSession).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.deleteSession).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.unwatchSession).toHaveBeenCalledWith("workspace-1", "session-1");
     expect(mocks.deleteSpawnedSessionsForParent.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.deleteSession.mock.invocationCallOrder[0] ?? 0
+    );
+    expect(mocks.cancelRunsByParentSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteSpawnedSessionsForParent.mock.invocationCallOrder[0] ?? 0
     );
     expect(mocks.deleteSession.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.unwatchSession.mock.invocationCallOrder[0] ?? 0

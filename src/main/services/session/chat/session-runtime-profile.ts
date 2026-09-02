@@ -8,6 +8,7 @@ import { createSessionMcpWorkspaceDescriptor } from "./mcp-workspace-descriptor"
 import type { ChatSessionMode } from "@shared/types/chat";
 import type { McpWorkspaceDescriptorV2 } from "@shared/types/mcp-workspace";
 import type { SessionWorkspaceSnapshot } from "@shared/types/workspace";
+import type { BundledMcpServerName } from "@main/infra/mcp/bundled-mcp-registry";
 
 type AcpMcpServers = NonNullable<Parameters<ClientSideConnection["newSession"]>[0]["mcpServers"]>;
 
@@ -16,6 +17,11 @@ export interface SessionRuntimeProfile {
   mcpActivationId: string | null;
   revoke(): void;
 }
+
+export const WORKFLOW_FRESH_MCP_SERVER_NAMES = [
+  "fyllo-specs",
+  "fyllo-cortex",
+] as const satisfies readonly BundledMcpServerName[];
 
 export async function createChatRuntimeProfile(input: {
   sessionMode: ChatSessionMode;
@@ -54,5 +60,23 @@ export function createSpawnRuntimeProfile(): SessionRuntimeProfile {
     mcpServers: [],
     mcpActivationId: null,
     revoke: () => undefined,
+  };
+}
+
+export async function createWorkflowRuntimeProfile(input: {
+  agentId: string;
+  workspaceDescriptor: McpWorkspaceDescriptorV2;
+  supportsHttp: boolean;
+}): Promise<SessionRuntimeProfile> {
+  const activation = await createBundledMcpActivation({
+    agentId: input.agentId,
+    descriptor: input.workspaceDescriptor,
+    supportsHttp: input.supportsHttp,
+    allowedServerNames: WORKFLOW_FRESH_MCP_SERVER_NAMES,
+  });
+  return {
+    mcpServers: activation.servers.map(toAcpMcpServer),
+    mcpActivationId: activation.activationId,
+    revoke: () => revokeBundledMcpActivation(activation.activationId),
   };
 }

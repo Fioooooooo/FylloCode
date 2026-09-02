@@ -5,33 +5,53 @@ import {
   listWorkflowsInputSchema,
   saveWorkflowInputSchema,
 } from "@shared/ipc/automation/workflow.schemas";
+import { IpcErrorCodes } from "@shared/constants/error-codes";
+import { ipcError } from "@shared/errors/ipc-error";
+import { getRequiredWorkspaceInfo } from "@main/services/workspace/_public";
+import {
+  deleteWorkflowDefinition,
+  listWorkflowDefinitions,
+  loadWorkflowDefinition,
+  saveWorkflowDefinition,
+} from "@main/services/automation/workflow/workflow-service";
 import { wrapHandler } from "../_kit/wrap-handler";
 import { validate } from "../_kit/schema";
-import {
-  deleteWorkflow,
-  listWorkflows,
-  saveWorkflow,
-} from "@main/services/automation/workflow/workflow-service";
+import { requireWorkspaceSender } from "../_kit/workspace-scope";
+
+async function assertWorkflowOwner(workspaceId: string, workflowId?: string): Promise<void> {
+  await getRequiredWorkspaceInfo(workspaceId);
+  if (!workflowId) return;
+  const workflow = await loadWorkflowDefinition(workspaceId, workflowId);
+  if (!workflow) {
+    throw ipcError(IpcErrorCodes.WORKFLOW_NOT_FOUND, `Workflow not found: ${workflowId}`);
+  }
+}
 
 export function registerWorkflowHandlers(): void {
-  ipcMain.handle(AutomationWorkflowChannels.list, (_event, input: unknown) =>
+  ipcMain.handle(AutomationWorkflowChannels.list, (event, input: unknown) =>
     wrapHandler(async () => {
       const request = validate(listWorkflowsInputSchema, input);
-      return listWorkflows(request.workspaceId);
+      requireWorkspaceSender(event.sender, request.workspaceId);
+      await assertWorkflowOwner(request.workspaceId);
+      return listWorkflowDefinitions(request.workspaceId);
     })
   );
 
-  ipcMain.handle(AutomationWorkflowChannels.save, (_event, input: unknown) =>
+  ipcMain.handle(AutomationWorkflowChannels.save, (event, input: unknown) =>
     wrapHandler(async () => {
       const request = validate(saveWorkflowInputSchema, input);
-      await saveWorkflow(request);
+      requireWorkspaceSender(event.sender, request.workspaceId);
+      await assertWorkflowOwner(request.workspaceId, request.workflowId);
+      return saveWorkflowDefinition(request);
     })
   );
 
-  ipcMain.handle(AutomationWorkflowChannels.delete, (_event, input: unknown) =>
+  ipcMain.handle(AutomationWorkflowChannels.delete, (event, input: unknown) =>
     wrapHandler(async () => {
       const request = validate(deleteWorkflowInputSchema, input);
-      await deleteWorkflow(request);
+      requireWorkspaceSender(event.sender, request.workspaceId);
+      await assertWorkflowOwner(request.workspaceId, request.workflowId);
+      return deleteWorkflowDefinition(request);
     })
   );
 }

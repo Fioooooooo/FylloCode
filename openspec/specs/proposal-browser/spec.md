@@ -90,23 +90,40 @@
 
 ### Requirement: Proposal 详情不直接提供生命周期操作入口
 
-系统 SHALL 让 Proposal 详情 Slideover 保持只读浏览与现有运行状态展示，不得在详情头部提供 workflow Apply、Archive 或查看运行历史的操作按钮。系统 SHALL 保留现有 Proposal 状态 badge、进行中状态条和运行 side panel 行为，不得因移除头部入口而删除底层 Apply/Archive 或运行历史能力。
+系统 SHALL 让 Proposal 详情 Slideover 保持只读浏览，不得在详情头部提供 workflow Apply、Archive 或查看旧运行历史的操作按钮，也不得挂载仅服务旧 `WorkflowStage` stage-stream 的运行 side panel。详情 SHALL 继续展示 Proposal 内容、owner、status badge、任务信息和由 Proposal metadata 派生的状态；Apply/Archive 的真实反馈由 Chat/tool result 和 Proposal watcher/status push 承担。
+
+Chat Event Rail 的“开始实现”和“归档”按钮 SHALL 继续遵守本 capability 中已有的 Chat message 契约：按钮发送单个带完整 `ProposalRef` 的文字消息，组件不得直接调用已删除的 Proposal run store/API。任务完成度派生的 `archiveReady` 规则 SHALL 不依赖 Workflow Run 或旧 runMeta。
 
 #### Scenario: 用户打开 draft Proposal 详情
 
 - **WHEN** 用户打开状态为 `draft` 的 Proposal 详情 Slideover
-- **THEN** 详情头部 SHALL NOT 展示“开始实现”按钮或 workflow dropdown
+- **THEN** 详情头部 SHALL 不展示“开始实现”按钮或 workflow dropdown
 - **AND** 详情内容、owner、状态和任务信息 SHALL 继续展示
+- **AND** SHALL 不加载旧 apply/archive run 或旧 WorkflowStage metadata
 
 #### Scenario: 用户打开 applying 或 archived Proposal 详情
 
 - **WHEN** 用户打开状态为 `applying` 或 `archived` 的 Proposal 详情 Slideover
-- **THEN** 详情头部 SHALL NOT 展示“归档”或“查看运行历史”按钮
-- **AND** 已有运行状态条和运行 side panel SHALL 继续按现有 run state 展示
+- **THEN** 详情头部 SHALL 不展示“归档”或“查看运行历史”按钮
+- **AND** SHALL 不显示 `ProposalApplySidePanel` 或旧 stage progress
+- **AND** Proposal status、task progress 和文件内容 SHALL 继续按现有 browser/watcher 规则展示
+
+#### Scenario: Chat Apply/Archive 正在由 Agent 执行
+
+- **WHEN** Event Rail 已发送 Apply/Archive Chat 消息但 Proposal metadata 尚未变化
+- **THEN** detail 与 Event Rail SHALL 保持 watcher 最近确认的状态
+- **AND** SHALL 不通过旧 run store 乐观创建“运行中”或“归档中”状态
+- **AND** Agent 的工具结果 SHALL 继续在 Chat 消息流中可见
+
+#### Scenario: Apply 完成后可归档状态继续派生
+
+- **WHEN** Proposal status 为 `applying`、totalTasks 大于零且 doneTasks 等于 totalTasks
+- **THEN** detail 与 Event Rail SHALL 继续派生 `archiveReady`
+- **AND** 该结果 SHALL 不要求 matching ApplyRunMeta、WorkflowStage 或旧 workflow engine
 
 ### Requirement: Event Rail 通过 Chat 用户消息发起 Proposal Apply
 
-Chat Event Rail SHALL 为状态为 `draft` 的 Proposal 卡片展示直接“开始实现”按钮，不得展示 workflow dropdown，且该按钮 SHALL NOT 配置操作 icon。用户点击该按钮时，renderer SHALL 调用现有 `chatStore.sendMessage` 并发送单个 text part，文本 SHALL 为 `Start applying proposal: <changeId> (folderId: <folderId>)`，其中两个占位符来自卡片的完整 `ProposalRef`。该消息 SHALL 通过现有 Chat 流水线作为 `role=user` 消息进入当前会话，组件 SHALL NOT 直接调用 Proposal run store 启动 Apply。
+Chat Event Rail SHALL 为状态为 `draft` 的 Proposal 卡片展示直接“开始实现”按钮，不得展示 workflow dropdown，且该按钮 SHALL NOT 配置操作 icon。用户点击该按钮时，renderer SHALL 调用现有 `chatStore.sendMessage` 并发送单个 text part，文本 SHALL 为 `Start applying proposal: <changeId> (folderId: <folderId>)`，其中两个占位符来自卡片的完整 `ProposalRef`。该消息 SHALL 通过现有 Chat 流水线作为 `role=user` 消息进入当前会话，组件 SHALL NOT 直接调用已删除的 Proposal run API 或 stage-stream 启动 Apply。
 
 #### Scenario: 用户从 Event Rail 发起 draft Proposal Apply
 
@@ -114,7 +131,7 @@ Chat Event Rail SHALL 为状态为 `draft` 的 Proposal 卡片展示直接“开
 - **THEN** 系统 SHALL 调用 `chatStore.sendMessage` 并传入一个 text part
 - **AND** text SHALL 同时包含该 Proposal 的 `changeId` 与 owner `folderId`
 - **AND** 系统 SHALL NOT 要求用户选择 workflow
-- **AND** 组件 SHALL NOT 直接调用 `proposalRunStore.startRun`
+- **AND** 组件 SHALL NOT 直接调用 Proposal run API 或 stage-stream
 
 #### Scenario: Event Rail 的 Apply 入口使用纯文字按钮
 
@@ -130,7 +147,7 @@ Chat Event Rail SHALL 为状态为 `draft` 的 Proposal 卡片展示直接“开
 
 ### Requirement: Event Rail 通过 Chat 用户消息发起 Proposal Archive
 
-Chat Event Rail SHALL 仅为展示状态为 `archiveReady` 的 Proposal 卡片提供“归档”按钮，且该按钮 SHALL NOT 配置操作 icon。用户点击该按钮时，renderer SHALL 调用现有 `chatStore.sendMessage` 并发送单个 text part，文本 SHALL 为 `Start archiving proposal: <changeId> (folderId: <folderId>)`，其中两个占位符来自卡片的完整 `ProposalRef`。该消息 SHALL 通过现有 Chat 流水线作为 `role=user` 消息进入当前会话；组件 SHALL NOT 直接启动 Archive、立即刷新 Proposal Store 或主动修改 Session Proposal。
+Chat Event Rail SHALL 仅为展示状态为 `archiveReady` 的 Proposal 卡片提供“归档”按钮，且该按钮 SHALL NOT 配置操作 icon。用户点击该按钮时，renderer SHALL 调用现有 `chatStore.sendMessage` 并发送单个 text part，文本 SHALL 为 `Start archiving proposal: <changeId> (folderId: <folderId>)`，其中两个占位符来自卡片的完整 `ProposalRef`。该消息 SHALL 通过现有 Chat 流水线作为 `role=user` 消息进入当前会话；组件 SHALL NOT 直接启动已删除的 Archive run API、立即刷新 Proposal Store 或主动修改 Session Proposal。
 
 实际 Archive 改变 Proposal 状态后，系统 SHALL 继续通过现有 Main Proposal watcher 与 IPC status push 更新或移除对应 Session Proposal，且状态事件 SHALL 使用完整 `ProposalRef` 保持 owner 隔离。Watcher SHALL 将 Proposal target视为可迁移位置：linked Proposal归档、合并到 owner main并删除linked worktree时，系统 SHALL 重新定位到main archive并更新卡片，不得把该迁移解释为Proposal removed。
 
@@ -140,7 +157,7 @@ Chat Event Rail SHALL 仅为展示状态为 `archiveReady` 的 Proposal 卡片�
 - **THEN** 系统 SHALL 调用 `chatStore.sendMessage` 并传入一个 text part
 - **AND** text SHALL 为 `Start archiving proposal: <changeId> (folderId: <folderId>)`
 - **AND** `changeId` 与 `folderId` SHALL 来自被点击卡片的完整 `ProposalRef`
-- **AND** 组件 SHALL NOT 调用 `proposalRunStore.startArchive`
+- **AND** 组件 SHALL NOT 调用 Archive run API 或 stage-stream
 - **AND** 组件 SHALL NOT 因消息发送完成而立即调用 `proposalStore.loadProposals` 或 `sessionStore.upsertSessionProposal`
 
 #### Scenario: Event Rail 的 Archive 入口使用纯文字按钮
@@ -186,14 +203,14 @@ Chat Event Rail SHALL 仅为展示状态为 `archiveReady` 的 Proposal 卡片�
 
 ### Requirement: Proposal 可归档状态由任务完成度统一派生
 
-Renderer SHALL 在 Proposal status 为 `applying`、`totalTasks > 0` 且 `doneTasks === totalTasks` 时将展示状态派生为 `archiveReady`。该判断 SHALL NOT 依赖 `proposalRunStore.runMeta`、run status 或 workflow completion。Proposal detail Slideover 与 Chat Event Rail SHALL 复用同一展示状态规则；任务未全部完成或任务总数为零时 SHALL 保持 `applying` 展示状态且 Event Rail SHALL NOT 展示“归档”按钮。
+Renderer SHALL 在 Proposal status 为 `applying`、`totalTasks > 0` 且 `doneTasks === totalTasks` 时将展示状态派生为 `archiveReady`。该判断 SHALL NOT 依赖 Workflow Run、旧 run metadata 或 stage completion。Proposal detail Slideover 与 Chat Event Rail SHALL 复用同一展示状态规则；任务未全部完成或任务总数为零时 SHALL 保持 `applying` 展示状态且 Event Rail SHALL NOT 展示“归档”按钮。
 
 #### Scenario: Chat Apply 的所有任务已完成
 
 - **WHEN** Proposal status 为 `applying`、任务总数大于零且所有任务均已勾选
 - **THEN** Proposal detail Slideover SHALL 展示“可归档”状态
 - **AND** Chat Event Rail SHALL 展示“可归档”状态与“归档”按钮
-- **AND** 结果 SHALL NOT 取决于 Renderer 是否存在 matching runMeta
+- **AND** 结果 SHALL NOT 取决于 Renderer 是否存在 Workflow Run 或旧 run metadata
 
 #### Scenario: Chat Apply 仍有未完成任务
 
@@ -240,3 +257,9 @@ Renderer 收到 `changeKind: "status"` 且 `status: archived` 后 SHALL 同样�
 - **THEN** Renderer SHALL重新加载Proposal aggregate
 - **AND** SHALL将最新status、worktree mode与worktree path upsert到对应Session Proposal
 - **AND**聚合刷新失败时SHALL保留旧卡片并等待后续事件或用户刷新
+
+## Implementation mapping
+
+- Proposal detail and display projection：`src/renderer/src/components/proposal/ProposalDetailSlideover.vue`、`ProposalDetailHeader.vue`、`src/renderer/src/utils/proposal-display-status.ts`。
+- Chat Event Rail and owner-qualified watcher path：`src/renderer/src/components/chat/event/ChatProposalPanel.vue`、`src/main/services/proposal/browser/**`、`src/shared/types/proposal.ts`。
+- Acceptance tests：`test/renderer/src/pages/proposal-detail.spec.ts`、`test/renderer/src/components/chat/event/ChatProposalPanel.test.ts`、`test/renderer/src/components/proposal-detail-header.spec.ts`、`test/main/services/proposal/browser/**`、`test/main/services/proposal/browser/proposal-service.spec.ts`。

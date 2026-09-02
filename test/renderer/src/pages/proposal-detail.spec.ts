@@ -3,23 +3,14 @@ import { shallowRef } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProposalDetailSlideover from "@renderer/components/proposal/ProposalDetailSlideover.vue";
 import { proposalBrowserApi } from "@renderer/api/proposal/browser";
-import type { ApplyRunMeta, ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
+import type { ProposalMeta, ProposalSpecDeltaOverview } from "@shared/types/proposal";
 
 const mocks = vi.hoisted(() => ({
   loadProposals: vi.fn(),
-  fetchTemplates: vi.fn().mockResolvedValue(undefined),
-  startRun: vi.fn(),
-  startArchive: vi.fn(),
-  resumeRun: vi.fn(),
-  resumeArchive: vi.fn().mockResolvedValue(false),
 }));
 
 const proposalsValue = shallowRef<ProposalMeta[]>([]);
 let proposalStoreErrorValue: string | null = null;
-let runMetaValue: ApplyRunMeta | null = null;
-let isArchivingValue = false;
-let isStreamingValue = false;
-let messagesValue: unknown[] = [];
 
 vi.mock("@renderer/api/proposal/browser", () => ({
   proposalBrowserApi: {
@@ -43,35 +34,6 @@ vi.mock("@renderer/stores/proposal/browser", () => ({
       return proposalStoreErrorValue;
     },
     loadProposals: mocks.loadProposals,
-  }),
-}));
-
-vi.mock("@renderer/stores/automation/workflow", () => ({
-  useWorkflowStore: () => ({
-    customTemplates: [{ id: "workflow-1", name: "Workflow 1" }],
-    isLoading: false,
-    fetchTemplates: mocks.fetchTemplates,
-  }),
-}));
-
-vi.mock("@renderer/stores/proposal/run", () => ({
-  useProposalRunStore: () => ({
-    get runMeta() {
-      return runMetaValue;
-    },
-    get messages() {
-      return messagesValue;
-    },
-    get isStreaming() {
-      return isStreamingValue;
-    },
-    get isArchiving() {
-      return isArchivingValue;
-    },
-    startRun: mocks.startRun,
-    startArchive: mocks.startArchive,
-    resumeRun: mocks.resumeRun,
-    resumeArchive: mocks.resumeArchive,
   }),
 }));
 
@@ -184,23 +146,12 @@ function mountSlideover(proposalRef = { folderId: "folder-b", changeId: "change-
 describe("ProposalDetailSlideover", () => {
   beforeEach(() => {
     mocks.loadProposals.mockReset();
-    mocks.fetchTemplates.mockReset();
-    mocks.startRun.mockReset();
-    mocks.startArchive.mockReset();
-    mocks.resumeRun.mockReset();
-    mocks.resumeArchive.mockReset();
     vi.mocked(proposalBrowserApi.readFile).mockReset();
     vi.mocked(proposalBrowserApi.getSpecDeltas).mockReset();
 
     mocks.loadProposals.mockResolvedValue(undefined);
-    mocks.fetchTemplates.mockResolvedValue(undefined);
-    mocks.resumeArchive.mockResolvedValue(false);
     proposalsValue.value = [buildProposal()];
     proposalStoreErrorValue = null;
-    runMetaValue = null;
-    isArchivingValue = false;
-    isStreamingValue = false;
-    messagesValue = [];
     mockSuccessfulReads();
   });
 
@@ -340,7 +291,6 @@ describe("ProposalDetailSlideover", () => {
 
     expect(wrapper.text()).toContain("可归档");
     expect(wrapper.findAll("button").some((button) => button.text() === "归档")).toBe(false);
-    expect(mocks.startArchive).not.toHaveBeenCalled();
   });
 
   it("does not show archive status when tasks are incomplete", async () => {

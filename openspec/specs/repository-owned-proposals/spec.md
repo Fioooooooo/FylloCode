@@ -68,29 +68,38 @@
 - **THEN** tool SHALL 返回 `PROPOSAL_ALREADY_EXISTS` 与 existing ResolvedProposalTarget
 - **AND** SHALL NOT 覆盖 change、创建第二个 worktree、写 proposal-created event或登记第二个 origin
 
-### Requirement: Apply 与 Archive 只接受 ProposalRef 并冻结 run target
+### Requirement: Apply 与 Archive 只接受 ProposalRef 并通过 Chat/MCP 固定 target
 
-`apply-change` 与 `archive-change` MCP input SHALL 接受 `folderId + changeName`，SHALL NOT 接受 caller `targetPath` 或 `worktreePath`。Main apply/archive IPC SHALL 接受 `workspaceId + folderId + changeId`。apply run创建时 SHALL 将完整 ProposalRef与 resolver返回的 `worktreePath` 固定到 run meta；所有 stage与archive SHALL 复用该 snapshot。
+`apply-change` 与 `archive-change` MCP input SHALL 接受 `folderId + changeName`，SHALL NOT 接受 caller `targetPath` 或 `worktreePath`。工具 SHALL 从 trusted Workspace descriptor 和 owner-qualified `ProposalRef` 解析 `ResolvedProposalTarget`；一次 Apply/Archive tool invocation 内的后续实现、OpenSpec 操作和 Git finalization SHALL 继续使用该 resolved target。Renderer SHALL 通过 Chat 用户消息进入该 MCP 路径，不得直接启动旧 Proposal stage-stream。
 
-#### Scenario: Apply run 固定 secondary Folder target
+系统 SHALL NOT 再提供以 `WorkflowStage`/`ApplyRunMeta` 驱动 Proposal Apply/Archive 的 `proposal:apply:*` 或 `proposal:archive:*` renderer IPC、stage stream、run store 或恢复入口。该删除 SHALL NOT 删除 `fyllo-specs` 的 Apply/Archive MCP tools，也 SHALL NOT 改变其 ProposalRef、target resolver、OpenSpec archive、metadata 和 Git finalization 约束。
 
-- **WHEN** 用户为 Folder B的 proposal创建 apply run
-- **THEN** run meta SHALL 持久化 Folder B的 ProposalRef与 resolved worktreePath
-- **AND**所有 apply stage和archive activation SHALL 使用该固定 target
-- **AND**对应 Agent filesystem与MCP descriptor SHALL 只包含 Folder B
+#### Scenario: Chat Apply 使用 owner-qualified target
 
-#### Scenario: 固定 target 消失
+- **WHEN** 用户通过 Chat Event Rail 发送包含 `changeId` 与 `folderId` 的 Apply 消息，Agent 调用 `apply-change`
+- **THEN** MCP runtime SHALL 使用对应 ProposalRef 解析 owner Folder 和授权 target
+- **AND** SHALL NOT 从 current primary、caller path 或旧 workflow template 推导 target
+- **AND** Renderer SHALL NOT 调用 proposal stage-stream 或旧 Proposal run store
 
-- **WHEN** run创建后其 worktree被移除、不再 registered或不再包含该 change
-- **THEN**后续 stage/archive SHALL 返回明确 stale target error并停止
-- **AND** SHALL NOT 回退 main、重新运行 linked-preferred选择或切换到其他 worktree
+#### Scenario: Chat Archive 使用固定 target
 
-#### Scenario: 历史 run 缺少 owner
+- **WHEN** Agent 对 Folder B 的 proposal 调用 `archive-change`
+- **THEN** tool SHALL 使用 Folder B 的 ProposalRef 和本次 resolver 返回的 target 完成 archive/finalization
+- **AND** SHALL NOT 回退到 main、重新按 linked-preferred 选择其他 worktree 或使用 Folder A 的同名 change
+- **AND** archive status、metadata 和 watcher event SHALL 继续以该完整 ProposalRef 标识
 
-- **WHEN**历史 apply/archive run没有可验证的 folderId
-- **THEN**系统 MAY 保留其消息和只读状态
-- **AND**继续执行或归档 SHALL 明确失败
-- **AND** SHALL NOT 从 Workspace primary、repository path或 changeId猜测 owner
+#### Scenario: Target 在执行前失效
+
+- **WHEN** Apply/Archive tool 解析后的 target 已移除、不再 registered 或不再包含该 change
+- **THEN** tool/runtime SHALL 返回明确 stale target error 并停止
+- **AND** SHALL NOT 通过旧 `ApplyRunMeta`、WorkflowStage 或 renderer IPC 重试另一 target
+
+#### Scenario: Legacy Proposal run data is not resumed
+
+- **WHEN** Workspace storage 中仍存在旧 `apply-runs/**` 或包含 WorkflowStage 的 run metadata
+- **THEN** 新 Proposal renderer/Main SHALL 不发现、不恢复或继续执行该 run
+- **AND** Proposal status SHALL 继续由实际 Proposal metadata、tasks 和 watcher 状态派生
+- **AND** 不得为兼容旧 run 而重新引入 WorkflowStage 或第二套 engine
 
 ### Requirement: Proposal created event 携带完整身份与 target
 
@@ -156,3 +165,9 @@ Chat Agent SHALL 先按授权 Workspace descriptor 中的 Folder owner 分解跨
 - **THEN** Agent SHALL 为每个 Folder 分别调用现有 `create-proposal` tool
 - **AND** 每次调用 SHALL 使用该 owner 的 `folderId` 并只产生一个 `state.target`
 - **AND** 系统 SHALL NOT 通过选择 primary Folder、批量推断 owner 或 caller path 合并这些调用
+
+## Implementation mapping
+
+- Trusted ProposalRef/target resolver and Apply/Archive tools：`src/mcp-servers/fyllo-specs/src/tools/apply-change.ts`、`archive-change.ts`、`src/main/infra/proposal/openspec-reader.ts` 及 proposal target services。
+- Chat-only renderer entry and watcher/status projection：`src/renderer/src/components/chat/event/ChatProposalPanel.vue`、`src/renderer/src/utils/proposal-display-status.ts`、`src/main/services/proposal/browser/**`。
+- Legacy stage-stream absence and retained MCP behavior：`test/main/infra/workflow-source-boundary.spec.ts`、`test/renderer/src/components/chat/event/ChatProposalPanel.test.ts`、`test/main/services/proposal/browser/**`、`test/mcp-servers/fyllo-specs/**`。

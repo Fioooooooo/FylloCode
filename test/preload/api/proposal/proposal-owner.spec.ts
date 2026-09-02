@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
-import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
 
 const mocks = vi.hoisted(() => ({
@@ -45,22 +43,5 @@ describe("preload proposal owner contracts", () => {
     expect(mocks.ipcRenderer.invoke).toHaveBeenCalledWith(ProposalBrowserChannels.list, {
       workspaceId: "workspace-1",
     });
-  });
-
-  it("forwards ProposalRef for apply and archive history", async () => {
-    const { proposalApplyApi } = await import("@preload/api/proposal/apply");
-    const { proposalArchiveApi } = await import("@preload/api/proposal/archive");
-    await proposalApplyApi.loadRun({ workspaceId: "workspace-1", ...proposalRef });
-    await proposalArchiveApi.loadArchive({ workspaceId: "workspace-1", ...proposalRef });
-
-    expect(mocks.ipcRenderer.invoke).toHaveBeenNthCalledWith(1, ProposalApplyChannels.loadRun, {
-      workspaceId: "workspace-1",
-      ...proposalRef,
-    });
-    expect(mocks.ipcRenderer.invoke).toHaveBeenNthCalledWith(
-      2,
-      ProposalArchiveChannels.loadArchive,
-      { workspaceId: "workspace-1", ...proposalRef }
-    );
   });
 });

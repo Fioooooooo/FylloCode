@@ -3,7 +3,7 @@ import { getDataSubPath } from "@main/infra/paths";
 
 export function assertStorageIdentity(
   id: string,
-  label: "Workspace" | "Folder" | "Session" | "Response" | "Turn"
+  label: "Workspace" | "Folder" | "Session" | "Response" | "Turn" | "Workflow" | "Run" | "Stage"
 ): string {
   if (!id || id === "." || id === ".." || /[\\/\0]/.test(id)) {
     throw new Error(`${label} ID is not safe for storage`);
@@ -134,12 +134,61 @@ export function lineageSubjectsDir(workspaceId: string): string {
   return join(lineageDir(workspaceId), "subjects");
 }
 
-export function applyRunsDir(workspaceId: string): string {
-  return join(workspaceDataDir(workspaceId), "apply-runs");
-}
-
 export function workflowsDir(workspaceId: string): string {
   return join(workspaceDataDir(workspaceId), "workflows");
+}
+
+export function workflowDir(workspaceId: string, workflowId: string): string {
+  return join(workflowsDir(workspaceId), assertStorageIdentity(workflowId, "Workflow"));
+}
+
+export function workflowDefinitionPath(workspaceId: string, workflowId: string): string {
+  return join(workflowDir(workspaceId, workflowId), "definition.yaml");
+}
+
+export function workflowRunsDir(workspaceId: string, workflowId: string): string {
+  return join(workflowDir(workspaceId, workflowId), "runs");
+}
+
+export function workflowRunDir(workspaceId: string, workflowId: string, runId: string): string {
+  return join(workflowRunsDir(workspaceId, workflowId), assertStorageIdentity(runId, "Run"));
+}
+
+export function workflowRunSnapshotPath(
+  workspaceId: string,
+  workflowId: string,
+  runId: string
+): string {
+  return join(
+    workflowRunDir(workspaceId, workflowId, runId),
+    `${assertStorageIdentity(runId, "Run")}.json`
+  );
+}
+
+export function workflowRunSessionTranscriptPath(
+  workspaceId: string,
+  workflowId: string,
+  runId: string,
+  sessionId: string
+): string {
+  return join(
+    workflowRunDir(workspaceId, workflowId, runId),
+    "sessions",
+    `${assertStorageIdentity(sessionId, "Session")}.jsonl`
+  );
+}
+
+export function workflowRunActionOutputPath(
+  workspaceId: string,
+  workflowId: string,
+  runId: string,
+  stageId: string
+): string {
+  return join(
+    workflowRunDir(workspaceId, workflowId, runId),
+    "action-outputs",
+    `${assertStorageIdentity(stageId, "Stage")}.log`
+  );
 }
 
 export function integrationDir(workspaceId: string): string {

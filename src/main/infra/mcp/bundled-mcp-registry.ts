@@ -2,7 +2,8 @@ import { join } from "node:path";
 import { is } from "@electron-toolkit/utils";
 import { getAppAsarPath, getAppUnpackedPath } from "@main/infra/paths";
 
-export type BundledMcpServerName = "fyllo-specs" | "fyllo-cortex" | "fyllo-spawn";
+export type BundledMcpServerName =
+  "fyllo-specs" | "fyllo-cortex" | "fyllo-spawn" | "fyllo-workflow";
 export type BundledMcpTransportPolicy = "http-or-stdio" | "http-only";
 
 export interface BundledMcpServerRegistration {
@@ -23,6 +24,10 @@ export const bundledMcpServers: readonly BundledMcpServerRegistration[] = [
   },
   {
     name: "fyllo-spawn",
+    transportPolicy: "http-only",
+  },
+  {
+    name: "fyllo-workflow",
     transportPolicy: "http-only",
   },
 ];

@@ -89,6 +89,7 @@ export type WorkspaceRuntimeReferenceKind =
   | "probe"
   | "chat"
   | "spawn"
+  | "workflow"
   | "proposal-create"
   | "apply"
   | "archive"

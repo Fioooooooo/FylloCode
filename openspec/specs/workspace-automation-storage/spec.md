@@ -2,26 +2,48 @@
 
 ## Purpose
 
-定义 Task、custom Workflow 与 Workspace Integration 的 Workspace-owned 持久化和跨进程契约，包括 Task Folder 软引用的 current/stale 投影、Workflow 作用域，以及 repository-bound Integration 的显式 Folder binding。
+定义 Task、v2 Workflow definition/Run 与 Workspace Integration 的 Workspace-owned 持久化和跨进程契约，包括 Task Folder 软引用的 current/stale 投影、Workflow 作用域，以及 repository-bound Integration 的显式 Folder binding。
 
 ## Requirements
 
 ### Requirement: Automation data remains Workspace-owned
 
-Local tasks、custom workflows 与 integration config SHALL 存储在 `workspaceDataDir(workspaceId)` 下，并 SHALL NOT 因 Workspace primary、Folder filter、Folder relocation 或共享 Folder 而改用 repository path。Built-in workflows 和 provider credentials 的既有 global ownership SHALL 保持不变。
+Local tasks、手写 workflow definitions、workflow Run snapshots/artifacts 与 integration config SHALL 存储在 `workspaceDataDir(workspaceId)` 下，并 SHALL NOT 因 Workspace primary、Folder filter、Folder relocation 或共享 Folder 而改用 repository path。Phase 1 不再提供 built-in workflow 的 packaged asset、global staging、启动复制或 global runtime；所有可触发 workflow SHALL 来自当前 Workspace 的正式 definition 目录。
+
+Workflow definition SHALL 位于 `workflows/<workflow-id>/definition.yaml`，Run SHALL 位于对应 workflow 的 `runs/<run-id>/`，其中可包含 `<run-id>.json`、fresh session transcript 和 Action output。workflowId SHALL 是随机稳定 identity，不能由 name 或当前 primary 推导。旧按名称的 `workflows/<name>.yaml`、旧 `WorkflowStage` 数据和 `apply-runs/**` SHALL 不被新 runtime 读取、发现或继续执行；本变更不要求迁移这些 legacy files。
 
 #### Scenario: Two Workspaces share a Folder
 
 - **WHEN** Folder Workspace 与 Collection Workspace 引用同一个 Folder
-- **THEN** 两个 Workspace SHALL 读取各自的 local tasks、custom workflows 与 integration config
+- **THEN** 两个 Workspace SHALL 读取各自的 workflow definitions、Run snapshots、local tasks 与 integration config
 - **AND** SHALL NOT 自动继承或合并另一 Workspace 的 automation data
 
-#### Scenario: Workflow owner remains stable
+#### Scenario: Workflow identity remains stable across rename
 
-- **WHEN** Collection Workspace 改变 primary 或移除非运行中引用的成员
-- **THEN** custom workflow files SHALL 仍从相同 `workspaceId` storage 读取
-- **AND** 既有 Apply/Archive run SHALL 继续使用 run 中固定的 ProposalRef 与 worktree target
-- **AND** workflow stage SHALL NOT 重新按 current primary 解析 repository owner
+- **WHEN** 用户修改 workflow definition 的 name 或 Collection Workspace 改变 primary
+- **THEN** 系统 SHALL 继续从同一个 workspaceId/workflowId 目录读取 definition 和既有 runs
+- **AND** SHALL NOT 按新 name 创建新目录、重新选择 repository owner 或迁移 Run artifacts
+
+#### Scenario: Workflow Run snapshot keeps its execution context
+
+- **WHEN** 一个 Run 已创建并且 Workspace primary、Folder filter 或成员状态之后发生变化
+- **THEN** Run SHALL 继续使用 snapshot 内的 parent identity、frozenDefinition 和已授权的 Workspace context
+- **AND** workflow stage SHALL NOT 重新按 current primary 解析 owner
+- **AND** existing Proposal Apply/Archive 的 owner-qualified `ProposalRef` 与固定 target 语义 SHALL 保持有效
+
+#### Scenario: Legacy automation files remain inert
+
+- **WHEN** Workspace storage 中仍存在旧名称型 workflow 文件或旧 apply-runs 目录
+- **THEN** v2 list/trigger/runtime SHALL 忽略这些路径
+- **AND** 启动 reconcile SHALL 不把它们转换为 active Run
+- **AND** 本变更 SHALL NOT 为其增加删除或自动迁移副作用
+
+#### Scenario: Built-in template resource and global staging are absent from the v2 path
+
+- **WHEN** 应用构建并启动 workflow definition service
+- **THEN** packaged resources SHALL NOT contain `resources/workflows/built-in/**`
+- **AND** service SHALL NOT read or initialize global `data/workflows`/`userData/workflows`
+- **AND** list/save/delete SHALL only operate on `workspaceDataDir(workspaceId)/workflows/<workflow-id>/definition.yaml`
 
 ### Requirement: Task repository targets are non-blocking soft references
 
@@ -88,3 +110,9 @@ Task SHALL 支持可选 `targetFolderIds` 作为 repository hints。系统 SHALL
 - **THEN** entry SHALL 保持 unbound 并继续可读
 - **AND** 下一次保存 repository-bound stage 时 SHALL 要求显式 binding
 - **AND** 系统 SHALL NOT 根据唯一成员猜测 owner
+
+## Implementation mapping
+
+- Workspace paths and definition/Run stores：`src/main/infra/storage/workspace-paths.ts`、`workflow-definition-store.ts`、`workflow-run-store.ts`。
+- Definition service and runtime ownership：`src/main/services/automation/workflow/workflow-service.ts`、`workflow-engine.ts`。
+- Workspace isolation and legacy absence checks：`test/main/infra/storage/workspace-paths.spec.ts`、`workflow-definition-store.spec.ts`、`workflow-run-store.spec.ts`、`test/main/infra/workflow-source-boundary.spec.ts`、`test/main/packaging/workflow-resources.spec.ts`。

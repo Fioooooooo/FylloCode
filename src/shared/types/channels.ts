@@ -1,8 +1,6 @@
 import { PlatformSettingsChannels } from "@shared/ipc/platform/settings.channels";
 import { PlatformReleaseChannels } from "@shared/ipc/platform/release.channels";
 import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
-import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
-import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 
 // Aggregate all IPC channel constants into a single barrel, exposing both the new
 // domain-prefixed names and the older short aliases for backward compatibility.
@@ -29,7 +27,7 @@ export {
   SessionChatStreamChannels,
   SessionChatStreamChannels as ChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
-export { ProposalBrowserChannels, ProposalApplyChannels, ProposalArchiveChannels };
+export { ProposalBrowserChannels };
 export {
   InsightOverviewChannels,
   InsightOverviewChannels as OverviewChannels,
@@ -51,6 +49,10 @@ export {
   AutomationWorkflowChannels as WorkflowChannels,
 } from "@shared/ipc/automation/workflow.channels";
 export {
+  AutomationWorkflowRunChannels,
+  AutomationWorkflowRunChannels as WorkflowRunChannels,
+} from "@shared/ipc/automation/workflow-run.channels";
+export {
   AutomationTaskChannels,
   AutomationTaskChannels as TaskChannels,
 } from "@shared/ipc/automation/task.channels";
@@ -62,8 +64,4 @@ export const SettingsChannels = {
   checkLatestRelease: PlatformReleaseChannels.checkLatestRelease,
 } as const;
 
-export const ProposalChannels = {
-  ...ProposalBrowserChannels,
-  ...ProposalApplyChannels,
-  ...ProposalArchiveChannels,
-} as const;
+export const ProposalChannels = ProposalBrowserChannels;

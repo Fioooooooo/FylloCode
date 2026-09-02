@@ -5,8 +5,6 @@ import {
   SessionChatStreamChannels,
 } from "@shared/ipc/session/chat.channels";
 import { ProposalBrowserChannels } from "@shared/ipc/proposal/browser.channels";
-import { ProposalApplyChannels } from "@shared/ipc/proposal/apply.channels";
-import { ProposalArchiveChannels } from "@shared/ipc/proposal/archive.channels";
 import { PlatformSettingsChannels } from "@shared/ipc/platform/settings.channels";
 import { PlatformReleaseChannels } from "@shared/ipc/platform/release.channels";
 import { InsightOverviewChannels } from "@shared/ipc/insight/overview.channels";
@@ -46,28 +44,9 @@ describe("domain IPC channel constants", () => {
     `);
   });
 
-  it("splits proposal browser, apply, and archive channels by area", () => {
-    expect({
-      browser: ProposalBrowserChannels,
-      apply: ProposalApplyChannels,
-      archive: ProposalArchiveChannels,
-    }).toMatchInlineSnapshot(`
+  it("keeps proposal browser channels under the proposal domain", () => {
+    expect({ browser: ProposalBrowserChannels }).toMatchInlineSnapshot(`
       {
-        "apply": {
-          "apply": "proposal:apply:apply",
-          "loadRun": "proposal:apply:loadRun",
-          "loadRunMessages": "proposal:apply:loadRunMessages",
-          "stageStream": "proposal:apply:stageStream",
-          "stageStreamCancel": "proposal:apply:stageStream:cancel",
-          "stageStreamPort": "proposal:apply:stageStream:port",
-        },
-        "archive": {
-          "archive": "proposal:archive:archive",
-          "archiveCancel": "proposal:archive:archive:cancel",
-          "archivePort": "proposal:archive:archive:port",
-          "loadArchive": "proposal:archive:loadArchive",
-          "loadArchiveMessages": "proposal:archive:loadArchiveMessages",
-        },
         "browser": {
           "getSpecDeltas": "proposal:browser:getSpecDeltas",
           "list": "proposal:browser:list",

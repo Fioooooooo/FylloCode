@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
+  getRequiredWorkspaceInfo: vi.fn(),
   listRegisteredWorktreePaths: vi.fn(),
   readRepositoryProposalFiles: vi.fn(),
   readChangeFileInTarget: vi.fn(),
   readProposalSpecDeltas: vi.fn(),
 }));
 
-vi.mock("@main/services/workspace/_public", () => ({ resolveWorkspace: mocks.resolveWorkspace }));
+vi.mock("@main/services/workspace/_public", () => ({
+  resolveWorkspace: mocks.resolveWorkspace,
+  getRequiredWorkspaceInfo: mocks.getRequiredWorkspaceInfo,
+}));
 vi.mock("@main/infra/git/worktree-reader", () => ({
   listRegisteredWorktreePaths: mocks.listRegisteredWorktreePaths,
 }));

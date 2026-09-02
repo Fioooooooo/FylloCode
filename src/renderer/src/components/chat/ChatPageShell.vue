@@ -1,23 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useSessionStore, useWorkflowStore } from "@renderer/stores";
+import { useSessionStore } from "@renderer/stores";
 import ChatContainer from "./ChatContainer.vue";
 import ChatSidebar from "./ChatSidebar.vue";
 
 const route = useRoute();
 const router = useRouter();
 const sessionStore = useSessionStore();
-const workflowStore = useWorkflowStore();
 const isSidebarCollapsed = ref(false);
 
 function getRouteSessionId(): string | undefined {
   return "sessionId" in route.params ? route.params.sessionId : undefined;
 }
-
-onMounted(() => {
-  void workflowStore.fetchTemplates();
-});
 
 watch(
   () => sessionStore.activeSessionId,

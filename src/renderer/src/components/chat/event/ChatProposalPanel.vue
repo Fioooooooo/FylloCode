@@ -1,21 +1,9 @@
 <script setup lang="ts">
-import {
-  // Proposal 运行入口待重构，方案确定后恢复或删除。
-  // computed,
-  ref,
-} from "vue";
+import { ref } from "vue";
 import { useProposalDetailSlideover } from "@renderer/composables/useProposalDetailSlideover";
 import ProposalWorktreeBadge from "@renderer/components/proposal/ProposalWorktreeBadge.vue";
 import { timeAgo } from "@renderer/utils/time";
-import {
-  useChatStore,
-  // Proposal 运行入口待重构，方案确定后恢复或删除。
-  // useWorkflowStore,
-  // useWorkspaceStore,
-  useProposalRunStore,
-  useProposalStore,
-  useSessionStore,
-} from "@renderer/stores";
+import { useChatStore, useProposalStore, useSessionStore } from "@renderer/stores";
 import {
   getProposalDisplayStatus,
   proposalDisplayStatusConfig,
@@ -29,27 +17,9 @@ defineProps<{
 const collapsed = ref(false);
 
 const { openProposalDetail } = useProposalDetailSlideover();
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const workspaceStore = useWorkspaceStore();
 const proposalStore = useProposalStore();
 const chatStore = useChatStore();
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const workflowStore = useWorkflowStore();
-const proposalRunStore = useProposalRunStore();
 const sessionStore = useSessionStore();
-
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// const workspaceId = computed(() => workspaceStore.currentWorkspace?.id ?? "");
-
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// function buildWorkflowMenuItems(proposal: ProposalMeta) {
-//   return [
-//     workflowStore.customTemplates.map((template) => ({
-//       label: template.name,
-//       onSelect: () => startApply(proposal, template.id),
-//     })),
-//   ];
-// }
 
 function findLatestProposal(proposalRef: ProposalRef): ProposalMeta | null {
   const key = proposalRefKey(proposalRef);
@@ -57,27 +27,6 @@ function findLatestProposal(proposalRef: ProposalRef): ProposalMeta | null {
     proposalStore.proposals.find((proposal) => proposalRefKey(proposal.proposalRef) === key) ?? null
   );
 }
-
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// async function ensureWorkflowsLoaded(): Promise<void> {
-//   if (workflowStore.customTemplates.length > 0 || workflowStore.isLoading) {
-//     return;
-//   }
-//   await workflowStore.fetchTemplates();
-// }
-//
-// async function startApply(proposal: ProposalMeta, workflowId: string): Promise<void> {
-//   if (!workspaceId.value) {
-//     return;
-//   }
-//   await proposalRunStore.startRun(workspaceId.value, proposal.proposalRef, workflowId);
-//   // Optimistically update the rail status so the UI reflects "applying"
-//   // immediately, even if the watcher was not active before the apply started.
-//   const sessionId = sessionStore.activeSession?.id;
-//   if (sessionId) {
-//     sessionStore.upsertSessionProposal(sessionId, { ...proposal, status: "applying" });
-//   }
-// }
 
 async function startApply(proposal: ProposalMeta): Promise<void> {
   await chatStore.sendMessage([
@@ -87,24 +36,6 @@ async function startApply(proposal: ProposalMeta): Promise<void> {
     },
   ]);
 }
-
-// Proposal 运行入口待重构，方案确定后恢复或删除。
-// async function startArchive(proposal: ProposalMeta): Promise<void> {
-//   if (!workspaceId.value) {
-//     return;
-//   }
-//   const proposalRef = proposal.proposalRef;
-//   await proposalRunStore.startArchive(workspaceId.value, proposalRef);
-//   await proposalStore.loadProposals();
-//
-//   const sessionId = sessionStore.activeSession?.id;
-//   const nextProposal = findLatestProposal(proposalRef);
-//   if (!sessionId || !nextProposal) {
-//     return;
-//   }
-//
-//   sessionStore.upsertSessionProposal(sessionId, nextProposal);
-// }
 
 async function startArchive(proposal: ProposalMeta): Promise<void> {
   await chatStore.sendMessage([
@@ -191,35 +122,11 @@ function taskProgressLabel(proposal: ProposalMeta): string {
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <UBadge
-              :color="
-                proposalDisplayStatusConfig[
-                  getProposalDisplayStatus(
-                    proposal,
-                    proposalRunStore.runMeta,
-                    proposalRunStore.isArchiving
-                  )
-                ].color
-              "
-              :variant="
-                proposalDisplayStatusConfig[
-                  getProposalDisplayStatus(
-                    proposal,
-                    proposalRunStore.runMeta,
-                    proposalRunStore.isArchiving
-                  )
-                ].variant
-              "
+              :color="proposalDisplayStatusConfig[getProposalDisplayStatus(proposal)].color"
+              :variant="proposalDisplayStatusConfig[getProposalDisplayStatus(proposal)].variant"
               size="sm"
             >
-              {{
-                proposalDisplayStatusConfig[
-                  getProposalDisplayStatus(
-                    proposal,
-                    proposalRunStore.runMeta,
-                    proposalRunStore.isArchiving
-                  )
-                ].label
-              }}
+              {{ proposalDisplayStatusConfig[getProposalDisplayStatus(proposal)].label }}
             </UBadge>
             <ProposalWorktreeBadge
               v-if="proposal.worktreeMode === 'linked'"
@@ -256,13 +163,7 @@ function taskProgressLabel(proposal: ProposalMeta): string {
 
         <div class="flex items-center justify-end gap-2">
           <UButton
-            v-if="
-              getProposalDisplayStatus(
-                proposal,
-                proposalRunStore.runMeta,
-                proposalRunStore.isArchiving
-              ) !== 'creating'
-            "
+            v-if="getProposalDisplayStatus(proposal) !== 'creating'"
             size="xs"
             color="neutral"
             variant="ghost"
@@ -271,25 +172,6 @@ function taskProgressLabel(proposal: ProposalMeta): string {
           >
             查看详情
           </UButton>
-
-          <!-- Proposal 运行入口待重构，方案确定后恢复或删除。
-          <UDropdownMenu
-            v-if="proposal.status === 'draft'"
-            :items="buildWorkflowMenuItems(proposal)"
-            :loading="workflowStore.isLoading"
-          >
-            <UButton
-              size="xs"
-              color="primary"
-              icon="i-lucide-play"
-              trailing-icon="i-lucide-chevron-down"
-              data-test="start-apply-button"
-              @click="ensureWorkflowsLoaded"
-            >
-              开始实现
-            </UButton>
-          </UDropdownMenu>
-          -->
 
           <UButton
             v-if="proposal.status === 'draft'"
@@ -302,13 +184,7 @@ function taskProgressLabel(proposal: ProposalMeta): string {
           </UButton>
 
           <UButton
-            v-if="
-              getProposalDisplayStatus(
-                proposal,
-                proposalRunStore.runMeta,
-                proposalRunStore.isArchiving
-              ) === 'archiveReady'
-            "
+            v-if="getProposalDisplayStatus(proposal) === 'archiveReady'"
             size="xs"
             color="neutral"
             data-test="archive-button"
