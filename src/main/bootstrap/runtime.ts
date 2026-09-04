@@ -2,6 +2,8 @@ import { app, dialog, type WebContents } from "electron";
 import { pathToFileURL } from "node:url";
 import { is } from "@electron-toolkit/utils";
 import { registerAllHandlers } from "@main/ipc";
+import { setupWorkflowProposalDecisionBroadcast } from "@main/ipc/automation/workflow-proposal-decision";
+import { setupWorkflowProposalBroadcast } from "@main/ipc/automation/workflow-proposal";
 import { setupWorkflowRunBroadcast } from "@main/ipc/automation/workflow-run";
 import { setupAgentEventBroadcast } from "@main/ipc/platform/acp-agents";
 import { setupProposalStatusBroadcast } from "@main/ipc/proposal/browser";
@@ -44,8 +46,11 @@ import { disposeLineageEventConsumers } from "@main/services/insight/lineage/mcp
 import {
   workflowActionRunner,
   workflowAgentRunner,
+  workflowDecisionService,
   workflowEngine,
 } from "@main/services/automation/_public";
+import { workflowProposalService } from "@main/services/automation/workflow/workflow-proposal-service";
+import { sendWorkflowConfirmHandoff } from "@main/services/session/chat/chat-turn-service";
 import { proposalStatusService } from "@main/services/proposal/_public";
 import { disposeSessionRegistry } from "@main/services/session/chat/session-registry";
 import { disposeSessionProbes } from "@main/services/session/chat/session-probe-service";
@@ -85,6 +90,8 @@ interface StartApplicationRuntimeOptions {
 let protectedMigration: Promise<void> | null = null;
 let unregisterSpawnParentDeletion: (() => void) | null = null;
 let disposeWorkflowRunBroadcast: (() => void) | null = null;
+let disposeWorkflowProposalBroadcast: (() => void) | null = null;
+let disposeWorkflowProposalDecisionBroadcast: (() => void) | null = null;
 
 export function getProtectedMigration(): Promise<void> | null {
   return protectedMigration;
@@ -226,6 +233,9 @@ function scheduleWorkflowReconcile(): void {
       const workspaceIds = await listWorkspaceIds();
       if (isShuttingDown()) return;
       await workflowEngine.reconcileWorkspaces(workspaceIds);
+      await Promise.all(
+        workspaceIds.map((workspaceId) => workflowDecisionService.reconcileWorkspace(workspaceId))
+      );
     })
     .catch((error: unknown) => {
       logger.error("[bootstrap] workflow reconcile failed", error);
@@ -261,9 +271,15 @@ export async function startApplicationRuntime(
     forceDisposeSpawnSessions: () => spawnedSessionManager.forceDispose(),
     beginWorkflowEngineShutdown: () => {
       workflowEngine.beginShutdown();
+      workflowDecisionService.beginShutdown();
       unregisterWorkflowRpcBridge();
       disposeWorkflowRunBroadcast?.();
       disposeWorkflowRunBroadcast = null;
+      disposeWorkflowProposalBroadcast?.();
+      disposeWorkflowProposalBroadcast = null;
+      disposeWorkflowProposalDecisionBroadcast?.();
+      disposeWorkflowProposalDecisionBroadcast = null;
+      workflowProposalService.setConfirmHandoffHandler(null);
     },
     disposeWorkflowEngine: () => workflowEngine.dispose(),
     forceDisposeWorkflowEngine: () => workflowEngine.forceDispose(),
@@ -293,14 +309,22 @@ export async function startApplicationRuntime(
   setupAgentEventBroadcast(workspaceWindowManager);
   setupProposalStatusBroadcast(workspaceWindowManager);
   disposeWorkflowRunBroadcast = setupWorkflowRunBroadcast(workspaceWindowManager, workflowEngine);
+  disposeWorkflowProposalBroadcast = setupWorkflowProposalBroadcast(workspaceWindowManager);
+  disposeWorkflowProposalDecisionBroadcast =
+    setupWorkflowProposalDecisionBroadcast(workspaceWindowManager);
+  workflowProposalService.setConfirmHandoffHandler(sendWorkflowConfirmHandoff);
   workflowAgentRunner.attachToEngine(workflowEngine);
   workflowActionRunner.attachEngine(workflowEngine);
   spawnedSessionManager.start();
   registerSpawnRpcBridge();
   registerWorkflowRpcBridge();
   unregisterSpawnParentDeletion ??= registerSpawnParentDeletionHandler(
-    (workspaceId, parentSessionId) =>
-      spawnedSessionManager.deleteParent(workspaceId, parentSessionId)
+    async (workspaceId, parentSessionId) => {
+      await Promise.all([
+        spawnedSessionManager.deleteParent(workspaceId, parentSessionId),
+        workflowDecisionService.suppressParent(workspaceId, parentSessionId),
+      ]);
+    }
   );
   startBundledMcpHost();
   scheduleWorkflowReconcile();

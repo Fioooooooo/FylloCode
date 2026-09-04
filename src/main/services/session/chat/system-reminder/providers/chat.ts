@@ -3,6 +3,7 @@ import { renderFylloActionPromptContract } from "@shared/fyllo-action/prompt";
 import { renderFylloSignalPromptContract } from "@shared/fyllo-signal/prompt";
 import { resolveGuidelinesSection } from "./guidelines";
 import { resolveKnowledgeSection } from "./knowledge";
+import { resolveWorkflowCapabilitySection } from "./workflow";
 import { renderSystemReminderTemplate } from "./shared";
 import type { SystemReminderContext } from "../types";
 import { renderWorkspaceSection } from "./workspace";
@@ -25,6 +26,7 @@ export async function resolveChatSystemReminder(
 
   const guidelinesSection = await resolveGuidelinesSection(ctx);
   const knowledgeSection = await resolveKnowledgeSection(ctx);
+  const workflowCapabilitySection = resolveWorkflowCapabilitySection();
   const workspaceSection = renderWorkspaceSection(ctx.workspaceSnapshot);
 
   return [
@@ -32,6 +34,7 @@ export async function resolveChatSystemReminder(
     workspaceSection,
     guidelinesSection,
     knowledgeSection,
+    workflowCapabilitySection,
     renderFylloActionPromptContract(),
     renderFylloSignalPromptContract(),
   ]

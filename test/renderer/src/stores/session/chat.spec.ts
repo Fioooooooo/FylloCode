@@ -7,6 +7,7 @@ import { useWorkspaceStore } from "@renderer/stores/workspace/workspace";
 import { useSessionStore } from "@renderer/stores/session/session";
 import {
   chatApi,
+  type AppOwnedChatStreamCallbacks,
   type SpawnNotificationStreamCallbacks,
   type StreamCallbacks,
 } from "@renderer/api/session/chat";
@@ -395,6 +396,80 @@ describe("useChatStore", () => {
 
     await vi.advanceTimersByTimeAsync(300);
     expect(chatApi.listSpawnNotifications).toHaveBeenCalledTimes(2);
+  });
+
+  it("app-owned turn 在 accepted 后消费 chunk、终态并保留 accepted result", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    const chatStore = useChatStore();
+    let callbacks!: AppOwnedChatStreamCallbacks<{ workflowId: string }>;
+    const cancel = vi.fn();
+
+    const completion = chatStore.dispatchAppOwnedChatTurn(
+      "project-1",
+      "parent-1",
+      (nextCallbacks) => {
+        callbacks = nextCallbacks;
+        return cancel;
+      },
+      { settleOn: "terminal", acquireLocalTurn: "required" }
+    );
+
+    callbacks.onAccepted({ workflowId: "workflow-1" });
+    expect(chatStore.chatStatus).toBe("submitted");
+    callbacks.onChunk({ kind: "text_delta", text: "saved" });
+    expect(chatStore.chatStatus).toBe("streaming");
+    callbacks.onDone({ totalTokens: 3 });
+
+    await expect(completion).resolves.toEqual({
+      status: "accepted",
+      result: { workflowId: "workflow-1" },
+    });
+    expect(chatStore.chatStatus).toBe("ready");
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("optional local lock 不阻止 dispatch，但 accepted 的 decision 仍建立 stream state", async () => {
+    const workspaceStore = useWorkspaceStore();
+    workspaceStore.currentWorkspace = workspaceInfo({ id: "project-1" });
+    const sessionStore = useSessionStore();
+    sessionStore.sessions = [makeSession({ id: "parent-1" })];
+    sessionStore.activeSessionId = "parent-1";
+    const chatStore = useChatStore();
+    let blockerCallbacks!: AppOwnedChatStreamCallbacks<void>;
+    let decisionCallbacks!: AppOwnedChatStreamCallbacks<void>;
+
+    const blocker = chatStore.dispatchAppOwnedChatTurn(
+      "project-1",
+      "parent-1",
+      (nextCallbacks) => {
+        blockerCallbacks = nextCallbacks;
+        return vi.fn();
+      },
+      { settleOn: "terminal", acquireLocalTurn: "required" }
+    );
+    const decision = chatStore.dispatchAppOwnedChatTurn(
+      "project-1",
+      "parent-1",
+      (nextCallbacks) => {
+        decisionCallbacks = nextCallbacks;
+        return vi.fn();
+      },
+      { settleOn: "terminal", acquireLocalTurn: "optional" }
+    );
+
+    decisionCallbacks.onAccepted(undefined);
+    expect(chatStore.chatStatus).toBe("submitted");
+    decisionCallbacks.onChunk({ kind: "text_delta", text: "cancelled" });
+    expect(chatStore.chatStatus).toBe("streaming");
+    decisionCallbacks.onDone({ totalTokens: 1 });
+    await expect(decision).resolves.toEqual({ status: "accepted" });
+
+    blockerCallbacks.onRejected("busy");
+    await expect(blocker).resolves.toEqual({ status: "busy" });
   });
 
   it("同一父会话的多条通知串行：前一条终态后才 dispatch 下一条", async () => {

@@ -12,7 +12,9 @@ import { newWorkflowId } from "@main/infra/ids";
 import {
   deleteWorkflowDefinition as deleteStoredWorkflowDefinition,
   listWorkflowDefinitions as listStoredWorkflowDefinitions,
+  loadSessionWorkflowDefinition as loadStoredSessionWorkflowDefinition,
   loadWorkflowDefinition as loadStoredWorkflowDefinition,
+  saveSessionWorkflowDefinition as saveStoredSessionWorkflowDefinition,
   saveWorkflowDefinition as saveStoredWorkflowDefinition,
 } from "@main/infra/storage/workflow-definition-store";
 import logger from "@main/infra/logger";
@@ -34,6 +36,32 @@ export async function loadWorkflowDefinition(
 ): Promise<WorkflowDefinitionRecord | null> {
   const stored = await loadStoredWorkflowDefinition(workspaceId, workflowId);
   return stored ? toRecord(stored.workflowId, stored.yaml) : null;
+}
+
+export async function loadSessionWorkflowDefinition(
+  workspaceId: string,
+  sessionId: string,
+  workflowId: string
+): Promise<WorkflowDefinitionRecord | null> {
+  const stored = await loadStoredSessionWorkflowDefinition(workspaceId, sessionId, workflowId);
+  return stored ? toRecord(stored.workflowId, stored.yaml) : null;
+}
+
+export async function saveSessionWorkflowDefinition(
+  workspaceId: string,
+  sessionId: string,
+  workflowId: string,
+  yaml: string
+): Promise<WorkflowDefinitionRecord> {
+  const definition = parseWorkflowYaml(yaml);
+  await saveStoredSessionWorkflowDefinition(workspaceId, sessionId, workflowId, yaml);
+  return {
+    workflowId,
+    name: definition.name,
+    ...(definition.description ? { description: definition.description } : {}),
+    yaml,
+    definition,
+  };
 }
 
 export async function listWorkflowDefinitions(workspaceId: string): Promise<WorkflowListResult> {

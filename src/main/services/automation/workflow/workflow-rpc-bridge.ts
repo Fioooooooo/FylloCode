@@ -7,16 +7,21 @@ import { getSessionExecutionContext } from "@main/services/session/_public";
 import type { WorkflowEngine } from "./workflow-engine";
 import { workflowEngine } from "./workflow-engine";
 import { listWorkflowDefinitions } from "./workflow-service";
+import { workflowProposalService, type WorkflowProposalService } from "./workflow-proposal-service";
 import {
   FYLLO_WORKFLOW_RPC_PROTOCOL,
   FYLLO_WORKFLOW_RPC_VERSION,
   listWorkflowsResultSchema,
+  describeWorkflowSchemaResultSchema,
+  proposeWorkflowResultSchema,
   triggerWorkflowResultSchema,
   workflowRpcCancelSchema,
   workflowRpcErrorCodeSchema,
   workflowRpcErrorSchema,
   workflowRpcRequestSchema,
   type ListWorkflowsResult,
+  type DescribeWorkflowSchemaResult,
+  type ProposeWorkflowResult,
   type TriggerWorkflowResult,
   type WorkflowRpcError,
   type WorkflowRpcRequest,
@@ -32,12 +37,14 @@ export interface WorkflowRpcHandlerDependencies {
   engine: Pick<WorkflowEngine, "triggerWorkflow">;
   listDefinitions: typeof listWorkflowDefinitions;
   getSessionExecutionContext: typeof getSessionExecutionContext;
+  proposalService?: Pick<WorkflowProposalService, "describeWorkflowSchema" | "proposeWorkflow">;
 }
 
 const defaultDependencies: WorkflowRpcHandlerDependencies = {
   engine: workflowEngine,
   listDefinitions: listWorkflowDefinitions,
   getSessionExecutionContext,
+  proposalService: workflowProposalService,
 };
 
 let unregisterBridge: (() => void) | null = null;
@@ -217,8 +224,21 @@ export async function handleWorkflowRpc(
   request: WorkflowRpcRequest,
   signal: AbortSignal,
   dependencies: WorkflowRpcHandlerDependencies = defaultDependencies
-): Promise<ListWorkflowsResult | TriggerWorkflowResult> {
+): Promise<
+  ListWorkflowsResult | TriggerWorkflowResult | DescribeWorkflowSchemaResult | ProposeWorkflowResult
+> {
   const caller = callerFromRequest(request);
+  const proposalService = dependencies.proposalService ?? workflowProposalService;
+  if (request.method === "describe_workflow_schema") {
+    if (signal.aborted) {
+      throw Object.assign(new Error("Workflow RPC request was cancelled"), {
+        code: "WORKFLOW_RPC_CANCELLED",
+      });
+    }
+    return describeWorkflowSchemaResultSchema.parse(
+      proposalService.describeWorkflowSchema(request.params.withExamples ?? false)
+    );
+  }
   if (request.method === "list_workflows") {
     await requireChatCaller(caller, dependencies);
     if (signal.aborted) {
@@ -227,6 +247,18 @@ export async function handleWorkflowRpc(
       });
     }
     return listResult(await dependencies.listDefinitions(caller.workspaceId));
+  }
+
+  if (request.method === "propose_workflow") {
+    await requireChatCaller(caller, dependencies);
+    if (signal.aborted) {
+      throw Object.assign(new Error("Workflow RPC request was cancelled"), {
+        code: "WORKFLOW_RPC_CANCELLED",
+      });
+    }
+    return proposeWorkflowResultSchema.parse(
+      await proposalService.proposeWorkflow({ ...request.params, caller })
+    );
   }
 
   try {

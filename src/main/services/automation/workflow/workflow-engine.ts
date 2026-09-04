@@ -14,7 +14,10 @@ import {
   validateWorkflowDefinition,
   WorkflowDefinitionValidationError,
 } from "@main/domain/automation/workflow/yaml-parser";
-import { loadWorkflowDefinition as loadDefinitionService } from "./workflow-service";
+import {
+  loadSessionWorkflowDefinition as loadSessionDefinitionService,
+  loadWorkflowDefinition as loadDefinitionService,
+} from "./workflow-service";
 import {
   appendWorkflowRunTranscript,
   listWorkflowRunSnapshotEntries,
@@ -52,6 +55,7 @@ export interface WorkflowTriggerResult {
 
 export interface WorkflowEngineDependencies {
   loadDefinition: typeof loadDefinitionService;
+  loadSessionDefinition: typeof loadSessionDefinitionService;
   listRunSnapshots: typeof listWorkflowRunSnapshots;
   listRunEntries: typeof listWorkflowRunSnapshotEntries;
   loadRunSnapshot: typeof loadWorkflowRunSnapshot;
@@ -86,6 +90,7 @@ export interface WorkflowReconcileResult {
 
 const defaultDependencies: WorkflowEngineDependencies = {
   loadDefinition: loadDefinitionService,
+  loadSessionDefinition: loadSessionDefinitionService,
   listRunSnapshots: listWorkflowRunSnapshots,
   listRunEntries: listWorkflowRunSnapshotEntries,
   loadRunSnapshot: loadWorkflowRunSnapshot,
@@ -300,10 +305,14 @@ export class WorkflowEngine {
         );
       }
 
-      const definitionRecord = await this.dependencies.loadDefinition(
+      const sessionDefinitionRecord = await this.dependencies.loadSessionDefinition(
         workspaceId,
+        parentSessionId,
         request.workflowId
       );
+      const definitionRecord =
+        sessionDefinitionRecord ??
+        (await this.dependencies.loadDefinition(workspaceId, request.workflowId));
       if (!definitionRecord) {
         throw new WorkflowEngineError(
           IpcErrorCodes.WORKFLOW_NOT_FOUND,
@@ -328,6 +337,7 @@ export class WorkflowEngine {
         workflowId: definitionRecord.workflowId,
         parentSessionId,
         frozenDefinition: structuredClone(definitionRecord.definition),
+        definitionSource: sessionDefinitionRecord ? "session" : "workspace",
         status: definitionRecord.definition.confirmStart
           ? "awaiting_start_confirmation"
           : "running",

@@ -135,6 +135,7 @@ export interface WorkflowRunSnapshot {
   workflowId: string;
   parentSessionId: string;
   frozenDefinition: WorkflowDefinition;
+  definitionSource?: "session" | "workspace";
   status: WorkflowRunStatus;
   currentStageId: string;
   visitCounts: Record<string, number>;
@@ -221,3 +222,102 @@ export interface WorkflowRunWakePayload {
 export interface WorkflowRunListResult {
   runs: WorkflowRunSummary[];
 }
+
+export type WorkflowProposalMode = "create" | "update";
+
+export type WorkflowProposalPersist = "session" | "workspace";
+
+export type WorkflowProposalStatus = "pending" | "confirming" | "confirmed" | "cancelled";
+
+export interface WorkflowProposalSummary {
+  proposalId: string;
+  workspaceId: string;
+  parentSessionId: string;
+  mode: WorkflowProposalMode;
+  targetWorkflowId?: string;
+  suggestedPersist: WorkflowProposalPersist;
+  status: WorkflowProposalStatus;
+  handoffDelivered?: boolean;
+  resolvedWorkflowId?: string;
+  resolvedPersist?: WorkflowProposalPersist;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowProposalDetail extends WorkflowProposalSummary {
+  yaml: string;
+  definition: WorkflowDefinition;
+  targetWorkflowName?: string;
+}
+
+export interface WorkflowProposalListRequest {
+  workspaceId: string;
+  parentSessionId: string;
+}
+
+export interface WorkflowProposalDetailRequest extends WorkflowProposalListRequest {
+  proposalId: string;
+}
+
+export interface WorkflowProposalConfirmRequest extends WorkflowProposalDetailRequest {
+  persist: WorkflowProposalPersist;
+}
+
+export interface WorkflowProposalConfirmDispatchRequest extends WorkflowProposalConfirmRequest {
+  streamId: string;
+}
+
+export type WorkflowProposalCancelRequest = WorkflowProposalDetailRequest;
+
+export interface WorkflowProposalWakePayload {
+  workspaceId: string;
+  parentSessionId: string;
+  proposalId: string;
+}
+
+export type WorkflowProposalConfirmResult =
+  | {
+      status: "confirmed";
+      workflowId: string;
+      persist: WorkflowProposalPersist;
+    }
+  | {
+      status: "cancelled";
+    };
+
+export type WorkflowProposalConfirmDispatchResult =
+  | {
+      status: "accepted";
+      result: WorkflowProposalConfirmResult;
+    }
+  | {
+      status: "not_pending" | "busy";
+    };
+
+export type WorkflowProposalCancelResult =
+  | { status: "cancelled" }
+  | { status: "confirmed"; workflowId: string; persist: WorkflowProposalPersist };
+
+export interface WorkflowProposalListResult {
+  proposals: WorkflowProposalSummary[];
+}
+
+export type WorkflowDecisionNotificationState =
+  "pending" | "dispatched" | "delivered" | "delivery_unknown" | "suppressed";
+
+export interface WorkflowProposalDecisionSummary {
+  notificationId: string;
+  parentSessionId: string;
+  proposalId: string;
+  decision: "cancelled";
+  state: WorkflowDecisionNotificationState;
+  decidedAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowProposalDecisionListResult {
+  decisions: WorkflowProposalDecisionSummary[];
+}
+
+export type WorkflowProposalDecisionDispatchResult =
+  { status: "accepted" } | { status: "not_pending" | "busy" };

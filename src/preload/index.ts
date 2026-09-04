@@ -17,6 +17,7 @@ import { workspaceIntegrationApi } from "./api/automation/workspace-integration"
 import { taskApi } from "./api/automation/task";
 import { workflowApi } from "./api/automation/workflow";
 import { workflowRunApi } from "./api/automation/workflow-run";
+import { workflowProposalApi } from "./api/automation/workflow-proposal";
 import { guidelinesApi } from "./api/insight/guidelines";
 import { knowledgeApi } from "./api/insight/knowledge";
 import { lineageApi } from "./api/insight/lineage";
@@ -55,6 +56,7 @@ const api = {
   automation: {
     workflow: workflowApi,
     workflowRun: workflowRunApi,
+    workflowProposal: workflowProposalApi,
     task: taskApi,
     workspaceIntegration: workspaceIntegrationApi,
   },

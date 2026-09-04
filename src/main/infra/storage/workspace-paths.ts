@@ -3,7 +3,17 @@ import { getDataSubPath } from "@main/infra/paths";
 
 export function assertStorageIdentity(
   id: string,
-  label: "Workspace" | "Folder" | "Session" | "Response" | "Turn" | "Workflow" | "Run" | "Stage"
+  label:
+    | "Workspace"
+    | "Folder"
+    | "Session"
+    | "Response"
+    | "Turn"
+    | "Workflow"
+    | "Proposal"
+    | "Notification"
+    | "Run"
+    | "Stage"
 ): string {
   if (!id || id === "." || id === ".." || /[\\/\0]/.test(id)) {
     throw new Error(`${label} ID is not safe for storage`);
@@ -144,6 +154,67 @@ export function workflowDir(workspaceId: string, workflowId: string): string {
 
 export function workflowDefinitionPath(workspaceId: string, workflowId: string): string {
   return join(workflowDir(workspaceId, workflowId), "definition.yaml");
+}
+
+export function workflowProposalsDir(workspaceId: string, parentSessionId: string): string {
+  return join(sessionDir(workspaceId, parentSessionId), "workflow-proposals");
+}
+
+export function workflowProposalDir(
+  workspaceId: string,
+  parentSessionId: string,
+  proposalId: string
+): string {
+  return join(
+    workflowProposalsDir(workspaceId, parentSessionId),
+    assertStorageIdentity(proposalId, "Proposal")
+  );
+}
+
+export function workflowProposalDefinitionPath(
+  workspaceId: string,
+  parentSessionId: string,
+  proposalId: string
+): string {
+  return join(workflowProposalDir(workspaceId, parentSessionId, proposalId), "definition.yaml");
+}
+
+export function workflowProposalMetaPath(
+  workspaceId: string,
+  parentSessionId: string,
+  proposalId: string
+): string {
+  return join(workflowProposalDir(workspaceId, parentSessionId, proposalId), ".meta.json");
+}
+
+export function workflowDecisionsDir(workspaceId: string, parentSessionId: string): string {
+  return join(sessionDir(workspaceId, parentSessionId), "workflow-decisions");
+}
+
+export function workflowDecisionPath(
+  workspaceId: string,
+  parentSessionId: string,
+  proposalId: string
+): string {
+  return join(
+    workflowDecisionsDir(workspaceId, parentSessionId),
+    `${assertStorageIdentity(proposalId, "Proposal")}.json`
+  );
+}
+
+export function sessionWorkflowsDir(workspaceId: string, sessionId: string): string {
+  return join(sessionDir(workspaceId, sessionId), "workflows");
+}
+
+export function sessionWorkflowDefinitionPath(
+  workspaceId: string,
+  sessionId: string,
+  workflowId: string
+): string {
+  return join(
+    sessionWorkflowsDir(workspaceId, sessionId),
+    `${assertStorageIdentity(workflowId, "Workflow")}.yaml`
+  );
 }
 
 export function workflowRunsDir(workspaceId: string, workflowId: string): string {

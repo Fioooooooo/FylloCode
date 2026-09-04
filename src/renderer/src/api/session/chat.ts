@@ -27,12 +27,17 @@ export interface StreamCallbacks {
   onError: (error: StreamError) => void;
 }
 
-export interface SpawnNotificationStreamCallbacks extends StreamCallbacks {
+export interface AppOwnedChatStreamCallbacks<Accepted = void> extends StreamCallbacks {
   /** dispatch 前置校验未通过（不会建立 port）。 */
   onRejected: (status: "not_pending" | "busy") => void;
-  /** 已 claim、通道已建立；在首个 chunk 到达前同步调用。 */
-  onAccepted: () => void;
+  /** 已 claim、通道已建立；在 ready 握手发出前同步调用。 */
+  onAccepted: (result: Accepted) => void;
 }
+
+export type SpawnNotificationStreamCallbacks = AppOwnedChatStreamCallbacks<void>;
+
+export type AppOwnedChatDispatchResult<Accepted = void> =
+  { status: "accepted"; result?: Accepted } | { status: "not_pending" | "busy" };
 
 type ProbeConfigOptionInput = {
   workspaceId: string;

@@ -7,7 +7,13 @@ import type { MessageChunkData } from "@shared/types/ipc";
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { LineageTaskRef } from "@shared/types/lineage";
 import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
-import { chatApi, type StreamCallbacks, type StreamError } from "@renderer/api/session/chat";
+import {
+  chatApi,
+  type AppOwnedChatDispatchResult,
+  type AppOwnedChatStreamCallbacks,
+  type StreamCallbacks,
+  type StreamError,
+} from "@renderer/api/session/chat";
 import { useUIMessageAssembler } from "@renderer/composables/useUIMessageAssembler";
 import { isSystemReminderPart } from "@renderer/utils/system-reminder";
 import { useWorkspaceStore } from "../workspace/workspace";
@@ -102,6 +108,13 @@ type MaterializePromptAttachments = (target: {
   sessionId: string;
 }) => Promise<ChatPromptPart[]>;
 
+export interface AppOwnedChatTurnOptions {
+  /** 仅确认 dispatch 需要在 accepted 后立即返回；decision dispatch 要等终态。 */
+  settleOn?: "accepted" | "terminal";
+  /** workflow proposal 在父会话忙碌时仍需完成定义确认，再由 Main 返回 handoff fallback。 */
+  acquireLocalTurn?: "required" | "optional";
+}
+
 export const useChatStore = defineStore("chat", () => {
   const toast = useToast();
   const mode = ref<ModeType>("manual");
@@ -190,79 +203,28 @@ export const useChatStore = defineStore("chat", () => {
     notification: SpawnNotificationSummary
   ): Promise<void> {
     const sessionId = notification.parentSessionId;
-    if (!tryAcquireLocalTurn(sessionId, "notification")) return;
-
-    const sessionStore = useSessionStore();
-    const session = sessionStore.sessions.find((item) => item.id === sessionId);
-
-    // chunk 消费处理器在 onAccepted 中建立（需要 streamRunId 与目标 session）；
-    // main 侧的 ready 握手推迟到 accepted 之后，chunk 不会先于状态建立到达。
-    let chunkHandlers: StreamCallbacks | null = null;
-    let markDecided!: () => void;
-    const decided = new Promise<void>((resolve) => {
-      markDecided = resolve;
-    });
-
-    const cancel = chatApi.dispatchSpawnNotification(
-      workspaceId,
-      notification.notificationId,
-      sessionId,
-      {
-        onAccepted() {
-          releaseLocalTurn(sessionId, "notification");
-          if (!session) {
-            markDecided();
-            return;
-          }
-          const streamRunId = beginSessionStreamRun(sessionId);
-          markSessionRunning(session, sessionStore);
-          // 未加载历史的会话不接内容流（保持懒加载），chunk 只驱动 stream state。
-          const canAssemble =
-            sessionStore.activeSessionId === sessionId ||
-            sessionStore.isSessionMessagesLoaded(sessionId);
-          const assembler = canAssemble
-            ? useUIMessageAssembler(ref(session.messages), { sessionId })
-            : null;
-          chunkHandlers = createStreamRunCallbacks({
-            session,
+    try {
+      const result = await dispatchAppOwnedChatTurn(
+        workspaceId,
+        sessionId,
+        (callbacks) =>
+          chatApi.dispatchSpawnNotification(
             workspaceId,
-            sessionStore,
-            streamRunId,
-            assembler,
-            refreshOnTerminal: canAssemble,
-          });
-          updateSessionStreamState(sessionId, (state) =>
-            state.runId === streamRunId ? { ...state, cancel } : state
-          );
-          markDecided();
-        },
-        onRejected(status) {
-          releaseLocalTurn(sessionId, "notification");
-          if (status === "busy") {
-            scheduleNotificationDrainRetry(workspaceId);
-          }
-          markDecided();
-        },
-        onChunk(data) {
-          chunkHandlers?.onChunk(data);
-        },
-        onDone(data) {
-          chunkHandlers?.onDone(data);
-        },
-        onError(error) {
-          if (!chunkHandlers) {
-            // accepted 之前失败（init 失败等）：只释放本地锁，不建立状态。
-            releaseLocalTurn(sessionId, "notification");
-            console.error("Spawn notification dispatch failed:", error.code, error.message);
-            markDecided();
-            return;
-          }
-          chunkHandlers.onError(error);
-        },
+            notification.notificationId,
+            sessionId,
+            callbacks
+          ),
+        { settleOn: "accepted", acquireLocalTurn: "required" }
+      );
+      if (result.status === "busy") {
+        scheduleNotificationDrainRetry(workspaceId);
       }
-    );
-
-    await decided;
+    } catch (error: unknown) {
+      console.error(
+        "Spawn notification dispatch failed:",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   }
 
   async function drainSpawnNotifications(workspaceId: string): Promise<void> {
@@ -545,6 +507,140 @@ export const useChatStore = defineStore("chat", () => {
         void requestSpawnNotificationDrain(workspaceId);
       },
     };
+  }
+
+  async function dispatchAppOwnedChatTurn<Accepted>(
+    workspaceId: string,
+    sessionId: string,
+    dispatch: (callbacks: AppOwnedChatStreamCallbacks<Accepted>) => () => void,
+    options: AppOwnedChatTurnOptions = {}
+  ): Promise<AppOwnedChatDispatchResult<Accepted>> {
+    const sessionStore = useSessionStore();
+    const session = sessionStore.sessions.find((item) => item.id === sessionId);
+    const ownsLocalTurn = tryAcquireLocalTurn(sessionId, "notification");
+    if (!ownsLocalTurn && options.acquireLocalTurn !== "optional") {
+      return { status: "busy" };
+    }
+
+    let chunkHandlers: StreamCallbacks | null = null;
+    let attachedRunId: number | null = null;
+    let accepted = false;
+    let terminalEvent = false;
+    let acceptedResult: Accepted | undefined;
+    let settled = false;
+    let resolveCompletion!: (result: AppOwnedChatDispatchResult<Accepted>) => void;
+    let rejectCompletion!: (error: unknown) => void;
+    const completion = new Promise<AppOwnedChatDispatchResult<Accepted>>((resolve, reject) => {
+      resolveCompletion = resolve;
+      rejectCompletion = reject;
+    });
+    const settleAccepted = (): void => {
+      if (settled) return;
+      settled = true;
+      resolveCompletion({
+        status: "accepted",
+        ...(acceptedResult === undefined ? {} : { result: acceptedResult }),
+      });
+    };
+
+    let cancel = (): void => undefined;
+    const callbacks: AppOwnedChatStreamCallbacks<Accepted> = {
+      onAccepted(result) {
+        if (accepted || terminalEvent) return;
+        accepted = true;
+        acceptedResult = result;
+        const shouldAttachStream =
+          Boolean(session) && (ownsLocalTurn || options.settleOn === "terminal");
+        if (ownsLocalTurn) {
+          releaseLocalTurn(sessionId, "notification");
+        }
+        if (shouldAttachStream) {
+          attachedRunId = beginSessionStreamRun(sessionId);
+          markSessionRunning(session!, sessionStore);
+          const canAssemble =
+            sessionStore.activeSessionId === sessionId ||
+            sessionStore.isSessionMessagesLoaded(sessionId);
+          const assembler = canAssemble
+            ? useUIMessageAssembler(ref(session!.messages), { sessionId })
+            : null;
+          chunkHandlers = createStreamRunCallbacks({
+            session: session!,
+            workspaceId,
+            sessionStore,
+            streamRunId: attachedRunId,
+            assembler,
+            refreshOnTerminal: canAssemble,
+          });
+          updateSessionStreamState(sessionId, (state) =>
+            state.runId === attachedRunId ? { ...state, cancel } : state
+          );
+        }
+
+        if (options.settleOn !== "terminal" || !shouldAttachStream) {
+          settleAccepted();
+        }
+      },
+      onRejected(status) {
+        if (terminalEvent) return;
+        terminalEvent = true;
+        if (ownsLocalTurn) releaseLocalTurn(sessionId, "notification");
+        if (!settled) {
+          settled = true;
+          resolveCompletion({ status });
+        }
+      },
+      onChunk(data) {
+        if (!accepted || terminalEvent) return;
+        chunkHandlers?.onChunk(data);
+      },
+      onDone(data) {
+        if (terminalEvent) return;
+        terminalEvent = true;
+        if (!accepted) {
+          if (ownsLocalTurn) releaseLocalTurn(sessionId, "notification");
+          const failure = Object.assign(
+            new Error("App-owned Chat stream completed before it was accepted"),
+            { code: "STREAM_PROTOCOL_ERROR" }
+          );
+          if (!settled) {
+            settled = true;
+            rejectCompletion(failure);
+          }
+          return;
+        }
+        chunkHandlers?.onDone(data);
+        if (accepted && options.settleOn === "terminal") settleAccepted();
+      },
+      onError(error) {
+        if (terminalEvent) return;
+        terminalEvent = true;
+        if (!accepted) {
+          if (ownsLocalTurn) releaseLocalTurn(sessionId, "notification");
+          const failure = Object.assign(new Error(error.message), { code: error.code });
+          if (!settled) {
+            settled = true;
+            rejectCompletion(failure);
+          }
+          return;
+        }
+        chunkHandlers?.onError(error);
+        if (options.settleOn === "terminal") settleAccepted();
+      },
+    };
+
+    try {
+      cancel = dispatch(callbacks);
+      if (attachedRunId !== null) {
+        updateSessionStreamState(sessionId, (state) =>
+          state.runId === attachedRunId ? { ...state, cancel } : state
+        );
+      }
+    } catch (error: unknown) {
+      if (ownsLocalTurn) releaseLocalTurn(sessionId, "notification");
+      throw error;
+    }
+
+    return completion;
   }
 
   function streamSessionMessage(
@@ -924,6 +1020,7 @@ export const useChatStore = defineStore("chat", () => {
     setMode,
     resetChatState,
     cancelStream,
+    dispatchAppOwnedChatTurn,
     setConfigOption,
     requestSpawnNotificationDrain,
   };

@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { writeFileAtomicSync } from "@main/infra/storage/atomic-write";
 import {
+  sessionWorkflowDefinitionPath,
   workflowDefinitionPath,
   workflowDir,
   workflowsDir,
@@ -72,6 +73,38 @@ export async function saveWorkflowDefinition(
   yaml: string
 ): Promise<StoredWorkflowDefinition> {
   const path = workflowDefinitionPath(workspaceId, workflowId);
+  await withWriteQueue(path, async () => {
+    writeFileAtomicSync(path, yaml);
+  });
+  return { workflowId, yaml };
+}
+
+export async function loadSessionWorkflowDefinition(
+  workspaceId: string,
+  sessionId: string,
+  workflowId: string
+): Promise<StoredWorkflowDefinition | null> {
+  try {
+    return {
+      workflowId,
+      yaml: await fs.readFile(
+        sessionWorkflowDefinitionPath(workspaceId, sessionId, workflowId),
+        "utf8"
+      ),
+    };
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function saveSessionWorkflowDefinition(
+  workspaceId: string,
+  sessionId: string,
+  workflowId: string,
+  yaml: string
+): Promise<StoredWorkflowDefinition> {
+  const path = sessionWorkflowDefinitionPath(workspaceId, sessionId, workflowId);
   await withWriteQueue(path, async () => {
     writeFileAtomicSync(path, yaml);
   });

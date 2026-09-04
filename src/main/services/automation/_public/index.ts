@@ -14,3 +14,7 @@ export {
   workflowActionRunner,
 } from "../workflow/workflow-action-runner";
 export { hasPendingWorkspaceActions } from "../action/workspace-action-reference";
+export {
+  WorkflowDecisionService,
+  workflowDecisionService,
+} from "../workflow/workflow-decision-service";

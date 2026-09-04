@@ -295,7 +295,7 @@ Phase 1 SHALL NOT ship, discover or initialize any built-in workflow template. W
 
 Workflow Run SHALL 归属于 `{workspaceId,parentSessionId}`，且 active 状态下同一复合 key SHALL 最多存在一个 Run。`trigger_workflow` 的调用方 SHALL 只提供 workflowId；parentSessionId SHALL 来自 Main 信任的 bundled MCP caller/Workspace context，不得接受 agent 自报的 parentSessionId。
 
-创建 Run 前系统 SHALL 读取、解析并完成 Phase 1 preflight，然后组装完整的 `WorkflowRunSnapshot` 并以原子写入创建 `<run-id>/<run-id>.json`。创建成功前 SHALL NOT 向调用方返回 runId。快照 SHALL 包含 `snapshotSchemaVersion: 1`、完整 inline `frozenDefinition`、currentStageId、visitCounts、artifacts 和 status；不得使用 `workflowVersion`、仅 hash 或 live definition 引用。
+创建 Run 前系统 SHALL 按以下顺序解析 definition：先查找 `workspaceDataDir/sessions/<parentSessionId>/workflows/<workflowId>.yaml`（session shadow），若不存在则查找 `workspaceDataDir/workflows/<workflowId>/definition.yaml`（workspace 正式资产）。解析到 definition 后 SHALL 完成 Phase 1 preflight，然后组装完整的 `WorkflowRunSnapshot` 并以原子写入创建 `<run-id>/<run-id>.json`。创建成功前 SHALL NOT 向调用方返回 runId。快照 SHALL 包含 `snapshotSchemaVersion: 1`、完整 inline `frozenDefinition`、`definitionSource`（`"session" | "workspace"`，记录实际命中的来源）、currentStageId、visitCounts、artifacts 和 status；不得使用 `workflowVersion`、仅 hash 或 live definition 引用。
 
 #### Scenario: 创建普通 Run
 
@@ -323,6 +323,20 @@ Workflow Run SHALL 归属于 `{workspaceId,parentSessionId}`，且 active 状态
 - **THEN** `trigger_workflow` SHALL 返回持久化错误
 - **AND** SHALL NOT 把未完整写入的 runId 返回给调用方
 - **AND** SHALL NOT 启动 ACP session 或 Action process
+
+#### Scenario: Session shadow definition 优先于 workspace 正式资产
+
+- **WHEN** 同一 `workflowId` 同时存在于当前 parent session 的 session shadow 目录和 workspace 正式目录
+- **THEN** `trigger_workflow` SHALL 使用 session shadow definition 创建 Run
+- **AND** snapshot 的 `definitionSource` SHALL 记录为 `"session"`
+- **AND** workspace 正式 definition SHALL 保持不受影响
+
+#### Scenario: Session shadow definition 被删除后历史 Run 不受影响
+
+- **WHEN** 某个 Run 已经使用 session shadow definition（`definitionSource: "session"`）创建并持久化 `frozenDefinition`
+- **AND** 之后该 session shadow 文件被删除或被更新覆盖
+- **THEN** 该历史 Run 的 detail SHALL 继续展示原始 `frozenDefinition` 与 `definitionSource`
+- **AND** 系统 SHALL NOT 静默改用 workspace definition 重新解释该 Run
 
 ### Requirement: Run transitions SHALL be serialized and follow definition Transition/maxLoops semantics
 

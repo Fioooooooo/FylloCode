@@ -45,6 +45,9 @@ const mocks = vi.hoisted(() => ({
   forceDisposeSpawnSessions: vi.fn(),
   attachWorkflowAgentRunner: vi.fn(),
   attachWorkflowActionRunner: vi.fn(),
+  beginWorkflowDecisionShutdown: vi.fn(),
+  suppressWorkflowDecisions: vi.fn(),
+  reconcileWorkflowDecisions: vi.fn(),
   reconcileWorkspaces: vi.fn(),
   listWorkspaceIds: vi.fn(),
   getRequiredWorkspaceInfo: vi.fn(),
@@ -116,6 +119,11 @@ vi.mock("@main/services/automation/_public", () => ({
   },
   workflowAgentRunner: { attachToEngine: mocks.attachWorkflowAgentRunner },
   workflowActionRunner: { attachEngine: mocks.attachWorkflowActionRunner },
+  workflowDecisionService: {
+    beginShutdown: mocks.beginWorkflowDecisionShutdown,
+    suppressParent: mocks.suppressWorkflowDecisions,
+    reconcileWorkspace: mocks.reconcileWorkflowDecisions,
+  },
 }));
 vi.mock("@main/services/automation/workflow/workflow-rpc-bridge", () => ({
   registerWorkflowRpcBridge: mocks.registerWorkflowRpcBridge,
@@ -227,6 +235,7 @@ describe("application runtime", () => {
       skipped: [],
       errors: [],
     });
+    mocks.reconcileWorkflowDecisions.mockResolvedValue(undefined);
   });
 
   it("waits for gate and PATH before wiring, then activates the formal generation", async () => {

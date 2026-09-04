@@ -235,6 +235,46 @@ describe("workflow state machine", () => {
     expect(signalled).toMatchObject({ status: "running", currentStageId: "done" });
   });
 
+  it("clears a previous Agent session before entering a later Agent stage", () => {
+    const twoAgentDefinition: WorkflowDefinition = {
+      name: "Two Agent fixture",
+      version: 2,
+      requires: [],
+      stages: [
+        {
+          id: "action",
+          kind: "action",
+          op: { type: "exec", command: "true" },
+          confirm: false,
+          next: [{ on: "pass", goto: "review" }],
+        },
+        {
+          id: "review",
+          kind: "agent",
+          context: "fresh",
+          prompt: "Review the repository",
+          produces: { id: "review-result", schema: "freeform" },
+          terminal: true,
+        },
+      ],
+    };
+
+    const nextAgent = advance(
+      snapshot("action", {
+        frozenDefinition: twoAgentDefinition,
+        agentSessionState: { sessionId: "workflow-session-previous" },
+        artifacts: { inspection: "previous result" },
+      }),
+      { type: "action-completed", exitCode: 0 }
+    );
+
+    expect(nextAgent).toMatchObject({
+      status: "running",
+      currentStageId: "review",
+    });
+    expect(nextAgent.agentSessionState).toBeUndefined();
+  });
+
   it("cancels rejected confirmations and rejects duplicate or late decisions", () => {
     const awaitingStart = snapshot("agent", {
       status: "awaiting_start_confirmation",

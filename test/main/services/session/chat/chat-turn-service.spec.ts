@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpawnedTurnRecord } from "@main/infra/storage/spawned-session-store";
 import type { StreamOutput } from "@main/services/session/chat/acp-stream-driver";
+import type { WorkflowProposalRecord } from "@main/infra/storage/workflow-proposal-store";
 
 const mocks = vi.hoisted(() => ({
   messages: [] as Array<{ workspaceId: string; sessionId: string; message: unknown }>,
@@ -100,6 +101,7 @@ vi.mock("@main/services/session/chat/acp-session", async () => {
 import {
   createRendererChatTurn,
   claimSpawnNotificationTurn,
+  claimWorkflowConfirmHandoff,
 } from "@main/services/session/chat/chat-turn-service";
 import { chatTurnGate } from "@main/services/session/chat/chat-turn-gate";
 import { resetSessionRegistryForTests } from "@main/services/session/chat/session-registry";
@@ -135,6 +137,25 @@ function createOutput() {
     sendChunk: vi.fn<StreamOutput["sendChunk"]>(),
     sendDone: vi.fn<StreamOutput["sendDone"]>(),
     sendError: vi.fn<StreamOutput["sendError"]>(),
+  };
+}
+
+function proposalRecord(): WorkflowProposalRecord {
+  return {
+    meta: {
+      version: 1,
+      proposalId: "proposal-1",
+      workspaceId: "workspace-1",
+      parentSessionId: "parent-1",
+      mode: "create",
+      suggestedPersist: "workspace",
+      status: "confirmed",
+      resolvedWorkflowId: "workflow-1",
+      resolvedPersist: "workspace",
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:02.000Z",
+    },
+    yaml: "name: Workflow\nversion: 2\nstages: []",
   };
 }
 
@@ -316,6 +337,44 @@ describe("chat-turn-service", () => {
     expect(mocks.messages.at(-1)?.message).toMatchObject({
       role: "assistant",
       metadata: { model: "gpt-5.6", effort: "high" },
+    });
+  });
+
+  it("确认 handoff 的 runner 惰性且重复 start 复用同一实例", async () => {
+    const claim = await claimWorkflowConfirmHandoff(proposalRecord(), "workflow-1", "workspace");
+    expect(claim.status).toBe("accepted");
+    if (claim.status !== "accepted") return;
+
+    const output = createOutput();
+    const runner = await claim.start(output);
+    expect(await claim.start(createOutput())).toBe(runner);
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(true);
+
+    await runner.start();
+    await runner.completion;
+
+    expect(output.sendChunk).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "text_delta", text: "parent acknowledged" })
+    );
+    expect(output.sendDone).toHaveBeenCalledWith(2);
+    expect(mocks.messages[0]?.message).toMatchObject({ role: "user" });
+    expect(
+      (mocks.messages[0]?.message as { parts: Array<{ text: string }> }).parts[0]?.text
+    ).toContain("workflowId=workflow-1");
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
+  });
+
+  it("确认 handoff abort 幂等释放 lease，之后不能再启动 runner", async () => {
+    const claim = await claimWorkflowConfirmHandoff(proposalRecord(), "workflow-1", "session");
+    expect(claim.status).toBe("accepted");
+    if (claim.status !== "accepted") return;
+
+    await claim.abort();
+    await claim.abort();
+
+    expect(chatTurnGate.isActive("workspace-1", "parent-1")).toBe(false);
+    await expect(claim.start(createOutput())).rejects.toMatchObject({
+      code: "WORKFLOW_PROPOSAL_INVALID_STATE",
     });
   });
 });

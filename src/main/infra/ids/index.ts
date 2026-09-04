@@ -28,6 +28,14 @@ export function newWorkflowId(): string {
   return `workflow-${baseId()}`;
 }
 
+export function newWorkflowProposalId(): string {
+  return `proposal-${baseId()}`;
+}
+
+export function newWorkflowDecisionNotificationId(): string {
+  return `workflow-decision-${baseId()}`;
+}
+
 export function newArchiveRunId(): string {
   return `archive-${baseId()}`;
 }

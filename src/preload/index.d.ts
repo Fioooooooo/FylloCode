@@ -15,6 +15,7 @@ import type { workspaceIntegrationApi } from "./api/automation/workspace-integra
 import type { taskApi } from "./api/automation/task";
 import type { workflowApi } from "./api/automation/workflow";
 import type { workflowRunApi } from "./api/automation/workflow-run";
+import type { workflowProposalApi } from "./api/automation/workflow-proposal";
 import type { guidelinesApi } from "./api/insight/guidelines";
 import type { knowledgeApi } from "./api/insight/knowledge";
 import type { lineageApi } from "./api/insight/lineage";
@@ -53,6 +54,7 @@ export interface AppApi {
   automation: {
     workflow: typeof workflowApi;
     workflowRun: typeof workflowRunApi;
+    workflowProposal: typeof workflowProposalApi;
     task: typeof taskApi;
     workspaceIntegration: typeof workspaceIntegrationApi;
   };

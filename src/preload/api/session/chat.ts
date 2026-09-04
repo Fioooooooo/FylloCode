@@ -17,10 +17,7 @@ import type {
 import type { ChatPromptPart } from "@shared/types/chat-prompt";
 import type { ProbeSnapshot } from "@shared/types/chat-probe";
 import type { LineageTaskRef } from "@shared/types/lineage";
-import type {
-  SpawnNotificationDispatchResult,
-  SpawnNotificationSummary,
-} from "@shared/ipc/session/chat.schemas";
+import type { SpawnNotificationSummary } from "@shared/ipc/session/chat.schemas";
 
 type SessionPatch = Partial<Pick<Session, "title" | "agentId" | "isPinned">>;
 type ProbeConfigOptionInput = {
@@ -43,12 +40,26 @@ export interface StreamCallbacks {
   onError: (error: { code: string; message: string }) => void;
 }
 
-export interface SpawnNotificationStreamCallbacks extends StreamCallbacks {
+export interface AppOwnedChatStreamCallbacks<Accepted = void> extends StreamCallbacks {
   /** dispatch 前置校验未通过（不会建立 port）。 */
   onRejected: (status: "not_pending" | "busy") => void;
   /** 已 claim、通道已建立；在 ready 握手发出前同步调用，供 renderer 先建立 stream state。 */
-  onAccepted: () => void;
+  onAccepted: (result: Accepted) => void;
 }
+
+export type SpawnNotificationStreamCallbacks = AppOwnedChatStreamCallbacks<void>;
+
+export type AppOwnedChatDispatchResult<Accepted = void> =
+  { status: "accepted"; result?: Accepted } | { status: "not_pending" | "busy" };
+
+export interface AppOwnedChatDispatchInput {
+  workspaceId: string;
+  streamId: string;
+}
+
+export type AppOwnedChatDispatchInputBuilder<Input extends AppOwnedChatDispatchInput> = (
+  streamId: string
+) => Input;
 
 interface PendingChatStream {
   sessionId: string;
@@ -56,6 +67,7 @@ interface PendingChatStream {
   callbacks: StreamCallbacks;
   port: MessagePort | null;
   cancelled: boolean;
+  terminal: boolean;
   /** dispatch 流专用：invoke 确认 accepted 前不向 main 发送 ready 握手。 */
   deferReady?: boolean;
 }
@@ -88,7 +100,7 @@ function closePort(port: MessagePort | null): void {
 
 function bindStreamPort(streamId: string, port: MessagePort): void {
   const pending = pendingChatStreams.get(streamId);
-  if (!pending) {
+  if (!pending || pending.terminal || pending.port) {
     closePort(port);
     return;
   }
@@ -101,20 +113,34 @@ function bindStreamPort(streamId: string, port: MessagePort): void {
   }
 
   port.onmessage = ({ data }) => {
+    if (pendingChatStreams.get(streamId) !== pending || pending.terminal) {
+      return;
+    }
+
     if (data.type === "chunk") {
       pending.callbacks.onChunk(data.data);
       return;
     }
 
     if (data.type === "done") {
-      pending.callbacks.onDone(data.data);
+      pending.terminal = true;
       pendingChatStreams.delete(streamId);
+      try {
+        pending.callbacks.onDone(data.data);
+      } finally {
+        closePort(port);
+      }
       return;
     }
 
     if (data.type === "error") {
-      pending.callbacks.onError(data.data);
+      pending.terminal = true;
       pendingChatStreams.delete(streamId);
+      try {
+        pending.callbacks.onError(data.data);
+      } finally {
+        closePort(port);
+      }
     }
   };
   port.start();
@@ -145,6 +171,102 @@ function ensureStreamPortListener(): void {
     bindStreamPort(streamId, port);
   });
   streamPortListenerRegistered = true;
+}
+
+export function dispatchAppOwnedChatStream<
+  Accepted = void,
+  Input extends AppOwnedChatDispatchInput = AppOwnedChatDispatchInput,
+>(
+  dispatchChannel: string,
+  workspaceId: string,
+  parentSessionId: string,
+  buildInput: AppOwnedChatDispatchInputBuilder<Input>,
+  callbacks: AppOwnedChatStreamCallbacks<Accepted>
+): () => void {
+  ensureStreamPortListener();
+
+  const streamId = createStreamId();
+  const pending: PendingChatStream = {
+    sessionId: parentSessionId,
+    workspaceId,
+    callbacks,
+    port: null,
+    cancelled: false,
+    terminal: false,
+    deferReady: true,
+  };
+  pendingChatStreams.set(streamId, pending);
+
+  let dispatchInput: Input;
+  try {
+    dispatchInput = buildInput(streamId);
+  } catch (error: unknown) {
+    pending.terminal = true;
+    pendingChatStreams.delete(streamId);
+    callbacks.onError({
+      code: "STREAM_INIT_FAILED",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return () => undefined;
+  }
+
+  void ipcRenderer
+    .invoke(dispatchChannel, dispatchInput)
+    .then((response: IpcResponse<AppOwnedChatDispatchResult<Accepted>>) => {
+      if (pendingChatStreams.get(streamId) !== pending || pending.terminal) return;
+      if (!response.ok) {
+        pending.terminal = true;
+        pendingChatStreams.delete(streamId);
+        closePort(pending.port);
+        if (!pending.cancelled) {
+          callbacks.onError({
+            code: response.error.code,
+            message: response.error.message,
+          });
+        }
+        return;
+      }
+      if (response.data.status !== "accepted") {
+        pending.terminal = true;
+        pendingChatStreams.delete(streamId);
+        closePort(pending.port);
+        if (!pending.cancelled) {
+          callbacks.onRejected(response.data.status);
+        }
+        return;
+      }
+      pending.deferReady = false;
+      callbacks.onAccepted(response.data.result as Accepted);
+      if (pendingChatStreams.get(streamId) === pending && !pending.terminal && !pending.cancelled) {
+        pending.port?.postMessage({ type: "ready" });
+      }
+    })
+    .catch((error: unknown) => {
+      if (pendingChatStreams.get(streamId) !== pending || pending.terminal) return;
+      pending.terminal = true;
+      pendingChatStreams.delete(streamId);
+      closePort(pending.port);
+      if (pending.cancelled) return;
+      callbacks.onError({
+        code: "STREAM_INIT_FAILED",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
+
+  return () => {
+    if (pendingChatStreams.get(streamId) !== pending || pending.cancelled || pending.terminal)
+      return;
+    pending.cancelled = true;
+    pending.terminal = true;
+    pendingChatStreams.delete(streamId);
+    void ipcRenderer
+      .invoke(SessionChatStreamChannels.streamCancel, {
+        workspaceId,
+        sessionId: parentSessionId,
+      })
+      .catch(() => undefined);
+    closePort(pending.port);
+  };
 }
 
 export const chatApi = {
@@ -222,6 +344,7 @@ export const chatApi = {
       callbacks,
       port: null,
       cancelled: false,
+      terminal: false,
     });
 
     // Invoke to trigger main to create MessagePort and start streaming
@@ -237,6 +360,8 @@ export const chatApi = {
       })
       .catch((error: unknown) => {
         const pending = pendingChatStreams.get(streamId);
+        if (!pending || pending.terminal) return;
+        pending.terminal = true;
         pendingChatStreams.delete(streamId);
         closePort(pending?.port ?? null);
         if (pending?.cancelled) {
@@ -257,8 +382,11 @@ export const chatApi = {
       }
 
       pending.cancelled = true;
-      void ipcRenderer.invoke(SessionChatStreamChannels.streamCancel, { workspaceId, sessionId });
+      void ipcRenderer
+        .invoke(SessionChatStreamChannels.streamCancel, { workspaceId, sessionId })
+        .catch(() => undefined);
       closePort(pending.port);
+      pending.terminal = true;
       pendingChatStreams.delete(streamId);
     };
   },
@@ -343,79 +471,13 @@ export const chatApi = {
     parentSessionId: string,
     callbacks: SpawnNotificationStreamCallbacks
   ): () => void {
-    ensureStreamPortListener();
-
-    const streamId = createStreamId();
-    pendingChatStreams.set(streamId, {
-      sessionId: parentSessionId,
+    return dispatchAppOwnedChatStream(
+      SessionChatNotificationChannels.dispatch,
       workspaceId,
-      callbacks,
-      port: null,
-      cancelled: false,
-      deferReady: true,
-    });
-
-    void ipcRenderer
-      .invoke(SessionChatNotificationChannels.dispatch, { workspaceId, notificationId, streamId })
-      .then((response: IpcResponse<SpawnNotificationDispatchResult>) => {
-        const pending = pendingChatStreams.get(streamId);
-        if (!pending) return;
-        if (!response.ok) {
-          pendingChatStreams.delete(streamId);
-          closePort(pending.port);
-          if (!pending.cancelled) {
-            pending.callbacks.onError({
-              code: response.error.code,
-              message: response.error.message,
-            });
-          }
-          return;
-        }
-        if (response.data.status !== "accepted") {
-          // busy / not_pending：main 未创建 port，直接清理并通知 renderer。
-          pendingChatStreams.delete(streamId);
-          closePort(pending.port);
-          if (!pending.cancelled) {
-            (pending.callbacks as SpawnNotificationStreamCallbacks).onRejected(
-              response.data.status
-            );
-          }
-          return;
-        }
-        // accepted：先让 renderer 建立 stream state，再补发被 defer 的 ready 握手。
-        pending.deferReady = false;
-        (pending.callbacks as SpawnNotificationStreamCallbacks).onAccepted();
-        pending.port?.postMessage({ type: "ready" });
-      })
-      .catch((error: unknown) => {
-        const pending = pendingChatStreams.get(streamId);
-        pendingChatStreams.delete(streamId);
-        closePort(pending?.port ?? null);
-        if (pending?.cancelled) {
-          return;
-        }
-
-        pending?.callbacks.onError({
-          code: "STREAM_INIT_FAILED",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      });
-
-    // Cancel handler: notify main to stop streaming and close the MessagePort.
-    return () => {
-      const pending = pendingChatStreams.get(streamId);
-      if (!pending || pending.cancelled) {
-        return;
-      }
-
-      pending.cancelled = true;
-      void ipcRenderer.invoke(SessionChatStreamChannels.streamCancel, {
-        workspaceId,
-        sessionId: parentSessionId,
-      });
-      closePort(pending.port);
-      pendingChatStreams.delete(streamId);
-    };
+      parentSessionId,
+      (streamId) => ({ workspaceId, notificationId, streamId }),
+      callbacks
+    );
   },
 
   onSpawnNotificationsWake(handler: (payload: { workspaceId: string }) => void): () => void {

@@ -107,6 +107,7 @@ vi.mock("@main/ipc/_kit/workspace-scope", () => ({
 
 vi.mock("@main/services/workspace/_public", () => ({
   resolveWorkspace: mocks.resolveWorkspace,
+  getRequiredWorkspaceInfo: vi.fn(),
 }));
 
 vi.mock("@main/domain/session/chat/session-workspace-snapshot", () => ({

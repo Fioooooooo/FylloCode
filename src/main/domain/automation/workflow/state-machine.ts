@@ -156,6 +156,10 @@ function moveTo(
     });
   }
 
+  const nextStage = snapshot.frozenDefinition.stages.find(
+    (candidate) => candidate.id === transition.goto
+  );
+
   const base: WorkflowRunSnapshot = {
     ...withoutPending(withoutError(snapshot)),
     status: "running",
@@ -164,6 +168,9 @@ function moveTo(
     updatedAt: at(snapshot, event),
     // 清理前一个 action 的 state，避免阻塞下一个 action stage
     actionState: undefined,
+    // Agent session state 属于当前 Agent stage；进入新的 Agent 时不能把前一 stage
+    // 的 session 误判为当前 stage 仍在运行。
+    ...(nextStage?.kind === "agent" ? { agentSessionState: undefined } : {}),
   };
   return prepareCurrentStage(base, at(snapshot, event));
 }

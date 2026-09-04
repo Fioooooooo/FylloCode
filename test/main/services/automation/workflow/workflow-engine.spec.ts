@@ -46,6 +46,7 @@ function createHarness(definition = fixtureDefinition()) {
   const definitions = new Map<string, WorkflowDefinitionRecord>([
     ["workspace-1/workflow-1", record("workflow-1", definition)],
   ]);
+  const sessionDefinitions = new Map<string, WorkflowDefinitionRecord>();
   const snapshots = new Map<string, WorkflowRunSnapshot>();
   const owners = new Map<string, WorkflowRunOwner>();
   const wakes: unknown[] = [];
@@ -65,6 +66,8 @@ function createHarness(definition = fixtureDefinition()) {
   const snapshotKey = (owner: Pick<WorkflowRunOwner, "workspaceId" | "workflowId" | "runId">) =>
     `${owner.workspaceId}/${owner.workflowId}/${owner.runId}`;
   const dependencies: Partial<WorkflowEngineDependencies> = {
+    loadSessionDefinition: async (_workspaceId, _parentSessionId, workflowId) =>
+      sessionDefinitions.get(workflowId) ?? null,
     loadDefinition: async (workspaceId, workflowId) =>
       definitions.get(`${workspaceId}/${workflowId}`) ?? null,
     listRunSnapshots: async (workspaceId, parentSessionId) =>
@@ -111,6 +114,7 @@ function createHarness(definition = fixtureDefinition()) {
 
   return {
     dependencies,
+    sessionDefinitions,
     snapshots,
     wakes,
     stageStarts,
@@ -152,9 +156,40 @@ describe("WorkflowEngine", () => {
       visitCounts: { action: 1 },
       artifacts: {},
       frozenDefinition: { version: 2, name: "Engine fixture" },
+      definitionSource: "workspace",
     });
     expect(harness.wakes).toEqual([{ workspaceId: "workspace-1", runId: "run-1" }]);
     expect(harness.stageStarts).toEqual(["action"]);
+  });
+
+  it("prefers a parent Session shadow and preserves the frozen source after shadow deletion", async () => {
+    const workspace = fixtureDefinition({ name: "Workspace definition" });
+    const session = fixtureDefinition({ name: "Session shadow" });
+    const harness = createHarness(workspace);
+    harness.sessionDefinitions.set("workflow-1", record("workflow-1", session));
+
+    const created = await harness.engine.triggerWorkflow({
+      workflowId: "workflow-1",
+      caller: chatCaller(),
+    });
+    const snapshot = [...harness.snapshots.values()][0];
+    expect(snapshot).toMatchObject({
+      workflowId: "workflow-1",
+      definitionSource: "session",
+      frozenDefinition: { name: "Session shadow" },
+    });
+
+    harness.sessionDefinitions.delete("workflow-1");
+    await expect(
+      harness.engine.getRunDetail({
+        workspaceId: "workspace-1",
+        parentSessionId: "session-1",
+        runId: created.runId,
+      })
+    ).resolves.toMatchObject({
+      runId: created.runId,
+      workflowName: "Session shadow",
+    });
   });
 
   it("serializes active-parent creation and rejects a second Run with a structured conflict", async () => {
