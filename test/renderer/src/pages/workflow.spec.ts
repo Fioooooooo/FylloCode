@@ -41,6 +41,12 @@ const yamlEditorStub = {
   template: '<textarea data-test="yaml-editor" :value="modelValue" />',
 };
 
+const workflowGraphStub = {
+  props: ["definition", "parseError"],
+  template:
+    '<div data-test="workflow-graph-stub">{{ parseError ? `YAML 解析失败：${parseError}` : definition && definition.name }}</div>',
+};
+
 describe("workflow page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,5 +97,37 @@ describe("workflow page", () => {
     expect(useToast().add).toHaveBeenCalledWith(
       expect.objectContaining({ title: "删除 Workflow definition 成功" })
     );
+  });
+
+  it("switches between YAML and the read-only Graph view", async () => {
+    workflowStore.rawYaml = [
+      "name: Demo",
+      "version: 2",
+      "stages:",
+      "  - id: done",
+      "    kind: action",
+      "    op: { type: exec, command: 'true' }",
+      "    terminal: true",
+    ].join("\n");
+    const wrapper = mount(WorkflowPage, {
+      global: { stubs: { YamlEditor: yamlEditorStub, WorkflowGraph: workflowGraphStub } },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="yaml-editor"]').exists()).toBe(true);
+    await wrapper.get('[data-test="tab-graph"]').trigger("click");
+    expect(wrapper.find('[data-test="yaml-editor"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="workflow-graph-stub"]').text()).toContain("Demo");
+  });
+
+  it("passes the current parse error to Graph without retaining an old graph", async () => {
+    workflowStore.rawYaml = "name: [broken";
+    const wrapper = mount(WorkflowPage, {
+      global: { stubs: { YamlEditor: yamlEditorStub, WorkflowGraph: workflowGraphStub } },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-test="tab-graph"]').trigger("click");
+    expect(wrapper.get('[data-test="workflow-graph-stub"]').text()).toContain("YAML");
   });
 });

@@ -5,8 +5,10 @@ import {
 } from "@main/infra/storage/yunxiao-credentials";
 import { loadWorkspaceIntegrationConfig } from "@main/infra/storage/workspace-integration-store";
 import {
+  createWorkitemComment,
   getWorkitem,
   searchWorkitems,
+  updateWorkitem,
   type SearchWorkitemsParams,
   type Workitem,
 } from "@main/infra/integration/yunxiao/projex";
@@ -305,6 +307,49 @@ function logQueryFailure(
 }
 
 export class YunxiaoTaskAdapter implements TaskAdapter {
+  capabilities() {
+    return {
+      providerId: "yunxiao",
+      writableFields: ["status"],
+      supportsComment: true,
+    } as const;
+  }
+
+  async writeField(
+    workspaceId: string,
+    taskId: string,
+    field: string,
+    value: string
+  ): Promise<void> {
+    void workspaceId;
+    const parsed = parseYunxiaoTaskId(taskId);
+    if (!parsed) {
+      throw new Error(`Invalid Yunxiao task reference: ${taskId}`);
+    }
+
+    await updateWorkitem({
+      organizationId: getYunxiaoOrganizationId(),
+      id: parsed.workitemId,
+      fields: {
+        [field]: value,
+      },
+    });
+  }
+
+  async writeComment(workspaceId: string, taskId: string, body: string): Promise<void> {
+    void workspaceId;
+    const parsed = parseYunxiaoTaskId(taskId);
+    if (!parsed) {
+      throw new Error(`Invalid Yunxiao task reference: ${taskId}`);
+    }
+
+    await createWorkitemComment({
+      organizationId: getYunxiaoOrganizationId(),
+      id: parsed.workitemId,
+      content: body,
+    });
+  }
+
   async list(workspaceId: string): Promise<TaskItem[]> {
     const spaceIds = getMountedYunxiaoSpaces(workspaceId);
     if (spaceIds.length === 0) {

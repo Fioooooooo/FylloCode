@@ -2,6 +2,14 @@ import type { TaskItem } from "@shared/types/task";
 import type { TaskAdapter } from "./task-adapter";
 
 export class GithubTaskAdapter implements TaskAdapter {
+  capabilities() {
+    return {
+      providerId: "github",
+      writableFields: [],
+      supportsComment: false,
+    } as const;
+  }
+
   async list(workspaceId: string): Promise<TaskItem[]> {
     void workspaceId;
     return [];

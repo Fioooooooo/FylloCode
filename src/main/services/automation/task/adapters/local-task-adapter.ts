@@ -3,6 +3,14 @@ import type { TaskAdapter } from "./task-adapter";
 import { listTasks } from "@main/services/automation/task/task-service";
 
 export class LocalTaskAdapter implements TaskAdapter {
+  capabilities() {
+    return {
+      providerId: "local",
+      writableFields: [],
+      supportsComment: false,
+    } as const;
+  }
+
   async list(workspaceId: string): Promise<TaskItem[]> {
     return listTasks(workspaceId);
   }

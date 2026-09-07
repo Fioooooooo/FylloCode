@@ -221,6 +221,34 @@ describe("WorkflowAgentRunner", () => {
     });
   });
 
+  it("uses the frozen task context when interpolating a fresh Agent prompt", async () => {
+    const harness = createHarness();
+    const snapshot = fixture();
+    snapshot.taskContext = {
+      id: "local:TASK-1",
+      provider: "local",
+      title: "任务标题",
+      description: "冻结后的任务描述",
+    };
+    const stage = snapshot.frozenDefinition.stages[0];
+    if (stage?.kind !== "agent") throw new Error("expected agent fixture stage");
+    stage.prompt = "Task: {{task.title}} / {{task.description}}";
+
+    const running = harness.runner.startStage(owner, snapshot);
+    await vi.waitFor(() => expect(harness.driveTurn).toHaveBeenCalledTimes(1));
+    harness.completion.resolve({
+      status: "done",
+      totalTokens: 4,
+      message: assistantMessage("done"),
+    });
+    await running;
+
+    expect(harness.transcript[0]).toMatchObject({
+      role: "user",
+      content: "Task: 任务标题 / 冻结后的任务描述",
+    });
+  });
+
   it("cancels only the workflow-owned active turn and does not convert cancellation into stage failure", async () => {
     const harness = createHarness();
     const running = harness.runner.startStage(owner, fixture());

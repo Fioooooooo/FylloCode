@@ -61,7 +61,7 @@ stages:
       - { on: fail, goto: apply, maxLoops: 3 }
   - id: done
     kind: action
-    op: { type: tracker.comment, body: "实现已审查" }
+    op: { type: exec, command: "true" }
     confirm: false
     terminal: true
 ```
@@ -113,7 +113,11 @@ stages:
     next: [{ on: pass, goto: done }]
   - id: done
     kind: action
-    op: { type: tracker.transition, to: 待测试 }
+    op:
+      type: write.field
+      target: task
+      field: status
+      value: "100010"
     idempotencyKey: "handoff:{{task.id}}"
     confirm: true
     terminal: true

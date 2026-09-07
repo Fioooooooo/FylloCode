@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useToast } from "@nuxt/ui/composables";
 import YamlEditor from "@renderer/components/workflow/YamlEditor.vue";
+import { parseWorkflowDefinitionForGraph, WorkflowGraph } from "@renderer/features/workflow-editor";
 import { useWorkflowStore, useWorkspaceStore } from "@renderer/stores";
 
 const workflowStore = useWorkflowStore();
 const workspaceStore = useWorkspaceStore();
 const toast = useToast();
+const activeView = ref<"yaml" | "graph">("yaml");
+const viewTabs = [
+  { label: "YAML", value: "yaml" },
+  { label: "Graph", value: "graph" },
+] as const;
+const graphState = computed(() => parseWorkflowDefinitionForGraph(workflowStore.rawYaml));
 
 async function refresh(): Promise<void> {
   try {
@@ -157,8 +164,20 @@ watch(
         {{ workflowStore.error.message }}
       </div>
 
+      <div class="shrink-0 border-b border-default px-5 pt-1">
+        <UTabs
+          v-model="activeView"
+          data-test="workflow-view-tabs"
+          :items="viewTabs"
+          value-key="value"
+          variant="link"
+          size="sm"
+        />
+      </div>
+
       <div class="min-h-0 flex-1 p-4">
-        <YamlEditor v-model="workflowStore.rawYaml" />
+        <YamlEditor v-if="activeView === 'yaml'" v-model="workflowStore.rawYaml" />
+        <WorkflowGraph v-else :definition="graphState.definition" :parse-error="graphState.error" />
       </div>
     </main>
   </div>

@@ -38,6 +38,39 @@ describe("workflow Phase 1 capability preflight", () => {
     expect(() => preflightWorkflowDefinition(baseDefinition())).not.toThrow();
   });
 
+  it("accepts task write actions only with task context and an idempotency key", () => {
+    const definition = baseDefinition();
+    definition.requires = ["task"];
+    definition.stages[1] = {
+      id: "action",
+      kind: "action",
+      op: { type: "write.field", target: "task", field: "status", value: "100010" },
+      idempotencyKey: "status-{{task.id}}",
+      confirm: false,
+      terminal: true,
+    };
+
+    expect(getWorkflowPhase1CapabilityIssues(definition)).toEqual([]);
+  });
+
+  it("rejects a write action without task declaration or idempotency key", () => {
+    const definition = baseDefinition();
+    definition.stages[1] = {
+      id: "action",
+      kind: "action",
+      op: { type: "write.comment", target: "task", body: "done" },
+      confirm: false,
+      terminal: true,
+    };
+
+    expect(getWorkflowPhase1CapabilityIssues(definition)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ feature: "requires.task", stageId: "action" }),
+        expect.objectContaining({ feature: "idempotencyKey", stageId: "action" }),
+      ])
+    );
+  });
+
   it("rejects non-empty requires and non-run template namespaces before execution", () => {
     const definition = baseDefinition();
     definition.requires = ["proposal"];

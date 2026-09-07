@@ -3,6 +3,7 @@ import { resolveWorkspace } from "@main/services/workspace/_public";
 import { githubTaskAdapter } from "./adapters/github-task-adapter";
 import { localTaskAdapter } from "./adapters/local-task-adapter";
 import { yunxiaoTaskAdapter } from "./adapters/yunxiao-task-adapter";
+import type { ProviderCapabilities, TaskAdapter } from "./adapters/task-adapter";
 
 function sortTasks(tasks: TaskItem[]): TaskItem[] {
   return [...tasks].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
@@ -31,6 +32,16 @@ async function projectWorkspaceTargets(
   return tasks.map((task) => projectTaskTargets(task, folderIds));
 }
 
+function adapterForTaskRef(taskRef: string): TaskAdapter {
+  if (taskRef.startsWith("yunxiao:")) return yunxiaoTaskAdapter;
+  if (taskRef.startsWith("github:")) return githubTaskAdapter;
+  return localTaskAdapter;
+}
+
+export function getTaskCapabilities(taskRef: string): ProviderCapabilities {
+  return adapterForTaskRef(taskRef).capabilities();
+}
+
 export async function listTasks(workspaceId: string, source?: TaskSource): Promise<TaskItem[]> {
   if (source === "local") {
     return projectWorkspaceTargets(workspaceId, await localTaskAdapter.list(workspaceId));
@@ -55,16 +66,33 @@ export async function listTasks(workspaceId: string, source?: TaskSource): Promi
 }
 
 export async function getTask(workspaceId: string, taskId: string): Promise<TaskItem | null> {
-  if (taskId.startsWith("yunxiao:")) {
-    const task = await yunxiaoTaskAdapter.get(taskId, workspaceId);
-    return task ? (await projectWorkspaceTargets(workspaceId, [task]))[0]! : null;
-  }
-
-  if (taskId.startsWith("github:")) {
-    const task = await githubTaskAdapter.get(taskId, workspaceId);
-    return task ? (await projectWorkspaceTargets(workspaceId, [task]))[0]! : null;
-  }
-
-  const task = await localTaskAdapter.get(taskId, workspaceId);
+  const task = await adapterForTaskRef(taskId).get(taskId, workspaceId);
   return task ? (await projectWorkspaceTargets(workspaceId, [task]))[0]! : null;
+}
+
+export async function writeTaskField(
+  workspaceId: string,
+  taskRef: string,
+  field: string,
+  value: string
+): Promise<void> {
+  const adapter = adapterForTaskRef(taskRef);
+  if (!adapter.writeField) {
+    throw new Error(
+      `Task provider ${adapter.capabilities().providerId} does not support field writes`
+    );
+  }
+  await adapter.writeField(workspaceId, taskRef, field, value);
+}
+
+export async function writeTaskComment(
+  workspaceId: string,
+  taskRef: string,
+  body: string
+): Promise<void> {
+  const adapter = adapterForTaskRef(taskRef);
+  if (!adapter.writeComment) {
+    throw new Error(`Task provider ${adapter.capabilities().providerId} does not support comments`);
+  }
+  await adapter.writeComment(workspaceId, taskRef, body);
 }

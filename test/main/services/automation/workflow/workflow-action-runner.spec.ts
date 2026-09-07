@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import {
   WorkflowActionRunner,
+  type WorkflowActionRunnerDependencies,
   resolveWorkflowActionCwd,
 } from "@main/services/automation/workflow/workflow-action-runner";
 import type { WorkflowRunOwner } from "@main/infra/storage/workflow-run-store";
@@ -73,7 +74,38 @@ function fixture(
   };
 }
 
-function createHarness(initial = fixture()) {
+function writeFixture(
+  op: "field" | "comment" = "field",
+  idempotencyKey = "write-{{task.id}}"
+): WorkflowRunSnapshot {
+  const snapshot = fixture();
+  snapshot.frozenDefinition.requires = ["task"];
+  snapshot.frozenDefinition.stages[0] = {
+    id: "write-task",
+    kind: "action",
+    op:
+      op === "field"
+        ? { type: "write.field", target: "task", field: "status", value: "100010" }
+        : { type: "write.comment", target: "task", body: "已完成 {{task.title}}" },
+    confirm: false,
+    idempotencyKey,
+    terminal: true,
+  };
+  snapshot.currentStageId = "write-task";
+  snapshot.visitCounts = { "write-task": 1 };
+  snapshot.taskContext = {
+    id: "local:task-1",
+    provider: "local",
+    title: "示例任务",
+    description: "任务描述",
+  };
+  return snapshot;
+}
+
+function createHarness(
+  initial = fixture(),
+  dependencyOverrides: Partial<WorkflowActionRunnerDependencies> = {}
+) {
   let snapshot = initial;
   const child = new FakeChild();
   const updates: WorkflowRunSnapshot[] = [];
@@ -101,6 +133,7 @@ function createHarness(initial = fixture()) {
       spawnCommand,
       trackProcess: vi.fn(),
       now: () => "2026-09-01T00:00:01.000Z",
+      ...dependencyOverrides,
     }
   );
   return {
@@ -236,5 +269,87 @@ describe("WorkflowActionRunner", () => {
       exitCode: 1,
     });
     expect(harness.advances).toEqual([{ type: "action-completed", exitCode: 1 }]);
+  });
+
+  it("executes a write field with interpolated task data and records success", async () => {
+    const loadIdempotency = vi.fn(() => ({}));
+    const recordIdempotency = vi.fn();
+    const writeTaskField = vi.fn().mockResolvedValue(undefined);
+    const harness = createHarness(writeFixture(), {
+      loadIdempotency,
+      recordIdempotency,
+      writeTaskField,
+    });
+
+    await harness.runner.startStage(owner, harness.snapshot);
+
+    expect(writeTaskField).toHaveBeenCalledWith("workspace-1", "local:task-1", "status", "100010");
+    expect(recordIdempotency).toHaveBeenCalledWith(
+      "workspace-1",
+      "workflow-1",
+      "write-local:task-1",
+      {
+        executedAt: "2026-09-01T00:00:01.000Z",
+        runId: "run-1",
+        stageId: "write-task",
+      }
+    );
+    expect(harness.spawnCommand).not.toHaveBeenCalled();
+    expect(harness.advances).toEqual([{ type: "action-completed", exitCode: 0 }]);
+  });
+
+  it("skips a write when its resolved idempotency key already succeeded", async () => {
+    const loadIdempotency = vi.fn(() => ({
+      "write-local:task-1": {
+        executedAt: "2026-08-31T00:00:00.000Z",
+        runId: "old-run",
+        stageId: "write-task",
+      },
+    }));
+    const recordIdempotency = vi.fn();
+    const writeTaskField = vi.fn();
+    const harness = createHarness(writeFixture(), {
+      loadIdempotency,
+      recordIdempotency,
+      writeTaskField,
+    });
+
+    await harness.runner.startStage(owner, harness.snapshot);
+
+    expect(writeTaskField).not.toHaveBeenCalled();
+    expect(recordIdempotency).not.toHaveBeenCalled();
+    expect(harness.output).toContain("Skipped write Action: idempotencyKey=write-local:task-1\n");
+    expect(harness.advances).toEqual([{ type: "action-completed", exitCode: 0 }]);
+  });
+
+  it("uses the comment aggregator and follows the fail transition when the provider fails", async () => {
+    const providerError = new Error("comment request failed");
+    const loadIdempotency = vi.fn(() => ({}));
+    const recordIdempotency = vi.fn();
+    const writeTaskComment = vi.fn().mockRejectedValue(providerError);
+    const harness = createHarness(writeFixture("comment", "comment-{{task.id}}"), {
+      loadIdempotency,
+      recordIdempotency,
+      writeTaskComment,
+    });
+
+    await harness.runner.startStage(owner, harness.snapshot);
+
+    expect(writeTaskComment).toHaveBeenCalledWith("workspace-1", "local:task-1", "已完成 示例任务");
+    expect(recordIdempotency).not.toHaveBeenCalled();
+    expect(harness.snapshot.actionState).toMatchObject({
+      stageId: "write-task",
+      exitCode: 1,
+    });
+    expect(harness.advances).toEqual([
+      {
+        type: "stage-failed",
+        error: {
+          code: "WORKFLOW_ACTION_START_FAILED",
+          message: "comment request failed",
+          stageId: "write-task",
+        },
+      },
+    ]);
   });
 });

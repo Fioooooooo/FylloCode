@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   yunxiaoGet: vi.fn(),
   githubList: vi.fn(),
   githubGet: vi.fn(),
+  localCapabilities: vi.fn(),
+  yunxiaoCapabilities: vi.fn(),
+  githubCapabilities: vi.fn(),
+  yunxiaoWriteField: vi.fn(),
+  yunxiaoWriteComment: vi.fn(),
   resolveWorkspace: vi.fn(),
 }));
 
@@ -15,6 +20,7 @@ vi.mock("@main/services/automation/task/adapters/local-task-adapter", () => ({
   localTaskAdapter: {
     list: mocks.localList,
     get: mocks.localGet,
+    capabilities: mocks.localCapabilities,
   },
 }));
 
@@ -22,6 +28,9 @@ vi.mock("@main/services/automation/task/adapters/yunxiao-task-adapter", () => ({
   yunxiaoTaskAdapter: {
     list: mocks.yunxiaoList,
     get: mocks.yunxiaoGet,
+    capabilities: mocks.yunxiaoCapabilities,
+    writeField: mocks.yunxiaoWriteField,
+    writeComment: mocks.yunxiaoWriteComment,
   },
 }));
 
@@ -29,6 +38,7 @@ vi.mock("@main/services/automation/task/adapters/github-task-adapter", () => ({
   githubTaskAdapter: {
     list: mocks.githubList,
     get: mocks.githubGet,
+    capabilities: mocks.githubCapabilities,
   },
 }));
 
@@ -36,7 +46,13 @@ vi.mock("@main/services/workspace/resolver/workspace-resolver", () => ({
   resolveWorkspace: mocks.resolveWorkspace,
 }));
 
-import { getTask, listTasks } from "@main/services/automation/task/task-aggregator";
+import {
+  getTask,
+  getTaskCapabilities,
+  listTasks,
+  writeTaskComment,
+  writeTaskField,
+} from "@main/services/automation/task/task-aggregator";
 
 function buildTask(id: string, source: TaskItem["source"], updatedAt: string): TaskItem {
   return {
@@ -67,6 +83,21 @@ describe("task-aggregator", () => {
     mocks.yunxiaoGet.mockResolvedValue(null);
     mocks.githubList.mockResolvedValue([]);
     mocks.githubGet.mockResolvedValue(null);
+    mocks.localCapabilities.mockReturnValue({
+      providerId: "local",
+      writableFields: [],
+      supportsComment: false,
+    });
+    mocks.yunxiaoCapabilities.mockReturnValue({
+      providerId: "yunxiao",
+      writableFields: ["status"],
+      supportsComment: true,
+    });
+    mocks.githubCapabilities.mockReturnValue({
+      providerId: "github",
+      writableFields: [],
+      supportsComment: false,
+    });
     mocks.resolveWorkspace.mockResolvedValue({
       folders: [{ folderId: "folder-a" }, { folderId: "folder-b" }],
     });
@@ -132,5 +163,45 @@ describe("task-aggregator", () => {
       currentTargetFolderIds: ["folder-b", "folder-a"],
       staleTargetFolderIds: ["removed"],
     });
+  });
+
+  it("routes task writes through the source adapter with workspace context", async () => {
+    await expect(
+      writeTaskField("workspace-1", "yunxiao:space-1:102", "status", "100010")
+    ).resolves.toBeUndefined();
+    await expect(
+      writeTaskComment("workspace-1", "yunxiao:space-1:102", "自动化完成")
+    ).resolves.toBeUndefined();
+
+    expect(mocks.yunxiaoWriteField).toHaveBeenCalledWith(
+      "workspace-1",
+      "yunxiao:space-1:102",
+      "status",
+      "100010"
+    );
+    expect(mocks.yunxiaoWriteComment).toHaveBeenCalledWith(
+      "workspace-1",
+      "yunxiao:space-1:102",
+      "自动化完成"
+    );
+  });
+
+  it("reports local and GitHub adapters as not writable", async () => {
+    expect(getTaskCapabilities("local:task-1")).toEqual({
+      providerId: "local",
+      writableFields: [],
+      supportsComment: false,
+    });
+    expect(getTaskCapabilities("github:org/repo:1")).toEqual({
+      providerId: "github",
+      writableFields: [],
+      supportsComment: false,
+    });
+    await expect(writeTaskField("workspace-1", "local:task-1", "status", "done")).rejects.toThrow(
+      "does not support field writes"
+    );
+    await expect(writeTaskComment("workspace-1", "github:org/repo:1", "comment")).rejects.toThrow(
+      "does not support comments"
+    );
   });
 });

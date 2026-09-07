@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { rmSync } from "fs";
-import { readFileSync } from "fs";
+import { safeStorage } from "electron";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 
 const { tempRoot } = await vi.hoisted(async () => {
   const { createTestTempRoot } = await import("@test/main/test-temp-root");
@@ -36,6 +36,13 @@ import {
 
 beforeEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
+  vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(true);
+  vi.mocked(safeStorage.encryptString).mockImplementation((value: string) =>
+    Buffer.from(value, "utf8")
+  );
+  vi.mocked(safeStorage.decryptString).mockImplementation((value: Buffer) =>
+    value.toString("utf8")
+  );
 });
 
 afterEach(() => {
@@ -59,6 +66,39 @@ describe("provider credential store", () => {
     });
 
     clearCredentials("yunxiao");
+    expect(loadCredentials("yunxiao")).toEqual({});
+  });
+
+  it("writes only an encrypted envelope", () => {
+    saveCredentials("yunxiao", { "x-yunxiao-token": "secret-token" });
+
+    const raw = readFileSync(credentialPath("yunxiao"), "utf8");
+    expect(JSON.parse(raw)).toEqual({ encrypted: expect.any(String) });
+    expect(raw).not.toContain("secret-token");
+  });
+
+  it("does not write when safeStorage is unavailable", () => {
+    vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false);
+
+    expect(() => saveCredentials("yunxiao", { token: "secret-token" })).toThrow(
+      "safeStorage encryption is unavailable"
+    );
+    expect(existsSync(credentialPath("yunxiao"))).toBe(false);
+  });
+
+  it("treats legacy plaintext and decrypt failures as empty credentials", () => {
+    mkdirSync(`${tempRoot}/integrations/credentials`, { recursive: true });
+    writeFileSync(
+      credentialPath("yunxiao"),
+      JSON.stringify({ "x-yunxiao-token": "legacy-secret" }),
+      "utf8"
+    );
+    expect(loadCredentials("yunxiao")).toEqual({});
+
+    saveCredentials("yunxiao", { "x-yunxiao-token": "secret-token" });
+    vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
+      throw new Error("cannot decrypt");
+    });
     expect(loadCredentials("yunxiao")).toEqual({});
   });
 });

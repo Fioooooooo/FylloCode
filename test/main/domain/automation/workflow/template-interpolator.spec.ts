@@ -50,6 +50,28 @@ describe("interpolateTemplate", () => {
     });
   });
 
+  describe("task.* namespace", () => {
+    it("should interpolate the frozen task context", () => {
+      const result = interpolateTemplate(
+        "{{task.id}} {{task.provider}} {{task.title}} {{task.description}} {{task.url}}",
+        {
+          run: { id: "run-abc123", startedAt: "2026-09-02T00:00:00.000Z" },
+          task: {
+            id: "yunxiao:space-1:task-1",
+            provider: "yunxiao",
+            title: "修复登录问题",
+            description: "登录接口返回错误",
+            url: "https://devops.aliyun.com/workitem/task-1",
+          },
+        }
+      );
+
+      expect(result).toBe(
+        "yunxiao:space-1:task-1 yunxiao 修复登录问题 登录接口返回错误 https://devops.aliyun.com/workitem/task-1"
+      );
+    });
+  });
+
   describe("whitespace handling", () => {
     it("should handle whitespace around template variables", () => {
       const result = interpolateTemplate("test-{{ run.id }}.ts", {

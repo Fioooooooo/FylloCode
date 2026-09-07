@@ -6,6 +6,7 @@ import type {
   CreateWorkitemParams,
   CreateWorkitemResult,
   UpdateWorkitemParams,
+  CreateWorkitemCommentParams,
   Workitem,
 } from "./types";
 
@@ -21,6 +22,7 @@ export type {
   CreateWorkitemParams,
   CreateWorkitemResult,
   UpdateWorkitemParams,
+  CreateWorkitemCommentParams,
 } from "./types";
 
 const client = new YunxiaoClient();
@@ -122,5 +124,16 @@ export async function updateWorkitem(params: UpdateWorkitemParams): Promise<void
     `/oapi/v1/projex/organizations/${organizationId}/workitems/${id}`,
     token,
     fields
+  );
+}
+
+/** 创建工作项评论 */
+export async function createWorkitemComment(params: CreateWorkitemCommentParams): Promise<void> {
+  const { organizationId, id, content } = params;
+  const token = getYunxiaoToken();
+  await client.post<void>(
+    `/oapi/v1/projex/organizations/${organizationId}/workitems/${id}/comments`,
+    token,
+    { content }
   );
 }

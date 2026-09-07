@@ -1,3 +1,6 @@
+import type { LineageTaskRef } from "@shared/types/lineage";
+import type { TaskSource } from "@shared/types/task";
+
 /**
  * Workflow v2 的定义态与运行态共享契约。
  *
@@ -6,6 +9,15 @@
  */
 
 export type WorkflowContextKind = "proposal" | "plan" | "task" | "chat";
+
+export interface WorkflowTaskContext {
+  /** 完整的 source-prefixed task reference。 */
+  id: LineageTaskRef;
+  provider: TaskSource;
+  title: string;
+  description: string;
+  url?: string;
+}
 
 export type WorkflowArtifactSchema = "diff" | "verdict" | "plan" | "test-report" | "freeform";
 
@@ -31,13 +43,15 @@ export type WorkflowGate =
   | { type: "human"; prompt: string };
 
 export type WorkflowActionOp =
+  | { type: "exec"; command: string; cwd?: string }
+  | { type: "write.field"; target: "task"; field: string; value: string }
+  | { type: "write.comment"; target: "task"; body: string }
   | { type: "git.branch"; name: string }
   | { type: "git.commit"; message: string }
   | { type: "scm.open-pr"; title: string; body?: string; base: string }
-  | { type: "tracker.transition"; to: string }
-  | { type: "tracker.comment"; body: string }
-  | { type: "exec"; command: string; cwd?: string }
-  | { type: "webhook"; url: string; method?: "POST" | "PUT"; body: string };
+  | { type: "webhook"; url: string; method?: "POST" | "PUT"; body: string }
+  | { type: "write.relation"; target: "task"; relation: string; ref: string }
+  | { type: "notify"; channel: string; recipient: string; body: string };
 
 export type WorkflowTransition = {
   on: "pass" | "fail" | "signal";
@@ -135,6 +149,7 @@ export interface WorkflowRunSnapshot {
   workflowId: string;
   parentSessionId: string;
   frozenDefinition: WorkflowDefinition;
+  taskContext?: WorkflowTaskContext;
   definitionSource?: "session" | "workspace";
   status: WorkflowRunStatus;
   currentStageId: string;

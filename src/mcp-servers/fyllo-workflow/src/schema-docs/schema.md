@@ -105,7 +105,7 @@ type ActionStage = StageBase & {
   kind: "action";
   op: ActionOp;
   confirm?: boolean; // 默认 true
-  idempotencyKey?: string; // 有对外副作用时必填
+  idempotencyKey?: string; // write.field/write.comment 必填
   retry?: { max: number; backoffMs: number };
 };
 ```
@@ -131,14 +131,18 @@ type SignalKind = "check-result" | "review-decision" | "manual";
 
 ```ts
 type ActionOp =
+  | { type: "write.field"; target: "task"; field: string; value: string }
+  | { type: "write.comment"; target: "task"; body: string }
   | { type: "git.branch"; name: string }
   | { type: "git.commit"; message: string }
   | { type: "scm.open-pr"; title: string; body?: string; base: string }
-  | { type: "tracker.transition"; to: string }
-  | { type: "tracker.comment"; body: string }
   | { type: "exec"; command: string; cwd?: string }
-  | { type: "webhook"; url: string; method?: "POST" | "PUT"; body: string };
+  | { type: "webhook"; url: string; method?: "POST" | "PUT"; body: string }
+  | { type: "write.relation"; target: "task"; relation: string; ref: string }
+  | { type: "notify"; channel: string; recipient: string; body: string };
 ```
+
+`write.field` 与 `write.comment` 的 `target` 只能是 `task`，且要求 `requires` 包含 `task` 和 `idempotencyKey`。字段和值使用 provider-native 约定。其他非 `exec` ActionOp 可以通过 schema 校验，但当前 trigger execution profile 会在创建 Run 前返回 `WORKFLOW_FEATURE_NOT_IMPLEMENTED`；`tracker.*` 已移除。
 
 结构化 op 用于跨 provider 可抽象的动作；部署、提测等差异很大的环节可使用 `exec` 或 `webhook`。
 
@@ -203,6 +207,8 @@ type Transition = {
 | `plan.*`      | `requires` 含 `plan`     | `plan.goal`                           |
 | `artifacts.*` | 对应 stage 已产出        | `artifacts.pr.url`                    |
 
+`task.*` 由 trusted Chat parent 的 `originTaskRef` 读取并冻结到 Run snapshot；Agent 不能通过 trigger input 自报 task id/provider，Run 过程中也不会刷新任务。
+
 引擎在启动时校验所有插值引用的命名空间在当前上下文可用，不满足就拒绝启动。
 
 ---
@@ -221,7 +227,7 @@ parser 必须拒绝：
 8. `expr` 引用了不存在的 artifact id。
 9. `context: inherit` 但 `requires` 不含 `chat`。
 10. 模板变量引用了 `requires` 未声明的命名空间。
-11. 有对外副作用的 op 缺 `idempotencyKey`。
+11. `write.field` 或 `write.comment` 缺 `idempotencyKey`。
 
 schema 合法不等于当前运行时可执行；Phase 1 execution profile 由 `trigger_workflow` 在创建 Run 前单独检查。
 

@@ -20,7 +20,15 @@ import {
   readWorkflowRunTranscript,
   saveWorkflowRunSnapshot,
 } from "@main/infra/storage/workflow-run-store";
-import { workflowRunSnapshotPath, workflowsDir } from "@main/infra/storage/workspace-paths";
+import {
+  workflowIdempotencyPath,
+  workflowRunSnapshotPath,
+  workflowsDir,
+} from "@main/infra/storage/workspace-paths";
+import {
+  loadWorkflowIdempotency,
+  recordWorkflowIdempotency,
+} from "@main/infra/storage/workflow-idempotency-store";
 
 const owner = {
   workspaceId: "workspace-a",
@@ -135,5 +143,38 @@ describe("workflow-run-store", () => {
       JSON.stringify({ event: "end" })
     );
     await expect(readWorkflowActionLog(owner, "stage-1")).resolves.toBe("stdout\nstderr\n");
+  });
+
+  it("stores workflow-scoped idempotency records atomically", async () => {
+    expect(loadWorkflowIdempotency(owner.workspaceId, owner.workflowId)).toEqual({});
+
+    recordWorkflowIdempotency(owner.workspaceId, owner.workflowId, "status-task-1", {
+      executedAt: "2026-09-01T00:00:01.000Z",
+      runId: owner.runId,
+      stageId: "update-status",
+    });
+
+    await expect(
+      readFile(workflowIdempotencyPath(owner.workspaceId, owner.workflowId), "utf8")
+    ).resolves.toBe(
+      `${JSON.stringify(
+        {
+          "status-task-1": {
+            executedAt: "2026-09-01T00:00:01.000Z",
+            runId: owner.runId,
+            stageId: "update-status",
+          },
+        },
+        null,
+        2
+      )}\n`
+    );
+    expect(loadWorkflowIdempotency(owner.workspaceId, owner.workflowId)).toEqual({
+      "status-task-1": {
+        executedAt: "2026-09-01T00:00:01.000Z",
+        runId: owner.runId,
+        stageId: "update-status",
+      },
+    });
   });
 });

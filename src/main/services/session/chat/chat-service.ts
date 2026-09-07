@@ -157,6 +157,7 @@ export async function ensureSessionWorkspaceSnapshot(
 
 export interface SessionExecutionContext {
   agentId: string;
+  originTaskRef?: LineageTaskRef;
   workspaceSnapshot: SessionWorkspaceSnapshot;
 }
 
@@ -170,6 +171,7 @@ export async function getSessionExecutionContext(
   }
   return {
     agentId: meta.agentId,
+    originTaskRef: meta.originTaskRef,
     workspaceSnapshot: await ensureSessionWorkspaceSnapshot(workspaceId, sessionId),
   };
 }

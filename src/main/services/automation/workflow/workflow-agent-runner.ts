@@ -223,6 +223,7 @@ export class WorkflowAgentRunner {
           startedAt: snapshot.createdAt,
         },
         artifacts: snapshot.artifacts,
+        task: snapshot.taskContext,
       });
 
       const runner = this.dependencies.driveTurn({

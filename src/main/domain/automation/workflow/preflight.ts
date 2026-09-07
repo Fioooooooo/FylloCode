@@ -82,11 +82,14 @@ function collectTemplateIssues(
   value: string,
   field: string,
   stageId: string,
+  requires: readonly string[],
   issues: WorkflowCapabilityIssue[]
 ): void {
   for (const match of value.matchAll(templatePattern)) {
     const namespace = match[1];
-    if (!namespace || namespace === "run") continue;
+    if (!namespace || namespace === "run" || (namespace === "task" && requires.includes("task"))) {
+      continue;
+    }
     addUnsupportedContext(issues, "template-namespace", field, stageId, [namespace, match[0]]);
   }
 }
@@ -95,20 +98,31 @@ function collectActionOpTemplateIssues(
   op: WorkflowActionOp,
   field: string,
   stageId: string,
+  requires: readonly string[],
   issues: WorkflowCapabilityIssue[]
 ): void {
   for (const [key, value] of Object.entries(op)) {
     if (key !== "type" && typeof value === "string") {
-      collectTemplateIssues(value, `${field}.${key}`, stageId, issues);
+      collectTemplateIssues(value, `${field}.${key}`, stageId, requires, issues);
     }
   }
 }
 
-function inspectStep(step: WorkflowStep, issues: WorkflowCapabilityIssue[]): void {
+function inspectStep(
+  step: WorkflowStep,
+  requires: readonly string[],
+  issues: WorkflowCapabilityIssue[]
+): void {
   if (step.kind === "agent") {
-    collectTemplateIssues(step.prompt, `stages.${step.id}.prompt`, step.id, issues);
+    collectTemplateIssues(step.prompt, `stages.${step.id}.prompt`, step.id, requires, issues);
     if (step.gate?.type === "human") {
-      collectTemplateIssues(step.gate.prompt, `stages.${step.id}.gate.prompt`, step.id, issues);
+      collectTemplateIssues(
+        step.gate.prompt,
+        `stages.${step.id}.gate.prompt`,
+        step.id,
+        requires,
+        issues
+      );
     }
 
     if (step.context !== "fresh") {
@@ -141,8 +155,9 @@ function inspectStep(step: WorkflowStep, issues: WorkflowCapabilityIssue[]): voi
   }
 
   if (step.kind === "action") {
-    collectActionOpTemplateIssues(step.op, `stages.${step.id}.op`, step.id, issues);
-    if (step.op.type !== "exec") {
+    collectActionOpTemplateIssues(step.op, `stages.${step.id}.op`, step.id, requires, issues);
+    const isWriteAction = step.op.type === "write.field" || step.op.type === "write.comment";
+    if (step.op.type !== "exec" && !isWriteAction) {
       addUnsupportedFeature(
         issues,
         `action-op.${step.op.type}`,
@@ -150,6 +165,9 @@ function inspectStep(step: WorkflowStep, issues: WorkflowCapabilityIssue[]): voi
         step.id,
         [step.op.type]
       );
+    }
+    if (isWriteAction && !requires.includes("task")) {
+      addUnsupportedContext(issues, "requires.task", `stages.${step.id}.op`, step.id, ["task"]);
     }
     if (step.retry) {
       addUnsupportedFeature(issues, "retry", `stages.${step.id}.retry`, step.id);
@@ -159,8 +177,18 @@ function inspectStep(step: WorkflowStep, issues: WorkflowCapabilityIssue[]): voi
         step.idempotencyKey,
         `stages.${step.id}.idempotencyKey`,
         step.id,
+        requires,
         issues
       );
+      if (!isWriteAction) {
+        addUnsupportedFeature(
+          issues,
+          "idempotencyKey",
+          `stages.${step.id}.idempotencyKey`,
+          step.id
+        );
+      }
+    } else if (isWriteAction) {
       addUnsupportedFeature(issues, "idempotencyKey", `stages.${step.id}.idempotencyKey`, step.id);
     }
     return;
@@ -177,9 +205,12 @@ export function getWorkflowPhase1CapabilityIssues(
 ): WorkflowCapabilityIssue[] {
   const issues: WorkflowCapabilityIssue[] = [];
   for (const context of definition.requires ?? []) {
-    addUnsupportedContext(issues, "requires", "requires", undefined, [context]);
+    if (context !== "task") {
+      addUnsupportedContext(issues, "requires", "requires", undefined, [context]);
+    }
   }
-  for (const stage of definition.stages) inspectStep(stage, issues);
+  const requires = definition.requires ?? [];
+  for (const stage of definition.stages) inspectStep(stage, requires, issues);
   return issues;
 }
 

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   getYunxiaoUserId: vi.fn(() => "user-1"),
   searchWorkitems: vi.fn(),
   getWorkitem: vi.fn(),
+  updateWorkitem: vi.fn(),
+  createWorkitemComment: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
 }));
@@ -24,6 +26,8 @@ vi.mock("@main/infra/storage/yunxiao-credentials", () => ({
 vi.mock("@main/infra/integration/yunxiao/projex", () => ({
   searchWorkitems: mocks.searchWorkitems,
   getWorkitem: mocks.getWorkitem,
+  updateWorkitem: mocks.updateWorkitem,
+  createWorkitemComment: mocks.createWorkitemComment,
 }));
 
 vi.mock("@main/infra/logger", () => ({
@@ -363,6 +367,45 @@ describe("yunxiao-task-adapter", () => {
 
     expect(result).toBeNull();
     expect(mocks.getWorkitem).not.toHaveBeenCalled();
+  });
+
+  it("exposes native field and comment writes for Yunxiao tasks", async () => {
+    await yunxiaoTaskAdapter.writeField?.(
+      "workspace-1",
+      "yunxiao:space-1:task-102",
+      "status",
+      "100010"
+    );
+    await yunxiaoTaskAdapter.writeComment?.(
+      "workspace-1",
+      "yunxiao:space-1:task-102",
+      "已完成自动化检查"
+    );
+
+    expect(yunxiaoTaskAdapter.capabilities()).toEqual({
+      providerId: "yunxiao",
+      writableFields: ["status"],
+      supportsComment: true,
+    });
+    expect(mocks.updateWorkitem).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      id: "task-102",
+      fields: { status: "100010" },
+    });
+    expect(mocks.createWorkitemComment).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      id: "task-102",
+      content: "已完成自动化检查",
+    });
+  });
+
+  it("propagates provider write failures", async () => {
+    const error = new Error("provider unavailable");
+    mocks.updateWorkitem.mockRejectedValueOnce(error);
+
+    await expect(
+      yunxiaoTaskAdapter.writeField?.("workspace-1", "yunxiao:space-1:task-102", "status", "100010")
+    ).rejects.toBe(error);
   });
 
   it("maps richtext details to html descriptions", async () => {

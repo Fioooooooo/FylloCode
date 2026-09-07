@@ -13,6 +13,8 @@ import type {
   WorkflowRunOwner,
   WorkflowRunSnapshotEntry,
 } from "@main/infra/storage/workflow-run-store";
+import type { SessionExecutionContext } from "@main/services/session/chat/chat-service";
+import type { TaskItem } from "@shared/types/task";
 
 function fixtureDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -42,7 +44,10 @@ function record(workflowId: string, definition = fixtureDefinition()): WorkflowD
   };
 }
 
-function createHarness(definition = fixtureDefinition()) {
+function createHarness(
+  definition = fixtureDefinition(),
+  dependencyOverrides: Partial<WorkflowEngineDependencies> = {}
+) {
   const definitions = new Map<string, WorkflowDefinitionRecord>([
     ["workspace-1/workflow-1", record("workflow-1", definition)],
   ]);
@@ -110,6 +115,25 @@ function createHarness(definition = fixtureDefinition()) {
     cancelRunResources: (owner) => {
       cancelledOwners.push(owner.runId);
     },
+    getParentExecutionContext: async (): Promise<SessionExecutionContext> => ({
+      agentId: "agent-default",
+      originTaskRef: "local:TASK-1",
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder",
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Repo", folderPath: "/repo" }],
+        cwd: "/repo",
+        additionalDirectories: [],
+      },
+    }),
+    getTask: async (): Promise<TaskItem | null> => null,
+    getTaskCapabilities: () => ({
+      providerId: "local",
+      writableFields: [],
+      supportsComment: false,
+    }),
+    ...dependencyOverrides,
   };
 
   return {
@@ -284,6 +308,158 @@ describe("WorkflowEngine", () => {
     });
     expect((await harness.engine.listRuns(chatCaller())).runs).toHaveLength(1);
     expect(harness.wakes).toHaveLength(3);
+  });
+
+  it("reads a trusted task once and freezes a narrowed task context in the Run snapshot", async () => {
+    const definition = fixtureDefinition({
+      requires: ["task"],
+      stages: [
+        {
+          id: "action",
+          kind: "action",
+          op: { type: "exec", command: "echo {{task.description}}" },
+          terminal: true,
+        },
+      ],
+    });
+    const parentContext = {
+      agentId: "agent-default",
+      originTaskRef: "yunxiao:space-1:task-1" as const,
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder" as const,
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Repo", folderPath: "/repo" }],
+        cwd: "/repo",
+        additionalDirectories: [],
+      },
+    } satisfies SessionExecutionContext;
+    const task = {
+      id: "yunxiao:space-1:task-1",
+      workspaceId: "workspace-1",
+      title: "修复登录问题",
+      description: { format: "plain_text", content: "登录接口返回错误" },
+      status: "open",
+      source: "yunxiao",
+      sourceMeta: { source: "yunxiao", url: "https://devops.aliyun.com/task-1" },
+      labels: [],
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    } satisfies TaskItem;
+    const getParentExecutionContext = vi.fn(async () => parentContext);
+    const getTask = vi.fn(async () => task);
+    const harness = createHarness(definition, { getParentExecutionContext, getTask });
+
+    await harness.engine.triggerWorkflow({ workflowId: "workflow-1", caller: chatCaller() });
+
+    expect(getParentExecutionContext).toHaveBeenCalledOnce();
+    expect(getTask).toHaveBeenCalledOnce();
+    expect(harness.saveCalls[0]).toMatchObject({
+      taskContext: {
+        id: "yunxiao:space-1:task-1",
+        provider: "yunxiao",
+        title: "修复登录问题",
+        description: "登录接口返回错误",
+        url: "https://devops.aliyun.com/task-1",
+      },
+    });
+  });
+
+  it("rejects unsupported task write capabilities before creating a Run", async () => {
+    const definition = fixtureDefinition({
+      requires: ["task"],
+      stages: [
+        {
+          id: "write-status",
+          kind: "action",
+          op: { type: "write.field", target: "task", field: "status", value: "100010" },
+          idempotencyKey: "status-{{task.id}}",
+          confirm: false,
+          terminal: true,
+        },
+      ],
+    });
+    const task = {
+      id: "yunxiao:space-1:task-1",
+      workspaceId: "workspace-1",
+      title: "任务",
+      description: { format: "plain_text", content: "描述" },
+      status: "open",
+      source: "yunxiao",
+      sourceMeta: { source: "yunxiao" },
+      labels: [],
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    } satisfies TaskItem;
+    const getParentExecutionContext = vi.fn(async (): Promise<SessionExecutionContext> => ({
+      agentId: "agent-default",
+      originTaskRef: "yunxiao:space-1:task-1",
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder",
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Repo", folderPath: "/repo" }],
+        cwd: "/repo",
+        additionalDirectories: [],
+      },
+    }));
+    const getTask = vi.fn(async () => task);
+    const getTaskCapabilities = vi.fn(() => ({
+      providerId: "yunxiao",
+      writableFields: [],
+      supportsComment: false,
+    }));
+    const harness = createHarness(definition, {
+      getParentExecutionContext,
+      getTask,
+      getTaskCapabilities,
+    });
+
+    await expect(
+      harness.engine.triggerWorkflow({ workflowId: "workflow-1", caller: chatCaller() })
+    ).rejects.toMatchObject({
+      code: "WORKFLOW_FEATURE_NOT_IMPLEMENTED",
+      details: {
+        issues: [
+          expect.objectContaining({
+            feature: "write.field",
+            stageId: "write-status",
+            refs: ["yunxiao", "status"],
+          }),
+        ],
+      },
+    });
+    expect(getTask).toHaveBeenCalledOnce();
+    expect(getTaskCapabilities).toHaveBeenCalledWith("yunxiao:space-1:task-1");
+    expect(harness.saveCalls).toHaveLength(0);
+    expect(harness.stageStarts).toHaveLength(0);
+  });
+
+  it("rejects a task workflow without trusted originTaskRef before creating a Run", async () => {
+    const definition = fixtureDefinition({ requires: ["task"] });
+    const getParentExecutionContext = vi.fn(async (): Promise<SessionExecutionContext> => ({
+      agentId: "agent-default",
+      workspaceSnapshot: {
+        workspaceId: "workspace-1",
+        workspaceKind: "folder",
+        primaryFolderId: "folder-1",
+        folders: [{ folderId: "folder-1", folderName: "Repo", folderPath: "/repo" }],
+        cwd: "/repo",
+        additionalDirectories: [],
+      },
+    }));
+    const getTask = vi.fn(async () => null);
+    const harness = createHarness(definition, { getParentExecutionContext, getTask });
+
+    await expect(
+      harness.engine.triggerWorkflow({ workflowId: "workflow-1", caller: chatCaller() })
+    ).rejects.toMatchObject({
+      code: "WORKFLOW_CONTEXT_UNSUPPORTED",
+      details: { issues: [expect.objectContaining({ feature: "task" })] },
+    });
+    expect(getParentExecutionContext).toHaveBeenCalledOnce();
+    expect(getTask).not.toHaveBeenCalled();
+    expect(harness.saveCalls).toHaveLength(0);
   });
 
   it("rejects non-chat triggers, preflights unsupported definitions, and does not persist a Run", async () => {

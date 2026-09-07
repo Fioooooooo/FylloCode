@@ -7,9 +7,14 @@ import type {
   WorkflowRunSnapshot,
   WorkflowRunSummary,
   WorkflowRunWakePayload,
+  WorkflowTaskContext,
 } from "@shared/types/workflow";
 import { advance, type WorkflowAdvanceEvent } from "@main/domain/automation/workflow/state-machine";
-import { preflightWorkflowDefinition } from "@main/domain/automation/workflow/preflight";
+import {
+  preflightWorkflowDefinition,
+  WorkflowCapabilityPreflightError,
+  type WorkflowCapabilityIssue,
+} from "@main/domain/automation/workflow/preflight";
 import {
   validateWorkflowDefinition,
   WorkflowDefinitionValidationError,
@@ -29,6 +34,10 @@ import {
 } from "@main/infra/storage/workflow-run-store";
 import { newRunId } from "@main/infra/ids";
 import logger from "@main/infra/logger";
+import { getSessionExecutionContext } from "@main/services/session/_public";
+import { getTask, getTaskCapabilities } from "@main/services/automation/task/task-aggregator";
+import type { TaskItem } from "@shared/types/task";
+import type { LineageTaskRef } from "@shared/types/lineage";
 
 export type WorkflowCallerType = "chat" | "workflow" | "spawned" | "unknown";
 
@@ -63,6 +72,9 @@ export interface WorkflowEngineDependencies {
   readTranscript: typeof readWorkflowRunTranscript;
   appendTranscript: typeof appendWorkflowRunTranscript;
   createRunId: typeof newRunId;
+  getParentExecutionContext: typeof getSessionExecutionContext;
+  getTask: typeof getTask;
+  getTaskCapabilities: typeof getTaskCapabilities;
   now: () => string;
   wake: (payload: WorkflowRunWakePayload) => void | Promise<void>;
   onStageReady?: (owner: WorkflowRunOwner, snapshot: WorkflowRunSnapshot) => void | Promise<void>;
@@ -98,6 +110,9 @@ const defaultDependencies: WorkflowEngineDependencies = {
   readTranscript: readWorkflowRunTranscript,
   appendTranscript: appendWorkflowRunTranscript,
   createRunId: newRunId,
+  getParentExecutionContext: getSessionExecutionContext,
+  getTask,
+  getTaskCapabilities,
   now: () => new Date().toISOString(),
   wake: () => undefined,
 };
@@ -183,6 +198,61 @@ function removePending(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function taskContextIssue(message: string, refs: string[] = []): WorkflowCapabilityPreflightError {
+  const issue: WorkflowCapabilityIssue = {
+    code: IpcErrorCodes.WORKFLOW_CONTEXT_UNSUPPORTED,
+    message,
+    feature: "task",
+    ...(refs.length > 0 ? { refs } : {}),
+  };
+  return new WorkflowCapabilityPreflightError([issue]);
+}
+
+function taskUrl(task: TaskItem): string | undefined {
+  return "url" in task.sourceMeta ? task.sourceMeta.url : undefined;
+}
+
+function toWorkflowTaskContext(taskRef: LineageTaskRef, task: TaskItem): WorkflowTaskContext {
+  return {
+    id: taskRef,
+    provider: task.source,
+    title: task.title,
+    description: task.description.content,
+    ...(taskUrl(task) ? { url: taskUrl(task) } : {}),
+  };
+}
+
+function taskWriteCapabilityIssues(
+  definition: WorkflowRunSnapshot["frozenDefinition"],
+  capabilities: { providerId: string; writableFields: readonly string[]; supportsComment: boolean }
+): WorkflowCapabilityIssue[] {
+  const issues: WorkflowCapabilityIssue[] = [];
+  for (const stage of definition.stages) {
+    if (stage.kind !== "action") continue;
+    if (stage.op.type === "write.field" && !capabilities.writableFields.includes(stage.op.field)) {
+      issues.push({
+        code: IpcErrorCodes.WORKFLOW_FEATURE_NOT_IMPLEMENTED,
+        message: `Provider ${capabilities.providerId} 不支持任务字段写回 ${stage.op.field}`,
+        field: `stages.${stage.id}.op.field`,
+        stageId: stage.id,
+        feature: "write.field",
+        refs: [capabilities.providerId, stage.op.field],
+      });
+    }
+    if (stage.op.type === "write.comment" && !capabilities.supportsComment) {
+      issues.push({
+        code: IpcErrorCodes.WORKFLOW_FEATURE_NOT_IMPLEMENTED,
+        message: `Provider ${capabilities.providerId} 不支持任务评论写回`,
+        field: `stages.${stage.id}.op.type`,
+        stageId: stage.id,
+        feature: "write.comment",
+        refs: [capabilities.providerId],
+      });
+    }
+  }
+  return issues;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -322,6 +392,44 @@ export class WorkflowEngine {
       }
       preflightWorkflowDefinition(definitionRecord.definition);
 
+      let taskContext: WorkflowTaskContext | undefined;
+      if (definitionRecord.definition.requires?.includes("task")) {
+        let parentContext;
+        try {
+          parentContext = await this.dependencies.getParentExecutionContext(
+            workspaceId,
+            parentSessionId
+          );
+        } catch (error: unknown) {
+          throw taskContextIssue(`无法读取 Chat parent 的任务上下文：${toErrorMessage(error)}`);
+        }
+        const taskRef = parentContext.originTaskRef;
+        if (!taskRef) {
+          throw taskContextIssue("Workflow 要求 task 上下文，但 Chat parent 没有关联任务");
+        }
+
+        let task: TaskItem | null;
+        try {
+          task = await this.dependencies.getTask(workspaceId, taskRef);
+        } catch (error: unknown) {
+          throw taskContextIssue(`无法读取关联任务 ${taskRef}：${toErrorMessage(error)}`, [
+            taskRef,
+          ]);
+        }
+        if (!task) {
+          throw taskContextIssue(`关联任务不存在或当前 Workspace 不可读取：${taskRef}`, [taskRef]);
+        }
+
+        taskContext = toWorkflowTaskContext(taskRef, task);
+        const capabilityIssues = taskWriteCapabilityIssues(
+          definitionRecord.definition,
+          this.dependencies.getTaskCapabilities(taskRef)
+        );
+        if (capabilityIssues.length > 0) {
+          throw new WorkflowCapabilityPreflightError(capabilityIssues);
+        }
+      }
+
       const runId = this.dependencies.createRunId();
       const timestamp = this.dependencies.now();
       const firstStage = definitionRecord.definition.stages[0];
@@ -337,6 +445,7 @@ export class WorkflowEngine {
         workflowId: definitionRecord.workflowId,
         parentSessionId,
         frozenDefinition: structuredClone(definitionRecord.definition),
+        ...(taskContext ? { taskContext } : {}),
         definitionSource: sessionDefinitionRecord ? "session" : "workspace",
         status: definitionRecord.definition.confirmStart
           ? "awaiting_start_confirmation"

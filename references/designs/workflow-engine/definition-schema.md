@@ -119,7 +119,7 @@ type ActionStage = StageBase & {
   kind: "action";
   op: ActionOp;
   confirm?: boolean; // 默认 true
-  idempotencyKey?: string; // 有对外副作用时必填
+  idempotencyKey?: string; // write.field/write.comment 必填
   retry?: { max: number; backoffMs: number };
 };
 ```
@@ -127,6 +127,8 @@ type ActionStage = StageBase & {
 **`confirm`** 默认 `true`。凡是对外可见、回滚代价高的操作（提 PR、改任务状态、对外通知），保持默认。纯本地且可重跑的（跑测试、跑构建）显式设 `false`。
 
 **`idempotencyKey`** 模板串，用于去重。同一个 key 已成功执行过就跳过，不重复产生副作用。触发器抖动、run 重跑、任务状态来回改时靠它兜底。
+
+Phase 3 的 `write.field` 与 `write.comment` 必须设置 `idempotencyKey`；成功记录保存在 workflow 目录下，命中后跳过 provider 写入。`exec` 不要求幂等键。
 
 ### 3.3 WaitStage
 
@@ -155,17 +157,21 @@ type SignalKind =
 ```ts
 type ActionOp =
   // 结构化
+  | { type: "write.field"; target: "task"; field: string; value: string }
+  | { type: "write.comment"; target: "task"; body: string }
   | { type: "git.branch"; name: string }
   | { type: "git.commit"; message: string }
   | { type: "scm.open-pr"; title: string; body?: string; base: string }
-  | { type: "tracker.transition"; to: string }
-  | { type: "tracker.comment"; body: string }
+  | { type: "write.relation"; target: "task"; relation: string; ref: string }
+  | { type: "notify"; channel: string; recipient: string; body: string }
   // 逃生舱
   | { type: "exec"; command: string; cwd?: string }
   | { type: "webhook"; url: string; method?: "POST" | "PUT"; body: string };
 ```
 
-`tracker.transition` 的 `to` 是**语义状态名**，到具体系统（云效 / Jira / TAPD）实际状态的映射在 provider 配置里，workflow 定义不关心。
+`write.field` 与 `write.comment` 的 `target` 在 Phase 3 只能是 `task`。字段和值使用 provider-native 约定，不在 workflow 层做状态名映射。`write.relation`、`notify`、`git.*`、`scm.open-pr` 和 `webhook` 当前可以通过 schema 表达，但 trigger execution profile 尚未执行它们，会在创建 Run 前返回不支持错误。
+
+`tracker.transition` 与 `tracker.comment` 已移除，不做旧定义转换。
 
 部署、提测这类跨团队差异极大、无共性可提的环节，用 `exec` 或 `webhook`，不为它们造结构化 op。
 
@@ -253,7 +259,9 @@ type Transition = {
 | `plan.*`      | `requires` 含 `plan`     | `plan.goal`                                |
 | `artifacts.*` | 对应 stage 已产出        | `artifacts.pr.url`、`artifacts.diff.files` |
 
-引擎在**启动时**校验所有插值引用的命名空间在当前上下文可用，不满足直接拒绝启动。不能等跑到 `git.commit` 才发现 message 是 `fix: `。
+`task.*` 来自触发 Chat parent 的 `originTaskRef`。引擎在创建 Run 前读取任务一次，将 `task.id`、`task.provider`、`task.title`、纯文本 `task.description` 和可用 `task.url` 冻结到 snapshot；后续 stage 不刷新外部任务。
+
+引擎在**启动时**校验所有插值引用的命名空间在当前上下文可用，不满足直接拒绝启动。不能等跑到 Action 才发现字段值为空。
 
 ---
 
@@ -271,7 +279,7 @@ parser 必须拒绝的：
 8. `expr` 引用了不存在的 artifact id
 9. `context: inherit` 但 `requires` 不含 `chat`
 10. 模板变量引用了 `requires` 未声明的命名空间
-11. 有对外副作用的 op 缺 `idempotencyKey`
+11. `write.field` 或 `write.comment` 缺 `idempotencyKey`
 
 ---
 
@@ -381,7 +389,7 @@ stages:
   - id: done
     kind: action
     name: 完成
-    op: { type: tracker.comment, body: "已合入，PR: {{artifacts.pr.url}}" }
+    op: { type: exec, command: "true" }
     confirm: false
     terminal: true
 ```
@@ -512,8 +520,10 @@ stages:
     kind: action
     name: 回写任务
     op:
-      type: tracker.comment
+      type: write.comment
+      target: task
       body: "已提交修复 {{artifacts.pr.url}}"
+    idempotencyKey: "comment:{{task.id}}:{{artifacts.pr.url}}"
     confirm: false
     next: [{ on: pass, goto: wait-ci }]
 
@@ -530,7 +540,11 @@ stages:
   - id: handoff
     kind: action
     name: 提测
-    op: { type: tracker.transition, to: 待测试 }
+    op:
+      type: write.field
+      target: task
+      field: status
+      value: "100010"
     idempotencyKey: "handoff:{{task.id}}"
     confirm: true
     terminal: true

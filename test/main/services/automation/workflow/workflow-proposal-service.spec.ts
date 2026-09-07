@@ -192,6 +192,16 @@ function confirmRequest(persist: "session" | "workspace"): WorkflowProposalConfi
 }
 
 describe("WorkflowProposalService", () => {
+  it("returns Agent-facing schema docs with Phase 3 write/task guidance", () => {
+    const schema = createHarness().service.describeWorkflowSchema(true).schema;
+
+    expect(schema).toContain('type: "write.field"');
+    expect(schema).toContain("task.*");
+    expect(schema).toContain("idempotencyKey");
+    expect(schema).not.toContain('type: "tracker.transition"');
+    expect(schema).not.toContain('type: "tracker.comment"');
+  });
+
   it.each([
     ["create", "session", undefined, "workflow-created"],
     ["create", "workspace", undefined, "workflow-created"],

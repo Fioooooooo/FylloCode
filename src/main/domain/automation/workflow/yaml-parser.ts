@@ -82,19 +82,23 @@ const artifactSchemas = new Set<WorkflowArtifactSchema>([
 ]);
 const contextKinds = new Set(["proposal", "plan", "task", "chat"]);
 const actionKinds = new Set([
+  "exec",
+  "write.field",
+  "write.comment",
   "git.branch",
   "git.commit",
   "scm.open-pr",
-  "tracker.transition",
-  "tracker.comment",
-  "exec",
   "webhook",
+  "write.relation",
+  "notify",
 ]);
 const externalActionKinds = new Set([
   "scm.open-pr",
-  "tracker.transition",
-  "tracker.comment",
   "webhook",
+  "write.field",
+  "write.comment",
+  "write.relation",
+  "notify",
 ]);
 
 function isRecord(value: unknown): value is RecordValue {
@@ -340,6 +344,45 @@ function parseActionOp(
     const cwd = stringAt(record, "cwd", `${field}.cwd`, issues, { stageId });
     return command ? (cwd ? { type, command, cwd } : { type, command }) : null;
   }
+  if (type === "write.field") {
+    addUnknownFieldIssues(
+      record,
+      new Set(["type", "target", "field", "value"]),
+      field,
+      issues,
+      stageId
+    );
+    const target = stringAt(record, "target", `${field}.target`, issues, {
+      required: true,
+      stageId,
+    });
+    const fieldName = stringAt(record, "field", `${field}.field`, issues, {
+      required: true,
+      stageId,
+    });
+    const value = stringAt(record, "value", `${field}.value`, issues, {
+      required: true,
+      stageId,
+    });
+    if (target !== "task") {
+      addIssue(issues, `${field}.target 必须是 task`, `${field}.target`, { stageId });
+    }
+    return target === "task" && fieldName && value
+      ? { type: "write.field", target, field: fieldName, value }
+      : null;
+  }
+  if (type === "write.comment") {
+    addUnknownFieldIssues(record, new Set(["type", "target", "body"]), field, issues, stageId);
+    const target = stringAt(record, "target", `${field}.target`, issues, {
+      required: true,
+      stageId,
+    });
+    const body = stringAt(record, "body", `${field}.body`, issues, { required: true, stageId });
+    if (target !== "task") {
+      addIssue(issues, `${field}.target 必须是 task`, `${field}.target`, { stageId });
+    }
+    return target === "task" && body ? { type: "write.comment", target, body } : null;
+  }
   if (type === "git.branch") {
     addUnknownFieldIssues(record, new Set(["type", "name"]), field, issues, stageId);
     const name = stringAt(record, "name", `${field}.name`, issues, { required: true, stageId });
@@ -366,15 +409,48 @@ function parseActionOp(
     const base = stringAt(record, "base", `${field}.base`, issues, { required: true, stageId });
     return title && base ? (body ? { type, title, body, base } : { type, title, base }) : null;
   }
-  if (type === "tracker.transition") {
-    addUnknownFieldIssues(record, new Set(["type", "to"]), field, issues, stageId);
-    const to = stringAt(record, "to", `${field}.to`, issues, { required: true, stageId });
-    return to ? { type, to } : null;
+  if (type === "write.relation") {
+    addUnknownFieldIssues(
+      record,
+      new Set(["type", "target", "relation", "ref"]),
+      field,
+      issues,
+      stageId
+    );
+    const target = stringAt(record, "target", `${field}.target`, issues, {
+      required: true,
+      stageId,
+    });
+    const relation = stringAt(record, "relation", `${field}.relation`, issues, {
+      required: true,
+      stageId,
+    });
+    const ref = stringAt(record, "ref", `${field}.ref`, issues, { required: true, stageId });
+    if (target !== "task") {
+      addIssue(issues, `${field}.target 必须是 task`, `${field}.target`, { stageId });
+    }
+    return target === "task" && relation && ref
+      ? { type: "write.relation", target, relation, ref }
+      : null;
   }
-  if (type === "tracker.comment") {
-    addUnknownFieldIssues(record, new Set(["type", "body"]), field, issues, stageId);
+  if (type === "notify") {
+    addUnknownFieldIssues(
+      record,
+      new Set(["type", "channel", "recipient", "body"]),
+      field,
+      issues,
+      stageId
+    );
+    const channel = stringAt(record, "channel", `${field}.channel`, issues, {
+      required: true,
+      stageId,
+    });
+    const recipient = stringAt(record, "recipient", `${field}.recipient`, issues, {
+      required: true,
+      stageId,
+    });
     const body = stringAt(record, "body", `${field}.body`, issues, { required: true, stageId });
-    return body ? { type, body } : null;
+    return channel && recipient && body ? { type: "notify", channel, recipient, body } : null;
   }
 
   addUnknownFieldIssues(record, new Set(["type", "url", "method", "body"]), field, issues, stageId);

@@ -24,6 +24,11 @@ vi.mock("electron", () => {
     port2 = new MessagePortMainStub();
   }
   return {
+    safeStorage: {
+      isEncryptionAvailable: vi.fn(() => true),
+      encryptString: vi.fn((value: string) => Buffer.from(value, "utf8")),
+      decryptString: vi.fn((value: Buffer) => value.toString("utf8")),
+    },
     app: {
       getPath: vi.fn(() => "/tmp/fyllocode-test"),
       getAppPath: vi.fn(() => "/tmp/fyllocode-test"),

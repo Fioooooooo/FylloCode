@@ -152,6 +152,10 @@ export function workflowDir(workspaceId: string, workflowId: string): string {
   return join(workflowsDir(workspaceId), assertStorageIdentity(workflowId, "Workflow"));
 }
 
+export function workflowIdempotencyPath(workspaceId: string, workflowId: string): string {
+  return join(workflowDir(workspaceId, workflowId), "idempotency.json");
+}
+
 export function workflowDefinitionPath(workspaceId: string, workflowId: string): string {
   return join(workflowDir(workspaceId, workflowId), "definition.yaml");
 }

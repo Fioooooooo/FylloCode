@@ -4,10 +4,10 @@
  * 根据 definition-schema.md 第 8 节，支持以下命名空间：
  * - run.*: 始终可用
  * - artifacts.*: 对应 stage 已产出时可用
- * - task/proposal/plan: 需要 requires 声明（Phase 1 不支持）
- *
- * Phase 1 约束：requires 为空，只支持 run.* 引用
+ * - task.*: requires 声明 task 后可用，值来自 Run snapshot
  */
+
+import type { WorkflowTaskContext } from "@shared/types/workflow";
 
 export interface InterpolationContext {
   run: {
@@ -15,6 +15,7 @@ export interface InterpolationContext {
     startedAt: string;
   };
   artifacts?: Record<string, unknown>;
+  task?: WorkflowTaskContext;
 }
 
 /**

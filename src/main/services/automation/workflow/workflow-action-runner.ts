@@ -1,7 +1,11 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import spawn from "cross-spawn";
-import type { WorkflowRunError, WorkflowRunSnapshot } from "@shared/types/workflow";
+import type {
+  WorkflowActionStep,
+  WorkflowRunError,
+  WorkflowRunSnapshot,
+} from "@shared/types/workflow";
 import {
   getSessionExecutionContext,
   type SessionExecutionContext,
@@ -11,6 +15,11 @@ import {
   type WorkflowRunOwner,
 } from "@main/infra/storage/workflow-run-store";
 import { trackAuxiliaryProcess } from "@main/infra/process/auxiliary-process-registry";
+import {
+  loadWorkflowIdempotency,
+  recordWorkflowIdempotency,
+} from "@main/infra/storage/workflow-idempotency-store";
+import { writeTaskComment, writeTaskField } from "@main/services/automation/task/task-aggregator";
 import type { WorkflowAdvanceEvent } from "@main/domain/automation/workflow/state-machine";
 import { interpolateTemplate } from "@main/domain/automation/workflow/template-interpolator";
 import logger from "@main/infra/logger";
@@ -31,6 +40,10 @@ export interface WorkflowActionRunnerDependencies {
   appendActionLog: typeof appendWorkflowActionLog;
   spawnCommand: (command: string, cwd: string) => ChildProcessWithoutNullStreams;
   trackProcess: typeof trackAuxiliaryProcess;
+  loadIdempotency: typeof loadWorkflowIdempotency;
+  recordIdempotency: typeof recordWorkflowIdempotency;
+  writeTaskField: typeof writeTaskField;
+  writeTaskComment: typeof writeTaskComment;
   now: () => string;
 }
 
@@ -45,6 +58,10 @@ const defaultDependencies: WorkflowActionRunnerDependencies = {
       stdio: ["ignore", "pipe", "pipe"],
     }) as ChildProcessWithoutNullStreams,
   trackProcess: trackAuxiliaryProcess,
+  loadIdempotency: loadWorkflowIdempotency,
+  recordIdempotency: recordWorkflowIdempotency,
+  writeTaskField,
+  writeTaskComment,
   now: () => new Date().toISOString(),
 };
 
@@ -173,7 +190,8 @@ export class WorkflowActionRunner {
       );
       return;
     }
-    if (stage.op.type !== "exec") {
+    const isWriteAction = stage.op.type === "write.field" || stage.op.type === "write.comment";
+    if (stage.op.type !== "exec" && !isWriteAction) {
       logger.error(`[workflow-action-runner] Unsupported action op type: ${stage.op.type}`);
       await this.failStage(
         owner,
@@ -189,6 +207,12 @@ export class WorkflowActionRunner {
       return;
     }
 
+    if (isWriteAction) {
+      await this.startWriteStage(owner, snapshot, stage, engine);
+      return;
+    }
+    if (stage.op.type !== "exec") return;
+
     try {
       const parent = await this.dependencies.getParentExecutionContext(
         owner.workspaceId,
@@ -202,6 +226,7 @@ export class WorkflowActionRunner {
           startedAt: snapshot.createdAt,
         },
         artifacts: snapshot.artifacts,
+        task: snapshot.taskContext,
       });
 
       logger.info(
@@ -376,6 +401,140 @@ export class WorkflowActionRunner {
       ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
       ...(result.signal === null ? {} : { signal: result.signal }),
     });
+  }
+
+  private async startWriteStage(
+    owner: WorkflowRunOwner,
+    snapshot: WorkflowRunSnapshot,
+    stage: WorkflowActionStep,
+    engine: WorkflowActionRunnerEngine
+  ): Promise<void> {
+    const taskContext = snapshot.taskContext;
+    const idempotencyKey = stage.idempotencyKey;
+    if (!taskContext || !idempotencyKey) {
+      await this.failStage(
+        owner,
+        stage.id,
+        asStageError(
+          new Error("Write Action requires a frozen task context and idempotencyKey"),
+          stage.id
+        )
+      );
+      return;
+    }
+
+    const interpolationContext = {
+      run: {
+        id: owner.runId,
+        startedAt: snapshot.createdAt,
+      },
+      artifacts: snapshot.artifacts,
+      task: taskContext,
+    };
+    const resolvedIdempotencyKey = interpolateTemplate(idempotencyKey, interpolationContext);
+    const logPath = `${ACTION_LOG_PREFIX}/${stage.id}.log`;
+    const prepared = await engine.updateRun(owner, (current) => {
+      if (
+        current.status !== "running" ||
+        current.currentStageId !== stage.id ||
+        current.actionState
+      ) {
+        return null;
+      }
+      return {
+        ...current,
+        actionState: {
+          stageId: stage.id,
+          logPath,
+          startedAt: this.dependencies.now(),
+        },
+        updatedAt: this.dependencies.now(),
+      };
+    });
+    if (!prepared) return;
+
+    try {
+      const records = this.dependencies.loadIdempotency(owner.workspaceId, owner.workflowId);
+      if (records[resolvedIdempotencyKey]) {
+        await this.appendWriteLog(
+          owner,
+          stage.id,
+          `Skipped write Action: idempotencyKey=${resolvedIdempotencyKey}\n`
+        );
+        if (await this.completeWriteStage(owner, stage.id, engine)) {
+          await engine.advanceRun(owner, { type: "action-completed", exitCode: 0 });
+        }
+        return;
+      }
+
+      if (stage.op.type === "write.field") {
+        const field = interpolateTemplate(stage.op.field, interpolationContext);
+        const value = interpolateTemplate(stage.op.value, interpolationContext);
+        await this.dependencies.writeTaskField(owner.workspaceId, taskContext.id, field, value);
+        await this.appendWriteLog(owner, stage.id, `Wrote task field ${field}\n`);
+      } else if (stage.op.type === "write.comment") {
+        const body = interpolateTemplate(stage.op.body, interpolationContext);
+        await this.dependencies.writeTaskComment(owner.workspaceId, taskContext.id, body);
+        await this.appendWriteLog(owner, stage.id, "Wrote task comment\n");
+      } else {
+        throw new Error(`Unsupported write Action operation: ${stage.op.type}`);
+      }
+
+      this.dependencies.recordIdempotency(
+        owner.workspaceId,
+        owner.workflowId,
+        resolvedIdempotencyKey,
+        {
+          executedAt: this.dependencies.now(),
+          runId: owner.runId,
+          stageId: stage.id,
+        }
+      );
+      if (await this.completeWriteStage(owner, stage.id, engine)) {
+        await engine.advanceRun(owner, { type: "action-completed", exitCode: 0 });
+      }
+    } catch (error: unknown) {
+      await this.appendWriteLog(owner, stage.id, `Write Action failed: ${errorMessage(error)}\n`);
+      await this.completeWriteStage(owner, stage.id, engine, 1);
+      await this.failStage(owner, stage.id, asStageError(error, stage.id));
+    }
+  }
+
+  private async completeWriteStage(
+    owner: WorkflowRunOwner,
+    stageId: string,
+    engine: WorkflowActionRunnerEngine,
+    exitCode?: number
+  ): Promise<boolean> {
+    const endedAt = this.dependencies.now();
+    const updated = await engine.updateRun(owner, (current) => {
+      if (current.actionState?.stageId !== stageId) return null;
+      return {
+        ...current,
+        actionState: {
+          ...current.actionState,
+          endedAt,
+          ...(exitCode === undefined ? {} : { exitCode }),
+        },
+        updatedAt: endedAt,
+      };
+    });
+    return updated !== null;
+  }
+
+  private async appendWriteLog(
+    owner: WorkflowRunOwner,
+    stageId: string,
+    line: string
+  ): Promise<void> {
+    try {
+      await this.dependencies.appendActionLog(owner, stageId, line);
+    } catch (error: unknown) {
+      logger.warn(
+        `[workflow] failed to append write Action output: ${owner.runId}/${stageId}`,
+        error
+      );
+    }
   }
 
   private async failStage(

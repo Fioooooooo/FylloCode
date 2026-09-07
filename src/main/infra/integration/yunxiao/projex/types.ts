@@ -201,3 +201,13 @@ export interface UpdateWorkitemParams {
    */
   fields: Record<string, unknown>;
 }
+
+/** 创建工作项评论请求参数 */
+export interface CreateWorkitemCommentParams {
+  /** 组织 ID */
+  organizationId: string;
+  /** 工作项 ID */
+  id: string;
+  /** 评论内容 */
+  content: string;
+}
