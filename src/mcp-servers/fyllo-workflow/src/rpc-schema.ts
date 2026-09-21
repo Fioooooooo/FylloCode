@@ -38,7 +38,7 @@ const workflowProposalPersistSchema = z
   .describe(
     "Agent-suggested persistence scope: session keeps a parent-session shadow that is not returned by list_workflows; workspace saves a reusable Workspace workflow that is returned by list_workflows. The user's confirmation choice is final."
   );
-const workflowProposalCreateParamsSchema = z
+export const proposeWorkflowParamsSchema = z
   .object({
     yaml: z
       .string()
@@ -48,44 +48,33 @@ const workflowProposalCreateParamsSchema = z
       ),
     persist: workflowProposalPersistSchema,
     mode: z
-      .literal("create")
-      .describe("Create a new workflow; workflowId must be omitted in this mode."),
-    workflowId: z
-      .never()
+      .enum(["create", "update"])
+      .describe(
+        "create: creates a new workflow, workflowId must be omitted. update: revises an existing workflow, workflowId is required."
+      ),
+    workflowId: identitySchema
       .optional()
       .describe(
-        "Must be omitted when mode is create. Use mode=update and provide workflowId to revise an existing workflow."
+        "Required when mode is update to identify the existing session shadow or Workspace workflow being revised. Must be omitted when mode is create."
       ),
   })
   .strict()
-  .describe(
-    "Create mode: omit workflowId. Use update mode with workflowId when changing an existing workflow."
-  );
-const workflowProposalUpdateParamsSchema = z
-  .object({
-    yaml: z
-      .string()
-      .min(1)
-      .describe(
-        "Complete v2 workflow YAML. Schema-valid definitions may still be rejected later if the current runtime cannot execute a feature."
-      ),
-    persist: workflowProposalPersistSchema,
-    mode: z
-      .literal("update")
-      .describe("Update an existing workflow; workflowId is required in this mode."),
-    workflowId: identitySchema.describe(
-      "Required when mode is update. Identify the existing session shadow or Workspace workflow to revise; omit this field for mode=create."
-    ),
+  .superRefine((value, ctx) => {
+    if (value.mode === "create" && value.workflowId !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["workflowId"],
+        message: "workflowId must be omitted when mode is create",
+      });
+    }
+    if (value.mode === "update" && value.workflowId === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["workflowId"],
+        message: "workflowId is required when mode is update",
+      });
+    }
   })
-  .strict()
-  .describe(
-    "Update mode: provide workflowId for the existing workflow being revised. For a new workflow, use create mode and omit workflowId."
-  );
-export const proposeWorkflowParamsSchema = z
-  .discriminatedUnion("mode", [
-    workflowProposalCreateParamsSchema,
-    workflowProposalUpdateParamsSchema,
-  ])
   .describe(
     "Field relationship: mode=create creates a new workflow and requires workflowId to be omitted; mode=update revises an existing workflow and requires workflowId. persist is only the Agent's suggestion; the user chooses the final session or workspace scope when confirming."
   );

@@ -15,14 +15,10 @@ interface DescribedSchemaField {
   description?: string;
 }
 
-interface DescribedSchemaObject {
-  shape?: Record<string, DescribedSchemaField>;
-}
-
 interface ProposalToolConfig {
   description?: string;
   inputSchema?: {
-    options?: DescribedSchemaObject[];
+    shape?: Record<string, DescribedSchemaField>;
   };
 }
 
@@ -55,22 +51,19 @@ describe("propose_workflow MCP tool", () => {
     );
 
     const config = registerTool.mock.calls[0]?.[1] as ProposalToolConfig;
-    const [createSchema, updateSchema] = config.inputSchema?.options ?? [];
-    const createShape = createSchema?.shape ?? {};
-    const updateShape = updateSchema?.shape ?? {};
+    const shape = config.inputSchema?.shape ?? {};
 
     expect(config.description).toContain("mode=create");
     expect(config.description).toContain("MUST omit workflowId");
     expect(config.description).toContain("mode=update");
     expect(config.description).toContain("MUST include workflowId");
     expect(config.description).toContain("user's confirmation choice is final");
-    expect(createShape.mode?.description).toContain("workflowId must be omitted");
-    expect(createShape.workflowId?.description).toContain("Must be omitted");
-    expect(updateShape.mode?.description).toContain("workflowId is required");
-    expect(updateShape.workflowId?.description).toContain("Required when mode is update");
-    expect(updateShape.workflowId?.description).toContain("omit this field for mode=create");
-    expect(createShape.persist?.description).toContain("session shadow");
-    expect(createShape.persist?.description).toContain("user's confirmation choice is final");
+    expect(shape.mode?.description).toContain("workflowId must be omitted");
+    expect(shape.mode?.description).toContain("workflowId is required");
+    expect(shape.workflowId?.description).toContain("Required when mode is update");
+    expect(shape.workflowId?.description).toContain("Must be omitted when mode is create");
+    expect(shape.persist?.description).toContain("session shadow");
+    expect(shape.persist?.description).toContain("user's confirmation choice is final");
   });
 
   it("forwards create and update params with trusted caller identity", async () => {
